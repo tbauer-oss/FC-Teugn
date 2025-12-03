@@ -1,0 +1,45 @@
+name: Deploy Flutter Web to Vercel
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: fc_teugn_app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Flutter web (release)
+        run: flutter build web --release
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      # WICHTIG: hier wieder ins Repo-Root wechseln,
+      # damit der Pfad "fc_teugn_app/build/web" stimmt
+      - name: Deploy to Vercel (build/web)
+        working-directory: .
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel deploy fc_teugn_app/build/web \
+            --prod \
+            --yes \
+            --token "$VERCEL_TOKEN"
