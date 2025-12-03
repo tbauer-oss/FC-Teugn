@@ -34,7 +34,7 @@ jobs:
 
       # WICHTIG: hier wieder ins Repo-Root wechseln,
       # damit der Pfad "fc_teugn_app/build/web" stimmt
-      - name: Deploy to Vercel (build/web)
+      - name: Deploy to Vercel (Flutter Web)
         working-directory: fc_teugn_app
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
