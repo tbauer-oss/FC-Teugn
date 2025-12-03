@@ -11,4 +11,6 @@ fc_teugn_app/android/app/build/
 # Local tooling
 .env
 .vercel
+!api/.vercel/
+!api/.vercel/project.json
 *.log
