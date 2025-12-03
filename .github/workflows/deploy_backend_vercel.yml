@@ -32,13 +32,11 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
-          VERCEL_PROJECT_NAME: fc-teugn-backend
-        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN" --project "$VERCEL_PROJECT_NAME" --local-config vercel.json
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN" --local-config vercel.json
 
       - name: Deploy to Vercel (Backend API)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
-          VERCEL_PROJECT_NAME: fc-teugn-backend
-        run: vercel deploy --prod --yes --token "$VERCEL_TOKEN" --project "$VERCEL_PROJECT_NAME" --local-config vercel.json
+        run: vercel deploy --prod --yes --token "$VERCEL_TOKEN" --local-config vercel.json
