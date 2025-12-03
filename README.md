@@ -7,6 +7,7 @@ Full-stack project containing a Flutter web frontend (`fc_teugn_app`) and a Node
 - Local dev: install Flutter 3.22+, then run `flutter pub get` and `flutter run -d chrome` from `fc_teugn_app`.
 - Build: `flutter build web --release`.
 - Deployment: Vercel uses the root [`vercel.json`](vercel.json) to run `vercel_install.sh` / `vercel_build.sh` and publish the generated `fc_teugn_app/build/web` directory.
+- Running Flutter without root warnings: use [`scripts/run_flutter_as_user.sh`](scripts/run_flutter_as_user.sh) to execute commands as an unprivileged user, e.g. `FLUTTER_USER=deployer ./scripts/run_flutter_as_user.sh pub outdated`.
 
 ## Backend (Express + Prisma)
 - Source: [`api/`](api)
