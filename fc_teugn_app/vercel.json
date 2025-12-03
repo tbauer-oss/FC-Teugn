@@ -1,4 +1,5 @@
 {
+  "projectName": "fc-teugn",
   "installCommand": "bash ./vercel_install.sh",
   "buildCommand": "bash ./vercel_build.sh",
   "outputDirectory": "build/web",
