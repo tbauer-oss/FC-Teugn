@@ -4,6 +4,8 @@
   "buildCommand": "npm run build",
   "functions": {
     "api/index.js": {
+      "runtime": "nodejs18.x",
+      "includeFiles": ["dist/**", "prisma/**"]
       "runtime": "nodejs20.x",
       "includeFiles": "{dist/**,prisma/**}"
     }
