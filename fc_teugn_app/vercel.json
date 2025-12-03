@@ -1,6 +1,6 @@
 {
-  "installCommand": "curl -L https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.2-stable.tar.xz | tar -xJ && export PATH=\"$PATH:$PWD/flutter/bin\" && flutter --version && flutter pub get",
-  "buildCommand": "export PATH=\"$PATH:$PWD/flutter/bin\" && flutter build web --release",
+  "installCommand": "curl -L https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.2-stable.tar.xz | tar -xJ && git config --global --add safe.directory $PWD/flutter && export PATH=\"$PWD/flutter/bin:$PATH\" && flutter config --no-analytics && flutter --version && flutter pub get",
+  "buildCommand": "export PATH=\"$PWD/flutter/bin:$PATH\" && flutter build web --release",
   "outputDirectory": "build/web",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
