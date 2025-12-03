@@ -62,6 +62,8 @@ model UserPlayerLink {
 
   user      User   @relation(fields: [userId], references: [id])
   player    Player @relation(fields: [playerId], references: [id])
+
+  @@unique([userId, playerId])
 }
 
 model Training {

@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { hashPassword, comparePassword } from '../lib/password';
 import { signAccessToken, signRefreshToken } from '../lib/jwt';
 import { Role } from '@prisma/client';
+import jwt from 'jsonwebtoken';
 
 export async function register(req: Request, res: Response) {
   const { email, password, name, phone } = req.body;
@@ -67,4 +68,26 @@ export async function login(req: Request, res: Response) {
     accessToken,
     refreshToken,
   });
+}
+
+export async function refresh(req: Request, res: Response) {
+  const { token } = req.body as { token?: string };
+  if (!token) return res.status(400).json({ message: 'Kein Refresh Token übergeben' });
+
+  const stored = await prisma.refreshToken.findUnique({ where: { token } });
+  if (!stored || stored.expiresAt < new Date()) {
+    return res.status(401).json({ message: 'Refresh Token ungültig' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET || 'refresh_secret') as {
+      id: string;
+      role: Role;
+    };
+
+    const accessToken = signAccessToken({ id: decoded.id, role: decoded.role });
+    res.json({ accessToken });
+  } catch (err) {
+    res.status(401).json({ message: 'Refresh Token ungültig' });
+  }
 }

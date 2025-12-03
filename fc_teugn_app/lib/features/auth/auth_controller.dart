@@ -31,11 +31,7 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController() : super(AuthState()) {
-    _client = ApiClient();
-  }
-
-  late ApiClient _client;
+  AuthController() : super(AuthState());
 
   Future<void> login(String email, String password) async {
     state = state.copyWith(loading: true, error: null);
@@ -47,7 +43,6 @@ class AuthController extends StateNotifier<AuthState> {
       final data = res.data as Map<String, dynamic>;
       final user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
       final token = data['accessToken'] as String;
-      _client = ApiClient(accessToken: token);
       state = AuthState(user: user, accessToken: token, loading: false);
     } catch (e) {
       state = state.copyWith(
@@ -59,8 +54,9 @@ class AuthController extends StateNotifier<AuthState> {
 
   void logout() {
     state = AuthState();
-    _client = ApiClient();
   }
+
+  ApiClient get _client => ApiClient(accessToken: state.accessToken);
 
   ApiClient get client => _client;
 }
