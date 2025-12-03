@@ -8,10 +8,25 @@ class ApiClient {
 
   factory ApiClient({String? baseUrl, String? accessToken}) {
     final envBaseUrl = const String.fromEnvironment('API_BASE_URL');
+
+    String inferredWebBaseUrl = '';
+    if (kIsWeb) {
+      // Vercel preview deployments render the frontend on temporary domains
+      // (e.g., *.vercel.app) that do not serve the backend. In that case we
+      // want to talk to the canonical backend host instead of the preview
+      // origin that would return a 404 for API routes.
+      final origin = Uri.base.origin;
+      if (origin.contains('.vercel.app') && !origin.contains('fc-teugn.vercel.app')) {
+        inferredWebBaseUrl = 'https://fc-teugn.vercel.app';
+      } else {
+        inferredWebBaseUrl = origin;
+      }
+    }
+
     final resolvedBaseUrl = baseUrl ??
         (envBaseUrl.isNotEmpty
             ? envBaseUrl
-            : (kIsWeb ? '' : 'http://localhost:4000'));
+            : (kIsWeb ? inferredWebBaseUrl : 'http://localhost:4000'));
 
     final dio = Dio(
       BaseOptions(
