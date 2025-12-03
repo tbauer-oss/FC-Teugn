@@ -3,7 +3,8 @@
   "installCommand": "npm install && npx prisma generate",
   "buildCommand": "npm run build",
   "functions": {
-    "api/**/*.js": { "runtime": "nodejs" }
+    "api/**/*.js": {
       "includeFiles": "{dist/**,prisma/**}"
     }
   }
+}
