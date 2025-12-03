@@ -82,11 +82,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Trainer-Accounts werden per Seed-Skript angelegt.
-Eltern können über die API registriert werden.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12),
-                    ),
+  		      'Trainer-Accounts werden per Seed-Skript angelegt.\n'
+		      'Eltern können über die API registriert werden.',
+		      textAlign: TextAlign.center,
+	              style: TextStyle(fontSize: 12),
+		    ),
                   ],
                 ),
               ),

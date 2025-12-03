@@ -17,19 +17,24 @@ class FCTeugnApp extends ConsumerWidget {
 
     final router = GoRouter(
       initialLocation: '/login',
+      // ACHTUNG: hier kein subloc mehr, sondern matchedLocation
       redirect: (context, state) {
         final loggedIn = authState.user != null;
+        final location = state.matchedLocation; // z.B. "/login", "/parent", "/coach"
 
-        if (!loggedIn && state.subloc != '/login') {
+        // Nicht eingeloggt → alles außer /login wird auf /login umgebogen
+        if (!loggedIn && location != '/login') {
           return '/login';
         }
 
-        if (loggedIn && state.subloc == '/login') {
+        // Eingeloggt → von /login direkt in den passenden Bereich
+        if (loggedIn && location == '/login') {
           return authState.user!.role == UserRole.coach
               ? '/coach'
               : '/parent';
         }
 
+        // Sonst nichts ändern
         return null;
       },
       routes: [
