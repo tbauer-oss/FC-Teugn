@@ -35,11 +35,12 @@ jobs:
       # WICHTIG: hier wieder ins Repo-Root wechseln,
       # damit der Pfad "fc_teugn_app/build/web" stimmt
       - name: Deploy to Vercel (build/web)
-        working-directory: .
+        working-directory: fc_teugn_app
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          vercel deploy fc_teugn_app/build/web \
+          vercel deploy build/web \
             --prod \
             --yes \
             --token "$VERCEL_TOKEN"
+
