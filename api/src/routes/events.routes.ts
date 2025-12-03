@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth';
-import { Role } from '@prisma/client';
+import { Role } from '../types/enums';
 import {
   listEvents,
   createEvent,
