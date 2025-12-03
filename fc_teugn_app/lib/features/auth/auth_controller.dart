@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_client.dart';
 import '../../core/models/user.dart';
@@ -45,9 +46,54 @@ class AuthController extends StateNotifier<AuthState> {
       final token = data['accessToken'] as String;
       state = AuthState(user: user, accessToken: token, loading: false);
     } catch (e) {
+      String? message;
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map<String, dynamic> && data['message'] is String) {
+          message = data['message'] as String;
+        }
+      }
+
       state = state.copyWith(
         loading: false,
-        error: 'Login fehlgeschlagen',
+        error: message ?? 'Login fehlgeschlagen',
+      );
+    }
+  }
+
+  Future<void> register({
+    required String name,
+    required String email,
+    required String password,
+    String? phone,
+    required UserRole role,
+  }) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      final res = await _client.dio.post('/auth/register', data: {
+        'name': name,
+        'email': email,
+        'password': password,
+        'phone': phone,
+        'role': role == UserRole.coach ? 'COACH' : 'PARENT',
+      });
+
+      final data = res.data as Map<String, dynamic>;
+      final user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+      final token = data['accessToken'] as String;
+      state = AuthState(user: user, accessToken: token, loading: false);
+    } catch (e) {
+      String? message;
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map<String, dynamic> && data['message'] is String) {
+          message = data['message'] as String;
+        }
+      }
+
+      state = state.copyWith(
+        loading: false,
+        error: message ?? 'Registrierung fehlgeschlagen',
       );
     }
   }
