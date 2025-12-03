@@ -23,10 +23,15 @@ class ApiClient {
       }
     }
 
-    final resolvedBaseUrl = baseUrl ??
-        (envBaseUrl.isNotEmpty
-            ? envBaseUrl
-            : (kIsWeb ? inferredWebBaseUrl : 'http://localhost:4000'));
+    String resolvedBaseUrl;
+    if (baseUrl != null) {
+      resolvedBaseUrl = baseUrl;
+    } else if (envBaseUrl.isNotEmpty) {
+      resolvedBaseUrl = envBaseUrl;
+    } else {
+      final defaultBase = kIsWeb ? inferredWebBaseUrl : 'http://localhost:4000';
+      resolvedBaseUrl = kIsWeb ? _withApiPath(defaultBase) : defaultBase;
+    }
 
     final dio = Dio(
       BaseOptions(
@@ -42,4 +47,9 @@ class ApiClient {
 
     return ApiClient._internal(dio);
   }
+}
+
+String _withApiPath(String base) {
+  final normalized = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+  return '$normalized/api';
 }
