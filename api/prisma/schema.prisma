@@ -1,0 +1,191 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  PARENT
+  COACH
+}
+
+enum MatchType {
+  LEAGUE
+  FRIENDLY
+}
+
+enum RSVPStatus {
+  YES
+  NO
+  MAYBE
+}
+
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  password     String
+  name         String
+  phone        String?
+  role         Role            @default(PARENT)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  playerLinks  UserPlayerLink[]
+  refreshTokens RefreshToken[]
+}
+
+model Player {
+  id           String              @id @default(cuid())
+  firstName    String
+  lastName     String
+  birthDate    DateTime
+  gender       String
+  position     String?
+  shirtNumber  Int?
+  photoUrl     String?
+  team         String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  userLinks    UserPlayerLink[]
+  matchRsvps   MatchRSVP[]
+  goals        MatchGoal[]
+  lineupPositions MatchLineupPosition[]
+}
+
+model UserPlayerLink {
+  id        String @id @default(cuid())
+  userId    String
+  playerId  String
+  relation  String?
+
+  user      User   @relation(fields: [userId], references: [id])
+  player    Player @relation(fields: [playerId], references: [id])
+
+  @@unique([userId, playerId])
+}
+
+model Training {
+  id        String   @id @default(cuid())
+  date      DateTime
+  startTime DateTime
+  endTime   DateTime?
+  location  String
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Match {
+  id           String      @id @default(cuid())
+  type         MatchType
+  date         DateTime
+  kickOff      DateTime
+  location     String
+  opponent     String
+  isHome       Boolean
+  competition  String?
+  ourGoals     Int?
+  theirGoals   Int?
+  notes        String?
+  rsvpEnabled  Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  rsvps        MatchRSVP[]
+  lineups      MatchLineup[]
+  goals        MatchGoal[]
+}
+
+model MatchRSVP {
+  id        String     @id @default(cuid())
+  matchId   String
+  playerId  String
+  status    RSVPStatus
+  match     Match      @relation(fields: [matchId], references: [id])
+  player    Player     @relation(fields: [playerId], references: [id])
+  @@unique([matchId, playerId])
+}
+
+model MatchLineup {
+  id        String              @id @default(cuid())
+  matchId   String
+  name      String?
+  formation String?
+  match     Match               @relation(fields: [matchId], references: [id])
+  positions MatchLineupPosition[]
+}
+
+model MatchLineupPosition {
+  id          String       @id @default(cuid())
+  lineupId    String
+  playerId    String
+  posX        Float
+  posY        Float
+  isSubstitute Boolean     @default(false)
+  lineup      MatchLineup  @relation(fields: [lineupId], references: [id])
+  player      Player       @relation(fields: [playerId], references: [id])
+}
+
+model MatchGoal {
+  id        String   @id @default(cuid())
+  matchId   String
+  playerId  String
+  minute    Int?
+  createdAt DateTime @default(now())
+  match     Match    @relation(fields: [matchId], references: [id])
+  player    Player   @relation(fields: [playerId], references: [id])
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  title       String
+  date        DateTime
+  startTime   DateTime?
+  location    String
+  description String?
+  rsvpEnabled Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  rsvps       EventRSVP[]
+}
+
+model EventRSVP {
+  id       String  @id @default(cuid())
+  eventId  String
+  userId   String
+  status   RSVPStatus
+  event    Event   @relation(fields: [eventId], references: [id])
+  user     User    @relation(fields: [userId], references: [id])
+  @@unique([eventId, userId])
+}
+
+model LeagueTable {
+  id        String           @id @default(cuid())
+  name      String
+  season    String?
+  sourceUrl String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  rows      LeagueTableRow[]
+}
+
+model LeagueTableRow {
+  id           String        @id @default(cuid())
+  tableId      String
+  position     Int
+  teamName     String
+  played       Int
+  points       Int
+  goalsFor     Int
+  goalsAgainst Int
+  table        LeagueTable   @relation(fields: [tableId], references: [id])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id])
+}
