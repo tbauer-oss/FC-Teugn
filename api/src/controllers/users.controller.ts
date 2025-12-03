@@ -31,7 +31,7 @@ export async function me(req: Request, res: Response) {
   if (!user) return res.status(404).json({ message: 'User not found' });
 
   const playersWithStats = await Promise.all(
-    user.playerLinks.map(async (link) => ({
+    user.playerLinks.map(async (link: (typeof user.playerLinks)[number]) => ({
       ...link.player,
       stats: await buildPlayerStats(link.playerId),
     })),
