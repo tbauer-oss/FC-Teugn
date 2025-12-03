@@ -14,6 +14,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  static const _defaultCoachEmail = 'tobias.bauer@fc-teugn.local';
+  static const _defaultPassword = 'FC-Teugn_WEB!';
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -81,12 +84,31 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.admin_panel_settings),
+                        onPressed: authState.loading
+                            ? null
+                            : () {
+                                _emailController.text = _defaultCoachEmail;
+                                _passwordController.text = _defaultPassword;
+                                authCtrl.login(
+                                  _emailController.text,
+                                  _passwordController.text,
+                                );
+                              },
+                        label: const Text('Trainerbereich öffnen'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     const Text(
-  		      'Trainer-Accounts werden per Seed-Skript angelegt.\n'
-		      'Eltern können über die API registriert werden.',
-		      textAlign: TextAlign.center,
-	              style: TextStyle(fontSize: 12),
-		    ),
+                      'Standardpasswort für neu angelegte Accounts: FC-Teugn_WEB!\n'
+                      'Trainer-Accounts werden per Seed-Skript angelegt.\n'
+                      'Eltern-Accounts legen wir im Adminbereich an; sie ändern ihr Passwort beim ersten Login.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ],
                 ),
               ),
