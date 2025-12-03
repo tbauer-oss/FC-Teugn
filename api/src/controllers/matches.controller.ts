@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
-import { RSVPStatus } from '@prisma/client';
+import { RSVPStatus } from '../types/enums';
 
 export async function listMatches(req: Request, res: Response) {
   const { type } = req.query;

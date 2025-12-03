@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { hashPassword, comparePassword } from '../lib/password';
 import { signAccessToken, signRefreshToken } from '../lib/jwt';
-import { Role } from '@prisma/client';
+import { Role } from '../types/enums';
 import jwt from 'jsonwebtoken';
 
 export async function register(req: Request, res: Response) {
@@ -16,8 +16,7 @@ export async function register(req: Request, res: Response) {
     return res.status(400).json({ message: 'E-Mail bereits vergeben' });
   }
 
-  const normalizedRole =
-    role === Role.COACH || role === 'COACH' ? Role.COACH : Role.PARENT;
+  const normalizedRole = role === Role.COACH || role === 'COACH' ? Role.COACH : Role.PARENT;
 
   const hashed = await hashPassword(password);
   const user = await prisma.user.create({
