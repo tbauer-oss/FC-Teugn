@@ -15,6 +15,7 @@ Full-stack project containing a Flutter web frontend (`fc_teugn_app`) and a Node
 - Local dev: `npm run dev` (default port `4000`).
 - Build: `npm run build` outputs to `api/dist`.
 - Deployment: create a separate Vercel project with the root directory set to `api/`. The included `vercel.json` handles install/build and packages Prisma artifacts for the serverless function.
+- Project linking: to reuse the existing Vercel project (`fc-teugn-backend`) instead of creating a new one, set `VERCEL_TOKEN` and run [`api/scripts/vercel_link.sh`](api/scripts/vercel_link.sh). You can override the project slug via `VERCEL_PROJECT_SLUG` if needed.
 
 ## API/Frontend integration
 The root `vercel.json` now preserves `/api/*` routes so the deployed frontend can call the backend on the same domain while still rewriting other paths to `index.html` for SPA routing.
