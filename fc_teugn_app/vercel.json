@@ -1,5 +1,7 @@
 {
-  "buildCommand": "flutter build web --release",
-  "outputDirectory": "build/web",
+  "projectName": "fc-teugn",
+  "installCommand": "bash fc_teugn_app/vercel_install.sh",
+  "buildCommand": "bash fc_teugn_app/vercel_build.sh",
+  "outputDirectory": "fc_teugn_app/build/web",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
