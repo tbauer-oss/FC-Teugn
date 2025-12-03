@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiClient {
   final Dio dio;
@@ -6,9 +7,15 @@ class ApiClient {
   ApiClient._internal(this.dio);
 
   factory ApiClient({String? baseUrl, String? accessToken}) {
+    final envBaseUrl = const String.fromEnvironment('API_BASE_URL');
+    final resolvedBaseUrl = baseUrl ??
+        (envBaseUrl.isNotEmpty
+            ? envBaseUrl
+            : (kIsWeb ? Uri.base.origin : 'http://localhost:4000'));
+
     final dio = Dio(
       BaseOptions(
-        baseUrl: baseUrl ?? 'http://localhost:4000',
+        baseUrl: resolvedBaseUrl,
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 15),
       ),
