@@ -11,7 +11,7 @@ class ApiClient {
     final resolvedBaseUrl = baseUrl ??
         (envBaseUrl.isNotEmpty
             ? envBaseUrl
-            : (kIsWeb ? Uri.base.origin : 'http://localhost:4000'));
+            : (kIsWeb ? '' : 'http://localhost:4000'));
 
     final dio = Dio(
       BaseOptions(
