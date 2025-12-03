@@ -1,7 +1,7 @@
 {
   "installCommand": "bash ./vercel_install.sh",
   "buildCommand": "bash ./vercel_build.sh",
-  "outputDirectory": "fc_teugn_app/build/web",
+  "outputDirectory": "build/web",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api).*)", "destination": "/index.html" }
