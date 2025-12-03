@@ -31,6 +31,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
+  static const _defaultCoachEmail = 'tobias.bauer@fc-teugn.local';
+  static const _defaultPassword = 'FC-Teugn_WEB!';
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -179,6 +182,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ? 'Zurück zum Login'
                               : 'Jetzt als Trainer/Eltern registrieren',
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.admin_panel_settings),
+                        onPressed: authState.loading
+                            ? null
+                            : () {
+                                _emailController.text = _defaultCoachEmail;
+                                _passwordController.text = _defaultPassword;
+                                authCtrl.login(
+                                  _emailController.text,
+                                  _passwordController.text,
+                                );
+                              },
+                        label: const Text('Trainerbereich öffnen'),
                       ),
                     ),
                     const SizedBox(height: 8),
