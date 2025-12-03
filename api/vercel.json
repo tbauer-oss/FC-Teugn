@@ -1,10 +1,11 @@
 {
   "version": 2,
+  "installCommand": "npm install && npx prisma generate",
+  "buildCommand": "npm run build",
   "functions": {
-    "api/**/*.js": { "runtime": "nodejs" }
-  },
-  "headers": [],
-  "routes": [
-    { "src": "/api/(.*)", "methods": ["OPTIONS"], "dest": "/api/_options.js" }
-  ]
+    "api/index.js": {
+      "runtime": "nodejs",
+      "includeFiles": "{dist/**,prisma/**}"
+    }
+  }
 }
