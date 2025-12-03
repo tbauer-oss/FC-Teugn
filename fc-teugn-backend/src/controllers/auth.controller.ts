@@ -6,7 +6,7 @@ import { Role } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 
 export async function register(req: Request, res: Response) {
-  const { email, password, name, phone } = req.body;
+  const { email, password, name, phone, role } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
@@ -16,9 +16,12 @@ export async function register(req: Request, res: Response) {
     return res.status(400).json({ message: 'E-Mail bereits vergeben' });
   }
 
+  const normalizedRole =
+    role === Role.COACH || role === 'COACH' ? Role.COACH : Role.PARENT;
+
   const hashed = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { email, password: hashed, name, phone, role: Role.PARENT },
+    data: { email, password: hashed, name, phone, role: normalizedRole },
   });
 
   const accessToken = signAccessToken({ id: user.id, role: user.role });

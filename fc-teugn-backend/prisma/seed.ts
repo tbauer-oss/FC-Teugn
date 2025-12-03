@@ -12,8 +12,7 @@ async function main() {
     { email: 'andreas.wallner@fc-teugn.local', name: 'Andreas Wallner' },
   ];
 
-  const password = await hashPassword('coach123');
-  const parentPassword = await hashPassword('parent123');
+  const defaultPassword = await hashPassword('FC-Teugn_WEB!');
 
   for (const c of coachesData) {
     await prisma.user.upsert({
@@ -22,7 +21,7 @@ async function main() {
       create: {
         email: c.email,
         name: c.name,
-        password,
+        password: defaultPassword,
         role: Role.COACH,
       },
     });
@@ -34,7 +33,7 @@ async function main() {
     create: {
       email: 'eltern@fc-teugn.local',
       name: 'Familie Muster',
-      password: parentPassword,
+      password: defaultPassword,
       role: Role.PARENT,
     },
   });
