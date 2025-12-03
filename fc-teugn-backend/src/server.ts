@@ -8,6 +8,7 @@ import trainingsRoutes from './routes/trainings.routes';
 import eventsRoutes from './routes/events.routes';
 import leagueRoutes from './routes/league.routes';
 import { errorHandler } from './middleware/errorHandler';
+import usersRoutes from './routes/users.routes';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use('/players', playersRoutes);
 app.use('/trainings', trainingsRoutes);
 app.use('/events', eventsRoutes);
 app.use('/league', leagueRoutes);
+app.use('/users', usersRoutes);
 
 app.use(errorHandler);
 
