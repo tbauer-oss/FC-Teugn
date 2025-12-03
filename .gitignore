@@ -1,0 +1,14 @@
+node_modules/
+**/node_modules/
+# Build outputs
+api/dist/
+fc_teugn_app/build/
+fc_teugn_app/.dart_tool/
+fc_teugn_app/.flutter-plugins*
+fc_teugn_app/.packages
+fc_teugn_app/ios/Pods/
+fc_teugn_app/android/app/build/
+# Local tooling
+.env
+.vercel
+*.log

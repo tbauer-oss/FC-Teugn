@@ -2,5 +2,8 @@
   "installCommand": "cd fc_teugn_app && bash ./vercel_install.sh",
   "buildCommand": "cd fc_teugn_app && bash ./vercel_build.sh",
   "outputDirectory": "fc_teugn_app/build/web",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/((?!api).*)", "destination": "/index.html" }
+  ]
 }
