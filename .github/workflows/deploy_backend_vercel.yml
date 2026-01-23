@@ -21,8 +21,8 @@ jobs:
       - name: Enable Corepack
         run: |
           corepack enable
-          corepack prepare pnpm@9.15.4 --activate
-
+          corepack prepare pnpm@10.13.1 --activate
+          
       - name: Install dependencies (api)
         working-directory: api
         run: pnpm install --no-frozen-lockfile
