@@ -21,7 +21,7 @@ jobs:
       - name: Enable Corepack
         run: |
           corepack enable
-          corepack prepare pnpm@9.12.2 --activate
+          corepack prepare pnpm@9.15.4 --activate
 
       - name: Install dependencies (api)
         working-directory: api
