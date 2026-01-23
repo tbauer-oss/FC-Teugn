@@ -2,7 +2,7 @@
   "name": "fc-teugn-backend",
   "version": "1.0.0",
   "main": "dist/index.js",
-  "packageManager": "pnpm@10.13.1",
+  "packageManager": "pnpm@9.15.2",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
