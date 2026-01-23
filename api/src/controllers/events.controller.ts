@@ -117,7 +117,7 @@ export async function deleteEvent(req: Request, res: Response) {
 export async function setAttendance(req: Request, res: Response) {
   const { teamId, role, id: userId } = req.user!;
   const { id } = req.params;
-  const { playerId, status } = req.body as { playerId?: string; status?: AttendanceStatus };
+  const { playerId, status } = req.body as { playerId?: string; status?: string };
 
   if (!playerId || !status) {
     return res.status(400).json({ message: 'playerId and status required' });
@@ -206,11 +206,15 @@ export async function upsertSquad(req: Request, res: Response) {
   const event = await prisma.event.findFirst({ where: { id, teamId } });
   if (!event) return res.status(404).json({ message: 'Event not found' });
 
-  const squad = await prisma.squad.upsert({
-    where: { eventId: id },
-    update: { name, formation },
-    create: { eventId: id, name, formation },
-  });
+  const existingSquad = await prisma.squad.findFirst({ where: { eventId: id } });
+  const squad = existingSquad
+    ? await prisma.squad.update({
+        where: { id: existingSquad.id },
+        data: { name, formation },
+      })
+    : await prisma.squad.create({
+        data: { eventId: id, name, formation },
+      });
 
   if (playerIds) {
     await prisma.squadMember.deleteMany({ where: { squadId: squad.id } });
