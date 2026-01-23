@@ -8,185 +8,145 @@ generator client {
 }
 
 enum Role {
+  TRAINER_ADMIN
+  TRAINER
   PARENT
-  COACH
 }
 
-enum MatchType {
-  LEAGUE
-  FRIENDLY
+enum AccountStatus {
+  PENDING
+  APPROVED
+  BLOCKED
 }
 
-enum RSVPStatus {
+enum EventType {
+  TRAINING
+  MATCH
+  EVENT
+}
+
+enum AttendanceStatus {
   YES
   NO
   MAYBE
+  UNKNOWN
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  players   Player[]
+  events    Event[]
+  squads    Squad[]
 }
 
 model User {
-  id           String          @id @default(cuid())
-  email        String          @unique
-  password     String
-  name         String
-  phone        String?
-  role         Role            @default(PARENT)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  playerLinks  UserPlayerLink[]
-  refreshTokens RefreshToken[]
-  eventRsvps   EventRSVP[]
+  id        String        @id @default(cuid())
+  email     String        @unique
+  password  String
+  name      String
+  phone     String?
+  role      Role          @default(PARENT)
+  status    AccountStatus @default(PENDING)
+  teamId    String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  team      Team          @relation(fields: [teamId], references: [id])
+  parentLinks ParentPlayerLink[] @relation("ParentLinks")
 }
 
 model Player {
-  id           String              @id @default(cuid())
-  firstName    String
-  lastName     String
-  birthDate    DateTime
-  gender       String
-  position     String?
-  shirtNumber  Int?
-  photoUrl     String?
-  team         String?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  userLinks    UserPlayerLink[]
-  matchRsvps   MatchRSVP[]
-  goals        MatchGoal[]
-  lineupPositions MatchLineupPosition[]
+  id          String   @id @default(cuid())
+  teamId      String
+  firstName   String
+  lastName    String
+  birthDate   DateTime?
+  position    String?
+  shirtNumber Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  team        Team     @relation(fields: [teamId], references: [id])
+  parentLinks ParentPlayerLink[]
+  attendance  Attendance[]
+  squadMembers SquadMember[]
 }
 
-model UserPlayerLink {
-  id        String @id @default(cuid())
-  userId    String
-  playerId  String
-  relation  String?
-
-  user      User   @relation(fields: [userId], references: [id])
-  player    Player @relation(fields: [playerId], references: [id])
-
-  @@unique([userId, playerId])
-}
-
-model Training {
+model ParentPlayerLink {
   id        String   @id @default(cuid())
-  date      DateTime
-  startTime DateTime
-  endTime   DateTime?
-  location  String
-  note      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Match {
-  id           String      @id @default(cuid())
-  type         MatchType
-  date         DateTime
-  kickOff      DateTime
-  location     String
-  opponent     String
-  isHome       Boolean
-  competition  String?
-  ourGoals     Int?
-  theirGoals   Int?
-  notes        String?
-  rsvpEnabled  Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  rsvps        MatchRSVP[]
-  lineups      MatchLineup[]
-  goals        MatchGoal[]
-}
-
-model MatchRSVP {
-  id        String     @id @default(cuid())
-  matchId   String
+  parentId  String
   playerId  String
-  status    RSVPStatus
-  match     Match      @relation(fields: [matchId], references: [id])
-  player    Player     @relation(fields: [playerId], references: [id])
-  @@unique([matchId, playerId])
-}
-
-model MatchLineup {
-  id        String              @id @default(cuid())
-  matchId   String
-  name      String?
-  formation String?
-  match     Match               @relation(fields: [matchId], references: [id])
-  positions MatchLineupPosition[]
-}
-
-model MatchLineupPosition {
-  id          String       @id @default(cuid())
-  lineupId    String
-  playerId    String
-  posX        Float
-  posY        Float
-  isSubstitute Boolean     @default(false)
-  lineup      MatchLineup  @relation(fields: [lineupId], references: [id])
-  player      Player       @relation(fields: [playerId], references: [id])
-}
-
-model MatchGoal {
-  id        String   @id @default(cuid())
-  matchId   String
-  playerId  String
-  minute    Int?
   createdAt DateTime @default(now())
-  match     Match    @relation(fields: [matchId], references: [id])
+  parent    User     @relation("ParentLinks", fields: [parentId], references: [id])
   player    Player   @relation(fields: [playerId], references: [id])
+
+  @@unique([parentId, playerId])
 }
 
 model Event {
-  id          String    @id @default(cuid())
-  title       String
-  date        DateTime
-  startTime   DateTime?
-  location    String
-  description String?
-  rsvpEnabled Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  rsvps       EventRSVP[]
+  id                   String    @id @default(cuid())
+  teamId               String
+  type                 EventType
+  title                String
+  startAt              DateTime
+  endAt                DateTime?
+  location             String
+  description          String?
+  attendanceFinalized  Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  team                 Team      @relation(fields: [teamId], references: [id])
+  attendance           Attendance[]
+  matchDetails         MatchDetails?
+  squads               Squad[]
 }
 
-model EventRSVP {
-  id       String  @id @default(cuid())
-  eventId  String
-  userId   String
-  status   RSVPStatus
-  event    Event   @relation(fields: [eventId], references: [id])
-  user     User    @relation(fields: [userId], references: [id])
-  @@unique([eventId, userId])
+model MatchDetails {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  opponent    String
+  isHome      Boolean  @default(true)
+  competition String?
+  notes       String?
+  ourGoals    Int?
+  theirGoals  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  event       Event    @relation(fields: [eventId], references: [id])
 }
 
-model LeagueTable {
+model Attendance {
   id        String           @id @default(cuid())
-  name      String
-  season    String?
-  sourceUrl String?
-  createdAt DateTime         @default(now())
+  eventId   String
+  playerId  String
+  status    AttendanceStatus @default(UNKNOWN)
   updatedAt DateTime         @updatedAt
-  rows      LeagueTableRow[]
+  event     Event            @relation(fields: [eventId], references: [id])
+  player    Player           @relation(fields: [playerId], references: [id])
+
+  @@unique([eventId, playerId])
 }
 
-model LeagueTableRow {
-  id           String        @id @default(cuid())
-  tableId      String
-  position     Int
-  teamName     String
-  played       Int
-  points       Int
-  goalsFor     Int
-  goalsAgainst Int
-  table        LeagueTable   @relation(fields: [tableId], references: [id])
-}
-
-model RefreshToken {
+model Squad {
   id        String   @id @default(cuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  user      User     @relation(fields: [userId], references: [id])
+  eventId   String
+  name      String?
+  formation String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  event     Event    @relation(fields: [eventId], references: [id])
+  members   SquadMember[]
+}
+
+model SquadMember {
+  id        String   @id @default(cuid())
+  squadId   String
+  playerId  String
+  createdAt DateTime @default(now())
+  squad     Squad    @relation(fields: [squadId], references: [id])
+  player    Player   @relation(fields: [playerId], references: [id])
+
+  @@unique([squadId, playerId])
 }

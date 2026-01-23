@@ -46,17 +46,9 @@ class AuthController extends StateNotifier<AuthState> {
       final token = data['accessToken'] as String;
       state = AuthState(user: user, accessToken: token, loading: false);
     } catch (e) {
-      String? message;
-      if (e is DioException) {
-        final data = e.response?.data;
-        if (data is Map<String, dynamic> && data['message'] is String) {
-          message = data['message'] as String;
-        }
-      }
-
       state = state.copyWith(
         loading: false,
-        error: message ?? 'Login fehlgeschlagen',
+        error: _messageFromError(e, fallback: 'Login fehlgeschlagen'),
       );
     }
   }
@@ -67,6 +59,7 @@ class AuthController extends StateNotifier<AuthState> {
     required String password,
     String? phone,
     required UserRole role,
+    String? teamName,
   }) async {
     state = state.copyWith(loading: true, error: null);
     try {
@@ -75,7 +68,12 @@ class AuthController extends StateNotifier<AuthState> {
         'email': email,
         'password': password,
         'phone': phone,
-        'role': role == UserRole.coach ? 'COACH' : 'PARENT',
+        'role': role == UserRole.trainerAdmin
+            ? 'TRAINER_ADMIN'
+            : role == UserRole.trainer
+                ? 'TRAINER'
+                : 'PARENT',
+        'teamName': teamName,
       });
 
       final data = res.data as Map<String, dynamic>;
@@ -83,23 +81,25 @@ class AuthController extends StateNotifier<AuthState> {
       final token = data['accessToken'] as String;
       state = AuthState(user: user, accessToken: token, loading: false);
     } catch (e) {
-      String? message;
-      if (e is DioException) {
-        final data = e.response?.data;
-        if (data is Map<String, dynamic> && data['message'] is String) {
-          message = data['message'] as String;
-        }
-      }
-
       state = state.copyWith(
         loading: false,
-        error: message ?? 'Registrierung fehlgeschlagen',
+        error: _messageFromError(e, fallback: 'Registrierung fehlgeschlagen'),
       );
     }
   }
 
   void logout() {
     state = AuthState();
+  }
+
+  String _messageFromError(Object e, {required String fallback}) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic> && data['message'] is String) {
+        return data['message'] as String;
+      }
+    }
+    return fallback;
   }
 
   ApiClient get _client => ApiClient(accessToken: state.accessToken);
