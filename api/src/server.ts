@@ -11,10 +11,33 @@ dotenv.config();
 
 const app = express();
 
-const allowedOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
+const defaultAllowedOrigins = [
+  'https://fcteugnapp.vercel.app',
+  'https://fc-teugn.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:4000',
+];
+
+const envAllowedOrigins = process.env.CORS_ORIGINS?.split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+const allowedOrigins = Array.from(new Set([...(envAllowedOrigins ?? []), ...defaultAllowedOrigins]));
+
 app.use(
   cors({
-    origin: allowedOrigins && allowedOrigins.length > 0 ? allowedOrigins : true,
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(null, false);
+    },
     credentials: true,
   }),
 );
