@@ -1,18 +1,17 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../middleware/auth';
+import { createPlayer, deletePlayer, getPlayer, listPlayers, updatePlayer } from '../controllers/players.controller';
+import { requireApproved, requireAuth, requireRoles } from '../middleware/auth';
 import { Role } from '../types/enums';
-import {
-  listPlayers,
-  createPlayer,
-  updatePlayer,
-  deletePlayer,
-} from '../controllers/players.controller';
 
 const router = Router();
 
-router.get('/', requireAuth, listPlayers);
-router.post('/', requireAuth, requireRole(Role.COACH), createPlayer);
-router.put('/:playerId', requireAuth, requireRole(Role.COACH), updatePlayer);
-router.delete('/:playerId', requireAuth, requireRole(Role.COACH), deletePlayer);
+router.use(requireAuth);
+router.use(requireApproved);
+
+router.get('/', listPlayers);
+router.get('/:id', getPlayer);
+router.post('/', requireRoles([Role.TRAINER_ADMIN, Role.TRAINER]), createPlayer);
+router.put('/:id', requireRoles([Role.TRAINER_ADMIN, Role.TRAINER]), updatePlayer);
+router.delete('/:id', requireRoles([Role.TRAINER_ADMIN, Role.TRAINER]), deletePlayer);
 
 export default router;

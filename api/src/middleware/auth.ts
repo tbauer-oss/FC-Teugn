@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { Role } from '../types/enums';
+import { AccountStatus, Role } from '../types/enums';
 
 const ACCESS_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access_secret';
 
 export interface AuthUser {
   id: string;
   role: Role;
+  status: AccountStatus;
+  teamId: string;
 }
 
 declare global {
@@ -33,11 +35,27 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export function requireRole(role: Role) {
+export function requireRoles(roles: Role[]) {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user || req.user.role !== role) {
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'Forbidden' });
     }
     return next();
   };
+}
+
+export function requireApproved(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({ message: 'No user in request' });
+  }
+
+  if (req.user.status === AccountStatus.BLOCKED) {
+    return res.status(403).json({ message: 'Account blocked' });
+  }
+
+  if (req.user.status !== AccountStatus.APPROVED) {
+    return res.status(403).json({ message: 'Account pending approval' });
+  }
+
+  return next();
 }

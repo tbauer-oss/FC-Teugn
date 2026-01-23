@@ -1,12 +1,23 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { hashPassword, comparePassword } from '../lib/password';
-import { signAccessToken, signRefreshToken } from '../lib/jwt';
-import { Role } from '../types/enums';
-import jwt from 'jsonwebtoken';
+import { signAccessToken } from '../lib/jwt';
+import { AccountStatus, Role } from '../types/enums';
+
+async function resolveTeamId(teamName?: string, teamId?: string) {
+  if (teamId) {
+    return teamId;
+  }
+
+  const name = teamName?.trim() || 'FC Teugn';
+  const existing = await prisma.team.findFirst({ where: { name } });
+  if (existing) return existing.id;
+  const created = await prisma.team.create({ data: { name } });
+  return created.id;
+}
 
 export async function register(req: Request, res: Response) {
-  const { email, password, name, phone, role } = req.body;
+  const { email, password, name, phone, role, teamName, teamId } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
@@ -16,28 +27,45 @@ export async function register(req: Request, res: Response) {
     return res.status(400).json({ message: 'E-Mail bereits vergeben' });
   }
 
-  const normalizedRole = role === Role.COACH || role === 'COACH' ? Role.COACH : Role.PARENT;
+  const normalizedRole =
+    role === Role.TRAINER_ADMIN || role === 'TRAINER_ADMIN'
+      ? Role.TRAINER_ADMIN
+      : role === Role.TRAINER || role === 'TRAINER'
+        ? Role.TRAINER
+        : Role.PARENT;
 
+  const resolvedTeamId = await resolveTeamId(teamName, teamId);
   const hashed = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { email, password: hashed, name, phone, role: normalizedRole },
-  });
-
-  const accessToken = signAccessToken({ id: user.id, role: user.role });
-  const refreshToken = signRefreshToken({ id: user.id, role: user.role });
-
-  await prisma.refreshToken.create({
     data: {
-      userId: user.id,
-      token: refreshToken,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      email,
+      password: hashed,
+      name,
+      phone,
+      role: normalizedRole,
+      status: AccountStatus.PENDING,
+      teamId: resolvedTeamId,
     },
   });
 
+  const accessToken = signAccessToken({
+    id: user.id,
+    role: user.role,
+    status: user.status,
+    teamId: user.teamId,
+  });
+
   return res.status(201).json({
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      status: user.status,
+      teamId: user.teamId,
+    },
     accessToken,
-    refreshToken,
   });
 }
 
@@ -54,42 +82,45 @@ export async function login(req: Request, res: Response) {
     return res.status(400).json({ message: 'Ungültige Zugangsdaten' });
   }
 
-  const accessToken = signAccessToken({ id: user.id, role: user.role });
-  const refreshToken = signRefreshToken({ id: user.id, role: user.role });
+  if (user.status === AccountStatus.BLOCKED) {
+    return res.status(403).json({ message: 'Account blockiert' });
+  }
 
-  await prisma.refreshToken.create({
-    data: {
-      userId: user.id,
-      token: refreshToken,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    },
+  const accessToken = signAccessToken({
+    id: user.id,
+    role: user.role,
+    status: user.status,
+    teamId: user.teamId,
   });
 
   return res.json({
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      status: user.status,
+      teamId: user.teamId,
+    },
     accessToken,
-    refreshToken,
   });
 }
 
-export async function refresh(req: Request, res: Response) {
-  const { token } = req.body as { token?: string };
-  if (!token) return res.status(400).json({ message: 'Kein Refresh Token übergeben' });
+export async function me(req: Request, res: Response) {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-  const stored = await prisma.refreshToken.findUnique({ where: { token } });
-  if (!stored || stored.expiresAt < new Date()) {
-    return res.status(401).json({ message: 'Refresh Token ungültig' });
-  }
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return res.status(404).json({ message: 'User not found' });
 
-  try {
-    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET || 'refresh_secret') as {
-      id: string;
-      role: Role;
-    };
-
-    const accessToken = signAccessToken({ id: decoded.id, role: decoded.role });
-    res.json({ accessToken });
-  } catch (err) {
-    res.status(401).json({ message: 'Refresh Token ungültig' });
-  }
+  return res.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    phone: user.phone,
+    role: user.role,
+    status: user.status,
+    teamId: user.teamId,
+  });
 }

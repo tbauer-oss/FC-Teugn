@@ -1,66 +1,120 @@
-import 'user.dart';
+enum EventType { training, match, event }
 
-enum RSVPStatus { yes, no, maybe }
+enum AttendanceStatus { yes, no, maybe, unknown }
 
-RSVPStatus rsvpFromString(String value) {
+EventType eventTypeFromString(String value) {
   switch (value) {
-    case 'YES':
-      return RSVPStatus.yes;
-    case 'NO':
-      return RSVPStatus.no;
+    case 'MATCH':
+      return EventType.match;
+    case 'EVENT':
+      return EventType.event;
     default:
-      return RSVPStatus.maybe;
+      return EventType.training;
   }
 }
 
-class EventRsvp {
+AttendanceStatus attendanceFromString(String value) {
+  switch (value) {
+    case 'YES':
+      return AttendanceStatus.yes;
+    case 'NO':
+      return AttendanceStatus.no;
+    case 'MAYBE':
+      return AttendanceStatus.maybe;
+    default:
+      return AttendanceStatus.unknown;
+  }
+}
+
+class MatchDetails {
+  final String opponent;
+  final bool isHome;
+  final String? competition;
+  final String? notes;
+  final int? ourGoals;
+  final int? theirGoals;
+
+  MatchDetails({
+    required this.opponent,
+    required this.isHome,
+    this.competition,
+    this.notes,
+    this.ourGoals,
+    this.theirGoals,
+  });
+
+  factory MatchDetails.fromJson(Map<String, dynamic> json) {
+    return MatchDetails(
+      opponent: json['opponent'] as String? ?? 'Unbekannt',
+      isHome: json['isHome'] as bool? ?? true,
+      competition: json['competition'] as String?,
+      notes: json['notes'] as String?,
+      ourGoals: json['ourGoals'] as int?,
+      theirGoals: json['theirGoals'] as int?,
+    );
+  }
+}
+
+class EventAttendance {
   final String id;
-  final String userId;
-  final RSVPStatus status;
+  final String playerId;
+  final AttendanceStatus status;
 
-  EventRsvp({required this.id, required this.userId, required this.status});
+  EventAttendance({
+    required this.id,
+    required this.playerId,
+    required this.status,
+  });
 
-  factory EventRsvp.fromJson(Map<String, dynamic> json) {
-    return EventRsvp(
+  factory EventAttendance.fromJson(Map<String, dynamic> json) {
+    return EventAttendance(
       id: json['id'] as String,
-      userId: json['userId'] as String,
-      status: rsvpFromString(json['status'] as String),
+      playerId: json['playerId'] as String,
+      status: attendanceFromString(json['status'] as String? ?? 'UNKNOWN'),
     );
   }
 }
 
 class EventModel {
   final String id;
+  final EventType type;
   final String title;
-  final DateTime date;
-  final DateTime? startTime;
+  final DateTime startAt;
+  final DateTime? endAt;
   final String location;
   final String? description;
-  final bool rsvpEnabled;
-  final List<EventRsvp> rsvps;
+  final bool attendanceFinalized;
+  final MatchDetails? matchDetails;
+  final List<EventAttendance> attendance;
 
   EventModel({
     required this.id,
+    required this.type,
     required this.title,
-    required this.date,
-    this.startTime,
+    required this.startAt,
+    this.endAt,
     required this.location,
     this.description,
-    required this.rsvpEnabled,
-    required this.rsvps,
+    required this.attendanceFinalized,
+    this.matchDetails,
+    required this.attendance,
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
     return EventModel(
       id: json['id'] as String,
+      type: eventTypeFromString(json['type'] as String? ?? 'TRAINING'),
       title: json['title'] as String,
-      date: DateTime.parse(json['date'] as String),
-      startTime: json['startTime'] != null ? DateTime.parse(json['startTime'] as String) : null,
+      startAt: DateTime.parse(json['startAt'] as String),
+      endAt: json['endAt'] != null ? DateTime.parse(json['endAt'] as String) : null,
       location: json['location'] as String,
       description: json['description'] as String?,
-      rsvpEnabled: json['rsvpEnabled'] as bool? ?? true,
-      rsvps: (json['rsvps'] as List<dynamic>? ?? [])
-          .map((e) => EventRsvp.fromJson(e as Map<String, dynamic>))
+      attendanceFinalized: json['attendanceFinalized'] as bool? ?? false,
+      matchDetails: json['matchDetails'] != null
+          ? MatchDetails.fromJson(json['matchDetails'] as Map<String, dynamic>)
+          : null,
+      attendance: (json['attendance'] as List<dynamic>? ?? [])
+          .map((e) => EventAttendance.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
   }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/models/user.dart';
+import 'package:go_router/go_router.dart';
 import 'auth_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -10,24 +10,15 @@ class LoginPage extends ConsumerStatefulWidget {
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-const _kDefaultCoachEmail = 'tobias.bauer@fc-teugn.local';
-const _kDefaultPassword = 'FC-Teugn_WEB!';
-
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _phoneController = TextEditingController();
-  bool _isRegisterMode = false;
-  UserRole _selectedRole = UserRole.coach;
 
   @override
   void dispose() {
-    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _phoneController.dispose();
     super.dispose();
   }
 
@@ -39,100 +30,50 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
+          constraints: const BoxConstraints(maxWidth: 420),
           child: Card(
             margin: const EdgeInsets.all(16),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               child: Form(
                 key: _formKey,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'FC Teugn Jugend',
+                      'DFS Connect+ Training Hub',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Text(
-                      _isRegisterMode
-                          ? 'Registriere dich als Trainer oder Elternteil'
-                          : 'Melde dich mit deinem Zugang an',
+                      'Melde dich mit deinem Account an.',
                       style: Theme.of(context).textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 8),
-                    if (_isRegisterMode) ...[
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Name',
-                        ),
-                        validator: (v) => v == null || v.isEmpty
-                            ? 'Bitte Name eingeben'
-                            : null,
-                      ),
-                      const SizedBox(height: 8),
-                    ],
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _emailController,
                       decoration: const InputDecoration(
                         labelText: 'E-Mail',
                       ),
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Bitte E-Mail eingeben' : null,
+                      validator: (v) => v == null || v.isEmpty ? 'Bitte E-Mail eingeben' : null,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _passwordController,
                       decoration: const InputDecoration(
                         labelText: 'Passwort',
                       ),
                       obscureText: true,
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Bitte Passwort eingeben' : null,
+                      validator: (v) => v == null || v.isEmpty ? 'Bitte Passwort eingeben' : null,
                     ),
-                    if (_isRegisterMode) ...[
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<UserRole>(
-                        value: _selectedRole,
-                        decoration: const InputDecoration(
-                          labelText: 'Rolle',
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: UserRole.coach,
-                            child: Text('Trainer/in'),
-                          ),
-                          DropdownMenuItem(
-                            value: UserRole.parent,
-                            child: Text('Elternteil'),
-                          ),
-                        ],
-                        onChanged: (role) {
-                          if (role != null) {
-                            setState(() {
-                              _selectedRole = role;
-                            });
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _phoneController,
-                        decoration: const InputDecoration(
-                          labelText: 'Telefon (optional)',
-                        ),
-                        keyboardType: TextInputType.phone,
-                      ),
-                    ],
                     const SizedBox(height: 16),
                     if (authState.error != null)
                       Text(
                         authState.error!,
                         style: const TextStyle(color: Colors.red),
                       ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
@@ -140,71 +81,25 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ? null
                             : () {
                                 if (_formKey.currentState!.validate()) {
-                                  if (_isRegisterMode) {
-                                    authCtrl.register(
-                                      name: _nameController.text.trim(),
-                                      email: _emailController.text.trim(),
-                                      password: _passwordController.text.trim(),
-                                      phone: _phoneController.text.trim().isEmpty
-                                          ? null
-                                          : _phoneController.text.trim(),
-                                      role: _selectedRole,
-                                    );
-                                  } else {
-                                    authCtrl.login(
-                                      _emailController.text.trim(),
-                                      _passwordController.text.trim(),
-                                    );
-                                  }
+                                  authCtrl.login(
+                                    _emailController.text.trim(),
+                                    _passwordController.text.trim(),
+                                  );
                                 }
                               },
                         child: authState.loading
-                            ? const CircularProgressIndicator()
-                            : Text(_isRegisterMode ? 'Registrieren' : 'Anmelden'),
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Anmelden'),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed: authState.loading
-                            ? null
-                            : () {
-                                setState(() {
-                                  _isRegisterMode = !_isRegisterMode;
-                                });
-                              },
-                        child: Text(
-                          _isRegisterMode
-                              ? 'Zurück zum Login'
-                              : 'Jetzt als Trainer/Eltern registrieren',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.admin_panel_settings),
-                        onPressed: authState.loading
-                            ? null
-                            : () {
-                                _emailController.text = _kDefaultCoachEmail;
-                                _passwordController.text = _kDefaultPassword;
-                                authCtrl.login(
-                                  _emailController.text,
-                                  _passwordController.text,
-                                );
-                              },
-                        label: const Text('Trainerbereich öffnen'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Standardpasswort für neu angelegte Accounts: FC-Teugn_WEB!\n'
-                      'Du kannst dich jetzt selbst als Trainer oder Elternteil registrieren.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12),
+                    TextButton(
+                      onPressed: authState.loading ? null : () => context.go('/register'),
+                      child: const Text('Noch keinen Account? Jetzt registrieren'),
                     ),
                   ],
                 ),
