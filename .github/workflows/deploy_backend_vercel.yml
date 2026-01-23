@@ -18,21 +18,13 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install pnpm
-        run: npm install -g pnpm@10.13.1
-
-      - name: Enable Corepack
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.13.1 --activate
-          
       - name: Install dependencies (api)
         working-directory: api
-        run: pnpm install --no-frozen-lockfile
+        run: npx -y pnpm@10.13.1 install --frozen-lockfile
         
       - name: Build API (api workspace)
         working-directory: api
-        run: pnpm run build
+        run: npx -y pnpm@10.13.1 run build
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest

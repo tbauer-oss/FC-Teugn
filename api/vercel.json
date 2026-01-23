@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "installCommand": "cd api && corepack enable && corepack prepare pnpm@10.13.1 --activate && pnpm install --frozen-lockfile",
-  "buildCommand": "cd api && pnpm build",
+  "installCommand": "cd api && npx -y pnpm@10.13.1 install --frozen-lockfile",
+  "buildCommand": "cd api && npx -y pnpm@10.13.1 run build",
   "functions": {
     "api/index.ts": {
       "includeFiles": "{dist/**,prisma/**}"
