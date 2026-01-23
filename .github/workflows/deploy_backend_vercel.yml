@@ -1,42 +1,28 @@
-name: Deploy Backend API to Vercel
-
-on:
-  push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
-
 jobs:
   deploy-backend:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: api
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Enable Corepack (pnpm)
+      - name: Enable Corepack
         run: corepack enable
 
-      - name: Install dependencies
+      - name: Install dependencies (repo root)
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm run build
+      - name: Build API (api workspace)
+        run: pnpm --filter ./api... run build
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
       - name: Pull Vercel environment info
+        working-directory: api
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -44,6 +30,7 @@ jobs:
         run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN" --local-config vercel.json
 
       - name: Build Vercel output
+        working-directory: api
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -51,6 +38,7 @@ jobs:
         run: vercel build --prod --token "$VERCEL_TOKEN" --local-config vercel.json
 
       - name: Deploy to Vercel (Backend API)
+        working-directory: api
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
