@@ -40,7 +40,6 @@ model Team {
   users     User[]
   players   Player[]
   events    Event[]
-  squads    Squad[]
 }
 
 model User {
