@@ -22,10 +22,12 @@ jobs:
         run: corepack enable
 
       - name: Install dependencies (repo root)
+        working-directory: api
         run: pnpm install --frozen-lockfile
 
       - name: Build API (api workspace)
-        run: pnpm --filter ./api... run build
+        working-directory: api
+        run: pnpm run build
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
