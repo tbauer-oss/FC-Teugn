@@ -1,8 +1,8 @@
 {
   "version": 2,
   "functions": {
-    "api/**/*.ts": {
-      "includeFiles": "{api/dist/**,api/prisma/**}"
+    "index.ts": {
+      "includeFiles": "{dist/**,prisma/**}"
     }
   }
 }
