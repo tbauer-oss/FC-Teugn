@@ -24,6 +24,15 @@ jobs:
         with:
           node-version: 20
 
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
