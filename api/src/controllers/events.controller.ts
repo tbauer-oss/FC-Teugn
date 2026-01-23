@@ -11,7 +11,7 @@ export async function listEvents(req: Request, res: Response) {
       where: { parentId: userId },
       select: { playerId: true },
     });
-    const playerIds = links.map((link) => link.playerId);
+    const playerIds = links.map((link: { playerId: string }) => link.playerId);
     attendanceInclude = { where: { playerId: { in: playerIds } } };
   }
 
