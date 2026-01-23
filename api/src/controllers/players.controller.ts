@@ -10,7 +10,8 @@ export async function listPlayers(req: Request, res: Response) {
       where: { parentId: userId },
       include: { player: true },
     });
-    return res.json(links.map((link) => link.player));
+    const players = links.map((link: { player: { id: string } }) => link.player);
+    return res.json(players);
   }
 
   const players = await prisma.player.findMany({
