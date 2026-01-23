@@ -21,7 +21,10 @@ const defaultAllowedOrigins = [
 const envAllowedOrigins = process.env.CORS_ORIGINS?.split(',')
   .map((o) => o.trim())
   .filter(Boolean);
-const allowedOrigins = Array.from(new Set([...(envAllowedOrigins ?? []), ...defaultAllowedOrigins]));
+const allowAllOrigins = envAllowedOrigins?.includes('*') ?? false;
+const allowedOrigins = Array.from(
+  new Set([...(envAllowedOrigins ?? []).filter((origin) => origin !== '*'), ...defaultAllowedOrigins]),
+);
 
 app.use(
   cors({
@@ -31,7 +34,7 @@ app.use(
         return;
       }
 
-      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      if (allowAllOrigins || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
         callback(null, true);
         return;
       }
