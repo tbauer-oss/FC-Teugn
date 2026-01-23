@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "installCommand": "npx -y pnpm@10.13.1 install --frozen-lockfile",
-  "buildCommand": "npx -y pnpm@10.13.1 run build",
+  "installCommand": "npx -y pnpm@10.13.1 --dir api install --frozen-lockfile",
+  "buildCommand": "npx -y pnpm@10.13.1 --dir api run build",
   "outputDirectory": "dist",
   "functions": {
     "api/index.ts": {
