@@ -25,7 +25,7 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.12.2 --activate
 
-      - name: Install dependencies (api workspace)
+      - name: Install dependencies (api)
         working-directory: api
         run: pnpm install --frozen-lockfile
 
