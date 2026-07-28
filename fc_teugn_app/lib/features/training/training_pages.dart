@@ -387,9 +387,8 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _items.length,
-              onReorder: (oldIndex, newIndex) {
+              onReorderItem: (oldIndex, newIndex) {
                 setState(() {
-                  if (newIndex > oldIndex) newIndex--;
                   final item = _items.removeAt(oldIndex);
                   _items.insert(newIndex, item);
                 });
