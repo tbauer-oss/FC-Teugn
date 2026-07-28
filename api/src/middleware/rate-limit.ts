@@ -37,3 +37,30 @@ export function authRateLimit(req: Request, res: Response, next: NextFunction) {
   }
   return next();
 }
+
+export function sensitiveActionRateLimit(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  const maxRequests = 10;
+  const key = `${req.ip}:${req.user?.id ?? 'anonymous'}:sensitive:${req.path}`;
+  let bucket = buckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, resetAt: now + windowMs };
+    buckets.set(key, bucket);
+  }
+  bucket.count += 1;
+  res.setHeader('RateLimit-Limit', maxRequests);
+  res.setHeader('RateLimit-Remaining', Math.max(0, maxRequests - bucket.count));
+  res.setHeader('RateLimit-Reset', Math.ceil(bucket.resetAt / 1000));
+  if (bucket.count > maxRequests) {
+    res.setHeader('Retry-After', Math.ceil((bucket.resetAt - now) / 1000));
+    return res.status(429).json({
+      message: 'Zu viele Bestätigungsversuche. Bitte später erneut versuchen.',
+    });
+  }
+  return next();
+}

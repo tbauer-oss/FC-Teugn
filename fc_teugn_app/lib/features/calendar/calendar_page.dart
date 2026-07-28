@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/models/emergency.dart';
 import '../../core/models/event.dart';
 import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
@@ -825,6 +828,10 @@ class EventDetailsDialog extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _EventFacts(event: event),
+                    if (event.capabilities.canOpenEmergencyView) ...[
+                      const SizedBox(height: 16),
+                      _EmergencyAccessCard(event: event),
+                    ],
                     if (event.description != null) ...[
                       const SizedBox(height: 20),
                       _Section(
@@ -897,6 +904,493 @@ class EventDetailsDialog extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+class _EmergencyAccessCard extends ConsumerWidget {
+  const _EmergencyAccessCard({required this.event});
+
+  final EventModel event;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      color: const Color(0xFFFFF4E5),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.health_and_safety_rounded,
+                color: Color(0xFF9A3412), size: 28),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Geschützte Notfallansicht',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: const Color(0xFF7C2D12),
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Nur für einen akuten Bedarf: anwesende Spieler, '
+                    'Kontaktpersonen und freigegebene medizinische Hinweise. '
+                    'Jeder Zugriff wird protokolliert.',
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF9A3412),
+                    ),
+                    onPressed: () => _open(context, ref),
+                    icon: const Icon(Icons.lock_open_rounded),
+                    label: const Text('Sicher öffnen'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open(BuildContext context, WidgetRef ref) async {
+    final password = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const _EmergencyPasswordDialog(),
+    );
+    if (password == null || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final repository = ref.read(repositoryProvider);
+      final grant = await repository.requestEmergencyAccess(
+        eventId: event.id,
+        password: password,
+      );
+      final view = await repository.emergencyView(
+        eventId: event.id,
+        accessToken: grant.token,
+      );
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => _EmergencyViewDialog(
+          view: view,
+          expiresAt: grant.expiresAt,
+        ),
+      );
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      final message = data is Map<String, dynamic>
+          ? data['message'] as String?
+          : null;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            message ?? 'Die Notfallansicht konnte nicht geöffnet werden.',
+          ),
+        ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Die Notfallansicht konnte nicht geöffnet werden.'),
+        ),
+      );
+    }
+  }
+}
+
+class _EmergencyPasswordDialog extends StatefulWidget {
+  const _EmergencyPasswordDialog();
+
+  @override
+  State<_EmergencyPasswordDialog> createState() =>
+      _EmergencyPasswordDialogState();
+}
+
+class _EmergencyPasswordDialogState extends State<_EmergencyPasswordDialog> {
+  final controller = TextEditingController();
+  bool obscure = true;
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  void submit() {
+    final value = controller.text;
+    if (value.isNotEmpty) Navigator.pop(context, value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      icon: const Icon(Icons.verified_user_rounded, color: AppColors.blue),
+      title: const Text('Identität bestätigen'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Gib dein Passwort erneut ein. Der Zugriff gilt anschließend '
+              'fünf Minuten und nur für diesen Termin.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              obscureText: obscure,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.password],
+              onSubmitted: (_) => submit(),
+              decoration: InputDecoration(
+                labelText: 'Passwort',
+                prefixIcon: const Icon(Icons.password_rounded),
+                suffixIcon: IconButton(
+                  tooltip: obscure ? 'Passwort anzeigen' : 'Passwort verbergen',
+                  onPressed: () => setState(() => obscure = !obscure),
+                  icon: Icon(
+                    obscure
+                        ? Icons.visibility_rounded
+                        : Icons.visibility_off_rounded,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton.icon(
+          onPressed: submit,
+          icon: const Icon(Icons.lock_open_rounded),
+          label: const Text('Bestätigen'),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmergencyViewDialog extends StatelessWidget {
+  const _EmergencyViewDialog({
+    required this.view,
+    required this.expiresAt,
+  });
+
+  final EmergencyView view;
+  final DateTime expiresAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final event = view.event;
+    return Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF7F1D1D),
+          foregroundColor: Colors.white,
+          title: const Text('Geschützte Notfallansicht'),
+          leading: IconButton(
+            tooltip: 'Sicher schließen',
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ),
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1100),
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFE4E6),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFFB7185)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          event.title,
+                          style:
+                              Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                    color: const Color(0xFF881337),
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${_fullDate(event.startAt)} · '
+                          '${_time(event.startAt)} Uhr · ${event.location}',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        if (event.address != null) Text(event.address!),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${view.players.length} anwesende Spieler · '
+                          '${view.usesActualAttendance ? 'tatsächliche Anwesenheit' : 'bestätigte Zusagen'} · '
+                          'Zugriff bis ${_time(expiresAt)} Uhr',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  if (view.players.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'Für diesen Termin sind aktuell keine anwesenden '
+                          'Spieler erfasst.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  else
+                    for (final player in view.players) ...[
+                      _EmergencyPlayerCard(player: player),
+                      const SizedBox(height: 12),
+                    ],
+                  const SizedBox(height: 10),
+                  Text(
+                    'Erzeugt ${_fullDate(view.generatedAt)} um '
+                    '${_time(view.generatedAt)} Uhr. Nicht weitergeben oder '
+                    'dauerhaft speichern.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmergencyPlayerCard extends StatelessWidget {
+  const _EmergencyPlayerCard({required this.player});
+
+  final EmergencyPlayer player;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundImage: player.photoUrl == null
+                      ? null
+                      : NetworkImage(player.photoUrl!),
+                  child: player.photoUrl == null
+                      ? Text(
+                          player.firstName.isEmpty
+                              ? '?'
+                              : player.firstName.substring(0, 1),
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    player.name,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+              ],
+            ),
+            if (player.medical.hasInformation) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F2),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFFDA4AF)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Medizinische Notfallhinweise',
+                      style: TextStyle(
+                        color: Color(0xFF9F1239),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if (_hasText(player.medical.allergies))
+                      _EmergencyInfoLine(
+                        label: 'Allergien',
+                        value: player.medical.allergies!,
+                      ),
+                    if (_hasText(player.medical.medications))
+                      _EmergencyInfoLine(
+                        label: 'Medikamente',
+                        value: player.medical.medications!,
+                      ),
+                    if (_hasText(player.medical.conditions))
+                      _EmergencyInfoLine(
+                        label: 'Erkrankungen',
+                        value: player.medical.conditions!,
+                      ),
+                    if (_hasText(player.medical.emergencyNotes))
+                      _EmergencyInfoLine(
+                        label: 'Hinweise',
+                        value: player.medical.emergencyNotes!,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Text(
+              'Erziehungsberechtigte',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (player.guardians.isEmpty)
+              const Text('Keine Erziehungsberechtigten hinterlegt.')
+            else
+              for (final guardian in player.guardians)
+                _EmergencyContactTile(
+                  icon: Icons.family_restroom_rounded,
+                  name: guardian.name,
+                  detail: [
+                    _relationshipLabel(guardian.relationship),
+                    if (guardian.isLegalGuardian) 'sorgeberechtigt',
+                    if (guardian.canPickup) 'abholberechtigt',
+                  ].join(' · '),
+                  phone: guardian.phone,
+                ),
+            const SizedBox(height: 10),
+            Text(
+              'Notfallkontakte',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (player.emergencyContacts.isEmpty)
+              const Text('Keine zusätzlichen Notfallkontakte hinterlegt.')
+            else
+              for (final contact in player.emergencyContacts)
+                _EmergencyContactTile(
+                  icon: Icons.emergency_rounded,
+                  name: '${contact.priority}. ${contact.name}',
+                  detail: [
+                    if (_hasText(contact.relationship)) contact.relationship!,
+                    if (contact.isAuthorizedPickup) 'abholberechtigt',
+                  ].join(' · '),
+                  phone: contact.phone,
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmergencyInfoLine extends StatelessWidget {
+  const _EmergencyInfoLine({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 7),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            TextSpan(text: value),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmergencyContactTile extends StatelessWidget {
+  const _EmergencyContactTile({
+    required this.icon,
+    required this.name,
+    required this.detail,
+    this.phone,
+  });
+
+  final IconData icon;
+  final String name;
+  final String detail;
+  final String? phone;
+
+  @override
+  Widget build(BuildContext context) {
+    final phoneAvailable = _hasText(phone);
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: AppColors.blue),
+      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Text(
+        [
+          if (detail.isNotEmpty) detail,
+          if (phoneAvailable) phone!,
+        ].join('\n'),
+      ),
+      trailing: phoneAvailable
+          ? IconButton.filledTonal(
+              tooltip: '$name anrufen',
+              onPressed: () => launchUrl(Uri(scheme: 'tel', path: phone)),
+              icon: const Icon(Icons.call_rounded),
+            )
+          : const Text('Keine Nummer'),
+    );
+  }
+}
+
+bool _hasText(String? value) => value?.trim().isNotEmpty ?? false;
+
+String _relationshipLabel(String value) {
+  switch (value) {
+    case 'MOTHER':
+      return 'Mutter';
+    case 'FATHER':
+      return 'Vater';
+    case 'STEP_PARENT':
+      return 'Stiefelternteil';
+    case 'FOSTER_PARENT':
+      return 'Pflegeelternteil';
+    default:
+      return 'Sorgeperson';
   }
 }
 

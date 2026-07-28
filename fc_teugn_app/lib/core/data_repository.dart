@@ -13,6 +13,7 @@ import 'models/training.dart';
 import 'models/communication.dart';
 import 'models/competition_import.dart';
 import 'models/team_operations.dart';
+import 'models/emergency.dart';
 
 class DataRepository {
   final ApiClient client;
@@ -327,6 +328,32 @@ class DataRepository {
   Future<EventModel> event(String eventId) async {
     final res = await client.dio.get('/events/$eventId');
     return EventModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<EmergencyAccessGrant> requestEmergencyAccess({
+    required String eventId,
+    required String password,
+  }) async {
+    final res = await client.dio.post(
+      '/events/$eventId/emergency-access',
+      data: {'password': password},
+    );
+    return EmergencyAccessGrant.fromJson(
+      res.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<EmergencyView> emergencyView({
+    required String eventId,
+    required String accessToken,
+  }) async {
+    final res = await client.dio.get(
+      '/events/$eventId/emergency-view',
+      options: Options(headers: {
+        'X-Emergency-Access-Token': accessToken,
+      }),
+    );
+    return EmergencyView.fromJson(res.data as Map<String, dynamic>);
   }
 
   Future<List<EventModel>> createEvent(EventWriteData data) async {

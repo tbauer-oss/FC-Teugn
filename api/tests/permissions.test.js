@@ -29,12 +29,17 @@ const {
 const {
   signAccessToken,
   signRefreshToken,
+  signEmergencyAccessToken,
   verifyAccessToken,
+  verifyEmergencyAccessToken,
   verifyRefreshToken,
 } = require('../dist/src/lib/jwt');
 const {
   checklistItems,
 } = require('../dist/src/controllers/team-operations.controller');
+const {
+  selectPresentAttendance,
+} = require('../dist/src/controllers/emergency.controller');
 
 test('access and refresh tokens use separate verifiable token classes', () => {
   const access = signAccessToken({ id: 'user-1' }, '5m');
@@ -46,6 +51,38 @@ test('access and refresh tokens use separate verifiable token classes', () => {
   assert.equal(verifyRefreshToken(refresh).sessionId, 'session-1');
   assert.throws(() => verifyRefreshToken(access));
   assert.throws(() => verifyAccessToken(refresh));
+});
+
+test('emergency tokens are short-lived, typed and scoped independently', () => {
+  const emergency = signEmergencyAccessToken(
+    { userId: 'user-1', eventId: 'event-1' },
+    '5m',
+  );
+  const claims = verifyEmergencyAccessToken(emergency);
+  assert.equal(claims.kind, 'emergency-access');
+  assert.equal(claims.userId, 'user-1');
+  assert.equal(claims.eventId, 'event-1');
+  assert.throws(() => verifyAccessToken(emergency));
+  assert.throws(() => verifyRefreshToken(emergency));
+});
+
+test('emergency presence prefers recorded attendance over prior confirmations', () => {
+  const attendance = [
+    { id: 'one', status: 'YES', actualAttendance: 'NO' },
+    { id: 'two', status: 'NO', actualAttendance: 'YES' },
+    { id: 'three', status: 'YES', actualAttendance: null },
+  ];
+  assert.deepEqual(
+    selectPresentAttendance(attendance).map((item) => item.id),
+    ['two'],
+  );
+  assert.deepEqual(
+    selectPresentAttendance([
+      { id: 'one', status: 'YES', actualAttendance: null },
+      { id: 'two', status: 'NO', actualAttendance: null },
+    ]).map((item) => item.id),
+    ['one'],
+  );
 });
 
 test('club administrators can manage the organization', () => {
