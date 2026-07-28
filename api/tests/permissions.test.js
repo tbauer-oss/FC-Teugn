@@ -18,6 +18,10 @@ const {
 const {
   summarizeMatchResults,
 } = require('../dist/src/services/statistics.service');
+const {
+  competitionMatchChecksum,
+  parseCompetitionSource,
+} = require('../dist/src/services/competition-provider');
 
 test('club administrators can manage the organization', () => {
   assert.equal(
@@ -143,6 +147,67 @@ test('announcement audiences are separated by member role', () => {
     audienceVisible(Role.PARENT, AnnouncementAudience.ALL_MEMBERS),
     true,
   );
+});
+
+test('competition imports are restricted to staff roles', () => {
+  assert.equal(hasPermission(Role.COACH, Permission.MANAGE_IMPORTS), true);
+  assert.equal(
+    hasPermission(Role.TEAM_MANAGER, Permission.MANAGE_IMPORTS),
+    true,
+  );
+  assert.equal(hasPermission(Role.PARENT, Permission.MANAGE_IMPORTS), false);
+});
+
+test('CSV competition provider normalizes German exports deterministically', () => {
+  const rows = parseCompetitionSource(
+    'CSV',
+    [
+      'Spielkennung;Datum;Uhrzeit;Gegner;Heimspiel;Wettbewerb;Ort',
+      'bfv-4711;15.08.2026;10:30;SV Beispiel;ja;Kreisliga;Sportplatz Teugn',
+    ].join('\n'),
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].match.externalId, 'bfv-4711');
+  assert.equal(rows[0].match.opponent, 'SV Beispiel');
+  assert.equal(rows[0].match.isHome, true);
+  assert.equal(
+    competitionMatchChecksum(rows[0].match),
+    competitionMatchChecksum(rows[0].match),
+  );
+});
+
+test('ICS competition provider requires events and preserves UID', () => {
+  const rows = parseCompetitionSource(
+    'ICS',
+    [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'UID:spiel-123@example.test',
+      'DTSTART:20260822T090000Z',
+      'SUMMARY:FC Teugn - TSV Muster',
+      'LOCATION:Waldstadion',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n'),
+  );
+  assert.equal(rows[0].match.externalId, 'spiel-123@example.test');
+  assert.equal(rows[0].match.opponent, 'TSV Muster');
+  assert.equal(rows[0].match.isHome, true);
+  assert.equal(rows[0].match.location, 'Waldstadion');
+});
+
+test('ICS competition provider converts Europe/Berlin summer time to UTC', () => {
+  const rows = parseCompetitionSource(
+    'ICS',
+    [
+      'BEGIN:VEVENT',
+      'UID:spiel-sommer@example.test',
+      'DTSTART;TZID=Europe/Berlin:20260822T110000',
+      'SUMMARY:FC Teugn - TSV Sommer',
+      'END:VEVENT',
+    ].join('\r\n'),
+  );
+  assert.equal(rows[0].match.startAt, '2026-08-22T09:00:00.000Z');
 });
 
 test('team statistics summarize results, form and home-away records', () => {
