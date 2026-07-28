@@ -314,6 +314,9 @@ async function serializeEvent(
       canManage: manageable,
       canRespond: hasPermission(user.role as Role, Permission.RESPOND_ATTENDANCE),
       canOfferRide: user.role !== Role.READ_ONLY,
+      canOpenEmergencyView:
+        hasPermission(user.role as Role, Permission.VIEW_SENSITIVE_PLAYER) &&
+        eventTargetIds.every((teamId) => accessibleIds.includes(teamId)),
     },
   };
 }

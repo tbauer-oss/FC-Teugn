@@ -61,6 +61,7 @@ void main() {
         'canManage': true,
         'canRespond': true,
         'canOfferRide': true,
+        'canOpenEmergencyView': true,
       },
     });
 
@@ -70,6 +71,7 @@ void main() {
     expect(event.attendanceFor('player-1')?.status, AttendanceStatus.yes);
     expect(event.attendanceSummary.goalkeeperAvailable, 1);
     expect(event.capabilities.canManage, isTrue);
+    expect(event.capabilities.canOpenEmergencyView, isTrue);
   });
 
   test('serializes local calendar input as UTC and all selected teams', () {

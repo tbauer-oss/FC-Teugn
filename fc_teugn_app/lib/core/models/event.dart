@@ -428,17 +428,21 @@ class EventCapabilities {
     this.canManage = false,
     this.canRespond = false,
     this.canOfferRide = false,
+    this.canOpenEmergencyView = false,
   });
 
   final bool canManage;
   final bool canRespond;
   final bool canOfferRide;
+  final bool canOpenEmergencyView;
 
   factory EventCapabilities.fromJson(Map<String, dynamic>? json) {
     return EventCapabilities(
       canManage: json?['canManage'] as bool? ?? false,
       canRespond: json?['canRespond'] as bool? ?? false,
       canOfferRide: json?['canOfferRide'] as bool? ?? false,
+      canOpenEmergencyView:
+          json?['canOpenEmergencyView'] as bool? ?? false,
     );
   }
 }

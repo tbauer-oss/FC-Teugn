@@ -1,0 +1,288 @@
+import { Request, Response } from 'express';
+import {
+  AccountStatus,
+  AttendanceStatus,
+  Prisma,
+  Role as PrismaRole,
+} from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { comparePassword } from '../lib/password';
+import {
+  signEmergencyAccessToken,
+  verifyEmergencyAccessToken,
+} from '../lib/jwt';
+import { hasPermission, Permission } from '../security/permissions';
+import { Role } from '../types/enums';
+
+const EMERGENCY_ACCESS_MS = 5 * 60 * 1000;
+
+async function clubIdForTeam(teamId: string) {
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { ageGroup: { select: { season: { select: { clubId: true } } } } },
+  });
+  return team?.ageGroup.season.clubId ?? null;
+}
+
+async function accessibleTeamIds(user: {
+  id: string;
+  teamId: string;
+  role: Role | PrismaRole;
+}) {
+  if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
+    const clubId = await clubIdForTeam(user.teamId);
+    if (!clubId) return [user.teamId];
+    const teams = await prisma.team.findMany({
+      where: { isActive: true, ageGroup: { season: { clubId } } },
+      select: { id: true },
+    });
+    return teams.map((team) => team.id);
+  }
+  const memberships = await prisma.teamMembership.findMany({
+    where: { userId: user.id, status: AccountStatus.APPROVED },
+    select: { teamId: true },
+  });
+  return [...new Set([user.teamId, ...memberships.map((item) => item.teamId)])];
+}
+
+function eventScope(teamIds: string[]): Prisma.EventWhereInput {
+  return {
+    OR: [
+      { teamId: { in: teamIds } },
+      { targetTeams: { some: { teamId: { in: teamIds } } } },
+    ],
+  };
+}
+
+export function selectPresentAttendance<
+  T extends {
+    status: AttendanceStatus;
+    actualAttendance: AttendanceStatus | null;
+  },
+>(attendance: T[]) {
+  const actualWasRecorded = attendance.some(
+    (item) =>
+      item.actualAttendance !== null &&
+      item.actualAttendance !== AttendanceStatus.UNKNOWN,
+  );
+  return attendance.filter((item) =>
+    actualWasRecorded
+      ? item.actualAttendance === AttendanceStatus.YES
+      : item.status === AttendanceStatus.YES,
+  );
+}
+
+async function findAccessibleEvent(req: Request) {
+  const teamIds = await accessibleTeamIds(req.user!);
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.id, ...eventScope(teamIds) },
+    select: {
+      id: true,
+      teamId: true,
+      title: true,
+      startAt: true,
+      endAt: true,
+      meetingAt: true,
+      location: true,
+      address: true,
+      targetTeams: { select: { teamId: true } },
+    },
+  });
+  if (!event) return null;
+  const targetIds = event.targetTeams.length
+    ? event.targetTeams.map((target) => target.teamId)
+    : [event.teamId];
+  return targetIds.every((teamId) => teamIds.includes(teamId)) ? event : null;
+}
+
+async function audit(
+  req: Request,
+  action: string,
+  event: { id: string; teamId: string },
+  metadata: Prisma.InputJsonValue,
+) {
+  await prisma.auditLog.create({
+    data: {
+      actorId: req.user!.id,
+      teamId: event.teamId,
+      action,
+      entityType: 'EventEmergencyView',
+      entityId: event.id,
+      metadata,
+    },
+  });
+}
+
+export async function requestEmergencyAccess(req: Request, res: Response) {
+  const password =
+    typeof req.body?.password === 'string' ? req.body.password : '';
+  if (!password || password.length > 200) {
+    return res.status(400).json({ message: 'Passwort ist erforderlich.' });
+  }
+  const event = await findAccessibleEvent(req);
+  if (!event) return res.status(404).json({ message: 'Termin nicht gefunden.' });
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { password: true },
+  });
+  const passwordMatches = user
+    ? await comparePassword(password, user.password)
+    : false;
+  if (!passwordMatches) {
+    await audit(req, 'EMERGENCY_ACCESS_DENIED', event, {
+      reason: 'PASSWORD_MISMATCH',
+      ipAddress: req.ip,
+    });
+    return res.status(401).json({
+      message: 'Erneute Anmeldung fehlgeschlagen.',
+    });
+  }
+
+  const expiresAt = new Date(Date.now() + EMERGENCY_ACCESS_MS);
+  const token = signEmergencyAccessToken({
+    userId: req.user!.id,
+    eventId: event.id,
+  });
+  await audit(req, 'EMERGENCY_ACCESS_GRANTED', event, {
+    expiresAt: expiresAt.toISOString(),
+    ipAddress: req.ip,
+  });
+  return res.json({ token, expiresAt: expiresAt.toISOString() });
+}
+
+export async function getEmergencyView(req: Request, res: Response) {
+  const token = req.get('X-Emergency-Access-Token');
+  if (!token) {
+    return res.status(401).json({
+      message: 'Für die Notfallansicht ist eine erneute Anmeldung erforderlich.',
+    });
+  }
+  let claims;
+  try {
+    claims = verifyEmergencyAccessToken(token);
+  } catch {
+    return res.status(401).json({
+      message: 'Der Notfallzugriff ist abgelaufen. Bitte erneut bestätigen.',
+    });
+  }
+  if (claims.userId !== req.user!.id || claims.eventId !== req.params.id) {
+    return res.status(403).json({
+      message: 'Der Notfallzugriff gilt nicht für diesen Termin.',
+    });
+  }
+
+  const teamIds = await accessibleTeamIds(req.user!);
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.id, ...eventScope(teamIds) },
+    select: {
+      id: true,
+      teamId: true,
+      title: true,
+      startAt: true,
+      endAt: true,
+      meetingAt: true,
+      location: true,
+      address: true,
+      targetTeams: { select: { teamId: true } },
+      attendance: {
+        orderBy: { player: { lastName: 'asc' } },
+        select: {
+          status: true,
+          actualAttendance: true,
+          player: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              preferredName: true,
+              photoUrl: true,
+              parentLinks: {
+                orderBy: { createdAt: 'asc' },
+                select: {
+                  relationship: true,
+                  isLegalGuardian: true,
+                  canPickup: true,
+                  parent: {
+                    select: { id: true, name: true, phone: true },
+                  },
+                },
+              },
+              emergencyContacts: {
+                orderBy: [{ priority: 'asc' }, { name: 'asc' }],
+                select: {
+                  id: true,
+                  name: true,
+                  relationship: true,
+                  phone: true,
+                  priority: true,
+                  isAuthorizedPickup: true,
+                },
+              },
+              medicalProfile: {
+                select: {
+                  allergies: true,
+                  medications: true,
+                  conditions: true,
+                  emergencyNotes: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!event) return res.status(404).json({ message: 'Termin nicht gefunden.' });
+  const targetIds = event.targetTeams.length
+    ? event.targetTeams.map((target) => target.teamId)
+    : [event.teamId];
+  if (!targetIds.every((teamId) => teamIds.includes(teamId))) {
+    return res.status(403).json({
+      message: 'Keine Berechtigung für die vollständige Termingruppe.',
+    });
+  }
+
+  const present = selectPresentAttendance(event.attendance);
+  await audit(req, 'EMERGENCY_VIEW_OPENED', event, {
+    playerCount: present.length,
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent') ?? null,
+  });
+  return res.json({
+    event: {
+      id: event.id,
+      title: event.title,
+      startAt: event.startAt,
+      endAt: event.endAt,
+      meetingAt: event.meetingAt,
+      location: event.location,
+      address: event.address,
+    },
+    generatedAt: new Date(),
+    presenceSource: event.attendance.some(
+      (item) =>
+        item.actualAttendance !== null &&
+        item.actualAttendance !== AttendanceStatus.UNKNOWN,
+    )
+      ? 'ACTUAL_ATTENDANCE'
+      : 'CONFIRMED_ATTENDANCE',
+    players: present.map(({ player }) => ({
+      id: player.id,
+      firstName: player.firstName,
+      lastName: player.lastName,
+      preferredName: player.preferredName,
+      photoUrl: player.photoUrl,
+      guardians: player.parentLinks.map((link) => ({
+        id: link.parent.id,
+        name: link.parent.name,
+        phone: link.parent.phone,
+        relationship: link.relationship,
+        isLegalGuardian: link.isLegalGuardian,
+        canPickup: link.canPickup,
+      })),
+      emergencyContacts: player.emergencyContacts,
+      medical: player.medicalProfile,
+    })),
+  });
+}

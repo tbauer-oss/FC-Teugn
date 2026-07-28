@@ -33,6 +33,9 @@ Common variables:
 - `ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET`: separate, long random secrets
   for access and refresh token signing (`JWT_SECRET` remains a compatibility
   alias for older installations).
+- `EMERGENCY_ACCESS_SECRET`: optional independent signing secret for
+  five-minute, event-scoped emergency access tokens. Set a long random value in
+  production.
 - `CORS_ORIGINS`: comma-separated origins allowed by the backend.
 - `API_BASE_URL`: optional override for the frontend API base URL.
 
@@ -81,6 +84,10 @@ beschrieben.
 
 Teambezogene Aufgaben, Materialausgaben und wiederverwendbare Checklisten sind
 in [`docs/team-operations.md`](docs/team-operations.md) beschrieben.
+
+Die passwortgeschützte, terminbezogene Notfallansicht für berechtigte
+Trainerrollen ist in
+[`docs/emergency-access.md`](docs/emergency-access.md) beschrieben.
 
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).
