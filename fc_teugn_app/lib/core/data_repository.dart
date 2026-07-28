@@ -4,6 +4,8 @@ import 'models/player.dart';
 import 'models/user.dart';
 import 'models/organization.dart';
 import 'models/matchday.dart';
+import 'models/statistics.dart';
+import 'models/training.dart';
 
 class DataRepository {
   final ApiClient client;
@@ -426,6 +428,136 @@ class DataRepository {
     await client.dio.post('/matches/$eventId/ticker/undo', data: {
       'clientEventId': clientEventId,
     });
+  }
+
+  Future<StatisticsOverview> statistics({
+    DateTime? from,
+    DateTime? to,
+    List<String> teamIds = const [],
+    String? competition,
+    String? kind,
+  }) async {
+    final res = await client.dio.get('/statistics', queryParameters: {
+      if (from != null) 'from': from.toUtc().toIso8601String(),
+      if (to != null) 'to': to.toUtc().toIso8601String(),
+      if (teamIds.isNotEmpty) 'teamIds': teamIds.join(','),
+      if (competition?.trim().isNotEmpty == true) 'competition': competition,
+      if (kind?.trim().isNotEmpty == true) 'kind': kind,
+    });
+    return StatisticsOverview.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> recalculateMatchStatistics(String matchId) async {
+    await client.dio.post('/statistics/matches/$matchId/recalculate');
+  }
+
+  Future<List<TrainingModel>> trainings() async {
+    final res = await client.dio.get('/trainings');
+    return (res.data as List<dynamic>)
+        .map((item) => TrainingModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<TrainingModel> training(String trainingId) async {
+    final res = await client.dio.get('/trainings/$trainingId');
+    return TrainingModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<List<TrainingExerciseModel>> trainingExercises() async {
+    final res = await client.dio.get('/trainings/exercises');
+    return (res.data as List<dynamic>)
+        .map(
+          (item) =>
+              TrainingExerciseModel.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<void> saveTrainingPlan({
+    required String trainingId,
+    required List<String> focusAreas,
+    required int durationMinutes,
+    required List<TrainingPlanItemModel> items,
+    String? learningGoals,
+    String? participantNotes,
+    String? coaches,
+    String? materials,
+    String? pitchSetup,
+    String? feedback,
+  }) async {
+    await client.dio.put('/trainings/$trainingId/plan', data: {
+      'focusAreas': focusAreas,
+      'durationMinutes': durationMinutes,
+      'learningGoals': learningGoals,
+      'participantNotes': participantNotes,
+      'coaches': coaches,
+      'materials': materials,
+      'pitchSetup': pitchSetup,
+      'feedback': feedback,
+      'items': items
+          .map(
+            (item) => {
+              'title': item.title,
+              'phase': trainingApiEnum(item.phase),
+              'durationMinutes': item.durationMinutes,
+              'exerciseId': item.exerciseId,
+              'notes': item.notes,
+            },
+          )
+          .toList(),
+    });
+  }
+
+  Future<void> saveTrainingAttendance({
+    required String trainingId,
+    required Map<String, TrainingAttendanceStatus> entries,
+  }) async {
+    await client.dio.put('/trainings/$trainingId/attendance', data: {
+      'entries': entries.entries
+          .map(
+            (item) => {
+              'playerId': item.key,
+              'status': trainingApiEnum(item.value),
+            },
+          )
+          .toList(),
+    });
+  }
+
+  Future<void> saveTrainingExercise({
+    String? exerciseId,
+    required String teamId,
+    required String title,
+    required String category,
+    required int durationMinutes,
+    required String setup,
+    required String instructions,
+    String? materials,
+    String? coachingPoints,
+    String? variations,
+    int? minPlayers,
+    int? maxPlayers,
+    bool isFavorite = false,
+  }) async {
+    final data = {
+      'teamId': teamId,
+      'title': title,
+      'category': category,
+      'durationMinutes': durationMinutes,
+      'setup': setup,
+      'instructions': instructions,
+      'materials': materials,
+      'coachingPoints': coachingPoints,
+      'variations': variations,
+      'minPlayers': minPlayers,
+      'maxPlayers': maxPlayers,
+      'isFavorite': isFavorite,
+    };
+    if (exerciseId == null) {
+      await client.dio.post('/trainings/exercises', data: data);
+    } else {
+      await client.dio.put('/trainings/exercises/$exerciseId', data: data);
+    }
   }
 
   Future<List<AppUser>> pendingUsers() async {

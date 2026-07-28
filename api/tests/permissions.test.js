@@ -9,6 +9,9 @@ const {
   icsDate,
 } = require('../dist/src/controllers/events.controller');
 const { RecurrenceFrequency } = require('@prisma/client');
+const {
+  summarizeMatchResults,
+} = require('../dist/src/services/statistics.service');
 
 test('club administrators can manage the organization', () => {
   assert.equal(
@@ -84,6 +87,50 @@ test('matchday operations are restricted to assigned staff roles', () => {
     hasPermission(Role.PLAYER, Permission.MANAGE_LIVE_TICKER),
     false,
   );
+});
+
+test('training and statistics mutations remain staff-only', () => {
+  assert.equal(hasPermission(Role.COACH, Permission.MANAGE_TRAINING), true);
+  assert.equal(hasPermission(Role.COACH, Permission.MANAGE_STATISTICS), true);
+  assert.equal(hasPermission(Role.PARENT, Permission.VIEW_PLAYER_STATS), true);
+  assert.equal(hasPermission(Role.PARENT, Permission.MANAGE_TRAINING), false);
+  assert.equal(hasPermission(Role.PLAYER, Permission.MANAGE_STATISTICS), false);
+});
+
+test('team statistics summarize results, form and home-away records', () => {
+  const summary = summarizeMatchResults([
+    { ourGoals: 3, theirGoals: 1, result: 'WIN', isHome: true },
+    { ourGoals: 1, theirGoals: 1, result: 'DRAW', isHome: false },
+    { ourGoals: 0, theirGoals: 2, result: 'LOSS', isHome: false },
+    { ourGoals: 2, theirGoals: 0, result: 'WIN', isHome: true },
+  ]);
+  assert.deepEqual(
+    {
+      matches: summary.matches,
+      wins: summary.wins,
+      draws: summary.draws,
+      losses: summary.losses,
+      goalsFor: summary.goalsFor,
+      goalsAgainst: summary.goalsAgainst,
+      winRate: summary.winRate,
+      goalsPerMatch: summary.goalsPerMatch,
+      home: summary.home,
+      away: summary.away,
+    },
+    {
+      matches: 4,
+      wins: 2,
+      draws: 1,
+      losses: 1,
+      goalsFor: 6,
+      goalsAgainst: 4,
+      winRate: 50,
+      goalsPerMatch: 1.5,
+      home: { matches: 2, wins: 2 },
+      away: { matches: 2, wins: 0 },
+    },
+  );
+  assert.deepEqual(summary.form, ['WIN', 'DRAW', 'LOSS', 'WIN']);
 });
 
 test('weekly and biweekly calendar series include the boundary occurrence', () => {

@@ -12,6 +12,9 @@ export const Permission = {
   MANAGE_EVENTS: 'MANAGE_EVENTS',
   MANAGE_LINEUPS: 'MANAGE_LINEUPS',
   MANAGE_LIVE_TICKER: 'MANAGE_LIVE_TICKER',
+  VIEW_PLAYER_STATS: 'VIEW_PLAYER_STATS',
+  MANAGE_STATISTICS: 'MANAGE_STATISTICS',
+  MANAGE_TRAINING: 'MANAGE_TRAINING',
   RESPOND_ATTENDANCE: 'RESPOND_ATTENDANCE',
 } as const;
 
@@ -35,6 +38,9 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.MANAGE_EVENTS,
     Permission.MANAGE_LINEUPS,
     Permission.MANAGE_LIVE_TICKER,
+    Permission.VIEW_PLAYER_STATS,
+    Permission.MANAGE_STATISTICS,
+    Permission.MANAGE_TRAINING,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.TRAINER]: [
@@ -48,6 +54,9 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.MANAGE_EVENTS,
     Permission.MANAGE_LINEUPS,
     Permission.MANAGE_LIVE_TICKER,
+    Permission.VIEW_PLAYER_STATS,
+    Permission.MANAGE_STATISTICS,
+    Permission.MANAGE_TRAINING,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.ASSISTANT_COACH]: [
@@ -58,6 +67,9 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.MANAGE_EVENTS,
     Permission.MANAGE_LINEUPS,
     Permission.MANAGE_LIVE_TICKER,
+    Permission.VIEW_PLAYER_STATS,
+    Permission.MANAGE_STATISTICS,
+    Permission.MANAGE_TRAINING,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.TEAM_MANAGER]: [
@@ -68,10 +80,21 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.MANAGE_EVENTS,
     Permission.MANAGE_LINEUPS,
     Permission.MANAGE_LIVE_TICKER,
+    Permission.VIEW_PLAYER_STATS,
+    Permission.MANAGE_STATISTICS,
+    Permission.MANAGE_TRAINING,
     Permission.RESPOND_ATTENDANCE,
   ],
-  [Role.PARENT]: [Permission.VIEW_TEAM, Permission.RESPOND_ATTENDANCE],
-  [Role.PLAYER]: [Permission.VIEW_TEAM, Permission.RESPOND_ATTENDANCE],
+  [Role.PARENT]: [
+    Permission.VIEW_TEAM,
+    Permission.VIEW_PLAYER_STATS,
+    Permission.RESPOND_ATTENDANCE,
+  ],
+  [Role.PLAYER]: [
+    Permission.VIEW_TEAM,
+    Permission.VIEW_PLAYER_STATS,
+    Permission.RESPOND_ATTENDANCE,
+  ],
   [Role.READ_ONLY]: [Permission.VIEW_TEAM],
 };
 

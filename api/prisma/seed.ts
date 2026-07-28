@@ -130,7 +130,7 @@ async function main() {
     },
   });
 
-  await prisma.player.upsert({
+  const playerTwo = await prisma.player.upsert({
     where: { id: 'player-2' },
     update: {},
     create: {
@@ -246,7 +246,78 @@ async function main() {
     },
   });
 
-  await prisma.event.upsert({
+  const exercise = await prisma.trainingExercise.upsert({
+    where: { id: 'exercise-rondo-1' },
+    update: {},
+    create: {
+      id: 'exercise-rondo-1',
+      teamId: team.id,
+      createdById: trainer.id,
+      title: 'Rondo mit Umschaltmoment',
+      category: 'Technik & Wahrnehmung',
+      ageGroups: ['E', 'D'],
+      minPlayers: 6,
+      maxPlayers: 12,
+      durationMinutes: 15,
+      materials: '8 Hütchen, 4 Leibchen, 2 Bälle',
+      setup: 'Quadrat 14 × 14 Meter, zwei neutrale Außenspieler.',
+      instructions:
+        'Vier Spieler halten den Ball gegen zwei Verteidiger. Nach Ballgewinn sofort auf die Außenspieler umschalten.',
+      coachingPoints: 'Vororientierung, offener erster Kontakt, direktes Gegenpressing.',
+      variations: 'Kontaktbegrenzung oder zweites Quadrat ergänzen.',
+      isFavorite: true,
+    },
+  });
+  const trainingPlan = await prisma.trainingPlan.upsert({
+    where: { eventId: event.id },
+    update: {},
+    create: {
+      eventId: event.id,
+      createdById: trainer.id,
+      focusAreas: ['Ballmitnahme', 'Umschalten', 'Kommunikation'],
+      learningGoals: 'Offene Ballmitnahme und schnelles Reagieren nach Ballverlust.',
+      durationMinutes: 60,
+      coaches: trainer.name,
+      materials: 'Bälle, Leibchen, Hütchen, zwei Minitore',
+      pitchSetup: 'Halber Platz, drei klar markierte Zonen.',
+    },
+  });
+  await prisma.trainingPlanItem.deleteMany({ where: { trainingPlanId: trainingPlan.id } });
+  await prisma.trainingPlanItem.createMany({
+    data: [
+      {
+        trainingPlanId: trainingPlan.id,
+        phase: 'WARM_UP',
+        title: 'Fangspiel mit Ball',
+        durationMinutes: 10,
+        position: 0,
+      },
+      {
+        trainingPlanId: trainingPlan.id,
+        exerciseId: exercise.id,
+        phase: 'MAIN_PART',
+        title: exercise.title,
+        durationMinutes: exercise.durationMinutes,
+        position: 1,
+      },
+      {
+        trainingPlanId: trainingPlan.id,
+        phase: 'GAME_FORM',
+        title: '4 gegen 4 auf Minitore',
+        durationMinutes: 25,
+        position: 2,
+      },
+      {
+        trainingPlanId: trainingPlan.id,
+        phase: 'COOL_DOWN',
+        title: 'Teamkreis und Feedback',
+        durationMinutes: 10,
+        position: 3,
+      },
+    ],
+  });
+
+  const awayMatch = await prisma.event.upsert({
     where: { id: 'event-away-friendly' },
     update: {},
     create: {
@@ -270,6 +341,99 @@ async function main() {
       catering: 'Ausreichend Getränke mitbringen',
       reminderMinutes: [2880, 180],
       targetTeams: { create: { teamId: team.id } },
+    },
+  });
+  await prisma.matchDetails.upsert({
+    where: { eventId: awayMatch.id },
+    update: {},
+    create: {
+      eventId: awayMatch.id,
+      kind: 'FRIENDLY',
+      status: 'CONFIRMED',
+      opponent: 'SV Saal',
+      isHome: false,
+      competition: 'Vorbereitung',
+      durationMinutes: 60,
+      periodMinutes: 30,
+      periodCount: 2,
+    },
+  });
+
+  const pastMatch = await prisma.event.upsert({
+    where: { id: 'event-past-match' },
+    update: {},
+    create: {
+      id: 'event-past-match',
+      teamId: team.id,
+      type: EventType.MATCH,
+      category: EventCategory.FRIENDLY_MATCH,
+      visibility: EventVisibility.TEAM,
+      title: 'Testspiel gegen TSV Beispiel',
+      startAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      endAt: new Date(Date.now() - (7 * 24 * 60 - 70) * 60 * 1000),
+      location: 'Sportplatz Teugn A',
+      opponent: 'TSV Beispiel',
+      homeAway: HomeAway.HOME,
+      targetTeams: { create: { teamId: team.id } },
+    },
+  });
+  await prisma.matchDetails.upsert({
+    where: { eventId: pastMatch.id },
+    update: { status: 'FINISHED', ourGoals: 2, theirGoals: 1 },
+    create: {
+      eventId: pastMatch.id,
+      kind: 'FRIENDLY',
+      status: 'FINISHED',
+      opponent: 'TSV Beispiel',
+      isHome: true,
+      competition: 'Vorbereitung',
+      durationMinutes: 60,
+      periodMinutes: 30,
+      periodCount: 2,
+      ourGoals: 2,
+      theirGoals: 1,
+    },
+  });
+  const squad = await prisma.squad.upsert({
+    where: { eventId: pastMatch.id },
+    update: {},
+    create: {
+      eventId: pastMatch.id,
+      name: 'Spieltagskader',
+      formation: '2-3-1',
+      publishedAt: new Date(),
+    },
+  });
+  await prisma.squadMember.createMany({
+    data: [
+      { squadId: squad.id, playerId: player.id, plannedMinutes: 60 },
+      { squadId: squad.id, playerId: playerTwo.id, plannedMinutes: 45 },
+    ],
+    skipDuplicates: true,
+  });
+  await prisma.teamMatchStatistic.upsert({
+    where: { eventId: pastMatch.id },
+    update: { ourGoals: 2, theirGoals: 1, result: 'WIN', recalculatedAt: new Date() },
+    create: {
+      eventId: pastMatch.id,
+      ourGoals: 2,
+      theirGoals: 1,
+      result: 'WIN',
+      isHome: true,
+    },
+  });
+  await prisma.playerMatchStatistic.upsert({
+    where: { eventId_playerId: { eventId: pastMatch.id, playerId: player.id } },
+    update: { appeared: true, started: true, minutesPlayed: 60, goals: 1, assists: 1 },
+    create: {
+      eventId: pastMatch.id,
+      playerId: player.id,
+      appeared: true,
+      started: true,
+      minutesPlayed: 60,
+      goals: 1,
+      assists: 1,
+      isCaptain: true,
     },
   });
 
