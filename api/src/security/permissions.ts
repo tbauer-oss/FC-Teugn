@@ -15,6 +15,7 @@ export const Permission = {
   VIEW_PLAYER_STATS: 'VIEW_PLAYER_STATS',
   MANAGE_STATISTICS: 'MANAGE_STATISTICS',
   MANAGE_TRAINING: 'MANAGE_TRAINING',
+  SEND_ANNOUNCEMENTS: 'SEND_ANNOUNCEMENTS',
   RESPOND_ATTENDANCE: 'RESPOND_ATTENDANCE',
 } as const;
 
@@ -41,6 +42,7 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.VIEW_PLAYER_STATS,
     Permission.MANAGE_STATISTICS,
     Permission.MANAGE_TRAINING,
+    Permission.SEND_ANNOUNCEMENTS,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.TRAINER]: [
@@ -57,6 +59,7 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.VIEW_PLAYER_STATS,
     Permission.MANAGE_STATISTICS,
     Permission.MANAGE_TRAINING,
+    Permission.SEND_ANNOUNCEMENTS,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.ASSISTANT_COACH]: [
@@ -70,6 +73,7 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.VIEW_PLAYER_STATS,
     Permission.MANAGE_STATISTICS,
     Permission.MANAGE_TRAINING,
+    Permission.SEND_ANNOUNCEMENTS,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.TEAM_MANAGER]: [
@@ -83,6 +87,7 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.VIEW_PLAYER_STATS,
     Permission.MANAGE_STATISTICS,
     Permission.MANAGE_TRAINING,
+    Permission.SEND_ANNOUNCEMENTS,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.PARENT]: [

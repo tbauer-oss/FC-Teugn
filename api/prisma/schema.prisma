@@ -168,6 +168,52 @@ enum TrainingAttendanceStatus {
   LEFT_EARLY
 }
 
+enum AnnouncementPriority {
+  NORMAL
+  IMPORTANT
+  URGENT
+}
+
+enum AnnouncementAudience {
+  ALL_MEMBERS
+  PARENTS
+  PLAYERS
+  STAFF
+  INDIVIDUALS
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum NotificationCategory {
+  EVENT
+  EVENT_REMINDER
+  ANNOUNCEMENT
+  NOMINATION
+  LINEUP
+  LIVE_TICKER
+  MATCH
+  REGISTRATION
+  URGENT
+  SYSTEM
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum PushPlatform {
+  WEB
+  ANDROID
+}
+
 enum PlayerStatus {
   ACTIVE
   INJURED
@@ -219,24 +265,25 @@ enum ConsentStatus {
 }
 
 model Team {
-  id           String             @id @default(cuid())
-  ageGroupId   String
-  name         String
-  shortName    String?
-  level        String?
-  isActive     Boolean            @default(true)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  ageGroup     AgeGroup           @relation(fields: [ageGroupId], references: [id])
-  users        User[]
-  memberships  TeamMembership[]
-  players      Player[]
-  events       Event[]
-  eventTargets EventTargetTeam[]
-  eventSeries  EventSeries[]
-  auditLogs    AuditLog[]
-  ruleProfiles RuleProfile[]
-  exercises    TrainingExercise[]
+  id            String                   @id @default(cuid())
+  ageGroupId    String
+  name          String
+  shortName     String?
+  level         String?
+  isActive      Boolean                  @default(true)
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  ageGroup      AgeGroup                 @relation(fields: [ageGroupId], references: [id])
+  users         User[]
+  memberships   TeamMembership[]
+  players       Player[]
+  events        Event[]
+  eventTargets  EventTargetTeam[]
+  eventSeries   EventSeries[]
+  auditLogs     AuditLog[]
+  ruleProfiles  RuleProfile[]
+  exercises     TrainingExercise[]
+  announcements AnnouncementTargetTeam[]
 
   @@index([ageGroupId, isActive])
 }
@@ -284,32 +331,39 @@ model AgeGroup {
 }
 
 model User {
-  id                String                  @id @default(cuid())
-  email             String                  @unique
-  password          String
-  name              String
-  phone             String?
-  role              Role                    @default(PARENT)
-  status            AccountStatus           @default(PENDING)
-  teamId            String
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  team              Team                    @relation(fields: [teamId], references: [id])
-  parentLinks       ParentPlayerLink[]      @relation("ParentLinks")
-  memberships       TeamMembership[]
-  auditLogs         AuditLog[]              @relation("AuditActor")
-  developmentNotes  PlayerDevelopmentNote[] @relation("DevelopmentAuthor")
-  medicalUpdates    PlayerMedicalProfile[]  @relation("MedicalUpdatedBy")
-  playerProfile     Player?                 @relation("PlayerAccount")
-  eventSeries       EventSeries[]           @relation("EventSeriesCreator")
-  attendanceReplies Attendance[]            @relation("AttendanceResponder")
-  carpoolOffers     CarpoolOffer[]          @relation("CarpoolDriver")
-  carpoolRequests   CarpoolPassenger[]      @relation("CarpoolRequester")
-  eventReminders    EventReminder[]         @relation("EventReminderRecipient")
-  calendarToken     String?                 @unique
-  tickerEvents      LiveTickerEvent[]       @relation("TickerEventAuthor")
-  trainingPlans     TrainingPlan[]          @relation("TrainingPlanAuthor")
-  exercises         TrainingExercise[]      @relation("ExerciseAuthor")
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
+  password                String
+  name                    String
+  phone                   String?
+  role                    Role                     @default(PARENT)
+  status                  AccountStatus            @default(PENDING)
+  teamId                  String
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  team                    Team                     @relation(fields: [teamId], references: [id])
+  parentLinks             ParentPlayerLink[]       @relation("ParentLinks")
+  memberships             TeamMembership[]
+  auditLogs               AuditLog[]               @relation("AuditActor")
+  developmentNotes        PlayerDevelopmentNote[]  @relation("DevelopmentAuthor")
+  medicalUpdates          PlayerMedicalProfile[]   @relation("MedicalUpdatedBy")
+  playerProfile           Player?                  @relation("PlayerAccount")
+  eventSeries             EventSeries[]            @relation("EventSeriesCreator")
+  attendanceReplies       Attendance[]             @relation("AttendanceResponder")
+  carpoolOffers           CarpoolOffer[]           @relation("CarpoolDriver")
+  carpoolRequests         CarpoolPassenger[]       @relation("CarpoolRequester")
+  eventReminders          EventReminder[]          @relation("EventReminderRecipient")
+  calendarToken           String?                  @unique
+  tickerEvents            LiveTickerEvent[]        @relation("TickerEventAuthor")
+  trainingPlans           TrainingPlan[]           @relation("TrainingPlanAuthor")
+  exercises               TrainingExercise[]       @relation("ExerciseAuthor")
+  authoredAnnouncements   Announcement[]           @relation("AnnouncementAuthor")
+  announcementRecipients  AnnouncementRecipient[]
+  announcementReads       AnnouncementRead[]
+  notifications           Notification[]
+  pushSubscriptions       PushSubscription[]
+  notificationPreferences NotificationPreference[]
+  notificationDeliveries  NotificationDelivery[]
 }
 
 model TeamMembership {
@@ -891,6 +945,145 @@ model TrainingPlanItem {
 
   @@unique([trainingPlanId, position])
   @@index([trainingPlanId, phase])
+}
+
+model Announcement {
+  id                 String                   @id @default(cuid())
+  authorId           String
+  title              String
+  body               String
+  audience           AnnouncementAudience     @default(ALL_MEMBERS)
+  priority           AnnouncementPriority     @default(NORMAL)
+  status             AnnouncementStatus       @default(DRAFT)
+  publishAt          DateTime?
+  expiresAt          DateTime?
+  requireReadReceipt Boolean                  @default(false)
+  pushEnabled        Boolean                  @default(true)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  publishedAt        DateTime?
+  archivedAt         DateTime?
+  author             User                     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  targetTeams        AnnouncementTargetTeam[]
+  recipients         AnnouncementRecipient[]
+  attachments        AnnouncementAttachment[]
+  reads              AnnouncementRead[]
+
+  @@index([status, publishAt, expiresAt])
+  @@index([authorId, createdAt])
+}
+
+model AnnouncementTargetTeam {
+  id             String       @id @default(cuid())
+  announcementId String
+  teamId         String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  team           Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, teamId])
+  @@index([teamId, announcementId])
+}
+
+model AnnouncementRecipient {
+  id             String       @id @default(cuid())
+  announcementId String
+  userId         String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId, announcementId])
+}
+
+model AnnouncementAttachment {
+  id             String       @id @default(cuid())
+  announcementId String
+  name           String
+  url            String
+  mimeType       String?
+  sizeBytes      Int?
+  createdAt      DateTime     @default(now())
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  userId         String
+  readAt         DateTime     @default(now())
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId, readAt])
+}
+
+model Notification {
+  id         String                 @id @default(cuid())
+  userId     String
+  category   NotificationCategory
+  title      String
+  body       String
+  actionUrl  String?
+  entityType String?
+  entityId   String?
+  readAt     DateTime?
+  createdAt  DateTime               @default(now())
+  expiresAt  DateTime?
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([userId, readAt, createdAt])
+}
+
+model PushSubscription {
+  id         String                 @id @default(cuid())
+  userId     String
+  platform   PushPlatform
+  endpoint   String                 @unique
+  p256dh     String?
+  auth       String?
+  deviceName String?
+  isActive   Boolean                @default(true)
+  lastUsedAt DateTime               @default(now())
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([userId, isActive])
+}
+
+model NotificationPreference {
+  id       String               @id @default(cuid())
+  userId   String
+  category NotificationCategory
+  inApp    Boolean              @default(true)
+  push     Boolean              @default(true)
+  user     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+}
+
+model NotificationDelivery {
+  id             String                     @id @default(cuid())
+  notificationId String
+  subscriptionId String?
+  userId         String
+  status         NotificationDeliveryStatus @default(PENDING)
+  attemptCount   Int                        @default(0)
+  lastAttemptAt  DateTime?
+  sentAt         DateTime?
+  errorCode      String?
+  createdAt      DateTime                   @default(now())
+  notification   Notification               @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  subscription   PushSubscription?          @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }
 
 model AuditLog {

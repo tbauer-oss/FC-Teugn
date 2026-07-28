@@ -55,5 +55,10 @@ Trainingsplanung sind in
 [`docs/statistics-training-planning.md`](docs/statistics-training-planning.md)
 beschrieben.
 
+Mannschaftsmitteilungen, Lesebestätigungen, persönliche
+Benachrichtigungseinstellungen und die Web-Push-Basis sind in
+[`docs/communications-notifications-push.md`](docs/communications-notifications-push.md)
+beschrieben.
+
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).
