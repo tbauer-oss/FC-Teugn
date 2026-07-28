@@ -147,6 +147,7 @@ class _ProfileContent extends ConsumerWidget {
       builder: (context) => _EditBasicsDialog(player: player),
     );
     if (draft == null) return;
+    if (!context.mounted) return;
     await _run(
       context,
       () async {
@@ -163,6 +164,7 @@ class _ProfileContent extends ConsumerWidget {
           _MedicalDialog(profile: player.medicalProfile),
     );
     if (draft == null) return;
+    if (!context.mounted) return;
     await _run(
       context,
       () => ref.read(repositoryProvider).updateMedicalProfile(
@@ -187,6 +189,7 @@ class _ProfileContent extends ConsumerWidget {
       builder: (context) => const _EmergencyDialog(),
     );
     if (draft == null) return;
+    if (!context.mounted) return;
     await _run(
       context,
       () => ref.read(repositoryProvider).addEmergencyContact(
@@ -223,6 +226,7 @@ class _ProfileContent extends ConsumerWidget {
       builder: (context) => _GuardianDialog(parents: parents),
     );
     if (draft == null) return;
+    if (!context.mounted) return;
     await _run(
       context,
       () => ref.read(repositoryProvider).assignParentPlayer(
@@ -243,6 +247,7 @@ class _ProfileContent extends ConsumerWidget {
       builder: (context) => const _DevelopmentDialog(),
     );
     if (draft == null) return;
+    if (!context.mounted) return;
     await _run(
       context,
       () => ref.read(repositoryProvider).addDevelopmentNote(

@@ -88,7 +88,7 @@ class MedicalProfile {
         physicianName,
         physicianPhone,
         emergencyNotes,
-      ].every((value) => value == null || value!.isEmpty);
+      ].every((value) => value == null || value.isEmpty);
 
   factory MedicalProfile.fromJson(Map<String, dynamic> json) => MedicalProfile(
         allergies: json['allergies'] as String?,

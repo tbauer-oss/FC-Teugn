@@ -142,7 +142,6 @@ class _PendingList extends StatelessWidget {
   const _PendingList({
     required this.value,
     required this.organization,
-    required this.players,
     required this.onApprove,
     required this.onBlock,
   });
@@ -294,6 +293,7 @@ class _ApprovalDialog extends StatefulWidget {
   const _ApprovalDialog({
     required this.user,
     required this.organization,
+    required this.players,
   });
 
   final AppUser user;
