@@ -41,14 +41,17 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SegmentedButton<int>(
-            segments: [
-              for (var index = 0; index < labels.length; index++)
-                ButtonSegment(value: index, label: Text(labels[index])),
-            ],
-            selected: {_tab},
-            onSelectionChanged: (value) =>
-                setState(() => _tab = value.first),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<int>(
+              segments: [
+                for (var index = 0; index < labels.length; index++)
+                  ButtonSegment(value: index, label: Text(labels[index])),
+              ],
+              selected: {_tab},
+              onSelectionChanged: (value) =>
+                  setState(() => _tab = value.first),
+            ),
           ),
           const SizedBox(height: 20),
           if (_tab == 0)

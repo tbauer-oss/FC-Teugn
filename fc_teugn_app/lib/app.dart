@@ -93,7 +93,7 @@ class FCTeugnApp extends ConsumerWidget {
               ShellDestination(label: 'Training', icon: Icons.fitness_center_rounded, route: '/trainer/training', showOnMobile: false),
               ShellDestination(label: 'Statistik', icon: Icons.query_stats_rounded, route: '/trainer/statistics', showOnMobile: false),
               ShellDestination(label: 'Nachrichten', icon: Icons.forum_rounded, route: '/trainer/messages'),
-              ShellDestination(label: 'Verein', icon: Icons.account_tree_rounded, route: '/trainer/organization'),
+              ShellDestination(label: 'Verein', icon: Icons.account_tree_rounded, route: '/trainer/organization', showOnMobile: false),
             ],
             child: child,
           ),
