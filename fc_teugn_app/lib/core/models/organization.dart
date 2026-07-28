@@ -168,3 +168,106 @@ class OrganizationContext {
         ),
       );
 }
+
+class RuleProfileModel {
+  const RuleProfileModel({
+    required this.id,
+    required this.teamId,
+    required this.teamName,
+    required this.ageGroupCode,
+    required this.name,
+    required this.validFrom,
+    required this.gameFormat,
+    required this.teamSize,
+    required this.periodCount,
+    required this.periodMinutes,
+    required this.version,
+    required this.approved,
+    this.maxSquadSize,
+    this.sourceNote,
+    this.approvedByName,
+  });
+
+  final String id;
+  final String teamId;
+  final String teamName;
+  final String ageGroupCode;
+  final String name;
+  final DateTime validFrom;
+  final String gameFormat;
+  final int teamSize;
+  final int? maxSquadSize;
+  final int periodCount;
+  final int periodMinutes;
+  final int version;
+  final bool approved;
+  final String? sourceNote;
+  final String? approvedByName;
+
+  factory RuleProfileModel.fromJson(Map<String, dynamic> json) {
+    final team = json['team'] as Map<String, dynamic>? ?? const {};
+    final ageGroup =
+        team['ageGroup'] as Map<String, dynamic>? ?? const {};
+    final approvedBy =
+        json['approvedBy'] as Map<String, dynamic>? ?? const {};
+    return RuleProfileModel(
+      id: json['id'] as String,
+      teamId: json['teamId'] as String,
+      teamName: team['name'] as String? ?? '',
+      ageGroupCode: ageGroup['code'] as String? ?? '',
+      name: json['name'] as String,
+      validFrom: DateTime.parse(json['validFrom'] as String),
+      gameFormat: json['gameFormat'] as String,
+      teamSize: json['teamSize'] as int,
+      maxSquadSize: json['maxSquadSize'] as int?,
+      periodCount: json['periodCount'] as int,
+      periodMinutes: json['periodMinutes'] as int,
+      version: json['version'] as int? ?? 1,
+      approved: json['approvedAt'] != null,
+      sourceNote: json['sourceNote'] as String?,
+      approvedByName: approvedBy['name'] as String?,
+    );
+  }
+}
+
+class SeasonTransitionModel {
+  const SeasonTransitionModel({
+    required this.id,
+    required this.status,
+    required this.idempotencyKey,
+    required this.plan,
+    required this.preview,
+    required this.createdAt,
+    this.result,
+    this.actorName,
+  });
+
+  final String id;
+  final String status;
+  final String idempotencyKey;
+  final Map<String, dynamic> plan;
+  final Map<String, dynamic> preview;
+  final Map<String, dynamic>? result;
+  final DateTime createdAt;
+  final String? actorName;
+
+  String get targetSeasonName =>
+      (plan['targetSeason'] as Map<String, dynamic>?)?['name'] as String? ?? '';
+  bool get canApply => status == 'PREVIEWED';
+
+  factory SeasonTransitionModel.fromJson(Map<String, dynamic> json) {
+    final actor = json['actor'] as Map<String, dynamic>? ?? const {};
+    return SeasonTransitionModel(
+      id: json['id'] as String,
+      status: json['status'] as String,
+      idempotencyKey: json['idempotencyKey'] as String,
+      plan: Map<String, dynamic>.from(json['plan'] as Map),
+      preview: Map<String, dynamic>.from(json['preview'] as Map),
+      result: json['result'] == null
+          ? null
+          : Map<String, dynamic>.from(json['result'] as Map),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      actorName: actor['name'] as String?,
+    );
+  }
+}

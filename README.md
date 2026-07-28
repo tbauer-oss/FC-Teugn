@@ -64,5 +64,10 @@ Der sichere Spielplanimport mit CSV-/ICS-Providerabstraktion,
 Duplikatschutz und Konfliktvorschau ist in
 [`docs/competition-imports.md`](docs/competition-imports.md) beschrieben.
 
+Versionierte Regelprofile und der transaktionssichere, geführte Saisonwechsel
+sind in
+[`docs/SAISONWECHSEL-UND-REGELPROFILE.md`](docs/SAISONWECHSEL-UND-REGELPROFILE.md)
+beschrieben.
+
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).

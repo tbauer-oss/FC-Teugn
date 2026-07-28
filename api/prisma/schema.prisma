@@ -240,6 +240,12 @@ enum PlayerStatus {
   LEFT
 }
 
+enum SeasonTransitionStatus {
+  PREVIEWED
+  APPLIED
+  FAILED
+}
+
 enum DominantFoot {
   RIGHT
   LEFT
@@ -284,53 +290,58 @@ enum ConsentStatus {
 }
 
 model Team {
-  id            String                   @id @default(cuid())
-  ageGroupId    String
-  name          String
-  shortName     String?
-  level         String?
-  isActive      Boolean                  @default(true)
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
-  ageGroup      AgeGroup                 @relation(fields: [ageGroupId], references: [id])
-  users         User[]
-  memberships   TeamMembership[]
-  players       Player[]
-  events        Event[]
-  eventTargets  EventTargetTeam[]
-  eventSeries   EventSeries[]
-  auditLogs     AuditLog[]
-  ruleProfiles  RuleProfile[]
-  exercises     TrainingExercise[]
-  announcements AnnouncementTargetTeam[]
-  importJobs    ImportJob[]
-  externalRefs  ExternalReference[]
+  id                      String                   @id @default(cuid())
+  ageGroupId              String
+  name                    String
+  shortName               String?
+  level                   String?
+  isActive                Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  ageGroup                AgeGroup                 @relation(fields: [ageGroupId], references: [id])
+  users                   User[]
+  memberships             TeamMembership[]
+  players                 Player[]
+  events                  Event[]
+  eventTargets            EventTargetTeam[]
+  eventSeries             EventSeries[]
+  auditLogs               AuditLog[]
+  ruleProfiles            RuleProfile[]
+  exercises               TrainingExercise[]
+  announcements           AnnouncementTargetTeam[]
+  importJobs              ImportJob[]
+  externalRefs            ExternalReference[]
+  playerSeasonAssignments PlayerSeasonAssignment[]
 
   @@index([ageGroupId, isActive])
 }
 
 model Club {
-  id           String   @id @default(cuid())
-  name         String   @unique
-  shortName    String
-  primaryColor String   @default("#176B87")
-  accentColor  String   @default("#FFB000")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  seasons      Season[]
+  id                String             @id @default(cuid())
+  name              String             @unique
+  shortName         String
+  primaryColor      String             @default("#176B87")
+  accentColor       String             @default("#FFB000")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  seasons           Season[]
+  seasonTransitions SeasonTransition[]
 }
 
 model Season {
-  id        String     @id @default(cuid())
-  clubId    String
-  name      String
-  startDate DateTime
-  endDate   DateTime
-  isActive  Boolean    @default(false)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  club      Club       @relation(fields: [clubId], references: [id])
-  ageGroups AgeGroup[]
+  id                String                   @id @default(cuid())
+  clubId            String
+  name              String
+  startDate         DateTime
+  endDate           DateTime
+  isActive          Boolean                  @default(false)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  club              Club                     @relation(fields: [clubId], references: [id])
+  ageGroups         AgeGroup[]
+  playerAssignments PlayerSeasonAssignment[]
+  sourceTransitions SeasonTransition[]       @relation("SeasonTransitionSource")
+  targetTransitions SeasonTransition[]       @relation("SeasonTransitionTarget")
 
   @@unique([clubId, name])
   @@index([clubId, isActive])
@@ -386,6 +397,9 @@ model User {
   notificationPreferences NotificationPreference[]
   notificationDeliveries  NotificationDelivery[]
   importJobs              ImportJob[]
+  seasonTransitions       SeasonTransition[]       @relation("SeasonTransitionActor")
+  createdRuleProfiles     RuleProfile[]            @relation("RuleProfileCreator")
+  approvedRuleProfiles    RuleProfile[]            @relation("RuleProfileApprover")
 }
 
 model TeamMembership {
@@ -435,8 +449,27 @@ model Player {
   tickerGoals       LiveTickerEvent[]        @relation("TickerScorer")
   tickerAssists     LiveTickerEvent[]        @relation("TickerAssist")
   matchStatistics   PlayerMatchStatistic[]
+  seasonAssignments PlayerSeasonAssignment[]
 
   @@index([teamId, status, lastName])
+}
+
+model PlayerSeasonAssignment {
+  id         String       @id @default(cuid())
+  playerId   String
+  seasonId   String
+  teamId     String
+  status     PlayerStatus @default(ACTIVE)
+  assignedAt DateTime     @default(now())
+  endedAt    DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  player     Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  season     Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  team       Team         @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
+  @@unique([playerId, seasonId])
+  @@index([teamId, status])
 }
 
 model ParentPlayerLink {
@@ -864,11 +897,38 @@ model RuleProfile {
   sourceNote           String?
   version              Int       @default(1)
   approvedAt           DateTime?
+  createdById          String?
+  approvedById         String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   team                 Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy            User?     @relation("RuleProfileCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy           User?     @relation("RuleProfileApprover", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@index([teamId, validFrom])
+}
+
+model SeasonTransition {
+  id             String                 @id @default(cuid())
+  clubId         String
+  sourceSeasonId String
+  targetSeasonId String?
+  actorId        String
+  status         SeasonTransitionStatus @default(PREVIEWED)
+  idempotencyKey String                 @unique
+  plan           Json
+  preview        Json
+  result         Json?
+  appliedAt      DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  club           Club                   @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  sourceSeason   Season                 @relation("SeasonTransitionSource", fields: [sourceSeasonId], references: [id], onDelete: Restrict)
+  targetSeason   Season?                @relation("SeasonTransitionTarget", fields: [targetSeasonId], references: [id], onDelete: Restrict)
+  actor          User                   @relation("SeasonTransitionActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([clubId, createdAt])
+  @@index([sourceSeasonId, status])
 }
 
 model TeamMatchStatistic {
