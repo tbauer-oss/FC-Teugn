@@ -44,7 +44,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         children: [
           OutlinedButton.icon(
             onPressed: _createSubscription,
-            icon: const Icon(Icons.calendar_add_on_rounded),
+            icon: const Icon(Icons.edit_calendar_rounded),
             label: const Text('Kalender-Abo'),
           ),
           if (canManage)
@@ -407,17 +407,17 @@ class _MonthView extends StatelessWidget {
           width: 1050,
           child: Column(
             children: [
-              const Row(
+              Row(
                 children: [
                   for (final label
                       in ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'])
                     Expanded(
                       child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 13),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         child: Text(
                           label,
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontWeight: FontWeight.w800),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
                     ),
@@ -1686,7 +1686,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       _DateTimeField(
                         label: 'Beginn',
                         value: startAt,
-                        onChanged: (value) => setState(() => startAt = value),
+                        onChanged: (value) =>
+                            setState(() => startAt = value ?? startAt),
                       ),
                       const SizedBox(height: 12),
                       _DateTimeField(
