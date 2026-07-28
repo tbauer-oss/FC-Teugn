@@ -13,10 +13,12 @@ import communicationsRoutes from './routes/communications.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import importsRoutes from './routes/imports.routes';
 import { errorHandler } from './middleware/errorHandler';
+import { authRateLimit } from './middleware/rate-limit';
 
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1);
 
 const defaultAllowedOrigins = [
   'https://fcteugnapp.vercel.app',
@@ -69,11 +71,12 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.disable('x-powered-by');
+app.use(express.json({ limit: '1mb' }));
 
 app.get('/', (_req, res) => res.json({ status: 'ok' }));
 
-app.use('/auth', authRoutes);
+app.use('/auth', authRateLimit, authRoutes);
 app.use('/players', playersRoutes);
 app.use('/events', eventsRoutes);
 app.use('/admin', adminRoutes);

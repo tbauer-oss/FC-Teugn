@@ -49,7 +49,23 @@ class TrainerApprovalsPage extends ConsumerWidget {
                     organization: organization,
                     onApprove: (user) =>
                         _approve(context, ref, user, organization, players),
-                    onBlock: (user) => _block(context, ref, user),
+                    onNeedsInfo: (user) => _reviewWithoutApproval(
+                      context,
+                      ref,
+                      user,
+                      status: AccountStatus.pending,
+                      reviewStatus: RegistrationReviewStatus.needsInfo,
+                      title: 'Rückfrage markieren',
+                    ),
+                    onReject: (user) => _reviewWithoutApproval(
+                      context,
+                      ref,
+                      user,
+                      status: AccountStatus.rejected,
+                      reviewStatus: RegistrationReviewStatus.completed,
+                      title: 'Registrierung ablehnen',
+                    ),
+                    onDetails: (user) => _showDetails(context, user),
                   ),
                   _MemberList(value: members),
                 ],
@@ -84,6 +100,9 @@ class TrainerApprovalsPage extends ConsumerWidget {
             role: decision.role,
             teamIds: decision.teamIds,
             playerId: decision.playerId,
+            relationship: decision.relationship,
+            adminNote: decision.adminNote,
+            reviewStatus: RegistrationReviewStatus.completed,
           );
       _refresh(ref);
       if (context.mounted) {
@@ -100,17 +119,32 @@ class TrainerApprovalsPage extends ConsumerWidget {
     }
   }
 
-  Future<void> _block(
+  Future<void> _reviewWithoutApproval(
     BuildContext context,
     WidgetRef ref,
     AppUser user,
+    {
+    required AccountStatus status,
+    required RegistrationReviewStatus reviewStatus,
+    required String title,
+    }
   ) async {
+    final note = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Anfrage blockieren?'),
-        content: Text(
-          '${user.name} kann sich danach nicht mehr in der App anmelden.',
+        title: Text(title),
+        content: SizedBox(
+          width: 520,
+          child: TextField(
+            controller: note,
+            minLines: 3,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              labelText: 'Interne Notiz / Begründung *',
+              hintText: 'Was muss geklärt werden?',
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -118,17 +152,110 @@ class TrainerApprovalsPage extends ConsumerWidget {
             child: const Text('Abbrechen'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Blockieren'),
+            onPressed: () => Navigator.pop(context, note.text.trim().isNotEmpty),
+            child: const Text('Speichern'),
           ),
         ],
       ),
     );
-    if (confirmed != true) return;
-    await ref
-        .read(repositoryProvider)
-        .approveUser(user.id, status: AccountStatus.blocked);
-    _refresh(ref);
+    try {
+      if (confirmed != true) return;
+      await ref.read(repositoryProvider).approveUser(
+            user.id,
+            status: status,
+            adminNote:
+                status == AccountStatus.rejected ? note.text.trim() : null,
+            applicantMessage: reviewStatus ==
+                    RegistrationReviewStatus.needsInfo
+                ? note.text.trim()
+                : null,
+            reviewStatus: reviewStatus,
+          );
+      _refresh(ref);
+    } finally {
+      note.dispose();
+    }
+  }
+
+  Future<void> _showDetails(BuildContext context, AppUser user) {
+    final request = user.registrationRequest;
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Registrierung · ${user.name}'),
+        content: SizedBox(
+          width: 650,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _DetailRow(label: 'E-Mail', value: user.email),
+                _DetailRow(label: 'Telefon', value: user.phone ?? 'Nicht angegeben'),
+                _DetailRow(
+                  label: 'Gewünschte Rolle',
+                  value: request == null
+                      ? user.roleLabel
+                      : _roleLabel(request.requestedRole),
+                ),
+                if (request?.childName != null)
+                  _DetailRow(label: 'Kind', value: request!.childName!),
+                if (request?.relationship != null)
+                  _DetailRow(
+                    label: 'Beziehung',
+                    value: _relationshipLabel(request!.relationship!),
+                  ),
+                _DetailRow(
+                  label: 'Mannschaften',
+                  value: (request?.requestedTeams ?? user.memberships)
+                      .map((item) => '${item.ageGroupCode} · ${item.teamName}')
+                      .join(', '),
+                ),
+                _DetailRow(
+                  label: 'Push-Einwilligung',
+                  value: request?.pushOptIn == true ? 'Erteilt' : 'Nicht erteilt',
+                ),
+                if (request?.adminNote?.isNotEmpty == true)
+                  _DetailRow(label: 'Adminnotiz', value: request!.adminNote!),
+                if (request?.applicantMessage?.isNotEmpty == true)
+                  _DetailRow(
+                    label: 'Nachricht an Mitglied',
+                    value: request!.applicantMessage!,
+                  ),
+                const SizedBox(height: 18),
+                Text(
+                  'Änderungshistorie',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                if (request == null || request.history.isEmpty)
+                  const Text('Für diesen Bestandsaccount liegt keine Registrierungshistorie vor.')
+                else
+                  for (final item in request.history)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.history_rounded),
+                      title: Text(
+                        item.note?.isNotEmpty == true
+                            ? item.note!
+                            : 'Status aktualisiert',
+                      ),
+                      subtitle: Text(
+                        '${_date(item.createdAt)} · ${item.actorName ?? 'System'}',
+                      ),
+                    ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Schließen'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _refresh(WidgetRef ref) {
@@ -138,22 +265,35 @@ class TrainerApprovalsPage extends ConsumerWidget {
   }
 }
 
-class _PendingList extends StatelessWidget {
+class _PendingList extends StatefulWidget {
   const _PendingList({
     required this.value,
     required this.organization,
     required this.onApprove,
-    required this.onBlock,
+    required this.onNeedsInfo,
+    required this.onReject,
+    required this.onDetails,
   });
 
   final AsyncValue<List<AppUser>> value;
   final OrganizationContext? organization;
   final ValueChanged<AppUser> onApprove;
-  final ValueChanged<AppUser> onBlock;
+  final ValueChanged<AppUser> onNeedsInfo;
+  final ValueChanged<AppUser> onReject;
+  final ValueChanged<AppUser> onDetails;
+
+  @override
+  State<_PendingList> createState() => _PendingListState();
+}
+
+class _PendingListState extends State<_PendingList> {
+  String _query = '';
+  UserRole? _role;
+  String? _teamId;
 
   @override
   Widget build(BuildContext context) {
-    return value.when(
+    return widget.value.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (_, __) => const EmptyState(
         icon: Icons.cloud_off_rounded,
@@ -168,11 +308,103 @@ class _PendingList extends StatelessWidget {
             message: 'Aktuell warten keine neuen Mitglieder auf eine Freigabe.',
           );
         }
+        final query = _query.toLowerCase();
+        final filtered = users.where((user) {
+          final request = user.registrationRequest;
+          final matchesQuery = query.isEmpty ||
+              user.name.toLowerCase().contains(query) ||
+              user.email.toLowerCase().contains(query) ||
+              (request?.childName?.toLowerCase().contains(query) ?? false);
+          final matchesRole =
+              _role == null || request?.requestedRole == _role || user.role == _role;
+          final requestedTeams = request?.requestedTeams ?? user.memberships;
+          final matchesTeam =
+              _teamId == null || requestedTeams.any((team) => team.teamId == _teamId);
+          return matchesQuery && matchesRole && matchesTeam;
+        }).toList();
         return ListView.separated(
-          itemCount: users.length,
+          itemCount: filtered.length + 1,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
-            final user = users[index];
+            if (index == 0) {
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 250,
+                        child: TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Name, E-Mail oder Kind',
+                            prefixIcon: Icon(Icons.search_rounded),
+                          ),
+                          onChanged: (value) => setState(() => _query = value),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 190,
+                        child: DropdownButtonFormField<UserRole?>(
+                          initialValue: _role,
+                          decoration: const InputDecoration(labelText: 'Rolle'),
+                          items: const [
+                            DropdownMenuItem(value: null, child: Text('Alle Rollen')),
+                            DropdownMenuItem(
+                              value: UserRole.parent,
+                              child: Text('Eltern'),
+                            ),
+                            DropdownMenuItem(
+                              value: UserRole.player,
+                              child: Text('Spieler'),
+                            ),
+                            DropdownMenuItem(
+                              value: UserRole.coach,
+                              child: Text('Trainer'),
+                            ),
+                            DropdownMenuItem(
+                              value: UserRole.assistantCoach,
+                              child: Text('Co-Trainer'),
+                            ),
+                            DropdownMenuItem(
+                              value: UserRole.teamManager,
+                              child: Text('Organisation'),
+                            ),
+                          ],
+                          onChanged: (value) => setState(() => _role = value),
+                        ),
+                      ),
+                      if (widget.organization != null)
+                        SizedBox(
+                          width: 220,
+                          child: DropdownButtonFormField<String?>(
+                            initialValue: _teamId,
+                            decoration:
+                                const InputDecoration(labelText: 'Mannschaft'),
+                            items: [
+                              const DropdownMenuItem(
+                                value: null,
+                                child: Text('Alle Mannschaften'),
+                              ),
+                              for (final team in widget.organization!.teams)
+                                DropdownMenuItem(
+                                  value: team.id,
+                                  child: Text(team.displayName),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _teamId = value),
+                          ),
+                        ),
+                      Chip(label: Text('${filtered.length} Treffer')),
+                    ],
+                  ),
+                ),
+              );
+            }
+            final user = filtered[index - 1];
             return Card(
               child: Padding(
                 padding: const EdgeInsets.all(18),
@@ -208,17 +440,36 @@ class _PendingList extends StatelessWidget {
                         ],
                       ),
                     ),
-                    OutlinedButton(
-                      onPressed: () => onBlock(user),
-                      child: const Text('Blockieren'),
+                    PopupMenuButton<String>(
+                      tooltip: 'Aktionen',
+                      onSelected: (value) {
+                        if (value == 'details') widget.onDetails(user);
+                        if (value == 'question') widget.onNeedsInfo(user);
+                        if (value == 'reject') widget.onReject(user);
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'details',
+                          child: Text('Details & Historie'),
+                        ),
+                        PopupMenuItem(
+                          value: 'question',
+                          child: Text('Rückfrage markieren'),
+                        ),
+                        PopupMenuItem(
+                          value: 'reject',
+                          child: Text('Ablehnen'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     FilledButton.icon(
-                      onPressed: organization == null
-                          ? null
-                          : () => onApprove(user),
-                      icon: const Icon(Icons.check_rounded),
-                      label: const Text('Prüfen & freigeben'),
+                      onPressed:
+                          widget.organization == null
+                              ? null
+                              : () => widget.onApprove(user),
+                      icon: const Icon(Icons.fact_check_outlined),
+                      label: const Text('Prüfen'),
                     ),
                   ],
                 ),
@@ -285,7 +536,9 @@ class _MemberList extends StatelessWidget {
   String _status(AccountStatus value) => switch (value) {
         AccountStatus.pending => 'Ausstehend',
         AccountStatus.approved => 'Freigegeben',
+        AccountStatus.rejected => 'Abgelehnt',
         AccountStatus.blocked => 'Blockiert',
+        AccountStatus.archived => 'Archiviert',
       };
 }
 
@@ -308,6 +561,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
   late UserRole role;
   late Set<String> teamIds;
   String? playerId;
+  late final TextEditingController adminNote;
+  late String relationship;
 
   @override
   void initState() {
@@ -316,6 +571,17 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
     teamIds = widget.user.memberships.isEmpty
         ? {widget.organization.currentTeam.id}
         : widget.user.memberships.map((item) => item.teamId).toSet();
+    adminNote = TextEditingController(
+      text: widget.user.registrationRequest?.adminNote,
+    );
+    relationship =
+        widget.user.registrationRequest?.relationship ?? 'GUARDIAN';
+  }
+
+  @override
+  void dispose() {
+    adminNote.dispose();
+    super.dispose();
   }
 
   @override
@@ -395,12 +661,14 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                     ),
                 ],
               ),
-              if (role == UserRole.player) ...[
+              if (role == UserRole.player || role == UserRole.parent) ...[
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: playerId,
-                  decoration: const InputDecoration(
-                    labelText: 'Verknüpftes Spielerprofil *',
+                  decoration: InputDecoration(
+                    labelText: role == UserRole.parent
+                        ? 'Kind / Spielerprofil *'
+                        : 'Verknüpftes Spielerprofil *',
                   ),
                   items: [
                     for (final player in widget.players.where(
@@ -413,7 +681,36 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                   ],
                   onChanged: (value) => setState(() => playerId = value),
                 ),
+                if (role == UserRole.parent) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: relationship,
+                    decoration: const InputDecoration(
+                      labelText: 'Beziehung zum Kind',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'MOTHER', child: Text('Mutter')),
+                      DropdownMenuItem(value: 'FATHER', child: Text('Vater')),
+                      DropdownMenuItem(
+                        value: 'GUARDIAN',
+                        child: Text('Sorgeberechtigte Person'),
+                      ),
+                      DropdownMenuItem(value: 'OTHER', child: Text('Andere')),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => relationship = value!),
+                  ),
+                ],
               ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: adminNote,
+                minLines: 2,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: 'Interne Prüfnotiz',
+                ),
+              ),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(14),
@@ -445,7 +742,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
         ),
         FilledButton.icon(
           onPressed: teamIds.isEmpty ||
-                  (role == UserRole.player && playerId == null)
+                  ((role == UserRole.player || role == UserRole.parent) &&
+                      playerId == null)
               ? null
               : () => Navigator.pop(
                     context,
@@ -453,6 +751,9 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                       role: role,
                       teamIds: teamIds.toList(),
                       playerId: playerId,
+                      relationship:
+                          role == UserRole.parent ? relationship : null,
+                      adminNote: adminNote.text.trim(),
                     ),
                   ),
           icon: const Icon(Icons.verified_user_rounded),
@@ -481,11 +782,41 @@ class _ApprovalDecision {
     required this.role,
     required this.teamIds,
     this.playerId,
+    this.relationship,
+    this.adminNote,
   });
 
   final UserRole role;
   final List<String> teamIds;
   final String? playerId;
+  final String? relationship;
+  final String? adminNote;
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 150,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
 }
 
 String _initials(String name) => name
@@ -498,3 +829,23 @@ String _initials(String name) => name
 
 String _date(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year}';
+
+String _roleLabel(UserRole value) => switch (value) {
+      UserRole.superAdmin => 'Systemadministration',
+      UserRole.clubAdmin => 'Vereinsadministration',
+      UserRole.youthDirector => 'Jugendleitung',
+      UserRole.coach || UserRole.trainer => 'Trainer/in',
+      UserRole.assistantCoach => 'Co-Trainer/in',
+      UserRole.teamManager => 'Teamorganisation',
+      UserRole.trainerAdmin => 'Trainer-Administration',
+      UserRole.parent => 'Elternteil',
+      UserRole.player => 'Spieler/in',
+      UserRole.readOnly => 'Lesender Zugriff',
+    };
+
+String _relationshipLabel(String value) => switch (value) {
+      'MOTHER' => 'Mutter',
+      'FATHER' => 'Vater',
+      'GUARDIAN' => 'Sorgeberechtigte Person',
+      _ => 'Andere Beziehung',
+    };

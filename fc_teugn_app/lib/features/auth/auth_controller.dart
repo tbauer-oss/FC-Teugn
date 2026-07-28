@@ -54,18 +54,27 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> register({
-    required String name,
+    required String firstName,
+    required String lastName,
     required String email,
     required String password,
     String? phone,
     required UserRole role,
-    String? teamName,
-    String? teamId,
+    required List<String> teamIds,
+    String? childName,
+    String? relationship,
+    required bool privacyAccepted,
+    required bool termsAccepted,
+    required bool pushOptIn,
+    required String privacyTextVersionId,
+    required String termsTextVersionId,
+    String? pushTextVersionId,
   }) async {
     state = state.copyWith(loading: true, error: null);
     try {
       final res = await _client.dio.post('/auth/register', data: {
-        'name': name,
+        'firstName': firstName,
+        'lastName': lastName,
         'email': email,
         'password': password,
         'phone': phone,
@@ -76,8 +85,15 @@ class AuthController extends StateNotifier<AuthState> {
           UserRole.player => 'PLAYER',
           _ => 'PARENT',
         },
-        'teamName': teamName,
-        'teamId': teamId,
+        'teamIds': teamIds,
+        'childName': childName,
+        'relationship': relationship,
+        'privacyAccepted': privacyAccepted,
+        'termsAccepted': termsAccepted,
+        'pushOptIn': pushOptIn,
+        'privacyTextVersionId': privacyTextVersionId,
+        'termsTextVersionId': termsTextVersionId,
+        'pushTextVersionId': pushTextVersionId,
       });
 
       final data = res.data as Map<String, dynamic>;

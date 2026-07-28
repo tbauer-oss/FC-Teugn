@@ -62,8 +62,12 @@ export function requireApproved(req: Request, res: Response, next: NextFunction)
     return res.status(401).json({ message: 'No user in request' });
   }
 
-  if (req.user.status === AccountStatus.BLOCKED) {
-    return res.status(403).json({ message: 'Account blocked' });
+  if (
+    req.user.status === AccountStatus.BLOCKED ||
+    req.user.status === AccountStatus.REJECTED ||
+    req.user.status === AccountStatus.ARCHIVED
+  ) {
+    return res.status(403).json({ message: 'Account not active' });
   }
 
   if (req.user.status !== AccountStatus.APPROVED) {

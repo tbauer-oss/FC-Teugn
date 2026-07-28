@@ -69,5 +69,10 @@ sind in
 [`docs/SAISONWECHSEL-UND-REGELPROFILE.md`](docs/SAISONWECHSEL-UND-REGELPROFILE.md)
 beschrieben.
 
+Der mehrstufige Registrierungs- und Freigabeprozess mit versionierten
+Einwilligungen ist in
+[`docs/PROFESSIONELLE-REGISTRIERUNG.md`](docs/PROFESSIONELLE-REGISTRIERUNG.md)
+beschrieben.
+
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).
