@@ -8,6 +8,7 @@ import 'models/organization.dart';
 import 'models/player.dart';
 import 'models/user.dart';
 import 'models/team_operations.dart';
+import 'offline_ticker.dart';
 
 final repositoryProvider = Provider<DataRepository>((ref) {
   final authState = ref.watch(authProvider);
@@ -48,4 +49,8 @@ final organizationProvider = FutureProvider<OrganizationContext>((ref) async {
 final teamOperationsProvider =
     FutureProvider.family<TeamOperationsOverview, String>((ref, teamId) async {
   return ref.watch(repositoryProvider).teamOperations(teamId);
+});
+
+final tickerOfflineQueueProvider = Provider<TickerOfflineQueue>((ref) {
+  return TickerOfflineQueue();
 });

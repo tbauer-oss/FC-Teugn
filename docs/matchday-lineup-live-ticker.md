@@ -40,11 +40,22 @@ zugeordneten Mannschaften begrenzt.
 
 ## Echtzeit und schlechte Verbindung
 
-Die erste produktive Ausbaustufe verwendet ein kurzes, sequenzbasiertes Polling.
+Die produktive Ausbaustufe verwendet ein kurzes, sequenzbasiertes Polling.
 Das passt zu serverlosen Vercel-Funktionen und verhindert dauerhaft offene
 WebSocket-Verbindungen. Jeder Client sendet eine eindeutige `clientEventId`;
 wiederholte Übertragungen erzeugen deshalb kein doppeltes Tor. Der Flutter-Client
-behält bei kurzen Fehlern den zuletzt bekannten Stand sichtbar.
+speichert den zuletzt geladenen Spielstand benutzer- und terminbezogen für
+maximal sieben Tage.
 
-Eine persistente Offline-Warteschlange und Push-Benachrichtigungen werden in
-einem eigenen Infrastruktur-Meilenstein ergänzt.
+Tickeraktionen werden vor dem Netzaufruf in einer persistenten, pro Benutzer
+getrennten Warteschlange gespeichert. Bei einem Verbindungsabbruch zeigt die
+App den optimistisch fortgeschriebenen Spielstand und alle ausstehenden
+Aktionen deutlich an. Die Übertragung wird in Originalreihenfolge automatisch
+wiederholt. Nach einer möglicherweise verlorenen Serverantwort bleibt dieselbe
+`clientEventId` erhalten, sodass der Server keine doppelten Ereignisse erzeugt.
+Einträge verfallen nach 48 Stunden; maximal 100 Aktionen werden vorgemerkt.
+
+Korrekturen werden bewusst nicht offline vorgemerkt, weil eine spätere
+„Letzte Aktion“-Auflösung bei zwischenzeitlichen Aktionen eines zweiten
+Trainers mehrdeutig wäre. Die Oberfläche erklärt in diesem Fall, dass zunächst
+ein synchroner Spielstand benötigt wird.
