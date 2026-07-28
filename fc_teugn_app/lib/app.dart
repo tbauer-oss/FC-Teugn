@@ -22,6 +22,7 @@ import 'features/matches/matchday_page.dart';
 import 'features/statistics/statistics_page.dart';
 import 'features/training/training_pages.dart';
 import 'features/communications/communications_page.dart';
+import 'features/operations/team_operations_page.dart';
 import 'core/models/user.dart';
 import 'core/app_theme.dart';
 
@@ -103,6 +104,7 @@ class FCTeugnApp extends ConsumerWidget {
               ShellDestination(label: 'Training', icon: Icons.fitness_center_rounded, route: '/trainer/training', showOnMobile: false),
               ShellDestination(label: 'Statistik', icon: Icons.query_stats_rounded, route: '/trainer/statistics', showOnMobile: false),
               ShellDestination(label: 'Nachrichten', icon: Icons.forum_rounded, route: '/trainer/messages'),
+              ShellDestination(label: 'Orga', icon: Icons.assignment_turned_in_rounded, route: '/trainer/operations'),
               ShellDestination(label: 'Verein', icon: Icons.account_tree_rounded, route: '/trainer/organization', showOnMobile: false),
             ],
             child: child,
@@ -162,6 +164,10 @@ class FCTeugnApp extends ConsumerWidget {
                   const CommunicationsPage(staffView: true),
             ),
             GoRoute(
+              path: '/trainer/operations',
+              builder: (context, state) => const TeamOperationsPage(),
+            ),
+            GoRoute(
               path: '/trainer/organization',
               builder: (context, state) => const OrganizationPage(),
             ),
@@ -177,6 +183,7 @@ class FCTeugnApp extends ConsumerWidget {
               ShellDestination(label: 'Spiele', icon: Icons.sports_soccer_rounded, route: '/parent/matches'),
               ShellDestination(label: 'Statistik', icon: Icons.query_stats_rounded, route: '/parent/statistics', showOnMobile: false),
               ShellDestination(label: 'Nachrichten', icon: Icons.forum_rounded, route: '/parent/messages'),
+              ShellDestination(label: 'Orga', icon: Icons.assignment_turned_in_rounded, route: '/parent/operations'),
             ],
             child: child,
           ),
@@ -219,6 +226,10 @@ class FCTeugnApp extends ConsumerWidget {
               path: '/parent/messages',
               builder: (context, state) =>
                   const CommunicationsPage(staffView: false),
+            ),
+            GoRoute(
+              path: '/parent/operations',
+              builder: (context, state) => const TeamOperationsPage(),
             ),
           ],
         ),

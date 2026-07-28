@@ -79,5 +79,8 @@ Einwilligungen ist in
 [`docs/PROFESSIONELLE-REGISTRIERUNG.md`](docs/PROFESSIONELLE-REGISTRIERUNG.md)
 beschrieben.
 
+Teambezogene Aufgaben, Materialausgaben und wiederverwendbare Checklisten sind
+in [`docs/team-operations.md`](docs/team-operations.md) beschrieben.
+
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).

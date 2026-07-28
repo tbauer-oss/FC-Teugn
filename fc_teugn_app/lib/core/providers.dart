@@ -7,6 +7,7 @@ import 'models/event.dart';
 import 'models/organization.dart';
 import 'models/player.dart';
 import 'models/user.dart';
+import 'models/team_operations.dart';
 
 final repositoryProvider = Provider<DataRepository>((ref) {
   final authState = ref.watch(authProvider);
@@ -42,4 +43,9 @@ final membersProvider = FutureProvider<List<AppUser>>((ref) async {
 
 final organizationProvider = FutureProvider<OrganizationContext>((ref) async {
   return ref.watch(repositoryProvider).organizationContext();
+});
+
+final teamOperationsProvider =
+    FutureProvider.family<TeamOperationsOverview, String>((ref, teamId) async {
+  return ref.watch(repositoryProvider).teamOperations(teamId);
 });

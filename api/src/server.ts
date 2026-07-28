@@ -12,6 +12,7 @@ import trainingsRoutes from './routes/trainings.routes';
 import communicationsRoutes from './routes/communications.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import importsRoutes from './routes/imports.routes';
+import teamOperationsRoutes from './routes/team-operations.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { authRateLimit } from './middleware/rate-limit';
 
@@ -87,6 +88,7 @@ app.use('/trainings', trainingsRoutes);
 app.use('/communications', communicationsRoutes);
 app.use('/notifications', notificationsRoutes);
 app.use('/imports', importsRoutes);
+app.use('/team-operations', teamOperationsRoutes);
 
 app.use(errorHandler);
 
