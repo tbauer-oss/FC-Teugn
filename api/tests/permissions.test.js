@@ -67,6 +67,25 @@ test('assistant coaches can document development but not edit medical data', () 
   );
 });
 
+test('matchday operations are restricted to assigned staff roles', () => {
+  assert.equal(
+    hasPermission(Role.COACH, Permission.MANAGE_LINEUPS),
+    true,
+  );
+  assert.equal(
+    hasPermission(Role.ASSISTANT_COACH, Permission.MANAGE_LIVE_TICKER),
+    true,
+  );
+  assert.equal(
+    hasPermission(Role.PARENT, Permission.MANAGE_LINEUPS),
+    false,
+  );
+  assert.equal(
+    hasPermission(Role.PLAYER, Permission.MANAGE_LIVE_TICKER),
+    false,
+  );
+});
+
 test('weekly and biweekly calendar series include the boundary occurrence', () => {
   const start = new Date('2026-08-03T16:00:00.000Z');
   const weekly = generateOccurrences(

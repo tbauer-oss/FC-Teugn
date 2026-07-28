@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
@@ -30,7 +31,10 @@ class ParentMatchesPage extends ConsumerWidget {
               for (final match in matches)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 14),
-                  child: _PublicMatchCard(event: match),
+                  child: _PublicMatchCard(
+                    event: match,
+                    onOpen: () => context.push('/parent/matches/${match.id}'),
+                  ),
                 ),
             ],
           );
@@ -47,8 +51,9 @@ class ParentMatchesPage extends ConsumerWidget {
 }
 
 class _PublicMatchCard extends StatelessWidget {
-  const _PublicMatchCard({required this.event});
+  const _PublicMatchCard({required this.event, required this.onOpen});
   final EventModel event;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +108,15 @@ class _PublicMatchCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(event.location),
               ],
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                onPressed: onOpen,
+                icon: const Icon(Icons.stadium_rounded),
+                label: const Text('Spieltag öffnen'),
+              ),
             ),
           ],
         ),

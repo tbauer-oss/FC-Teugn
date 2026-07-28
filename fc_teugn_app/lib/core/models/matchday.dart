@@ -1,0 +1,407 @@
+import 'player.dart';
+
+enum MatchStatus {
+  planned,
+  confirmed,
+  postponed,
+  cancelled,
+  live,
+  halfTime,
+  interrupted,
+  finished,
+  recorded,
+}
+
+enum NominationStatus { nominated, onCall, declined }
+
+enum LineupStatus { draft, internallyApproved, published, archived }
+
+enum TickerStatus { notStarted, live, paused, halfTime, interrupted, finished }
+
+enum TickerEventType {
+  matchStart,
+  homeGoal,
+  awayGoal,
+  periodEnd,
+  periodStart,
+  interruption,
+  resume,
+  substitution,
+  card,
+  injury,
+  penalty,
+  ownGoal,
+  comment,
+  correction,
+  eventRevoked,
+  matchEnd,
+}
+
+T _enum<T extends Enum>(List<T> values, Object? raw, T fallback) {
+  final normalized = raw?.toString().toLowerCase().replaceAll('_', '');
+  return values.where((item) => item.name.toLowerCase() == normalized).firstOrNull ??
+      fallback;
+}
+
+class MatchdayModel {
+  const MatchdayModel({
+    required this.id,
+    required this.title,
+    required this.startAt,
+    required this.location,
+    required this.teamId,
+    this.meetingAt,
+    this.details,
+    this.squad,
+    this.ticker,
+  });
+
+  final String id;
+  final String title;
+  final DateTime startAt;
+  final DateTime? meetingAt;
+  final String location;
+  final String teamId;
+  final MatchDetailsModel? details;
+  final MatchSquadModel? squad;
+  final LiveTickerModel? ticker;
+
+  factory MatchdayModel.fromJson(Map<String, dynamic> json) {
+    final squads = json['squads'] as List<dynamic>? ?? const [];
+    return MatchdayModel(
+      id: json['id'] as String,
+      title: json['title'] as String? ?? 'Spiel',
+      startAt: DateTime.parse(json['startAt'] as String),
+      meetingAt: json['meetingAt'] == null
+          ? null
+          : DateTime.parse(json['meetingAt'] as String),
+      location: json['location'] as String? ?? '',
+      teamId: json['teamId'] as String? ?? '',
+      details: json['matchDetails'] == null
+          ? null
+          : MatchDetailsModel.fromJson(
+              json['matchDetails'] as Map<String, dynamic>,
+            ),
+      squad: squads.isEmpty
+          ? null
+          : MatchSquadModel.fromJson(squads.first as Map<String, dynamic>),
+      ticker: json['liveTicker'] == null
+          ? null
+          : LiveTickerModel.fromJson(
+              json['liveTicker'] as Map<String, dynamic>,
+            ),
+    );
+  }
+}
+
+class MatchDetailsModel {
+  const MatchDetailsModel({
+    required this.opponent,
+    required this.isHome,
+    required this.status,
+    required this.durationMinutes,
+    required this.periodMinutes,
+    required this.periodCount,
+    this.competition,
+    this.division,
+    this.matchDay,
+    this.pitch,
+    this.referee,
+    this.ourGoals,
+    this.theirGoals,
+    this.notes,
+  });
+
+  final String opponent;
+  final bool isHome;
+  final MatchStatus status;
+  final String? competition;
+  final String? division;
+  final String? matchDay;
+  final String? pitch;
+  final String? referee;
+  final int durationMinutes;
+  final int periodMinutes;
+  final int periodCount;
+  final int? ourGoals;
+  final int? theirGoals;
+  final String? notes;
+
+  factory MatchDetailsModel.fromJson(Map<String, dynamic> json) =>
+      MatchDetailsModel(
+        opponent: json['opponent'] as String? ?? 'Gegner',
+        isHome: json['isHome'] as bool? ?? true,
+        status: _enum(
+          MatchStatus.values,
+          json['status'],
+          MatchStatus.planned,
+        ),
+        competition: json['competition'] as String?,
+        division: json['division'] as String?,
+        matchDay: json['matchDay'] as String?,
+        pitch: json['pitch'] as String?,
+        referee: json['referee'] as String?,
+        durationMinutes: json['durationMinutes'] as int? ?? 60,
+        periodMinutes: json['periodMinutes'] as int? ?? 30,
+        periodCount: json['periodCount'] as int? ?? 2,
+        ourGoals: json['ourGoals'] as int?,
+        theirGoals: json['theirGoals'] as int?,
+        notes: json['notes'] as String?,
+      );
+}
+
+class MatchPlayer {
+  const MatchPlayer({
+    required this.id,
+    required this.name,
+    this.shirtNumber,
+    this.position,
+    this.status,
+  });
+
+  final String id;
+  final String name;
+  final int? shirtNumber;
+  final String? position;
+  final PlayerStatus? status;
+
+  factory MatchPlayer.fromJson(Map<String, dynamic> json) => MatchPlayer(
+        id: json['id'] as String,
+        name: (json['preferredName'] as String?)?.trim().isNotEmpty == true
+            ? json['preferredName'] as String
+            : '${json['firstName'] ?? ''} ${json['lastName'] ?? ''}'.trim(),
+        shirtNumber: json['shirtNumber'] as int?,
+        position: json['position'] as String?,
+        status: json['status'] == null
+            ? null
+            : _enum(PlayerStatus.values, json['status'], PlayerStatus.active),
+      );
+}
+
+class MatchSquadModel {
+  const MatchSquadModel({
+    required this.id,
+    required this.members,
+    this.name,
+    this.formation,
+    this.publishedAt,
+    this.lineup,
+  });
+
+  final String id;
+  final String? name;
+  final String? formation;
+  final DateTime? publishedAt;
+  final List<SquadMemberModel> members;
+  final LineupModel? lineup;
+
+  factory MatchSquadModel.fromJson(Map<String, dynamic> json) => MatchSquadModel(
+        id: json['id'] as String,
+        name: json['name'] as String?,
+        formation: json['formation'] as String?,
+        publishedAt: json['publishedAt'] == null
+            ? null
+            : DateTime.parse(json['publishedAt'] as String),
+        members: (json['members'] as List<dynamic>? ?? const [])
+            .map(
+              (item) =>
+                  SquadMemberModel.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(),
+        lineup: json['lineup'] == null
+            ? null
+            : LineupModel.fromJson(json['lineup'] as Map<String, dynamic>),
+      );
+}
+
+class SquadMemberModel {
+  const SquadMemberModel({
+    required this.player,
+    required this.status,
+    this.note,
+    this.plannedMinutes,
+  });
+
+  final MatchPlayer player;
+  final NominationStatus status;
+  final String? note;
+  final int? plannedMinutes;
+
+  factory SquadMemberModel.fromJson(Map<String, dynamic> json) =>
+      SquadMemberModel(
+        player: MatchPlayer.fromJson(json['player'] as Map<String, dynamic>),
+        status: _enum(
+          NominationStatus.values,
+          json['status'],
+          NominationStatus.nominated,
+        ),
+        note: json['note'] as String?,
+        plannedMinutes: json['plannedMinutes'] as int?,
+      );
+}
+
+class LineupModel {
+  const LineupModel({
+    required this.id,
+    required this.formation,
+    required this.fieldSize,
+    required this.status,
+    required this.positions,
+    this.publicNote,
+    this.tacticalNote,
+  });
+
+  final String id;
+  final String formation;
+  final int fieldSize;
+  final LineupStatus status;
+  final String? publicNote;
+  final String? tacticalNote;
+  final List<LineupPositionModel> positions;
+
+  factory LineupModel.fromJson(Map<String, dynamic> json) => LineupModel(
+        id: json['id'] as String,
+        formation: json['formation'] as String? ?? 'Individuell',
+        fieldSize: json['fieldSize'] as int? ?? 7,
+        status: _enum(
+          LineupStatus.values,
+          json['status'],
+          LineupStatus.draft,
+        ),
+        publicNote: json['publicNote'] as String?,
+        tacticalNote: json['tacticalNote'] as String?,
+        positions: (json['positions'] as List<dynamic>? ?? const [])
+            .map(
+              (item) =>
+                  LineupPositionModel.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(),
+      );
+}
+
+class LineupPositionModel {
+  const LineupPositionModel({
+    required this.player,
+    required this.positionCode,
+    required this.x,
+    required this.y,
+    required this.period,
+    required this.isStarter,
+    required this.isGoalkeeper,
+    required this.isCaptain,
+  });
+
+  final MatchPlayer player;
+  final String positionCode;
+  final double x;
+  final double y;
+  final int period;
+  final bool isStarter;
+  final bool isGoalkeeper;
+  final bool isCaptain;
+
+  factory LineupPositionModel.fromJson(Map<String, dynamic> json) =>
+      LineupPositionModel(
+        player: MatchPlayer.fromJson(json['player'] as Map<String, dynamic>),
+        positionCode: json['positionCode'] as String? ?? 'FELD',
+        x: (json['x'] as num?)?.toDouble() ?? .5,
+        y: (json['y'] as num?)?.toDouble() ?? .5,
+        period: json['period'] as int? ?? 1,
+        isStarter: json['isStarter'] as bool? ?? true,
+        isGoalkeeper: json['isGoalkeeper'] as bool? ?? false,
+        isCaptain: json['isCaptain'] as bool? ?? false,
+      );
+}
+
+class LiveTickerModel {
+  const LiveTickerModel({
+    required this.status,
+    required this.currentPeriod,
+    required this.elapsedSeconds,
+    required this.ourGoals,
+    required this.theirGoals,
+    required this.lastSequence,
+    required this.events,
+  });
+
+  final TickerStatus status;
+  final int currentPeriod;
+  final int elapsedSeconds;
+  final int ourGoals;
+  final int theirGoals;
+  final int lastSequence;
+  final List<TickerEventModel> events;
+
+  factory LiveTickerModel.fromJson(Map<String, dynamic> json) => LiveTickerModel(
+        status: _enum(
+          TickerStatus.values,
+          json['status'],
+          TickerStatus.notStarted,
+        ),
+        currentPeriod: json['currentPeriod'] as int? ?? 1,
+        elapsedSeconds: json['elapsedSeconds'] as int? ?? 0,
+        ourGoals: json['ourGoals'] as int? ?? 0,
+        theirGoals: json['theirGoals'] as int? ?? 0,
+        lastSequence: json['lastSequence'] as int? ?? 0,
+        events: (json['events'] as List<dynamic>? ?? const [])
+            .map(
+              (item) =>
+                  TickerEventModel.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(),
+      );
+}
+
+class TickerEventModel {
+  const TickerEventModel({
+    required this.id,
+    required this.sequence,
+    required this.type,
+    required this.elapsedSeconds,
+    required this.ourGoals,
+    required this.theirGoals,
+    this.comment,
+    this.scorer,
+    this.assist,
+  });
+
+  final String id;
+  final int sequence;
+  final TickerEventType type;
+  final int elapsedSeconds;
+  final int ourGoals;
+  final int theirGoals;
+  final String? comment;
+  final MatchPlayer? scorer;
+  final MatchPlayer? assist;
+
+  factory TickerEventModel.fromJson(Map<String, dynamic> json) =>
+      TickerEventModel(
+        id: json['id'] as String,
+        sequence: json['sequence'] as int? ?? 0,
+        type: _enum(
+          TickerEventType.values,
+          json['type'],
+          TickerEventType.comment,
+        ),
+        elapsedSeconds: json['elapsedSeconds'] as int? ?? 0,
+        ourGoals: json['ourGoals'] as int? ?? 0,
+        theirGoals: json['theirGoals'] as int? ?? 0,
+        comment: json['comment'] as String?,
+        scorer: json['scorer'] == null
+            ? null
+            : MatchPlayer.fromJson(json['scorer'] as Map<String, dynamic>),
+        assist: json['assist'] == null
+            ? null
+            : MatchPlayer.fromJson(json['assist'] as Map<String, dynamic>),
+      );
+}
+
+String apiEnum(Enum value) {
+  return value.name
+      .replaceAllMapped(
+        RegExp(r'([a-z0-9])([A-Z])'),
+        (match) => '${match.group(1)}_${match.group(2)}',
+      )
+      .toUpperCase();
+}

@@ -46,5 +46,9 @@ Der professionelle Kalender mit Serienterminen, Rückmeldungen,
 Fahrgemeinschaften und ICS-Abonnement ist in
 [`docs/professional-calendar.md`](docs/professional-calendar.md) beschrieben.
 
+Spieltagsplanung, Kadernominierung, grafische Aufstellung und Liveticker sind in
+[`docs/matchday-lineup-live-ticker.md`](docs/matchday-lineup-live-ticker.md)
+beschrieben.
+
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).
