@@ -22,8 +22,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: api/pnpm-lock.yaml
 
       - name: Install dependencies
         run: npx -y pnpm@10.13.1 install --frozen-lockfile
