@@ -620,7 +620,7 @@ class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
       builder: (context) => const _DocumentDialog(),
     );
     if (draft == null || !mounted) return;
-    final selection = await FilePicker.instance.pickFiles(
+    final selection = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
       withData: true,
