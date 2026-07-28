@@ -1,11 +1,18 @@
 import { Router } from 'express';
 import {
+  calendarSubscription,
+  createCarpoolOffer,
   createEvent,
   deleteEvent,
   finalizeAttendance,
   getEvent,
   listEvents,
+  publicCalendarSubscription,
+  recordActualAttendance,
+  requestCarpoolSeat,
+  sendAttendanceReminders,
   setAttendance,
+  updateCarpoolPassenger,
   updateEvent,
   upsertMatchDetails,
   upsertSquad,
@@ -15,16 +22,39 @@ import { Permission } from '../security/permissions';
 
 const router = Router();
 
+router.get('/subscription/:token.ics', publicCalendarSubscription);
+
 router.use(requireAuth);
 router.use(requireApproved);
 
 router.get('/', listEvents);
+router.post('/calendar-subscription', calendarSubscription);
 router.get('/:id', getEvent);
 router.post('/', requirePermission(Permission.MANAGE_EVENTS), createEvent);
 router.put('/:id', requirePermission(Permission.MANAGE_EVENTS), updateEvent);
 router.delete('/:id', requirePermission(Permission.MANAGE_EVENTS), deleteEvent);
 router.post('/:id/attendance', setAttendance);
-router.post('/:id/attendance/finalize', requirePermission(Permission.MANAGE_EVENTS), finalizeAttendance);
+router.post(
+  '/:id/attendance/finalize',
+  requirePermission(Permission.MANAGE_EVENTS),
+  finalizeAttendance,
+);
+router.put(
+  '/:id/attendance/actual',
+  requirePermission(Permission.MANAGE_EVENTS),
+  recordActualAttendance,
+);
+router.post(
+  '/:id/attendance/reminders',
+  requirePermission(Permission.MANAGE_EVENTS),
+  sendAttendanceReminders,
+);
+router.post('/:id/carpool-offers', createCarpoolOffer);
+router.post('/:id/carpool-offers/:offerId/passengers', requestCarpoolSeat);
+router.patch(
+  '/:id/carpool-offers/:offerId/passengers/:passengerId',
+  updateCarpoolPassenger,
+);
 router.put('/:id/match-details', requirePermission(Permission.MANAGE_EVENTS), upsertMatchDetails);
 router.put('/:id/squad', requirePermission(Permission.MANAGE_EVENTS), upsertSquad);
 

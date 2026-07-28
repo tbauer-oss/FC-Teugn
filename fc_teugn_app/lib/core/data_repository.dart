@@ -157,55 +157,139 @@ class DataRepository {
     });
   }
 
-  Future<List<EventModel>> events() async {
-    final res = await client.dio.get('/events');
+  Future<List<EventModel>> events({
+    DateTime? from,
+    DateTime? to,
+    List<String> teamIds = const [],
+    List<EventCategory> categories = const [],
+  }) async {
+    final res = await client.dio.get('/events', queryParameters: {
+      if (from != null) 'from': from.toUtc().toIso8601String(),
+      if (to != null) 'to': to.toUtc().toIso8601String(),
+      if (teamIds.isNotEmpty) 'teamIds': teamIds.join(','),
+      if (categories.isNotEmpty)
+        'categories': categories.map((item) => item.apiName).join(','),
+    });
     return (res.data as List<dynamic>)
         .map((e) => EventModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
-  Future<EventModel> createEvent({
-    required EventType type,
-    required String title,
-    required DateTime startAt,
-    DateTime? endAt,
-    required String location,
-    String? description,
-  }) async {
-    final res = await client.dio.post('/events', data: {
-      'type': type == EventType.match
-          ? 'MATCH'
-          : type == EventType.event
-              ? 'EVENT'
-              : 'TRAINING',
-      'title': title,
-      'startAt': startAt.toIso8601String(),
-      'endAt': endAt?.toIso8601String(),
-      'location': location,
-      'description': description,
-    });
+  Future<EventModel> event(String eventId) async {
+    final res = await client.dio.get('/events/$eventId');
     return EventModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<List<EventModel>> createEvent(EventWriteData data) async {
+    final res = await client.dio.post('/events', data: data.toJson());
+    if (res.data is List<dynamic>) {
+      return (res.data as List<dynamic>)
+          .map((item) => EventModel.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+    return [EventModel.fromJson(res.data as Map<String, dynamic>)];
+  }
+
+  Future<EventModel> updateEvent({
+    required String eventId,
+    required EventWriteData data,
+    bool entireSeries = false,
+  }) async {
+    final res = await client.dio.put(
+      '/events/$eventId',
+      queryParameters: {'scope': entireSeries ? 'series' : 'single'},
+      data: data.toJson()..remove('recurrence'),
+    );
+    return EventModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> cancelEvent({
+    required String eventId,
+    required String reason,
+    bool entireSeries = false,
+  }) async {
+    await client.dio.delete(
+      '/events/$eventId',
+      queryParameters: {'scope': entireSeries ? 'series' : 'single'},
+      data: {'reason': reason},
+    );
   }
 
   Future<void> setAttendance({
     required String eventId,
     required String playerId,
     required AttendanceStatus status,
+    String? reason,
+    bool? goalkeeperAvailable,
   }) async {
     await client.dio.post('/events/$eventId/attendance', data: {
       'playerId': playerId,
-      'status': status == AttendanceStatus.yes
-          ? 'YES'
-          : status == AttendanceStatus.no
-              ? 'NO'
-              : status == AttendanceStatus.maybe
-                  ? 'MAYBE'
-                  : 'UNKNOWN',
+      'status': status.apiName,
+      'reason': reason,
+      'goalkeeperAvailable': goalkeeperAvailable,
     });
   }
 
   Future<void> finalizeAttendance(String eventId) async {
     await client.dio.post('/events/$eventId/attendance/finalize');
+  }
+
+  Future<({int recipients, int missingPlayers})> sendAttendanceReminders(
+    String eventId, {
+    String? message,
+  }) async {
+    final res = await client.dio.post(
+      '/events/$eventId/attendance/reminders',
+      data: {'message': message},
+    );
+    final data = res.data as Map<String, dynamic>;
+    return (
+      recipients: data['recipients'] as int? ?? 0,
+      missingPlayers: data['missingPlayers'] as int? ?? 0,
+    );
+  }
+
+  Future<String> createCalendarSubscription() async {
+    final res = await client.dio.post('/events/calendar-subscription');
+    return (res.data as Map<String, dynamic>)['url'] as String;
+  }
+
+  Future<void> createCarpoolOffer({
+    required String eventId,
+    required int seatsTotal,
+    required String departureLocation,
+    required DateTime departureAt,
+    String? notes,
+  }) async {
+    await client.dio.post('/events/$eventId/carpool-offers', data: {
+      'seatsTotal': seatsTotal,
+      'departureLocation': departureLocation,
+      'departureAt': departureAt.toUtc().toIso8601String(),
+      'notes': notes,
+    });
+  }
+
+  Future<void> requestCarpoolSeat({
+    required String eventId,
+    required String offerId,
+    required String playerId,
+  }) async {
+    await client.dio.post(
+      '/events/$eventId/carpool-offers/$offerId/passengers',
+      data: {'playerId': playerId},
+    );
+  }
+
+  Future<void> updateCarpoolPassenger({
+    required String eventId,
+    required String offerId,
+    required String passengerId,
+    required CarpoolRequestStatus status,
+  }) async {
+    await client.dio.patch(
+      '/events/$eventId/carpool-offers/$offerId/passengers/$passengerId',
+      data: {'status': status.name.toUpperCase()},
+    );
   }
 
   Future<void> updateMatchDetails({

@@ -42,5 +42,9 @@ Member approval, multi-team assignments, guardian relationships, development
 notes, medical details and revocable player consents are described in
 [`docs/member-player-profiles.md`](docs/member-player-profiles.md).
 
+Der professionelle Kalender mit Serienterminen, Rückmeldungen,
+Fahrgemeinschaften und ICS-Abonnement ist in
+[`docs/professional-calendar.md`](docs/professional-calendar.md) beschrieben.
+
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).
