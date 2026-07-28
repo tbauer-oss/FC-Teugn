@@ -3,7 +3,7 @@
   "version": 2,
   "outputDirectory": null,
   "installCommand": "npx -y pnpm@10.13.1 install --frozen-lockfile",
-  "buildCommand": "npx -y pnpm@10.13.1 run build",
+  "buildCommand": "npx -y pnpm@10.13.1 exec prisma migrate deploy && npx -y pnpm@10.13.1 run build",
   "functions": {
     "api/index.ts": {
       "includeFiles": "{dist/**,prisma/**}"
