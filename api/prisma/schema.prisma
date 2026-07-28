@@ -1466,7 +1466,7 @@ model TeamTask {
   createdById    String
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
-  team           Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team           Team           @relation(fields: [teamId], references: [id], onDelete: Restrict)
   assignee       User?          @relation("TeamTaskAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
   createdBy      User           @relation("TeamTaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
@@ -1484,7 +1484,7 @@ model EquipmentItem {
   notes       String?
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
-  team        Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team        Team                  @relation(fields: [teamId], references: [id], onDelete: Restrict)
   assignments EquipmentAssignment[]
 
   @@unique([teamId, name])
@@ -1524,7 +1524,7 @@ model ChecklistTemplate {
   createdById String
   createdAt   DateTime                @default(now())
   updatedAt   DateTime                @updatedAt
-  team        Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team        Team                    @relation(fields: [teamId], references: [id], onDelete: Restrict)
   createdBy   User                    @relation("ChecklistTemplateCreator", fields: [createdById], references: [id], onDelete: Restrict)
   items       ChecklistTemplateItem[]
   runs        ChecklistRun[]
@@ -1555,7 +1555,7 @@ model ChecklistRun {
   createdById String
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
-  team        Team               @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team        Team               @relation(fields: [teamId], references: [id], onDelete: Restrict)
   template    ChecklistTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   createdBy   User               @relation("ChecklistRunCreator", fields: [createdById], references: [id], onDelete: Restrict)
   items       ChecklistRunItem[]

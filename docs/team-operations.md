@@ -28,6 +28,8 @@ einen aktiven Spieler erfolgen. Das Backend verhindert:
 
 Rückgaben werden mit Zeitpunkt und optionalem Zustandsvermerk gespeichert.
 Historische Ausgaben werden nicht gelöscht.
+Die Mannschaftsrelationen sind bewusst mit `RESTRICT` statt Cascade Delete
+gesichert, damit organisatorische Historien nicht versehentlich verschwinden.
 
 ## Checklisten
 
