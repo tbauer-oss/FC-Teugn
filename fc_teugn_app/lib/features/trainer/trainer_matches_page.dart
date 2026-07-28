@@ -204,7 +204,7 @@ class _MatchCard extends StatelessWidget {
               width: 58,
               height: 58,
               decoration: BoxDecoration(
-                color: AppColors.blue.withOpacity(.1),
+                color: AppColors.blue.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: const Icon(Icons.sports_soccer_rounded, color: AppColors.blue),

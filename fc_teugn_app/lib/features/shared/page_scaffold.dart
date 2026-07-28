@@ -99,7 +99,7 @@ class MetricCard extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: color.withOpacity(.12),
+              color: color.withValues(alpha: .12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 21),
@@ -152,7 +152,7 @@ class EmptyState extends StatelessWidget {
             width: 58,
             height: 58,
             decoration: BoxDecoration(
-              color: AppColors.blue.withOpacity(.1),
+              color: AppColors.blue.withValues(alpha: .1),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Icon(icon, color: AppColors.blue, size: 28),

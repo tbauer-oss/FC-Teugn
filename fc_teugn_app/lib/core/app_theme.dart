@@ -59,7 +59,7 @@ ThemeData buildAppTheme() {
       bodyMedium: TextStyle(fontSize: 14, height: 1.45, color: AppColors.muted),
       labelLarge: TextStyle(fontWeight: FontWeight.w700),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: Colors.white,
       elevation: 0,
       margin: EdgeInsets.zero,

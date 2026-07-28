@@ -57,7 +57,7 @@ class ParentDashboardPage extends ConsumerWidget {
                       const SizedBox(height: 5),
                       Text(
                         '${players.length} ${players.length == 1 ? 'Kind ist' : 'Kinder sind'} deinem Konto zugeordnet.',
-                        style: TextStyle(color: Colors.white.withOpacity(.72)),
+                        style: TextStyle(color: Colors.white.withValues(alpha: .72)),
                       ),
                     ],
                   ),
@@ -66,7 +66,7 @@ class ParentDashboardPage extends ConsumerWidget {
                   onPressed: () => context.go('/parent/players'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.white.withOpacity(.35)),
+                    side: BorderSide(color: Colors.white.withValues(alpha: .35)),
                   ),
                   child: const Text('Meine Kinder'),
                 ),
@@ -125,7 +125,7 @@ class _ParentEventRow extends StatelessWidget {
     return Row(
       children: [
         CircleAvatar(
-          backgroundColor: AppColors.teal.withOpacity(.12),
+          backgroundColor: AppColors.teal.withValues(alpha: .12),
           foregroundColor: AppColors.teal,
           child: Icon(event.type == EventType.match
               ? Icons.sports_soccer_rounded
