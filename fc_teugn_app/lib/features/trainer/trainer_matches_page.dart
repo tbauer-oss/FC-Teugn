@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
@@ -34,6 +35,7 @@ class TrainerMatchesPage extends ConsumerWidget {
                   padding: const EdgeInsets.only(bottom: 14),
                   child: _MatchCard(
                     event: match,
+                    onOpen: () => context.push('/trainer/matches/${match.id}'),
                     onEdit: () async {
                       final draft = await _openMatchDialog(context, match);
                       if (draft == null) return;
@@ -186,9 +188,14 @@ class TrainerMatchesPage extends ConsumerWidget {
 }
 
 class _MatchCard extends StatelessWidget {
-  const _MatchCard({required this.event, required this.onEdit});
+  const _MatchCard({
+    required this.event,
+    required this.onEdit,
+    required this.onOpen,
+  });
   final EventModel event;
   final VoidCallback onEdit;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -235,10 +242,20 @@ class _MatchCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
               ),
-            FilledButton.tonalIcon(
-              onPressed: onEdit,
-              icon: const Icon(Icons.edit_rounded, size: 18),
-              label: Text(details == null ? 'Planen' : 'Bearbeiten'),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  label: const Text('Daten'),
+                ),
+                FilledButton.icon(
+                  onPressed: onOpen,
+                  icon: const Icon(Icons.stadium_rounded, size: 18),
+                  label: const Text('Spieltag'),
+                ),
+              ],
             ),
           ],
         ),

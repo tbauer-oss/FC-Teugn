@@ -10,6 +10,8 @@ export const Permission = {
   MANAGE_SENSITIVE_PLAYER: 'MANAGE_SENSITIVE_PLAYER',
   MANAGE_DEVELOPMENT: 'MANAGE_DEVELOPMENT',
   MANAGE_EVENTS: 'MANAGE_EVENTS',
+  MANAGE_LINEUPS: 'MANAGE_LINEUPS',
+  MANAGE_LIVE_TICKER: 'MANAGE_LIVE_TICKER',
   RESPOND_ATTENDANCE: 'RESPOND_ATTENDANCE',
 } as const;
 
@@ -31,6 +33,8 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.MANAGE_SENSITIVE_PLAYER,
     Permission.MANAGE_DEVELOPMENT,
     Permission.MANAGE_EVENTS,
+    Permission.MANAGE_LINEUPS,
+    Permission.MANAGE_LIVE_TICKER,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.TRAINER]: [
@@ -42,6 +46,8 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.MANAGE_SENSITIVE_PLAYER,
     Permission.MANAGE_DEVELOPMENT,
     Permission.MANAGE_EVENTS,
+    Permission.MANAGE_LINEUPS,
+    Permission.MANAGE_LIVE_TICKER,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.ASSISTANT_COACH]: [
@@ -50,6 +56,8 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.VIEW_SENSITIVE_PLAYER,
     Permission.MANAGE_DEVELOPMENT,
     Permission.MANAGE_EVENTS,
+    Permission.MANAGE_LINEUPS,
+    Permission.MANAGE_LIVE_TICKER,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.TEAM_MANAGER]: [
@@ -58,6 +66,8 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.MANAGE_PLAYERS,
     Permission.VIEW_SENSITIVE_PLAYER,
     Permission.MANAGE_EVENTS,
+    Permission.MANAGE_LINEUPS,
+    Permission.MANAGE_LIVE_TICKER,
     Permission.RESPOND_ATTENDANCE,
   ],
   [Role.PARENT]: [Permission.VIEW_TEAM, Permission.RESPOND_ATTENDANCE],

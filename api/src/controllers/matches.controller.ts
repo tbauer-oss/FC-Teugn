@@ -1,0 +1,721 @@
+import { Request, Response } from 'express';
+import {
+  AccountStatus,
+  EventType,
+  LineupStatus,
+  MatchKind,
+  MatchStatus,
+  NominationStatus,
+  Prisma,
+  TickerEventType,
+  TickerStatus,
+} from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { hasPermission, Permission } from '../security/permissions';
+import { Role } from '../types/enums';
+
+const matchInclude = {
+  targetTeams: { include: { team: { select: { id: true, name: true, shortName: true } } } },
+  matchDetails: true,
+  attendance: {
+    include: {
+      player: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          shirtNumber: true,
+          position: true,
+          status: true,
+          photoUrl: true,
+        },
+      },
+    },
+  },
+  squads: {
+    include: {
+      members: {
+        include: {
+          player: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              preferredName: true,
+              shirtNumber: true,
+              position: true,
+              status: true,
+              photoUrl: true,
+            },
+          },
+        },
+      },
+      lineup: {
+        include: {
+          positions: {
+            include: {
+              player: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  preferredName: true,
+                  shirtNumber: true,
+                  photoUrl: true,
+                },
+              },
+            },
+          },
+          substitutions: true,
+        },
+      },
+    },
+  },
+  liveTicker: {
+    include: {
+      events: {
+        where: { revokedAt: null },
+        orderBy: { sequence: 'asc' as const },
+        include: {
+          scorer: { select: { id: true, firstName: true, lastName: true, preferredName: true } },
+          assist: { select: { id: true, firstName: true, lastName: true, preferredName: true } },
+        },
+      },
+    },
+  },
+} as const;
+
+function text(value: unknown, max = 300) {
+  if (typeof value !== 'string') return null;
+  const result = value.trim();
+  return result ? result.slice(0, max) : null;
+}
+
+function integer(value: unknown, minimum: number, maximum: number, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
+}
+
+function enumValue<T extends Record<string, string>>(
+  values: T,
+  value: unknown,
+  fallback: T[keyof T],
+) {
+  const normalized = String(value ?? '').toUpperCase();
+  return (Object.values(values) as string[]).includes(normalized)
+    ? (normalized as T[keyof T])
+    : fallback;
+}
+
+async function clubIdForTeam(teamId: string) {
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { ageGroup: { select: { season: { select: { clubId: true } } } } },
+  });
+  return team?.ageGroup.season.clubId ?? null;
+}
+
+async function accessibleTeamIds(user: { id: string; teamId: string; role: Role }) {
+  if (hasPermission(user.role, Permission.MANAGE_ORGANIZATION)) {
+    const clubId = await clubIdForTeam(user.teamId);
+    const teams = clubId
+      ? await prisma.team.findMany({
+          where: { ageGroup: { season: { clubId } } },
+          select: { id: true },
+        })
+      : [];
+    return teams.length ? teams.map((team) => team.id) : [user.teamId];
+  }
+  const memberships = await prisma.teamMembership.findMany({
+    where: { userId: user.id, status: AccountStatus.APPROVED },
+    select: { teamId: true },
+  });
+  return [...new Set([user.teamId, ...memberships.map((item) => item.teamId)])];
+}
+
+function scope(teamIds: string[]): Prisma.EventWhereInput {
+  return {
+    type: EventType.MATCH,
+    OR: [{ teamId: { in: teamIds } }, { targetTeams: { some: { teamId: { in: teamIds } } } }],
+  };
+}
+
+function isStaff(role: Role) {
+  return hasPermission(role, Permission.MANAGE_EVENTS);
+}
+
+async function findMatch(id: string, user: { id: string; teamId: string; role: Role }) {
+  const teamIds = await accessibleTeamIds(user);
+  return prisma.event.findFirst({ where: { id, ...scope(teamIds) }, include: matchInclude });
+}
+
+function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof matchInclude }>>(
+  match: T,
+  staff: boolean,
+) {
+  const squad = match.squads[0] ?? null;
+  const lineup = squad?.lineup;
+  const canSeeLineup =
+    staff ||
+    (lineup?.status === LineupStatus.PUBLISHED &&
+      (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now()));
+  return {
+    ...match,
+    squads: squad && (staff || squad.publishedAt)
+      ? [
+          {
+            ...squad,
+            members: staff
+              ? squad.members
+              : squad.members.filter(
+                  (member) => member.status === NominationStatus.NOMINATED,
+                ),
+            lineup: canSeeLineup
+              ? {
+                  ...lineup,
+                  tacticalNote: staff ? lineup?.tacticalNote : null,
+                }
+              : null,
+          },
+        ]
+      : [],
+    liveTicker: match.liveTicker
+      ? {
+          ...match.liveTicker,
+          events: match.liveTicker.events.map((event) => ({
+            ...event,
+            scorer: staff || match.liveTicker?.publicScorersEnabled ? event.scorer : null,
+            assist: staff || match.liveTicker?.publicScorersEnabled ? event.assist : null,
+          })),
+        }
+      : null,
+  };
+}
+
+export async function listMatches(req: Request, res: Response) {
+  const user = req.user!;
+  const teamIds = await accessibleTeamIds(user);
+  const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+  const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+  const matches = await prisma.event.findMany({
+    where: {
+      ...scope(teamIds),
+      ...(from || to
+        ? {
+            startAt: {
+              ...(from && !Number.isNaN(from.getTime()) ? { gte: from } : {}),
+              ...(to && !Number.isNaN(to.getTime()) ? { lte: to } : {}),
+            },
+          }
+        : {}),
+    },
+    include: matchInclude,
+    orderBy: { startAt: 'desc' },
+    take: 100,
+  });
+  return res.json(matches.map((match) => serializeMatch(match, isStaff(user.role))));
+}
+
+export async function getMatch(req: Request, res: Response) {
+  const match = await findMatch(req.params.id, req.user!);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  return res.json(serializeMatch(match, isStaff(req.user!.role)));
+}
+
+export async function updateMatch(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const body = req.body ?? {};
+  const opponent = text(body.opponent, 120);
+  if (!opponent) return res.status(400).json({ message: 'Der Gegner ist erforderlich.' });
+  const bfvUrl = text(body.bfvUrl, 500);
+  if (bfvUrl) {
+    try {
+      if (!['http:', 'https:'].includes(new URL(bfvUrl).protocol)) throw new Error();
+    } catch {
+      return res.status(400).json({ message: 'Die BFV-URL ist ungültig.' });
+    }
+  }
+  const details = await prisma.matchDetails.upsert({
+    where: { eventId: match.id },
+    update: {
+      opponent,
+      opponentShortName: text(body.opponentShortName, 30),
+      opponentLogoUrl: text(body.opponentLogoUrl, 500),
+      isHome: body.isHome !== false,
+      kind: enumValue(MatchKind, body.kind, MatchKind.FRIENDLY),
+      status: enumValue(MatchStatus, body.status, MatchStatus.PLANNED),
+      competition: text(body.competition, 120),
+      division: text(body.division, 120),
+      matchDay: text(body.matchDay, 50),
+      pitch: text(body.pitch, 100),
+      referee: text(body.referee, 100),
+      durationMinutes: integer(body.durationMinutes, 5, 180, 60),
+      periodMinutes: integer(body.periodMinutes, 1, 90, 30),
+      periodCount: integer(body.periodCount, 1, 8, 2),
+      bfvMatchId: text(body.bfvMatchId, 100),
+      bfvUrl,
+      notes: text(body.notes, 2000),
+    },
+    create: {
+      eventId: match.id,
+      opponent,
+      opponentShortName: text(body.opponentShortName, 30),
+      opponentLogoUrl: text(body.opponentLogoUrl, 500),
+      isHome: body.isHome !== false,
+      kind: enumValue(MatchKind, body.kind, MatchKind.FRIENDLY),
+      status: enumValue(MatchStatus, body.status, MatchStatus.PLANNED),
+      competition: text(body.competition, 120),
+      division: text(body.division, 120),
+      matchDay: text(body.matchDay, 50),
+      pitch: text(body.pitch, 100),
+      referee: text(body.referee, 100),
+      durationMinutes: integer(body.durationMinutes, 5, 180, 60),
+      periodMinutes: integer(body.periodMinutes, 1, 90, 30),
+      periodCount: integer(body.periodCount, 1, 8, 2),
+      bfvMatchId: text(body.bfvMatchId, 100),
+      bfvUrl,
+      notes: text(body.notes, 2000),
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: 'MATCH_UPDATED',
+      entityType: 'MatchDetails',
+      entityId: details.id,
+      metadata: { status: details.status, opponent: details.opponent },
+    },
+  });
+  return res.json(details);
+}
+
+export async function updateSquad(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const members = Array.isArray(req.body?.members) ? req.body.members : [];
+  const ids = [...new Set(members.map((item: { playerId?: unknown }) => text(item.playerId, 100)).filter(Boolean))] as string[];
+  const validPlayers = await prisma.player.findMany({
+    where: { id: { in: ids }, teamId: { in: await accessibleTeamIds(user) } },
+    select: { id: true },
+  });
+  if (validPlayers.length !== ids.length) {
+    return res.status(400).json({ message: 'Mindestens ein Spieler gehört nicht zum verfügbaren Kader.' });
+  }
+  const squad = await prisma.$transaction(async (tx) => {
+    const saved = await tx.squad.upsert({
+      where: { eventId: match.id },
+      update: { name: text(req.body.name, 100), formation: text(req.body.formation, 50) },
+      create: {
+        eventId: match.id,
+        name: text(req.body.name, 100),
+        formation: text(req.body.formation, 50),
+      },
+    });
+    await tx.squadMember.deleteMany({ where: { squadId: saved.id } });
+    if (members.length) {
+      await tx.squadMember.createMany({
+        data: members.map((item: Record<string, unknown>) => ({
+          squadId: saved.id,
+          playerId: String(item.playerId),
+          status: enumValue(NominationStatus, item.status, NominationStatus.NOMINATED),
+          note: text(item.note, 300),
+          plannedMinutes:
+            item.plannedMinutes == null
+              ? null
+              : integer(item.plannedMinutes, 0, 300, 0),
+        })),
+        skipDuplicates: true,
+      });
+    }
+    return tx.squad.findUnique({
+      where: { id: saved.id },
+      include: { members: { include: { player: true } } },
+    });
+  });
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: 'MATCH_SQUAD_UPDATED',
+      entityType: 'Squad',
+      entityId: squad?.id,
+      metadata: { memberCount: members.length },
+    },
+  });
+  return res.json(squad);
+}
+
+export async function publishSquad(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const squad = await prisma.squad.findUnique({ where: { eventId: match.id } });
+  if (!squad) return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
+  const updated = await prisma.squad.update({
+    where: { id: squad.id },
+    data: { publishedAt: new Date() },
+  });
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: 'MATCH_SQUAD_PUBLISHED',
+      entityType: 'Squad',
+      entityId: squad.id,
+    },
+  });
+  return res.json(updated);
+}
+
+export async function updateLineup(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const squad = await prisma.squad.findUnique({
+    where: { eventId: match.id },
+    include: { members: true },
+  });
+  if (!squad) return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
+  const positions = Array.isArray(req.body?.positions) ? req.body.positions : [];
+  const memberIds = new Set(
+    squad.members
+      .filter((member) => member.status !== NominationStatus.DECLINED)
+      .map((member) => member.playerId),
+  );
+  for (const position of positions as Record<string, unknown>[]) {
+    if (!memberIds.has(String(position.playerId))) {
+      return res.status(400).json({ message: 'Die Aufstellung enthält einen nicht nominierten Spieler.' });
+    }
+    const x = Number(position.x);
+    const y = Number(position.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) {
+      return res.status(400).json({ message: 'Ungültige Spielfeldposition.' });
+    }
+  }
+  const positionKeys = new Set<string>();
+  for (const position of positions as Record<string, unknown>[]) {
+    const key = `${position.playerId}:${integer(position.period, 1, 8, 1)}`;
+    if (positionKeys.has(key)) {
+      return res.status(400).json({ message: 'Ein Spieler ist im selben Abschnitt doppelt aufgestellt.' });
+    }
+    positionKeys.add(key);
+  }
+  const saved = await prisma.$transaction(async (tx) => {
+    const lineup = await tx.lineup.upsert({
+      where: { squadId: squad.id },
+      update: {
+        formation: text(req.body.formation, 50) ?? 'Individuell',
+        fieldSize: integer(req.body.fieldSize, 3, 11, 7),
+        status: enumValue(LineupStatus, req.body.status, LineupStatus.DRAFT),
+        publicNote: text(req.body.publicNote, 1000),
+        tacticalNote: text(req.body.tacticalNote, 2000),
+        visibleAt: req.body.visibleAt ? new Date(String(req.body.visibleAt)) : null,
+        ...(String(req.body.status).toUpperCase() === LineupStatus.PUBLISHED
+          ? { publishedAt: new Date() }
+          : {}),
+      },
+      create: {
+        squadId: squad.id,
+        formation: text(req.body.formation, 50) ?? 'Individuell',
+        fieldSize: integer(req.body.fieldSize, 3, 11, 7),
+        status: enumValue(LineupStatus, req.body.status, LineupStatus.DRAFT),
+        publicNote: text(req.body.publicNote, 1000),
+        tacticalNote: text(req.body.tacticalNote, 2000),
+        visibleAt: req.body.visibleAt ? new Date(String(req.body.visibleAt)) : null,
+        ...(String(req.body.status).toUpperCase() === LineupStatus.PUBLISHED
+          ? { publishedAt: new Date() }
+          : {}),
+      },
+    });
+    await tx.lineupPosition.deleteMany({ where: { lineupId: lineup.id } });
+    if (positions.length) {
+      await tx.lineupPosition.createMany({
+        data: (positions as Record<string, unknown>[]).map((position) => ({
+          lineupId: lineup.id,
+          playerId: String(position.playerId),
+          period: integer(position.period, 1, 8, 1),
+          positionCode: text(position.positionCode, 30) ?? 'FELD',
+          x: Number(position.x),
+          y: Number(position.y),
+          isStarter: position.isStarter !== false,
+          isGoalkeeper: position.isGoalkeeper === true,
+          isCaptain: position.isCaptain === true,
+          shirtNumber:
+            position.shirtNumber == null ? null : integer(position.shirtNumber, 0, 99, 0),
+        })),
+      });
+    }
+    return tx.lineup.findUnique({
+      where: { id: lineup.id },
+      include: { positions: { include: { player: true } }, substitutions: true },
+    });
+  });
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action:
+        saved?.status === LineupStatus.PUBLISHED ? 'MATCH_LINEUP_PUBLISHED' : 'MATCH_LINEUP_UPDATED',
+      entityType: 'Lineup',
+      entityId: saved?.id,
+      metadata: { status: saved?.status, positions: positions.length },
+    },
+  });
+  return res.json(saved);
+}
+
+function elapsed(ticker: {
+  elapsedSeconds: number;
+  clockStartedAt: Date | null;
+  status: TickerStatus;
+}) {
+  if (ticker.status !== TickerStatus.LIVE || !ticker.clockStartedAt) return ticker.elapsedSeconds;
+  return ticker.elapsedSeconds + Math.max(0, Math.floor((Date.now() - ticker.clockStartedAt.getTime()) / 1000));
+}
+
+export async function getTicker(req: Request, res: Response) {
+  const match = await findMatch(req.params.id, req.user!);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const after = integer(req.query.after, 0, Number.MAX_SAFE_INTEGER, 0);
+  const ticker = await prisma.liveTicker.findUnique({
+    where: { eventId: match.id },
+    include: {
+      events: {
+        where: { sequence: { gt: after } },
+        orderBy: { sequence: 'asc' },
+        take: 250,
+        include: {
+          scorer: { select: { id: true, firstName: true, lastName: true, preferredName: true } },
+          assist: { select: { id: true, firstName: true, lastName: true, preferredName: true } },
+        },
+      },
+    },
+  });
+  if (!ticker) {
+    return res.json({
+      status: TickerStatus.NOT_STARTED,
+      currentPeriod: 1,
+      elapsedSeconds: 0,
+      ourGoals: 0,
+      theirGoals: 0,
+      lastSequence: 0,
+      events: [],
+    });
+  }
+  return res.json({
+    ...ticker,
+    elapsedSeconds: elapsed(ticker),
+    events: ticker.events.map((event) => ({
+      ...event,
+      scorer: isStaff(req.user!.role) || ticker.publicScorersEnabled ? event.scorer : null,
+      assist: isStaff(req.user!.role) || ticker.publicScorersEnabled ? event.assist : null,
+    })),
+  });
+}
+
+const goalTypes = new Set<TickerEventType>([
+  TickerEventType.HOME_GOAL,
+  TickerEventType.AWAY_GOAL,
+]);
+
+export async function tickerCommand(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const clientEventId = text(req.body?.clientEventId, 100);
+  if (!clientEventId) return res.status(400).json({ message: 'clientEventId ist erforderlich.' });
+  const type = enumValue(TickerEventType, req.body?.type, TickerEventType.COMMENT);
+  const allowedPlayerIds = new Set(
+    match.squads[0]?.members.map((member) => member.playerId) ?? [],
+  );
+  const scorerId = text(req.body?.scorerId, 100);
+  const assistId = text(req.body?.assistId, 100);
+  if ((scorerId && !allowedPlayerIds.has(scorerId)) || (assistId && !allowedPlayerIds.has(assistId))) {
+    return res.status(400).json({ message: 'Torschütze oder Vorlagengeber gehört nicht zum Kader.' });
+  }
+  const result = await prisma.$transaction(async (tx) => {
+    let ticker = await tx.liveTicker.upsert({
+      where: { eventId: match.id },
+      update: {},
+      create: { eventId: match.id },
+    });
+    const duplicate = await tx.liveTickerEvent.findUnique({
+      where: { tickerId_clientEventId: { tickerId: ticker.id, clientEventId } },
+      include: { scorer: true, assist: true },
+    });
+    if (duplicate) return { ticker, event: duplicate, duplicate: true };
+
+    const now = new Date();
+    const currentElapsed = elapsed(ticker);
+    let status = ticker.status;
+    let clockStartedAt = ticker.clockStartedAt;
+    let elapsedSeconds = currentElapsed;
+    let currentPeriod = ticker.currentPeriod;
+    let ourGoals = ticker.ourGoals;
+    let theirGoals = ticker.theirGoals;
+    let startedAt = ticker.startedAt;
+    let finishedAt = ticker.finishedAt;
+
+    if (type === TickerEventType.MATCH_START || type === TickerEventType.RESUME || type === TickerEventType.PERIOD_START) {
+      status = TickerStatus.LIVE;
+      clockStartedAt = now;
+      startedAt ??= now;
+    } else if (type === TickerEventType.PERIOD_END) {
+      status = TickerStatus.HALF_TIME;
+      clockStartedAt = null;
+    } else if (type === TickerEventType.INTERRUPTION || type === TickerEventType.INJURY) {
+      status = TickerStatus.INTERRUPTED;
+      clockStartedAt = null;
+    } else if (type === TickerEventType.MATCH_END) {
+      status = TickerStatus.FINISHED;
+      clockStartedAt = null;
+      finishedAt = now;
+    } else if (type === TickerEventType.HOME_GOAL) {
+      if (match.matchDetails?.isHome !== false) ourGoals += 1;
+      else theirGoals += 1;
+    } else if (type === TickerEventType.AWAY_GOAL) {
+      if (match.matchDetails?.isHome !== false) theirGoals += 1;
+      else ourGoals += 1;
+    }
+    if (req.body?.period != null) currentPeriod = integer(req.body.period, 1, 8, currentPeriod);
+    if (req.body?.elapsedSeconds != null) {
+      elapsedSeconds = integer(req.body.elapsedSeconds, 0, 10800, currentElapsed);
+      if (status === TickerStatus.LIVE) clockStartedAt = now;
+    }
+    const sequence = ticker.lastSequence + 1;
+    ticker = await tx.liveTicker.update({
+      where: { id: ticker.id },
+      data: {
+        status,
+        currentPeriod,
+        elapsedSeconds,
+        clockStartedAt,
+        ourGoals,
+        theirGoals,
+        lastSequence: sequence,
+        startedAt,
+        finishedAt,
+        publicScorersEnabled:
+          req.body?.publicScorersEnabled == null
+            ? ticker.publicScorersEnabled
+            : req.body.publicScorersEnabled === true,
+      },
+    });
+    const event = await tx.liveTickerEvent.create({
+      data: {
+        tickerId: ticker.id,
+        clientEventId,
+        sequence,
+        type,
+        period: currentPeriod,
+        elapsedSeconds,
+        ourGoals,
+        theirGoals,
+        scorerId: goalTypes.has(type) ? scorerId : null,
+        assistId: goalTypes.has(type) ? assistId : null,
+        authorId: user.id,
+        comment: text(req.body?.comment, 500),
+      },
+      include: { scorer: true, assist: true },
+    });
+    if (type === TickerEventType.MATCH_END) {
+      await tx.matchDetails.updateMany({
+        where: { eventId: match.id },
+        data: { status: MatchStatus.FINISHED, ourGoals, theirGoals },
+      });
+    } else if (type === TickerEventType.MATCH_START) {
+      await tx.matchDetails.updateMany({
+        where: { eventId: match.id },
+        data: { status: MatchStatus.LIVE },
+      });
+    }
+    return { ticker, event, duplicate: false };
+  });
+  if (!result.duplicate) {
+    await prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: match.teamId,
+        action: 'LIVE_TICKER_EVENT',
+        entityType: 'LiveTickerEvent',
+        entityId: result.event.id,
+        metadata: { type, sequence: result.event.sequence },
+      },
+    });
+  }
+  return res.status(result.duplicate ? 200 : 201).json({
+    ...result,
+    ticker: { ...result.ticker, elapsedSeconds: elapsed(result.ticker) },
+  });
+}
+
+export async function undoTickerEvent(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const ticker = await prisma.liveTicker.findUnique({ where: { eventId: match.id } });
+  if (!ticker) return res.status(400).json({ message: 'Der Liveticker wurde noch nicht gestartet.' });
+  const target = await prisma.liveTickerEvent.findFirst({
+    where: {
+      tickerId: ticker.id,
+      revokedAt: null,
+      type: { in: [TickerEventType.HOME_GOAL, TickerEventType.AWAY_GOAL, TickerEventType.COMMENT] },
+    },
+    orderBy: { sequence: 'desc' },
+  });
+  if (!target) return res.status(400).json({ message: 'Keine rückgängig machbare Aktion gefunden.' });
+  const clientEventId = text(req.body?.clientEventId, 100);
+  if (!clientEventId) return res.status(400).json({ message: 'clientEventId ist erforderlich.' });
+  const result = await prisma.$transaction(async (tx) => {
+    const duplicate = await tx.liveTickerEvent.findUnique({
+      where: { tickerId_clientEventId: { tickerId: ticker.id, clientEventId } },
+    });
+    if (duplicate) return duplicate;
+    const fcWasHome = match.matchDetails?.isHome !== false;
+    const ourGoal =
+      (target.type === TickerEventType.HOME_GOAL && fcWasHome) ||
+      (target.type === TickerEventType.AWAY_GOAL && !fcWasHome);
+    const theirGoal =
+      (target.type === TickerEventType.AWAY_GOAL && fcWasHome) ||
+      (target.type === TickerEventType.HOME_GOAL && !fcWasHome);
+    const ourGoals = Math.max(0, ticker.ourGoals - (ourGoal ? 1 : 0));
+    const theirGoals = Math.max(0, ticker.theirGoals - (theirGoal ? 1 : 0));
+    const sequence = ticker.lastSequence + 1;
+    await tx.liveTickerEvent.update({ where: { id: target.id }, data: { revokedAt: new Date() } });
+    await tx.liveTicker.update({
+      where: { id: ticker.id },
+      data: { ourGoals, theirGoals, lastSequence: sequence },
+    });
+    return tx.liveTickerEvent.create({
+      data: {
+        tickerId: ticker.id,
+        clientEventId,
+        sequence,
+        type: TickerEventType.EVENT_REVOKED,
+        period: ticker.currentPeriod,
+        elapsedSeconds: elapsed(ticker),
+        ourGoals,
+        theirGoals,
+        authorId: user.id,
+        correctsId: target.id,
+        comment: text(req.body?.comment, 500) ?? 'Letzte Aktion rückgängig gemacht',
+      },
+    });
+  });
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: 'LIVE_TICKER_CORRECTION',
+      entityType: 'LiveTickerEvent',
+      entityId: result.id,
+      metadata: { correctedEventId: target.id },
+    },
+  });
+  return res.json(result);
+}

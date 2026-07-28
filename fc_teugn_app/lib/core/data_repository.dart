@@ -3,6 +3,7 @@ import 'models/event.dart';
 import 'models/player.dart';
 import 'models/user.dart';
 import 'models/organization.dart';
+import 'models/matchday.dart';
 
 class DataRepository {
   final ApiClient client;
@@ -321,6 +322,109 @@ class DataRepository {
       'name': name,
       'formation': formation,
       'playerIds': playerIds,
+    });
+  }
+
+  Future<List<MatchdayModel>> matches() async {
+    final res = await client.dio.get('/matches');
+    return (res.data as List<dynamic>)
+        .map((item) => MatchdayModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<MatchdayModel> match(String eventId) async {
+    final res = await client.dio.get('/matches/$eventId');
+    return MatchdayModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> saveMatchSquad({
+    required String eventId,
+    required List<({String playerId, NominationStatus status})> members,
+    String? formation,
+  }) async {
+    await client.dio.put('/matches/$eventId/squad', data: {
+      'formation': formation,
+      'members': members
+          .map(
+            (member) => {
+              'playerId': member.playerId,
+              'status': apiEnum(member.status),
+            },
+          )
+          .toList(),
+    });
+  }
+
+  Future<void> publishMatchSquad(String eventId) async {
+    await client.dio.post('/matches/$eventId/squad/publish');
+  }
+
+  Future<void> saveLineup({
+    required String eventId,
+    required String formation,
+    required int fieldSize,
+    required LineupStatus status,
+    required List<LineupPositionModel> positions,
+    String? publicNote,
+    String? tacticalNote,
+  }) async {
+    await client.dio.put('/matches/$eventId/lineup', data: {
+      'formation': formation,
+      'fieldSize': fieldSize,
+      'status': apiEnum(status),
+      'publicNote': publicNote,
+      'tacticalNote': tacticalNote,
+      'positions': positions
+          .map(
+            (position) => {
+              'playerId': position.player.id,
+              'period': position.period,
+              'positionCode': position.positionCode,
+              'x': position.x,
+              'y': position.y,
+              'isStarter': position.isStarter,
+              'isGoalkeeper': position.isGoalkeeper,
+              'isCaptain': position.isCaptain,
+              'shirtNumber': position.player.shirtNumber,
+            },
+          )
+          .toList(),
+    });
+  }
+
+  Future<LiveTickerModel> ticker(String eventId, {int after = 0}) async {
+    final res = await client.dio.get(
+      '/matches/$eventId/ticker',
+      queryParameters: {'after': after},
+    );
+    return LiveTickerModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> sendTickerEvent({
+    required String eventId,
+    required String clientEventId,
+    required TickerEventType type,
+    String? scorerId,
+    String? assistId,
+    String? comment,
+    int? period,
+  }) async {
+    await client.dio.post('/matches/$eventId/ticker/events', data: {
+      'clientEventId': clientEventId,
+      'type': apiEnum(type),
+      'scorerId': scorerId,
+      'assistId': assistId,
+      'comment': comment,
+      'period': period,
+    });
+  }
+
+  Future<void> undoTickerEvent({
+    required String eventId,
+    required String clientEventId,
+  }) async {
+    await client.dio.post('/matches/$eventId/ticker/undo', data: {
+      'clientEventId': clientEventId,
     });
   }
 

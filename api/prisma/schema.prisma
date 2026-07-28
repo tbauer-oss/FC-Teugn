@@ -88,6 +88,70 @@ enum CarpoolRequestStatus {
   CANCELLED
 }
 
+enum MatchKind {
+  LEAGUE
+  FRIENDLY
+  CUP
+  TOURNAMENT
+  INDOOR
+  FESTIVAL
+  TEST
+  INTERNAL
+}
+
+enum MatchStatus {
+  PLANNED
+  CONFIRMED
+  POSTPONED
+  CANCELLED
+  LIVE
+  HALF_TIME
+  INTERRUPTED
+  FINISHED
+  RECORDED
+}
+
+enum NominationStatus {
+  NOMINATED
+  ON_CALL
+  DECLINED
+}
+
+enum LineupStatus {
+  DRAFT
+  INTERNALLY_APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TickerStatus {
+  NOT_STARTED
+  LIVE
+  PAUSED
+  HALF_TIME
+  INTERRUPTED
+  FINISHED
+}
+
+enum TickerEventType {
+  MATCH_START
+  HOME_GOAL
+  AWAY_GOAL
+  PERIOD_END
+  PERIOD_START
+  INTERRUPTION
+  RESUME
+  SUBSTITUTION
+  CARD
+  INJURY
+  PENALTY
+  OWN_GOAL
+  COMMENT
+  CORRECTION
+  EVENT_REVOKED
+  MATCH_END
+}
+
 enum PlayerStatus {
   ACTIVE
   INJURED
@@ -155,6 +219,7 @@ model Team {
   eventTargets EventTargetTeam[]
   eventSeries  EventSeries[]
   auditLogs    AuditLog[]
+  ruleProfiles RuleProfile[]
 
   @@index([ageGroupId, isActive])
 }
@@ -225,6 +290,7 @@ model User {
   carpoolRequests   CarpoolPassenger[]      @relation("CarpoolRequester")
   eventReminders    EventReminder[]         @relation("EventReminderRecipient")
   calendarToken     String?                 @unique
+  tickerEvents      LiveTickerEvent[]       @relation("TickerEventAuthor")
 }
 
 model TeamMembership {
@@ -270,6 +336,9 @@ model Player {
   developmentNotes  PlayerDevelopmentNote[]
   consents          PlayerConsent[]
   carpoolPassengers CarpoolPassenger[]
+  lineupPositions   LineupPosition[]
+  tickerGoals       LiveTickerEvent[]        @relation("TickerScorer")
+  tickerAssists     LiveTickerEvent[]        @relation("TickerAssist")
 
   @@index([teamId, status, lastName])
 }
@@ -401,6 +470,7 @@ model Event {
   reminders           EventReminder[]
   matchDetails        MatchDetails?
   squads              Squad[]
+  liveTicker          LiveTicker?
 
   @@index([teamId, startAt])
   @@index([seriesId, startAt])
@@ -449,17 +519,37 @@ model EventAttachment {
 }
 
 model MatchDetails {
-  id          String   @id @default(cuid())
-  eventId     String   @unique
-  opponent    String
-  isHome      Boolean  @default(true)
-  competition String?
-  notes       String?
-  ourGoals    Int?
-  theirGoals  Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  event       Event    @relation(fields: [eventId], references: [id])
+  id                 String      @id @default(cuid())
+  eventId            String      @unique
+  kind               MatchKind   @default(FRIENDLY)
+  status             MatchStatus @default(PLANNED)
+  opponent           String
+  opponentShortName  String?
+  opponentLogoUrl    String?
+  isHome             Boolean     @default(true)
+  competition        String?
+  division           String?
+  matchDay           String?
+  pitch              String?
+  referee            String?
+  durationMinutes    Int         @default(60)
+  periodMinutes      Int         @default(30)
+  periodCount        Int         @default(2)
+  bfvMatchId         String?
+  bfvUrl             String?
+  externalSource     String?
+  externalUpdatedAt  DateTime?
+  notes              String?
+  ourGoals           Int?
+  theirGoals         Int?
+  halfTimeOurGoals   Int?
+  halfTimeTheirGoals Int?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  event              Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([status, updatedAt])
+  @@index([bfvMatchId])
 }
 
 model Attendance {
@@ -530,25 +620,155 @@ model EventReminder {
 }
 
 model Squad {
-  id        String        @id @default(cuid())
-  eventId   String
-  name      String?
-  formation String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  event     Event         @relation(fields: [eventId], references: [id])
-  members   SquadMember[]
+  id          String        @id @default(cuid())
+  eventId     String        @unique
+  name        String?
+  formation   String?
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  event       Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  members     SquadMember[]
+  lineup      Lineup?
 }
 
 model SquadMember {
-  id        String   @id @default(cuid())
-  squadId   String
-  playerId  String
-  createdAt DateTime @default(now())
-  squad     Squad    @relation(fields: [squadId], references: [id])
-  player    Player   @relation(fields: [playerId], references: [id])
+  id             String           @id @default(cuid())
+  squadId        String
+  playerId       String
+  status         NominationStatus @default(NOMINATED)
+  note           String?
+  plannedMinutes Int?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  squad          Squad            @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  player         Player           @relation(fields: [playerId], references: [id], onDelete: Restrict)
 
   @@unique([squadId, playerId])
+  @@index([playerId])
+}
+
+model Lineup {
+  id            String                @id @default(cuid())
+  squadId       String                @unique
+  formation     String
+  fieldSize     Int                   @default(7)
+  status        LineupStatus          @default(DRAFT)
+  publicNote    String?
+  tacticalNote  String?
+  visibleAt     DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  squad         Squad                 @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  positions     LineupPosition[]
+  substitutions PlannedSubstitution[]
+}
+
+model LineupPosition {
+  id           String   @id @default(cuid())
+  lineupId     String
+  playerId     String
+  period       Int      @default(1)
+  positionCode String
+  x            Float
+  y            Float
+  isStarter    Boolean  @default(true)
+  isGoalkeeper Boolean  @default(false)
+  isCaptain    Boolean  @default(false)
+  shirtNumber  Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lineup       Lineup   @relation(fields: [lineupId], references: [id], onDelete: Cascade)
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@unique([lineupId, playerId, period])
+  @@index([lineupId, period])
+}
+
+model PlannedSubstitution {
+  id          String   @id @default(cuid())
+  lineupId    String
+  period      Int
+  minute      Int?
+  playerInId  String
+  playerOutId String
+  note        String?
+  createdAt   DateTime @default(now())
+  lineup      Lineup   @relation(fields: [lineupId], references: [id], onDelete: Cascade)
+
+  @@index([lineupId, period])
+}
+
+model LiveTicker {
+  id                   String            @id @default(cuid())
+  eventId              String            @unique
+  status               TickerStatus      @default(NOT_STARTED)
+  currentPeriod        Int               @default(1)
+  elapsedSeconds       Int               @default(0)
+  clockStartedAt       DateTime?
+  ourGoals             Int               @default(0)
+  theirGoals           Int               @default(0)
+  lastSequence         Int               @default(0)
+  publicScorersEnabled Boolean           @default(false)
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  event                Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  events               LiveTickerEvent[]
+}
+
+model LiveTickerEvent {
+  id             String          @id @default(cuid())
+  tickerId       String
+  clientEventId  String
+  sequence       Int
+  type           TickerEventType
+  period         Int
+  elapsedSeconds Int
+  ourGoals       Int
+  theirGoals     Int
+  scorerId       String?
+  assistId       String?
+  authorId       String
+  comment        String?
+  revokedAt      DateTime?
+  correctsId     String?
+  createdAt      DateTime        @default(now())
+  ticker         LiveTicker      @relation(fields: [tickerId], references: [id], onDelete: Cascade)
+  scorer         Player?         @relation("TickerScorer", fields: [scorerId], references: [id], onDelete: SetNull)
+  assist         Player?         @relation("TickerAssist", fields: [assistId], references: [id], onDelete: SetNull)
+  author         User            @relation("TickerEventAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@unique([tickerId, clientEventId])
+  @@unique([tickerId, sequence])
+  @@index([tickerId, createdAt])
+}
+
+model RuleProfile {
+  id                   String    @id @default(cuid())
+  teamId               String
+  name                 String
+  validFrom            DateTime
+  validUntil           DateTime?
+  gameFormat           String
+  teamSize             Int
+  maxSquadSize         Int?
+  periodCount          Int
+  periodMinutes        Int
+  substitutionsRolling Boolean   @default(true)
+  showResults          Boolean   @default(true)
+  showTable            Boolean   @default(true)
+  festivalMode         Boolean   @default(false)
+  sourceNote           String?
+  version              Int       @default(1)
+  approvedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  team                 Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, validFrom])
 }
 
 model AuditLog {
