@@ -35,6 +35,7 @@ export async function register(req: Request, res: Response) {
         : Role.PARENT;
 
   const resolvedTeamId = await resolveTeamId(teamName, teamId);
+  const isFirstTeamUser = (await prisma.user.count({ where: { teamId: resolvedTeamId } })) === 0;
   const hashed = await hashPassword(password);
   const user = await prisma.user.create({
     data: {
@@ -42,8 +43,8 @@ export async function register(req: Request, res: Response) {
       password: hashed,
       name,
       phone,
-      role: normalizedRole,
-      status: AccountStatus.PENDING,
+      role: isFirstTeamUser ? Role.TRAINER_ADMIN : normalizedRole,
+      status: isFirstTeamUser ? AccountStatus.APPROVED : AccountStatus.PENDING,
       teamId: resolvedTeamId,
     },
   });
