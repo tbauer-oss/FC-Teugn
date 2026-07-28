@@ -214,6 +214,25 @@ enum PushPlatform {
   ANDROID
 }
 
+enum ImportFormat {
+  CSV
+  ICS
+}
+
+enum ImportJobStatus {
+  PREVIEWED
+  APPLIED
+  FAILED
+}
+
+enum ImportRowAction {
+  CREATE
+  UPDATE
+  SKIP
+  CONFLICT
+  INVALID
+}
+
 enum PlayerStatus {
   ACTIVE
   INJURED
@@ -284,6 +303,8 @@ model Team {
   ruleProfiles  RuleProfile[]
   exercises     TrainingExercise[]
   announcements AnnouncementTargetTeam[]
+  importJobs    ImportJob[]
+  externalRefs  ExternalReference[]
 
   @@index([ageGroupId, isActive])
 }
@@ -364,6 +385,7 @@ model User {
   pushSubscriptions       PushSubscription[]
   notificationPreferences NotificationPreference[]
   notificationDeliveries  NotificationDelivery[]
+  importJobs              ImportJob[]
 }
 
 model TeamMembership {
@@ -1084,6 +1106,66 @@ model NotificationDelivery {
 
   @@index([status, createdAt])
   @@index([userId, createdAt])
+}
+
+model ImportJob {
+  id            String          @id @default(cuid())
+  actorId       String
+  teamId        String
+  format        ImportFormat
+  provider      String
+  fileName      String?
+  status        ImportJobStatus @default(PREVIEWED)
+  sourceHash    String
+  totalRows     Int             @default(0)
+  createCount   Int             @default(0)
+  updateCount   Int             @default(0)
+  skipCount     Int             @default(0)
+  conflictCount Int             @default(0)
+  invalidCount  Int             @default(0)
+  createdAt     DateTime        @default(now())
+  appliedAt     DateTime?
+  actor         User            @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  team          Team            @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  rows          ImportRow[]
+
+  @@index([teamId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model ImportRow {
+  id         String          @id @default(cuid())
+  jobId      String
+  rowNumber  Int
+  externalId String?
+  action     ImportRowAction
+  normalized Json?
+  messages   String[]        @default([])
+  entityId   String?
+  createdAt  DateTime        @default(now())
+  job        ImportJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, rowNumber])
+  @@index([jobId, action])
+}
+
+model ExternalReference {
+  id             String   @id @default(cuid())
+  teamId         String
+  provider       String
+  entityType     String
+  externalId     String
+  entityId       String
+  sourceChecksum String
+  sourceUrl      String?
+  lastSyncedAt   DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, entityType, externalId])
+  @@index([teamId, entityType])
+  @@index([entityId])
 }
 
 model AuditLog {

@@ -60,5 +60,9 @@ Benachrichtigungseinstellungen und die Web-Push-Basis sind in
 [`docs/communications-notifications-push.md`](docs/communications-notifications-push.md)
 beschrieben.
 
+Der sichere Spielplanimport mit CSV-/ICS-Providerabstraktion,
+Duplikatschutz und Konfliktvorschau ist in
+[`docs/competition-imports.md`](docs/competition-imports.md) beschrieben.
+
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).

@@ -5,6 +5,7 @@ import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
 import '../shared/page_scaffold.dart';
+import '../imports/competition_import_dialog.dart';
 
 class TrainerMatchesPage extends ConsumerWidget {
   const TrainerMatchesPage({super.key});
@@ -17,6 +18,27 @@ class TrainerMatchesPage extends ConsumerWidget {
     return PageScaffold(
       title: 'Spieltage',
       subtitle: 'Gegner, Wettbewerb und Ergebnisse zentral verwalten.',
+      action: FilledButton.icon(
+        onPressed: () async {
+          final organization = await ref.read(organizationProvider.future);
+          if (!context.mounted) return;
+          final imported = await showDialog<bool>(
+            context: context,
+            builder: (context) =>
+                CompetitionImportDialog(organization: organization),
+          );
+          if (imported == true) {
+            ref.invalidate(eventsProvider);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Spielplan wurde importiert.')),
+              );
+            }
+          }
+        },
+        icon: const Icon(Icons.upload_file_rounded),
+        label: const Text('Spielplan importieren'),
+      ),
       child: events.when(
         data: (items) {
           final matches = items.where((event) => event.type == EventType.match).toList()

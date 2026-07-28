@@ -7,6 +7,7 @@ import 'models/matchday.dart';
 import 'models/statistics.dart';
 import 'models/training.dart';
 import 'models/communication.dart';
+import 'models/competition_import.dart';
 
 class DataRepository {
   final ApiClient client;
@@ -726,5 +727,36 @@ class DataRepository {
       'auth': subscription['auth'],
       'deviceName': 'FC Teugn Web-App',
     });
+  }
+
+  Future<CompetitionImportPreview> previewCompetitionImport({
+    required String teamId,
+    required CompetitionImportFormat format,
+    required String provider,
+    required String content,
+    String? fileName,
+  }) async {
+    final res = await client.dio.post('/imports/competition/preview', data: {
+      'teamId': teamId,
+      'format': format.name.toUpperCase(),
+      'provider': provider,
+      'content': content,
+      'fileName': fileName,
+    });
+    return CompetitionImportPreview.fromJson(
+      res.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> applyCompetitionImport(
+    String importId, {
+    bool sourceWinsConflicts = false,
+  }) async {
+    await client.dio.post(
+      '/imports/competition/$importId/apply',
+      data: {
+        'conflictPolicy': sourceWinsConflicts ? 'SOURCE_WINS' : 'SKIP',
+      },
+    );
   }
 }
