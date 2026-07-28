@@ -421,7 +421,7 @@ class _RuleProfileDialogState extends State<_RuleProfileDialog> {
   final _periodMinutes = TextEditingController(text: '25');
   final _source = TextEditingController(text: 'BFV-Jugendordnung');
   late String _teamId = widget.organization.currentTeam.id;
-  late DateTime _validFrom = widget.organization.season.startDate;
+  late final DateTime _validFrom = widget.organization.season.startDate;
   bool _festival = false;
   bool _showResults = true;
   bool _showTable = true;
