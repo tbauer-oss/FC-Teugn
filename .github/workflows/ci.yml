@@ -61,3 +61,27 @@ jobs:
 
       - name: Build Flutter web
         run: flutter build web --release
+
+      - name: Create temporary Android release signing key
+        shell: bash
+        run: |
+          keytool -genkeypair -v \
+            -keystore android/app/ci-release.jks \
+            -storepass changeit \
+            -keypass changeit \
+            -alias fc-teugn-ci \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=FC Teugn CI, OU=Jugend, O=FC Teugn, C=DE"
+          printf '%s\n' \
+            'storePassword=changeit' \
+            'keyPassword=changeit' \
+            'keyAlias=fc-teugn-ci' \
+            'storeFile=ci-release.jks' \
+            > android/key.properties
+
+      - name: Build signed Android App Bundle
+        env:
+          FC_TEUGN_REQUIRE_RELEASE_SIGNING: 'true'
+        run: flutter build appbundle --release
