@@ -8,9 +8,17 @@ generator client {
 }
 
 enum Role {
+  SUPER_ADMIN
+  CLUB_ADMIN
+  YOUTH_DIRECTOR
+  COACH
+  ASSISTANT_COACH
+  TEAM_MANAGER
   TRAINER_ADMIN
   TRAINER
   PARENT
+  PLAYER
+  READ_ONLY
 }
 
 enum AccountStatus {
@@ -33,43 +41,111 @@ enum AttendanceStatus {
 }
 
 model Team {
-  id        String   @id @default(cuid())
+  id          String           @id @default(cuid())
+  ageGroupId  String
+  name        String
+  shortName   String?
+  level       String?
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  ageGroup    AgeGroup         @relation(fields: [ageGroupId], references: [id])
+  users       User[]
+  memberships TeamMembership[]
+  players     Player[]
+  events      Event[]
+  auditLogs   AuditLog[]
+
+  @@index([ageGroupId, isActive])
+}
+
+model Club {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  shortName    String
+  primaryColor String   @default("#176B87")
+  accentColor  String   @default("#FFB000")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  seasons      Season[]
+}
+
+model Season {
+  id        String     @id @default(cuid())
+  clubId    String
   name      String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  club      Club       @relation(fields: [clubId], references: [id])
+  ageGroups AgeGroup[]
+
+  @@unique([clubId, name])
+  @@index([clubId, isActive])
+}
+
+model AgeGroup {
+  id        String   @id @default(cuid())
+  seasonId  String
+  name      String
+  code      String
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  users     User[]
-  players   Player[]
-  events    Event[]
+  season    Season   @relation(fields: [seasonId], references: [id])
+  teams     Team[]
+
+  @@unique([seasonId, code])
+  @@index([seasonId, sortOrder])
 }
 
 model User {
+  id          String             @id @default(cuid())
+  email       String             @unique
+  password    String
+  name        String
+  phone       String?
+  role        Role               @default(PARENT)
+  status      AccountStatus      @default(PENDING)
+  teamId      String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  team        Team               @relation(fields: [teamId], references: [id])
+  parentLinks ParentPlayerLink[] @relation("ParentLinks")
+  memberships TeamMembership[]
+  auditLogs   AuditLog[]         @relation("AuditActor")
+}
+
+model TeamMembership {
   id        String        @id @default(cuid())
-  email     String        @unique
-  password  String
-  name      String
-  phone     String?
-  role      Role          @default(PARENT)
-  status    AccountStatus @default(PENDING)
+  userId    String
   teamId    String
+  role      Role
+  status    AccountStatus @default(PENDING)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
-  team      Team          @relation(fields: [teamId], references: [id])
-  parentLinks ParentPlayerLink[] @relation("ParentLinks")
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@index([teamId, status])
 }
 
 model Player {
-  id          String   @id @default(cuid())
-  teamId      String
-  firstName   String
-  lastName    String
-  birthDate   DateTime?
-  position    String?
-  shirtNumber Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  team        Team     @relation(fields: [teamId], references: [id])
-  parentLinks ParentPlayerLink[]
-  attendance  Attendance[]
+  id           String             @id @default(cuid())
+  teamId       String
+  firstName    String
+  lastName     String
+  birthDate    DateTime?
+  position     String?
+  shirtNumber  Int?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  team         Team               @relation(fields: [teamId], references: [id])
+  parentLinks  ParentPlayerLink[]
+  attendance   Attendance[]
   squadMembers SquadMember[]
 }
 
@@ -85,21 +161,21 @@ model ParentPlayerLink {
 }
 
 model Event {
-  id                   String    @id @default(cuid())
-  teamId               String
-  type                 EventType
-  title                String
-  startAt              DateTime
-  endAt                DateTime?
-  location             String
-  description          String?
-  attendanceFinalized  Boolean   @default(false)
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  team                 Team      @relation(fields: [teamId], references: [id])
-  attendance           Attendance[]
-  matchDetails         MatchDetails?
-  squads               Squad[]
+  id                  String        @id @default(cuid())
+  teamId              String
+  type                EventType
+  title               String
+  startAt             DateTime
+  endAt               DateTime?
+  location            String
+  description         String?
+  attendanceFinalized Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  team                Team          @relation(fields: [teamId], references: [id])
+  attendance          Attendance[]
+  matchDetails        MatchDetails?
+  squads              Squad[]
 }
 
 model MatchDetails {
@@ -129,13 +205,13 @@ model Attendance {
 }
 
 model Squad {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   eventId   String
   name      String?
   formation String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  event     Event    @relation(fields: [eventId], references: [id])
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  event     Event         @relation(fields: [eventId], references: [id])
   members   SquadMember[]
 }
 
@@ -148,4 +224,20 @@ model SquadMember {
   player    Player   @relation(fields: [playerId], references: [id])
 
   @@unique([squadId, playerId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  teamId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  team       Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, createdAt])
+  @@index([actorId, createdAt])
 }

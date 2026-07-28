@@ -16,6 +16,7 @@ import 'features/parent/parent_dashboard_page.dart';
 import 'features/parent/parent_players_page.dart';
 import 'features/parent/parent_events_page.dart';
 import 'features/parent/parent_matches_page.dart';
+import 'features/organization/organization_page.dart';
 import 'core/models/user.dart';
 import 'core/app_theme.dart';
 
@@ -80,10 +81,11 @@ class FCTeugnApp extends ConsumerWidget {
             title: 'Trainer Bereich',
             destinations: const [
               ShellDestination(label: 'Übersicht', icon: Icons.grid_view_rounded, route: '/trainer'),
-              ShellDestination(label: 'Freigaben', icon: Icons.check_circle, route: '/trainer/approvals'),
+              ShellDestination(label: 'Freigaben', icon: Icons.check_circle, route: '/trainer/approvals', showOnMobile: false),
               ShellDestination(label: 'Team', icon: Icons.groups_rounded, route: '/trainer/players'),
               ShellDestination(label: 'Termine', icon: Icons.calendar_month_rounded, route: '/trainer/events'),
               ShellDestination(label: 'Spiele', icon: Icons.sports_soccer_rounded, route: '/trainer/matches'),
+              ShellDestination(label: 'Verein', icon: Icons.account_tree_rounded, route: '/trainer/organization'),
             ],
             child: child,
           ),
@@ -107,6 +109,10 @@ class FCTeugnApp extends ConsumerWidget {
             GoRoute(
               path: '/trainer/matches',
               builder: (context, state) => const TrainerMatchesPage(),
+            ),
+            GoRoute(
+              path: '/trainer/organization',
+              builder: (context, state) => const OrganizationPage(),
             ),
           ],
         ),

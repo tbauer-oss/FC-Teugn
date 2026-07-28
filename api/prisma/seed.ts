@@ -7,10 +7,47 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
+  const club = await prisma.club.upsert({
+    where: { name: 'FC Teugn' },
+    update: {},
+    create: {
+      id: 'seed-club-fc-teugn',
+      name: 'FC Teugn',
+      shortName: 'FCT',
+    },
+  });
+  const season = await prisma.season.upsert({
+    where: { clubId_name: { clubId: club.id, name: '2026/27' } },
+    update: { isActive: true },
+    create: {
+      id: 'seed-season-2026-2027',
+      clubId: club.id,
+      name: '2026/27',
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      endDate: new Date('2027-06-30T23:59:59.000Z'),
+      isActive: true,
+    },
+  });
+  const ageGroup = await prisma.ageGroup.upsert({
+    where: { seasonId_code: { seasonId: season.id, code: 'E' } },
+    update: {},
+    create: {
+      id: 'seed-agegroup-e',
+      seasonId: season.id,
+      name: 'E-Jugend',
+      code: 'E',
+      sortOrder: 30,
+    },
+  });
   const team = await prisma.team.upsert({
     where: { id: 'fc-teugn' },
-    update: {},
-    create: { id: 'fc-teugn', name: 'FC Teugn' },
+    update: { ageGroupId: ageGroup.id },
+    create: {
+      id: 'fc-teugn',
+      name: 'E1',
+      shortName: 'E1',
+      ageGroupId: ageGroup.id,
+    },
   });
 
   const defaultPassword = await hashPassword('FC-Teugn_WEB!');
@@ -20,9 +57,10 @@ async function main() {
     update: {},
     create: {
       email: 'trainer@fc-teugn.local',
-      name: 'Tobias Bauer',
+      name: 'Max Beispiel',
       password: defaultPassword,
-      role: Role.TRAINER,
+      role: Role.CLUB_ADMIN,
+      status: 'APPROVED',
       teamId: team.id,
     },
   });
@@ -35,7 +73,29 @@ async function main() {
       name: 'Familie Muster',
       password: defaultPassword,
       role: Role.PARENT,
+      status: 'APPROVED',
       teamId: team.id,
+    },
+  });
+
+  await prisma.teamMembership.upsert({
+    where: { userId_teamId: { userId: trainer.id, teamId: team.id } },
+    update: { role: trainer.role, status: trainer.status },
+    create: {
+      userId: trainer.id,
+      teamId: team.id,
+      role: trainer.role,
+      status: trainer.status,
+    },
+  });
+  await prisma.teamMembership.upsert({
+    where: { userId_teamId: { userId: parent.id, teamId: team.id } },
+    update: { role: parent.role, status: parent.status },
+    create: {
+      userId: parent.id,
+      teamId: team.id,
+      role: parent.role,
+      status: parent.status,
     },
   });
 

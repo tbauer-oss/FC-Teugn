@@ -3,16 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../auth/auth_controller.dart';
+import '../../core/providers.dart';
 
 class ShellDestination {
   final String label;
   final IconData icon;
   final String route;
+  final bool showOnMobile;
 
   const ShellDestination({
     required this.label,
     required this.icon,
     required this.route,
+    this.showOnMobile = true,
   });
 }
 
@@ -28,10 +31,10 @@ class AppShell extends ConsumerWidget {
   final Widget child;
   final String title;
 
-  int _selectedIndex(String location) {
-    for (var i = 1; i < destinations.length; i++) {
-      if (location == destinations[i].route ||
-          location.startsWith('${destinations[i].route}/')) {
+  int _selectedIndex(String location, List<ShellDestination> items) {
+    for (var i = 1; i < items.length; i++) {
+      if (location == items[i].route ||
+          location.startsWith('${items[i].route}/')) {
         return i;
       }
     }
@@ -41,8 +44,16 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
+    final organization = ref.watch(organizationProvider).value;
     final location = GoRouterState.of(context).matchedLocation;
-    final selectedIndex = _selectedIndex(location);
+    final selectedIndex = _selectedIndex(location, destinations);
+    final mobileDestinations =
+        destinations.where((destination) => destination.showOnMobile).toList();
+    final mobileSelectedIndex = _selectedIndex(location, mobileDestinations);
+    final contextLabel = organization == null
+        ? 'FC Teugn Jugend'
+        : '${organization.currentTeam.ageGroup.code}-Jugend · ${organization.currentTeam.name}';
+    final seasonLabel = organization?.season.name ?? '2026/27';
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -57,6 +68,9 @@ class AppShell extends ConsumerWidget {
                   destinations: destinations,
                   selectedIndex: selectedIndex,
                   userName: authState.user?.name ?? '',
+                  userRole: authState.user?.roleLabel ?? '',
+                  contextLabel: contextLabel,
+                  seasonLabel: seasonLabel,
                   onSelect: (index) => context.go(destinations[index].route),
                   onLogout: () => ref.read(authProvider.notifier).logout(),
                 ),
@@ -67,6 +81,7 @@ class AppShell extends ConsumerWidget {
                       _MobileHeader(
                         title: title,
                         userName: authState.user?.name ?? '',
+                        contextLabel: contextLabel,
                         onLogout: () => ref.read(authProvider.notifier).logout(),
                       ),
                     Expanded(child: child),
@@ -79,11 +94,11 @@ class AppShell extends ConsumerWidget {
               ? null
               : NavigationBar(
                   height: 72,
-                  selectedIndex: selectedIndex,
+                  selectedIndex: mobileSelectedIndex,
                   onDestinationSelected: (index) =>
-                      context.go(destinations[index].route),
+                      context.go(mobileDestinations[index].route),
                   destinations: [
-                    for (final destination in destinations)
+                    for (final destination in mobileDestinations)
                       NavigationDestination(
                         icon: Icon(destination.icon),
                         selectedIcon: Icon(destination.icon, color: AppColors.blue),
@@ -103,6 +118,9 @@ class _DesktopNavigation extends StatelessWidget {
     required this.destinations,
     required this.selectedIndex,
     required this.userName,
+    required this.userRole,
+    required this.contextLabel,
+    required this.seasonLabel,
     required this.onSelect,
     required this.onLogout,
   });
@@ -111,6 +129,9 @@ class _DesktopNavigation extends StatelessWidget {
   final List<ShellDestination> destinations;
   final int selectedIndex;
   final String userName;
+  final String userRole;
+  final String contextLabel;
+  final String seasonLabel;
   final ValueChanged<int> onSelect;
   final VoidCallback onLogout;
 
@@ -129,6 +150,38 @@ class _DesktopNavigation extends StatelessWidget {
               child: _ClubBrand(light: true),
             ),
             const SizedBox(height: 32),
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 24),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .07),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: .08)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    contextLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Saison $seasonLabel',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: .5),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
@@ -203,7 +256,7 @@ class _DesktopNavigation extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'FC Teugn Jugend',
+                        userRole,
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: .52),
                           fontSize: 12,
@@ -231,11 +284,13 @@ class _MobileHeader extends StatelessWidget {
   const _MobileHeader({
     required this.title,
     required this.userName,
+    required this.contextLabel,
     required this.onLogout,
   });
 
   final String title;
   final String userName;
+  final String contextLabel;
   final VoidCallback onLogout;
 
   @override
@@ -248,7 +303,18 @@ class _MobileHeader extends StatelessWidget {
         child: Row(
           children: [
             const _ClubBrand(light: false, compact: true),
-            const Spacer(),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                contextLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.navy,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
             _Avatar(name: userName, small: true),
             IconButton(
               tooltip: 'Abmelden',

@@ -6,14 +6,25 @@ import { AccountStatus, Role } from '../types/enums';
 
 async function resolveTeamId(teamName?: string, teamId?: string) {
   if (teamId) {
-    return teamId;
+    const selected = await prisma.team.findFirst({
+      where: { id: teamId, isActive: true },
+    });
+    if (selected) return selected.id;
   }
 
   const name = teamName?.trim() || 'FC Teugn';
-  const existing = await prisma.team.findFirst({ where: { name } });
+  const existing = await prisma.team.findFirst({
+    where: { name: { equals: name, mode: 'insensitive' }, isActive: true },
+  });
   if (existing) return existing.id;
-  const created = await prisma.team.create({ data: { name } });
-  return created.id;
+  const fallback = await prisma.team.findFirst({
+    where: { isActive: true, ageGroup: { season: { isActive: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (!fallback) {
+    throw new Error('No active team configured');
+  }
+  return fallback.id;
 }
 
 export async function register(req: Request, res: Response) {
@@ -28,25 +39,55 @@ export async function register(req: Request, res: Response) {
   }
 
   const normalizedRole =
-    role === Role.TRAINER_ADMIN || role === 'TRAINER_ADMIN'
-      ? Role.TRAINER_ADMIN
-      : role === Role.TRAINER || role === 'TRAINER'
-        ? Role.TRAINER
-        : Role.PARENT;
+    role === Role.COACH ||
+    role === Role.TRAINER ||
+    role === Role.TRAINER_ADMIN ||
+    role === 'TRAINER'
+      ? Role.COACH
+      : role === Role.ASSISTANT_COACH
+        ? Role.ASSISTANT_COACH
+        : role === Role.TEAM_MANAGER
+          ? Role.TEAM_MANAGER
+          : Role.PARENT;
 
   const resolvedTeamId = await resolveTeamId(teamName, teamId);
-  const isFirstTeamUser = (await prisma.user.count({ where: { teamId: resolvedTeamId } })) === 0;
+  const resolvedTeam = await prisma.team.findUnique({
+    where: { id: resolvedTeamId },
+    include: { ageGroup: { include: { season: true } } },
+  });
+  if (!resolvedTeam) {
+    return res.status(400).json({ message: 'Mannschaft nicht gefunden' });
+  }
+  const isFirstClubUser =
+    (await prisma.user.count({
+      where: {
+        team: {
+          ageGroup: { season: { clubId: resolvedTeam.ageGroup.season.clubId } },
+        },
+      },
+    })) === 0;
   const hashed = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: {
-      email,
-      password: hashed,
-      name,
-      phone,
-      role: isFirstTeamUser ? Role.TRAINER_ADMIN : normalizedRole,
-      status: isFirstTeamUser ? AccountStatus.APPROVED : AccountStatus.PENDING,
-      teamId: resolvedTeamId,
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        email,
+        password: hashed,
+        name,
+        phone,
+        role: isFirstClubUser ? Role.CLUB_ADMIN : normalizedRole,
+        status: isFirstClubUser ? AccountStatus.APPROVED : AccountStatus.PENDING,
+        teamId: resolvedTeamId,
+      },
+    });
+    await tx.teamMembership.create({
+      data: {
+        userId: created.id,
+        teamId: created.teamId,
+        role: created.role,
+        status: created.status,
+      },
+    });
+    return created;
   });
 
   const accessToken = signAccessToken({
