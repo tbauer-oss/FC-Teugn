@@ -10,6 +10,12 @@ const {
 } = require('../dist/src/controllers/events.controller');
 const { RecurrenceFrequency } = require('@prisma/client');
 const {
+  AnnouncementAudience,
+} = require('@prisma/client');
+const {
+  audienceVisible,
+} = require('../dist/src/controllers/communications.controller');
+const {
   summarizeMatchResults,
 } = require('../dist/src/services/statistics.service');
 
@@ -95,6 +101,48 @@ test('training and statistics mutations remain staff-only', () => {
   assert.equal(hasPermission(Role.PARENT, Permission.VIEW_PLAYER_STATS), true);
   assert.equal(hasPermission(Role.PARENT, Permission.MANAGE_TRAINING), false);
   assert.equal(hasPermission(Role.PLAYER, Permission.MANAGE_STATISTICS), false);
+});
+
+test('team communications can only be sent by staff roles', () => {
+  assert.equal(
+    hasPermission(Role.COACH, Permission.SEND_ANNOUNCEMENTS),
+    true,
+  );
+  assert.equal(
+    hasPermission(Role.TEAM_MANAGER, Permission.SEND_ANNOUNCEMENTS),
+    true,
+  );
+  assert.equal(
+    hasPermission(Role.PARENT, Permission.SEND_ANNOUNCEMENTS),
+    false,
+  );
+  assert.equal(
+    hasPermission(Role.PLAYER, Permission.SEND_ANNOUNCEMENTS),
+    false,
+  );
+});
+
+test('announcement audiences are separated by member role', () => {
+  assert.equal(
+    audienceVisible(Role.PARENT, AnnouncementAudience.PARENTS),
+    true,
+  );
+  assert.equal(
+    audienceVisible(Role.PLAYER, AnnouncementAudience.PARENTS),
+    false,
+  );
+  assert.equal(
+    audienceVisible(Role.COACH, AnnouncementAudience.STAFF),
+    true,
+  );
+  assert.equal(
+    audienceVisible(Role.PARENT, AnnouncementAudience.STAFF),
+    false,
+  );
+  assert.equal(
+    audienceVisible(Role.PARENT, AnnouncementAudience.ALL_MEMBERS),
+    true,
+  );
 });
 
 test('team statistics summarize results, form and home-away records', () => {

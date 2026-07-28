@@ -6,6 +6,7 @@ import 'models/organization.dart';
 import 'models/matchday.dart';
 import 'models/statistics.dart';
 import 'models/training.dart';
+import 'models/communication.dart';
 
 class DataRepository {
   final ApiClient client;
@@ -609,6 +610,121 @@ class DataRepository {
       'isLegalGuardian': isLegalGuardian,
       'canPickup': canPickup,
       'receivesCommunication': receivesCommunication,
+    });
+  }
+
+  Future<List<AnnouncementModel>> announcements({
+    bool includeDrafts = false,
+  }) async {
+    final res = await client.dio.get(
+      '/communications',
+      queryParameters: {'includeDrafts': includeDrafts},
+    );
+    return (res.data as List<dynamic>)
+        .map(
+          (item) =>
+              AnnouncementModel.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<void> saveAnnouncement({
+    required String title,
+    required String body,
+    required List<String> teamIds,
+    required AnnouncementAudience audience,
+    required AnnouncementPriority priority,
+    required AnnouncementStatus status,
+    DateTime? publishAt,
+    bool requireReadReceipt = false,
+    bool pushEnabled = true,
+  }) async {
+    await client.dio.post('/communications', data: {
+      'title': title,
+      'body': body,
+      'teamIds': teamIds,
+      'audience': communicationApiEnum(audience),
+      'priority': communicationApiEnum(priority),
+      'status': communicationApiEnum(status),
+      'publishAt': publishAt?.toUtc().toIso8601String(),
+      'requireReadReceipt': requireReadReceipt,
+      'pushEnabled': pushEnabled,
+    });
+  }
+
+  Future<void> markAnnouncementRead(String announcementId) async {
+    await client.dio.post('/communications/$announcementId/read');
+  }
+
+  Future<List<AppNotificationModel>> notifications() async {
+    final res = await client.dio.get('/notifications');
+    return (res.data as List<dynamic>)
+        .map(
+          (item) =>
+              AppNotificationModel.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<void> markNotificationRead(String notificationId) async {
+    await client.dio.post('/notifications/$notificationId/read');
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await client.dio.post('/notifications/read-all');
+  }
+
+  Future<List<NotificationPreferenceModel>> notificationPreferences() async {
+    final res = await client.dio.get('/notifications/settings/preferences');
+    return (res.data as List<dynamic>)
+        .map(
+          (item) => NotificationPreferenceModel.fromJson(
+            item as Map<String, dynamic>,
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<NotificationPreferenceModel>> saveNotificationPreferences(
+    List<NotificationPreferenceModel> preferences,
+  ) async {
+    final res = await client.dio.put(
+      '/notifications/settings/preferences',
+      data: {
+        'preferences': preferences
+            .map(
+              (item) => {
+                'category': communicationApiEnum(item.category),
+                'inApp': item.inApp,
+                'push': item.push,
+              },
+            )
+            .toList(),
+      },
+    );
+    return (res.data as List<dynamic>)
+        .map(
+          (item) => NotificationPreferenceModel.fromJson(
+            item as Map<String, dynamic>,
+          ),
+        )
+        .toList();
+  }
+
+  Future<PushConfiguration> pushConfiguration() async {
+    final res = await client.dio.get('/notifications/settings/configuration');
+    return PushConfiguration.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> registerWebPushSubscription(
+    Map<String, dynamic> subscription,
+  ) async {
+    await client.dio.post('/notifications/settings/subscriptions', data: {
+      'platform': 'WEB',
+      'endpoint': subscription['endpoint'],
+      'p256dh': subscription['p256dh'],
+      'auth': subscription['auth'],
+      'deviceName': 'FC Teugn Web-App',
     });
   }
 }
