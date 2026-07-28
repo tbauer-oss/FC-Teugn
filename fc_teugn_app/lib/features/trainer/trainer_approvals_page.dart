@@ -665,7 +665,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: playerId,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: role == UserRole.parent
                         ? 'Kind / Spielerprofil *'
                         : 'Verknüpftes Spielerprofil *',
