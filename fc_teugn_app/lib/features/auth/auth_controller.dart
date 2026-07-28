@@ -40,7 +40,7 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   static const _refreshTokenKey = 'fc_teugn_refresh_token';
-  final FlutterSecureStorage _storage = FlutterSecureStorage();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
   Future<String?>? _refreshing;
 
   Future<void> login(String email, String password) async {
