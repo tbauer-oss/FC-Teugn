@@ -40,6 +40,56 @@ enum AttendanceStatus {
   UNKNOWN
 }
 
+enum PlayerStatus {
+  ACTIVE
+  INJURED
+  PAUSED
+  LEFT
+}
+
+enum DominantFoot {
+  RIGHT
+  LEFT
+  BOTH
+  UNKNOWN
+}
+
+enum GuardianRelationship {
+  MOTHER
+  FATHER
+  GUARDIAN
+  OTHER
+}
+
+enum DevelopmentCategory {
+  TECHNIQUE
+  TACTICS
+  ATHLETIC
+  SOCIAL
+  GOALKEEPING
+  GENERAL
+}
+
+enum NoteVisibility {
+  STAFF_ONLY
+  GUARDIANS_AND_STAFF
+}
+
+enum ConsentType {
+  PHOTO
+  TEAM_PHOTO
+  TRANSPORT
+  MEDICAL_DATA
+  COMMUNICATION
+}
+
+enum ConsentStatus {
+  PENDING
+  GRANTED
+  REVOKED
+  EXPIRED
+}
+
 model Team {
   id          String           @id @default(cuid())
   ageGroupId  String
@@ -102,20 +152,23 @@ model AgeGroup {
 }
 
 model User {
-  id          String             @id @default(cuid())
-  email       String             @unique
-  password    String
-  name        String
-  phone       String?
-  role        Role               @default(PARENT)
-  status      AccountStatus      @default(PENDING)
-  teamId      String
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  team        Team               @relation(fields: [teamId], references: [id])
-  parentLinks ParentPlayerLink[] @relation("ParentLinks")
-  memberships TeamMembership[]
-  auditLogs   AuditLog[]         @relation("AuditActor")
+  id               String                  @id @default(cuid())
+  email            String                  @unique
+  password         String
+  name             String
+  phone            String?
+  role             Role                    @default(PARENT)
+  status           AccountStatus           @default(PENDING)
+  teamId           String
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  team             Team                    @relation(fields: [teamId], references: [id])
+  parentLinks      ParentPlayerLink[]      @relation("ParentLinks")
+  memberships      TeamMembership[]
+  auditLogs        AuditLog[]              @relation("AuditActor")
+  developmentNotes PlayerDevelopmentNote[] @relation("DevelopmentAuthor")
+  medicalUpdates   PlayerMedicalProfile[]  @relation("MedicalUpdatedBy")
+  playerProfile    Player?                 @relation("PlayerAccount")
 }
 
 model TeamMembership {
@@ -134,30 +187,117 @@ model TeamMembership {
 }
 
 model Player {
-  id           String             @id @default(cuid())
-  teamId       String
-  firstName    String
-  lastName     String
-  birthDate    DateTime?
-  position     String?
-  shirtNumber  Int?
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  team         Team               @relation(fields: [teamId], references: [id])
-  parentLinks  ParentPlayerLink[]
-  attendance   Attendance[]
-  squadMembers SquadMember[]
+  id                String                   @id @default(cuid())
+  teamId            String
+  userId            String?                  @unique
+  firstName         String
+  lastName          String
+  preferredName     String?
+  birthDate         DateTime?
+  nationality       String?
+  position          String?
+  secondaryPosition String?
+  dominantFoot      DominantFoot             @default(UNKNOWN)
+  shirtNumber       Int?
+  status            PlayerStatus             @default(ACTIVE)
+  joinedAt          DateTime?
+  photoUrl          String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  team              Team                     @relation(fields: [teamId], references: [id])
+  user              User?                    @relation("PlayerAccount", fields: [userId], references: [id], onDelete: SetNull)
+  parentLinks       ParentPlayerLink[]
+  attendance        Attendance[]
+  squadMembers      SquadMember[]
+  medicalProfile    PlayerMedicalProfile?
+  emergencyContacts PlayerEmergencyContact[]
+  developmentNotes  PlayerDevelopmentNote[]
+  consents          PlayerConsent[]
+
+  @@index([teamId, status, lastName])
 }
 
 model ParentPlayerLink {
-  id        String   @id @default(cuid())
-  parentId  String
-  playerId  String
-  createdAt DateTime @default(now())
-  parent    User     @relation("ParentLinks", fields: [parentId], references: [id])
-  player    Player   @relation(fields: [playerId], references: [id])
+  id                    String               @id @default(cuid())
+  parentId              String
+  playerId              String
+  relationship          GuardianRelationship @default(GUARDIAN)
+  isLegalGuardian       Boolean              @default(true)
+  canPickup             Boolean              @default(true)
+  receivesCommunication Boolean              @default(true)
+  createdAt             DateTime             @default(now())
+  parent                User                 @relation("ParentLinks", fields: [parentId], references: [id], onDelete: Cascade)
+  player                Player               @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([parentId, playerId])
+  @@index([playerId])
+}
+
+model PlayerMedicalProfile {
+  id             String   @id @default(cuid())
+  playerId       String   @unique
+  allergies      String?
+  medications    String?
+  conditions     String?
+  physicianName  String?
+  physicianPhone String?
+  emergencyNotes String?
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  updatedBy      User?    @relation("MedicalUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+model PlayerEmergencyContact {
+  id                 String   @id @default(cuid())
+  playerId           String
+  name               String
+  relationship       String?
+  phone              String
+  priority           Int      @default(1)
+  isAuthorizedPickup Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  player             Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, priority])
+}
+
+model PlayerDevelopmentNote {
+  id         String              @id @default(cuid())
+  playerId   String
+  authorId   String
+  category   DevelopmentCategory @default(GENERAL)
+  visibility NoteVisibility      @default(STAFF_ONLY)
+  rating     Int?
+  title      String
+  notes      String
+  observedAt DateTime            @default(now())
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  player     Player              @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  author     User                @relation("DevelopmentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([playerId, observedAt])
+}
+
+model PlayerConsent {
+  id        String        @id @default(cuid())
+  playerId  String
+  type      ConsentType
+  status    ConsentStatus @default(PENDING)
+  grantedBy String?
+  grantedAt DateTime?
+  expiresAt DateTime?
+  revokedAt DateTime?
+  note      String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  player    Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, type])
+  @@index([playerId, status])
 }
 
 model Event {

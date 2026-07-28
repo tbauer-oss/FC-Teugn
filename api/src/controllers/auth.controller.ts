@@ -48,7 +48,9 @@ export async function register(req: Request, res: Response) {
         ? Role.ASSISTANT_COACH
         : role === Role.TEAM_MANAGER
           ? Role.TEAM_MANAGER
-          : Role.PARENT;
+          : role === Role.PLAYER
+            ? Role.PLAYER
+            : Role.PARENT;
 
   const resolvedTeamId = await resolveTeamId(teamName, teamId);
   const resolvedTeam = await prisma.team.findUnique({

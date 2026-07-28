@@ -89,6 +89,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           child: Text('Elternteil'),
                         ),
                         DropdownMenuItem(
+                          value: UserRole.player,
+                          child: Text('Spieler/in'),
+                        ),
+                        DropdownMenuItem(
                           value: UserRole.coach,
                           child: Text('Trainer/in'),
                         ),
