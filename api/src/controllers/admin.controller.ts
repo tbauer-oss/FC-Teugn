@@ -1,5 +1,9 @@
 import { Request, Response } from 'express';
-import { AccountStatus, GuardianRelationship } from '@prisma/client';
+import {
+  AccountStatus,
+  GuardianRelationship,
+  RegistrationReviewStatus,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
@@ -27,6 +31,45 @@ const memberSelect = {
       },
     },
   },
+  registrationRequest: {
+    select: {
+      id: true,
+      requestedRole: true,
+      childName: true,
+      relationship: true,
+      reviewStatus: true,
+      adminNote: true,
+      applicantMessage: true,
+      pushOptIn: true,
+      reviewedAt: true,
+      reviewedBy: { select: { id: true, name: true } },
+      requestedTeams: {
+        select: {
+          team: {
+            select: {
+              id: true,
+              name: true,
+              ageGroup: { select: { name: true, code: true } },
+            },
+          },
+        },
+      },
+      history: {
+        orderBy: { createdAt: 'desc' as const },
+        take: 20,
+        select: {
+          id: true,
+          fromStatus: true,
+          toStatus: true,
+          fromReviewStatus: true,
+          toReviewStatus: true,
+          note: true,
+          createdAt: true,
+          actor: { select: { id: true, name: true } },
+        },
+      },
+    },
+  },
 } as const;
 
 async function actorClubId(teamId: string) {
@@ -41,9 +84,33 @@ export async function pendingUsers(req: Request, res: Response) {
   const user = req.user!;
   const clubId = await actorClubId(user.teamId);
   const canManageOrganization = hasPermission(user.role, Permission.MANAGE_ORGANIZATION);
+  const teamId = typeof req.query.teamId === 'string' ? req.query.teamId : undefined;
+  const role = typeof req.query.role === 'string' ? req.query.role as Role : undefined;
+  const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   const users = await prisma.user.findMany({
     where: {
       status: AccountStatus.PENDING,
+      ...(role && Object.values(Role).includes(role) ? { role } : {}),
+      ...(query
+        ? {
+            OR: [
+              { name: { contains: query, mode: 'insensitive' as const } },
+              { email: { contains: query, mode: 'insensitive' as const } },
+              {
+                registrationRequest: {
+                  childName: { contains: query, mode: 'insensitive' as const },
+                },
+              },
+            ],
+          }
+        : {}),
+      ...(teamId
+        ? {
+            registrationRequest: {
+              requestedTeams: { some: { teamId } },
+            },
+          }
+        : {}),
       ...(canManageOrganization && clubId
         ? { team: { ageGroup: { season: { clubId } } } }
         : { teamId: user.teamId }),
@@ -76,12 +143,20 @@ export async function approveUser(req: Request, res: Response) {
     role,
     teamIds,
     playerId,
+    relationship,
+    adminNote,
+    applicantMessage,
+    reviewStatus,
   } = req.body as {
     userId?: string;
     status?: AccountStatus;
     role?: Role;
     teamIds?: string[];
     playerId?: string;
+    relationship?: GuardianRelationship;
+    adminNote?: string;
+    applicantMessage?: string;
+    reviewStatus?: RegistrationReviewStatus;
   };
   if (!userId) {
     return res.status(400).json({ message: 'Benutzer-ID fehlt.' });
@@ -101,10 +176,22 @@ export async function approveUser(req: Request, res: Response) {
     return res.status(404).json({ message: 'Mitglied nicht gefunden.' });
   }
 
+  const allowedStatuses: AccountStatus[] = [
+    AccountStatus.PENDING,
+    AccountStatus.APPROVED,
+    AccountStatus.REJECTED,
+    AccountStatus.BLOCKED,
+    AccountStatus.ARCHIVED,
+  ];
   const nextStatus =
-    status === AccountStatus.BLOCKED || status === AccountStatus.APPROVED
-      ? status
-      : AccountStatus.APPROVED;
+    status && allowedStatuses.includes(status) ? status : AccountStatus.APPROVED;
+  const allowedReviewStatuses = Object.values(RegistrationReviewStatus);
+  const nextReviewStatus =
+    reviewStatus && allowedReviewStatuses.includes(reviewStatus)
+      ? reviewStatus
+      : nextStatus === AccountStatus.PENDING
+        ? RegistrationReviewStatus.IN_REVIEW
+        : RegistrationReviewStatus.COMPLETED;
   const nextRole = normalizeAssignableRole(role ?? (target.role as Role), canManageOrganization);
   if (!nextRole) {
     return res.status(403).json({ message: 'Diese Rolle darf nicht vergeben werden.' });
@@ -125,17 +212,23 @@ export async function approveUser(req: Request, res: Response) {
     return res.status(400).json({ message: 'Mindestens eine Mannschaft ist nicht zulässig.' });
   }
   const linkedPlayer =
-    nextRole === Role.PLAYER && playerId
+    (nextRole === Role.PLAYER || nextRole === Role.PARENT) && playerId
       ? await prisma.player.findFirst({
           where: {
             id: playerId,
             teamId: { in: allowedTeams.map((team) => team.id) },
-            OR: [{ userId: null }, { userId: target.id }],
+            ...(nextRole === Role.PLAYER
+              ? { OR: [{ userId: null }, { userId: target.id }] }
+              : {}),
           },
           select: { id: true },
         })
       : null;
-  if (nextRole === Role.PLAYER && !linkedPlayer) {
+  if (
+    nextStatus === AccountStatus.APPROVED &&
+    nextRole === Role.PLAYER &&
+    !linkedPlayer
+  ) {
     return res.status(400).json({
       message: 'Für einen Spielerzugang muss ein passendes Spielerprofil gewählt werden.',
     });
@@ -163,27 +256,87 @@ export async function approveUser(req: Request, res: Response) {
       })),
       skipDuplicates: true,
     });
-    await tx.player.updateMany({
+    if (nextStatus === AccountStatus.APPROVED) {
+      await tx.player.updateMany({
+        where: { userId: target.id },
+        data: { userId: null },
+      });
+      if (linkedPlayer && nextRole === Role.PLAYER) {
+        await tx.player.update({
+          where: { id: linkedPlayer.id },
+          data: { userId: target.id },
+        });
+      }
+      if (linkedPlayer && nextRole === Role.PARENT) {
+        await tx.parentPlayerLink.upsert({
+          where: {
+            parentId_playerId: { parentId: target.id, playerId: linkedPlayer.id },
+          },
+          create: {
+            parentId: target.id,
+            playerId: linkedPlayer.id,
+            relationship:
+              relationship &&
+              Object.values(GuardianRelationship).includes(relationship)
+                ? relationship
+                : GuardianRelationship.GUARDIAN,
+          },
+          update: {
+            relationship:
+              relationship &&
+              Object.values(GuardianRelationship).includes(relationship)
+                ? relationship
+                : GuardianRelationship.GUARDIAN,
+          },
+        });
+      }
+    }
+    const registration = await tx.registrationRequest.findUnique({
       where: { userId: target.id },
-      data: { userId: null },
     });
-    if (linkedPlayer) {
-      await tx.player.update({
-        where: { id: linkedPlayer.id },
-        data: { userId: target.id },
+    if (registration) {
+      await tx.registrationRequest.update({
+        where: { id: registration.id },
+        data: {
+          reviewStatus: nextReviewStatus,
+          adminNote: adminNote?.trim() || registration.adminNote,
+          applicantMessage:
+            applicantMessage?.trim() || registration.applicantMessage,
+          reviewedById: actor.id,
+          reviewedAt: new Date(),
+        },
+      });
+      await tx.registrationHistory.create({
+        data: {
+          registrationRequestId: registration.id,
+          actorId: actor.id,
+          fromStatus: target.status,
+          toStatus: nextStatus,
+          fromReviewStatus: registration.reviewStatus,
+          toReviewStatus: nextReviewStatus,
+          note: adminNote?.trim() || applicantMessage?.trim() || null,
+          metadata: {
+            role: nextRole,
+            teamIds: allowedTeams.map((team) => team.id),
+            playerId: linkedPlayer?.id,
+          },
+        },
       });
     }
     await tx.auditLog.create({
       data: {
         actorId: actor.id,
         teamId: primaryTeamId,
-        action: nextStatus === AccountStatus.APPROVED ? 'USER_APPROVED' : 'USER_BLOCKED',
+        action: `USER_${nextStatus}`,
         entityType: 'User',
         entityId: target.id,
         metadata: {
           role: nextRole,
           teamIds: allowedTeams.map((team) => team.id),
           playerId: linkedPlayer?.id,
+          reviewStatus: nextReviewStatus,
+          adminNote: adminNote?.trim() || null,
+          applicantMessage: applicantMessage?.trim() || null,
         },
       },
     });

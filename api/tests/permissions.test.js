@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { Permission, hasPermission } = require('../dist/src/security/permissions');
-const { Role } = require('../dist/src/types/enums');
+const { AccountStatus, Role } = require('../dist/src/types/enums');
 const {
   generateOccurrences,
   icsEscape,
@@ -71,6 +71,16 @@ test('read-only members cannot mutate data', () => {
     hasPermission(Role.READ_ONLY, Permission.VIEW_SENSITIVE_PLAYER),
     false,
   );
+});
+
+test('registration lifecycle exposes all auditable account states', () => {
+  assert.deepEqual(Object.values(AccountStatus), [
+    'PENDING',
+    'APPROVED',
+    'REJECTED',
+    'BLOCKED',
+    'ARCHIVED',
+  ]);
 });
 
 test('assistant coaches can document development but not edit medical data', () => {

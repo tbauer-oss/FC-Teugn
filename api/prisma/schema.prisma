@@ -24,7 +24,22 @@ enum Role {
 enum AccountStatus {
   PENDING
   APPROVED
+  REJECTED
   BLOCKED
+  ARCHIVED
+}
+
+enum RegistrationReviewStatus {
+  NEW
+  IN_REVIEW
+  NEEDS_INFO
+  COMPLETED
+}
+
+enum ConsentDocumentType {
+  PRIVACY_POLICY
+  TERMS_OF_USE
+  PUSH_NOTIFICATIONS
 }
 
 enum EventType {
@@ -290,15 +305,15 @@ enum ConsentStatus {
 }
 
 model Team {
-  id                      String                   @id @default(cuid())
+  id                      String                    @id @default(cuid())
   ageGroupId              String
   name                    String
   shortName               String?
   level                   String?
-  isActive                Boolean                  @default(true)
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  ageGroup                AgeGroup                 @relation(fields: [ageGroupId], references: [id])
+  isActive                Boolean                   @default(true)
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  ageGroup                AgeGroup                  @relation(fields: [ageGroupId], references: [id])
   users                   User[]
   memberships             TeamMembership[]
   players                 Player[]
@@ -312,6 +327,7 @@ model Team {
   importJobs              ImportJob[]
   externalRefs            ExternalReference[]
   playerSeasonAssignments PlayerSeasonAssignment[]
+  registrationRequests    RegistrationTeamRequest[]
 
   @@index([ageGroupId, isActive])
 }
@@ -367,6 +383,8 @@ model User {
   email                   String                   @unique
   password                String
   name                    String
+  firstName               String?
+  lastName                String?
   phone                   String?
   role                    Role                     @default(PARENT)
   status                  AccountStatus            @default(PENDING)
@@ -400,6 +418,95 @@ model User {
   seasonTransitions       SeasonTransition[]       @relation("SeasonTransitionActor")
   createdRuleProfiles     RuleProfile[]            @relation("RuleProfileCreator")
   approvedRuleProfiles    RuleProfile[]            @relation("RuleProfileApprover")
+  registrationRequest     RegistrationRequest?
+  registrationReviews     RegistrationRequest[]    @relation("RegistrationReviewer")
+  registrationHistory     RegistrationHistory[]    @relation("RegistrationHistoryActor")
+  consents                UserConsent[]
+}
+
+model ConsentTextVersion {
+  id           String              @id @default(cuid())
+  type         ConsentDocumentType
+  version      Int
+  title        String
+  content      String
+  checksum     String
+  isActive     Boolean             @default(false)
+  publishedAt  DateTime            @default(now())
+  createdAt    DateTime            @default(now())
+  userConsents UserConsent[]
+
+  @@unique([type, version])
+  @@index([type, isActive])
+}
+
+model UserConsent {
+  id                   String             @id @default(cuid())
+  userId               String
+  consentTextVersionId String
+  granted              Boolean
+  grantedAt            DateTime           @default(now())
+  revokedAt            DateTime?
+  source               String             @default("REGISTRATION")
+  createdAt            DateTime           @default(now())
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consentTextVersion   ConsentTextVersion @relation(fields: [consentTextVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, consentTextVersionId])
+  @@index([userId, granted])
+}
+
+model RegistrationRequest {
+  id                String                    @id @default(cuid())
+  userId            String                    @unique
+  requestedRole     Role
+  childName         String?
+  relationship      GuardianRelationship?
+  reviewStatus      RegistrationReviewStatus  @default(NEW)
+  adminNote         String?
+  applicantMessage  String?
+  reviewedById      String?
+  reviewedAt        DateTime?
+  pushOptIn         Boolean                   @default(false)
+  privacyAcceptedAt DateTime
+  termsAcceptedAt   DateTime
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy        User?                     @relation("RegistrationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  requestedTeams    RegistrationTeamRequest[]
+  history           RegistrationHistory[]
+
+  @@index([reviewStatus, createdAt])
+}
+
+model RegistrationTeamRequest {
+  id                    String              @id @default(cuid())
+  registrationRequestId String
+  teamId                String
+  createdAt             DateTime            @default(now())
+  registrationRequest   RegistrationRequest @relation(fields: [registrationRequestId], references: [id], onDelete: Cascade)
+  team                  Team                @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
+  @@unique([registrationRequestId, teamId])
+  @@index([teamId])
+}
+
+model RegistrationHistory {
+  id                    String                    @id @default(cuid())
+  registrationRequestId String
+  actorId               String?
+  fromStatus            AccountStatus?
+  toStatus              AccountStatus?
+  fromReviewStatus      RegistrationReviewStatus?
+  toReviewStatus        RegistrationReviewStatus?
+  note                  String?
+  metadata              Json?
+  createdAt             DateTime                  @default(now())
+  registrationRequest   RegistrationRequest       @relation(fields: [registrationRequestId], references: [id], onDelete: Cascade)
+  actor                 User?                     @relation("RegistrationHistoryActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([registrationRequestId, createdAt])
 }
 
 model TeamMembership {

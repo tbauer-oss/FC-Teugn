@@ -17,7 +17,9 @@ export type Role = (typeof Role)[keyof typeof Role];
 export const AccountStatus = {
   PENDING: 'PENDING',
   APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
   BLOCKED: 'BLOCKED',
+  ARCHIVED: 'ARCHIVED',
 } as const;
 
 export type AccountStatus = (typeof AccountStatus)[keyof typeof AccountStatus];

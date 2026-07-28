@@ -10,6 +10,28 @@ class PendingPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
+    final title = switch (user?.status) {
+      AccountStatus.rejected => 'Registrierung nicht freigegeben',
+      AccountStatus.blocked => 'Account blockiert',
+      AccountStatus.archived => 'Account archiviert',
+      _ => user?.registrationRequest?.reviewStatus ==
+              RegistrationReviewStatus.needsInfo
+          ? 'Rückfrage zur Registrierung'
+          : 'Account wartet auf Freigabe',
+    };
+    final message = switch (user?.status) {
+      AccountStatus.rejected =>
+        'Der Verein hat die Registrierung abgelehnt. Bitte kontaktiere die Jugendleitung, falls du Rückfragen hast.',
+      AccountStatus.blocked =>
+        'Bitte kontaktiere einen Vereinsadministrator für weitere Informationen.',
+      AccountStatus.archived =>
+        'Dieser Zugang wurde archiviert. Bitte kontaktiere den Verein, wenn er wieder benötigt wird.',
+      _ => user?.registrationRequest?.reviewStatus ==
+              RegistrationReviewStatus.needsInfo
+          ? user?.registrationRequest?.applicantMessage ??
+              'Der Verein benötigt weitere Angaben von dir.'
+          : 'Der Verein prüft Identität, Rolle, Mannschaft und gegebenenfalls die Kind-Zuordnung.',
+    };
 
     return Scaffold(
       body: Center(
@@ -25,17 +47,13 @@ class PendingPage extends ConsumerWidget {
                   const Icon(Icons.hourglass_top, size: 48),
                   const SizedBox(height: 16),
                   Text(
-                    user?.status == AccountStatus.blocked
-                        ? 'Account blockiert'
-                        : 'Account wartet auf Freigabe',
+                    title,
                     style: Theme.of(context).textTheme.headlineSmall,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    user?.status == AccountStatus.blocked
-                        ? 'Bitte kontaktiere einen Trainer/Admin für weitere Informationen.'
-                        : 'Ein Trainer/Admin muss deinen Account freischalten, bevor du weitermachen kannst.',
+                    message,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 20),

@@ -655,17 +655,27 @@ class DataRepository {
     UserRole? role,
     List<String>? teamIds,
     String? playerId,
+    String? relationship,
+    String? adminNote,
+    String? applicantMessage,
+    RegistrationReviewStatus? reviewStatus,
   }) async {
     await client.dio.post('/admin/approve', data: {
       'userId': userId,
-      'status': status == AccountStatus.blocked
-          ? 'BLOCKED'
-          : status == AccountStatus.approved
-              ? 'APPROVED'
-              : 'PENDING',
+      'status': accountStatusApi(status),
       'role': role == null ? null : userRoleApi(role),
       'teamIds': teamIds,
       'playerId': playerId,
+      'relationship': relationship,
+      'adminNote': adminNote,
+      'applicantMessage': applicantMessage,
+      'reviewStatus': switch (reviewStatus) {
+        RegistrationReviewStatus.newRequest => 'NEW',
+        RegistrationReviewStatus.inReview => 'IN_REVIEW',
+        RegistrationReviewStatus.needsInfo => 'NEEDS_INFO',
+        RegistrationReviewStatus.completed => 'COMPLETED',
+        null => null,
+      },
     });
   }
 
