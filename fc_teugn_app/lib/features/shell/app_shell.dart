@@ -133,7 +133,6 @@ class _DesktopNavigation extends StatelessWidget {
     required this.seasonLabel,
     required this.onSelect,
     required this.onLogout,
-    required this.onPrivacy,
   });
 
   final String title;
@@ -145,7 +144,6 @@ class _DesktopNavigation extends StatelessWidget {
   final String seasonLabel;
   final ValueChanged<int> onSelect;
   final VoidCallback onLogout;
-  final VoidCallback onPrivacy;
 
   @override
   Widget build(BuildContext context) {
@@ -298,12 +296,14 @@ class _MobileHeader extends StatelessWidget {
     required this.userName,
     required this.contextLabel,
     required this.onLogout,
+    required this.onPrivacy,
   });
 
   final String title;
   final String userName;
   final String contextLabel;
   final VoidCallback onLogout;
+  final VoidCallback onPrivacy;
 
   @override
   Widget build(BuildContext context) {
