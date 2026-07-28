@@ -34,6 +34,79 @@ class DataRepository {
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<List<RuleProfileModel>> ruleProfiles() async {
+    final res = await client.dio.get('/organization/rule-profiles');
+    return (res.data as List<dynamic>)
+        .map((item) =>
+            RuleProfileModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<RuleProfileModel> createRuleProfile({
+    required String teamId,
+    required String name,
+    required DateTime validFrom,
+    required String gameFormat,
+    required int teamSize,
+    required int periodCount,
+    required int periodMinutes,
+    int? maxSquadSize,
+    String? sourceNote,
+    bool festivalMode = false,
+    bool showResults = true,
+    bool showTable = true,
+  }) async {
+    final res = await client.dio.post('/organization/rule-profiles', data: {
+      'teamId': teamId,
+      'name': name,
+      'validFrom': validFrom.toIso8601String(),
+      'gameFormat': gameFormat,
+      'teamSize': teamSize,
+      'maxSquadSize': maxSquadSize,
+      'periodCount': periodCount,
+      'periodMinutes': periodMinutes,
+      'festivalMode': festivalMode,
+      'showResults': showResults,
+      'showTable': showTable,
+      'sourceNote': sourceNote,
+    });
+    return RuleProfileModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> approveRuleProfile(String id) async {
+    await client.dio.post('/organization/rule-profiles/$id/approve');
+  }
+
+  Future<List<SeasonTransitionModel>> seasonTransitions() async {
+    final res = await client.dio.get('/organization/season-transitions');
+    return (res.data as List<dynamic>)
+        .map((item) =>
+            SeasonTransitionModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<SeasonTransitionModel> previewSeasonTransition({
+    required String name,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final res =
+        await client.dio.post('/organization/season-transitions/preview', data: {
+      'name': name,
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+      'idempotencyKey':
+          'season-$name-${DateTime.now().microsecondsSinceEpoch}',
+    });
+    return SeasonTransitionModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<SeasonTransitionModel> applySeasonTransition(String id) async {
+    final res =
+        await client.dio.post('/organization/season-transitions/$id/apply');
+    return SeasonTransitionModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<List<PlayerModel>> players() async {
     final res = await client.dio.get('/players');
     return (res.data as List<dynamic>)

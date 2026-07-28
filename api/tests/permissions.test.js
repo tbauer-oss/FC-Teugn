@@ -22,6 +22,10 @@ const {
   competitionMatchChecksum,
   parseCompetitionSource,
 } = require('../dist/src/services/competition-provider');
+const {
+  buildTransitionTeamPlans,
+  nextAgeGroupCode,
+} = require('../dist/src/services/season-transition');
 
 test('club administrators can manage the organization', () => {
   assert.equal(
@@ -156,6 +160,53 @@ test('competition imports are restricted to staff roles', () => {
     true,
   );
   assert.equal(hasPermission(Role.PARENT, Permission.MANAGE_IMPORTS), false);
+});
+
+test('season transition advances youth age groups without changing A youth', () => {
+  assert.equal(nextAgeGroupCode('G'), 'F');
+  assert.equal(nextAgeGroupCode('E'), 'D');
+  assert.equal(nextAgeGroupCode('A'), 'A');
+});
+
+test('season transition preview respects explicit team overrides', () => {
+  const plans = buildTransitionTeamPlans(
+    [
+      {
+        id: 'team-e1',
+        name: 'E1',
+        shortName: 'E1',
+        level: 'Kreisliga',
+        ageGroup: { code: 'E', name: 'E-Jugend' },
+        playerCount: 14,
+        activePlayerCount: 12,
+        staffCount: 3,
+      },
+    ],
+    [
+      {
+        sourceTeamId: 'team-e1',
+        targetAgeGroupCode: 'D',
+        targetName: 'D2',
+        includeStaff: false,
+      },
+    ],
+  );
+  assert.deepEqual(
+    {
+      targetAgeGroupCode: plans[0].targetAgeGroupCode,
+      targetName: plans[0].targetName,
+      includePlayers: plans[0].includePlayers,
+      includeStaff: plans[0].includeStaff,
+      archivedPlayerCount: plans[0].archivedPlayerCount,
+    },
+    {
+      targetAgeGroupCode: 'D',
+      targetName: 'D2',
+      includePlayers: true,
+      includeStaff: false,
+      archivedPlayerCount: 2,
+    },
+  );
 });
 
 test('CSV competition provider normalizes German exports deterministically', () => {

@@ -6,6 +6,7 @@ import '../../core/app_theme.dart';
 import '../../core/models/organization.dart';
 import '../../core/providers.dart';
 import '../shared/page_scaffold.dart';
+import 'organization_admin_tools.dart';
 
 class OrganizationPage extends ConsumerWidget {
   const OrganizationPage({super.key});
@@ -23,11 +24,17 @@ class OrganizationPage extends ConsumerWidget {
         error: (error, _) => _OrganizationError(
           onRetry: () => ref.invalidate(organizationProvider),
         ),
-        data: (data) => _OrganizationContent(
-          data: data,
-          onCreateTeam: data.can('MANAGE_ORGANIZATION')
-              ? () => _createTeam(context, ref, data)
-              : null,
+        data: (data) => Column(
+          children: [
+            _OrganizationContent(
+              data: data,
+              onCreateTeam: data.can('MANAGE_ORGANIZATION')
+                  ? () => _createTeam(context, ref, data)
+                  : null,
+            ),
+            if (data.can('MANAGE_ORGANIZATION'))
+              OrganizationAdminTools(organization: data),
+          ],
         ),
       ),
     );
