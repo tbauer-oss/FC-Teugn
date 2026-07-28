@@ -13,6 +13,7 @@ import {
 import { prisma } from '../lib/prisma';
 import { hasPermission, Permission } from '../security/permissions';
 import { Role } from '../types/enums';
+import { recalculateMatchStatistics } from '../services/statistics.service';
 
 const matchInclude = {
   targetTeams: { include: { team: { select: { id: true, name: true, shortName: true } } } },
@@ -647,6 +648,9 @@ export async function tickerCommand(req: Request, res: Response) {
         metadata: { type, sequence: result.event.sequence },
       },
     });
+    if (goalTypes.has(type) || type === TickerEventType.MATCH_END) {
+      await recalculateMatchStatistics(match.id).catch(() => undefined);
+    }
   }
   return res.status(result.duplicate ? 200 : 201).json({
     ...result,
@@ -717,5 +721,6 @@ export async function undoTickerEvent(req: Request, res: Response) {
       metadata: { correctedEventId: target.id },
     },
   });
+  await recalculateMatchStatistics(match.id).catch(() => undefined);
   return res.json(result);
 }

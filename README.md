@@ -50,5 +50,10 @@ Spieltagsplanung, Kadernominierung, grafische Aufstellung und Liveticker sind in
 [`docs/matchday-lineup-live-ticker.md`](docs/matchday-lineup-live-ticker.md)
 beschrieben.
 
+Automatisch abgeleitete Statistiken, Datenschutzgrenzen und die professionelle
+Trainingsplanung sind in
+[`docs/statistics-training-planning.md`](docs/statistics-training-planning.md)
+beschrieben.
+
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).

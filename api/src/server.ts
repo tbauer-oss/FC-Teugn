@@ -7,6 +7,8 @@ import eventsRoutes from './routes/events.routes';
 import adminRoutes from './routes/admin.routes';
 import organizationRoutes from './routes/organization.routes';
 import matchesRoutes from './routes/matches.routes';
+import statisticsRoutes from './routes/statistics.routes';
+import trainingsRoutes from './routes/trainings.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -74,6 +76,8 @@ app.use('/events', eventsRoutes);
 app.use('/admin', adminRoutes);
 app.use('/organization', organizationRoutes);
 app.use('/matches', matchesRoutes);
+app.use('/statistics', statisticsRoutes);
+app.use('/trainings', trainingsRoutes);
 
 app.use(errorHandler);
 
