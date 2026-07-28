@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/models/matchday.dart';
 import '../../core/models/player.dart';
+import '../../core/offline_ticker.dart';
 import '../../core/providers.dart';
+import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
 class MatchdayPage extends ConsumerStatefulWidget {
@@ -28,6 +31,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   MatchdayModel? _match;
   List<PlayerModel> _players = const [];
   bool _loading = true;
+  bool _online = true;
+  bool _usingOfflineSnapshot = false;
   String? _error;
   Timer? _poller;
 
@@ -45,25 +50,59 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   }
 
   Future<void> _load() async {
+    final userId = ref.read(authProvider).user?.id;
     try {
       final repository = ref.read(repositoryProvider);
-      final values = await Future.wait<dynamic>([
-        repository.match(widget.matchId),
-        if (widget.staffView) repository.players(),
-      ]);
+      final match = await repository.match(widget.matchId);
+      List<PlayerModel> players = const [];
+      if (widget.staffView) {
+        try {
+          players = await repository.players();
+        } catch (_) {
+          // The matchday and offline queue remain usable without a fresh roster.
+        }
+      }
+      if (userId != null) {
+        try {
+          await ref.read(tickerOfflineQueueProvider).cacheMatch(
+                userId: userId,
+                match: match,
+              );
+        } catch (_) {
+          // A storage failure must never turn a successful network load into
+          // an offline error.
+        }
+      }
       if (!mounted) return;
       setState(() {
-        _match = values.first as MatchdayModel;
-        _players =
-            widget.staffView ? values[1] as List<PlayerModel> : const [];
+        _match = match;
+        _players = players;
         _loading = false;
+        _online = true;
+        _usingOfflineSnapshot = false;
         _error = null;
       });
     } catch (_) {
       if (!mounted) return;
+      MatchdayModel? cached;
+      if (userId != null) {
+        try {
+          cached = await ref.read(tickerOfflineQueueProvider).cachedMatch(
+                userId: userId,
+                eventId: widget.matchId,
+              );
+        } catch (_) {
+          cached = null;
+        }
+      }
+      if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Der Spieltag konnte nicht geladen werden.';
+        _online = false;
+        _usingOfflineSnapshot = cached != null;
+        _match = cached;
+        _error =
+            cached == null ? 'Der Spieltag konnte nicht geladen werden.' : null;
       });
     }
   }
@@ -86,9 +125,22 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           squad: current.squad,
           ticker: ticker,
         );
+        _online = true;
+        _usingOfflineSnapshot = false;
       });
+      final userId = ref.read(authProvider).user?.id;
+      if (userId != null) {
+        try {
+          await ref.read(tickerOfflineQueueProvider).cacheMatch(
+                userId: userId,
+                match: _match!,
+              );
+        } catch (_) {
+          // Keep the live ticker usable even if local cache storage fails.
+        }
+      }
     } catch (_) {
-      // The last known state remains visible during short pitch-side outages.
+      if (mounted) setState(() => _online = false);
     }
   }
 
@@ -121,6 +173,10 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         subtitle: _dateLine(match),
         child: Column(
           children: [
+            if (!_online || _usingOfflineSnapshot) ...[
+              _OfflineBanner(cached: _usingOfflineSnapshot),
+              const SizedBox(height: 12),
+            ],
             _ScoreHero(match: match),
             const SizedBox(height: 18),
             const TabBar(
@@ -152,6 +208,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                   _TickerTab(
                     match: match,
                     editable: widget.staffView,
+                    online: _online,
                     onChanged: _load,
                   ),
                 ],
@@ -168,6 +225,41 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     final time =
         '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     return '${date.day}.${date.month}.${date.year} · $time Uhr · ${match.location}';
+  }
+}
+
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner({required this.cached});
+
+  final bool cached;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        border: Border.all(color: const Color(0xFFF59E0B)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: Color(0xFF9A3412)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              cached
+                  ? 'Offline · zuletzt gespeicherter Spielstand. '
+                      'Neue Tickeraktionen werden sicher vorgemerkt.'
+                  : 'Verbindung unterbrochen · der letzte Stand bleibt sichtbar. '
+                      'Tickeraktionen werden automatisch synchronisiert.',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -703,10 +795,12 @@ class _TickerTab extends ConsumerStatefulWidget {
   const _TickerTab({
     required this.match,
     required this.editable,
+    required this.online,
     required this.onChanged,
   });
   final MatchdayModel match;
   final bool editable;
+  final bool online;
   final Future<void> Function() onChanged;
 
   @override
@@ -715,6 +809,35 @@ class _TickerTab extends ConsumerStatefulWidget {
 
 class _TickerTabState extends ConsumerState<_TickerTab> {
   bool _busy = false;
+  bool _syncing = false;
+  bool _queueOffline = false;
+  List<QueuedTickerAction> _pending = const [];
+  Timer? _queuePoller;
+  DateTime? _lastQueuedAt;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadPending());
+    _queuePoller = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_synchronizePending()),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _TickerTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.online && widget.online) {
+      unawaited(_synchronizePending());
+    }
+  }
+
+  @override
+  void dispose() {
+    _queuePoller?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -729,15 +852,42 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           events: [],
         );
     final minute = ticker.elapsedSeconds ~/ 60;
+    final fcIsHome = widget.match.details?.isHome != false;
+    final pendingOurGoals = _pending.where((action) {
+      return (fcIsHome && action.type == TickerEventType.homeGoal) ||
+          (!fcIsHome && action.type == TickerEventType.awayGoal);
+    }).length;
+    final pendingTheirGoals = _pending.where((action) {
+      return (fcIsHome && action.type == TickerEventType.awayGoal) ||
+          (!fcIsHome && action.type == TickerEventType.homeGoal);
+    }).length;
+    final displayedOurGoals = ticker.ourGoals + pendingOurGoals;
+    final displayedTheirGoals = ticker.theirGoals + pendingTheirGoals;
+    final connected = widget.online && !_queueOffline;
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            _ConnectionChip(
+              online: connected,
+              syncing: _syncing,
+              pending: _pending.length,
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          alignment: WrapAlignment.center,
+          children: [
+            _TickerMetric(
+              label: 'SPIELSTAND',
+              value: '$displayedOurGoals:$displayedTheirGoals',
+            ),
             _TickerMetric(label: 'SPIELMINUTE', value: "$minute'"),
-            const SizedBox(width: 12),
             _TickerMetric(label: 'ABSCHNITT', value: '${ticker.currentPeriod}'),
-            const SizedBox(width: 12),
             _TickerMetric(
               label: 'STATUS',
               value: _tickerStatus(ticker.status),
@@ -792,6 +942,41 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                 label: const Text('Spiel beenden'),
               ),
             ],
+          ),
+        ],
+        if (_pending.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFDBA74)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Lokal vorgemerkte Aktionen',
+                  style: TextStyle(
+                    color: Color(0xFF9A3412),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                for (final action in _pending.take(4))
+                  Text(
+                    '• ${_queuedActionLabel(action.type)} · '
+                    '${_clock(action.createdAt)} Uhr',
+                  ),
+                if (_pending.length > 4)
+                  Text(
+                    '• ${_pending.length - 4} weitere Aktionen',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+              ],
+            ),
           ),
         ],
         const SizedBox(height: 18),
@@ -874,24 +1059,129 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   }
 
   Future<void> _send(TickerEventType type, {String? scorerId}) async {
+    final now = DateTime.now();
+    if (_lastQueuedAt != null &&
+        now.difference(_lastQueuedAt!) < const Duration(milliseconds: 500)) {
+      return;
+    }
+    final userId = ref.read(authProvider).user?.id;
+    if (userId == null) {
+      _message('Die Sitzung ist abgelaufen. Bitte erneut anmelden.');
+      return;
+    }
     setState(() => _busy = true);
     try {
-      await ref.read(repositoryProvider).sendTickerEvent(
-            eventId: widget.match.id,
-            clientEventId:
-                '${DateTime.now().microsecondsSinceEpoch}-${type.name}',
-            type: type,
-            scorerId: scorerId,
+      _lastQueuedAt = now;
+      await ref.read(tickerOfflineQueueProvider).enqueue(
+            QueuedTickerAction(
+              userId: userId,
+              eventId: widget.match.id,
+              clientEventId: '${now.microsecondsSinceEpoch}-${type.name}',
+              type: type,
+              scorerId: scorerId,
+              createdAt: now,
+            ),
           );
-      await widget.onChanged();
+      await _loadPending();
+      unawaited(_synchronizePending(showSuccess: false));
+    } on StateError catch (error) {
+      if (mounted) _message(error.message.toString());
     } catch (_) {
-      if (mounted) _message('Tickeraktion konnte nicht synchronisiert werden.');
+      if (mounted) {
+        _message('Tickeraktion konnte nicht lokal vorgemerkt werden.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  Future<void> _loadPending() async {
+    final userId = ref.read(authProvider).user?.id;
+    if (userId == null) return;
+    try {
+      final pending = await ref.read(tickerOfflineQueueProvider).pending(
+            userId: userId,
+            eventId: widget.match.id,
+          );
+      if (mounted) setState(() => _pending = pending);
+    } catch (_) {
+      if (mounted) setState(() => _queueOffline = true);
+    }
+  }
+
+  Future<void> _synchronizePending({bool showSuccess = true}) async {
+    if (_syncing || _pending.isEmpty) return;
+    final userId = ref.read(authProvider).user?.id;
+    if (userId == null) return;
+    setState(() => _syncing = true);
+    TickerQueueSyncResult result;
+    try {
+      result = await ref.read(tickerOfflineQueueProvider).synchronize(
+            userId: userId,
+            eventId: widget.match.id,
+            send: (action) async {
+              try {
+                await ref.read(repositoryProvider).sendTickerEvent(
+                      eventId: action.eventId,
+                      clientEventId: action.clientEventId,
+                      type: action.type,
+                      scorerId: action.scorerId,
+                      assistId: action.assistId,
+                      comment: action.comment,
+                      period: action.period,
+                    );
+              } on DioException catch (error) {
+                final status = error.response?.statusCode;
+                if (status != null &&
+                    [400, 403, 404, 409, 422].contains(status)) {
+                  final data = error.response?.data;
+                  final message = data is Map<String, dynamic>
+                      ? data['message'] as String?
+                      : null;
+                  throw PermanentTickerActionError(
+                    message ?? 'Die Aktion wurde vom Server abgelehnt.',
+                  );
+                }
+                rethrow;
+              }
+            },
+          );
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _syncing = false;
+          _queueOffline = true;
+        });
+      }
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _syncing = false;
+      _queueOffline = !result.online;
+    });
+    await _loadPending();
+    if (result.rejected > 0 && mounted) {
+      _message(
+        '${result.rejected} vorgemerkte Aktionen wurden vom Server abgelehnt '
+        'und nicht übernommen.',
+      );
+    }
+    if (result.sent > 0) {
+      await widget.onChanged();
+      if (showSuccess && mounted) {
+        _message('${result.sent} vorgemerkte Aktionen synchronisiert.');
+      }
+    }
+  }
+
   Future<void> _undo() async {
+    if (!widget.online || _pending.isNotEmpty) {
+      _message(
+        'Korrekturen benötigen eine Verbindung und einen synchronen Spielstand.',
+      );
+      return;
+    }
     setState(() => _busy = true);
     try {
       await ref.read(repositoryProvider).undoTickerEvent(
@@ -929,6 +1219,78 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
 
   void _message(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+}
+
+class _ConnectionChip extends StatelessWidget {
+  const _ConnectionChip({
+    required this.online,
+    required this.syncing,
+    required this.pending,
+  });
+
+  final bool online;
+  final bool syncing;
+  final int pending;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = syncing
+        ? AppColors.blue
+        : online
+            ? AppColors.teal
+            : const Color(0xFFB45309);
+    final label = syncing
+        ? 'Synchronisiert …'
+        : online
+            ? 'Online${pending == 0 ? '' : ' · $pending ausstehend'}'
+            : 'Offline · $pending ausstehend';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (syncing)
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: color),
+            )
+          else
+            Icon(
+              online ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+              size: 16,
+              color: color,
+            ),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: TextStyle(color: color, fontWeight: FontWeight.w900),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _queuedActionLabel(TickerEventType type) => switch (type) {
+      TickerEventType.homeGoal => 'Tor Heimteam',
+      TickerEventType.awayGoal => 'Tor Auswärtsteam',
+      TickerEventType.matchStart => 'Spielstart',
+      TickerEventType.periodEnd => 'Halbzeit',
+      TickerEventType.periodStart || TickerEventType.resume => 'Fortsetzung',
+      TickerEventType.interruption => 'Unterbrechung',
+      TickerEventType.matchEnd => 'Spielende',
+      _ => 'Tickerereignis',
+    };
+
+String _clock(DateTime value) {
+  final local = value.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
 }
 
 class _TickerMetric extends StatelessWidget {

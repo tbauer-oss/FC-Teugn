@@ -89,3 +89,13 @@ Aktionen und Dashboards rollenabhängig an.
 
 Jede Stufe wird als lauffähiger vertikaler Schnitt mit Migration, API,
 Flutter-Oberfläche, Tests, Dokumentation und Deployment ausgeliefert.
+
+## Fortschreibung
+
+Die persistente, benutzergetrennte Liveticker-Offline-Warteschlange,
+optimistische Anzeige, automatische idempotente Wiederholung und ein
+Sieben-Tage-Cache für den letzten Spielstand sind inzwischen umgesetzt.
+Web Push ist technisch angebunden; native Android-Push-Auslieferung benötigt
+weiterhin ein externes Firebase-Projekt. Noch offen bleiben insbesondere die
+Datenschutz-Self-Service-Werkzeuge, OpenAPI/Vertragstests, umfassende
+End-to-End-Tests sowie die vollständigen erweiterten Mannschaftsstammdaten.
