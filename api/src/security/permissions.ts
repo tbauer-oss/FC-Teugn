@@ -19,6 +19,8 @@ export const Permission = {
   SEND_ANNOUNCEMENTS: 'SEND_ANNOUNCEMENTS',
   MANAGE_IMPORTS: 'MANAGE_IMPORTS',
   RESPOND_ATTENDANCE: 'RESPOND_ATTENDANCE',
+  VIEW_TEAM_OPERATIONS: 'VIEW_TEAM_OPERATIONS',
+  MANAGE_TEAM_OPERATIONS: 'MANAGE_TEAM_OPERATIONS',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -48,6 +50,8 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.SEND_ANNOUNCEMENTS,
     Permission.MANAGE_IMPORTS,
     Permission.RESPOND_ATTENDANCE,
+    Permission.VIEW_TEAM_OPERATIONS,
+    Permission.MANAGE_TEAM_OPERATIONS,
   ],
   [Role.TRAINER]: [
     Permission.VIEW_TEAM,
@@ -67,6 +71,8 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.SEND_ANNOUNCEMENTS,
     Permission.MANAGE_IMPORTS,
     Permission.RESPOND_ATTENDANCE,
+    Permission.VIEW_TEAM_OPERATIONS,
+    Permission.MANAGE_TEAM_OPERATIONS,
   ],
   [Role.ASSISTANT_COACH]: [
     Permission.VIEW_TEAM,
@@ -83,6 +89,8 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.SEND_ANNOUNCEMENTS,
     Permission.MANAGE_IMPORTS,
     Permission.RESPOND_ATTENDANCE,
+    Permission.VIEW_TEAM_OPERATIONS,
+    Permission.MANAGE_TEAM_OPERATIONS,
   ],
   [Role.TEAM_MANAGER]: [
     Permission.VIEW_TEAM,
@@ -98,18 +106,22 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
     Permission.SEND_ANNOUNCEMENTS,
     Permission.MANAGE_IMPORTS,
     Permission.RESPOND_ATTENDANCE,
+    Permission.VIEW_TEAM_OPERATIONS,
+    Permission.MANAGE_TEAM_OPERATIONS,
   ],
   [Role.PARENT]: [
     Permission.VIEW_TEAM,
     Permission.VIEW_PLAYER_STATS,
     Permission.RESPOND_ATTENDANCE,
+    Permission.VIEW_TEAM_OPERATIONS,
   ],
   [Role.PLAYER]: [
     Permission.VIEW_TEAM,
     Permission.VIEW_PLAYER_STATS,
     Permission.RESPOND_ATTENDANCE,
+    Permission.VIEW_TEAM_OPERATIONS,
   ],
-  [Role.READ_ONLY]: [Permission.VIEW_TEAM],
+  [Role.READ_ONLY]: [Permission.VIEW_TEAM, Permission.VIEW_TEAM_OPERATIONS],
 };
 
 export function hasPermission(role: Role, permission: Permission) {

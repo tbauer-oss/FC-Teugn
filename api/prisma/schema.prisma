@@ -319,6 +319,26 @@ enum PlayerDocumentType {
   OTHER
 }
 
+enum TeamTaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum EquipmentItemStatus {
+  ACTIVE
+  MAINTENANCE
+  LOST
+  RETIRED
+}
+
+enum ChecklistRunStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
 model Team {
   id                      String                    @id @default(cuid())
   ageGroupId              String
@@ -343,6 +363,10 @@ model Team {
   externalRefs            ExternalReference[]
   playerSeasonAssignments PlayerSeasonAssignment[]
   registrationRequests    RegistrationTeamRequest[]
+  tasks                   TeamTask[]
+  equipmentItems          EquipmentItem[]
+  checklistTemplates      ChecklistTemplate[]
+  checklistRuns           ChecklistRun[]
 
   @@index([ageGroupId, isActive])
 }
@@ -394,51 +418,58 @@ model AgeGroup {
 }
 
 model User {
-  id                      String                   @id @default(cuid())
-  email                   String                   @unique
-  password                String
-  name                    String
-  firstName               String?
-  lastName                String?
-  phone                   String?
-  role                    Role                     @default(PARENT)
-  status                  AccountStatus            @default(PENDING)
-  teamId                  String
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  team                    Team                     @relation(fields: [teamId], references: [id])
-  parentLinks             ParentPlayerLink[]       @relation("ParentLinks")
-  memberships             TeamMembership[]
-  auditLogs               AuditLog[]               @relation("AuditActor")
-  developmentNotes        PlayerDevelopmentNote[]  @relation("DevelopmentAuthor")
-  medicalUpdates          PlayerMedicalProfile[]   @relation("MedicalUpdatedBy")
-  playerProfile           Player?                  @relation("PlayerAccount")
-  eventSeries             EventSeries[]            @relation("EventSeriesCreator")
-  attendanceReplies       Attendance[]             @relation("AttendanceResponder")
-  carpoolOffers           CarpoolOffer[]           @relation("CarpoolDriver")
-  carpoolRequests         CarpoolPassenger[]       @relation("CarpoolRequester")
-  eventReminders          EventReminder[]          @relation("EventReminderRecipient")
-  calendarToken           String?                  @unique
-  tickerEvents            LiveTickerEvent[]        @relation("TickerEventAuthor")
-  trainingPlans           TrainingPlan[]           @relation("TrainingPlanAuthor")
-  exercises               TrainingExercise[]       @relation("ExerciseAuthor")
-  authoredAnnouncements   Announcement[]           @relation("AnnouncementAuthor")
-  announcementRecipients  AnnouncementRecipient[]
-  announcementReads       AnnouncementRead[]
-  notifications           Notification[]
-  pushSubscriptions       PushSubscription[]
-  notificationPreferences NotificationPreference[]
-  notificationDeliveries  NotificationDelivery[]
-  importJobs              ImportJob[]
-  seasonTransitions       SeasonTransition[]       @relation("SeasonTransitionActor")
-  createdRuleProfiles     RuleProfile[]            @relation("RuleProfileCreator")
-  approvedRuleProfiles    RuleProfile[]            @relation("RuleProfileApprover")
-  registrationRequest     RegistrationRequest?
-  registrationReviews     RegistrationRequest[]    @relation("RegistrationReviewer")
-  registrationHistory     RegistrationHistory[]    @relation("RegistrationHistoryActor")
-  consents                UserConsent[]
-  uploadedFileAssets      FileAsset[]              @relation("FileAssetUploader")
-  refreshTokens           RefreshToken[]
+  id                           String                   @id @default(cuid())
+  email                        String                   @unique
+  password                     String
+  name                         String
+  firstName                    String?
+  lastName                     String?
+  phone                        String?
+  role                         Role                     @default(PARENT)
+  status                       AccountStatus            @default(PENDING)
+  teamId                       String
+  createdAt                    DateTime                 @default(now())
+  updatedAt                    DateTime                 @updatedAt
+  team                         Team                     @relation(fields: [teamId], references: [id])
+  parentLinks                  ParentPlayerLink[]       @relation("ParentLinks")
+  memberships                  TeamMembership[]
+  auditLogs                    AuditLog[]               @relation("AuditActor")
+  developmentNotes             PlayerDevelopmentNote[]  @relation("DevelopmentAuthor")
+  medicalUpdates               PlayerMedicalProfile[]   @relation("MedicalUpdatedBy")
+  playerProfile                Player?                  @relation("PlayerAccount")
+  eventSeries                  EventSeries[]            @relation("EventSeriesCreator")
+  attendanceReplies            Attendance[]             @relation("AttendanceResponder")
+  carpoolOffers                CarpoolOffer[]           @relation("CarpoolDriver")
+  carpoolRequests              CarpoolPassenger[]       @relation("CarpoolRequester")
+  eventReminders               EventReminder[]          @relation("EventReminderRecipient")
+  calendarToken                String?                  @unique
+  tickerEvents                 LiveTickerEvent[]        @relation("TickerEventAuthor")
+  trainingPlans                TrainingPlan[]           @relation("TrainingPlanAuthor")
+  exercises                    TrainingExercise[]       @relation("ExerciseAuthor")
+  authoredAnnouncements        Announcement[]           @relation("AnnouncementAuthor")
+  announcementRecipients       AnnouncementRecipient[]
+  announcementReads            AnnouncementRead[]
+  notifications                Notification[]
+  pushSubscriptions            PushSubscription[]
+  notificationPreferences      NotificationPreference[]
+  notificationDeliveries       NotificationDelivery[]
+  importJobs                   ImportJob[]
+  seasonTransitions            SeasonTransition[]       @relation("SeasonTransitionActor")
+  createdRuleProfiles          RuleProfile[]            @relation("RuleProfileCreator")
+  approvedRuleProfiles         RuleProfile[]            @relation("RuleProfileApprover")
+  registrationRequest          RegistrationRequest?
+  registrationReviews          RegistrationRequest[]    @relation("RegistrationReviewer")
+  registrationHistory          RegistrationHistory[]    @relation("RegistrationHistoryActor")
+  consents                     UserConsent[]
+  uploadedFileAssets           FileAsset[]              @relation("FileAssetUploader")
+  refreshTokens                RefreshToken[]
+  createdTeamTasks             TeamTask[]               @relation("TeamTaskCreator")
+  assignedTeamTasks            TeamTask[]               @relation("TeamTaskAssignee")
+  createdEquipmentAssignments  EquipmentAssignment[]    @relation("EquipmentAssignmentCreator")
+  receivedEquipmentAssignments EquipmentAssignment[]    @relation("EquipmentAssignmentUser")
+  createdChecklistTemplates    ChecklistTemplate[]      @relation("ChecklistTemplateCreator")
+  createdChecklistRuns         ChecklistRun[]           @relation("ChecklistRunCreator")
+  completedChecklistItems      ChecklistRunItem[]       @relation("ChecklistRunItemCompleter")
 }
 
 model RefreshToken {
@@ -560,42 +591,43 @@ model TeamMembership {
 }
 
 model Player {
-  id                String                   @id @default(cuid())
-  teamId            String
-  userId            String?                  @unique
-  firstName         String
-  lastName          String
-  preferredName     String?
-  birthDate         DateTime?
-  nationality       String?
-  position          String?
-  secondaryPosition String?
-  dominantFoot      DominantFoot             @default(UNKNOWN)
-  shirtNumber       Int?
-  status            PlayerStatus             @default(ACTIVE)
-  joinedAt          DateTime?
-  photoUrl          String?
-  photoAssetId      String?                  @unique
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-  team              Team                     @relation(fields: [teamId], references: [id])
-  user              User?                    @relation("PlayerAccount", fields: [userId], references: [id], onDelete: SetNull)
-  parentLinks       ParentPlayerLink[]
-  attendance        Attendance[]
-  squadMembers      SquadMember[]
-  medicalProfile    PlayerMedicalProfile?
-  emergencyContacts PlayerEmergencyContact[]
-  developmentNotes  PlayerDevelopmentNote[]
-  consents          PlayerConsent[]
-  carpoolPassengers CarpoolPassenger[]
-  lineupPositions   LineupPosition[]
-  tickerGoals       LiveTickerEvent[]        @relation("TickerScorer")
-  tickerAssists     LiveTickerEvent[]        @relation("TickerAssist")
-  matchStatistics   PlayerMatchStatistic[]
-  seasonAssignments PlayerSeasonAssignment[]
-  photoAsset        FileAsset?               @relation("PlayerPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
-  documents         PlayerDocument[]
-  ownedFileAssets   FileAsset[]              @relation("PlayerFileOwner")
+  id                   String                   @id @default(cuid())
+  teamId               String
+  userId               String?                  @unique
+  firstName            String
+  lastName             String
+  preferredName        String?
+  birthDate            DateTime?
+  nationality          String?
+  position             String?
+  secondaryPosition    String?
+  dominantFoot         DominantFoot             @default(UNKNOWN)
+  shirtNumber          Int?
+  status               PlayerStatus             @default(ACTIVE)
+  joinedAt             DateTime?
+  photoUrl             String?
+  photoAssetId         String?                  @unique
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  team                 Team                     @relation(fields: [teamId], references: [id])
+  user                 User?                    @relation("PlayerAccount", fields: [userId], references: [id], onDelete: SetNull)
+  parentLinks          ParentPlayerLink[]
+  attendance           Attendance[]
+  squadMembers         SquadMember[]
+  medicalProfile       PlayerMedicalProfile?
+  emergencyContacts    PlayerEmergencyContact[]
+  developmentNotes     PlayerDevelopmentNote[]
+  consents             PlayerConsent[]
+  carpoolPassengers    CarpoolPassenger[]
+  equipmentAssignments EquipmentAssignment[]
+  lineupPositions      LineupPosition[]
+  tickerGoals          LiveTickerEvent[]        @relation("TickerScorer")
+  tickerAssists        LiveTickerEvent[]        @relation("TickerAssist")
+  matchStatistics      PlayerMatchStatistic[]
+  seasonAssignments    PlayerSeasonAssignment[]
+  photoAsset           FileAsset?               @relation("PlayerPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
+  documents            PlayerDocument[]
+  ownedFileAssets      FileAsset[]              @relation("PlayerFileOwner")
 
   @@index([teamId, status, lastName])
 }
@@ -1418,6 +1450,132 @@ model ExternalReference {
   @@unique([provider, entityType, externalId])
   @@index([teamId, entityType])
   @@index([entityId])
+}
+
+model TeamTask {
+  id             String         @id @default(cuid())
+  teamId         String
+  title          String
+  description    String?
+  category       String
+  status         TeamTaskStatus @default(OPEN)
+  assigneeUserId String?
+  dueAt          DateTime?
+  reminderAt     DateTime?
+  completedAt    DateTime?
+  createdById    String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  team           Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignee       User?          @relation("TeamTaskAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  createdBy      User           @relation("TeamTaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([teamId, status, dueAt])
+  @@index([assigneeUserId, status])
+}
+
+model EquipmentItem {
+  id          String                @id @default(cuid())
+  teamId      String
+  name        String
+  category    String
+  quantity    Int                   @default(1)
+  status      EquipmentItemStatus   @default(ACTIVE)
+  notes       String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  team        Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignments EquipmentAssignment[]
+
+  @@unique([teamId, name])
+  @@index([teamId, status, category])
+}
+
+model EquipmentAssignment {
+  id                 String        @id @default(cuid())
+  equipmentItemId    String
+  assignedToUserId   String?
+  assignedToPlayerId String?
+  assignedById       String
+  quantity           Int           @default(1)
+  assignedAt         DateTime      @default(now())
+  dueAt              DateTime?
+  returnedAt         DateTime?
+  conditionOut       String?
+  conditionIn        String?
+  notes              String?
+  equipmentItem      EquipmentItem @relation(fields: [equipmentItemId], references: [id], onDelete: Restrict)
+  assignedToUser     User?         @relation("EquipmentAssignmentUser", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  assignedToPlayer   Player?       @relation(fields: [assignedToPlayerId], references: [id], onDelete: SetNull)
+  assignedBy         User          @relation("EquipmentAssignmentCreator", fields: [assignedById], references: [id], onDelete: Restrict)
+
+  @@index([equipmentItemId, returnedAt])
+  @@index([assignedToUserId, returnedAt])
+  @@index([assignedToPlayerId, returnedAt])
+}
+
+model ChecklistTemplate {
+  id          String                  @id @default(cuid())
+  teamId      String
+  title       String
+  category    String
+  description String?
+  isArchived  Boolean                 @default(false)
+  createdById String
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  team        Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy   User                    @relation("ChecklistTemplateCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  items       ChecklistTemplateItem[]
+  runs        ChecklistRun[]
+
+  @@index([teamId, isArchived, category])
+}
+
+model ChecklistTemplateItem {
+  id         String            @id @default(cuid())
+  templateId String
+  title      String
+  position   Int
+  isRequired Boolean           @default(true)
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, position])
+}
+
+model ChecklistRun {
+  id          String             @id @default(cuid())
+  teamId      String
+  templateId  String?
+  title       String
+  category    String
+  dueAt       DateTime?
+  status      ChecklistRunStatus @default(ACTIVE)
+  completedAt DateTime?
+  createdById String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  team        Team               @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  template    ChecklistTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy   User               @relation("ChecklistRunCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  items       ChecklistRunItem[]
+
+  @@index([teamId, status, dueAt])
+}
+
+model ChecklistRunItem {
+  id             String       @id @default(cuid())
+  checklistRunId String
+  title          String
+  position       Int
+  isRequired     Boolean      @default(true)
+  isCompleted    Boolean      @default(false)
+  completedAt    DateTime?
+  completedById  String?
+  checklistRun   ChecklistRun @relation(fields: [checklistRunId], references: [id], onDelete: Cascade)
+  completedBy    User?        @relation("ChecklistRunItemCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+
+  @@unique([checklistRunId, position])
 }
 
 model AuditLog {

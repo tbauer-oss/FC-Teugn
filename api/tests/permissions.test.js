@@ -32,6 +32,9 @@ const {
   verifyAccessToken,
   verifyRefreshToken,
 } = require('../dist/src/lib/jwt');
+const {
+  checklistItems,
+} = require('../dist/src/controllers/team-operations.controller');
 
 test('access and refresh tokens use separate verifiable token classes', () => {
   const access = signAccessToken({ id: 'user-1' }, '5m');
@@ -190,6 +193,38 @@ test('competition imports are restricted to staff roles', () => {
     true,
   );
   assert.equal(hasPermission(Role.PARENT, Permission.MANAGE_IMPORTS), false);
+});
+
+test('team operations are visible to members but mutable only by staff', () => {
+  assert.equal(
+    hasPermission(Role.COACH, Permission.MANAGE_TEAM_OPERATIONS),
+    true,
+  );
+  assert.equal(
+    hasPermission(Role.TEAM_MANAGER, Permission.MANAGE_TEAM_OPERATIONS),
+    true,
+  );
+  assert.equal(
+    hasPermission(Role.PARENT, Permission.VIEW_TEAM_OPERATIONS),
+    true,
+  );
+  assert.equal(
+    hasPermission(Role.PARENT, Permission.MANAGE_TEAM_OPERATIONS),
+    false,
+  );
+});
+
+test('checklist templates discard empty items and preserve required flags', () => {
+  assert.deepEqual(checklistItems([
+    { title: 'Trikots prüfen', isRequired: true },
+    'Bälle einladen',
+    { title: '   ' },
+    { title: 'Getränke', isRequired: false },
+  ]), [
+    { title: 'Trikots prüfen', position: 0, isRequired: true },
+    { title: 'Bälle einladen', position: 1, isRequired: true },
+    { title: 'Getränke', position: 3, isRequired: false },
+  ]);
 });
 
 test('season transition advances youth age groups without changing A youth', () => {

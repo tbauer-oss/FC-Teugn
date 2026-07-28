@@ -12,6 +12,7 @@ import 'models/statistics.dart';
 import 'models/training.dart';
 import 'models/communication.dart';
 import 'models/competition_import.dart';
+import 'models/team_operations.dart';
 
 class DataRepository {
   final ApiClient client;
@@ -910,6 +911,120 @@ class DataRepository {
       data: {
         'conflictPolicy': sourceWinsConflicts ? 'SOURCE_WINS' : 'SKIP',
       },
+    );
+  }
+
+  Future<TeamOperationsOverview> teamOperations(String teamId) async {
+    final res = await client.dio.get(
+      '/team-operations',
+      queryParameters: {'teamId': teamId},
+    );
+    return TeamOperationsOverview.fromJson(
+      res.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> createTeamTask({
+    required String teamId,
+    required String title,
+    required String category,
+    String? description,
+    String? assigneeUserId,
+    DateTime? dueAt,
+  }) async {
+    await client.dio.post('/team-operations/tasks', data: {
+      'teamId': teamId,
+      'title': title,
+      'category': category,
+      'description': description,
+      'assigneeUserId': assigneeUserId,
+      'dueAt': dueAt?.toUtc().toIso8601String(),
+    });
+  }
+
+  Future<void> updateTeamTaskStatus(String taskId, String status) async {
+    await client.dio.put(
+      '/team-operations/tasks/$taskId',
+      data: {'status': status},
+    );
+  }
+
+  Future<void> createEquipmentItem({
+    required String teamId,
+    required String name,
+    required String category,
+    required int quantity,
+    String? notes,
+  }) async {
+    await client.dio.post('/team-operations/equipment', data: {
+      'teamId': teamId,
+      'name': name,
+      'category': category,
+      'quantity': quantity,
+      'notes': notes,
+    });
+  }
+
+  Future<void> assignEquipment({
+    required String equipmentItemId,
+    required int quantity,
+    String? assignedToUserId,
+    String? assignedToPlayerId,
+    DateTime? dueAt,
+  }) async {
+    await client.dio.post(
+      '/team-operations/equipment/$equipmentItemId/assignments',
+      data: {
+        'quantity': quantity,
+        'assignedToUserId': assignedToUserId,
+        'assignedToPlayerId': assignedToPlayerId,
+        'dueAt': dueAt?.toUtc().toIso8601String(),
+      },
+    );
+  }
+
+  Future<void> returnEquipment(String assignmentId) async {
+    await client.dio.post(
+      '/team-operations/equipment-assignments/$assignmentId/return',
+    );
+  }
+
+  Future<void> createChecklistTemplate({
+    required String teamId,
+    required String title,
+    required String category,
+    required List<String> items,
+    String? description,
+  }) async {
+    await client.dio.post('/team-operations/checklist-templates', data: {
+      'teamId': teamId,
+      'title': title,
+      'category': category,
+      'description': description,
+      'items': items.map((item) => {'title': item}).toList(),
+    });
+  }
+
+  Future<void> startChecklist({
+    required String teamId,
+    required String templateId,
+    DateTime? dueAt,
+  }) async {
+    await client.dio.post('/team-operations/checklist-runs', data: {
+      'teamId': teamId,
+      'templateId': templateId,
+      'dueAt': dueAt?.toUtc().toIso8601String(),
+    });
+  }
+
+  Future<void> setChecklistItem({
+    required String runId,
+    required String itemId,
+    required bool isCompleted,
+  }) async {
+    await client.dio.put(
+      '/team-operations/checklist-runs/$runId/items/$itemId',
+      data: {'isCompleted': isCompleted},
     );
   }
 }
