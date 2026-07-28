@@ -307,6 +307,20 @@ enum ConsentStatus {
 enum FileAssetKind {
   PLAYER_PHOTO
   PLAYER_DOCUMENT
+  TEAM_PHOTO
+}
+
+enum TeamType {
+  COMPETITIVE
+  DEVELOPMENT
+  FESTIVAL
+  RECREATIONAL
+}
+
+enum TeamGender {
+  MIXED
+  MALE
+  FEMALE
 }
 
 enum PlayerDocumentType {
@@ -345,6 +359,17 @@ model Team {
   name                    String
   shortName               String?
   level                   String?
+  teamType                TeamType                  @default(COMPETITIVE)
+  gender                  TeamGender                @default(MIXED)
+  birthYears              Int[]                     @default([])
+  description             String?
+  trainingLocation        String?
+  trainingTimes           String[]                  @default([])
+  homeVenue               String?
+  bfvTeamId               String?
+  dfbnetTeamId            String?
+  bfvTeamUrl              String?
+  photoAssetId            String?                   @unique
   isActive                Boolean                   @default(true)
   createdAt               DateTime                  @default(now())
   updatedAt               DateTime                  @updatedAt
@@ -367,6 +392,8 @@ model Team {
   equipmentItems          EquipmentItem[]
   checklistTemplates      ChecklistTemplate[]
   checklistRuns           ChecklistRun[]
+  photoAsset              FileAsset?                @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
+  ownedFileAssets         FileAsset[]               @relation("TeamFileOwner")
 
   @@index([ageGroupId, isActive])
 }
@@ -644,15 +671,19 @@ model FileAsset {
   isPrivate     Boolean         @default(true)
   uploadedById  String
   ownerPlayerId String?
+  ownerTeamId   String?
   deletedAt     DateTime?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   uploadedBy    User            @relation("FileAssetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
   ownerPlayer   Player?         @relation("PlayerFileOwner", fields: [ownerPlayerId], references: [id], onDelete: SetNull)
   playerPhoto   Player?         @relation("PlayerPhotoAsset")
+  ownerTeam     Team?           @relation("TeamFileOwner", fields: [ownerTeamId], references: [id], onDelete: SetNull)
+  teamPhoto     Team?           @relation("TeamPhotoAsset")
   document      PlayerDocument?
 
   @@index([ownerPlayerId, kind, deletedAt])
+  @@index([ownerTeamId, kind, deletedAt])
   @@index([uploadedById, createdAt])
 }
 

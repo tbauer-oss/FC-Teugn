@@ -30,14 +30,93 @@ class DataRepository {
     required String name,
     String? shortName,
     String? level,
+    String teamType = 'COMPETITIVE',
+    String gender = 'MIXED',
+    List<int> birthYears = const [],
+    String? description,
+    String? trainingLocation,
+    List<String> trainingTimes = const [],
+    String? homeVenue,
+    String? bfvTeamId,
+    String? dfbnetTeamId,
+    String? bfvTeamUrl,
+    bool isActive = true,
   }) async {
     final res = await client.dio.post('/organization/teams', data: {
       'ageGroupId': ageGroupId,
       'name': name,
       'shortName': shortName,
       'level': level,
+      'teamType': teamType,
+      'gender': gender,
+      'birthYears': birthYears,
+      'description': description,
+      'trainingLocation': trainingLocation,
+      'trainingTimes': trainingTimes,
+      'homeVenue': homeVenue,
+      'bfvTeamId': bfvTeamId,
+      'dfbnetTeamId': dfbnetTeamId,
+      'bfvTeamUrl': bfvTeamUrl,
+      'isActive': isActive,
     });
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<TeamSummary> updateTeam({
+    required String teamId,
+    required String name,
+    String? shortName,
+    String? level,
+    required String teamType,
+    required String gender,
+    required List<int> birthYears,
+    String? description,
+    String? trainingLocation,
+    required List<String> trainingTimes,
+    String? homeVenue,
+    String? bfvTeamId,
+    String? dfbnetTeamId,
+    String? bfvTeamUrl,
+    required bool isActive,
+  }) async {
+    final res = await client.dio.patch('/organization/teams/$teamId', data: {
+      'name': name,
+      'shortName': shortName,
+      'level': level,
+      'teamType': teamType,
+      'gender': gender,
+      'birthYears': birthYears,
+      'description': description,
+      'trainingLocation': trainingLocation,
+      'trainingTimes': trainingTimes,
+      'homeVenue': homeVenue,
+      'bfvTeamId': bfvTeamId,
+      'dfbnetTeamId': dfbnetTeamId,
+      'bfvTeamUrl': bfvTeamUrl,
+      'isActive': isActive,
+    });
+    return TeamSummary.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> uploadTeamPhoto({
+    required String teamId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    await client.dio.post(
+      '/organization/teams/$teamId/photo',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: fileName,
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+      }),
+    );
+  }
+
+  Future<void> removeTeamPhoto(String teamId) async {
+    await client.dio.delete('/organization/teams/$teamId/photo');
   }
 
   Future<List<RuleProfileModel>> ruleProfiles() async {

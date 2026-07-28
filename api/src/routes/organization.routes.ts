@@ -3,6 +3,9 @@ import {
   createTeam,
   organizationContext,
   publicOrganization,
+  removeTeamPhoto,
+  updateTeam,
+  uploadTeamPhoto,
 } from '../controllers/organization.controller';
 import {
   applySeasonTransition,
@@ -16,6 +19,7 @@ import {
 } from '../controllers/rule-profiles.controller';
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { Permission } from '../security/permissions';
+import { playerFileUpload } from '../middleware/player-files';
 
 const router = Router();
 
@@ -27,6 +31,28 @@ router.post(
   requireApproved,
   requirePermission(Permission.MANAGE_ORGANIZATION),
   createTeam,
+);
+router.patch(
+  '/teams/:id',
+  requireAuth,
+  requireApproved,
+  requirePermission(Permission.MANAGE_TEAM),
+  updateTeam,
+);
+router.post(
+  '/teams/:id/photo',
+  requireAuth,
+  requireApproved,
+  requirePermission(Permission.MANAGE_TEAM),
+  playerFileUpload.single('file'),
+  uploadTeamPhoto,
+);
+router.delete(
+  '/teams/:id/photo',
+  requireAuth,
+  requireApproved,
+  requirePermission(Permission.MANAGE_TEAM),
+  removeTeamPhoto,
 );
 router.get(
   '/rule-profiles',

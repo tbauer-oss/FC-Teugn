@@ -5,6 +5,9 @@ Full-stack project containing a Flutter web frontend (`fc_teugn_app`) and a Node
 The product is being expanded into a club-wide youth football platform. The
 current architecture assessment and implementation order are documented in
 [`docs/architecture-analysis.md`](docs/architecture-analysis.md).
+The professional team master-data model and its protected photo handling are
+documented in
+[`docs/professional-team-profiles.md`](docs/professional-team-profiles.md).
 
 ## Frontend (Flutter web)
 - Source: [`fc_teugn_app/`](fc_teugn_app)
