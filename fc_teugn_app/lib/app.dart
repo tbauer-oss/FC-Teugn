@@ -17,6 +17,7 @@ import 'features/parent/parent_players_page.dart';
 import 'features/parent/parent_events_page.dart';
 import 'features/parent/parent_matches_page.dart';
 import 'core/models/user.dart';
+import 'core/app_theme.dart';
 
 class FCTeugnApp extends ConsumerWidget {
   const FCTeugnApp({super.key});
@@ -78,11 +79,11 @@ class FCTeugnApp extends ConsumerWidget {
           builder: (context, state, child) => AppShell(
             title: 'Trainer Bereich',
             destinations: const [
-              ShellDestination(label: 'Dashboard', icon: Icons.dashboard, route: '/trainer'),
+              ShellDestination(label: 'Übersicht', icon: Icons.grid_view_rounded, route: '/trainer'),
               ShellDestination(label: 'Freigaben', icon: Icons.check_circle, route: '/trainer/approvals'),
-              ShellDestination(label: 'Players', icon: Icons.groups, route: '/trainer/players'),
-              ShellDestination(label: 'Events', icon: Icons.event, route: '/trainer/events'),
-              ShellDestination(label: 'Matches', icon: Icons.sports_soccer, route: '/trainer/matches'),
+              ShellDestination(label: 'Team', icon: Icons.groups_rounded, route: '/trainer/players'),
+              ShellDestination(label: 'Termine', icon: Icons.calendar_month_rounded, route: '/trainer/events'),
+              ShellDestination(label: 'Spiele', icon: Icons.sports_soccer_rounded, route: '/trainer/matches'),
             ],
             child: child,
           ),
@@ -113,10 +114,10 @@ class FCTeugnApp extends ConsumerWidget {
           builder: (context, state, child) => AppShell(
             title: 'Eltern Bereich',
             destinations: const [
-              ShellDestination(label: 'Dashboard', icon: Icons.dashboard, route: '/parent'),
-              ShellDestination(label: 'Players', icon: Icons.groups, route: '/parent/players'),
-              ShellDestination(label: 'Events', icon: Icons.event, route: '/parent/events'),
-              ShellDestination(label: 'Matches', icon: Icons.sports_soccer, route: '/parent/matches'),
+              ShellDestination(label: 'Übersicht', icon: Icons.grid_view_rounded, route: '/parent'),
+              ShellDestination(label: 'Kinder', icon: Icons.groups_rounded, route: '/parent/players'),
+              ShellDestination(label: 'Termine', icon: Icons.calendar_month_rounded, route: '/parent/events'),
+              ShellDestination(label: 'Spiele', icon: Icons.sports_soccer_rounded, route: '/parent/matches'),
             ],
             child: child,
           ),
@@ -143,13 +144,10 @@ class FCTeugnApp extends ConsumerWidget {
     );
 
     return MaterialApp.router(
-      title: 'DFS Connect+ Training Hub',
+      title: 'FC Teugn Jugend',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.indigo,
-        useMaterial3: true,
-      ),
+      theme: buildAppTheme(),
     );
   }
 }

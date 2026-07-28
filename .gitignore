@@ -8,6 +8,10 @@ fc_teugn_app/.flutter-plugins*
 fc_teugn_app/.packages
 fc_teugn_app/ios/Pods/
 fc_teugn_app/android/app/build/
+fc_teugn_app/flutter/
+fc_teugn_app/flutter_windows_*.zip
+fc_teugn_app/.tool_state/
+fc_teugn_app/.pub-cache/
 # Local tooling
 .env
 .vercel
