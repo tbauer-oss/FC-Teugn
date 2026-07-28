@@ -304,6 +304,21 @@ enum ConsentStatus {
   EXPIRED
 }
 
+enum FileAssetKind {
+  PLAYER_PHOTO
+  PLAYER_DOCUMENT
+}
+
+enum PlayerDocumentType {
+  PHOTO_CONSENT
+  PRIVACY_CONSENT
+  PARTICIPATION_PERMISSION
+  SWIMMING_PERMISSION
+  DECLARATION
+  TEAM_DOCUMENT
+  OTHER
+}
+
 model Team {
   id                      String                    @id @default(cuid())
   ageGroupId              String
@@ -422,6 +437,7 @@ model User {
   registrationReviews     RegistrationRequest[]    @relation("RegistrationReviewer")
   registrationHistory     RegistrationHistory[]    @relation("RegistrationHistoryActor")
   consents                UserConsent[]
+  uploadedFileAssets      FileAsset[]              @relation("FileAssetUploader")
 }
 
 model ConsentTextVersion {
@@ -540,6 +556,7 @@ model Player {
   status            PlayerStatus             @default(ACTIVE)
   joinedAt          DateTime?
   photoUrl          String?
+  photoAssetId      String?                  @unique
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
   team              Team                     @relation(fields: [teamId], references: [id])
@@ -557,8 +574,57 @@ model Player {
   tickerAssists     LiveTickerEvent[]        @relation("TickerAssist")
   matchStatistics   PlayerMatchStatistic[]
   seasonAssignments PlayerSeasonAssignment[]
+  photoAsset        FileAsset?               @relation("PlayerPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
+  documents         PlayerDocument[]
+  ownedFileAssets   FileAsset[]              @relation("PlayerFileOwner")
 
   @@index([teamId, status, lastName])
+}
+
+model FileAsset {
+  id            String          @id @default(cuid())
+  kind          FileAssetKind
+  pathname      String          @unique
+  storageUrl    String
+  originalName  String
+  contentType   String
+  size          Int
+  checksum      String
+  isPrivate     Boolean         @default(true)
+  uploadedById  String
+  ownerPlayerId String?
+  deletedAt     DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  uploadedBy    User            @relation("FileAssetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  ownerPlayer   Player?         @relation("PlayerFileOwner", fields: [ownerPlayerId], references: [id], onDelete: SetNull)
+  playerPhoto   Player?         @relation("PlayerPhotoAsset")
+  document      PlayerDocument?
+
+  @@index([ownerPlayerId, kind, deletedAt])
+  @@index([uploadedById, createdAt])
+}
+
+model PlayerDocument {
+  id          String             @id @default(cuid())
+  playerId    String
+  fileAssetId String             @unique
+  type        PlayerDocumentType
+  title       String
+  version     Int                @default(1)
+  status      ConsentStatus      @default(PENDING)
+  validFrom   DateTime?
+  validUntil  DateTime?
+  grantedBy   String?
+  grantedAt   DateTime?
+  note        String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  player      Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  fileAsset   FileAsset          @relation(fields: [fileAssetId], references: [id], onDelete: Restrict)
+
+  @@unique([playerId, type, version])
+  @@index([playerId, status, validUntil])
 }
 
 model PlayerSeasonAssignment {

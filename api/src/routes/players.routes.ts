@@ -10,8 +10,16 @@ import {
   upsertConsent,
   upsertMedicalProfile,
 } from '../controllers/players.controller';
+import {
+  deletePlayerDocument,
+  listPlayerDocuments,
+  removePlayerPhoto,
+  uploadPlayerDocument,
+  uploadPlayerPhoto,
+} from '../controllers/player-files.controller';
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { Permission } from '../security/permissions';
+import { playerFileUpload } from '../middleware/player-files';
 
 const router = Router();
 
@@ -19,6 +27,15 @@ router.use(requireAuth);
 router.use(requireApproved);
 
 router.get('/', listPlayers);
+router.post('/:id/photo', playerFileUpload.single('file'), uploadPlayerPhoto);
+router.delete('/:id/photo', removePlayerPhoto);
+router.get('/:id/documents', listPlayerDocuments);
+router.post(
+  '/:id/documents',
+  playerFileUpload.single('file'),
+  uploadPlayerDocument,
+);
+router.delete('/:id/documents/:documentId', deletePlayerDocument);
 router.get('/:id', getPlayer);
 router.post('/', requirePermission(Permission.MANAGE_PLAYERS), createPlayer);
 router.put('/:id', requirePermission(Permission.MANAGE_PLAYERS), updatePlayer);
