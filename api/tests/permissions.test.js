@@ -36,6 +36,7 @@ test('club administrators can manage the organization', () => {
 
 test('coaches can manage players and events but not the organization', () => {
   assert.equal(hasPermission(Role.COACH, Permission.MANAGE_PLAYERS), true);
+  assert.equal(hasPermission(Role.COACH, Permission.MANAGE_DOCUMENTS), true);
   assert.equal(hasPermission(Role.COACH, Permission.MANAGE_EVENTS), true);
   assert.equal(
     hasPermission(Role.COACH, Permission.MANAGE_DEVELOPMENT),
@@ -57,6 +58,7 @@ test('parents can respond to attendance without changing team data', () => {
     true,
   );
   assert.equal(hasPermission(Role.PARENT, Permission.MANAGE_PLAYERS), false);
+  assert.equal(hasPermission(Role.PARENT, Permission.MANAGE_DOCUMENTS), false);
   assert.equal(hasPermission(Role.PARENT, Permission.MANAGE_EVENTS), false);
   assert.equal(
     hasPermission(Role.PARENT, Permission.VIEW_SENSITIVE_PLAYER),

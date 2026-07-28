@@ -3,6 +3,8 @@ import { DominantFoot, PlayerStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
+import { accessibleTeamIds } from '../services/team-access';
+import { objectStorage } from '../services/object-storage';
 
 const publicPlayerSelect = {
   id: true,
@@ -18,7 +20,6 @@ const publicPlayerSelect = {
   shirtNumber: true,
   status: true,
   joinedAt: true,
-  photoUrl: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -37,10 +38,11 @@ async function guardianLink(userId: string, playerId: string) {
   });
 }
 
-async function canAccessPlayer(req: Request, playerId: string) {
+export async function canAccessPlayer(req: Request, playerId: string) {
   const user = req.user!;
+  const teamIds = await accessibleTeamIds(user);
   const player = await prisma.player.findFirst({
-    where: { id: playerId, teamId: user.teamId },
+    where: { id: playerId, teamId: { in: teamIds } },
     select: { id: true, userId: true },
   });
   if (!player) return false;
@@ -70,8 +72,9 @@ export async function listPlayers(req: Request, res: Response) {
   }
 
   const status = parsePlayerStatus(req.query.status);
+  const teamIds = await accessibleTeamIds(req.user!);
   const players = await prisma.player.findMany({
-    where: { teamId, ...(status ? { status } : {}) },
+    where: { teamId: { in: teamIds }, ...(status ? { status } : {}) },
     orderBy: [{ status: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
     select: publicPlayerSelect,
   });
@@ -105,6 +108,10 @@ export async function getPlayer(req: Request, res: Response) {
           ageGroup: { select: { id: true, name: true, code: true } },
         },
       },
+      photoAsset: {
+        select: { pathname: true, deletedAt: true },
+      },
+      photoUrl: true,
       parentLinks: {
         select: {
           id: true,
@@ -136,11 +143,22 @@ export async function getPlayer(req: Request, res: Response) {
 
   return res.json({
     ...player,
+    photoAsset: undefined,
+    photoUrl:
+      player?.photoAsset && player.photoAsset.deletedAt === null
+        ? await objectStorage.signedReadUrl(player.photoAsset.pathname)
+        : player?.photoUrl ?? null,
     capabilities: {
       canEdit: hasPermission(user.role, Permission.MANAGE_PLAYERS),
       canViewSensitive,
       canEditSensitive:
         hasPermission(user.role, Permission.MANAGE_SENSITIVE_PLAYER) ||
+        guardian?.isLegalGuardian === true,
+      canManageDocuments:
+        hasPermission(user.role, Permission.MANAGE_DOCUMENTS) ||
+        guardian?.isLegalGuardian === true,
+      canManagePhoto:
+        hasPermission(user.role, Permission.MANAGE_PLAYERS) ||
         guardian?.isLegalGuardian === true,
       canAddDevelopment: hasPermission(user.role, Permission.MANAGE_DEVELOPMENT),
     },
@@ -410,7 +428,6 @@ function playerData(body: Record<string, unknown>) {
         : null,
     status: parsePlayerStatus(body.status) ?? PlayerStatus.ACTIVE,
     joinedAt: validDate(body.joinedAt),
-    photoUrl: cleanOptionalString(body.photoUrl),
   };
 }
 

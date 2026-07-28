@@ -8,12 +8,16 @@ class PlayerCapabilities {
     this.canViewSensitive = false,
     this.canEditSensitive = false,
     this.canAddDevelopment = false,
+    this.canManageDocuments = false,
+    this.canManagePhoto = false,
   });
 
   final bool canEdit;
   final bool canViewSensitive;
   final bool canEditSensitive;
   final bool canAddDevelopment;
+  final bool canManageDocuments;
+  final bool canManagePhoto;
 
   factory PlayerCapabilities.fromJson(Map<String, dynamic>? json) =>
       PlayerCapabilities(
@@ -21,6 +25,88 @@ class PlayerCapabilities {
         canViewSensitive: json?['canViewSensitive'] as bool? ?? false,
         canEditSensitive: json?['canEditSensitive'] as bool? ?? false,
         canAddDevelopment: json?['canAddDevelopment'] as bool? ?? false,
+        canManageDocuments:
+            json?['canManageDocuments'] as bool? ?? false,
+        canManagePhoto: json?['canManagePhoto'] as bool? ?? false,
+      );
+}
+
+class PlayerDocumentFile {
+  const PlayerDocumentFile({
+    required this.id,
+    required this.originalName,
+    required this.contentType,
+    required this.size,
+    required this.downloadUrl,
+  });
+
+  final String id;
+  final String originalName;
+  final String contentType;
+  final int size;
+  final String downloadUrl;
+
+  factory PlayerDocumentFile.fromJson(Map<String, dynamic> json) =>
+      PlayerDocumentFile(
+        id: json['id'] as String,
+        originalName: json['originalName'] as String,
+        contentType: json['contentType'] as String,
+        size: json['size'] as int,
+        downloadUrl: json['downloadUrl'] as String,
+      );
+}
+
+class PlayerDocument {
+  const PlayerDocument({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.version,
+    required this.status,
+    required this.createdAt,
+    required this.file,
+    this.validFrom,
+    this.validUntil,
+    this.grantedBy,
+    this.grantedAt,
+    this.note,
+  });
+
+  final String id;
+  final String type;
+  final String title;
+  final int version;
+  final String status;
+  final DateTime createdAt;
+  final DateTime? validFrom;
+  final DateTime? validUntil;
+  final String? grantedBy;
+  final DateTime? grantedAt;
+  final String? note;
+  final PlayerDocumentFile file;
+
+  factory PlayerDocument.fromJson(Map<String, dynamic> json) =>
+      PlayerDocument(
+        id: json['id'] as String,
+        type: json['type'] as String,
+        title: json['title'] as String,
+        version: json['version'] as int,
+        status: json['status'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        validFrom: json['validFrom'] == null
+            ? null
+            : DateTime.parse(json['validFrom'] as String),
+        validUntil: json['validUntil'] == null
+            ? null
+            : DateTime.parse(json['validUntil'] as String),
+        grantedBy: json['grantedBy'] as String?,
+        grantedAt: json['grantedAt'] == null
+            ? null
+            : DateTime.parse(json['grantedAt'] as String),
+        note: json['note'] as String?,
+        file: PlayerDocumentFile.fromJson(
+          json['file'] as Map<String, dynamic>,
+        ),
       );
 }
 

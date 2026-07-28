@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+
 import 'api_client.dart';
 import 'models/event.dart';
 import 'models/player.dart';
@@ -117,6 +121,72 @@ class DataRepository {
   Future<PlayerModel> player(String id) async {
     final res = await client.dio.get('/players/$id');
     return PlayerModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> uploadPlayerPhoto({
+    required String playerId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    await client.dio.post(
+      '/players/$playerId/photo',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: fileName,
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+      }),
+    );
+  }
+
+  Future<void> removePlayerPhoto(String playerId) async {
+    await client.dio.delete('/players/$playerId/photo');
+  }
+
+  Future<List<PlayerDocument>> playerDocuments(String playerId) async {
+    final res = await client.dio.get('/players/$playerId/documents');
+    return (res.data as List<dynamic>)
+        .map((item) =>
+            PlayerDocument.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> uploadPlayerDocument({
+    required String playerId,
+    required Uint8List bytes,
+    required String fileName,
+    required String type,
+    required String title,
+  }) async {
+    final extension = fileName.split('.').last.toLowerCase();
+    final contentType = switch (extension) {
+      'pdf' => DioMediaType('application', 'pdf'),
+      'png' => DioMediaType('image', 'png'),
+      'webp' => DioMediaType('image', 'webp'),
+      _ => DioMediaType('image', 'jpeg'),
+    };
+    await client.dio.post(
+      '/players/$playerId/documents',
+      data: FormData.fromMap({
+        'type': type,
+        'title': title,
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: fileName,
+          contentType: contentType,
+        ),
+      }),
+    );
+  }
+
+  Future<void> deletePlayerDocument({
+    required String playerId,
+    required String documentId,
+  }) async {
+    await client.dio.delete(
+      '/players/$playerId/documents/$documentId',
+    );
   }
 
   Future<PlayerModel> createPlayer({

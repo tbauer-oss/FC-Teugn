@@ -1,6 +1,12 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/models/player.dart';
@@ -74,6 +80,13 @@ class _ProfileContent extends ConsumerWidget {
           onEdit: player.capabilities.canEdit
               ? () => _editBasics(context, ref)
               : null,
+          onPhoto: player.capabilities.canManagePhoto
+              ? (source) => _changePhoto(context, ref, source)
+              : null,
+          onRemovePhoto:
+              player.photoUrl != null && player.capabilities.canManagePhoto
+                  ? () => _removePhoto(context, ref)
+                  : null,
         ),
         const SizedBox(height: 18),
         LayoutBuilder(
@@ -99,6 +112,11 @@ class _ProfileContent extends ConsumerWidget {
                     onAddContact: player.capabilities.canEditSensitive
                         ? () => _addEmergencyContact(context, ref)
                         : null,
+                  ),
+                  const SizedBox(height: 16),
+                  _DocumentsCard(
+                    playerId: player.id,
+                    canManage: player.capabilities.canManageDocuments,
                   ),
                 ],
               ],
@@ -281,6 +299,60 @@ class _ProfileContent extends ConsumerWidget {
     );
   }
 
+  Future<void> _changePhoto(
+    BuildContext context,
+    WidgetRef ref,
+    ImageSource source,
+  ) async {
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      requestFullMetadata: false,
+    );
+    if (picked == null) return;
+    final sourceBytes = await picked.readAsBytes();
+    final decoded = img.decodeImage(sourceBytes);
+    if (decoded == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Das Bildformat wird nicht unterstützt.')),
+        );
+      }
+      return;
+    }
+    final oriented = img.bakeOrientation(decoded);
+    final side =
+        oriented.width < oriented.height ? oriented.width : oriented.height;
+    final cropped = img.copyCrop(
+      oriented,
+      x: (oriented.width - side) ~/ 2,
+      y: (oriented.height - side) ~/ 2,
+      width: side,
+      height: side,
+    );
+    final resized = side > 1024
+        ? img.copyResize(cropped, width: 1024, height: 1024)
+        : cropped;
+    final bytes = Uint8List.fromList(img.encodeJpg(resized, quality: 84));
+    if (!context.mounted) return;
+    await _run(
+      context,
+      () => ref.read(repositoryProvider).uploadPlayerPhoto(
+            playerId: player.id,
+            bytes: bytes,
+            fileName: '${player.id}.jpg',
+          ),
+      'Spielerfoto geschützt gespeichert.',
+    );
+  }
+
+  Future<void> _removePhoto(BuildContext context, WidgetRef ref) async {
+    await _run(
+      context,
+      () => ref.read(repositoryProvider).removePlayerPhoto(player.id),
+      'Spielerfoto entfernt.',
+    );
+  }
+
   Future<void> _run(
     BuildContext context,
     Future<void> Function() action,
@@ -306,10 +378,17 @@ class _ProfileContent extends ConsumerWidget {
 }
 
 class _ProfileHero extends StatelessWidget {
-  const _ProfileHero({required this.player, required this.onEdit});
+  const _ProfileHero({
+    required this.player,
+    required this.onEdit,
+    required this.onPhoto,
+    required this.onRemovePhoto,
+  });
 
   final PlayerModel player;
   final VoidCallback? onEdit;
+  final ValueChanged<ImageSource>? onPhoto;
+  final VoidCallback? onRemovePhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -329,17 +408,56 @@ class _ProfileHero extends StatelessWidget {
         runSpacing: 18,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          CircleAvatar(
-            radius: 38,
-            backgroundColor: AppColors.orange,
-            child: Text(
-              '${player.firstName[0]}${player.lastName[0]}'.toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.navy,
-                fontSize: 21,
-                fontWeight: FontWeight.w900,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CircleAvatar(
+                radius: 42,
+                backgroundColor: AppColors.orange,
+                backgroundImage:
+                    player.photoUrl == null ? null : NetworkImage(player.photoUrl!),
+                child: player.photoUrl == null
+                    ? Text(
+                        '${player.firstName[0]}${player.lastName[0]}'.toUpperCase(),
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      )
+                    : null,
               ),
-            ),
+              if (onPhoto != null)
+                Positioned(
+                  right: -8,
+                  bottom: -8,
+                  child: PopupMenuButton<ImageSource>(
+                    tooltip: 'Spielerfoto ändern',
+                    onSelected: onPhoto,
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: ImageSource.camera,
+                        child: ListTile(
+                          leading: Icon(Icons.photo_camera_outlined),
+                          title: Text('Kamera'),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: ImageSource.gallery,
+                        child: ListTile(
+                          leading: Icon(Icons.photo_library_outlined),
+                          title: Text('Galerie'),
+                        ),
+                      ),
+                    ],
+                    child: const CircleAvatar(
+                      radius: 17,
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.edit_rounded, size: 18),
+                    ),
+                  ),
+                ),
+            ],
           ),
           SizedBox(
             width: 310,
@@ -379,10 +497,210 @@ class _ProfileHero extends StatelessWidget {
               icon: const Icon(Icons.edit_rounded),
               label: const Text('Stammdaten bearbeiten'),
             ),
+          if (onRemovePhoto != null)
+            TextButton.icon(
+              onPressed: onRemovePhoto,
+              style: TextButton.styleFrom(foregroundColor: Colors.white70),
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('Foto entfernen'),
+            ),
         ],
       ),
     );
   }
+}
+
+class _DocumentsCard extends ConsumerStatefulWidget {
+  const _DocumentsCard({
+    required this.playerId,
+    required this.canManage,
+  });
+
+  final String playerId;
+  final bool canManage;
+
+  @override
+  ConsumerState<_DocumentsCard> createState() => _DocumentsCardState();
+}
+
+class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
+  late Future<List<PlayerDocument>> _documents;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    _documents =
+        ref.read(repositoryProvider).playerDocuments(widget.playerId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _Section(
+      title: 'Geschützte Dokumente',
+      icon: Icons.folder_shared_outlined,
+      trailing: widget.canManage
+          ? FilledButton.tonalIcon(
+              onPressed: _upload,
+              icon: const Icon(Icons.upload_file_rounded),
+              label: const Text('Hochladen'),
+            )
+          : null,
+      child: FutureBuilder<List<PlayerDocument>>(
+        future: _documents,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return const Text(
+              'Die Dokumente konnten nicht geladen werden.',
+            );
+          }
+          final documents = snapshot.data ?? const [];
+          if (documents.isEmpty) {
+            return const Text(
+              'Noch keine Einwilligung oder Vereinsunterlage hinterlegt.',
+            );
+          }
+          return Column(
+            children: [
+              for (final document in documents)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    child: Icon(
+                      document.file.contentType == 'application/pdf'
+                          ? Icons.picture_as_pdf_outlined
+                          : Icons.image_outlined,
+                    ),
+                  ),
+                  title: Text(document.title),
+                  subtitle: Text(
+                    '${_documentType(document.type)} · Version ${document.version}'
+                    ' · ${_fileSize(document.file.size)}',
+                  ),
+                  onTap: () => launchUrl(
+                    Uri.parse(document.file.downloadUrl),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  trailing: Wrap(
+                    spacing: 2,
+                    children: [
+                      IconButton(
+                        tooltip: 'Öffnen',
+                        onPressed: () => launchUrl(
+                          Uri.parse(document.file.downloadUrl),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        icon: const Icon(Icons.open_in_new_rounded),
+                      ),
+                      if (widget.canManage)
+                        IconButton(
+                          tooltip: 'Entfernen',
+                          onPressed: () => _delete(document),
+                          icon: const Icon(Icons.delete_outline_rounded),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _upload() async {
+    final draft = await showDialog<_DocumentDraft>(
+      context: context,
+      builder: (context) => const _DocumentDialog(),
+    );
+    if (draft == null || !mounted) return;
+    final selection = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+      withData: true,
+    );
+    final file = selection?.files.single;
+    if (file?.bytes == null || !mounted) return;
+    if (file!.size > 4 * 1024 * 1024) {
+      _message('Die Datei darf maximal 4 MB groß sein.');
+      return;
+    }
+    try {
+      await ref.read(repositoryProvider).uploadPlayerDocument(
+            playerId: widget.playerId,
+            bytes: file.bytes!,
+            fileName: file.name,
+            type: draft.type,
+            title: draft.title,
+          );
+      if (!mounted) return;
+      setState(_reload);
+      _message('Dokument geschützt gespeichert.');
+    } catch (_) {
+      if (mounted) _message('Das Dokument konnte nicht gespeichert werden.');
+    }
+  }
+
+  Future<void> _delete(PlayerDocument document) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Dokument entfernen?'),
+        content: Text(
+          '${document.title} wird aus dem Spielerprofil entfernt.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Entfernen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(repositoryProvider).deletePlayerDocument(
+            playerId: widget.playerId,
+            documentId: document.id,
+          );
+      if (!mounted) return;
+      setState(_reload);
+      _message('Dokument entfernt.');
+    } catch (_) {
+      if (mounted) _message('Das Dokument konnte nicht entfernt werden.');
+    }
+  }
+
+  void _message(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
+  String _fileSize(int bytes) =>
+      bytes >= 1024 * 1024
+          ? '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB'
+          : '${(bytes / 1024).ceil()} KB';
+
+  String _documentType(String type) => switch (type) {
+        'PHOTO_CONSENT' => 'Fotoeinwilligung',
+        'PRIVACY_CONSENT' => 'Datenschutz',
+        'PARTICIPATION_PERMISSION' => 'Teilnahmeerlaubnis',
+        'SWIMMING_PERMISSION' => 'Schwimmerlaubnis',
+        'DECLARATION' => 'Erklärung',
+        'TEAM_DOCUMENT' => 'Mannschaftsdokument',
+        _ => 'Sonstiges',
+      };
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -1593,6 +1911,112 @@ class _DevelopmentDraft {
   final String category;
   final String visibility;
   final int? rating;
+}
+
+class _DocumentDraft {
+  const _DocumentDraft({required this.type, required this.title});
+
+  final String type;
+  final String title;
+}
+
+class _DocumentDialog extends StatefulWidget {
+  const _DocumentDialog();
+
+  @override
+  State<_DocumentDialog> createState() => _DocumentDialogState();
+}
+
+class _DocumentDialogState extends State<_DocumentDialog> {
+  final title = TextEditingController();
+  String type = 'PHOTO_CONSENT';
+
+  @override
+  void dispose() {
+    title.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Dokument hinzufügen'),
+      content: SizedBox(
+        width: 460,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: type,
+              decoration: const InputDecoration(labelText: 'Dokumenttyp'),
+              items: const [
+                DropdownMenuItem(
+                  value: 'PHOTO_CONSENT',
+                  child: Text('Fotoeinwilligung'),
+                ),
+                DropdownMenuItem(
+                  value: 'PRIVACY_CONSENT',
+                  child: Text('Datenschutzerklärung'),
+                ),
+                DropdownMenuItem(
+                  value: 'PARTICIPATION_PERMISSION',
+                  child: Text('Teilnahmeerlaubnis'),
+                ),
+                DropdownMenuItem(
+                  value: 'SWIMMING_PERMISSION',
+                  child: Text('Schwimmerlaubnis'),
+                ),
+                DropdownMenuItem(
+                  value: 'DECLARATION',
+                  child: Text('Sonstige Erklärung'),
+                ),
+                DropdownMenuItem(
+                  value: 'TEAM_DOCUMENT',
+                  child: Text('Mannschaftsdokument'),
+                ),
+                DropdownMenuItem(
+                  value: 'OTHER',
+                  child: Text('Sonstiges'),
+                ),
+              ],
+              onChanged: (value) => setState(() => type = value!),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: title,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Titel *',
+                hintText: 'z. B. Fotoerlaubnis Saison 2026/27',
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Erlaubt: PDF, JPEG, PNG oder WebP bis 4 MB. '
+              'Die Datei wird privat gespeichert und nur kurzzeitig freigegeben.',
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            if (title.text.trim().isEmpty) return;
+            Navigator.pop(
+              context,
+              _DocumentDraft(type: type, title: title.text.trim()),
+            );
+          },
+          icon: const Icon(Icons.folder_open_rounded),
+          label: const Text('Datei auswählen'),
+        ),
+      ],
+    );
+  }
 }
 
 class _GuardianDraft {
