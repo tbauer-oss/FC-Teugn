@@ -10,6 +10,9 @@ current architecture assessment and implementation order are documented in
 - Source: [`fc_teugn_app/`](fc_teugn_app)
 - Local dev: install Flutter 3.22+, then run `flutter pub get` and `flutter run -d chrome` from `fc_teugn_app`.
 - Build: `flutter build web --release`.
+- Android: Die produktive App-ID, Release-Signierung und der geprüfte
+  App-Bundle-Build sind in
+  [`docs/android-release.md`](docs/android-release.md) dokumentiert.
 - Deployment: Vercel uses the root [`vercel.json`](vercel.json) to run `vercel_install.sh` / `vercel_build.sh` and publish the generated `fc_teugn_app/build/web` directory.
 - Running Flutter without root warnings: use [`scripts/run_flutter_as_user.sh`](scripts/run_flutter_as_user.sh) to execute commands as an unprivileged user, e.g. `FLUTTER_USER=deployer ./scripts/run_flutter_as_user.sh pub outdated`.
 

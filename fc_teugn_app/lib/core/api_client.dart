@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 class ApiClient {
+  static const productionBaseUrl = 'https://fc-teugn-backend.vercel.app';
+
   final Dio dio;
 
   ApiClient._internal(this.dio);
@@ -20,7 +22,7 @@ class ApiClient {
         inferredWebBaseUrl = 'http://localhost:4000';
       } else {
         // Frontend and API are deployed as separate Vercel projects.
-        inferredWebBaseUrl = 'https://fc-teugn-backend.vercel.app';
+        inferredWebBaseUrl = productionBaseUrl;
       }
     }
 
@@ -30,7 +32,7 @@ class ApiClient {
     } else if (envBaseUrl.isNotEmpty) {
       resolvedBaseUrl = envBaseUrl;
     } else {
-      resolvedBaseUrl = kIsWeb ? inferredWebBaseUrl : 'http://localhost:4000';
+      resolvedBaseUrl = kIsWeb ? inferredWebBaseUrl : productionBaseUrl;
     }
 
     final dio = Dio(
