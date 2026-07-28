@@ -26,6 +26,24 @@ const allowedOrigins = Array.from(
   new Set([...(envAllowedOrigins ?? []).filter((origin) => origin !== '*'), ...defaultAllowedOrigins]),
 );
 
+function isAllowedFrontendOrigin(origin: string) {
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  try {
+    const { protocol, hostname } = new URL(origin);
+    const isFcTeugnVercelDeployment =
+      /^(?:fc-teugn|fcteugnapp)(?:-[a-z0-9-]+)?-tobis-projects-7d669891\.vercel\.app$/.test(
+        hostname,
+      );
+
+    return protocol === 'https:' && isFcTeugnVercelDeployment;
+  } catch {
+    return false;
+  }
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -34,7 +52,7 @@ app.use(
         return;
       }
 
-      if (allowAllOrigins || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      if (allowAllOrigins || allowedOrigins.length === 0 || isAllowedFrontendOrigin(origin)) {
         callback(null, true);
         return;
       }
