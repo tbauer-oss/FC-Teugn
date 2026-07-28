@@ -90,7 +90,7 @@ class ParentEventsPage extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<PlayerModel>(
-                value: selectedPlayer,
+                initialValue: selectedPlayer,
                 items: [
                   for (final player in players)
                     DropdownMenuItem(
@@ -105,7 +105,7 @@ class ParentEventsPage extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<AttendanceStatus>(
-                value: status,
+                initialValue: status,
                 items: const [
                   DropdownMenuItem(value: AttendanceStatus.yes, child: Text('Ja')),
                   DropdownMenuItem(value: AttendanceStatus.no, child: Text('Nein')),

@@ -29,16 +29,20 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      - name: Pull Vercel environment info
+      - name: Link backend Vercel project
+        working-directory: api
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
-        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN" --local-config api/vercel.json
+        run: vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN"
+
+      - name: Pull Vercel environment info
+        working-directory: api
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN" --local-config vercel.json
 
       - name: Deploy to Vercel (Backend API)
+        working-directory: api
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
-        run: vercel deploy --prod --yes --token "$VERCEL_TOKEN" --local-config api/vercel.json
+        run: vercel deploy --prod --yes --token "$VERCEL_TOKEN" --local-config vercel.json

@@ -134,7 +134,7 @@ class _DesktopNavigation extends StatelessWidget {
               child: Text(
                 title.toUpperCase(),
                 style: TextStyle(
-                  color: Colors.white.withOpacity(.48),
+                  color: Colors.white.withValues(alpha: .48),
                   fontSize: 11,
                   letterSpacing: 1.5,
                   fontWeight: FontWeight.w800,
@@ -147,7 +147,7 @@ class _DesktopNavigation extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 5),
                 child: Material(
                   color: selectedIndex == index
-                      ? Colors.white.withOpacity(.12)
+                      ? Colors.white.withValues(alpha: .12)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(14),
                   child: InkWell(
@@ -162,7 +162,7 @@ class _DesktopNavigation extends StatelessWidget {
                             size: 21,
                             color: selectedIndex == index
                                 ? Colors.white
-                                : Colors.white.withOpacity(.62),
+                                : Colors.white.withValues(alpha: .62),
                           ),
                           const SizedBox(width: 13),
                           Text(
@@ -170,7 +170,7 @@ class _DesktopNavigation extends StatelessWidget {
                             style: TextStyle(
                               color: selectedIndex == index
                                   ? Colors.white
-                                  : Colors.white.withOpacity(.68),
+                                  : Colors.white.withValues(alpha: .68),
                               fontWeight: selectedIndex == index
                                   ? FontWeight.w700
                                   : FontWeight.w500,
@@ -205,7 +205,7 @@ class _DesktopNavigation extends StatelessWidget {
                       Text(
                         'FC Teugn Jugend',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(.52),
+                          color: Colors.white.withValues(alpha: .52),
                           fontSize: 12,
                         ),
                       ),
@@ -306,7 +306,7 @@ class _ClubBrand extends StatelessWidget {
             Text(
               'JUGENDFUSSBALL',
               style: TextStyle(
-                color: foreground.withOpacity(.56),
+                color: foreground.withValues(alpha: .56),
                 fontSize: 9,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.2,

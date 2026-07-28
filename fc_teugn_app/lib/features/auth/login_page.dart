@@ -56,7 +56,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(.1),
+                              color: Colors.white.withValues(alpha: .1),
                               borderRadius: BorderRadius.circular(30),
                             ),
                             child: const Text(
@@ -84,7 +84,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           Text(
                             'Alles, was Trainer und Eltern für einen gut organisierten Jugendfußball brauchen.',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(.7),
+                              color: Colors.white.withValues(alpha: .7),
                               fontSize: 17,
                               height: 1.5,
                             ),
@@ -92,7 +92,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           const Spacer(),
                           Text(
                             'FC Teugn · Jugendabteilung',
-                            style: TextStyle(color: Colors.white.withOpacity(.45)),
+                            style: TextStyle(color: Colors.white.withValues(alpha: .45)),
                           ),
                         ],
                       ),

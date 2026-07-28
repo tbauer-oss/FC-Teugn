@@ -108,7 +108,7 @@ class TrainerEventsPage extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<EventType>(
-                  value: type,
+                  initialValue: type,
                   decoration: const InputDecoration(labelText: 'Typ'),
                   items: const [
                     DropdownMenuItem(value: EventType.training, child: Text('Training')),
