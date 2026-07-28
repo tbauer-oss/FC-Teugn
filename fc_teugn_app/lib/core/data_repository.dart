@@ -2,11 +2,32 @@ import 'api_client.dart';
 import 'models/event.dart';
 import 'models/player.dart';
 import 'models/user.dart';
+import 'models/organization.dart';
 
 class DataRepository {
   final ApiClient client;
 
   DataRepository(this.client);
+
+  Future<OrganizationContext> organizationContext() async {
+    final res = await client.dio.get('/organization/context');
+    return OrganizationContext.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<TeamSummary> createTeam({
+    required String ageGroupId,
+    required String name,
+    String? shortName,
+    String? level,
+  }) async {
+    final res = await client.dio.post('/organization/teams', data: {
+      'ageGroupId': ageGroupId,
+      'name': name,
+      'shortName': shortName,
+      'level': level,
+    });
+    return TeamSummary.fromJson(res.data as Map<String, dynamic>);
+  }
 
   Future<List<PlayerModel>> players() async {
     final res = await client.dio.get('/players');

@@ -5,6 +5,7 @@ import authRoutes from './routes/auth.routes';
 import playersRoutes from './routes/players.routes';
 import eventsRoutes from './routes/events.routes';
 import adminRoutes from './routes/admin.routes';
+import organizationRoutes from './routes/organization.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -70,6 +71,7 @@ app.use('/auth', authRoutes);
 app.use('/players', playersRoutes);
 app.use('/events', eventsRoutes);
 app.use('/admin', adminRoutes);
+app.use('/organization', organizationRoutes);
 
 app.use(errorHandler);
 

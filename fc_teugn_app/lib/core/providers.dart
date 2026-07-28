@@ -5,6 +5,7 @@ import '../features/auth/auth_controller.dart';
 import 'models/event.dart';
 import 'models/player.dart';
 import 'models/user.dart';
+import 'models/organization.dart';
 
 final repositoryProvider = Provider<DataRepository>((ref) {
   final authState = ref.watch(authProvider);
@@ -25,4 +26,9 @@ final eventsProvider = FutureProvider<List<EventModel>>((ref) async {
 final pendingUsersProvider = FutureProvider<List<AppUser>>((ref) async {
   final repository = ref.watch(repositoryProvider);
   return repository.pendingUsers();
+});
+
+final organizationProvider = FutureProvider<OrganizationContext>((ref) async {
+  final repository = ref.watch(repositoryProvider);
+  return repository.organizationContext();
 });

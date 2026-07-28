@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { approveUser, assignParentPlayer, pendingUsers } from '../controllers/admin.controller';
-import { requireApproved, requireAuth, requireRoles } from '../middleware/auth';
-import { Role } from '../types/enums';
+import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
+import { Permission } from '../security/permissions';
 
 const router = Router();
 
 router.use(requireAuth);
 router.use(requireApproved);
-router.use(requireRoles([Role.TRAINER_ADMIN, Role.TRAINER]));
+router.use(requirePermission(Permission.MANAGE_MEMBERS));
 
 router.get('/pending-users', pendingUsers);
 router.post('/approve', approveUser);

@@ -1,7 +1,15 @@
 export const Role = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  CLUB_ADMIN: 'CLUB_ADMIN',
+  YOUTH_DIRECTOR: 'YOUTH_DIRECTOR',
+  COACH: 'COACH',
+  ASSISTANT_COACH: 'ASSISTANT_COACH',
+  TEAM_MANAGER: 'TEAM_MANAGER',
   TRAINER_ADMIN: 'TRAINER_ADMIN',
   TRAINER: 'TRAINER',
   PARENT: 'PARENT',
+  PLAYER: 'PLAYER',
+  READ_ONLY: 'READ_ONLY',
 } as const;
 
 export type Role = (typeof Role)[keyof typeof Role];

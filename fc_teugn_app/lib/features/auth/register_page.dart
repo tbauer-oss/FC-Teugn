@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/models/user.dart';
+import '../../core/api_client.dart';
 import 'auth_controller.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
@@ -17,8 +18,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _teamController = TextEditingController(text: 'FC Teugn');
   UserRole _selectedRole = UserRole.parent;
+  String? _selectedTeamId;
+  late final Future<List<_RegistrationTeam>> _teams;
+
+  @override
+  void initState() {
+    super.initState();
+    _teams = _loadTeams();
+  }
 
   @override
   void dispose() {
@@ -26,7 +34,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     _emailController.dispose();
     _passwordController.dispose();
     _phoneController.dispose();
-    _teamController.dispose();
     super.dispose();
   }
 
@@ -82,12 +89,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           child: Text('Elternteil'),
                         ),
                         DropdownMenuItem(
-                          value: UserRole.trainer,
+                          value: UserRole.coach,
                           child: Text('Trainer/in'),
                         ),
                         DropdownMenuItem(
-                          value: UserRole.trainerAdmin,
-                          child: Text('Trainer Admin'),
+                          value: UserRole.assistantCoach,
+                          child: Text('Co-Trainer/in'),
+                        ),
+                        DropdownMenuItem(
+                          value: UserRole.teamManager,
+                          child: Text('Teamorganisation'),
                         ),
                       ],
                       onChanged: (value) {
@@ -103,9 +114,36 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _teamController,
-                      decoration: const InputDecoration(labelText: 'Team / Verein'),
+                    FutureBuilder<List<_RegistrationTeam>>(
+                      future: _teams,
+                      builder: (context, snapshot) {
+                        final teams = snapshot.data ?? const <_RegistrationTeam>[];
+                        if (teams.isEmpty) {
+                          return const TextField(
+                            enabled: false,
+                            decoration: InputDecoration(
+                              labelText: 'Verein / Mannschaft',
+                              hintText: 'FC Teugn',
+                            ),
+                          );
+                        }
+                        _selectedTeamId ??= teams.first.id;
+                        return DropdownButtonFormField<String>(
+                          initialValue: _selectedTeamId,
+                          decoration: const InputDecoration(
+                            labelText: 'Verein / Mannschaft',
+                          ),
+                          items: [
+                            for (final team in teams)
+                              DropdownMenuItem(
+                                value: team.id,
+                                child: Text(team.label),
+                              ),
+                          ],
+                          onChanged: (value) =>
+                              setState(() => _selectedTeamId = value),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     if (authState.error != null)
@@ -129,9 +167,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                         ? null
                                         : _phoneController.text.trim(),
                                     role: _selectedRole,
-                                    teamName: _teamController.text.trim().isEmpty
-                                        ? null
-                                        : _teamController.text.trim(),
+                                    teamName: 'FC Teugn',
+                                    teamId: _selectedTeamId,
                                   );
                                 }
                               },
@@ -158,4 +195,39 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       ),
     );
   }
+
+  Future<List<_RegistrationTeam>> _loadTeams() async {
+    try {
+      final response = await ApiClient().dio.get('/organization/public');
+      final result = <_RegistrationTeam>[];
+      for (final entry in response.data as List<dynamic>) {
+        final data = entry as Map<String, dynamic>;
+        final club = data['club'] as Map<String, dynamic>;
+        final season = data['season'] as Map<String, dynamic>;
+        for (final ageGroupEntry in data['ageGroups'] as List<dynamic>) {
+          final ageGroup = ageGroupEntry as Map<String, dynamic>;
+          for (final teamEntry in ageGroup['teams'] as List<dynamic>) {
+            final team = teamEntry as Map<String, dynamic>;
+            result.add(
+              _RegistrationTeam(
+                id: team['id'] as String,
+                label:
+                    '${club['name']} · ${ageGroup['name']} · ${team['name']} (${season['name']})',
+              ),
+            );
+          }
+        }
+      }
+      return result;
+    } catch (_) {
+      return const [];
+    }
+  }
+}
+
+class _RegistrationTeam {
+  const _RegistrationTeam({required this.id, required this.label});
+
+  final String id;
+  final String label;
 }

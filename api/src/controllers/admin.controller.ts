@@ -37,10 +37,26 @@ export async function approveUser(req: Request, res: Response) {
       ? status
       : AccountStatus.APPROVED;
 
-  const updated = await prisma.user.update({
-    where: { id: target.id },
-    data: { status: nextStatus },
-    select: { id: true, email: true, name: true, role: true, status: true },
+  const updated = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: target.id },
+      data: { status: nextStatus },
+      select: { id: true, email: true, name: true, role: true, status: true },
+    });
+    await tx.teamMembership.updateMany({
+      where: { userId: target.id, teamId },
+      data: { status: nextStatus },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: req.user!.id,
+        teamId,
+        action: nextStatus === AccountStatus.APPROVED ? 'USER_APPROVED' : 'USER_BLOCKED',
+        entityType: 'User',
+        entityId: target.id,
+      },
+    });
+    return user;
   });
 
   return res.json(updated);

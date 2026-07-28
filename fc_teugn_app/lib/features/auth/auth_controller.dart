@@ -60,6 +60,7 @@ class AuthController extends StateNotifier<AuthState> {
     String? phone,
     required UserRole role,
     String? teamName,
+    String? teamId,
   }) async {
     state = state.copyWith(loading: true, error: null);
     try {
@@ -68,12 +69,15 @@ class AuthController extends StateNotifier<AuthState> {
         'email': email,
         'password': password,
         'phone': phone,
-        'role': role == UserRole.trainerAdmin
-            ? 'TRAINER_ADMIN'
-            : role == UserRole.trainer
-                ? 'TRAINER'
-                : 'PARENT',
+        'role': switch (role) {
+          UserRole.coach || UserRole.trainer => 'COACH',
+          UserRole.assistantCoach => 'ASSISTANT_COACH',
+          UserRole.teamManager => 'TEAM_MANAGER',
+          UserRole.player => 'PLAYER',
+          _ => 'PARENT',
+        },
         'teamName': teamName,
+        'teamId': teamId,
       });
 
       final data = res.data as Map<String, dynamic>;

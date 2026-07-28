@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AccountStatus, Role } from '../types/enums';
+import { hasPermission, Permission } from '../security/permissions';
 
 const ACCESS_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access_secret';
 
@@ -39,6 +40,18 @@ export function requireRoles(roles: Role[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'Forbidden' });
+    }
+    return next();
+  };
+}
+
+export function requirePermission(permission: Permission) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user || !hasPermission(req.user.role, permission)) {
+      return res.status(403).json({
+        message: 'Für diese Aktion fehlt die erforderliche Berechtigung.',
+        permission,
+      });
     }
     return next();
   };

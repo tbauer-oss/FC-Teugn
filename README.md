@@ -2,6 +2,10 @@
 
 Full-stack project containing a Flutter web frontend (`fc_teugn_app`) and a Node/Express + Prisma backend (`api`).
 
+The product is being expanded into a club-wide youth football platform. The
+current architecture assessment and implementation order are documented in
+[`docs/architecture-analysis.md`](docs/architecture-analysis.md).
+
 ## Frontend (Flutter web)
 - Source: [`fc_teugn_app/`](fc_teugn_app)
 - Local dev: install Flutter 3.22+, then run `flutter pub get` and `flutter run -d chrome` from `fc_teugn_app`.
@@ -26,6 +30,13 @@ Common variables:
 - `JWT_SECRET` / `REFRESH_TOKEN_SECRET`: secrets for access/refresh token signing.
 - `CORS_ORIGINS`: comma-separated origins allowed by the backend.
 - `API_BASE_URL`: optional override for the frontend API base URL.
+
+## Organization model
+
+The production data model follows `Club > Season > AgeGroup > Team` and
+supports all youth levels from G to A. Access is controlled by centralized
+permissions and team memberships; administrative changes are written to an
+audit log.
 
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).
