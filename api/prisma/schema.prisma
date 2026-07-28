@@ -33,11 +33,59 @@ enum EventType {
   EVENT
 }
 
+enum EventCategory {
+  TRAINING
+  LEAGUE_MATCH
+  FRIENDLY_MATCH
+  CUP_MATCH
+  TOURNAMENT
+  INDOOR_TOURNAMENT
+  FOOTBALL_FESTIVAL
+  TEAM_MEETING
+  PARENTS_MEETING
+  CHRISTMAS_PARTY
+  SEASON_CLOSING
+  CLUB_EVENT
+  TRIP
+  PHOTO_SESSION
+  SPECIAL_EVENT
+}
+
+enum EventStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+enum EventVisibility {
+  TEAM
+  CLUB
+  STAFF_ONLY
+}
+
+enum HomeAway {
+  HOME
+  AWAY
+  NEUTRAL
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  BIWEEKLY
+  CUSTOM
+}
+
 enum AttendanceStatus {
   YES
   NO
   MAYBE
   UNKNOWN
+}
+
+enum CarpoolRequestStatus {
+  REQUESTED
+  CONFIRMED
+  DECLINED
+  CANCELLED
 }
 
 enum PlayerStatus {
@@ -91,20 +139,22 @@ enum ConsentStatus {
 }
 
 model Team {
-  id          String           @id @default(cuid())
-  ageGroupId  String
-  name        String
-  shortName   String?
-  level       String?
-  isActive    Boolean          @default(true)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  ageGroup    AgeGroup         @relation(fields: [ageGroupId], references: [id])
-  users       User[]
-  memberships TeamMembership[]
-  players     Player[]
-  events      Event[]
-  auditLogs   AuditLog[]
+  id           String            @id @default(cuid())
+  ageGroupId   String
+  name         String
+  shortName    String?
+  level        String?
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  ageGroup     AgeGroup          @relation(fields: [ageGroupId], references: [id])
+  users        User[]
+  memberships  TeamMembership[]
+  players      Player[]
+  events       Event[]
+  eventTargets EventTargetTeam[]
+  eventSeries  EventSeries[]
+  auditLogs    AuditLog[]
 
   @@index([ageGroupId, isActive])
 }
@@ -152,23 +202,29 @@ model AgeGroup {
 }
 
 model User {
-  id               String                  @id @default(cuid())
-  email            String                  @unique
-  password         String
-  name             String
-  phone            String?
-  role             Role                    @default(PARENT)
-  status           AccountStatus           @default(PENDING)
-  teamId           String
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
-  team             Team                    @relation(fields: [teamId], references: [id])
-  parentLinks      ParentPlayerLink[]      @relation("ParentLinks")
-  memberships      TeamMembership[]
-  auditLogs        AuditLog[]              @relation("AuditActor")
-  developmentNotes PlayerDevelopmentNote[] @relation("DevelopmentAuthor")
-  medicalUpdates   PlayerMedicalProfile[]  @relation("MedicalUpdatedBy")
-  playerProfile    Player?                 @relation("PlayerAccount")
+  id                String                  @id @default(cuid())
+  email             String                  @unique
+  password          String
+  name              String
+  phone             String?
+  role              Role                    @default(PARENT)
+  status            AccountStatus           @default(PENDING)
+  teamId            String
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  team              Team                    @relation(fields: [teamId], references: [id])
+  parentLinks       ParentPlayerLink[]      @relation("ParentLinks")
+  memberships       TeamMembership[]
+  auditLogs         AuditLog[]              @relation("AuditActor")
+  developmentNotes  PlayerDevelopmentNote[] @relation("DevelopmentAuthor")
+  medicalUpdates    PlayerMedicalProfile[]  @relation("MedicalUpdatedBy")
+  playerProfile     Player?                 @relation("PlayerAccount")
+  eventSeries       EventSeries[]           @relation("EventSeriesCreator")
+  attendanceReplies Attendance[]            @relation("AttendanceResponder")
+  carpoolOffers     CarpoolOffer[]          @relation("CarpoolDriver")
+  carpoolRequests   CarpoolPassenger[]      @relation("CarpoolRequester")
+  eventReminders    EventReminder[]         @relation("EventReminderRecipient")
+  calendarToken     String?                 @unique
 }
 
 model TeamMembership {
@@ -213,6 +269,7 @@ model Player {
   emergencyContacts PlayerEmergencyContact[]
   developmentNotes  PlayerDevelopmentNote[]
   consents          PlayerConsent[]
+  carpoolPassengers CarpoolPassenger[]
 
   @@index([teamId, status, lastName])
 }
@@ -301,21 +358,94 @@ model PlayerConsent {
 }
 
 model Event {
-  id                  String        @id @default(cuid())
+  id                  String            @id @default(cuid())
   teamId              String
+  seriesId            String?
   type                EventType
+  category            EventCategory     @default(SPECIAL_EVENT)
+  status              EventStatus       @default(SCHEDULED)
+  visibility          EventVisibility   @default(TEAM)
   title               String
   startAt             DateTime
   endAt               DateTime?
+  meetingAt           DateTime?
   location            String
+  address             String?
+  mapUrl              String?
+  homeAway            HomeAway?
+  opponent            String?
+  venue               String?
+  contactName         String?
+  contactPhone        String?
   description         String?
-  attendanceFinalized Boolean       @default(false)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  team                Team          @relation(fields: [teamId], references: [id])
+  equipment           String?
+  clothing            String?
+  catering            String?
+  carpoolRequired     Boolean           @default(false)
+  maxParticipants     Int?
+  responseDeadline    DateTime?
+  internalNote        String?
+  reminderMinutes     Int[]             @default([])
+  isSeriesException   Boolean           @default(false)
+  cancellationReason  String?
+  cancelledAt         DateTime?
+  attendanceFinalized Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  team                Team              @relation(fields: [teamId], references: [id])
+  series              EventSeries?      @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  targetTeams         EventTargetTeam[]
+  attachments         EventAttachment[]
   attendance          Attendance[]
+  carpoolOffers       CarpoolOffer[]
+  reminders           EventReminder[]
   matchDetails        MatchDetails?
   squads              Squad[]
+
+  @@index([teamId, startAt])
+  @@index([seriesId, startAt])
+  @@index([status, startAt])
+}
+
+model EventSeries {
+  id          String              @id @default(cuid())
+  teamId      String
+  createdById String
+  frequency   RecurrenceFrequency
+  interval    Int                 @default(1)
+  weekdays    Int[]               @default([])
+  until       DateTime
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  team        Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy   User                @relation("EventSeriesCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  events      Event[]
+
+  @@index([teamId, until])
+}
+
+model EventTargetTeam {
+  id        String   @id @default(cuid())
+  eventId   String
+  teamId    String
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, teamId])
+  @@index([teamId, eventId])
+}
+
+model EventAttachment {
+  id        String   @id @default(cuid())
+  eventId   String
+  name      String
+  url       String
+  mimeType  String?
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
 }
 
 model MatchDetails {
@@ -333,15 +463,70 @@ model MatchDetails {
 }
 
 model Attendance {
-  id        String           @id @default(cuid())
-  eventId   String
-  playerId  String
-  status    AttendanceStatus @default(UNKNOWN)
-  updatedAt DateTime         @updatedAt
-  event     Event            @relation(fields: [eventId], references: [id])
-  player    Player           @relation(fields: [playerId], references: [id])
+  id                   String            @id @default(cuid())
+  eventId              String
+  playerId             String
+  status               AttendanceStatus  @default(UNKNOWN)
+  reason               String?
+  goalkeeperAvailable  Boolean?
+  respondedById        String?
+  respondedAt          DateTime?
+  actualAttendance     AttendanceStatus?
+  actualAttendanceNote String?
+  updatedAt            DateTime          @updatedAt
+  event                Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player               Player            @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  respondedBy          User?             @relation("AttendanceResponder", fields: [respondedById], references: [id], onDelete: SetNull)
 
   @@unique([eventId, playerId])
+  @@index([eventId, status])
+}
+
+model CarpoolOffer {
+  id                String             @id @default(cuid())
+  eventId           String
+  driverId          String
+  seatsTotal        Int
+  departureLocation String
+  departureAt       DateTime
+  notes             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  event             Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  driver            User               @relation("CarpoolDriver", fields: [driverId], references: [id], onDelete: Cascade)
+  passengers        CarpoolPassenger[]
+
+  @@index([eventId, departureAt])
+}
+
+model CarpoolPassenger {
+  id            String               @id @default(cuid())
+  offerId       String
+  playerId      String
+  requestedById String
+  status        CarpoolRequestStatus @default(REQUESTED)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  offer         CarpoolOffer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  player        Player               @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  requestedBy   User                 @relation("CarpoolRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+
+  @@unique([offerId, playerId])
+  @@index([offerId, status])
+}
+
+model EventReminder {
+  id          String    @id @default(cuid())
+  eventId     String
+  recipientId String
+  message     String
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  recipient   User      @relation("EventReminderRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, readAt, createdAt])
+  @@index([eventId, createdAt])
 }
 
 model Squad {

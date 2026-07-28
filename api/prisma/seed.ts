@@ -1,4 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import {
+  EventCategory,
+  EventVisibility,
+  HomeAway,
+  PrismaClient,
+} from '@prisma/client';
 import { hashPassword } from '../src/lib/password';
 import { AttendanceStatus, EventType, Role } from '../src/types/enums';
 
@@ -207,18 +212,65 @@ async function main() {
       id: 'event-1',
       teamId: team.id,
       type: EventType.TRAINING,
-      title: 'Trainingseinheit',
+      category: EventCategory.TRAINING,
+      visibility: EventVisibility.TEAM,
+      title: 'Techniktraining E-Jugend',
       startAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       endAt: new Date(Date.now() + 25 * 60 * 60 * 1000),
+      meetingAt: new Date(Date.now() + 23.75 * 60 * 60 * 1000),
       location: 'Sportplatz Teugn A',
-      description: 'Bitte 15 Minuten früher da sein.',
+      address: 'Ringstraße 20, 93356 Teugn',
+      description: 'Schwerpunkt Ballmitnahme und Umschaltspiel.',
+      equipment: 'Fußballschuhe, Schienbeinschoner, Trinkflasche',
+      clothing: 'Trainingsanzug und wetterfeste Jacke',
+      responseDeadline: new Date(Date.now() + 12 * 60 * 60 * 1000),
+      reminderMinutes: [1440, 120],
+      carpoolRequired: false,
+      targetTeams: { create: { teamId: team.id } },
     },
   });
 
   await prisma.attendance.upsert({
     where: { eventId_playerId: { eventId: event.id, playerId: player.id } },
-    update: { status: AttendanceStatus.YES },
-    create: { eventId: event.id, playerId: player.id, status: AttendanceStatus.YES },
+    update: {
+      status: AttendanceStatus.YES,
+      respondedById: parent.id,
+      respondedAt: new Date(),
+    },
+    create: {
+      eventId: event.id,
+      playerId: player.id,
+      status: AttendanceStatus.YES,
+      respondedById: parent.id,
+      respondedAt: new Date(),
+    },
+  });
+
+  await prisma.event.upsert({
+    where: { id: 'event-away-friendly' },
+    update: {},
+    create: {
+      id: 'event-away-friendly',
+      teamId: team.id,
+      type: EventType.MATCH,
+      category: EventCategory.FRIENDLY_MATCH,
+      visibility: EventVisibility.TEAM,
+      title: 'Testspiel gegen SV Saal',
+      startAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
+      endAt: new Date(Date.now() + (4 * 24 + 2) * 60 * 60 * 1000),
+      meetingAt: new Date(Date.now() + (4 * 24 - 1) * 60 * 60 * 1000),
+      location: 'Sportgelände Saal',
+      address: 'Lindenstraße 30, 93342 Saal an der Donau',
+      opponent: 'SV Saal',
+      homeAway: HomeAway.AWAY,
+      venue: 'Hauptplatz',
+      carpoolRequired: true,
+      responseDeadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+      equipment: 'Trikot wird gestellt, Fußballschuhe, Schienbeinschoner',
+      catering: 'Ausreichend Getränke mitbringen',
+      reminderMinutes: [2880, 180],
+      targetTeams: { create: { teamId: team.id } },
+    },
   });
 
   console.log(`Seed finished for team ${team.name} with trainer ${trainer.name}.`);
