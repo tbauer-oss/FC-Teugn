@@ -15,7 +15,7 @@ class ApiClient {
         inferredWebBaseUrl = 'http://localhost:4000';
       } else {
         // Frontend and API are deployed as separate Vercel projects.
-        inferredWebBaseUrl = 'https://fc-teugn.vercel.app/api';
+        inferredWebBaseUrl = 'https://fc-teugn-backend.vercel.app';
       }
     }
 
