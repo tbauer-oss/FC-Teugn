@@ -68,13 +68,17 @@ class TrainerApprovalsPage extends ConsumerWidget {
   }
 
   String _roleLabel(UserRole role) {
-    switch (role) {
-      case UserRole.trainerAdmin:
-        return 'Trainer Admin';
-      case UserRole.trainer:
-        return 'Trainer';
-      case UserRole.parent:
-        return 'Elternteil';
-    }
+    return switch (role) {
+      UserRole.superAdmin => 'Systemadministration',
+      UserRole.clubAdmin => 'Vereinsadministration',
+      UserRole.youthDirector => 'Jugendleitung',
+      UserRole.coach || UserRole.trainer => 'Trainer/in',
+      UserRole.assistantCoach => 'Co-Trainer/in',
+      UserRole.teamManager => 'Teamorganisation',
+      UserRole.trainerAdmin => 'Trainer-Administration',
+      UserRole.parent => 'Elternteil',
+      UserRole.player => 'Spieler/in',
+      UserRole.readOnly => 'Lesender Zugriff',
+    };
   }
 }
