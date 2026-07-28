@@ -34,6 +34,24 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
   return [...new Set([user.teamId, ...memberships.map((item) => item.teamId)])];
 }
 
+export async function canManageTeam(user: TeamScopedUser, teamId: string) {
+  if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
+    const [currentClubId, targetClubId] = await Promise.all([
+      clubIdForTeam(user.teamId),
+      clubIdForTeam(teamId),
+    ]);
+    return currentClubId !== null && currentClubId === targetClubId;
+  }
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId_teamId: { userId: user.id, teamId } },
+    select: { role: true, status: true },
+  });
+  if (membership?.status === AccountStatus.APPROVED) {
+    return hasPermission(membership.role as Role, Permission.MANAGE_TEAM);
+  }
+  return teamId === user.teamId && hasPermission(user.role as Role, Permission.MANAGE_TEAM);
+}
+
 export function eventTeamScope(teamIds: string[]): Prisma.EventWhereInput {
   return {
     OR: [{ teamId: { in: teamIds } }, { targetTeams: { some: { teamId: { in: teamIds } } } }],

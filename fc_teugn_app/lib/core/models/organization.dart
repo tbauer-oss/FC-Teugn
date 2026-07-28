@@ -76,6 +76,18 @@ class TeamSummary {
     this.shortName,
     this.level,
     this.isActive = true,
+    this.teamType = 'COMPETITIVE',
+    this.gender = 'MIXED',
+    this.birthYears = const [],
+    this.description,
+    this.trainingLocation,
+    this.trainingTimes = const [],
+    this.homeVenue,
+    this.bfvTeamId,
+    this.dfbnetTeamId,
+    this.bfvTeamUrl,
+    this.photoUrl,
+    this.staff = const [],
   });
 
   final String id;
@@ -83,6 +95,18 @@ class TeamSummary {
   final String? shortName;
   final String? level;
   final bool isActive;
+  final String teamType;
+  final String gender;
+  final List<int> birthYears;
+  final String? description;
+  final String? trainingLocation;
+  final List<String> trainingTimes;
+  final String? homeVenue;
+  final String? bfvTeamId;
+  final String? dfbnetTeamId;
+  final String? bfvTeamUrl;
+  final String? photoUrl;
+  final List<TeamStaffMember> staff;
   final AgeGroupSummary ageGroup;
   final String seasonName;
 
@@ -94,11 +118,53 @@ class TeamSummary {
         shortName: json['shortName'] as String?,
         level: json['level'] as String?,
         isActive: json['isActive'] as bool? ?? true,
+        teamType: json['teamType'] as String? ?? 'COMPETITIVE',
+        gender: json['gender'] as String? ?? 'MIXED',
+        birthYears: (json['birthYears'] as List<dynamic>? ?? [])
+            .whereType<num>()
+            .map((value) => value.toInt())
+            .toList(),
+        description: json['description'] as String?,
+        trainingLocation: json['trainingLocation'] as String?,
+        trainingTimes: (json['trainingTimes'] as List<dynamic>? ?? [])
+            .whereType<String>()
+            .toList(),
+        homeVenue: json['homeVenue'] as String?,
+        bfvTeamId: json['bfvTeamId'] as String?,
+        dfbnetTeamId: json['dfbnetTeamId'] as String?,
+        bfvTeamUrl: json['bfvTeamUrl'] as String?,
+        photoUrl: json['photoUrl'] as String?,
+        staff: (json['staff'] as List<dynamic>? ?? [])
+            .map((item) =>
+                TeamStaffMember.fromJson(item as Map<String, dynamic>))
+            .toList(),
         ageGroup: AgeGroupSummary.fromJson(
           json['ageGroup'] as Map<String, dynamic>,
         ),
         seasonName:
             (json['season'] as Map<String, dynamic>?)?['name'] as String? ?? '',
+      );
+}
+
+class TeamStaffMember {
+  const TeamStaffMember({
+    required this.id,
+    required this.name,
+    required this.role,
+    this.email,
+  });
+
+  final String id;
+  final String name;
+  final String role;
+  final String? email;
+
+  factory TeamStaffMember.fromJson(Map<String, dynamic> json) =>
+      TeamStaffMember(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? '',
+        role: json['role'] as String? ?? '',
+        email: json['email'] as String?,
       );
 }
 
