@@ -5,9 +5,10 @@
     "rootDir": ".",
     "outDir": "dist",
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src", "index.ts"],
+  "include": ["src", "index.ts", "openapi.json"],
   "exclude": ["node_modules", "dist", "prisma"]
 }
