@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
 
 class ParentPlayersPage extends ConsumerWidget {
@@ -28,9 +29,16 @@ class ParentPlayersPage extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final player = items[index];
                     return ListTile(
+                      onTap: () =>
+                          context.go('/parent/players/${player.id}'),
+                      leading: CircleAvatar(
+                        child: Text(
+                          '${player.firstName[0]}${player.lastName[0]}',
+                        ),
+                      ),
                       title: Text(player.fullName),
                       subtitle: Text(player.position ?? 'Position unbekannt'),
-                      trailing: Text(player.shirtNumber != null ? '#${player.shirtNumber}' : ''),
+                      trailing: const Icon(Icons.chevron_right_rounded),
                     );
                   },
                 );

@@ -101,13 +101,27 @@ async function main() {
 
   const player = await prisma.player.upsert({
     where: { id: 'player-1' },
-    update: {},
+    update: {
+      preferredName: 'Lena',
+      position: 'Mittelfeld',
+      secondaryPosition: 'Abwehr',
+      dominantFoot: 'RIGHT',
+      shirtNumber: 8,
+      status: 'ACTIVE',
+      joinedAt: new Date('2024-07-01'),
+    },
     create: {
       id: 'player-1',
       teamId: team.id,
       firstName: 'Lena',
       lastName: 'Bauer',
       birthDate: new Date('2014-03-15'),
+      preferredName: 'Lena',
+      position: 'Mittelfeld',
+      secondaryPosition: 'Abwehr',
+      dominantFoot: 'RIGHT',
+      shirtNumber: 8,
+      joinedAt: new Date('2024-07-01'),
     },
   });
 
@@ -125,8 +139,65 @@ async function main() {
 
   await prisma.parentPlayerLink.upsert({
     where: { parentId_playerId: { parentId: parent.id, playerId: player.id } },
+    update: { relationship: 'MOTHER', isLegalGuardian: true },
+    create: {
+      parentId: parent.id,
+      playerId: player.id,
+      relationship: 'MOTHER',
+      isLegalGuardian: true,
+    },
+  });
+
+  await prisma.playerMedicalProfile.upsert({
+    where: { playerId: player.id },
     update: {},
-    create: { parentId: parent.id, playerId: player.id },
+    create: {
+      playerId: player.id,
+      allergies: 'Keine bekannt',
+      emergencyNotes: 'Im Notfall zuerst den hinterlegten Kontakt anrufen.',
+      updatedById: trainer.id,
+    },
+  });
+
+  await prisma.playerEmergencyContact.upsert({
+    where: { id: 'emergency-contact-1' },
+    update: {},
+    create: {
+      id: 'emergency-contact-1',
+      playerId: player.id,
+      name: 'Familie Muster',
+      relationship: 'Mutter',
+      phone: '+49 170 0000000',
+      priority: 1,
+      isAuthorizedPickup: true,
+    },
+  });
+
+  await prisma.playerDevelopmentNote.upsert({
+    where: { id: 'development-note-1' },
+    update: {},
+    create: {
+      id: 'development-note-1',
+      playerId: player.id,
+      authorId: trainer.id,
+      category: 'TECHNIQUE',
+      visibility: 'GUARDIANS_AND_STAFF',
+      rating: 4,
+      title: 'Ballmitnahme unter Druck',
+      notes: 'Sehr gute Entwicklung bei der offenen Ballmitnahme.',
+    },
+  });
+
+  await prisma.playerConsent.upsert({
+    where: { playerId_type: { playerId: player.id, type: 'TEAM_PHOTO' } },
+    update: {},
+    create: {
+      playerId: player.id,
+      type: 'TEAM_PHOTO',
+      status: 'GRANTED',
+      grantedBy: parent.id,
+      grantedAt: new Date(),
+    },
   });
 
   const event = await prisma.event.upsert({

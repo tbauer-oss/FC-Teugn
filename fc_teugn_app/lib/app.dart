@@ -17,6 +17,7 @@ import 'features/parent/parent_players_page.dart';
 import 'features/parent/parent_events_page.dart';
 import 'features/parent/parent_matches_page.dart';
 import 'features/organization/organization_page.dart';
+import 'features/players/player_profile_page.dart';
 import 'core/models/user.dart';
 import 'core/app_theme.dart';
 
@@ -103,6 +104,13 @@ class FCTeugnApp extends ConsumerWidget {
               builder: (context, state) => const TrainerPlayersPage(),
             ),
             GoRoute(
+              path: '/trainer/players/:playerId',
+              builder: (context, state) => PlayerProfilePage(
+                playerId: state.pathParameters['playerId']!,
+                staffView: true,
+              ),
+            ),
+            GoRoute(
               path: '/trainer/events',
               builder: (context, state) => const TrainerEventsPage(),
             ),
@@ -135,6 +143,13 @@ class FCTeugnApp extends ConsumerWidget {
             GoRoute(
               path: '/parent/players',
               builder: (context, state) => const ParentPlayersPage(),
+            ),
+            GoRoute(
+              path: '/parent/players/:playerId',
+              builder: (context, state) => PlayerProfilePage(
+                playerId: state.pathParameters['playerId']!,
+                staffView: false,
+              ),
             ),
             GoRoute(
               path: '/parent/events',

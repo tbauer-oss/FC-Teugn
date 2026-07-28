@@ -38,5 +38,9 @@ supports all youth levels from G to A. Access is controlled by centralized
 permissions and team memberships; administrative changes are written to an
 audit log.
 
+Member approval, multi-team assignments, guardian relationships, development
+notes, medical details and revocable player consents are described in
+[`docs/member-player-profiles.md`](docs/member-player-profiles.md).
+
 ## Cleaning the workspace
 A root `.gitignore` now excludes build artifacts and dependency directories (e.g., `node_modules`, `api/dist`, `fc_teugn_app/build`).
