@@ -342,7 +342,8 @@ export async function applyCompetitionImport(req: Request, res: Response) {
     .filter(
       (row) =>
         row.entityId &&
-        ![ImportRowAction.SKIP, ImportRowAction.INVALID].includes(row.action),
+        row.action !== ImportRowAction.SKIP &&
+        row.action !== ImportRowAction.INVALID,
     )
     .map((row) => row.entityId!);
   await Promise.all(
