@@ -434,7 +434,7 @@ class _NotificationSettingsState
                     .saveNotificationPreferences(items);
                 if (!mounted) return;
                 setState(() => _items = saved);
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(this.context).showSnackBar(
                   const SnackBar(content: Text('Einstellungen gespeichert.')),
                 );
               },
