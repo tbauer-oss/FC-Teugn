@@ -1,9 +1,59 @@
 import { Request, Response } from 'express';
+import { createHash, randomUUID } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { hashPassword, comparePassword } from '../lib/password';
-import { signAccessToken } from '../lib/jwt';
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from '../lib/jwt';
 import { AccountStatus, Role } from '../types/enums';
 import { ConsentDocumentType, GuardianRelationship } from '@prisma/client';
+
+const refreshLifetimeMs = 30 * 24 * 60 * 60 * 1000;
+
+function tokenHash(token: string) {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function accessTokenFor(user: {
+  id: string;
+  role: Role;
+  status: AccountStatus;
+  teamId: string;
+}) {
+  return signAccessToken({
+    id: user.id,
+    role: user.role,
+    status: user.status,
+    teamId: user.teamId,
+  });
+}
+
+async function issueSession(
+  user: { id: string; role: Role; status: AccountStatus; teamId: string },
+  req: Request,
+  familyId: string = randomUUID(),
+) {
+  const sessionId = randomUUID();
+  const refreshToken = signRefreshToken({
+    sessionId,
+    userId: user.id,
+    familyId,
+  });
+  await prisma.refreshToken.create({
+    data: {
+      id: sessionId,
+      userId: user.id,
+      familyId,
+      tokenHash: tokenHash(refreshToken),
+      expiresAt: new Date(Date.now() + refreshLifetimeMs),
+      userAgent: req.get('user-agent')?.slice(0, 500) ?? null,
+      ipAddress: req.ip?.slice(0, 64) ?? null,
+    },
+  });
+  return { accessToken: accessTokenFor(user), refreshToken };
+}
 
 async function resolveTeamId(teamName?: string, teamId?: string) {
   if (teamId) {
@@ -272,12 +322,7 @@ export async function register(req: Request, res: Response) {
     return created;
   });
 
-  const accessToken = signAccessToken({
-    id: user.id,
-    role: user.role,
-    status: user.status,
-    teamId: user.teamId,
-  });
+  const tokens = await issueSession(user, req);
   const registrationRequest = await prisma.registrationRequest.findUnique({
     where: { userId: user.id },
     select: {
@@ -303,7 +348,7 @@ export async function register(req: Request, res: Response) {
       teamId: user.teamId,
       registrationRequest,
     },
-    accessToken,
+    ...tokens,
   });
 }
 
@@ -364,12 +409,7 @@ export async function login(req: Request, res: Response) {
     return res.status(403).json({ message: 'Dieser Account ist nicht aktiv.' });
   }
 
-  const accessToken = signAccessToken({
-    id: user.id,
-    role: user.role,
-    status: user.status,
-    teamId: user.teamId,
-  });
+  const tokens = await issueSession(user, req);
 
   return res.json({
     user: {
@@ -382,8 +422,109 @@ export async function login(req: Request, res: Response) {
       teamId: user.teamId,
       registrationRequest: user.registrationRequest,
     },
-    accessToken,
+    ...tokens,
   });
+}
+
+export async function refresh(req: Request, res: Response) {
+  const refreshToken =
+    typeof req.body.refreshToken === 'string' ? req.body.refreshToken : '';
+  if (!refreshToken) {
+    return res.status(400).json({ message: 'Refresh-Token fehlt.' });
+  }
+
+  let payload: { sessionId?: string; userId?: string; familyId?: string };
+  try {
+    payload = verifyRefreshToken(refreshToken) as typeof payload;
+  } catch {
+    return res.status(401).json({ message: 'Sitzung ist abgelaufen.' });
+  }
+  if (!payload.sessionId || !payload.userId || !payload.familyId) {
+    return res.status(401).json({ message: 'Ungültige Sitzung.' });
+  }
+
+  const session = await prisma.refreshToken.findUnique({
+    where: { id: payload.sessionId },
+    include: { user: true },
+  });
+  const reused =
+    session?.revokedAt != null &&
+    session.tokenHash === tokenHash(refreshToken);
+  if (reused) {
+    await prisma.refreshToken.updateMany({
+      where: { familyId: session.familyId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return res.status(401).json({ message: 'Sitzung wurde widerrufen.' });
+  }
+  if (
+    !session ||
+    session.userId !== payload.userId ||
+    session.familyId !== payload.familyId ||
+    session.tokenHash !== tokenHash(refreshToken) ||
+    session.expiresAt <= new Date()
+  ) {
+    return res.status(401).json({ message: 'Sitzung ist abgelaufen.' });
+  }
+  if (
+    session.user.status === AccountStatus.BLOCKED ||
+    session.user.status === AccountStatus.REJECTED ||
+    session.user.status === AccountStatus.ARCHIVED
+  ) {
+    return res.status(403).json({ message: 'Account ist nicht aktiv.' });
+  }
+
+  const consumed = await prisma.refreshToken.updateMany({
+    where: {
+      id: session.id,
+      tokenHash: tokenHash(refreshToken),
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    data: { revokedAt: new Date(), lastUsedAt: new Date() },
+  });
+  if (consumed.count !== 1) {
+    await prisma.refreshToken.updateMany({
+      where: { familyId: session.familyId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return res.status(401).json({ message: 'Sitzung wurde widerrufen.' });
+  }
+
+  const next = await issueSession(session.user, req, session.familyId);
+  const nextPayload = verifyRefreshToken(next.refreshToken) as {
+    sessionId: string;
+  };
+  await prisma.refreshToken.update({
+    where: { id: session.id },
+    data: {
+      replacedById: nextPayload.sessionId,
+    },
+  });
+  return res.json({
+    user: userResponse(session.user),
+    ...next,
+  });
+}
+
+export async function logout(req: Request, res: Response) {
+  const refreshToken =
+    typeof req.body.refreshToken === 'string' ? req.body.refreshToken : '';
+  if (refreshToken) {
+    await prisma.refreshToken.updateMany({
+      where: { tokenHash: tokenHash(refreshToken), revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+  return res.status(204).send();
+}
+
+export async function logoutAll(req: Request, res: Response) {
+  await prisma.refreshToken.updateMany({
+    where: { userId: req.user!.id, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  return res.status(204).send();
 }
 
 export async function me(req: Request, res: Response) {
@@ -419,4 +560,24 @@ export async function me(req: Request, res: Response) {
     teamId: user.teamId,
     registrationRequest: user.registrationRequest,
   });
+}
+
+function userResponse(user: {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  role: Role;
+  status: AccountStatus;
+  teamId: string;
+}) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    phone: user.phone,
+    role: user.role,
+    status: user.status,
+    teamId: user.teamId,
+  };
 }

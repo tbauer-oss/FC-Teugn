@@ -31,6 +31,16 @@ class FCTeugnApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
+    if (authState.loading && authState.user == null) {
+      return MaterialApp(
+        title: 'FC Teugn Jugend',
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
 
     final router = GoRouter(
       initialLocation: '/login',

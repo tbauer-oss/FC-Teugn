@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/api_client.dart';
 import '../../core/models/user.dart';
 
@@ -32,7 +35,13 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController() : super(AuthState());
+  AuthController() : super(AuthState(loading: true)) {
+    unawaited(_restore());
+  }
+
+  static const _refreshTokenKey = 'fc_teugn_refresh_token';
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  Future<String?>? _refreshing;
 
   Future<void> login(String email, String password) async {
     state = state.copyWith(loading: true, error: null);
@@ -44,6 +53,7 @@ class AuthController extends StateNotifier<AuthState> {
       final data = res.data as Map<String, dynamic>;
       final user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
       final token = data['accessToken'] as String;
+      await _storeRefreshToken(data['refreshToken'] as String);
       state = AuthState(user: user, accessToken: token, loading: false);
     } catch (e) {
       state = state.copyWith(
@@ -99,6 +109,7 @@ class AuthController extends StateNotifier<AuthState> {
       final data = res.data as Map<String, dynamic>;
       final user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
       final token = data['accessToken'] as String;
+      await _storeRefreshToken(data['refreshToken'] as String);
       state = AuthState(user: user, accessToken: token, loading: false);
     } catch (e) {
       state = state.copyWith(
@@ -108,8 +119,71 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  void logout() {
+  Future<void> logout() async {
+    String? refreshToken;
+    try {
+      refreshToken = await _storage.read(key: _refreshTokenKey);
+    } catch (_) {}
+    if (refreshToken != null) {
+      try {
+        await ApiClient().dio.post(
+          '/auth/logout',
+          data: {'refreshToken': refreshToken},
+        );
+      } catch (_) {}
+    }
+    await _deleteStoredToken();
     state = AuthState();
+  }
+
+  void clearSession() {
+    unawaited(_deleteStoredToken());
+    state = AuthState();
+  }
+
+  Future<String?> refreshAccessToken() {
+    return _refreshing ??= _refreshAccessToken().whenComplete(
+          () => _refreshing = null,
+        );
+  }
+
+  Future<String?> _refreshAccessToken() async {
+    try {
+      final refreshToken = await _storage.read(key: _refreshTokenKey);
+      if (refreshToken == null) return null;
+      final res = await ApiClient().dio.post(
+        '/auth/refresh',
+        data: {'refreshToken': refreshToken},
+      );
+      final data = res.data as Map<String, dynamic>;
+      final accessToken = data['accessToken'] as String;
+      await _storeRefreshToken(data['refreshToken'] as String);
+      state = AuthState(
+        user: AppUser.fromJson(data['user'] as Map<String, dynamic>),
+        accessToken: accessToken,
+      );
+      return accessToken;
+    } catch (_) {
+      await _deleteStoredToken();
+      return null;
+    }
+  }
+
+  Future<void> _restore() async {
+    final token = await refreshAccessToken();
+    if (token == null && mounted) state = AuthState();
+  }
+
+  Future<void> _storeRefreshToken(String token) async {
+    try {
+      await _storage.write(key: _refreshTokenKey, value: token);
+    } catch (_) {}
+  }
+
+  Future<void> _deleteStoredToken() async {
+    try {
+      await _storage.delete(key: _refreshTokenKey);
+    } catch (_) {}
   }
 
   String _messageFromError(Object e, {required String fallback}) {

@@ -438,6 +438,25 @@ model User {
   registrationHistory     RegistrationHistory[]    @relation("RegistrationHistoryActor")
   consents                UserConsent[]
   uploadedFileAssets      FileAsset[]              @relation("FileAssetUploader")
+  refreshTokens           RefreshToken[]
+}
+
+model RefreshToken {
+  id           String    @id
+  userId       String
+  familyId     String
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  lastUsedAt   DateTime?
+  revokedAt    DateTime?
+  replacedById String?
+  userAgent    String?
+  ipAddress    String?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([familyId])
 }
 
 model ConsentTextVersion {

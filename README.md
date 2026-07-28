@@ -27,7 +27,9 @@ The root `vercel.json` now preserves `/api/*` routes so the deployed frontend ca
 ## Environment variables
 Common variables:
 - `DATABASE_URL`: PostgreSQL connection string for Prisma.
-- `JWT_SECRET` / `REFRESH_TOKEN_SECRET`: secrets for access/refresh token signing.
+- `ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET`: separate, long random secrets
+  for access and refresh token signing (`JWT_SECRET` remains a compatibility
+  alias for older installations).
 - `CORS_ORIGINS`: comma-separated origins allowed by the backend.
 - `API_BASE_URL`: optional override for the frontend API base URL.
 

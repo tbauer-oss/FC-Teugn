@@ -26,6 +26,24 @@ const {
   buildTransitionTeamPlans,
   nextAgeGroupCode,
 } = require('../dist/src/services/season-transition');
+const {
+  signAccessToken,
+  signRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+} = require('../dist/src/lib/jwt');
+
+test('access and refresh tokens use separate verifiable token classes', () => {
+  const access = signAccessToken({ id: 'user-1' }, '5m');
+  const refresh = signRefreshToken(
+    { sessionId: 'session-1', userId: 'user-1', familyId: 'family-1' },
+    '5m',
+  );
+  assert.equal(verifyAccessToken(access).id, 'user-1');
+  assert.equal(verifyRefreshToken(refresh).sessionId, 'session-1');
+  assert.throws(() => verifyRefreshToken(access));
+  assert.throws(() => verifyAccessToken(refresh));
+});
 
 test('club administrators can manage the organization', () => {
   assert.equal(
