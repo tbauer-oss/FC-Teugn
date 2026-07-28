@@ -2,8 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AccountStatus, Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
+import { prisma } from '../lib/prisma';
 
-const ACCESS_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access_secret';
+const ACCESS_SECRET =
+  process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || 'access_secret';
 
 export interface AuthUser {
   id: string;
@@ -57,20 +59,44 @@ export function requirePermission(permission: Permission) {
   };
 }
 
-export function requireApproved(req: Request, res: Response, next: NextFunction) {
+export async function requireApproved(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   if (!req.user) {
     return res.status(401).json({ message: 'No user in request' });
   }
 
+  let current;
+  try {
+    current = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { role: true, status: true, teamId: true },
+    });
+  } catch (error) {
+    next(error);
+    return;
+  }
+  if (!current) {
+    return res.status(401).json({ message: 'Account nicht gefunden.' });
+  }
+  req.user = {
+    id: req.user.id,
+    role: current.role as Role,
+    status: current.status as AccountStatus,
+    teamId: current.teamId,
+  };
+
   if (
-    req.user.status === AccountStatus.BLOCKED ||
-    req.user.status === AccountStatus.REJECTED ||
-    req.user.status === AccountStatus.ARCHIVED
+    current.status === AccountStatus.BLOCKED ||
+    current.status === AccountStatus.REJECTED ||
+    current.status === AccountStatus.ARCHIVED
   ) {
     return res.status(403).json({ message: 'Account not active' });
   }
 
-  if (req.user.status !== AccountStatus.APPROVED) {
+  if (current.status !== AccountStatus.APPROVED) {
     return res.status(403).json({ message: 'Account pending approval' });
   }
 

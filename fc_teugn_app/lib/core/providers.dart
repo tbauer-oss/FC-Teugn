@@ -10,7 +10,12 @@ import 'models/user.dart';
 
 final repositoryProvider = Provider<DataRepository>((ref) {
   final authState = ref.watch(authProvider);
-  final client = ApiClient(accessToken: authState.accessToken);
+  final controller = ref.read(authProvider.notifier);
+  final client = ApiClient(
+    accessToken: authState.accessToken,
+    refreshAccessToken: controller.refreshAccessToken,
+    onSessionExpired: controller.clearSession,
+  );
   return DataRepository(client);
 });
 
