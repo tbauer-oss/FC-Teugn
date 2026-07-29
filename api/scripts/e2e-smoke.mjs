@@ -203,7 +203,7 @@ assert(
 );
 
 // 8. Trainer nominiert den Kader.
-await request(
+const savedSquad = await request(
   `/matches/${match.id}/squad`,
   json('PUT', trainerToken, {
     name: 'E2E Spieltagskader',
@@ -214,6 +214,23 @@ await request(
       { playerId: 'player-3', status: 'NOMINATED', plannedMinutes: 30 },
     ],
   }),
+);
+assert(
+  savedSquad.members.length === 3 &&
+    savedSquad.members.some((member) => member.playerId === 'player-1') &&
+    savedSquad.members.some((member) => member.playerId === playerId) &&
+    savedSquad.members.some((member) => member.playerId === 'player-3'),
+  'The squad save response does not contain the selected players',
+);
+const matchAfterSquadSave = await request(`/matches/${match.id}`, {
+  headers: auth(trainerToken),
+});
+assert(
+  matchAfterSquadSave.squads[0]?.members.length === 3 &&
+    matchAfterSquadSave.squads[0].members.some(
+      (member) => member.playerId === playerId,
+    ),
+  'The saved squad is missing after reloading the match',
 );
 await request(`/matches/${match.id}/squad/publish`, {
   method: 'POST',

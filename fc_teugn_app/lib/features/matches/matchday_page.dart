@@ -182,6 +182,26 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     }
   }
 
+  Future<void> _applySavedSquad(MatchSquadModel squad) async {
+    if (!mounted || _match == null) return;
+    setState(() {
+      final current = _match!;
+      _match = MatchdayModel(
+        id: current.id,
+        title: current.title,
+        startAt: current.startAt,
+        meetingAt: current.meetingAt,
+        location: current.location,
+        teamId: current.teamId,
+        details: current.details,
+        squad: squad,
+        ticker: current.ticker,
+        eligiblePlayers: current.eligiblePlayers,
+        gameFormat: current.gameFormat,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -236,7 +256,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                     match: match,
                     allPlayers: _players,
                     editable: widget.staffView,
-                    onSaved: _load,
+                    onSaved: _applySavedSquad,
                     onReload: () => _load(refreshPlayers: true),
                   ),
                   _LineupTab(
@@ -440,7 +460,7 @@ class _SquadTab extends ConsumerStatefulWidget {
   final MatchdayModel match;
   final List<PlayerModel> allPlayers;
   final bool editable;
-  final Future<void> Function() onSaved;
+  final Future<void> Function(MatchSquadModel squad) onSaved;
   final Future<void> Function() onReload;
 
   @override
@@ -498,27 +518,46 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
     }
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '${_selected.length} von ${widget.allPlayers.length} '
-                'Spielern ausgewählt',
-                style: Theme.of(context).textTheme.titleMedium,
+        LayoutBuilder(
+          builder: (context, constraints) => Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: constraints.maxWidth > 900
+                    ? constraints.maxWidth - 650
+                    : constraints.maxWidth,
+                child: Text(
+                  '${_selected.length} von ${widget.allPlayers.length} '
+                  'Spielern ausgewählt',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
-            ),
-            OutlinedButton.icon(
-              onPressed: _saving ? null : _publish,
-              icon: const Icon(Icons.campaign_outlined),
-              label: const Text('Veröffentlichen'),
-            ),
-            const SizedBox(width: 10),
-            FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: const Icon(Icons.save_outlined),
-              label: const Text('Kader speichern'),
-            ),
-          ],
+              OutlinedButton.icon(
+                onPressed:
+                    _saving || widget.allPlayers.isEmpty ? null : _selectAll,
+                icon: const Icon(Icons.select_all_rounded),
+                label: const Text('Alle auswählen'),
+              ),
+              OutlinedButton.icon(
+                onPressed:
+                    _saving || _selected.isEmpty ? null : _deselectAll,
+                icon: const Icon(Icons.deselect_rounded),
+                label: const Text('Alle abwählen'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _publish,
+                icon: const Icon(Icons.campaign_outlined),
+                label: const Text('Veröffentlichen'),
+              ),
+              FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Kader speichern'),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         Expanded(
@@ -575,14 +614,23 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
     final repository = ref.read(repositoryProvider);
     setState(() => _saving = true);
     try {
-      await repository.saveMatchSquad(
+      final savedSquad = await repository.saveMatchSquad(
         eventId: widget.match.id,
         members: _selected.entries
             .map((item) => (playerId: item.key, status: item.value))
             .toList(),
       );
+      final requestedIds = _selected.keys.toSet();
+      final savedIds =
+          savedSquad.members.map((member) => member.player.id).toSet();
+      if (requestedIds.length != savedIds.length ||
+          !requestedIds.containsAll(savedIds)) {
+        throw StateError(
+          'Der gespeicherte Kader entspricht nicht der Auswahl.',
+        );
+      }
       if (!mounted) return false;
-      await widget.onSaved();
+      await widget.onSaved(savedSquad);
       if (mounted) _message('Kader wurde gespeichert.');
       return true;
     } catch (_) {
@@ -599,7 +647,7 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
     try {
       await repository.publishMatchSquad(widget.match.id);
       if (!mounted) return;
-      await widget.onSaved();
+      await widget.onReload();
       if (mounted) _message('Nominierung wurde veröffentlicht.');
     } catch (_) {
       if (mounted) _message('Nominierung konnte nicht veröffentlicht werden.');
@@ -608,6 +656,17 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
 
   void _message(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  void _selectAll() {
+    setState(() {
+      _selected = {
+        for (final player in widget.allPlayers)
+          player.id: NominationStatus.nominated,
+      };
+    });
+  }
+
+  void _deselectAll() => setState(_selected.clear);
 
   Map<String, NominationStatus> _selectionFrom(MatchdayModel match) => {
         for (final member
@@ -1485,7 +1544,9 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       );
       await widget.onChanged();
     } catch (_) {
-      if (mounted) _message('Die letzte Aktion konnte nicht rückgängig gemacht werden.');
+      if (mounted) {
+        _message('Die letzte Aktion konnte nicht rückgängig gemacht werden.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
