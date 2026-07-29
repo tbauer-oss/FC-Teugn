@@ -794,6 +794,64 @@ export async function deleteEvent(req: Request, res: Response) {
     return res.status(403).json({ message: 'Keine Berechtigung für die vollständige Termingruppe.' });
   }
   const scope = req.query.scope === 'series' ? 'series' : 'single';
+  const permanent = req.query.permanent === 'true';
+  if (permanent) {
+    if (user.role !== Role.SUPER_ADMIN) {
+      return res.status(403).json({
+        message: 'Nur die Systemadministration darf Termine und Spiele endgültig löschen.',
+      });
+    }
+    const deleted = await prisma.$transaction(async (tx) => {
+      const events = await tx.event.findMany({
+        where:
+          scope === 'series' && existing.seriesId
+            ? {
+                seriesId: existing.seriesId,
+                startAt: { gte: existing.startAt },
+              }
+            : { id: existing.id },
+        select: { id: true, type: true, title: true },
+      });
+      await tx.event.deleteMany({
+        where: { id: { in: events.map((event) => event.id) } },
+      });
+      if (scope === 'series' && existing.seriesId) {
+        const remaining = await tx.event.count({
+          where: { seriesId: existing.seriesId },
+        });
+        if (remaining === 0) {
+          await tx.eventSeries.delete({
+            where: { id: existing.seriesId },
+          });
+        }
+      }
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          teamId: existing.teamId,
+          action:
+            scope === 'series'
+              ? 'EVENT_SERIES_PERMANENTLY_DELETED'
+              : existing.type === EventType.MATCH
+                ? 'MATCH_PERMANENTLY_DELETED'
+                : 'EVENT_PERMANENTLY_DELETED',
+          entityType: existing.type === EventType.MATCH ? 'Match' : 'Event',
+          entityId: existing.id,
+          metadata: {
+            scope,
+            seriesId: existing.seriesId,
+            deletedEvents: events,
+          },
+        },
+      });
+      return events;
+    });
+    return res.json({
+      status: 'DELETED',
+      scope,
+      deletedCount: deleted.length,
+    });
+  }
   const reason = clean(req.body?.reason) ?? 'Abgesagt';
   const now = new Date();
   await prisma.$transaction(async (tx) => {

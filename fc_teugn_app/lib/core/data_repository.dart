@@ -532,6 +532,19 @@ class DataRepository {
     );
   }
 
+  Future<void> deleteEventPermanently({
+    required String eventId,
+    bool entireSeries = false,
+  }) async {
+    await client.dio.delete(
+      '/events/$eventId',
+      queryParameters: {
+        'scope': entireSeries ? 'series' : 'single',
+        'permanent': 'true',
+      },
+    );
+  }
+
   Future<void> setAttendance({
     required String eventId,
     required String playerId,
