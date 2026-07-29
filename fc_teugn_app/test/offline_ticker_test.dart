@@ -35,6 +35,8 @@ void main() {
       eventId: 'event-1',
       clientEventId: 'action-2',
       type: TickerEventType.homeGoal,
+      scorerId: 'player-9',
+      assistId: 'player-10',
       createdAt: DateTime.now().subtract(const Duration(seconds: 1)),
     );
     await queue.enqueue(first);
@@ -61,6 +63,14 @@ void main() {
     expect(
       (await queue.pending(userId: 'user-1')).single.clientEventId,
       'action-2',
+    );
+    expect(
+      (await queue.pending(userId: 'user-1')).single.scorerId,
+      'player-9',
+    );
+    expect(
+      (await queue.pending(userId: 'user-1')).single.assistId,
+      'player-10',
     );
 
     final retried = <String>[];
