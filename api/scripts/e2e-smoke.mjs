@@ -561,6 +561,11 @@ assert(finished.ticker.status === 'FINISHED', 'Match did not finish');
 const statistics = await request('/statistics', {
   headers: auth(trainerToken),
 });
+assert(
+  statistics.selectedSeason === null &&
+    statistics.seasons.some((season) => season.isActive),
+  'Statistics does not expose the overall scope and available seasons',
+);
 const matchStatistic = statistics.matches.find((item) => item.id === match.id);
 assert(matchStatistic, 'Finished match is missing from statistics');
 assert(
@@ -578,12 +583,39 @@ assert(
   assistStatistic?.assists >= 1,
   'Ticker assist was not added to the player statistics',
 );
+assert(
+  scorerStatistic?.career?.goals >= scorerStatistic?.goals,
+  'Overall player totals are missing from the statistics response',
+);
+const activeSeason = statistics.seasons.find((season) => season.isActive);
+const seasonStatistics = await request(
+  `/statistics?seasonId=${encodeURIComponent(activeSeason.id)}`,
+  { headers: auth(trainerToken) },
+);
+const seasonScorer = seasonStatistics.players.find(
+  (item) => item.id === playerId,
+);
+assert(
+  seasonStatistics.selectedSeason?.id === activeSeason.id &&
+    seasonScorer?.goals >= 1 &&
+    seasonScorer?.career?.goals >= seasonScorer?.goals,
+  'Season statistics or the career comparison are incomplete',
+);
 const scorerProfile = await request(`/players/${playerId}`, {
   headers: auth(trainerToken),
 });
 assert(
   scorerProfile.statistics?.goals >= 1,
   'Ticker goals are missing from the player profile',
+);
+assert(
+  scorerProfile.statisticsBySeason?.some(
+    (season) =>
+      season.seasonId === activeSeason.id &&
+      season.goals >= 1 &&
+      season.appearances >= 1,
+  ),
+  'Player profile is missing its per-season statistics',
 );
 
 // 16. Vereinspersonal kann den Liveticker vollständig zurücksetzen.

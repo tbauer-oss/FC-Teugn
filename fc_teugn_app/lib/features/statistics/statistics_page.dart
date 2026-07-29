@@ -14,10 +14,12 @@ class StatisticsPage extends ConsumerStatefulWidget {
 }
 
 class _StatisticsPageState extends ConsumerState<StatisticsPage> {
+  static const _allSeasons = '__all_seasons__';
+
   StatisticsOverview? _overview;
   bool _loading = true;
   String? _error;
-  String _range = 'Saison';
+  String? _seasonId;
 
   @override
   void initState() {
@@ -31,15 +33,8 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
       _error = null;
     });
     try {
-      final now = DateTime.now();
-      final from = switch (_range) {
-        '90 Tage' => now.subtract(const Duration(days: 90)),
-        'Jahr' => DateTime(now.year),
-        _ => DateTime(now.month >= 7 ? now.year : now.year - 1, 7),
-      };
       final overview = await ref.read(repositoryProvider).statistics(
-            from: from,
-            to: now.add(const Duration(days: 1)),
+            seasonId: _seasonId,
           );
       if (!mounted) return;
       setState(() {
@@ -58,7 +53,8 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
   @override
   Widget build(BuildContext context) => PageScaffold(
         title: 'Statistiken',
-        subtitle: 'Automatisch aus Spielen, Aufstellungen und Liveticker berechnet.',
+        subtitle:
+            'Automatisch aus Spielen, Aufstellungen und Liveticker berechnet.',
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null || _overview == null
@@ -72,31 +68,85 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
 
   Widget _content(BuildContext context, StatisticsOverview overview) {
     final team = overview.team;
-    return ListView(
+    final selectedLabel = overview.selectedSeason?.name ?? 'Gesamt';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'Saison', label: Text('Saison')),
-                  ButtonSegment(value: '90 Tage', label: Text('90 Tage')),
-                  ButtonSegment(value: 'Jahr', label: Text('Kalenderjahr')),
-                ],
-                selected: {_range},
-                onSelectionChanged: (value) {
-                  _range = value.first;
-                  _load();
-                },
-              ),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final selector = DropdownButtonFormField<String>(
+                  initialValue: _seasonId ?? _allSeasons,
+                  decoration: const InputDecoration(
+                    labelText: 'Auswertungszeitraum',
+                    prefixIcon: Icon(Icons.calendar_month_rounded),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: _allSeasons,
+                      child: Text('Gesamt – alle Saisons'),
+                    ),
+                    for (final season in overview.seasons)
+                      DropdownMenuItem<String>(
+                        value: season.id,
+                        child: Text(
+                          '${season.name}${season.isActive ? ' · aktiv' : ''}',
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    final seasonId = value == _allSeasons ? null : value;
+                    if (seasonId == _seasonId) return;
+                    setState(() => _seasonId = seasonId);
+                    _load();
+                  },
+                );
+                final summary = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      selectedLabel,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      overview.selectedSeason == null
+                          ? 'Vereins- und Spielerwerte über alle verfügbaren Saisons'
+                          : 'Saisonwerte mit direktem Vergleich zur Gesamtstatistik',
+                      style: const TextStyle(color: AppColors.muted),
+                    ),
+                  ],
+                );
+                final reload = IconButton.filledTonal(
+                  onPressed: _load,
+                  tooltip: 'Neu laden',
+                  icon: const Icon(Icons.refresh_rounded),
+                );
+                if (constraints.maxWidth < 680) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      summary,
+                      const SizedBox(height: 14),
+                      selector,
+                      const SizedBox(height: 8),
+                      Align(alignment: Alignment.centerRight, child: reload),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: summary),
+                    SizedBox(width: 300, child: selector),
+                    const SizedBox(width: 10),
+                    reload,
+                  ],
+                );
+              },
             ),
-            const SizedBox(width: 12),
-            IconButton.filledTonal(
-              onPressed: _load,
-              tooltip: 'Neu laden',
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          ],
+          ),
         ),
         const SizedBox(height: 18),
         Wrap(
@@ -104,7 +154,7 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
           runSpacing: 12,
           children: [
             _MetricCard(
-              label: 'Spiele',
+              label: 'Spiele · $selectedLabel',
               value: '${team.matches}',
               icon: Icons.sports_soccer_rounded,
             ),
@@ -138,10 +188,15 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
         LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 900;
-            final matchList = _MatchHistory(matches: overview.matches);
+            final matchList = _MatchHistory(
+              matches: overview.matches,
+              scopeLabel: selectedLabel,
+            );
             final playerList = _PlayerStatistics(
               players: overview.players,
               ownOnly: overview.individualScope == 'OWN_PLAYERS',
+              scopeLabel: selectedLabel,
+              showCareer: overview.selectedSeason != null,
             );
             return wide
                 ? Row(
@@ -194,7 +249,8 @@ class _MetricCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(value, style: Theme.of(context).textTheme.headlineSmall),
+                    Text(value,
+                        style: Theme.of(context).textTheme.headlineSmall),
                     Text(label, style: const TextStyle(color: AppColors.muted)),
                   ],
                 ),
@@ -217,7 +273,8 @@ class _FormCard extends StatelessWidget {
             children: [
               const Icon(Icons.timeline_rounded, color: AppColors.blue),
               const SizedBox(width: 12),
-              Text('Letzte Form', style: Theme.of(context).textTheme.titleMedium),
+              Text('Letzte Form',
+                  style: Theme.of(context).textTheme.titleMedium),
               const Spacer(),
               if (form.isEmpty)
                 const Text('Noch keine beendeten Spiele')
@@ -233,7 +290,11 @@ class _FormCard extends StatelessWidget {
                         _ => Colors.blueGrey,
                       },
                       child: Text(
-                        result == 'WIN' ? 'S' : result == 'LOSS' ? 'N' : 'U',
+                        result == 'WIN'
+                            ? 'S'
+                            : result == 'LOSS'
+                                ? 'N'
+                                : 'U',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w800,
@@ -248,8 +309,9 @@ class _FormCard extends StatelessWidget {
 }
 
 class _MatchHistory extends StatelessWidget {
-  const _MatchHistory({required this.matches});
+  const _MatchHistory({required this.matches, required this.scopeLabel});
   final List<MatchResultStatistic> matches;
+  final String scopeLabel;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -258,12 +320,16 @@ class _MatchHistory extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Ergebnisse', style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'Ergebnisse · $scopeLabel',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 10),
               if (matches.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 28),
-                  child: Center(child: Text('Noch keine Ergebnisse im Zeitraum')),
+                  child:
+                      Center(child: Text('Noch keine Ergebnisse im Zeitraum')),
                 )
               else
                 for (final match in matches.take(10))
@@ -276,7 +342,11 @@ class _MatchHistory extends StatelessWidget {
                               ? Colors.deepOrange.withValues(alpha: .12)
                               : Colors.blueGrey.withValues(alpha: .12),
                       child: Text(
-                        match.result == 'WIN' ? 'S' : match.result == 'LOSS' ? 'N' : 'U',
+                        match.result == 'WIN'
+                            ? 'S'
+                            : match.result == 'LOSS'
+                                ? 'N'
+                                : 'U',
                       ),
                     ),
                     title: Text('${match.isHome ? '' : '@ '}${match.opponent}'),
@@ -293,9 +363,16 @@ class _MatchHistory extends StatelessWidget {
 }
 
 class _PlayerStatistics extends StatelessWidget {
-  const _PlayerStatistics({required this.players, required this.ownOnly});
+  const _PlayerStatistics({
+    required this.players,
+    required this.ownOnly,
+    required this.scopeLabel,
+    required this.showCareer,
+  });
   final List<PlayerSeasonStatistic> players;
   final bool ownOnly;
+  final String scopeLabel;
+  final bool showCareer;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -305,7 +382,9 @@ class _PlayerStatistics extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                ownOnly ? 'Persönliche Übersicht' : 'Kaderübersicht',
+                ownOnly
+                    ? 'Persönliche Übersicht · $scopeLabel'
+                    : 'Kaderübersicht · $scopeLabel',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 4),
@@ -319,7 +398,8 @@ class _PlayerStatistics extends StatelessWidget {
               if (players.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 28),
-                  child: Center(child: Text('Noch keine Spielerdaten berechnet')),
+                  child:
+                      Center(child: Text('Noch keine Spielerdaten berechnet')),
                 )
               else
                 for (final player in players)
@@ -330,7 +410,13 @@ class _PlayerStatistics extends StatelessWidget {
                     ),
                     title: Text(player.name),
                     subtitle: Text(
-                      '${player.appearances} Einsätze · ${player.starts} Startelf · ${player.minutes} Min.',
+                      [
+                        '${player.appearances} Einsätze · ${player.starts} Startelf · ${player.minutes} Min.',
+                        if (showCareer && player.career != null)
+                          'Gesamt: ${player.career!.appearances} Einsätze · '
+                              '${player.career!.goals} Tore · '
+                              '${player.career!.assists} Assists',
+                      ].join('\n'),
                     ),
                     trailing: Text(
                       '${player.goals} T · ${player.assists} V',

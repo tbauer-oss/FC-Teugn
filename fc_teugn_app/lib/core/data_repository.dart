@@ -810,6 +810,7 @@ class DataRepository {
     List<String> teamIds = const [],
     String? competition,
     String? kind,
+    String? seasonId,
   }) async {
     final res = await client.dio.get('/statistics', queryParameters: {
       if (from != null) 'from': from.toUtc().toIso8601String(),
@@ -817,6 +818,7 @@ class DataRepository {
       if (teamIds.isNotEmpty) 'teamIds': teamIds.join(','),
       if (competition?.trim().isNotEmpty == true) 'competition': competition,
       if (kind?.trim().isNotEmpty == true) 'kind': kind,
+      if (seasonId?.trim().isNotEmpty == true) 'seasonId': seasonId,
     });
     return StatisticsOverview.fromJson(res.data as Map<String, dynamic>);
   }

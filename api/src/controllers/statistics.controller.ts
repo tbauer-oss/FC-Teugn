@@ -25,13 +25,90 @@ function date(value: unknown) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+type PlayerStatisticRow = {
+  id: string;
+  name: string;
+  shirtNumber: number | null;
+  appearances: number;
+  starts: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+};
+
+type PlayerIdentity = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  preferredName: string | null;
+  shirtNumber: number | null;
+};
+
+function emptyPlayerStatistic(player: PlayerIdentity): PlayerStatisticRow {
+  return {
+    id: player.id,
+    name: player.preferredName || `${player.firstName} ${player.lastName}`,
+    shirtNumber: player.shirtNumber,
+    appearances: 0,
+    starts: 0,
+    minutes: 0,
+    goals: 0,
+    assists: 0,
+  };
+}
+
 export async function statisticsOverview(req: Request, res: Response) {
   const user = req.user!;
   const accessible = await accessibleTeamIds(user);
+  const accessibleTeams = await prisma.team.findMany({
+    where: { id: { in: accessible } },
+    select: {
+      id: true,
+      ageGroup: {
+        select: {
+          season: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+              isActive: true,
+            },
+          },
+        },
+      },
+    },
+  });
   const requestedTeams = String(req.query.teamIds ?? '')
     .split(',')
     .filter((id) => accessible.includes(id));
-  const teamIds = requestedTeams.length ? requestedTeams : accessible;
+  const baseTeamIds = requestedTeams.length ? requestedTeams : accessible;
+  const availableSeasons = [
+    ...new Map(
+      accessibleTeams
+        .filter((team) => baseTeamIds.includes(team.id))
+        .map((team) => {
+          const season = team.ageGroup.season;
+          return [season.id, season] as const;
+        }),
+    ).values(),
+  ].sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+  const requestedSeasonId = String(req.query.seasonId ?? '').trim();
+  const selectedSeason = requestedSeasonId
+    ? availableSeasons.find((season) => season.id === requestedSeasonId)
+    : null;
+  if (requestedSeasonId && !selectedSeason) {
+    return res.status(400).json({ message: 'Die ausgewählte Saison ist nicht verfügbar.' });
+  }
+  const teamIds = selectedSeason
+    ? accessibleTeams
+        .filter(
+          (team) =>
+            baseTeamIds.includes(team.id) &&
+            team.ageGroup.season.id === selectedSeason.id,
+        )
+        .map((team) => team.id)
+    : baseTeamIds;
   const from = date(req.query.from);
   const to = date(req.query.to);
   const competition = String(req.query.competition ?? '').trim();
@@ -116,34 +193,12 @@ export async function statisticsOverview(req: Request, res: Response) {
   )
     ? null
     : new Set(await ownPlayerIds(user));
-  const aggregated = new Map<
-    string,
-    {
-      id: string;
-      name: string;
-      shirtNumber: number | null;
-      appearances: number;
-      starts: number;
-      minutes: number;
-      goals: number;
-      assists: number;
-    }
-  >();
+  const aggregated = new Map<string, PlayerStatisticRow>();
   for (const match of matches) {
     for (const stat of match.playerMatchStats) {
       if (allowedPlayerIds && !allowedPlayerIds.has(stat.playerId)) continue;
-      const current = aggregated.get(stat.playerId) ?? {
-        id: stat.playerId,
-        name:
-          stat.player.preferredName ||
-          `${stat.player.firstName} ${stat.player.lastName}`,
-        shirtNumber: stat.player.shirtNumber,
-        appearances: 0,
-        starts: 0,
-        minutes: 0,
-        goals: 0,
-        assists: 0,
-      };
+      const current =
+        aggregated.get(stat.playerId) ?? emptyPlayerStatistic(stat.player);
       current.appearances += stat.appeared ? 1 : 0;
       current.starts += stat.started ? 1 : 0;
       current.minutes += stat.minutesPlayed;
@@ -186,25 +241,9 @@ export async function statisticsOverview(req: Request, res: Response) {
       },
     },
   });
-  const ensurePlayer = (
-    player: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      preferredName: string | null;
-      shirtNumber: number | null;
-    },
-  ) => {
-    const current = aggregated.get(player.id) ?? {
-      id: player.id,
-      name: player.preferredName || `${player.firstName} ${player.lastName}`,
-      shirtNumber: player.shirtNumber,
-      appearances: 0,
-      starts: 0,
-      minutes: 0,
-      goals: 0,
-      assists: 0,
-    };
+  const ensurePlayer = (player: PlayerIdentity) => {
+    const current =
+      aggregated.get(player.id) ?? emptyPlayerStatistic(player);
     aggregated.set(player.id, current);
     return current;
   };
@@ -216,6 +255,131 @@ export async function statisticsOverview(req: Request, res: Response) {
       ensurePlayer(event.assist).assists += 1;
     }
   }
+
+  const careerMatchStats = await prisma.playerMatchStatistic.findMany({
+    where: {
+      event: {
+        type: EventType.MATCH,
+        ...eventTeamScope(baseTeamIds),
+        matchDetails: {
+          is: {
+            status: {
+              in: [
+                MatchStatus.LIVE,
+                MatchStatus.HALF_TIME,
+                MatchStatus.INTERRUPTED,
+                MatchStatus.FINISHED,
+                MatchStatus.RECORDED,
+              ],
+            },
+          },
+        },
+      },
+      ...(allowedPlayerIds ? { playerId: { in: [...allowedPlayerIds] } } : {}),
+    },
+    include: {
+      player: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          shirtNumber: true,
+        },
+      },
+    },
+  });
+  const career = new Map<string, PlayerStatisticRow>();
+  for (const stat of careerMatchStats) {
+    const current =
+      career.get(stat.playerId) ?? emptyPlayerStatistic(stat.player);
+    current.appearances += stat.appeared ? 1 : 0;
+    current.starts += stat.started ? 1 : 0;
+    current.minutes += stat.minutesPlayed;
+    career.set(stat.playerId, current);
+  }
+  const careerGoalEvents = await prisma.liveTickerEvent.findMany({
+    where: {
+      revokedAt: null,
+      type: { in: [TickerEventType.HOME_GOAL, TickerEventType.AWAY_GOAL] },
+      ticker: {
+        event: {
+          type: EventType.MATCH,
+          ...eventTeamScope(baseTeamIds),
+        },
+      },
+      ...(allowedPlayerIds
+        ? {
+            OR: [
+              { scorerId: { in: [...allowedPlayerIds] } },
+              { assistId: { in: [...allowedPlayerIds] } },
+            ],
+          }
+        : {}),
+    },
+    include: {
+      scorer: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          shirtNumber: true,
+        },
+      },
+      assist: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          shirtNumber: true,
+        },
+      },
+    },
+  });
+  const ensureCareerPlayer = (player: PlayerIdentity) => {
+    const current = career.get(player.id) ?? emptyPlayerStatistic(player);
+    career.set(player.id, current);
+    return current;
+  };
+  for (const event of careerGoalEvents) {
+    if (event.scorer && (!allowedPlayerIds || allowedPlayerIds.has(event.scorer.id))) {
+      ensureCareerPlayer(event.scorer).goals += 1;
+    }
+    if (event.assist && (!allowedPlayerIds || allowedPlayerIds.has(event.assist.id))) {
+      ensureCareerPlayer(event.assist).assists += 1;
+    }
+  }
+  if (!selectedSeason && !from && !to) {
+    for (const [playerId, statistic] of career) {
+      aggregated.set(playerId, { ...statistic });
+    }
+  }
+  const players = [...new Set([...aggregated.keys(), ...career.keys()])]
+    .map((playerId) => {
+      const careerStatistic = career.get(playerId);
+      const scoped =
+        aggregated.get(playerId) ??
+        {
+          ...careerStatistic!,
+          appearances: 0,
+          starts: 0,
+          minutes: 0,
+          goals: 0,
+          assists: 0,
+        };
+      return {
+        ...scoped,
+        career: careerStatistic ?? scoped,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.appearances - a.appearances ||
+        b.goals - a.goals ||
+        a.name.localeCompare(b.name),
+    );
 
   const trainingAttendance = await prisma.attendance.groupBy({
     by: ['playerId', 'actualAttendance'],
@@ -239,12 +403,19 @@ export async function statisticsOverview(req: Request, res: Response) {
   });
 
   return res.json({
-    filters: { teamIds, from, to, competition: competition || null, kind: kindFilter },
+    filters: {
+      teamIds,
+      from,
+      to,
+      competition: competition || null,
+      kind: kindFilter,
+      seasonId: selectedSeason?.id ?? null,
+    },
+    seasons: availableSeasons,
+    selectedSeason: selectedSeason ?? null,
     team: teamSummary,
     matches: matchRows.reverse(),
-    players: [...aggregated.values()].sort(
-      (a, b) => b.appearances - a.appearances || a.name.localeCompare(b.name),
-    ),
+    players,
     trainingAttendance,
     privacy: {
       individualScope: allowedPlayerIds ? 'OWN_PLAYERS' : 'ASSIGNED_TEAMS',

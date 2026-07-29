@@ -26,14 +26,40 @@ void main() {
           'minutes': 180,
           'goals': 2,
           'assists': 1,
+          'career': {
+            'appearances': 12,
+            'starts': 10,
+            'minutes': 580,
+            'goals': 7,
+            'assists': 4,
+          },
         },
       ],
       'matches': [],
+      'seasons': [
+        {
+          'id': 'season-2026',
+          'name': '2026/27',
+          'startDate': '2026-07-01T00:00:00.000Z',
+          'endDate': '2027-06-30T23:59:59.000Z',
+          'isActive': true,
+        },
+      ],
+      'selectedSeason': {
+        'id': 'season-2026',
+        'name': '2026/27',
+        'startDate': '2026-07-01T00:00:00.000Z',
+        'endDate': '2027-06-30T23:59:59.000Z',
+        'isActive': true,
+      },
       'privacy': {'individualScope': 'OWN_PLAYERS'},
     });
 
     expect(overview.team.winRate, 50);
     expect(overview.players.single.goals, 2);
+    expect(overview.players.single.career?.goals, 7);
+    expect(overview.selectedSeason?.name, '2026/27');
+    expect(overview.seasons.single.isActive, isTrue);
     expect(overview.individualScope, 'OWN_PLAYERS');
   });
 

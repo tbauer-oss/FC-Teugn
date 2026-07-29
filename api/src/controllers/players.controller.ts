@@ -36,37 +36,179 @@ const publicPlayerSelect = {
     },
   },
   matchStatistics: {
-    select: { goals: true, assists: true, appeared: true },
+    select: {
+      goals: true,
+      assists: true,
+      appeared: true,
+      started: true,
+      minutesPlayed: true,
+      event: {
+        select: {
+          team: {
+            select: {
+              ageGroup: {
+                select: {
+                  season: {
+                    select: { id: true, name: true, startDate: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   },
   tickerGoals: {
     where: {
       revokedAt: null,
       type: { in: statisticGoalTypes },
     },
-    select: { id: true },
+    select: {
+      id: true,
+      ticker: {
+        select: {
+          event: {
+            select: {
+              team: {
+                select: {
+                  ageGroup: {
+                    select: {
+                      season: {
+                        select: { id: true, name: true, startDate: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   },
   tickerAssists: {
     where: {
       revokedAt: null,
       type: { in: statisticGoalTypes },
     },
-    select: { id: true },
+    select: {
+      id: true,
+      ticker: {
+        select: {
+          event: {
+            select: {
+              team: {
+                select: {
+                  ageGroup: {
+                    select: {
+                      season: {
+                        select: { id: true, name: true, startDate: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   },
 } as const;
 
+type PlayerStatisticSeason = {
+  id: string;
+  name: string;
+  startDate: Date;
+};
+
+type PlayerMatchStatisticForCareer = {
+  appeared: boolean;
+  started: boolean;
+  minutesPlayed: number;
+  event: {
+    team: {
+      ageGroup: {
+        season: PlayerStatisticSeason;
+      };
+    };
+  };
+};
+
+type PlayerTickerStatisticForCareer = {
+  id: string;
+  ticker: {
+    event: {
+      team: {
+        ageGroup: {
+          season: PlayerStatisticSeason;
+        };
+      };
+    };
+  };
+};
+
 function withCareerStatistics<T extends {
-  matchStatistics: Array<{ goals: number; assists: number; appeared: boolean }>;
-  tickerGoals: Array<{ id: string }>;
-  tickerAssists: Array<{ id: string }>;
+  matchStatistics: PlayerMatchStatisticForCareer[];
+  tickerGoals: PlayerTickerStatisticForCareer[];
+  tickerAssists: PlayerTickerStatisticForCareer[];
 }>(player: T) {
   const { matchStatistics, tickerGoals, tickerAssists, ...data } = player;
+  const bySeason = new Map<
+    string,
+    {
+      seasonId: string;
+      seasonName: string;
+      seasonStart: Date;
+      goals: number;
+      assists: number;
+      appearances: number;
+      starts: number;
+      minutes: number;
+    }
+  >();
+  const ensureSeason = (season: PlayerStatisticSeason) => {
+    const current = bySeason.get(season.id) ?? {
+      seasonId: season.id,
+      seasonName: season.name,
+      seasonStart: season.startDate,
+      goals: 0,
+      assists: 0,
+      appearances: 0,
+      starts: 0,
+      minutes: 0,
+    };
+    bySeason.set(season.id, current);
+    return current;
+  };
+  for (const statistic of matchStatistics) {
+    const current = ensureSeason(statistic.event.team.ageGroup.season);
+    current.appearances += statistic.appeared ? 1 : 0;
+    current.starts += statistic.started ? 1 : 0;
+    current.minutes += statistic.minutesPlayed;
+  }
+  for (const goal of tickerGoals) {
+    ensureSeason(goal.ticker.event.team.ageGroup.season).goals += 1;
+  }
+  for (const assist of tickerAssists) {
+    ensureSeason(assist.ticker.event.team.ageGroup.season).assists += 1;
+  }
   return {
     ...data,
     statistics: {
       goals: tickerGoals.length,
       assists: tickerAssists.length,
       appearances: matchStatistics.filter((item) => item.appeared).length,
+      starts: matchStatistics.filter((item) => item.started).length,
+      minutes: matchStatistics.reduce(
+        (sum, item) => sum + item.minutesPlayed,
+        0,
+      ),
     },
+    statisticsBySeason: [...bySeason.values()]
+      .sort((a, b) => b.seasonStart.getTime() - a.seasonStart.getTime())
+      .map(({ seasonStart, ...statistic }) => statistic),
   };
 }
 
