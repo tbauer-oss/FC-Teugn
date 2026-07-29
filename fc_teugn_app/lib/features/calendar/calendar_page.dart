@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/meeting_time.dart';
 import '../../core/models/emergency.dart';
 import '../../core/models/event.dart';
 import '../../core/models/organization.dart';
@@ -2714,6 +2715,8 @@ class EventEditorDialog extends StatefulWidget {
   State<EventEditorDialog> createState() => _EventEditorDialogState();
 }
 
+enum _MeetingTimeMode { beforeKickoff, exactTime }
+
 class _EventEditorDialogState extends State<EventEditorDialog> {
   final formKey = GlobalKey<FormState>();
   late final TextEditingController title;
@@ -2740,6 +2743,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   late DateTime startAt;
   DateTime? endAt;
   DateTime? meetingAt;
+  late _MeetingTimeMode meetingTimeMode;
+  int meetingMinutesBefore = 30;
   DateTime? responseDeadline;
   late Set<String> teamIds;
   bool carpoolRequired = false;
@@ -2784,6 +2789,11 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         DateTime.now().add(const Duration(days: 1, hours: 1));
     endAt = event?.endAt ?? startAt.add(const Duration(hours: 1, minutes: 30));
     meetingAt = event?.meetingAt;
+    final savedMeetingOffset = standardMeetingOffset(startAt, meetingAt);
+    meetingTimeMode = meetingAt == null || savedMeetingOffset != null
+        ? _MeetingTimeMode.beforeKickoff
+        : _MeetingTimeMode.exactTime;
+    meetingMinutesBefore = savedMeetingOffset ?? 30;
     responseDeadline = event?.responseDeadline;
     teamIds = event == null
         ? {widget.initialTeamId}
@@ -2879,8 +2889,9 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       _DateTimeField(
                         label: 'Beginn',
                         value: startAt,
-                        onChanged: (value) =>
-                            setState(() => startAt = value ?? startAt),
+                        onChanged: (value) => setState(() {
+                          startAt = value ?? startAt;
+                        }),
                       ),
                       const SizedBox(height: 12),
                       _DateTimeField(
@@ -2890,12 +2901,35 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                         onChanged: (value) => setState(() => endAt = value),
                       ),
                       const SizedBox(height: 12),
-                      _DateTimeField(
-                        label: 'Treffpunktzeit',
-                        value: meetingAt,
-                        allowClear: true,
-                        onChanged: (value) => setState(() => meetingAt = value),
-                      ),
+                      if (category.isMatch)
+                        _MatchMeetingTimeField(
+                          mode: meetingTimeMode,
+                          minutesBefore: meetingMinutesBefore,
+                          startAt: startAt,
+                          exactMeetingAt: meetingAt,
+                          onModeChanged: (value) => setState(() {
+                            meetingTimeMode = value;
+                            if (value == _MeetingTimeMode.exactTime) {
+                              meetingAt ??= meetingTimeBefore(
+                                startAt,
+                                meetingMinutesBefore,
+                              );
+                            }
+                          }),
+                          onMinutesChanged: (value) => setState(() {
+                            meetingMinutesBefore = value;
+                          }),
+                          onExactTimeChanged: (value) =>
+                              setState(() => meetingAt = value),
+                        )
+                      else
+                        _DateTimeField(
+                          label: 'Treffpunktzeit',
+                          value: meetingAt,
+                          allowClear: true,
+                          onChanged: (value) =>
+                              setState(() => meetingAt = value),
+                        ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: location,
@@ -3261,7 +3295,10 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         title: title.text.trim(),
         startAt: startAt,
         endAt: endAt,
-        meetingAt: meetingAt,
+        meetingAt: category.isMatch &&
+                meetingTimeMode == _MeetingTimeMode.beforeKickoff
+            ? meetingTimeBefore(startAt, meetingMinutesBefore)
+            : meetingAt,
         location: location.text.trim(),
         teamIds: teamIds.toList(),
         address: _optional(address),
@@ -3294,6 +3331,89 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
               )
             : null,
       ),
+    );
+  }
+}
+
+class _MatchMeetingTimeField extends StatelessWidget {
+  const _MatchMeetingTimeField({
+    required this.mode,
+    required this.minutesBefore,
+    required this.startAt,
+    required this.exactMeetingAt,
+    required this.onModeChanged,
+    required this.onMinutesChanged,
+    required this.onExactTimeChanged,
+  });
+
+  final _MeetingTimeMode mode;
+  final int minutesBefore;
+  final DateTime startAt;
+  final DateTime? exactMeetingAt;
+  final ValueChanged<_MeetingTimeMode> onModeChanged;
+  final ValueChanged<int> onMinutesChanged;
+  final ValueChanged<DateTime?> onExactTimeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final calculatedMeetingAt = meetingTimeBefore(startAt, minutesBefore);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Treffpunkt',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<_MeetingTimeMode>(
+          segments: const [
+            ButtonSegment(
+              value: _MeetingTimeMode.beforeKickoff,
+              icon: Icon(Icons.timer_outlined),
+              label: Text('Vor Spielbeginn'),
+            ),
+            ButtonSegment(
+              value: _MeetingTimeMode.exactTime,
+              icon: Icon(Icons.schedule_rounded),
+              label: Text('Feste Uhrzeit'),
+            ),
+          ],
+          selected: {mode},
+          showSelectedIcon: false,
+          onSelectionChanged: (selection) =>
+              onModeChanged(selection.first),
+        ),
+        const SizedBox(height: 12),
+        if (mode == _MeetingTimeMode.beforeKickoff)
+          DropdownButtonFormField<int>(
+            initialValue: minutesBefore,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'Abstand vor Spielbeginn',
+              helperText:
+                  'Treffpunkt: ${_fullDate(calculatedMeetingAt)} · '
+                  '${_time(calculatedMeetingAt)} Uhr',
+              prefixIcon: const Icon(Icons.notifications_active_outlined),
+            ),
+            items: [
+              for (final minutes in meetingOffsetOptions)
+                DropdownMenuItem(
+                  value: minutes,
+                  child: Text(_meetingOffsetLabel(minutes)),
+                ),
+            ],
+            onChanged: (value) {
+              if (value != null) onMinutesChanged(value);
+            },
+          )
+        else
+          _DateTimeField(
+            label: 'Treffpunktzeit',
+            value: exactMeetingAt,
+            allowClear: true,
+            onChanged: onExactTimeChanged,
+          ),
+      ],
     );
   }
 }
@@ -3749,6 +3869,16 @@ bool _sameDay(DateTime first, DateTime second) =>
 
 String _time(DateTime value) =>
     '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+
+String _meetingOffsetLabel(int minutes) {
+  if (minutes < 60) return '$minutes Minuten vor Spielbeginn';
+  final hours = minutes ~/ 60;
+  final remainingMinutes = minutes % 60;
+  final hourLabel = hours == 1 ? '1 Stunde' : '$hours Stunden';
+  return remainingMinutes == 0
+      ? '$hourLabel vor Spielbeginn'
+      : '$hourLabel $remainingMinutes Minuten vor Spielbeginn';
+}
 
 String _fullDate(DateTime value) =>
     '${_weekday(value)}, ${value.day}. ${_month(value.month)} ${value.year}';
