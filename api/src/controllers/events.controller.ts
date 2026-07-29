@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import {
   AccountStatus,
@@ -522,7 +522,11 @@ export async function createEvent(req: Request, res: Response) {
   if (!teamIds) {
     return res.status(403).json({ message: 'Mindestens eine erlaubte Mannschaft auswählen.' });
   }
-  const attachments = Array.isArray(req.body.attachments)
+  const attachments: Array<{
+    name: string;
+    url: string;
+    mimeType: string | null;
+  }> = Array.isArray(req.body.attachments)
     ? req.body.attachments
         .map((value: unknown) => {
           const item = value as Record<string, unknown>;
@@ -559,6 +563,12 @@ export async function createEvent(req: Request, res: Response) {
     frequency && recurrenceUntil
       ? generateOccurrences(data.startAt, recurrenceUntil, frequency, interval, weekdays)
       : [data.startAt];
+  if (starts.length === 0) {
+    return res.status(400).json({
+      message:
+        'In diesem Zeitraum liegt kein Termin auf den ausgewählten Wochentagen.',
+    });
+  }
   const duration = data.endAt ? data.endAt.getTime() - data.startAt.getTime() : null;
   const meetingOffset = data.meetingAt
     ? data.meetingAt.getTime() - data.startAt.getTime()
@@ -584,38 +594,48 @@ export async function createEvent(req: Request, res: Response) {
             },
           })
         : null;
-    const ids: string[] = [];
-    for (const startAt of starts) {
-      const event = await tx.event.create({
-        data: {
-          ...safeData,
-          teamId: teamIds[0],
-          seriesId: series?.id,
-          startAt,
-          endAt: duration === null ? null : new Date(startAt.getTime() + duration),
-          meetingAt:
-            meetingOffset === null ? null : new Date(startAt.getTime() + meetingOffset),
-          targetTeams: {
-            create: teamIds.map((teamId) => ({ teamId })),
-          },
-          attachments: {
-            create: attachments,
-          },
-          ...(data.type === EventType.MATCH && timing
-            ? {
-                matchDetails: {
-                  create: {
-                    opponent: data.opponent ?? 'Unbekannt',
-                    isHome: data.homeAway !== HomeAway.AWAY,
-                    ...timing,
-                  },
-                },
-              }
-            : {}),
-        },
+    const events: Prisma.EventCreateManyInput[] = starts.map((startAt) => ({
+      ...safeData,
+      id: randomUUID(),
+      teamId: teamIds[0],
+      seriesId: series?.id ?? null,
+      title: data.title!,
+      startAt,
+      location: data.location!,
+      endAt: duration === null ? null : new Date(startAt.getTime() + duration),
+      meetingAt:
+        meetingOffset === null ? null : new Date(startAt.getTime() + meetingOffset),
+    }));
+    await tx.event.createMany({ data: events });
+    await tx.eventTargetTeam.createMany({
+      data: events.flatMap((event) =>
+        teamIds.map((teamId) => ({
+          eventId: event.id!,
+          teamId,
+        })),
+      ),
+    });
+    if (attachments.length > 0) {
+      await tx.eventAttachment.createMany({
+        data: events.flatMap((event) =>
+          attachments.map((attachment) => ({
+            eventId: event.id!,
+            ...attachment,
+          })),
+        ),
       });
-      ids.push(event.id);
     }
+    if (data.type === EventType.MATCH && timing) {
+      await tx.matchDetails.createMany({
+        data: events.map((event) => ({
+          eventId: event.id!,
+          opponent: data.opponent ?? 'Unbekannt',
+          isHome: data.homeAway !== HomeAway.AWAY,
+          ...timing,
+        })),
+      });
+    }
+    const ids = events.map((event) => event.id!);
     await tx.auditLog.create({
       data: {
         actorId: user.id,
@@ -634,7 +654,15 @@ export async function createEvent(req: Request, res: Response) {
     orderBy: { startAt: 'asc' },
     include: eventInclude,
   });
-  const result = await Promise.all(created.map((event) => serializeEvent(event, user)));
+  const accessibleIds = await accessibleTeamIds(user);
+  const roster = isStaff(user.role)
+    ? await rosterForTeamIds(accessibleIds)
+    : undefined;
+  const result = await Promise.all(
+    created.map((event) =>
+      serializeEvent(event, user, accessibleIds, roster),
+    ),
+  );
   return res.status(201).json(result.length === 1 ? result[0] : result);
 }
 

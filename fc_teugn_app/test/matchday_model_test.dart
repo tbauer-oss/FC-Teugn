@@ -83,6 +83,7 @@ void main() {
             'id': 'ticker-event-1',
             'sequence': 2,
             'type': 'HOME_GOAL',
+            'period': 1,
             'elapsedSeconds': 720,
             'ourGoals': 1,
             'theirGoals': 0,
@@ -105,6 +106,7 @@ void main() {
     expect(match.squad?.lineup?.status, LineupStatus.published);
     expect(match.squad?.lineup?.positions.single.player.name, 'Max Muster');
     expect(match.ticker?.events.single.type, TickerEventType.homeGoal);
+    expect(match.ticker?.events.single.period, 1);
     expect(match.ticker?.events.single.scorer?.name, 'Max Muster');
     expect(match.ticker?.events.single.assist?.name, 'Tom Beispiel');
     expect(match.ticker?.ourGoals, 1);

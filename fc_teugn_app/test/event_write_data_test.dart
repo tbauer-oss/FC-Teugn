@@ -40,6 +40,13 @@ void main() {
       (payload['recurrence'] as Map<String, dynamic>)['frequency'],
       'WEEKLY',
     );
+    final until = DateTime.parse(
+      (payload['recurrence'] as Map<String, dynamic>)['until'] as String,
+    );
+    expect(
+      until,
+      DateTime(2026, 12, 15, 23, 59, 59, 999).toUtc(),
+    );
   });
 
   test('match payload stores four quarters and calculated duration', () {
