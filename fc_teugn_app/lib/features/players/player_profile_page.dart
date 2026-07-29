@@ -444,7 +444,7 @@ class _ProfileHero extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 42,
-                backgroundColor: AppColors.orange,
+                backgroundColor: AppColors.yellow,
                 backgroundImage:
                     player.photoUrl == null ? null : NetworkImage(player.photoUrl!),
                 child: player.photoUrl == null

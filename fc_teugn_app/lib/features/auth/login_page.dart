@@ -63,7 +63,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             child: const Text(
                               'TEAM · TERMINE · GEMEINSCHAFT',
                               style: TextStyle(
-                                color: AppColors.orange,
+                                color: AppColors.yellow,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.1,

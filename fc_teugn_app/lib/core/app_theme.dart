@@ -4,14 +4,16 @@ abstract final class AppColors {
   static const black = Color(0xFF171918);
   static const charcoal = Color(0xFF292C2A);
   static const yellow = Color(0xFFFFE600);
-  static const yellowDark = Color(0xFF9B8300);
+  static const yellowSoft = Color(0xFFFFF7B2);
+  static const gold = Color(0xFF756300);
+  static const yellowDark = gold;
   static const success = Color(0xFF16815A);
 
   // Bestehende semantische Namen bleiben kompatibel, tragen aber die Vereins-CI.
   static const navy = black;
-  static const blue = yellowDark;
+  static const blue = gold;
   static const teal = success;
-  static const orange = yellow;
+  static const orange = gold;
   static const background = Color(0xFFF7F7F3);
   static const line = Color(0xFFE3E1D6);
   static const muted = Color(0xFF686B67);
@@ -21,8 +23,10 @@ ThemeData buildAppTheme() {
   final scheme = ColorScheme.fromSeed(
     seedColor: AppColors.yellow,
     brightness: Brightness.light,
-    primary: AppColors.yellow,
-    onPrimary: AppColors.black,
+    primary: AppColors.gold,
+    onPrimary: Colors.white,
+    primaryContainer: AppColors.yellowSoft,
+    onPrimaryContainer: AppColors.black,
     secondary: AppColors.black,
     onSecondary: Colors.white,
     surface: Colors.white,
@@ -100,6 +104,12 @@ ThemeData buildAppTheme() {
         textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
     ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.gold,
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 48),
@@ -115,6 +125,16 @@ ThemeData buildAppTheme() {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
     ),
+    tabBarTheme: const TabBarThemeData(
+      labelColor: AppColors.black,
+      unselectedLabelColor: AppColors.muted,
+      indicatorColor: AppColors.gold,
+      dividerColor: AppColors.line,
+      labelStyle: TextStyle(fontWeight: FontWeight.w800),
+      unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w600),
+    ),
+    progressIndicatorTheme:
+        const ProgressIndicatorThemeData(color: AppColors.gold),
     dividerTheme: const DividerThemeData(color: AppColors.line, thickness: 1),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,

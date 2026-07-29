@@ -769,7 +769,7 @@ class _PlayerMarker extends StatelessWidget {
         width: 76,
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 7),
         decoration: BoxDecoration(
-          color: position.isGoalkeeper ? AppColors.orange : Colors.white,
+          color: position.isGoalkeeper ? AppColors.yellow : Colors.white,
           borderRadius: BorderRadius.circular(14),
           boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
         ),
