@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/football_options.dart';
 import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
@@ -1239,9 +1240,9 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
   late final TextEditingController lastName;
   late final TextEditingController preferredName;
   late final TextEditingController nationality;
-  late final TextEditingController position;
-  late final TextEditingController secondaryPosition;
   late final TextEditingController shirtNumber;
+  String? position;
+  String? secondaryPosition;
   late PlayerStatus status;
   late DominantFoot dominantFoot;
 
@@ -1253,8 +1254,8 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
     lastName = TextEditingController(text: player.lastName);
     preferredName = TextEditingController(text: player.preferredName);
     nationality = TextEditingController(text: player.nationality);
-    position = TextEditingController(text: player.position);
-    secondaryPosition = TextEditingController(text: player.secondaryPosition);
+    position = player.position;
+    secondaryPosition = player.secondaryPosition;
     shirtNumber =
         TextEditingController(text: player.shirtNumber?.toString() ?? '');
     status = player.status;
@@ -1267,8 +1268,6 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
     lastName.dispose();
     preferredName.dispose();
     nationality.dispose();
-    position.dispose();
-    secondaryPosition.dispose();
     shirtNumber.dispose();
     super.dispose();
   }
@@ -1323,18 +1322,36 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: position,
+                    child: DropdownButtonFormField<String?>(
+                      initialValue: position,
+                      isExpanded: true,
                       decoration:
                           const InputDecoration(labelText: 'Hauptposition'),
+                      items: footballOptionItems(
+                        options: footballPositions,
+                        emptyLabel: 'Noch offen',
+                        currentValue: position,
+                        showCode: true,
+                      ),
+                      onChanged: (value) =>
+                          setState(() => position = value),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: TextField(
-                      controller: secondaryPosition,
+                    child: DropdownButtonFormField<String?>(
+                      initialValue: secondaryPosition,
+                      isExpanded: true,
                       decoration:
                           const InputDecoration(labelText: 'Nebenposition'),
+                      items: footballOptionItems(
+                        options: footballPositions,
+                        emptyLabel: 'Keine Nebenposition',
+                        currentValue: secondaryPosition,
+                        showCode: true,
+                      ),
+                      onChanged: (value) =>
+                          setState(() => secondaryPosition = value),
                     ),
                   ),
                 ],
@@ -1430,8 +1447,8 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
                 preferredName: _optional(preferredName),
                 birthDate: original.birthDate,
                 nationality: _optional(nationality),
-                position: _optional(position),
-                secondaryPosition: _optional(secondaryPosition),
+                position: position,
+                secondaryPosition: secondaryPosition,
                 dominantFoot: dominantFoot,
                 shirtNumber: int.tryParse(shirtNumber.text),
                 status: status,

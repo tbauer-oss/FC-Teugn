@@ -188,6 +188,14 @@ await request(
     periodCount: 2,
   }),
 );
+const editableMatch = await request(`/matches/${match.id}`, {
+  headers: auth(trainerToken),
+});
+assert(
+  editableMatch.eligiblePlayers.some((player) => player.id === 'player-1') &&
+    editableMatch.eligiblePlayers.some((player) => player.id === playerId),
+  'Match-specific eligible squad players are missing',
+);
 
 // 8. Trainer nominiert den Kader.
 await request(

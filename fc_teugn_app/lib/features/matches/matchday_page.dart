@@ -63,14 +63,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     final staffView = widget.staffView;
     try {
       final match = await repository.match(matchId);
-      var players = _players;
-      if (staffView) {
-        try {
-          players = await repository.players();
-        } catch (_) {
-          // The matchday and offline queue remain usable without a fresh roster.
-        }
-      }
+      final players = staffView ? match.eligiblePlayers : const <PlayerModel>[];
       if (userId != null) {
         try {
           await offlineQueue.cacheMatch(
@@ -146,6 +139,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           details: current.details,
           squad: current.squad,
           ticker: ticker,
+          eligiblePlayers: current.eligiblePlayers,
         );
         _match = updatedMatch;
         _online = true;
@@ -487,7 +481,8 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
           children: [
             Expanded(
               child: Text(
-                '${_selected.length} Spieler ausgewählt',
+                '${_selected.length} von ${widget.allPlayers.length} '
+                'Spielern ausgewählt',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -506,33 +501,45 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
         ),
         const SizedBox(height: 12),
         Expanded(
-          child: ListView(
-            children: [
-              for (final player in widget.allPlayers)
-                Card(
-                  child: CheckboxListTile(
-                    value: _selected.containsKey(player.id),
-                    onChanged: (value) => setState(() {
-                      if (value == true) {
-                        _selected[player.id] = NominationStatus.nominated;
-                      } else {
-                        _selected.remove(player.id);
-                      }
-                    }),
-                    secondary: CircleAvatar(
-                      child: Text(player.shirtNumber?.toString() ?? 'FC'),
-                    ),
-                    title: Text(player.displayName),
-                    subtitle: Text(
-                      player.status == PlayerStatus.injured
-                          ? 'Verletzt · ${player.position ?? 'Spieler'}'
-                          : player.position ?? 'Spieler',
-                    ),
-                    controlAffinity: ListTileControlAffinity.trailing,
-                  ),
+          child: widget.allPlayers.isEmpty
+              ? const EmptyState(
+                  icon: Icons.group_off_outlined,
+                  title: 'Noch keine Spieler verfügbar',
+                  message:
+                      'Für die beim Spiel ausgewählte Mannschaft gibt es '
+                      'noch keine aktiven Spielerprofile. Lege die Spieler '
+                      'unter „Team“ an oder prüfe die Mannschaft des Termins.',
+                )
+              : ListView(
+                  children: [
+                    for (final player in widget.allPlayers)
+                      Card(
+                        child: CheckboxListTile(
+                          value: _selected.containsKey(player.id),
+                          onChanged: (value) => setState(() {
+                            if (value == true) {
+                              _selected[player.id] =
+                                  NominationStatus.nominated;
+                            } else {
+                              _selected.remove(player.id);
+                            }
+                          }),
+                          secondary: CircleAvatar(
+                            child:
+                                Text(player.shirtNumber?.toString() ?? 'FC'),
+                          ),
+                          title: Text(player.displayName),
+                          subtitle: Text(
+                            player.status == PlayerStatus.injured
+                                ? 'Verletzt · ${player.position ?? 'Spieler'}'
+                                : player.position ?? 'Spieler',
+                          ),
+                          controlAffinity:
+                              ListTileControlAffinity.trailing,
+                        ),
+                      ),
+                  ],
                 ),
-            ],
-          ),
         ),
       ],
     );

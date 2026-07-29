@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
+import '../../core/football_options.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
 import '../shared/page_scaffold.dart';
@@ -103,7 +104,7 @@ class TrainerMatchesPage extends ConsumerWidget {
   Future<_MatchDraft?> _openMatchDialog(BuildContext context, EventModel event) async {
     final details = event.matchDetails;
     final opponent = TextEditingController(text: details?.opponent ?? '');
-    final competition = TextEditingController(text: details?.competition ?? 'Liga');
+    String? competition = details?.competition ?? 'Liga';
     final notes = TextEditingController(text: details?.notes ?? '');
     final ourGoals = TextEditingController(text: details?.ourGoals?.toString() ?? '');
     final theirGoals = TextEditingController(text: details?.theirGoals?.toString() ?? '');
@@ -134,9 +135,18 @@ class TrainerMatchesPage extends ConsumerWidget {
                     decoration: const InputDecoration(labelText: 'Gegner'),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: competition,
-                    decoration: const InputDecoration(labelText: 'Wettbewerb'),
+                  DropdownButtonFormField<String?>(
+                    initialValue: competition,
+                    isExpanded: true,
+                    decoration:
+                        const InputDecoration(labelText: 'Wettbewerb'),
+                    items: footballOptionItems(
+                      options: footballCompetitions,
+                      emptyLabel: 'Nicht angegeben',
+                      currentValue: competition,
+                    ),
+                    onChanged: (value) =>
+                        setState(() => competition = value),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -187,7 +197,7 @@ class TrainerMatchesPage extends ConsumerWidget {
                   _MatchDraft(
                     opponent: opponent.text.trim(),
                     isHome: isHome,
-                    competition: competition.text.trim(),
+                    competition: competition ?? '',
                     notes: notes.text.trim(),
                     ourGoals: int.tryParse(ourGoals.text),
                     theirGoals: int.tryParse(theirGoals.text),
@@ -201,7 +211,6 @@ class TrainerMatchesPage extends ConsumerWidget {
       ),
     );
     opponent.dispose();
-    competition.dispose();
     notes.dispose();
     ourGoals.dispose();
     theirGoals.dispose();

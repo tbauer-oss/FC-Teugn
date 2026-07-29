@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/football_options.dart';
 import '../../core/models/player.dart';
 import '../../core/providers.dart';
 import '../shared/page_scaffold.dart';
@@ -234,11 +235,11 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
   final _lastName = TextEditingController();
   final _preferredName = TextEditingController();
   final _nationality = TextEditingController();
-  final _position = TextEditingController();
-  final _secondaryPosition = TextEditingController();
   final _shirtNumber = TextEditingController();
   DateTime? _birthDate;
   DateTime? _joinedAt;
+  String? _position;
+  String? _secondaryPosition;
   DominantFoot _dominantFoot = DominantFoot.unknown;
 
   @override
@@ -247,8 +248,6 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
     _lastName.dispose();
     _preferredName.dispose();
     _nationality.dispose();
-    _position.dispose();
-    _secondaryPosition.dispose();
     _shirtNumber.dispose();
     super.dispose();
   }
@@ -336,18 +335,36 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                 Row(
                   children: [
                     Expanded(
-                      child: TextFormField(
-                        controller: _position,
-                        decoration:
-                            const InputDecoration(labelText: 'Hauptposition'),
+                      child: DropdownButtonFormField<String?>(
+                        initialValue: _position,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Hauptposition',
+                        ),
+                        items: footballOptionItems(
+                          options: footballPositions,
+                          emptyLabel: 'Noch offen',
+                          showCode: true,
+                        ),
+                        onChanged: (value) =>
+                            setState(() => _position = value),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextFormField(
-                        controller: _secondaryPosition,
-                        decoration:
-                            const InputDecoration(labelText: 'Nebenposition'),
+                      child: DropdownButtonFormField<String?>(
+                        initialValue: _secondaryPosition,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Nebenposition',
+                        ),
+                        items: footballOptionItems(
+                          options: footballPositions,
+                          emptyLabel: 'Keine Nebenposition',
+                          showCode: true,
+                        ),
+                        onChanged: (value) =>
+                            setState(() => _secondaryPosition = value),
                       ),
                     ),
                   ],
@@ -415,8 +432,8 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                 lastName: _lastName.text.trim(),
                 preferredName: _optional(_preferredName),
                 nationality: _optional(_nationality),
-                position: _optional(_position),
-                secondaryPosition: _optional(_secondaryPosition),
+                position: _position,
+                secondaryPosition: _secondaryPosition,
                 dominantFoot: _dominantFoot,
                 shirtNumber: int.tryParse(_shirtNumber.text),
                 birthDate: _birthDate,

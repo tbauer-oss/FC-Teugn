@@ -54,6 +54,7 @@ class MatchdayModel {
     this.details,
     this.squad,
     this.ticker,
+    this.eligiblePlayers = const [],
   });
 
   final String id;
@@ -65,6 +66,7 @@ class MatchdayModel {
   final MatchDetailsModel? details;
   final MatchSquadModel? squad;
   final LiveTickerModel? ticker;
+  final List<PlayerModel> eligiblePlayers;
 
   factory MatchdayModel.fromJson(Map<String, dynamic> json) {
     final squads = json['squads'] as List<dynamic>? ?? const [];
@@ -90,6 +92,11 @@ class MatchdayModel {
           : LiveTickerModel.fromJson(
               json['liveTicker'] as Map<String, dynamic>,
             ),
+      eligiblePlayers: (json['eligiblePlayers'] as List<dynamic>? ?? const [])
+          .map(
+            (item) => PlayerModel.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
     );
   }
 }
