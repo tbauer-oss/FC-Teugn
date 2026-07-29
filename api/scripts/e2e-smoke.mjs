@@ -483,7 +483,53 @@ assert(
   'Private tactical note leaked to parent',
 );
 
-// 13. Trainer beendet das Spiel.
+// 13. Trainer delegiert den Liveticker ausschließlich für dieses Spiel.
+const delegationOptions = await request(
+  `/matches/${match.id}/ticker/delegation`,
+  { headers: auth(trainerToken) },
+);
+assert(
+  delegationOptions.candidates.some(
+    (candidate) => candidate.id === registration.user.id,
+  ),
+  'Assigned parent is missing from ticker delegation candidates',
+);
+await request(
+  `/matches/${match.id}/ticker/delegation`,
+  json('PUT', trainerToken, { parentId: registration.user.id }),
+);
+const delegatedMatch = await request(`/matches/${match.id}`, {
+  headers: auth(parentClientAToken),
+});
+assert(
+  delegatedMatch.capabilities?.canManageTicker === true,
+  'Match-scoped ticker delegation was not activated',
+);
+await request(
+  `/matches/${match.id}/ticker/events`,
+  json('POST', parentClientAToken, {
+    clientEventId: `e2e-parent-comment-${runId}`,
+    type: 'COMMENT',
+    comment: 'Spielbezogene Elternfreigabe funktioniert',
+  }),
+);
+await request(
+  `/matches/${match.id}/ticker/delegation`,
+  json('PUT', trainerToken, { parentId: null }),
+);
+const forbiddenDelegatedWrite = await fetch(
+  `${baseUrl}/matches/${match.id}/ticker/events`,
+  json('POST', parentClientAToken, {
+    clientEventId: `e2e-parent-forbidden-${runId}`,
+    type: 'COMMENT',
+  }),
+);
+assert(
+  forbiddenDelegatedWrite.status === 403,
+  'Revoked parent ticker delegation still permits writes',
+);
+
+// 14. Trainer beendet das Spiel.
 const finished = await request(
   `/matches/${match.id}/ticker/events`,
   json('POST', trainerToken, {
@@ -493,11 +539,7 @@ const finished = await request(
 );
 assert(finished.ticker.status === 'FINISHED', 'Match did not finish');
 
-// 14. Statistiken werden aus dem abgeschlossenen Spiel aktualisiert.
-await request(`/statistics/matches/${match.id}/recalculate`, {
-  method: 'POST',
-  headers: auth(trainerToken),
-});
+// 15. Statistiken wurden bereits automatisch aus dem Liveticker aktualisiert.
 const statistics = await request('/statistics', {
   headers: auth(trainerToken),
 });
@@ -518,8 +560,15 @@ assert(
   assistStatistic?.assists >= 1,
   'Ticker assist was not added to the player statistics',
 );
+const scorerProfile = await request(`/players/${playerId}`, {
+  headers: auth(trainerToken),
+});
+assert(
+  scorerProfile.statistics?.goals >= 1,
+  'Ticker goals are missing from the player profile',
+);
 
-// 15. Nur die Systemadministration darf Termine und Spiele endgültig löschen.
+// 16. Nur die Systemadministration darf Termine und Spiele endgültig löschen.
 const forbiddenDelete = await fetch(
   `${baseUrl}/events/${match.id}?permanent=true`,
   {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getMatch,
   getTicker,
+  getTickerDelegation,
   listMatches,
   publishSquad,
   tickerCommand,
@@ -9,6 +10,7 @@ import {
   updateLineup,
   updateMatch,
   updateSquad,
+  updateTickerDelegation,
 } from '../controllers/matches.controller';
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { Permission } from '../security/permissions';
@@ -25,15 +27,9 @@ router.put('/:id/squad', requirePermission(Permission.MANAGE_LINEUPS), updateSqu
 router.post('/:id/squad/publish', requirePermission(Permission.MANAGE_LINEUPS), publishSquad);
 router.put('/:id/lineup', requirePermission(Permission.MANAGE_LINEUPS), updateLineup);
 router.get('/:id/ticker', getTicker);
-router.post(
-  '/:id/ticker/events',
-  requirePermission(Permission.MANAGE_LIVE_TICKER),
-  tickerCommand,
-);
-router.post(
-  '/:id/ticker/undo',
-  requirePermission(Permission.MANAGE_LIVE_TICKER),
-  undoTickerEvent,
-);
+router.get('/:id/ticker/delegation', getTickerDelegation);
+router.put('/:id/ticker/delegation', updateTickerDelegation);
+router.post('/:id/ticker/events', tickerCommand);
+router.post('/:id/ticker/undo', undoTickerEvent);
 
 export default router;

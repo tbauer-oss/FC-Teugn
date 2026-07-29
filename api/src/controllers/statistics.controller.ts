@@ -48,7 +48,9 @@ export async function statisticsOverview(req: Request, res: Response) {
         : {}),
       matchDetails: {
         is: {
-          status: { in: [MatchStatus.FINISHED, MatchStatus.RECORDED] },
+          status: {
+            in: [MatchStatus.LIVE, MatchStatus.HALF_TIME, MatchStatus.INTERRUPTED, MatchStatus.FINISHED, MatchStatus.RECORDED],
+          },
           ...(competition
             ? { competition: { contains: competition, mode: 'insensitive' as const } }
             : {}),

@@ -30,7 +30,24 @@ const publicPlayerSelect = {
       ageGroup: { select: { id: true, name: true, code: true } },
     },
   },
+  matchStatistics: {
+    select: { goals: true, assists: true, appeared: true },
+  },
 } as const;
+
+function withCareerStatistics<T extends {
+  matchStatistics: Array<{ goals: number; assists: number; appeared: boolean }>;
+}>(player: T) {
+  const { matchStatistics, ...data } = player;
+  return {
+    ...data,
+    statistics: {
+      goals: matchStatistics.reduce((sum, item) => sum + item.goals, 0),
+      assists: matchStatistics.reduce((sum, item) => sum + item.assists, 0),
+      appearances: matchStatistics.filter((item) => item.appeared).length,
+    },
+  };
+}
 
 function isGuardianRole(role: Role) {
   return role === Role.PARENT;
@@ -67,7 +84,7 @@ export async function listPlayers(req: Request, res: Response) {
       where: { userId, teamId },
       select: publicPlayerSelect,
     });
-    return res.json(ownPlayer);
+    return res.json(ownPlayer.map(withCareerStatistics));
   }
 
   if (isGuardianRole(role)) {
@@ -76,7 +93,7 @@ export async function listPlayers(req: Request, res: Response) {
       include: { player: { select: publicPlayerSelect } },
       orderBy: { player: { lastName: 'asc' } },
     });
-    return res.json(links.map((link) => link.player));
+    return res.json(links.map((link) => withCareerStatistics(link.player)));
   }
 
   const status = parsePlayerStatus(req.query.status);
@@ -86,7 +103,7 @@ export async function listPlayers(req: Request, res: Response) {
     orderBy: [{ status: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
     select: publicPlayerSelect,
   });
-  return res.json(players);
+  return res.json(players.map(withCareerStatistics));
 }
 
 export async function getPlayer(req: Request, res: Response) {
@@ -150,7 +167,7 @@ export async function getPlayer(req: Request, res: Response) {
   });
 
   return res.json({
-    ...player,
+    ...(player ? withCareerStatistics(player) : player),
     photoAsset: undefined,
     photoUrl:
       player?.photoAsset && player.photoAsset.deletedAt === null
@@ -204,7 +221,7 @@ export async function createPlayer(req: Request, res: Response) {
     return created;
   });
 
-  return res.status(201).json(player);
+  return res.status(201).json(withCareerStatistics(player));
 }
 
 export async function updatePlayer(req: Request, res: Response) {
@@ -251,7 +268,7 @@ export async function updatePlayer(req: Request, res: Response) {
     return result;
   });
 
-  return res.json(updated);
+  return res.json(withCareerStatistics(updated));
 }
 
 export async function upsertMedicalProfile(req: Request, res: Response) {

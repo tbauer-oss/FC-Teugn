@@ -57,6 +57,8 @@ class MatchdayModel {
     this.ticker,
     this.eligiblePlayers = const [],
     this.gameFormat = TeamGameFormat.football7,
+    this.canManageTicker = false,
+    this.canDelegateTicker = false,
   });
 
   final String id;
@@ -70,9 +72,12 @@ class MatchdayModel {
   final LiveTickerModel? ticker;
   final List<PlayerModel> eligiblePlayers;
   final TeamGameFormat gameFormat;
+  final bool canManageTicker;
+  final bool canDelegateTicker;
 
   factory MatchdayModel.fromJson(Map<String, dynamic> json) {
     final squads = json['squads'] as List<dynamic>? ?? const [];
+    final capabilities = json['capabilities'] as Map<String, dynamic>?;
     return MatchdayModel(
       id: json['id'] as String,
       title: json['title'] as String? ?? 'Spiel',
@@ -101,8 +106,52 @@ class MatchdayModel {
           )
           .toList(),
       gameFormat: TeamGameFormat.fromApi(json['teamGameFormat']),
+      canManageTicker: capabilities?['canManageTicker'] as bool? ?? false,
+      canDelegateTicker: capabilities?['canDelegateTicker'] as bool? ?? false,
     );
   }
+}
+
+class TickerDelegateUser {
+  const TickerDelegateUser({
+    required this.id,
+    required this.name,
+    required this.email,
+  });
+
+  final String id;
+  final String name;
+  final String email;
+
+  factory TickerDelegateUser.fromJson(Map<String, dynamic> json) =>
+      TickerDelegateUser(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? '',
+        email: json['email'] as String? ?? '',
+      );
+}
+
+class TickerDelegation {
+  const TickerDelegation({this.delegate, this.candidates = const []});
+
+  final TickerDelegateUser? delegate;
+  final List<TickerDelegateUser> candidates;
+
+  factory TickerDelegation.fromJson(Map<String, dynamic> json) =>
+      TickerDelegation(
+        delegate: json['delegate'] == null
+            ? null
+            : TickerDelegateUser.fromJson(
+                json['delegate'] as Map<String, dynamic>,
+              ),
+        candidates: (json['candidates'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => TickerDelegateUser.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
 }
 
 class MatchDetailsModel {

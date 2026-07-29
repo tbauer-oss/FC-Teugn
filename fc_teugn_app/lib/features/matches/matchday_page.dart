@@ -163,6 +163,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           ticker: ticker,
           eligiblePlayers: current.eligiblePlayers,
           gameFormat: current.gameFormat,
+          canManageTicker: current.canManageTicker,
+          canDelegateTicker: current.canDelegateTicker,
         );
         _match = updatedMatch;
         _online = true;
@@ -203,6 +205,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         ticker: current.ticker,
         eligiblePlayers: current.eligiblePlayers,
         gameFormat: current.gameFormat,
+        canManageTicker: current.canManageTicker,
+        canDelegateTicker: current.canDelegateTicker,
       );
     });
   }
@@ -231,6 +235,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         ticker: current.ticker,
         eligiblePlayers: current.eligiblePlayers,
         gameFormat: current.gameFormat,
+        canManageTicker: current.canManageTicker,
+        canDelegateTicker: current.canDelegateTicker,
       );
     });
   }
@@ -299,7 +305,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                   ),
                   _TickerTab(
                     match: match,
-                    editable: widget.staffView,
+                    editable: widget.staffView || match.canManageTicker,
                     online: _online,
                     onChanged: _load,
                   ),
@@ -1646,6 +1652,14 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
             ),
           ],
         ),
+        if (widget.match.canDelegateTicker) ...[
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _busy ? null : _manageDelegation,
+            icon: const Icon(Icons.supervisor_account_rounded),
+            label: const Text('Elternteil für dieses Spiel freigeben'),
+          ),
+        ],
         const SizedBox(height: 10),
         _CountdownCard(
           clock: clock,
@@ -1892,6 +1906,94 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       scorerId: attribution?.scorerId,
       assistId: attribution?.assistId,
     );
+  }
+
+  Future<void> _manageDelegation() async {
+    setState(() => _busy = true);
+    try {
+      final repository = ref.read(repositoryProvider);
+      final delegation =
+          await repository.tickerDelegation(widget.match.id);
+      if (!mounted) return;
+      var selectedId = delegation.delegate?.id ?? '';
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Liveticker einmalig freigeben'),
+            content: SizedBox(
+              width: 460,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Das ausgewählte Elternteil darf ausschließlich den Verlauf dieses Spiels erfassen. Nach Spielende endet die Berechtigung automatisch.',
+                  ),
+                  const SizedBox(height: 18),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Elternteil (optional)',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('Keine Freigabe'),
+                      ),
+                      for (final candidate in delegation.candidates)
+                        DropdownMenuItem(
+                          value: candidate.id,
+                          child: Text(
+                            '${candidate.name} · ${candidate.email}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) =>
+                        setDialogState(() => selectedId = value ?? ''),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton.icon(
+                onPressed: () async {
+                  await repository.saveTickerDelegation(
+                    eventId: widget.match.id,
+                    parentId: selectedId.isEmpty ? null : selectedId,
+                  );
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext, true);
+                  }
+                },
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('Freigabe speichern'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (saved == true && mounted) {
+        _message(
+          selectedId.isEmpty
+              ? 'Die Liveticker-Freigabe wurde aufgehoben.'
+              : 'Das Elternteil ist nur für dieses Spiel freigeschaltet.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        _message('Die spielbezogene Freigabe konnte nicht gespeichert werden.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<_GoalAttribution?> _selectGoalAttribution(

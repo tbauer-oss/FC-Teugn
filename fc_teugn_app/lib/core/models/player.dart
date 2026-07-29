@@ -299,6 +299,9 @@ class PlayerModel {
     this.photoUrl,
     this.teamName,
     this.ageGroupCode,
+    this.goals = 0,
+    this.assists = 0,
+    this.appearances = 0,
     this.guardians = const [],
     this.medicalProfile,
     this.emergencyContacts = const [],
@@ -323,6 +326,9 @@ class PlayerModel {
   final String? photoUrl;
   final String? teamName;
   final String? ageGroupCode;
+  final int goals;
+  final int assists;
+  final int appearances;
   final List<GuardianModel> guardians;
   final MedicalProfile? medicalProfile;
   final List<EmergencyContact> emergencyContacts;
@@ -347,6 +353,7 @@ class PlayerModel {
   factory PlayerModel.fromJson(Map<String, dynamic> json) {
     final team = json['team'] as Map<String, dynamic>?;
     final ageGroup = team?['ageGroup'] as Map<String, dynamic>?;
+    final statistics = json['statistics'] as Map<String, dynamic>?;
     return PlayerModel(
       id: json['id'] as String,
       teamId: json['teamId'] as String?,
@@ -368,6 +375,9 @@ class PlayerModel {
       photoUrl: json['photoUrl'] as String?,
       teamName: team?['name'] as String?,
       ageGroupCode: ageGroup?['code'] as String?,
+      goals: statistics?['goals'] as int? ?? 0,
+      assists: statistics?['assists'] as int? ?? 0,
+      appearances: statistics?['appearances'] as int? ?? 0,
       guardians: (json['parentLinks'] as List<dynamic>? ?? [])
           .map((item) => GuardianModel.fromJson(item as Map<String, dynamic>))
           .toList(),

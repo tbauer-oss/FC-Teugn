@@ -493,6 +493,8 @@ model User {
   eventReminders               EventReminder[]          @relation("EventReminderRecipient")
   calendarToken                String?                  @unique
   tickerEvents                 LiveTickerEvent[]        @relation("TickerEventAuthor")
+  tickerDelegations            MatchTickerDelegate[]    @relation("TickerDelegate")
+  grantedTickerDelegations     MatchTickerDelegate[]    @relation("TickerDelegateGranter")
   trainingPlans                TrainingPlan[]           @relation("TrainingPlanAuthor")
   exercises                    TrainingExercise[]       @relation("ExerciseAuthor")
   authoredAnnouncements        Announcement[]           @relation("AnnouncementAuthor")
@@ -882,6 +884,7 @@ model Event {
   trainingPlan        TrainingPlan?
   teamMatchStatistic  TeamMatchStatistic?
   playerMatchStats    PlayerMatchStatistic[]
+  tickerDelegate      MatchTickerDelegate?
 
   @@index([teamId, startAt])
   @@index([seriesId, startAt])
@@ -1156,6 +1159,21 @@ model LiveTickerEvent {
   @@unique([tickerId, clientEventId])
   @@unique([tickerId, sequence])
   @@index([tickerId, createdAt])
+}
+
+model MatchTickerDelegate {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  userId      String
+  grantedById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  revokedAt   DateTime?
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User     @relation("TickerDelegate", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy   User     @relation("TickerDelegateGranter", fields: [grantedById], references: [id], onDelete: Restrict)
+
+  @@index([userId, revokedAt])
 }
 
 model RuleProfile {
