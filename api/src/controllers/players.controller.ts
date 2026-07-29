@@ -22,6 +22,14 @@ const publicPlayerSelect = {
   joinedAt: true,
   createdAt: true,
   updatedAt: true,
+  team: {
+    select: {
+      id: true,
+      name: true,
+      shortName: true,
+      ageGroup: { select: { id: true, name: true, code: true } },
+    },
+  },
 } as const;
 
 function isGuardianRole(role: Role) {
@@ -166,7 +174,13 @@ export async function getPlayer(req: Request, res: Response) {
 }
 
 export async function createPlayer(req: Request, res: Response) {
-  const { teamId, id: actorId } = req.user!;
+  const { teamId: defaultTeamId, id: actorId } = req.user!;
+  const allowedTeamIds = await accessibleTeamIds(req.user!);
+  const requestedTeamId =
+    typeof req.body?.teamId === 'string' ? req.body.teamId.trim() : defaultTeamId;
+  if (!requestedTeamId || !allowedTeamIds.includes(requestedTeamId)) {
+    return res.status(403).json({ message: 'Diese Mannschaft darf nicht verwaltet werden.' });
+  }
   const data = playerData(req.body);
   if (!data.firstName || !data.lastName) {
     return res.status(400).json({ message: 'Vor- und Nachname sind erforderlich.' });
@@ -174,13 +188,13 @@ export async function createPlayer(req: Request, res: Response) {
 
   const player = await prisma.$transaction(async (tx) => {
     const created = await tx.player.create({
-      data: { ...data, teamId },
+      data: { ...data, teamId: requestedTeamId },
       select: publicPlayerSelect,
     });
     await tx.auditLog.create({
       data: {
         actorId,
-        teamId,
+        teamId: requestedTeamId,
         action: 'PLAYER_CREATED',
         entityType: 'Player',
         entityId: created.id,
@@ -201,24 +215,37 @@ export async function updatePlayer(req: Request, res: Response) {
     where: { id, teamId: { in: teamIds } },
   });
   if (!player) return res.status(404).json({ message: 'Spielerprofil nicht gefunden.' });
+  const requestedTeamId =
+    typeof req.body?.teamId === 'string' ? req.body.teamId.trim() : player.teamId;
+  if (!requestedTeamId || !teamIds.includes(requestedTeamId)) {
+    return res.status(403).json({ message: 'Die Zielmannschaft darf nicht verwaltet werden.' });
+  }
 
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.player.update({
       where: { id },
-      data: Object.fromEntries(
-        Object.entries(playerData(req.body)).filter(
-          ([key, value]) => req.body[key] !== undefined && value !== undefined,
+      data: {
+        ...Object.fromEntries(
+          Object.entries(playerData(req.body)).filter(
+            ([key, value]) => req.body[key] !== undefined && value !== undefined,
+          ),
         ),
-      ),
+        teamId: requestedTeamId,
+      },
       select: publicPlayerSelect,
     });
     await tx.auditLog.create({
       data: {
         actorId,
-        teamId: player.teamId,
+        teamId: requestedTeamId,
         action: 'PLAYER_UPDATED',
         entityType: 'Player',
         entityId: id,
+        metadata: {
+          previousTeamId: player.teamId,
+          teamId: requestedTeamId,
+          moved: player.teamId !== requestedTeamId,
+        },
       },
     });
     return result;
