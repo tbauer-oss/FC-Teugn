@@ -76,7 +76,7 @@ async function main() {
       email: 'trainer@fc-teugn.local',
       name: 'Max Beispiel',
       password: defaultPassword,
-      role: Role.CLUB_ADMIN,
+      role: Role.SUPER_ADMIN,
       status: 'APPROVED',
       teamId: team.id,
     },

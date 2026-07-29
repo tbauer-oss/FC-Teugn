@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import {
-  AccountStatus,
   AttendanceStatus,
   Prisma,
   Role as PrismaRole,
@@ -13,37 +12,9 @@ import {
 } from '../lib/jwt';
 import { hasPermission, Permission } from '../security/permissions';
 import { Role } from '../types/enums';
+import { accessibleTeamIds } from '../services/team-access';
 
 const EMERGENCY_ACCESS_MS = 5 * 60 * 1000;
-
-async function clubIdForTeam(teamId: string) {
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { ageGroup: { select: { season: { select: { clubId: true } } } } },
-  });
-  return team?.ageGroup.season.clubId ?? null;
-}
-
-async function accessibleTeamIds(user: {
-  id: string;
-  teamId: string;
-  role: Role | PrismaRole;
-}) {
-  if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
-    const clubId = await clubIdForTeam(user.teamId);
-    if (!clubId) return [user.teamId];
-    const teams = await prisma.team.findMany({
-      where: { isActive: true, ageGroup: { season: { clubId } } },
-      select: { id: true },
-    });
-    return teams.map((team) => team.id);
-  }
-  const memberships = await prisma.teamMembership.findMany({
-    where: { userId: user.id, status: AccountStatus.APPROVED },
-    select: { teamId: true },
-  });
-  return [...new Set([user.teamId, ...memberships.map((item) => item.teamId)])];
-}
 
 function eventScope(teamIds: string[]): Prisma.EventWhereInput {
   return {

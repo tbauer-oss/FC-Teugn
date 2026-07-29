@@ -2,11 +2,13 @@ import { Request, Response } from 'express';
 import {
   AccountStatus,
   GuardianRelationship,
+  Prisma,
   RegistrationReviewStatus,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
+import { accessibleTeamIds } from '../services/team-access';
 
 const memberSelect = {
   id: true,
@@ -15,6 +17,7 @@ const memberSelect = {
   phone: true,
   role: true,
   status: true,
+  teamId: true,
   createdAt: true,
   memberships: {
     orderBy: { team: { name: 'asc' as const } },
@@ -80,10 +83,24 @@ async function actorClubId(teamId: string) {
   return team?.ageGroup.season.clubId;
 }
 
+function isSuperAdmin(role: Role) {
+  return role === Role.SUPER_ADMIN;
+}
+
+function userScope(
+  actor: { teamId: string; role: Role },
+  clubId: string | undefined,
+): Prisma.UserWhereInput {
+  if (isSuperAdmin(actor.role)) return {};
+  if (hasPermission(actor.role, Permission.MANAGE_ORGANIZATION) && clubId) {
+    return { team: { ageGroup: { season: { clubId } } } };
+  }
+  return { teamId: actor.teamId };
+}
+
 export async function pendingUsers(req: Request, res: Response) {
   const user = req.user!;
   const clubId = await actorClubId(user.teamId);
-  const canManageOrganization = hasPermission(user.role, Permission.MANAGE_ORGANIZATION);
   const teamId = typeof req.query.teamId === 'string' ? req.query.teamId : undefined;
   const role = typeof req.query.role === 'string' ? req.query.role as Role : undefined;
   const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
@@ -111,9 +128,7 @@ export async function pendingUsers(req: Request, res: Response) {
             },
           }
         : {}),
-      ...(canManageOrganization && clubId
-        ? { team: { ageGroup: { season: { clubId } } } }
-        : { teamId: user.teamId }),
+      ...userScope(user, clubId),
     },
     orderBy: { createdAt: 'asc' },
     select: memberSelect,
@@ -124,11 +139,8 @@ export async function pendingUsers(req: Request, res: Response) {
 export async function listMembers(req: Request, res: Response) {
   const user = req.user!;
   const clubId = await actorClubId(user.teamId);
-  const canManageOrganization = hasPermission(user.role, Permission.MANAGE_ORGANIZATION);
   const users = await prisma.user.findMany({
-    where: canManageOrganization && clubId
-      ? { team: { ageGroup: { season: { clubId } } } }
-      : { teamId: user.teamId },
+    where: userScope(user, clubId),
     orderBy: [{ status: 'asc' }, { name: 'asc' }],
     select: memberSelect,
   });
@@ -167,9 +179,7 @@ export async function approveUser(req: Request, res: Response) {
   const target = await prisma.user.findFirst({
     where: {
       id: userId,
-      ...(canManageOrganization && clubId
-        ? { team: { ageGroup: { season: { clubId } } } }
-        : { teamId: actor.teamId }),
+      ...userScope(actor, clubId),
     },
   });
   if (!target) {
@@ -192,9 +202,34 @@ export async function approveUser(req: Request, res: Response) {
       : nextStatus === AccountStatus.PENDING
         ? RegistrationReviewStatus.IN_REVIEW
         : RegistrationReviewStatus.COMPLETED;
-  const nextRole = normalizeAssignableRole(role ?? (target.role as Role), canManageOrganization);
+  if (target.role === Role.SUPER_ADMIN && !isSuperAdmin(actor.role)) {
+    return res.status(403).json({
+      message: 'Systemadministratoren dürfen nur von Systemadministratoren bearbeitet werden.',
+    });
+  }
+  const nextRole = normalizeAssignableRole(
+    role ?? (target.role as Role),
+    actor.role,
+  );
   if (!nextRole) {
     return res.status(403).json({ message: 'Diese Rolle darf nicht vergeben werden.' });
+  }
+  if (
+    target.role === Role.SUPER_ADMIN &&
+    (nextRole !== Role.SUPER_ADMIN || nextStatus !== AccountStatus.APPROVED)
+  ) {
+    const remainingSuperAdmins = await prisma.user.count({
+      where: {
+        id: { not: target.id },
+        role: Role.SUPER_ADMIN,
+        status: AccountStatus.APPROVED,
+      },
+    });
+    if (remainingSuperAdmins === 0) {
+      return res.status(400).json({
+        message: 'Der letzte aktive Systemadministrator kann nicht herabgestuft oder gesperrt werden.',
+      });
+    }
   }
 
   const requestedTeamIds =
@@ -202,7 +237,9 @@ export async function approveUser(req: Request, res: Response) {
   const allowedTeams = await prisma.team.findMany({
     where: {
       id: { in: requestedTeamIds },
-      ...(canManageOrganization && clubId
+      ...(isSuperAdmin(actor.role)
+        ? { isActive: true }
+        : canManageOrganization && clubId
         ? { ageGroup: { season: { clubId, isActive: true } } }
         : { id: actor.teamId }),
     },
@@ -211,7 +248,7 @@ export async function approveUser(req: Request, res: Response) {
   if (allowedTeams.length !== requestedTeamIds.length) {
     return res.status(400).json({ message: 'Mindestens eine Mannschaft ist nicht zulässig.' });
   }
-  const linkedPlayer =
+  let linkedPlayer =
     (nextRole === Role.PLAYER || nextRole === Role.PARENT) && playerId
       ? await prisma.player.findFirst({
           where: {
@@ -224,6 +261,15 @@ export async function approveUser(req: Request, res: Response) {
           select: { id: true },
         })
       : null;
+  if (nextRole === Role.PLAYER && !linkedPlayer && !playerId) {
+    linkedPlayer = await prisma.player.findFirst({
+      where: {
+        userId: target.id,
+        teamId: { in: allowedTeams.map((team) => team.id) },
+      },
+      select: { id: true },
+    });
+  }
   if (
     nextStatus === AccountStatus.APPROVED &&
     nextRole === Role.PLAYER &&
@@ -367,9 +413,17 @@ export async function assignParentPlayer(req: Request, res: Response) {
   }
 
   const actor = req.user!;
+  const teamIds = await accessibleTeamIds(actor);
   const [parent, player] = await Promise.all([
-    prisma.user.findFirst({ where: { id: parentId, teamId: actor.teamId } }),
-    prisma.player.findFirst({ where: { id: playerId, teamId: actor.teamId } }),
+    prisma.user.findFirst({
+      where: {
+        id: parentId,
+        ...(isSuperAdmin(actor.role)
+          ? {}
+          : { OR: [{ teamId: { in: teamIds } }, { memberships: { some: { teamId: { in: teamIds } } } }] }),
+      },
+    }),
+    prisma.player.findFirst({ where: { id: playerId, teamId: { in: teamIds } } }),
   ]);
   if (!parent || parent.role !== Role.PARENT) {
     return res.status(404).json({ message: 'Elternteil nicht gefunden.' });
@@ -416,7 +470,7 @@ export async function assignParentPlayer(req: Request, res: Response) {
   return res.status(201).json(link);
 }
 
-function normalizeAssignableRole(role: Role, canManageOrganization: boolean) {
+function normalizeAssignableRole(role: Role, actorRole: Role) {
   const organizationRoles: Role[] = [
     Role.CLUB_ADMIN,
     Role.YOUTH_DIRECTOR,
@@ -428,6 +482,10 @@ function normalizeAssignableRole(role: Role, canManageOrganization: boolean) {
     Role.READ_ONLY,
   ];
   const teamRoles: Role[] = [Role.PARENT, Role.PLAYER, Role.READ_ONLY];
-  const allowed = canManageOrganization ? organizationRoles : teamRoles;
+  const allowed = isSuperAdmin(actorRole)
+    ? [Role.SUPER_ADMIN, ...organizationRoles]
+    : hasPermission(actorRole, Permission.MANAGE_ORGANIZATION)
+      ? organizationRoles
+      : teamRoles;
   return allowed.includes(role) ? role : null;
 }

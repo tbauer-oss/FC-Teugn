@@ -18,6 +18,10 @@ export async function clubIdForTeam(teamId: string) {
 }
 
 export async function accessibleTeamIds(user: TeamScopedUser) {
+  if (String(user.role) === Role.SUPER_ADMIN) {
+    const teams = await prisma.team.findMany({ select: { id: true } });
+    return teams.map((team) => team.id);
+  }
   if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
     const clubId = await clubIdForTeam(user.teamId);
     if (!clubId) return [user.teamId];
@@ -35,6 +39,12 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
 }
 
 export async function canManageTeam(user: TeamScopedUser, teamId: string) {
+  if (String(user.role) === Role.SUPER_ADMIN) {
+    return Boolean(await prisma.team.findUnique({
+      where: { id: teamId },
+      select: { id: true },
+    }));
+  }
   if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
     const [currentClubId, targetClubId] = await Promise.all([
       clubIdForTeam(user.teamId),

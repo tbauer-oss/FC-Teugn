@@ -194,9 +194,12 @@ export async function createPlayer(req: Request, res: Response) {
 }
 
 export async function updatePlayer(req: Request, res: Response) {
-  const { teamId, id: actorId } = req.user!;
+  const { id: actorId } = req.user!;
   const { id } = req.params;
-  const player = await prisma.player.findFirst({ where: { id, teamId } });
+  const teamIds = await accessibleTeamIds(req.user!);
+  const player = await prisma.player.findFirst({
+    where: { id, teamId: { in: teamIds } },
+  });
   if (!player) return res.status(404).json({ message: 'Spielerprofil nicht gefunden.' });
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -212,7 +215,7 @@ export async function updatePlayer(req: Request, res: Response) {
     await tx.auditLog.create({
       data: {
         actorId,
-        teamId,
+        teamId: player.teamId,
         action: 'PLAYER_UPDATED',
         entityType: 'Player',
         entityId: id,
@@ -391,16 +394,19 @@ export async function upsertConsent(req: Request, res: Response) {
 }
 
 export async function deletePlayer(req: Request, res: Response) {
-  const { teamId, id: actorId } = req.user!;
+  const { id: actorId } = req.user!;
   const { id } = req.params;
-  const player = await prisma.player.findFirst({ where: { id, teamId } });
+  const teamIds = await accessibleTeamIds(req.user!);
+  const player = await prisma.player.findFirst({
+    where: { id, teamId: { in: teamIds } },
+  });
   if (!player) return res.status(404).json({ message: 'Spielerprofil nicht gefunden.' });
 
   await prisma.$transaction(async (tx) => {
     await tx.auditLog.create({
       data: {
         actorId,
-        teamId,
+        teamId: player.teamId,
         action: 'PLAYER_DELETED',
         entityType: 'Player',
         entityId: id,

@@ -9,6 +9,7 @@ import {
 import { prisma } from '../lib/prisma';
 import { hashPassword } from '../lib/password';
 import { clubIdForTeam } from '../services/team-access';
+import { Role } from '../types/enums';
 
 const openRequestStatuses = [
   DataSubjectRequestStatus.RECEIVED,
@@ -247,6 +248,7 @@ export async function requestErasure(req: Request, res: Response) {
 
 export async function listPrivacyRequests(req: Request, res: Response) {
   const clubId = await clubIdForTeam(req.user!.teamId);
+  const unrestricted = req.user!.role === Role.SUPER_ADMIN;
   const status =
     typeof req.query.status === 'string' &&
     Object.values(DataSubjectRequestStatus).includes(
@@ -257,7 +259,9 @@ export async function listPrivacyRequests(req: Request, res: Response) {
   const requests = await prisma.dataSubjectRequest.findMany({
     where: {
       ...(status ? { status } : {}),
-      ...(clubId ? { user: { team: { ageGroup: { season: { clubId } } } } } : {}),
+      ...(!unrestricted && clubId
+        ? { user: { team: { ageGroup: { season: { clubId } } } } }
+        : {}),
     },
     orderBy: { createdAt: 'asc' },
     include: {
@@ -365,6 +369,12 @@ export async function completeErasure(req: Request, res: Response) {
 }
 
 async function scopedRequest(req: Request, requestId: string) {
+  if (req.user!.role === Role.SUPER_ADMIN) {
+    return prisma.dataSubjectRequest.findUnique({
+      where: { id: requestId },
+      include: { user: { select: { teamId: true } } },
+    });
+  }
   const clubId = await clubIdForTeam(req.user!.teamId);
   if (!clubId) return null;
   return prisma.dataSubjectRequest.findFirst({
