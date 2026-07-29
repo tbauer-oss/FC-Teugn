@@ -19,6 +19,10 @@ const {
   summarizeMatchResults,
 } = require('../dist/src/services/statistics.service');
 const {
+  canSelectStatisticsTeam,
+  resolveStatisticsTeamIds,
+} = require('../dist/src/controllers/statistics.controller');
+const {
   competitionMatchChecksum,
   parseCompetitionSource,
 } = require('../dist/src/services/competition-provider');
@@ -200,6 +204,51 @@ test('training and statistics mutations remain staff-only', () => {
   assert.equal(hasPermission(Role.PARENT, Permission.VIEW_PLAYER_STATS), true);
   assert.equal(hasPermission(Role.PARENT, Permission.MANAGE_TRAINING), false);
   assert.equal(hasPermission(Role.PLAYER, Permission.MANAGE_STATISTICS), false);
+});
+
+test('statistics team selection is reserved for administrator roles', () => {
+  assert.equal(canSelectStatisticsTeam(Role.SUPER_ADMIN), true);
+  assert.equal(canSelectStatisticsTeam(Role.CLUB_ADMIN), true);
+  assert.equal(canSelectStatisticsTeam(Role.TRAINER_ADMIN), true);
+  assert.equal(canSelectStatisticsTeam(Role.YOUTH_DIRECTOR), true);
+  assert.equal(canSelectStatisticsTeam(Role.COACH), false);
+  assert.equal(canSelectStatisticsTeam(Role.TRAINER), false);
+  assert.equal(canSelectStatisticsTeam(Role.PARENT), false);
+  assert.equal(canSelectStatisticsTeam(Role.PLAYER), false);
+});
+
+test('statistics are locked to the registration team for non-admin users', () => {
+  const accessible = ['team-registration', 'team-membership'];
+  for (const role of [Role.COACH, Role.TRAINER, Role.PARENT, Role.PLAYER]) {
+    assert.deepEqual(
+      resolveStatisticsTeamIds(
+        { role, teamId: 'team-registration' },
+        accessible,
+        ['team-membership'],
+      ),
+      ['team-registration'],
+    );
+  }
+});
+
+test('statistics administrators can select one authorized team only', () => {
+  const accessible = ['team-registration', 'team-selected'];
+  assert.deepEqual(
+    resolveStatisticsTeamIds(
+      { role: Role.SUPER_ADMIN, teamId: 'team-registration' },
+      accessible,
+      ['team-selected'],
+    ),
+    ['team-selected'],
+  );
+  assert.equal(
+    resolveStatisticsTeamIds(
+      { role: Role.CLUB_ADMIN, teamId: 'team-registration' },
+      accessible,
+      ['team-outside-club'],
+    ),
+    null,
+  );
 });
 
 test('team communications can only be sent by staff roles', () => {

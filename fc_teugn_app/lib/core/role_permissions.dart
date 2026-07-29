@@ -132,6 +132,15 @@ const _managerPermissions = <String>{
   'MANAGE_TEAM_OPERATIONS',
 };
 
+bool canSelectStatisticsTeam(UserRole role) => switch (role) {
+      UserRole.superAdmin ||
+      UserRole.clubAdmin ||
+      UserRole.trainerAdmin ||
+      UserRole.youthDirector =>
+        true,
+      _ => false,
+    };
+
 List<RolePermission> permissionsForUserRole(UserRole role) {
   final codes = switch (role) {
     UserRole.superAdmin ||

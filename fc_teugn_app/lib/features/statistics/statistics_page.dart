@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/models/organization.dart';
 import '../../core/models/statistics.dart';
 import '../../core/providers.dart';
+import '../../core/role_permissions.dart';
+import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
 class StatisticsPage extends ConsumerStatefulWidget {
@@ -20,6 +23,7 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
   bool _loading = true;
   String? _error;
   String? _seasonId;
+  String? _selectedTeamId;
 
   @override
   void initState() {
@@ -33,7 +37,15 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
       _error = null;
     });
     try {
+      final user = ref.read(authProvider).user;
+      if (user == null || user.teamId.isEmpty) {
+        throw StateError('Keine Mannschaft zugeordnet.');
+      }
+      final teamId = canSelectStatisticsTeam(user.role)
+          ? (_selectedTeamId ?? user.teamId)
+          : user.teamId;
       final overview = await ref.read(repositoryProvider).statistics(
+            teamIds: [teamId],
             seasonId: _seasonId,
           );
       if (!mounted) return;
@@ -69,6 +81,18 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
   Widget _content(BuildContext context, StatisticsOverview overview) {
     final team = overview.team;
     final selectedLabel = overview.selectedSeason?.name ?? 'Gesamt';
+    final user = ref.watch(authProvider).user;
+    final organization = ref.watch(organizationProvider).value;
+    final canSelectTeam =
+        user != null && canSelectStatisticsTeam(user.role);
+    final statisticsTeams = _teamOptions(organization);
+    final registeredTeamId = user?.teamId;
+    final selectedTeamId = canSelectTeam
+        ? (_selectedTeamId ?? registeredTeamId)
+        : registeredTeamId;
+    final selectedTeam = _findTeam(statisticsTeams, selectedTeamId);
+    final selectedTeamLabel =
+        selectedTeam?.displayName ?? 'Zugeordnete Mannschaft';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -77,7 +101,8 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
             padding: const EdgeInsets.all(16),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final selector = DropdownButtonFormField<String>(
+                final seasonSelector = DropdownButtonFormField<String>(
+                  key: ValueKey('statistics-season-${_seasonId ?? _allSeasons}'),
                   initialValue: _seasonId ?? _allSeasons,
                   decoration: const InputDecoration(
                     labelText: 'Auswertungszeitraum',
@@ -103,11 +128,25 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
                     _load();
                   },
                 );
+                final teamSelector = _TeamSelector(
+                  canSelect: canSelectTeam,
+                  teams: statisticsTeams,
+                  selectedTeamId: selectedTeamId,
+                  selectedTeamLabel: selectedTeamLabel,
+                  onChanged: (teamId) {
+                    if (teamId == null || teamId == selectedTeamId) return;
+                    setState(() {
+                      _selectedTeamId = teamId;
+                      _seasonId = null;
+                    });
+                    _load();
+                  },
+                );
                 final summary = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      selectedLabel,
+                      '$selectedTeamLabel · $selectedLabel',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 4),
@@ -130,7 +169,9 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
                     children: [
                       summary,
                       const SizedBox(height: 14),
-                      selector,
+                      teamSelector,
+                      const SizedBox(height: 10),
+                      seasonSelector,
                       const SizedBox(height: 8),
                       Align(alignment: Alignment.centerRight, child: reload),
                     ],
@@ -139,7 +180,16 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
                 return Row(
                   children: [
                     Expanded(child: summary),
-                    SizedBox(width: 300, child: selector),
+                    SizedBox(
+                      width: 320,
+                      child: Column(
+                        children: [
+                          teamSelector,
+                          const SizedBox(height: 10),
+                          seasonSelector,
+                        ],
+                      ),
+                    ),
                     const SizedBox(width: 10),
                     reload,
                   ],
@@ -217,6 +267,79 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
           },
         ),
       ],
+    );
+  }
+
+  TeamSummary? _findTeam(List<TeamSummary>? teams, String? teamId) {
+    if (teams == null || teamId == null) return null;
+    for (final team in teams) {
+      if (team.id == teamId) return team;
+    }
+    return null;
+  }
+
+  List<TeamSummary> _teamOptions(OrganizationContext? organization) {
+    if (organization == null) return const [];
+    if (organization.teams.any(
+      (team) => team.id == organization.currentTeam.id,
+    )) {
+      return organization.teams;
+    }
+    return [organization.currentTeam, ...organization.teams];
+  }
+}
+
+class _TeamSelector extends StatelessWidget {
+  const _TeamSelector({
+    required this.canSelect,
+    required this.teams,
+    required this.selectedTeamId,
+    required this.selectedTeamLabel,
+    required this.onChanged,
+  });
+
+  final bool canSelect;
+  final List<TeamSummary> teams;
+  final String? selectedTeamId;
+  final String selectedTeamLabel;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!canSelect || teams.isEmpty) {
+      return InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Mannschaft',
+          prefixIcon: Icon(Icons.groups_rounded),
+        ),
+        child: Text(
+          selectedTeamLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }
+    final effectiveValue = teams.any((team) => team.id == selectedTeamId)
+        ? selectedTeamId
+        : teams.first.id;
+    return DropdownButtonFormField<String>(
+      key: ValueKey('statistics-team-$effectiveValue'),
+      initialValue: effectiveValue,
+      decoration: const InputDecoration(
+        labelText: 'Mannschaft',
+        prefixIcon: Icon(Icons.groups_rounded),
+      ),
+      items: [
+        for (final team in teams)
+          DropdownMenuItem<String>(
+            value: team.id,
+            child: Text(
+              '${team.displayName} · ${team.seasonName}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: onChanged,
     );
   }
 }

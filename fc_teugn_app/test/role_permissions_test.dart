@@ -27,4 +27,15 @@ void main() {
     expect(codes, contains('RESPOND_ATTENDANCE'));
     expect(codes, isNot(contains('MANAGE_PLAYERS')));
   });
+
+  test('statistics team selection is limited to administrator roles', () {
+    expect(canSelectStatisticsTeam(UserRole.superAdmin), isTrue);
+    expect(canSelectStatisticsTeam(UserRole.clubAdmin), isTrue);
+    expect(canSelectStatisticsTeam(UserRole.trainerAdmin), isTrue);
+    expect(canSelectStatisticsTeam(UserRole.youthDirector), isTrue);
+    expect(canSelectStatisticsTeam(UserRole.coach), isFalse);
+    expect(canSelectStatisticsTeam(UserRole.trainer), isFalse);
+    expect(canSelectStatisticsTeam(UserRole.parent), isFalse);
+    expect(canSelectStatisticsTeam(UserRole.player), isFalse);
+  });
 }
