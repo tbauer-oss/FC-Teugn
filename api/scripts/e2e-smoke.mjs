@@ -4,7 +4,8 @@ const trainerEmail =
 const password = process.env.E2E_PASSWORD ?? 'FC-Teugn_WEB!';
 const teamId = process.env.E2E_TEAM_ID ?? 'fc-teugn';
 const playerId = process.env.E2E_PLAYER_ID ?? 'player-2';
-const secondaryTeamId = process.env.E2E_SECONDARY_TEAM_ID ?? 'team-2';
+const secondaryTeamId =
+  process.env.E2E_SECONDARY_TEAM_ID ?? 'fc-teugn-e2';
 const runId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const parentEmail = `e2e-parent-${runId}@example.invalid`;
 
