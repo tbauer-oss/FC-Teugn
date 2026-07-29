@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   approveUser,
   assignParentPlayer,
+  createMember,
   listMembers,
   pendingUsers,
 } from '../controllers/admin.controller';
@@ -21,6 +22,7 @@ router.use(requirePermission(Permission.MANAGE_MEMBERS));
 
 router.get('/pending-users', pendingUsers);
 router.get('/members', listMembers);
+router.post('/members', createMember);
 router.post('/approve', approveUser);
 router.post('/assign-parent-player', assignParentPlayer);
 router.get(

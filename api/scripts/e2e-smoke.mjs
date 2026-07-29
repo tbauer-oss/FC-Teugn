@@ -8,6 +8,7 @@ const secondaryTeamId =
   process.env.E2E_SECONDARY_TEAM_ID ?? 'fc-teugn-e2';
 const runId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const parentEmail = `e2e-parent-${runId}@example.invalid`;
+const directMemberEmail = `e2e-member-${runId}@example.invalid`;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -124,6 +125,31 @@ const parentContext = await request('/organization/context', {
 assert(
   !parentContext.permissions.includes('MANAGE_EVENTS'),
   'Parent unexpectedly has MANAGE_EVENTS',
+);
+
+const directMember = await request(
+  '/admin/members',
+  json('POST', trainerToken, {
+    name: 'E2E Direktmitglied',
+    email: directMemberEmail,
+    password,
+    role: 'READ_ONLY',
+    teamIds: [teamId, secondaryTeamId],
+  }),
+);
+assert(
+  directMember.status === 'APPROVED' &&
+    directMember.memberships.length === 2,
+  'Administrator-created member does not contain all assignments',
+);
+const directMemberToken = await login(directMemberEmail);
+const directMemberContext = await request('/organization/context', {
+  headers: auth(directMemberToken),
+});
+assert(
+  directMemberContext.permissions.includes('VIEW_TEAM') &&
+    !directMemberContext.permissions.includes('MANAGE_MEMBERS'),
+  'Administrator-created member received incorrect permissions',
 );
 
 // System-/Vereinsverwaltung kann Spieler mannschaftsunabhängig anlegen und verschieben.

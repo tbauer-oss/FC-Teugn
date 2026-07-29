@@ -25,6 +25,19 @@ class TrainerApprovalsPage extends ConsumerWidget {
       title: 'Mitglieder & Freigaben',
       subtitle:
           'Anfragen prüfen, Rollen festlegen und Zugriffe gezielt Mannschaften zuordnen.',
+      action: FilledButton.icon(
+        onPressed: organization == null
+            ? null
+            : () => _createMember(
+                  context,
+                  ref,
+                  organization,
+                  players,
+                  currentUser?.role == UserRole.superAdmin,
+                ),
+        icon: const Icon(Icons.person_add_alt_1_rounded),
+        label: const Text('Mitglied anlegen'),
+      ),
       child: DefaultTabController(
         length: 2,
         child: Column(
@@ -90,6 +103,52 @@ class TrainerApprovalsPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _createMember(
+    BuildContext context,
+    WidgetRef ref,
+    OrganizationContext organization,
+    List<PlayerModel> players,
+    bool actorIsSuperAdmin,
+  ) async {
+    final draft = await showDialog<_MemberDraft>(
+      context: context,
+      builder: (context) => _CreateMemberDialog(
+        organization: organization,
+        players: players,
+        actorIsSuperAdmin: actorIsSuperAdmin,
+      ),
+    );
+    if (draft == null || !context.mounted) return;
+    try {
+      await ref.read(repositoryProvider).createMember(
+            name: draft.name,
+            email: draft.email,
+            phone: draft.phone,
+            password: draft.password,
+            role: draft.role,
+            teamIds: draft.teamIds,
+            playerId: draft.playerId,
+          );
+      _refresh(ref);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${draft.name} wurde angelegt.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Mitglied konnte nicht angelegt werden. '
+              'Prüfe E-Mail-Adresse, Passwort und Mannschaftszuordnung.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _approve(
@@ -972,6 +1031,265 @@ class _PermissionPreview extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CreateMemberDialog extends StatefulWidget {
+  const _CreateMemberDialog({
+    required this.organization,
+    required this.players,
+    required this.actorIsSuperAdmin,
+  });
+
+  final OrganizationContext organization;
+  final List<PlayerModel> players;
+  final bool actorIsSuperAdmin;
+
+  @override
+  State<_CreateMemberDialog> createState() => _CreateMemberDialogState();
+}
+
+class _CreateMemberDialogState extends State<_CreateMemberDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _email = TextEditingController();
+  final _phone = TextEditingController();
+  final _password = TextEditingController();
+  final _teamIds = <String>{};
+  late UserRole _role;
+  bool _obscurePassword = true;
+  String? _playerId;
+
+  @override
+  void initState() {
+    super.initState();
+    _role = UserRole.parent;
+    _teamIds.add(widget.organization.currentTeam.id);
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _email.dispose();
+    _phone.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final roles = <UserRole>[
+      if (widget.actorIsSuperAdmin) UserRole.superAdmin,
+      UserRole.clubAdmin,
+      UserRole.youthDirector,
+      UserRole.coach,
+      UserRole.assistantCoach,
+      UserRole.teamManager,
+      UserRole.parent,
+      UserRole.player,
+      UserRole.readOnly,
+    ];
+    return AlertDialog(
+      title: const Text('Mitglied anlegen'),
+      content: SizedBox(
+        width: 620,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: _name,
+                  decoration: const InputDecoration(
+                    labelText: 'Name *',
+                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  ),
+                  validator: _required,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'E-Mail-Adresse *',
+                    prefixIcon: Icon(Icons.mail_outline_rounded),
+                  ),
+                  validator: (value) =>
+                      value == null || !value.contains('@')
+                          ? 'Gültige E-Mail-Adresse angeben'
+                          : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _phone,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Telefon',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _password,
+                  obscureText: _obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Startpasswort *',
+                    helperText: 'Mindestens 10 Zeichen; sicher an das Mitglied übermitteln.',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: IconButton(
+                      onPressed: () => setState(
+                        () => _obscurePassword = !_obscurePassword,
+                      ),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                  ),
+                  validator: (value) => (value?.length ?? 0) < 10
+                      ? 'Mindestens 10 Zeichen'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<UserRole>(
+                  initialValue: _role,
+                  decoration: const InputDecoration(
+                    labelText: 'Rolle *',
+                    prefixIcon: Icon(Icons.admin_panel_settings_outlined),
+                  ),
+                  items: [
+                    for (final role in roles)
+                      DropdownMenuItem(
+                        value: role,
+                        child: Text(_roleLabel(role)),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _role = value;
+                        if (value != UserRole.player) _playerId = null;
+                      });
+                    }
+                  },
+                ),
+                if (_role == UserRole.player) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _playerId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Spielerprofil *',
+                      helperText:
+                          'Der Zugang wird fest mit diesem Spielerprofil verbunden.',
+                      prefixIcon: Icon(Icons.sports_soccer_rounded),
+                    ),
+                    items: [
+                      for (final player in widget.players.where(
+                        (player) => _teamIds.contains(player.teamId),
+                      ))
+                        DropdownMenuItem(
+                          value: player.id,
+                          child: Text(
+                            '${player.fullName} · '
+                            '${player.ageGroupCode ?? ''} ${player.teamName ?? ''}',
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) => setState(() => _playerId = value),
+                    validator: (value) => _role == UserRole.player && value == null
+                        ? 'Spielerprofil auswählen'
+                        : null,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                const Text(
+                  'Jugenden und Mannschaften *',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final team in widget.organization.teams)
+                      FilterChip(
+                        selected: _teamIds.contains(team.id),
+                        label: Text(team.displayName),
+                        onSelected: (selected) => setState(() {
+                          if (selected) {
+                            _teamIds.add(team.id);
+                          } else if (_teamIds.length > 1) {
+                            _teamIds.remove(team.id);
+                            if (!widget.players.any(
+                              (player) =>
+                                  player.id == _playerId &&
+                                  _teamIds.contains(player.teamId),
+                            )) {
+                              _playerId = null;
+                            }
+                          }
+                        }),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            if (!_formKey.currentState!.validate() || _teamIds.isEmpty) return;
+            Navigator.pop(
+              context,
+              _MemberDraft(
+                name: _name.text.trim(),
+                email: _email.text.trim().toLowerCase(),
+                phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+                password: _password.text,
+                role: _role,
+                teamIds: _teamIds.toList(),
+                playerId: _playerId,
+              ),
+            );
+          },
+          icon: const Icon(Icons.person_add_alt_1_rounded),
+          label: const Text('Mitglied anlegen'),
+        ),
+      ],
+    );
+  }
+
+  String? _required(String? value) =>
+      value == null || value.trim().isEmpty ? 'Pflichtfeld' : null;
+}
+
+class _MemberDraft {
+  const _MemberDraft({
+    required this.name,
+    required this.email,
+    required this.password,
+    required this.role,
+    required this.teamIds,
+    this.phone,
+    this.playerId,
+  });
+
+  final String name;
+  final String email;
+  final String? phone;
+  final String password;
+  final UserRole role;
+  final List<String> teamIds;
+  final String? playerId;
 }
 
 class _ApprovalDecision {
