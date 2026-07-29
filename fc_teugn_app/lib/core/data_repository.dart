@@ -674,7 +674,7 @@ class DataRepository {
     await client.dio.post('/matches/$eventId/squad/publish');
   }
 
-  Future<void> saveLineup({
+  Future<LineupModel> saveLineup({
     required String eventId,
     required String formation,
     required int fieldSize,
@@ -683,7 +683,7 @@ class DataRepository {
     String? publicNote,
     String? tacticalNote,
   }) async {
-    await client.dio.put('/matches/$eventId/lineup', data: {
+    final response = await client.dio.put('/matches/$eventId/lineup', data: {
       'formation': formation,
       'fieldSize': fieldSize,
       'status': apiEnum(status),
@@ -705,6 +705,9 @@ class DataRepository {
           )
           .toList(),
     });
+    return LineupModel.fromJson(
+      response.data as Map<String, dynamic>,
+    );
   }
 
   Future<LiveTickerModel> ticker(String eventId, {int after = 0}) async {
