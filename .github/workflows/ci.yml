@@ -34,11 +34,11 @@ jobs:
       EMERGENCY_ACCESS_SECRET: ci-emergency-secret-at-least-32-characters
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install dependencies
         run: npx -y pnpm@10.13.1 install --frozen-lockfile
@@ -75,7 +75,7 @@ jobs:
         working-directory: fc_teugn_app
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
