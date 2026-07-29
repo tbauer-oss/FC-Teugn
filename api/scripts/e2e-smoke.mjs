@@ -250,9 +250,9 @@ const lineup = await request(
       {
         playerId: 'player-1',
         period: 1,
-        positionCode: 'ZM',
-        x: 0.5,
-        y: 0.55,
+        positionCode: 'DM',
+        x: 0.42,
+        y: 0.61,
         isStarter: true,
         isCaptain: true,
         shirtNumber: 8,
@@ -271,6 +271,26 @@ const lineup = await request(
 );
 assert(lineup.status === 'PUBLISHED', 'Lineup publication failed');
 assert(lineup.fieldSize === 5, 'Lineup does not use the team game format');
+const matchAfterLineupSave = await request(`/matches/${match.id}`, {
+  headers: auth(trainerToken),
+});
+const persistedPosition =
+  matchAfterLineupSave.squads[0]?.lineup?.positions.find(
+    (position) => position.playerId === 'player-1',
+  );
+assert(
+  persistedPosition?.positionCode === 'DM' &&
+    persistedPosition.x === 0.42 &&
+    persistedPosition.y === 0.61 &&
+    persistedPosition.isCaptain === true,
+  'The selected position, role or dragged coordinates were not persisted',
+);
+assert(
+  !matchAfterLineupSave.squads[0]?.lineup?.positions.some(
+    (position) => position.playerId === 'player-3',
+  ),
+  'A bench player was unexpectedly persisted as a starter',
+);
 
 // 10. Trainer startet den Liveticker.
 await request(

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/lineup_planner.dart';
 import '../../core/models/matchday.dart';
 import '../../core/models/player.dart';
 import '../../core/offline_ticker.dart';
@@ -202,6 +203,34 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     });
   }
 
+  Future<void> _applySavedLineup(LineupModel lineup) async {
+    if (!mounted || _match?.squad == null) return;
+    setState(() {
+      final current = _match!;
+      final squad = current.squad!;
+      _match = MatchdayModel(
+        id: current.id,
+        title: current.title,
+        startAt: current.startAt,
+        meetingAt: current.meetingAt,
+        location: current.location,
+        teamId: current.teamId,
+        details: current.details,
+        squad: MatchSquadModel(
+          id: squad.id,
+          members: squad.members,
+          name: squad.name,
+          formation: squad.formation,
+          publishedAt: squad.publishedAt,
+          lineup: lineup,
+        ),
+        ticker: current.ticker,
+        eligiblePlayers: current.eligiblePlayers,
+        gameFormat: current.gameFormat,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -262,7 +291,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                   _LineupTab(
                     match: match,
                     editable: widget.staffView,
-                    onSaved: _load,
+                    onSaved: _applySavedLineup,
                   ),
                   _TickerTab(
                     match: match,
@@ -690,7 +719,7 @@ class _LineupTab extends ConsumerStatefulWidget {
   });
   final MatchdayModel match;
   final bool editable;
-  final Future<void> Function() onSaved;
+  final Future<void> Function(LineupModel lineup) onSaved;
 
   @override
   ConsumerState<_LineupTab> createState() => _LineupTabState();
@@ -702,6 +731,18 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
   bool _saving = false;
 
   int get _fieldSize => widget.match.gameFormat.playerCount;
+  List<MatchPlayer> get _nominatedPlayers =>
+      widget.match.squad?.members
+          .where((item) => item.status == NominationStatus.nominated)
+          .map((item) => item.player)
+          .toList() ??
+      const [];
+  List<MatchPlayer> get _benchPlayers {
+    final fieldIds = _positions.map((position) => position.player.id).toSet();
+    return _nominatedPlayers
+        .where((player) => !fieldIds.contains(player.id))
+        .toList();
+  }
 
   @override
   void initState() {
@@ -727,25 +768,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
   }
 
   List<LineupPositionModel> _initialPositions() {
-    final members = widget.match.squad?.members
-            .where((item) => item.status == NominationStatus.nominated)
-            .take(_fieldSize)
-            .toList() ??
-        const [];
-    final slots = _lineupSlots(_fieldSize);
-    return [
-      for (var index = 0; index < members.length; index++)
-        LineupPositionModel(
-          player: members[index].player,
-          positionCode: slots[index].$3,
-          x: slots[index].$1,
-          y: slots[index].$2,
-          period: 1,
-          isStarter: true,
-          isGoalkeeper: index == 0,
-          isCaptain: index == 1,
-        ),
-    ];
+    return planInitialLineup(
+      players: _nominatedPlayers,
+      fieldSize: _fieldSize,
+    );
   }
 
   @override
@@ -768,90 +794,117 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     return Column(
       children: [
         if (widget.editable)
-          Row(
-            children: [
-              DropdownButton<String>(
-                value: _formation,
-                items: {
-                  _formation,
-                  ...widget.match.gameFormat.formations,
-                }
-                    .map((value) => DropdownMenuItem(value: value, child: Text(value)))
-                    .toList(),
-                onChanged: (value) => setState(() => _formation = value!),
-              ),
-              const SizedBox(width: 12),
-              Chip(
-                avatar: const Icon(Icons.groups_rounded, size: 18),
-                label: Text(widget.match.gameFormat.strength),
-              ),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: _saving ? null : () => _save(LineupStatus.draft),
-                icon: const Icon(Icons.save_outlined),
-                label: const Text('Entwurf'),
-              ),
-              const SizedBox(width: 10),
-              FilledButton.icon(
-                onPressed: _saving ? null : () => _save(LineupStatus.published),
-                icon: const Icon(Icons.publish_rounded),
-                label: const Text('Veröffentlichen'),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final setup = <Widget>[
+                DropdownButton<String>(
+                  value: _formation,
+                  items: {
+                    _formation,
+                    ...widget.match.gameFormat.formations,
+                  }
+                      .map(
+                        (value) =>
+                            DropdownMenuItem(value: value, child: Text(value)),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _formation = value!),
+                ),
+                Chip(
+                  avatar: const Icon(Icons.groups_rounded, size: 18),
+                  label: Text(widget.match.gameFormat.strength),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _saving
+                      ? null
+                      : () => setState(() {
+                            _positions = planInitialLineup(
+                              players: _nominatedPlayers,
+                              fieldSize: _fieldSize,
+                            );
+                          }),
+                  icon: const Icon(Icons.auto_awesome_rounded),
+                  label: const Text('Nach Positionen aufstellen'),
+                ),
+              ];
+              final actions = <Widget>[
+                OutlinedButton.icon(
+                  onPressed:
+                      _saving ? null : () => _save(LineupStatus.draft),
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Entwurf'),
+                ),
+                FilledButton.icon(
+                  onPressed:
+                      _saving ? null : () => _save(LineupStatus.published),
+                  icon: const Icon(Icons.publish_rounded),
+                  label: const Text('Veröffentlichen'),
+                ),
+              ];
+              if (constraints.maxWidth < 900) {
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [...setup, ...actions],
+                );
+              }
+              return Row(
+                children: [
+                  ...setup.expand(
+                    (widget) => [widget, const SizedBox(width: 10)],
+                  ),
+                  const Spacer(),
+                  ...actions.expand(
+                    (widget) => [widget, const SizedBox(width: 10)],
+                  ),
+                ],
+              );
+            },
           ),
         const SizedBox(height: 12),
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final width = min(constraints.maxWidth, 720.0);
-              return Align(
-                alignment: Alignment.topCenter,
-                child: Container(
-                  width: width,
-                  height: min(constraints.maxHeight, width * 1.25),
-                  decoration: BoxDecoration(
-                    color: const Color(0xff16824b),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.white70, width: 2),
+              final wide = constraints.maxWidth >= 980;
+              if (wide) {
+                final pitchWidth =
+                    min(constraints.maxWidth - 320, 720.0).toDouble();
+                final pitchHeight = min(
+                  constraints.maxHeight - (widget.editable ? 32 : 0),
+                  pitchWidth * .72,
+                ).toDouble();
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: _buildPitch(pitchWidth, pitchHeight),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    SizedBox(
+                      width: 300,
+                      height: constraints.maxHeight,
+                      child: _buildBench(vertical: true),
+                    ),
+                  ],
+                );
+              }
+              final pitchWidth = min(constraints.maxWidth, 720.0).toDouble();
+              final pitchHeight =
+                  min(constraints.maxHeight - 170, pitchWidth * .72).toDouble();
+              return Column(
+                children: [
+                  _buildPitch(pitchWidth, max(260, pitchHeight).toDouble()),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 150,
+                    width: double.infinity,
+                    child: _buildBench(vertical: false),
                   ),
-                  child: Stack(
-                    children: [
-                      const Positioned.fill(child: _PitchLines()),
-                      for (var index = 0; index < _positions.length; index++)
-                        Positioned(
-                          left: _positions[index].x * (width - 76),
-                          top: _positions[index].y *
-                              (min(constraints.maxHeight, width * 1.25) - 62),
-                          child: GestureDetector(
-                            onPanUpdate: widget.editable
-                                ? (details) {
-                                    setState(() {
-                                      final item = _positions[index];
-                                      _positions[index] = LineupPositionModel(
-                                        player: item.player,
-                                        positionCode: item.positionCode,
-                                        x: (item.x + details.delta.dx / width)
-                                            .clamp(0, 1)
-                                            .toDouble(),
-                                        y: (item.y +
-                                                details.delta.dy /
-                                                    min(constraints.maxHeight, width * 1.25))
-                                            .clamp(0, 1)
-                                            .toDouble(),
-                                        period: item.period,
-                                        isStarter: item.isStarter,
-                                        isGoalkeeper: item.isGoalkeeper,
-                                        isCaptain: item.isCaptain,
-                                      );
-                                    });
-                                  }
-                                : null,
-                            child: _PlayerMarker(position: _positions[index]),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+                ],
               );
             },
           ),
@@ -860,19 +913,390 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     );
   }
 
+  Widget _buildPitch(double width, double height) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (widget.editable)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Spieler ziehen oder anklicken, um Spieler und Position zu ändern.',
+            ),
+          ),
+        Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: const Color(0xff16824b),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white70, width: 2),
+          ),
+          child: Stack(
+            children: [
+              const Positioned.fill(child: _PitchLines()),
+              for (var index = 0; index < _positions.length; index++)
+                Positioned(
+                  left: _positions[index].x * (width - 76),
+                  top: _positions[index].y * (height - 62),
+                  child: GestureDetector(
+                    onTap:
+                        widget.editable ? () => _editPosition(index) : null,
+                    onPanUpdate: widget.editable
+                        ? (details) {
+                            setState(() {
+                              final item = _positions[index];
+                              _positions[index] = _copyPosition(
+                                item,
+                                x: (item.x + details.delta.dx / width)
+                                    .clamp(0, 1)
+                                    .toDouble(),
+                                y: (item.y + details.delta.dy / height)
+                                    .clamp(0, 1)
+                                    .toDouble(),
+                              );
+                            });
+                          }
+                        : null,
+                    child: _PlayerMarker(position: _positions[index]),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBench({required bool vertical}) {
+    final players = _benchPlayers;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.event_seat_rounded),
+                const SizedBox(width: 8),
+                Text(
+                  'Ersatzbank · ${players.length}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: players.isEmpty
+                  ? const Center(child: Text('Keine Ersatzspieler'))
+                  : vertical
+                      ? ListView(
+                          children: [
+                            for (final player in players)
+                              _benchPlayerTile(player),
+                          ],
+                        )
+                      : ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: players.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 8),
+                          itemBuilder: (_, index) => SizedBox(
+                            width: 210,
+                            child: _benchPlayerTile(players[index]),
+                          ),
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _benchPlayerTile(MatchPlayer player) {
+    return Card(
+      color: AppColors.background,
+      child: ListTile(
+        dense: true,
+        leading: CircleAvatar(
+          child: Text(player.shirtNumber?.toString() ?? 'FC'),
+        ),
+        title: Text(player.name),
+        subtitle: Text('Position: ${player.position ?? 'FLEX'}'),
+        trailing: widget.editable
+            ? const Icon(Icons.swap_horiz_rounded)
+            : null,
+        onTap: widget.editable ? () => _bringOntoField(player) : null,
+      ),
+    );
+  }
+
+  Future<void> _editPosition(int index) async {
+    final current = _positions[index];
+    var playerId = current.player.id;
+    var positionCode = current.positionCode;
+    var isGoalkeeper = current.isGoalkeeper;
+    var isCaptain = current.isCaptain;
+    final result = await showDialog<_LineupEditResult>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Spielerposition bearbeiten'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: playerId,
+                  decoration: const InputDecoration(labelText: 'Spieler'),
+                  items: [
+                    for (final player in _nominatedPlayers)
+                      DropdownMenuItem(
+                        value: player.id,
+                        child: Text(
+                          '${player.name} · ${player.position ?? 'FLEX'}',
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => playerId = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: positionCode,
+                  decoration: const InputDecoration(
+                    labelText: 'Position in dieser Aufstellung',
+                  ),
+                  items: {
+                    positionCode,
+                    ...lineupPositionCodes,
+                  }
+                      .map(
+                        (code) => DropdownMenuItem(
+                          value: code,
+                          child: Text(code),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() {
+                        positionCode = value;
+                        if (value == 'TW') isGoalkeeper = true;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Torhüter'),
+                  value: isGoalkeeper,
+                  onChanged: (value) =>
+                      setDialogState(() => isGoalkeeper = value),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Kapitän'),
+                  value: isCaptain,
+                  onChanged: (value) =>
+                      setDialogState(() => isCaptain = value),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: () => Navigator.pop(
+                context,
+                const _LineupEditResult.onBench(),
+              ),
+              icon: const Icon(Icons.event_seat_rounded),
+              label: const Text('Auf Bank setzen'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                context,
+                _LineupEditResult.field(
+                  playerId: playerId,
+                  positionCode: positionCode,
+                  isGoalkeeper: isGoalkeeper,
+                  isCaptain: isCaptain,
+                ),
+              ),
+              child: const Text('Übernehmen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    if (result.onBench) {
+      setState(() => _positions.removeAt(index));
+      return;
+    }
+    final selectedPlayer =
+        _nominatedPlayers.firstWhere((player) => player.id == result.playerId);
+    final otherIndex = _positions.indexWhere(
+      (position) =>
+          position.player.id == selectedPlayer.id &&
+          position.player.id != current.player.id,
+    );
+    setState(() {
+      if (result.isGoalkeeper) {
+        for (var i = 0; i < _positions.length; i++) {
+          if (i != index) {
+            _positions[i] = _copyPosition(
+              _positions[i],
+              isGoalkeeper: false,
+            );
+          }
+        }
+      }
+      if (result.isCaptain) {
+        for (var i = 0; i < _positions.length; i++) {
+          if (i != index) {
+            _positions[i] = _copyPosition(
+              _positions[i],
+              isCaptain: false,
+            );
+          }
+        }
+      }
+      if (otherIndex >= 0) {
+        _positions[otherIndex] = _copyPosition(
+          _positions[otherIndex],
+          player: current.player,
+        );
+      }
+      _positions[index] = _copyPosition(
+        current,
+        player: selectedPlayer,
+        positionCode: result.positionCode,
+        isGoalkeeper: result.isGoalkeeper,
+        isCaptain: result.isCaptain,
+      );
+    });
+  }
+
+  Future<void> _bringOntoField(MatchPlayer player) async {
+    if (_positions.any((position) => position.player.id == player.id)) return;
+    if (_positions.length < _fieldSize) {
+      final slots = lineupSlots(_fieldSize);
+      final freeSlot = slots.firstWhere(
+        (slot) => !_positions.any(
+          (position) =>
+              (position.x - slot.$1).abs() < .02 &&
+              (position.y - slot.$2).abs() < .02,
+        ),
+        orElse: () => (.5, .5, player.position ?? 'FLEX'),
+      );
+      setState(() {
+        _positions.add(
+          LineupPositionModel(
+            player: player,
+            positionCode: freeSlot.$3,
+            x: freeSlot.$1,
+            y: freeSlot.$2,
+            period: 1,
+            isStarter: true,
+            isGoalkeeper: freeSlot.$3 == 'TW',
+            isCaptain: false,
+          ),
+        );
+      });
+      return;
+    }
+    final replaceIndex = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${player.name} einwechseln'),
+        content: SizedBox(
+          width: 420,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Text('Welcher Spieler soll auf die Ersatzbank?'),
+              const SizedBox(height: 10),
+              for (var index = 0; index < _positions.length; index++)
+                ListTile(
+                  leading: CircleAvatar(
+                    child: Text(
+                      _positions[index].player.shirtNumber?.toString() ?? 'FC',
+                    ),
+                  ),
+                  title: Text(_positions[index].player.name),
+                  subtitle: Text(_positions[index].positionCode),
+                  onTap: () => Navigator.pop(context, index),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+        ],
+      ),
+    );
+    if (replaceIndex == null || !mounted) return;
+    setState(() {
+      _positions[replaceIndex] = _copyPosition(
+        _positions[replaceIndex],
+        player: player,
+      );
+    });
+  }
+
+  LineupPositionModel _copyPosition(
+    LineupPositionModel position, {
+    MatchPlayer? player,
+    String? positionCode,
+    double? x,
+    double? y,
+    bool? isGoalkeeper,
+    bool? isCaptain,
+  }) =>
+      LineupPositionModel(
+        player: player ?? position.player,
+        positionCode: positionCode ?? position.positionCode,
+        x: x ?? position.x,
+        y: y ?? position.y,
+        period: position.period,
+        isStarter: position.isStarter,
+        isGoalkeeper: isGoalkeeper ?? position.isGoalkeeper,
+        isCaptain: isCaptain ?? position.isCaptain,
+      );
+
   Future<void> _save(LineupStatus status) async {
     final repository = ref.read(repositoryProvider);
     setState(() => _saving = true);
     try {
-      await repository.saveLineup(
+      final savedLineup = await repository.saveLineup(
         eventId: widget.match.id,
         formation: _formation,
         fieldSize: _fieldSize,
         status: status,
         positions: _positions,
       );
+      if (!_samePositions(_positions, savedLineup.positions)) {
+        throw StateError(
+          'Die gespeicherte Aufstellung entspricht nicht dem Entwurf.',
+        );
+      }
       if (!mounted) return;
-      await widget.onSaved();
+      await widget.onSaved(savedLineup);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -895,6 +1319,28 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     }
   }
 
+  bool _samePositions(
+    List<LineupPositionModel> requested,
+    List<LineupPositionModel> saved,
+  ) {
+    if (requested.length != saved.length) return false;
+    final savedByPlayer = {
+      for (final position in saved) position.player.id: position,
+    };
+    for (final position in requested) {
+      final persisted = savedByPlayer[position.player.id];
+      if (persisted == null ||
+          persisted.positionCode != position.positionCode ||
+          (persisted.x - position.x).abs() > .000001 ||
+          (persisted.y - position.y).abs() > .000001 ||
+          persisted.isGoalkeeper != position.isGoalkeeper ||
+          persisted.isCaptain != position.isCaptain) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   String _lineupFingerprint(MatchdayModel match) {
     final lineup = match.squad?.lineup;
     return [
@@ -909,6 +1355,28 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
             '${position.isCaptain}',
     ].join('|');
   }
+}
+
+class _LineupEditResult {
+  const _LineupEditResult.onBench()
+      : onBench = true,
+        playerId = '',
+        positionCode = '',
+        isGoalkeeper = false,
+        isCaptain = false;
+
+  const _LineupEditResult.field({
+    required this.playerId,
+    required this.positionCode,
+    required this.isGoalkeeper,
+    required this.isCaptain,
+  }) : onBench = false;
+
+  final bool onBench;
+  final String playerId;
+  final String positionCode;
+  final bool isGoalkeeper;
+  final bool isCaptain;
 }
 
 List<PlayerModel> _mergeEligiblePlayers(
@@ -932,62 +1400,6 @@ class _PitchLines extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CustomPaint(painter: _PitchPainter());
 }
-
-List<(double, double, String)> _lineupSlots(int fieldSize) => switch (
-      fieldSize
-    ) {
-      3 => const [
-          (.5, .88, 'TW'),
-          (.25, .42, 'MF'),
-          (.75, .42, 'MF'),
-        ],
-      4 => const [
-          (.5, .9, 'TW'),
-          (.25, .58, 'LV'),
-          (.75, .58, 'RV'),
-          (.5, .2, 'ST'),
-        ],
-      5 => const [
-          (.5, .9, 'TW'),
-          (.25, .65, 'LV'),
-          (.75, .65, 'RV'),
-          (.5, .42, 'ZM'),
-          (.5, .16, 'ST'),
-        ],
-      9 => const [
-          (.5, .92, 'TW'),
-          (.2, .72, 'LV'),
-          (.5, .76, 'IV'),
-          (.8, .72, 'RV'),
-          (.18, .45, 'LM'),
-          (.5, .5, 'ZM'),
-          (.82, .45, 'RM'),
-          (.36, .18, 'ST'),
-          (.64, .18, 'ST'),
-        ],
-      11 => const [
-          (.5, .93, 'TW'),
-          (.12, .72, 'LV'),
-          (.38, .77, 'IV'),
-          (.62, .77, 'IV'),
-          (.88, .72, 'RV'),
-          (.16, .43, 'LM'),
-          (.4, .5, 'ZM'),
-          (.6, .5, 'ZM'),
-          (.84, .43, 'RM'),
-          (.36, .16, 'ST'),
-          (.64, .16, 'ST'),
-        ],
-      _ => const [
-          (.5, .9, 'TW'),
-          (.3, .7, 'LV'),
-          (.7, .7, 'RV'),
-          (.2, .45, 'LM'),
-          (.5, .5, 'ZM'),
-          (.8, .45, 'RM'),
-          (.5, .18, 'ST'),
-        ],
-    };
 
 class _PitchPainter extends CustomPainter {
   @override
