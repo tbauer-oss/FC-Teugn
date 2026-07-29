@@ -20,6 +20,7 @@ import {
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { Permission } from '../security/permissions';
 import { playerFileUpload } from '../middleware/player-files';
+import { asyncHandler } from '../middleware/async-handler';
 
 const router = Router();
 
@@ -45,14 +46,14 @@ router.post(
   requireApproved,
   requirePermission(Permission.MANAGE_TEAM),
   playerFileUpload.single('file'),
-  uploadTeamPhoto,
+  asyncHandler(uploadTeamPhoto),
 );
 router.delete(
   '/teams/:id/photo',
   requireAuth,
   requireApproved,
   requirePermission(Permission.MANAGE_TEAM),
-  removeTeamPhoto,
+  asyncHandler(removeTeamPhoto),
 );
 router.get(
   '/rule-profiles',

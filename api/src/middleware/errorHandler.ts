@@ -20,10 +20,13 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
     res.status(415).json({ message: err.message });
     return;
   }
-  if (err instanceof BlobError) {
+  const isMissingBlobCredentials =
+    err instanceof Error &&
+    err.message.includes('Vercel Blob: No blob credentials found');
+  if (err instanceof BlobError || isMissingBlobCredentials) {
     res.status(503).json({
       message:
-        'Der geschützte Fotospeicher ist momentan nicht erreichbar. Bitte die Blob-Verbindung des Backend-Projekts prüfen.',
+        'Der geschützte Fotospeicher ist momentan nicht erreichbar. Die Blob-Verbindung des Backend-Projekts ist nicht vollständig konfiguriert.',
     });
     return;
   }
