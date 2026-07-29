@@ -8,6 +8,7 @@ import { prisma } from '../lib/prisma';
 import { Permission, hasPermission } from '../security/permissions';
 import { Role } from '../types/enums';
 import { objectStorage } from '../services/object-storage';
+import { mediaAssetUrl } from '../services/media-access';
 import { canAccessPlayer } from './players.controller';
 
 const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -33,7 +34,6 @@ async function fileCapabilities(req: Request, playerId: string) {
     guardian?.isLegalGuardian === true;
   return { canView, canManage, canManagePhoto };
 }
-
 function safeFileStem(value: string) {
   return value
     .normalize('NFKD')
@@ -60,7 +60,7 @@ async function assetResponse(asset: {
     contentType: asset.contentType,
     size: asset.size,
     createdAt: asset.createdAt,
-    downloadUrl: await objectStorage.signedReadUrl(asset.pathname),
+    downloadUrl: mediaAssetUrl(asset.id),
   };
 }
 
@@ -348,8 +348,4 @@ async function serializeDocument(document: {
     createdAt: document.createdAt,
     file: await assetResponse(document.fileAsset),
   };
-}
-
-export async function signedPhotoUrl(pathname: string | null) {
-  return pathname ? objectStorage.signedReadUrl(pathname) : null;
 }

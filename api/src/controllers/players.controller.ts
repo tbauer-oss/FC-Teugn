@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
 import { accessibleTeamIds } from '../services/team-access';
-import { objectStorage } from '../services/object-storage';
+import { mediaAssetUrl } from '../services/media-access';
 
 const publicPlayerSelect = {
   id: true,
@@ -109,7 +109,7 @@ export async function getPlayer(req: Request, res: Response) {
         },
       },
       photoAsset: {
-        select: { pathname: true, deletedAt: true },
+        select: { id: true, pathname: true, deletedAt: true },
       },
       photoUrl: true,
       parentLinks: {
@@ -146,7 +146,7 @@ export async function getPlayer(req: Request, res: Response) {
     photoAsset: undefined,
     photoUrl:
       player?.photoAsset && player.photoAsset.deletedAt === null
-        ? await objectStorage.signedReadUrl(player.photoAsset.pathname)
+        ? mediaAssetUrl(player.photoAsset.id)
         : player?.photoUrl ?? null,
     capabilities: {
       canEdit: hasPermission(user.role, Permission.MANAGE_PLAYERS),

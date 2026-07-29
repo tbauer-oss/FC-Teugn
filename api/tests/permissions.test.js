@@ -32,6 +32,8 @@ const {
   signEmergencyAccessToken,
   verifyAccessToken,
   verifyEmergencyAccessToken,
+  signMediaAccessToken,
+  verifyMediaAccessToken,
   verifyRefreshToken,
 } = require('../dist/src/lib/jwt');
 const {
@@ -64,6 +66,15 @@ test('emergency tokens are short-lived, typed and scoped independently', () => {
   assert.equal(claims.eventId, 'event-1');
   assert.throws(() => verifyAccessToken(emergency));
   assert.throws(() => verifyRefreshToken(emergency));
+});
+
+test('media tokens are typed, asset-scoped and independent from sessions', () => {
+  const media = signMediaAccessToken({ assetId: 'asset-1' }, '5m');
+  const claims = verifyMediaAccessToken(media);
+  assert.equal(claims.kind, 'media-access');
+  assert.equal(claims.assetId, 'asset-1');
+  assert.throws(() => verifyAccessToken(media));
+  assert.throws(() => verifyRefreshToken(media));
 });
 
 test('emergency presence prefers recorded attendance over prior confirmations', () => {

@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { Permission, permissionsForRole } from '../security/permissions';
 import { canManageTeam } from '../services/team-access';
 import { objectStorage } from '../services/object-storage';
+import { mediaAssetUrl } from '../services/media-access';
 
 const staffRoles: Role[] = [
   Role.SUPER_ADMIN,
@@ -430,7 +431,7 @@ async function serializeTeam(team: {
   dfbnetTeamId: string | null;
   bfvTeamUrl: string | null;
   isActive: boolean;
-  photoAsset: { pathname: string } | null;
+  photoAsset: { id: string; pathname: string } | null;
   memberships: Array<{
     role: Role;
     user: { id: string; name: string; email: string };
@@ -459,7 +460,7 @@ async function serializeTeam(team: {
     bfvTeamUrl: team.bfvTeamUrl,
     isActive: team.isActive,
     photoUrl: includePrivate && team.photoAsset
-      ? await objectStorage.signedReadUrl(team.photoAsset.pathname)
+      ? mediaAssetUrl(team.photoAsset.id)
       : null,
     staff: team.memberships.map((membership) => ({
       id: membership.user.id,

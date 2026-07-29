@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/club_logo.dart';
 import '../../core/models/user.dart';
 import 'auth_controller.dart';
 
@@ -103,23 +104,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         children: [
           Row(
             children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: AppColors.orange,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                alignment: Alignment.center,
-                child: const Text(
-                  'FC',
-                  style: TextStyle(
-                    color: AppColors.navy,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
+              const ClubLogo(size: 62),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
