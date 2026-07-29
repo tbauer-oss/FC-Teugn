@@ -15,6 +15,7 @@ import { prisma } from '../lib/prisma';
 import { hasPermission, Permission } from '../security/permissions';
 import { Role } from '../types/enums';
 import { recalculateMatchStatistics } from '../services/statistics.service';
+import { rosterTeamIdsForMatch } from '../services/match-roster';
 
 const matchInclude = {
   targetTeams: { include: { team: { select: { id: true, name: true, shortName: true } } } },
@@ -164,6 +165,28 @@ function isStaff(role: Role) {
   return hasPermission(role, Permission.MANAGE_EVENTS);
 }
 
+async function eligibleRosterTeamIds(
+  targetTeamIds: string[],
+  accessibleIds: string[],
+) {
+  const accessibleTargets = targetTeamIds.filter((teamId) =>
+    accessibleIds.includes(teamId),
+  );
+  const targetRosterCount = accessibleTargets.length
+    ? await prisma.player.count({
+        where: {
+          teamId: { in: accessibleTargets },
+          status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
+        },
+      })
+    : 0;
+  return rosterTeamIdsForMatch(
+    accessibleTargets,
+    accessibleIds,
+    targetRosterCount,
+  );
+}
+
 async function findMatch(id: string, user: { id: string; teamId: string; role: Role }) {
   const teamIds = await accessibleTeamIds(user);
   return prisma.event.findFirst({ where: { id, ...scope(teamIds) }, include: matchInclude });
@@ -248,11 +271,12 @@ export async function getMatch(req: Request, res: Response) {
     match.targetTeams.length
       ? match.targetTeams.map((target) => target.teamId)
       : [match.teamId]
-  ).filter((teamId) => accessibleIds.includes(teamId));
+  );
+  const rosterTeamIds = await eligibleRosterTeamIds(targetIds, accessibleIds);
   const eligiblePlayers = staff
     ? await prisma.player.findMany({
         where: {
-          teamId: { in: targetIds },
+          teamId: { in: rosterTeamIds },
           status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
         },
         select: eligiblePlayerSelect,
@@ -343,11 +367,12 @@ export async function updateSquad(req: Request, res: Response) {
     match.targetTeams.length
       ? match.targetTeams.map((target) => target.teamId)
       : [match.teamId]
-  ).filter((teamId) => accessibleIds.includes(teamId));
+  );
+  const rosterTeamIds = await eligibleRosterTeamIds(targetIds, accessibleIds);
   const validPlayers = await prisma.player.findMany({
     where: {
       id: { in: ids },
-      teamId: { in: targetIds },
+      teamId: { in: rosterTeamIds },
       status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
     },
     select: { id: true },

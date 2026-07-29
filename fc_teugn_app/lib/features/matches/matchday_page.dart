@@ -502,13 +502,18 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
         const SizedBox(height: 12),
         Expanded(
           child: widget.allPlayers.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Icons.group_off_outlined,
                   title: 'Noch keine Spieler verfügbar',
                   message:
-                      'Für die beim Spiel ausgewählte Mannschaft gibt es '
-                      'noch keine aktiven Spielerprofile. Lege die Spieler '
-                      'unter „Team“ an oder prüfe die Mannschaft des Termins.',
+                      'In deinen freigegebenen Mannschaften gibt es noch '
+                      'keine aktiven Spielerprofile. Lege die Spieler unter '
+                      '„Team“ an oder lade die Daten erneut.',
+                  action: OutlinedButton.icon(
+                    onPressed: widget.onSaved,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Spieler neu laden'),
+                  ),
                 )
               : ListView(
                   children: [
