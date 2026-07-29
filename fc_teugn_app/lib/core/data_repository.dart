@@ -894,6 +894,27 @@ class DataRepository {
         .toList();
   }
 
+  Future<AppUser> createMember({
+    required String name,
+    required String email,
+    required String password,
+    required UserRole role,
+    required List<String> teamIds,
+    String? phone,
+    String? playerId,
+  }) async {
+    final res = await client.dio.post('/admin/members', data: {
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'password': password,
+      'role': userRoleApi(role),
+      'teamIds': teamIds,
+      'playerId': playerId,
+    });
+    return AppUser.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<void> approveUser(
     String userId, {
     AccountStatus status = AccountStatus.approved,

@@ -9,6 +9,7 @@ import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
 import { accessibleTeamIds } from '../services/team-access';
+import { hashPassword } from '../lib/password';
 
 const memberSelect = {
   id: true,
@@ -145,6 +146,103 @@ export async function listMembers(req: Request, res: Response) {
     select: memberSelect,
   });
   return res.json(users);
+}
+
+export async function createMember(req: Request, res: Response) {
+  const actor = req.user!;
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const email =
+    typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const phone =
+    typeof req.body?.phone === 'string' && req.body.phone.trim()
+      ? req.body.phone.trim()
+      : null;
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const requestedRole = normalizeAssignableRole(req.body?.role as Role, actor.role);
+  const requestedTeamIds: string[] = Array.isArray(req.body?.teamIds)
+    ? [...new Set<string>(
+        (req.body.teamIds as unknown[]).filter(
+          (id: unknown): id is string => typeof id === 'string',
+        ),
+      )]
+    : [];
+  if (!name || !email || !email.includes('@')) {
+    return res.status(400).json({ message: 'Name und gültige E-Mail-Adresse sind erforderlich.' });
+  }
+  if (password.length < 10) {
+    return res.status(400).json({ message: 'Das Startpasswort muss mindestens 10 Zeichen haben.' });
+  }
+  if (!requestedRole) {
+    return res.status(403).json({ message: 'Diese Rolle darf nicht vergeben werden.' });
+  }
+  if (requestedTeamIds.length === 0) {
+    return res.status(400).json({ message: 'Mindestens eine Mannschaft ist erforderlich.' });
+  }
+  const allowedIds = await accessibleTeamIds(actor);
+  if (!requestedTeamIds.every((id) => allowedIds.includes(id))) {
+    return res.status(403).json({ message: 'Mindestens eine Mannschaft ist nicht zulässig.' });
+  }
+  const playerId =
+    typeof req.body?.playerId === 'string' ? req.body.playerId.trim() : null;
+  const linkedPlayer =
+    requestedRole === Role.PLAYER && playerId
+      ? await prisma.player.findFirst({
+          where: {
+            id: playerId,
+            teamId: { in: requestedTeamIds },
+            userId: null,
+          },
+          select: { id: true },
+        })
+      : null;
+  if (requestedRole === Role.PLAYER && !linkedPlayer) {
+    return res.status(400).json({
+      message: 'Für einen Spielerzugang muss ein freies Spielerprofil gewählt werden.',
+    });
+  }
+  if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) {
+    return res.status(409).json({ message: 'Diese E-Mail-Adresse ist bereits registriert.' });
+  }
+  const passwordHash = await hashPassword(password);
+  const member = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        name,
+        email,
+        phone,
+        password: passwordHash,
+        role: requestedRole,
+        status: AccountStatus.APPROVED,
+        teamId: requestedTeamIds[0],
+        memberships: {
+          create: requestedTeamIds.map((teamId) => ({
+            teamId,
+            role: requestedRole,
+            status: AccountStatus.APPROVED,
+          })),
+        },
+      },
+      select: memberSelect,
+    });
+    if (linkedPlayer) {
+      await tx.player.update({
+        where: { id: linkedPlayer.id },
+        data: { userId: created.id },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        teamId: requestedTeamIds[0],
+        action: 'USER_CREATED_BY_ADMIN',
+        entityType: 'User',
+        entityId: created.id,
+        metadata: { role: requestedRole, teamIds: requestedTeamIds },
+      },
+    });
+    return created;
+  });
+  return res.status(201).json(member);
 }
 
 export async function approveUser(req: Request, res: Response) {
