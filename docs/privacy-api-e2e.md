@@ -34,8 +34,8 @@ Produktionsabläufe, JWT-Sicherheit und standardisierte Fehlerantworten.
 - JWT-Sicherheitsschema,
 - vollständige Entfernung identifizierender Kontofelder bei Anonymisierung.
 
-Der read-only E2E-Smoke-Test läuft gegen eine gestartete, mit Seed-Daten
-befüllte Umgebung:
+Der mutierende E2E-Abnahmetest läuft ausschließlich gegen eine gestartete,
+mit fiktiven Seed-Daten befüllte Testumgebung:
 
 ```bash
 cd api
@@ -45,7 +45,21 @@ npm run dev
 npm run test:e2e
 ```
 
-Abweichende Umgebungen können `E2E_BASE_URL`, `E2E_TRAINER_EMAIL`,
-`E2E_PARENT_EMAIL` und `E2E_PASSWORD` setzen. Der Test verändert keine Termine
-oder Spieldaten. Er prüft echte HTTP-Aufrufe für Anmeldung, Rollengrenzen,
-Organisation, Termine, Spiele und personenbezogenen Datenexport.
+Abweichende Testumgebungen können `E2E_BASE_URL`, `E2E_TRAINER_EMAIL`,
+`E2E_PASSWORD`, `E2E_TEAM_ID` und `E2E_PLAYER_ID` setzen. Der Test erzeugt
+bewusst Registrierungen, Termine, Spiele und Tickerereignisse und darf deshalb
+nicht gegen die Produktivdatenbank ausgeführt werden.
+
+GitHub Actions startet dafür einen isolierten PostgreSQL-16-Dienst, spielt alle
+Prisma-Migrationen und Seed-Daten ein und prüft die vollständige Fachkette:
+
+1. Elternregistrierung und ausstehender Status,
+2. Adminfreigabe und Eltern-Kind-Zuordnung,
+3. Training, Zusage und tatsächliche Anwesenheit,
+4. Spiel, Kadernominierung und veröffentlichte Aufstellung,
+5. Livetickerstart, Tore, Idempotenz und Korrektur,
+6. identischer Live-Stand in zwei unabhängigen Eltern-Sitzungen,
+7. Spielende und daraus neu berechnete Statistiken.
+
+Zusätzlich stellt der Test sicher, dass interne taktische Notizen nicht an
+Eltern ausgeliefert werden.

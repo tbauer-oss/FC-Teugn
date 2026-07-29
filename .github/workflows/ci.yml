@@ -10,11 +10,28 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: fc_teugn
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: api
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/fc_teugn
+      ACCESS_TOKEN_SECRET: ci-access-token-secret-at-least-32-characters
+      REFRESH_TOKEN_SECRET: ci-refresh-token-secret-at-least-32-characters
+      EMERGENCY_ACCESS_SECRET: ci-emergency-secret-at-least-32-characters
 
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +48,25 @@ jobs:
 
       - name: Run backend tests
         run: npm test
+
+      - name: Prepare E2E database
+        run: |
+          npx prisma migrate deploy
+          npm run prisma:seed
+
+      - name: Run complete HTTP E2E acceptance
+        run: |
+          npm start &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:4000/ > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://localhost:4000/ > /dev/null
+          npm run test:e2e
 
   flutter:
     runs-on: ubuntu-latest
