@@ -58,7 +58,7 @@ jobs:
         run: |
           npm start &
           server_pid=$!
-          trap 'kill "$server_pid"' EXIT
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           for attempt in {1..30}; do
             if curl --fail --silent http://localhost:4000/ > /dev/null; then
               break
