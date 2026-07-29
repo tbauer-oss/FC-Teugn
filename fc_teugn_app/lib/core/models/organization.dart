@@ -1,3 +1,5 @@
+import '../team_game_format.dart';
+
 class ClubSummary {
   const ClubSummary({
     required this.id,
@@ -78,6 +80,7 @@ class TeamSummary {
     this.isActive = true,
     this.teamType = 'COMPETITIVE',
     this.gender = 'MIXED',
+    this.gameFormat = TeamGameFormat.football7,
     this.birthYears = const [],
     this.description,
     this.trainingLocation,
@@ -97,6 +100,7 @@ class TeamSummary {
   final bool isActive;
   final String teamType;
   final String gender;
+  final TeamGameFormat gameFormat;
   final List<int> birthYears;
   final String? description;
   final String? trainingLocation;
@@ -120,6 +124,7 @@ class TeamSummary {
         isActive: json['isActive'] as bool? ?? true,
         teamType: json['teamType'] as String? ?? 'COMPETITIVE',
         gender: json['gender'] as String? ?? 'MIXED',
+        gameFormat: TeamGameFormat.fromApi(json['gameFormat']),
         birthYears: (json['birthYears'] as List<dynamic>? ?? [])
             .whereType<num>()
             .map((value) => value.toInt())

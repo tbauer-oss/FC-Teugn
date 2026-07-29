@@ -1,0 +1,11 @@
+CREATE TYPE "TeamGameFormat" AS ENUM (
+  'FOOTBALL_3',
+  'FOOTBALL_4',
+  'FOOTBALL_5',
+  'FOOTBALL_7',
+  'FOOTBALL_9',
+  'FOOTBALL_11'
+);
+
+ALTER TABLE "Team"
+ADD COLUMN "gameFormat" "TeamGameFormat" NOT NULL DEFAULT 'FOOTBALL_7';

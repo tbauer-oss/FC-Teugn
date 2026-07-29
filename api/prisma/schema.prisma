@@ -323,6 +323,15 @@ enum TeamGender {
   FEMALE
 }
 
+enum TeamGameFormat {
+  FOOTBALL_3
+  FOOTBALL_4
+  FOOTBALL_5
+  FOOTBALL_7
+  FOOTBALL_9
+  FOOTBALL_11
+}
+
 enum DataSubjectRequestType {
   ERASURE
   RECTIFICATION
@@ -373,6 +382,7 @@ model Team {
   level                   String?
   teamType                TeamType                  @default(COMPETITIVE)
   gender                  TeamGender                @default(MIXED)
+  gameFormat              TeamGameFormat            @default(FOOTBALL_7)
   birthYears              Int[]                     @default([])
   description             String?
   trainingLocation        String?

@@ -10,6 +10,7 @@ import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
 import '../../core/models/organization.dart';
 import '../../core/providers.dart';
+import '../../core/team_game_format.dart';
 import '../shared/page_scaffold.dart';
 import 'organization_admin_tools.dart';
 
@@ -71,6 +72,7 @@ class _OrganizationContent extends ConsumerWidget {
           level: draft.level,
           teamType: draft.teamType,
           gender: draft.gender,
+          gameFormat: draft.gameFormat,
           birthYears: draft.birthYears,
           description: draft.description,
           trainingLocation: draft.trainingLocation,
@@ -89,6 +91,7 @@ class _OrganizationContent extends ConsumerWidget {
           level: draft.level,
           teamType: draft.teamType,
           gender: draft.gender,
+          gameFormat: draft.gameFormat,
           birthYears: draft.birthYears,
           description: draft.description,
           trainingLocation: draft.trainingLocation,
@@ -500,6 +503,11 @@ class _TeamCard extends StatelessWidget {
                   '${team.level?.isNotEmpty == true ? ' · ${team.level}' : ''}',
                   style: const TextStyle(color: AppColors.muted),
                 ),
+                const SizedBox(height: 10),
+                _InfoLine(
+                  icon: Icons.sports_soccer_rounded,
+                  text: team.gameFormat.label,
+                ),
                 if (team.birthYears.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   _InfoLine(
@@ -618,6 +626,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   late String _ageGroupId;
   late String _teamType;
   late String _gender;
+  late TeamGameFormat _gameFormat;
   late bool _isActive;
 
   @override
@@ -639,6 +648,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
     _ageGroupId = team?.ageGroup.id ?? widget.initialAgeGroup.id;
     _teamType = team?.teamType ?? 'COMPETITIVE';
     _gender = team?.gender ?? 'MIXED';
+    _gameFormat = team?.gameFormat ??
+        suggestedGameFormat(widget.initialAgeGroup.code);
     _isActive = team?.isActive ?? true;
   }
 
@@ -670,6 +681,13 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final editing = widget.team != null;
+    final selectedAgeGroup = widget.ageGroups.firstWhere(
+      (group) => group.id == _ageGroupId,
+    );
+    final availableGameFormats = {
+      _gameFormat,
+      ...gameFormatsForAgeGroup(selectedAgeGroup.code),
+    };
     return AlertDialog(
       title: Text(editing ? 'Mannschaft bearbeiten' : 'Neue Mannschaft'),
       content: SizedBox(
@@ -690,7 +708,34 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                 ],
                 onChanged: editing
                     ? null
-                    : (value) => setState(() => _ageGroupId = value!),
+                    : (value) {
+                        final group = widget.ageGroups.firstWhere(
+                          (item) => item.id == value,
+                        );
+                        setState(() {
+                          _ageGroupId = value!;
+                          _gameFormat = suggestedGameFormat(group.code);
+                        });
+                      },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<TeamGameFormat>(
+                initialValue: _gameFormat,
+                decoration: const InputDecoration(
+                  labelText: 'BFV-Spielform der Mannschaft *',
+                  helperText:
+                      'Altersgerechte Modelle; bestimmt auch die Aufstellung.',
+                  prefixIcon: Icon(Icons.sports_soccer_rounded),
+                ),
+                items: [
+                  for (final format in availableGameFormats)
+                    DropdownMenuItem(
+                      value: format,
+                      child: Text(format.label),
+                    ),
+                ],
+                onChanged: (value) =>
+                    setState(() => _gameFormat = value!),
               ),
               const SizedBox(height: 12),
               _twoColumns(
@@ -870,6 +915,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         level: _optional(_level),
         teamType: _teamType,
         gender: _gender,
+        gameFormat: _gameFormat,
         birthYears: years,
         description: _optional(_description),
         trainingLocation: _optional(_trainingLocation),
@@ -894,6 +940,7 @@ class _TeamDraft {
     required this.name,
     required this.teamType,
     required this.gender,
+    required this.gameFormat,
     required this.birthYears,
     required this.trainingTimes,
     required this.isActive,
@@ -912,6 +959,7 @@ class _TeamDraft {
   final String? level;
   final String teamType;
   final String gender;
+  final TeamGameFormat gameFormat;
   final List<int> birthYears;
   final String? description;
   final String? trainingLocation;

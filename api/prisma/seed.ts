@@ -46,12 +46,24 @@ async function main() {
   });
   const team = await prisma.team.upsert({
     where: { id: 'fc-teugn' },
-    update: { ageGroupId: ageGroup.id },
+    update: { ageGroupId: ageGroup.id, gameFormat: 'FOOTBALL_5' },
     create: {
       id: 'fc-teugn',
       name: 'E1',
       shortName: 'E1',
       ageGroupId: ageGroup.id,
+      gameFormat: 'FOOTBALL_5',
+    },
+  });
+  const secondTeam = await prisma.team.upsert({
+    where: { id: 'fc-teugn-e2' },
+    update: { ageGroupId: ageGroup.id, gameFormat: 'FOOTBALL_4' },
+    create: {
+      id: 'fc-teugn-e2',
+      name: 'E2',
+      shortName: 'E2',
+      ageGroupId: ageGroup.id,
+      gameFormat: 'FOOTBALL_4',
     },
   });
 
@@ -139,6 +151,18 @@ async function main() {
       firstName: 'Finn',
       lastName: 'Stark',
       birthDate: new Date('2013-11-02'),
+    },
+  });
+  await prisma.player.upsert({
+    where: { id: 'player-3' },
+    update: { teamId: secondTeam.id, status: 'ACTIVE' },
+    create: {
+      id: 'player-3',
+      teamId: secondTeam.id,
+      firstName: 'Mia',
+      lastName: 'Reserve',
+      birthDate: new Date('2015-06-10'),
+      status: 'ACTIVE',
     },
   });
 

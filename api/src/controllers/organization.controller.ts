@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
-import { AccountStatus, Role, TeamGender, TeamType } from '@prisma/client';
+import {
+  AccountStatus,
+  Role,
+  TeamGameFormat,
+  TeamGender,
+  TeamType,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { Permission, permissionsForRole } from '../security/permissions';
 import { canManageTeam } from '../services/team-access';
@@ -45,6 +51,7 @@ type TeamInput = {
   level?: string | null;
   teamType?: TeamType;
   gender?: TeamGender;
+  gameFormat?: TeamGameFormat;
   birthYears?: unknown;
   description?: string | null;
   trainingLocation?: string | null;
@@ -103,6 +110,11 @@ function normalizedTeamData(body: TeamInput) {
     gender: Object.values(TeamGender).includes(body.gender as TeamGender)
       ? body.gender!
       : TeamGender.MIXED,
+    gameFormat: Object.values(TeamGameFormat).includes(
+      body.gameFormat as TeamGameFormat,
+    )
+      ? body.gameFormat!
+      : TeamGameFormat.FOOTBALL_7,
     birthYears: birthYears(body.birthYears),
     description: optionalText(body.description, 1500),
     trainingLocation: optionalText(body.trainingLocation, 200),
@@ -404,6 +416,7 @@ function teamSnapshot(team: ReturnType<typeof normalizedTeamData> & { ageGroupId
     level: team.level,
     teamType: team.teamType,
     gender: team.gender,
+    gameFormat: team.gameFormat,
     birthYears: team.birthYears,
     trainingLocation: team.trainingLocation,
     trainingTimes: team.trainingTimes,
@@ -422,6 +435,7 @@ async function serializeTeam(team: {
   level: string | null;
   teamType: TeamType;
   gender: TeamGender;
+  gameFormat: TeamGameFormat;
   birthYears: number[];
   description: string | null;
   trainingLocation: string | null;
@@ -450,6 +464,7 @@ async function serializeTeam(team: {
     level: team.level,
     teamType: team.teamType,
     gender: team.gender,
+    gameFormat: team.gameFormat,
     birthYears: team.birthYears,
     description: team.description,
     trainingLocation: team.trainingLocation,

@@ -10,6 +10,7 @@ void main() {
       'startAt': '2026-08-12T16:00:00.000Z',
       'meetingAt': '2026-08-12T15:00:00.000Z',
       'location': 'Waldstadion',
+      'teamGameFormat': 'FOOTBALL_5',
       'matchDetails': {
         'opponent': 'SV Beispiel',
         'isHome': true,
@@ -109,6 +110,7 @@ void main() {
     expect(match.ticker?.ourGoals, 1);
     expect(match.eligiblePlayers.single.displayName, 'Max');
     expect(match.eligiblePlayers.single.position, 'ST');
+    expect(match.gameFormat.playerCount, 5);
   });
 
   test('converts camel-case enum values to API constants', () {

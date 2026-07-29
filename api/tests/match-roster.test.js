@@ -5,35 +5,16 @@ const {
   rosterTeamIdsForMatch,
 } = require('../dist/src/services/match-roster.js');
 
-test('uses the teams assigned to the match when they have a roster', () => {
+test('uses every team that is accessible to the trainer', () => {
   assert.deepEqual(
-    rosterTeamIdsForMatch(
-      ['team-e'],
-      ['team-e', 'team-d'],
-      10,
-    ),
-    ['team-e'],
-  );
-});
-
-test('falls back to accessible teams when the assigned team has no players', () => {
-  assert.deepEqual(
-    rosterTeamIdsForMatch(
-      ['team-e'],
-      ['team-e', 'team-d'],
-      0,
-    ),
+    rosterTeamIdsForMatch(['team-e', 'team-d']),
     ['team-e', 'team-d'],
   );
 });
 
-test('never includes inaccessible teams', () => {
+test('removes duplicate team access entries', () => {
   assert.deepEqual(
-    rosterTeamIdsForMatch(
-      ['foreign-team'],
-      ['team-e'],
-      0,
-    ),
+    rosterTeamIdsForMatch(['team-e', 'team-e']),
     ['team-e'],
   );
 });

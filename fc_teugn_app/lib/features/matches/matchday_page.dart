@@ -63,7 +63,22 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     final staffView = widget.staffView;
     try {
       final match = await repository.match(matchId);
-      final players = staffView ? match.eligiblePlayers : const <PlayerModel>[];
+      var players = staffView ? match.eligiblePlayers : const <PlayerModel>[];
+      if (staffView) {
+        try {
+          // Use the same authorized roster endpoint as the team overview.
+          // This avoids diverging player lists between "Team" and "Spiele".
+          players = (await repository.players())
+              .where(
+                (player) =>
+                    player.status == PlayerStatus.active ||
+                    player.status == PlayerStatus.injured,
+              )
+              .toList();
+        } catch (_) {
+          // The match response remains a usable fallback.
+        }
+      }
       if (userId != null) {
         try {
           await offlineQueue.cacheMatch(
@@ -140,6 +155,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           squad: current.squad,
           ticker: ticker,
           eligiblePlayers: current.eligiblePlayers,
+          gameFormat: current.gameFormat,
         );
         _match = updatedMatch;
         _online = true;
@@ -618,14 +634,17 @@ class _LineupTab extends ConsumerStatefulWidget {
 
 class _LineupTabState extends ConsumerState<_LineupTab> {
   late List<LineupPositionModel> _positions;
-  String _formation = '2-3-1';
+  late String _formation;
   bool _saving = false;
+
+  int get _fieldSize => widget.match.gameFormat.playerCount;
 
   @override
   void initState() {
     super.initState();
     final lineup = widget.match.squad?.lineup;
-    _formation = lineup?.formation ?? '2-3-1';
+    _formation =
+        lineup?.formation ?? widget.match.gameFormat.defaultFormation;
     _positions = lineup?.positions.toList() ?? _initialPositions();
   }
 
@@ -638,25 +657,18 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
       return;
     }
     final lineup = widget.match.squad?.lineup;
-    _formation = lineup?.formation ?? '2-3-1';
+    _formation =
+        lineup?.formation ?? widget.match.gameFormat.defaultFormation;
     _positions = lineup?.positions.toList() ?? _initialPositions();
   }
 
   List<LineupPositionModel> _initialPositions() {
     final members = widget.match.squad?.members
             .where((item) => item.status == NominationStatus.nominated)
-            .take(7)
+            .take(_fieldSize)
             .toList() ??
         const [];
-    const slots = [
-      (.5, .9, 'TW'),
-      (.3, .7, 'LV'),
-      (.7, .7, 'RV'),
-      (.2, .45, 'LM'),
-      (.5, .5, 'ZM'),
-      (.8, .45, 'RM'),
-      (.5, .18, 'ST'),
-    ];
+    final slots = _lineupSlots(_fieldSize);
     return [
       for (var index = 0; index < members.length; index++)
         LineupPositionModel(
@@ -696,10 +708,18 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
             children: [
               DropdownButton<String>(
                 value: _formation,
-                items: const ['3-3', '2-3-1', '3-2-1', '3-4-1', '4-3-1', '4-4-2']
+                items: {
+                  _formation,
+                  ...widget.match.gameFormat.formations,
+                }
                     .map((value) => DropdownMenuItem(value: value, child: Text(value)))
                     .toList(),
                 onChanged: (value) => setState(() => _formation = value!),
+              ),
+              const SizedBox(width: 12),
+              Chip(
+                avatar: const Icon(Icons.groups_rounded, size: 18),
+                label: Text(widget.match.gameFormat.strength),
               ),
               const Spacer(),
               OutlinedButton.icon(
@@ -783,7 +803,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
       await repository.saveLineup(
         eventId: widget.match.id,
         formation: _formation,
-        fieldSize: 7,
+        fieldSize: _fieldSize,
         status: status,
         positions: _positions,
       );
@@ -813,10 +833,12 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
 
   String _lineupFingerprint(MatchdayModel match) {
     final lineup = match.squad?.lineup;
-    if (lineup == null) return '';
     return [
-      lineup.formation,
-      for (final position in lineup.positions)
+      match.gameFormat.apiValue,
+      for (final member in match.squad?.members ?? const <SquadMemberModel>[])
+        if (member.status == NominationStatus.nominated) member.player.id,
+      if (lineup != null) lineup.formation,
+      for (final position in lineup?.positions ?? const <LineupPositionModel>[])
         '${position.player.id}:${position.positionCode}:'
             '${position.x}:${position.y}:${position.period}:'
             '${position.isStarter}:${position.isGoalkeeper}:'
@@ -830,6 +852,62 @@ class _PitchLines extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CustomPaint(painter: _PitchPainter());
 }
+
+List<(double, double, String)> _lineupSlots(int fieldSize) => switch (
+      fieldSize
+    ) {
+      3 => const [
+          (.5, .88, 'TW'),
+          (.25, .42, 'MF'),
+          (.75, .42, 'MF'),
+        ],
+      4 => const [
+          (.5, .9, 'TW'),
+          (.25, .58, 'LV'),
+          (.75, .58, 'RV'),
+          (.5, .2, 'ST'),
+        ],
+      5 => const [
+          (.5, .9, 'TW'),
+          (.25, .65, 'LV'),
+          (.75, .65, 'RV'),
+          (.5, .42, 'ZM'),
+          (.5, .16, 'ST'),
+        ],
+      9 => const [
+          (.5, .92, 'TW'),
+          (.2, .72, 'LV'),
+          (.5, .76, 'IV'),
+          (.8, .72, 'RV'),
+          (.18, .45, 'LM'),
+          (.5, .5, 'ZM'),
+          (.82, .45, 'RM'),
+          (.36, .18, 'ST'),
+          (.64, .18, 'ST'),
+        ],
+      11 => const [
+          (.5, .93, 'TW'),
+          (.12, .72, 'LV'),
+          (.38, .77, 'IV'),
+          (.62, .77, 'IV'),
+          (.88, .72, 'RV'),
+          (.16, .43, 'LM'),
+          (.4, .5, 'ZM'),
+          (.6, .5, 'ZM'),
+          (.84, .43, 'RM'),
+          (.36, .16, 'ST'),
+          (.64, .16, 'ST'),
+        ],
+      _ => const [
+          (.5, .9, 'TW'),
+          (.3, .7, 'LV'),
+          (.7, .7, 'RV'),
+          (.2, .45, 'LM'),
+          (.5, .5, 'ZM'),
+          (.8, .45, 'RM'),
+          (.5, .18, 'ST'),
+        ],
+    };
 
 class _PitchPainter extends CustomPainter {
   @override

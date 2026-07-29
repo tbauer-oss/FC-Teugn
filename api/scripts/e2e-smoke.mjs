@@ -193,8 +193,13 @@ const editableMatch = await request(`/matches/${match.id}`, {
 });
 assert(
   editableMatch.eligiblePlayers.some((player) => player.id === 'player-1') &&
-    editableMatch.eligiblePlayers.some((player) => player.id === playerId),
-  'Match-specific eligible squad players are missing',
+    editableMatch.eligiblePlayers.some((player) => player.id === playerId) &&
+    editableMatch.eligiblePlayers.some((player) => player.id === 'player-3'),
+  'An accessible cross-team player is missing from the match roster',
+);
+assert(
+  editableMatch.teamGameFormat === 'FOOTBALL_5',
+  'The match does not expose the configured team game format',
 );
 
 // 8. Trainer nominiert den Kader.
@@ -206,6 +211,7 @@ await request(
     members: [
       { playerId: 'player-1', status: 'NOMINATED', plannedMinutes: 60 },
       { playerId, status: 'NOMINATED', plannedMinutes: 45 },
+      { playerId: 'player-3', status: 'NOMINATED', plannedMinutes: 30 },
     ],
   }),
 );
@@ -247,6 +253,7 @@ const lineup = await request(
   }),
 );
 assert(lineup.status === 'PUBLISHED', 'Lineup publication failed');
+assert(lineup.fieldSize === 5, 'Lineup does not use the team game format');
 
 // 10. Trainer startet den Liveticker.
 await request(

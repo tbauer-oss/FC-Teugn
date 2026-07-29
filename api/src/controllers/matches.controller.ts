@@ -18,7 +18,19 @@ import { recalculateMatchStatistics } from '../services/statistics.service';
 import { rosterTeamIdsForMatch } from '../services/match-roster';
 
 const matchInclude = {
-  targetTeams: { include: { team: { select: { id: true, name: true, shortName: true } } } },
+  team: { select: { id: true, gameFormat: true } },
+  targetTeams: {
+    include: {
+      team: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          gameFormat: true,
+        },
+      },
+    },
+  },
   matchDetails: true,
   attendance: {
     include: {
@@ -165,28 +177,6 @@ function isStaff(role: Role) {
   return hasPermission(role, Permission.MANAGE_EVENTS);
 }
 
-async function eligibleRosterTeamIds(
-  targetTeamIds: string[],
-  accessibleIds: string[],
-) {
-  const accessibleTargets = targetTeamIds.filter((teamId) =>
-    accessibleIds.includes(teamId),
-  );
-  const targetRosterCount = accessibleTargets.length
-    ? await prisma.player.count({
-        where: {
-          teamId: { in: accessibleTargets },
-          status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
-        },
-      })
-    : 0;
-  return rosterTeamIdsForMatch(
-    accessibleTargets,
-    accessibleIds,
-    targetRosterCount,
-  );
-}
-
 async function findMatch(id: string, user: { id: string; teamId: string; role: Role }) {
   const teamIds = await accessibleTeamIds(user);
   return prisma.event.findFirst({ where: { id, ...scope(teamIds) }, include: matchInclude });
@@ -205,6 +195,8 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now()));
   return {
     ...match,
+    teamGameFormat:
+      match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat,
     eligiblePlayers: staff ? eligiblePlayers : undefined,
     squads: squad && (staff || squad.publishedAt)
       ? [
@@ -267,12 +259,7 @@ export async function getMatch(req: Request, res: Response) {
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   const staff = isStaff(user.role);
   const accessibleIds = await accessibleTeamIds(user);
-  const targetIds = (
-    match.targetTeams.length
-      ? match.targetTeams.map((target) => target.teamId)
-      : [match.teamId]
-  );
-  const rosterTeamIds = await eligibleRosterTeamIds(targetIds, accessibleIds);
+  const rosterTeamIds = rosterTeamIdsForMatch(accessibleIds);
   const eligiblePlayers = staff
     ? await prisma.player.findMany({
         where: {
@@ -363,12 +350,7 @@ export async function updateSquad(req: Request, res: Response) {
   const members = Array.isArray(req.body?.members) ? req.body.members : [];
   const ids = [...new Set(members.map((item: { playerId?: unknown }) => text(item.playerId, 100)).filter(Boolean))] as string[];
   const accessibleIds = await accessibleTeamIds(user);
-  const targetIds = (
-    match.targetTeams.length
-      ? match.targetTeams.map((target) => target.teamId)
-      : [match.teamId]
-  );
-  const rosterTeamIds = await eligibleRosterTeamIds(targetIds, accessibleIds);
+  const rosterTeamIds = rosterTeamIdsForMatch(accessibleIds);
   const validPlayers = await prisma.player.findMany({
     where: {
       id: { in: ids },
@@ -456,6 +438,19 @@ export async function updateLineup(req: Request, res: Response) {
   });
   if (!squad) return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
   const positions = Array.isArray(req.body?.positions) ? req.body.positions : [];
+  const fieldSize = Number(
+    String(
+      match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat,
+    ).replace('FOOTBALL_', ''),
+  );
+  const starters = positions.filter(
+    (position: Record<string, unknown>) => position.isStarter !== false,
+  );
+  if (starters.length > fieldSize) {
+    return res.status(400).json({
+      message: `Für diese Mannschaft sind höchstens ${fieldSize} Startspieler vorgesehen.`,
+    });
+  }
   const memberIds = new Set(
     squad.members
       .filter((member) => member.status !== NominationStatus.DECLINED)
@@ -484,7 +479,7 @@ export async function updateLineup(req: Request, res: Response) {
       where: { squadId: squad.id },
       update: {
         formation: text(req.body.formation, 50) ?? 'Individuell',
-        fieldSize: integer(req.body.fieldSize, 3, 11, 7),
+        fieldSize,
         status: enumValue(LineupStatus, req.body.status, LineupStatus.DRAFT),
         publicNote: text(req.body.publicNote, 1000),
         tacticalNote: text(req.body.tacticalNote, 2000),
@@ -496,7 +491,7 @@ export async function updateLineup(req: Request, res: Response) {
       create: {
         squadId: squad.id,
         formation: text(req.body.formation, 50) ?? 'Individuell',
-        fieldSize: integer(req.body.fieldSize, 3, 11, 7),
+        fieldSize,
         status: enumValue(LineupStatus, req.body.status, LineupStatus.DRAFT),
         publicNote: text(req.body.publicNote, 1000),
         tacticalNote: text(req.body.tacticalNote, 2000),
