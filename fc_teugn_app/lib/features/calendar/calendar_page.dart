@@ -176,17 +176,39 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
     if (draft == null) return;
     setState(() => savingEvent = true);
-    var committed = false;
+    List<EventModel> created;
     try {
-      final created =
-          await ref.read(repositoryProvider).createEvent(draft);
-      committed = true;
-      final createdIds = created.map((event) => event.id).toSet();
-      ref.invalidate(eventsProvider);
+      created = await ref.read(repositoryProvider).createEvent(draft);
+    } on DioException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_apiErrorMessage(
+            error,
+            'Der Termin konnte nicht gespeichert werden.',
+          ))),
+        );
+      }
+      if (mounted) setState(() => savingEvent = false);
+      return;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Der Termin konnte nicht gespeichert werden.'),
+          ),
+        );
+      }
+      if (mounted) setState(() => savingEvent = false);
+      return;
+    }
+
+    final createdIds = created.map((event) => event.id).toSet();
+    ref.invalidate(eventsProvider);
+    try {
       final refreshed = await ref.read(eventsProvider.future);
       final confirmedIds = refreshed.map((event) => event.id).toSet();
       if (!confirmedIds.containsAll(createdIds)) {
-        throw StateError('Der Termin fehlt nach der Aktualisierung.');
+        throw StateError('Mindestens ein Serientermin fehlt im Kalender.');
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -199,24 +221,16 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           ),
         );
       }
-    } on DioException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_apiErrorMessage(
-            error,
-            'Der Termin konnte nicht gespeichert werden.',
-          ))),
-        );
-      }
     } catch (_) {
       ref.invalidate(eventsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              committed
-                  ? 'Der Termin wurde gespeichert, aber der Kalender konnte nicht neu geladen werden.'
-                  : 'Der Termin konnte nicht gespeichert werden.',
+              created.length == 1
+                  ? 'Termin wurde gespeichert. Der Kalender wird neu geladen.'
+                  : '${created.length} Serientermine wurden gespeichert. '
+                      'Der Kalender wird neu geladen.',
             ),
           ),
         );
@@ -3788,10 +3802,13 @@ String _apiErrorMessage(DioException error, String fallback) {
     if (message is String && message.trim().isNotEmpty) return message;
   }
   if (error.type == DioExceptionType.connectionError ||
-      error.type == DioExceptionType.connectionTimeout ||
-      error.type == DioExceptionType.receiveTimeout ||
-      error.type == DioExceptionType.sendTimeout) {
+      error.type == DioExceptionType.connectionTimeout) {
     return 'Keine Verbindung zum Terminserver. Bitte Internetverbindung prüfen und erneut versuchen.';
+  }
+  if (error.type == DioExceptionType.receiveTimeout ||
+      error.type == DioExceptionType.sendTimeout) {
+    return 'Der Terminserver hat nicht rechtzeitig geantwortet. '
+        'Bitte den Kalender neu laden, bevor der Termin erneut angelegt wird.';
   }
   return fallback;
 }

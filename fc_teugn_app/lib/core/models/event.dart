@@ -663,9 +663,19 @@ class EventRecurrenceDraft {
   final int interval;
   final List<int> weekdays;
 
+  DateTime get inclusiveUntil => DateTime(
+        until.year,
+        until.month,
+        until.day,
+        23,
+        59,
+        59,
+        999,
+      );
+
   Map<String, dynamic> toJson() => {
         'frequency': frequency.apiName,
-        'until': until.toUtc().toIso8601String(),
+        'until': inclusiveUntil.toUtc().toIso8601String(),
         'interval': interval,
         'weekdays': weekdays,
       };

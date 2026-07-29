@@ -1,16 +1,21 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' show FontFeature;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/club_logo.dart';
 import '../../core/lineup_planner.dart';
+import '../../core/match_clock.dart';
 import '../../core/models/matchday.dart';
 import '../../core/models/player.dart';
 import '../../core/offline_ticker.dart';
 import '../../core/providers.dart';
+import '../../core/ticker_signal.dart';
+import '../../core/widgets/captain_badge.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
@@ -1426,27 +1431,49 @@ class _PlayerMarker extends StatelessWidget {
   final LineupPositionModel position;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: 76,
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 7),
-        decoration: BoxDecoration(
-          color: position.isGoalkeeper ? AppColors.yellow : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) => Semantics(
+        label: position.isCaptain
+            ? '${position.player.name}, Kapitän'
+            : position.player.name,
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            Text(
-              '${position.player.shirtNumber ?? '–'} · ${position.positionCode}',
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
+            Container(
+              width: 76,
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 7),
+              decoration: BoxDecoration(
+                color: position.isGoalkeeper ? AppColors.yellow : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black26, blurRadius: 8),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${position.player.shirtNumber ?? '–'} · '
+                    '${position.positionCode}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    position.player.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
             ),
-            Text(
-              position.player.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10),
-            ),
+            if (position.isCaptain)
+              const Positioned(
+                top: -9,
+                right: -9,
+                child: CaptainBadge(),
+              ),
           ],
         ),
       );
@@ -1474,11 +1501,19 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   bool _queueOffline = false;
   List<QueuedTickerAction> _pending = const [];
   Timer? _queuePoller;
+  Timer? _clockTimer;
   DateTime? _lastQueuedAt;
+  late DateTime _clockSynchronizedAt;
+  late int _elapsedAtSynchronization;
+  late TickerStatus _statusAtSynchronization;
+  late final ValueNotifier<_TickerFocusData> _focusData;
+  final Set<int> _warnedPeriods = {};
 
   @override
   void initState() {
     super.initState();
+    _synchronizeClock(_ticker);
+    _focusData = ValueNotifier(_tickerFocusData(_ticker));
     unawaited(_loadPending());
     _queuePoller = Timer.periodic(
       const Duration(seconds: 5),
@@ -1486,11 +1521,16 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         if (mounted) unawaited(_synchronizePending());
       },
     );
+    _clockTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _tickClock(),
+    );
   }
 
   @override
   void didUpdateWidget(covariant _TickerTab oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _synchronizeClock(_ticker);
     if (!oldWidget.online && widget.online) {
       unawaited(_synchronizePending());
     }
@@ -1499,22 +1539,44 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   @override
   void dispose() {
     _queuePoller?.cancel();
+    _clockTimer?.cancel();
+    _focusData.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final ticker = widget.match.ticker ??
-        const LiveTickerModel(
-          status: TickerStatus.notStarted,
-          currentPeriod: 1,
-          elapsedSeconds: 0,
-          ourGoals: 0,
-          theirGoals: 0,
-          lastSequence: 0,
-          events: [],
-        );
-    final minute = ticker.elapsedSeconds ~/ 60;
+  LiveTickerModel get _ticker =>
+      widget.match.ticker ??
+      const LiveTickerModel(
+        status: TickerStatus.notStarted,
+        currentPeriod: 1,
+        elapsedSeconds: 0,
+        ourGoals: 0,
+        theirGoals: 0,
+        lastSequence: 0,
+        events: [],
+      );
+
+  void _synchronizeClock(LiveTickerModel ticker) {
+    _clockSynchronizedAt = DateTime.now();
+    _elapsedAtSynchronization = ticker.elapsedSeconds;
+    _statusAtSynchronization = ticker.status;
+  }
+
+  int _effectiveElapsedSeconds() {
+    if (_statusAtSynchronization != TickerStatus.live) {
+      return _elapsedAtSynchronization;
+    }
+    return _elapsedAtSynchronization +
+        DateTime.now().difference(_clockSynchronizedAt).inSeconds;
+  }
+
+  MatchClockValue _clockValue(LiveTickerModel ticker) => calculateMatchClock(
+        ticker: ticker,
+        periodMinutes: widget.match.details?.periodMinutes ?? 30,
+        effectiveElapsedSeconds: _effectiveElapsedSeconds(),
+      );
+
+  ({int ours, int theirs}) _displayedScores(LiveTickerModel ticker) {
     final fcIsHome = widget.match.details?.isHome != false;
     final pendingOurGoals = _pending.where((action) {
       return (fcIsHome && action.type == TickerEventType.homeGoal) ||
@@ -1524,8 +1586,45 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       return (fcIsHome && action.type == TickerEventType.awayGoal) ||
           (!fcIsHome && action.type == TickerEventType.homeGoal);
     }).length;
-    final displayedOurGoals = ticker.ourGoals + pendingOurGoals;
-    final displayedTheirGoals = ticker.theirGoals + pendingTheirGoals;
+    return (
+      ours: ticker.ourGoals + pendingOurGoals,
+      theirs: ticker.theirGoals + pendingTheirGoals,
+    );
+  }
+
+  _TickerFocusData _tickerFocusData(LiveTickerModel ticker) {
+    final scores = _displayedScores(ticker);
+    final periodCount = widget.match.details?.periodCount ?? 2;
+    return _TickerFocusData(
+      clock: _clockValue(ticker),
+      ourGoals: scores.ours,
+      theirGoals: scores.theirs,
+      opponent: widget.match.details?.opponent ?? 'Gegner',
+      periodLabel: matchPeriodLabel(ticker.currentPeriod, periodCount),
+      status: ticker.status,
+    );
+  }
+
+  void _tickClock() {
+    if (!mounted) return;
+    final ticker = _ticker;
+    final clock = _clockValue(ticker);
+    if (widget.editable &&
+        ticker.status == TickerStatus.live &&
+        clock.expired &&
+        _warnedPeriods.add(ticker.currentPeriod)) {
+      unawaited(playTickerEndSignal());
+    }
+    setState(() {});
+    _focusData.value = _tickerFocusData(ticker);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ticker = _ticker;
+    final clock = _clockValue(ticker);
+    final fcIsHome = widget.match.details?.isHome != false;
+    final scores = _displayedScores(ticker);
     final connected = widget.online && !_queueOffline;
     final periodCount = widget.match.details?.periodCount ?? 2;
     final nextPeriod = ticker.currentPeriod < periodCount
@@ -1533,7 +1632,8 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         : periodCount;
     final canStartNextPeriod =
         ticker.status == TickerStatus.notStarted ||
-        ticker.currentPeriod < periodCount;
+        (ticker.status == TickerStatus.halfTime &&
+            ticker.currentPeriod < periodCount);
     return Column(
       children: [
         Row(
@@ -1547,6 +1647,13 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           ],
         ),
         const SizedBox(height: 10),
+        _CountdownCard(
+          clock: clock,
+          periodLabel: matchPeriodLabel(ticker.currentPeriod, periodCount),
+          status: ticker.status,
+          onExpand: _showFocusMode,
+        ),
+        const SizedBox(height: 10),
         Wrap(
           spacing: 10,
           runSpacing: 10,
@@ -1554,10 +1661,16 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           children: [
             _TickerMetric(
               label: 'SPIELSTAND',
-              value: '$displayedOurGoals:$displayedTheirGoals',
+              value: '${scores.ours}:${scores.theirs}',
             ),
-            _TickerMetric(label: 'SPIELMINUTE', value: "$minute'"),
-            _TickerMetric(label: 'ABSCHNITT', value: '${ticker.currentPeriod}'),
+            _TickerMetric(
+              label: 'GESPIELT',
+              value: _formatElapsed(clock.elapsedSeconds),
+            ),
+            _TickerMetric(
+              label: 'ABSCHNITT',
+              value: '${ticker.currentPeriod}/$periodCount',
+            ),
             _TickerMetric(
               label: 'STATUS',
               value: _tickerStatus(ticker.status),
@@ -1584,14 +1697,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
               OutlinedButton.icon(
                 onPressed: _busy || !canStartNextPeriod
                     ? null
-                    : () => _send(
-                          ticker.status == TickerStatus.notStarted
-                              ? TickerEventType.matchStart
-                              : TickerEventType.periodStart,
-                          period: ticker.status == TickerStatus.notStarted
-                              ? 1
-                              : nextPeriod,
-                        ),
+                    : () => _startPeriod(ticker, nextPeriod),
                 icon: const Icon(Icons.play_arrow_rounded),
                 label: Text(
                   ticker.status == TickerStatus.notStarted
@@ -1609,6 +1715,20 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                 icon: const Icon(Icons.pause_rounded),
                 label: Text('Abschnitt ${ticker.currentPeriod} beenden'),
               ),
+              if (ticker.status == TickerStatus.live)
+                OutlinedButton.icon(
+                  onPressed: _busy
+                      ? null
+                      : () => _send(TickerEventType.interruption),
+                  icon: const Icon(Icons.timer_off_outlined),
+                  label: const Text('Uhr pausieren'),
+                ),
+              if (ticker.status == TickerStatus.interrupted)
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _resumeClock,
+                  icon: const Icon(Icons.timer_outlined),
+                  label: const Text('Uhr fortsetzen'),
+                ),
               OutlinedButton.icon(
                 onPressed: _busy ? null : _undo,
                 icon: const Icon(Icons.undo_rounded),
@@ -1694,6 +1814,54 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         ),
       ],
     );
+  }
+
+  Future<void> _startPeriod(
+    LiveTickerModel ticker,
+    int nextPeriod,
+  ) async {
+    await prepareTickerSignal();
+    if (!mounted) return;
+    await _send(
+      ticker.status == TickerStatus.notStarted
+          ? TickerEventType.matchStart
+          : TickerEventType.periodStart,
+      period: ticker.status == TickerStatus.notStarted ? 1 : nextPeriod,
+    );
+  }
+
+  Future<void> _resumeClock() async {
+    await prepareTickerSignal();
+    if (mounted) await _send(TickerEventType.resume);
+  }
+
+  Future<void> _showFocusMode() async {
+    await prepareTickerSignal();
+    await activateTickerFocusMode();
+    if (!mounted) {
+      await deactivateTickerFocusMode();
+      return;
+    }
+    try {
+      await showDialog<void>(
+        context: context,
+        useSafeArea: false,
+        builder: (dialogContext) => Dialog.fullscreen(
+          child: ValueListenableBuilder<_TickerFocusData>(
+            valueListenable: _focusData,
+            builder: (context, data, _) => _TickerFocusView(
+              data: data,
+              editable: widget.editable,
+              onOurGoal: () => _goal(true),
+              onTheirGoal: () => _goal(false),
+              onClose: () => Navigator.pop(dialogContext),
+            ),
+          ),
+        ),
+      );
+    } finally {
+      await deactivateTickerFocusMode();
+    }
   }
 
   Future<void> _goal(bool ours) async {
@@ -2009,6 +2177,347 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 }
 
+class _TickerFocusData {
+  const _TickerFocusData({
+    required this.clock,
+    required this.ourGoals,
+    required this.theirGoals,
+    required this.opponent,
+    required this.periodLabel,
+    required this.status,
+  });
+
+  final MatchClockValue clock;
+  final int ourGoals;
+  final int theirGoals;
+  final String opponent;
+  final String periodLabel;
+  final TickerStatus status;
+}
+
+class _CountdownCard extends StatelessWidget {
+  const _CountdownCard({
+    required this.clock,
+    required this.periodLabel,
+    required this.status,
+    required this.onExpand,
+  });
+
+  final MatchClockValue clock;
+  final String periodLabel;
+  final TickerStatus status;
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    final expired = clock.expired && status == TickerStatus.live;
+    final accent = expired ? const Color(0xFFC2410C) : AppColors.yellow;
+    return Container(
+      width: min(MediaQuery.sizeOf(context).width, 620.0),
+      padding: const EdgeInsets.fromLTRB(20, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: AppColors.black,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: status == TickerStatus.live
+                      ? const Color(0xFF22C55E)
+                      : AppColors.muted,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '$periodLabel · ${_tickerStatus(status)}',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: onExpand,
+                tooltip: 'Liveticker groß anzeigen',
+                icon: const Icon(
+                  Icons.open_in_full_rounded,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            clock.countdown,
+            style: TextStyle(
+              color: accent,
+              fontSize: 52,
+              height: 1,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w900,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 7,
+              value: clock.progress,
+              backgroundColor: Colors.white12,
+              color: accent,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            expired
+                ? 'Abschnittszeit abgelaufen'
+                : 'Restzeit · ${clock.periodDurationSeconds ~/ 60} Minuten',
+            style: TextStyle(
+              color: expired ? const Color(0xFFFDBA74) : Colors.white60,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TickerFocusView extends StatelessWidget {
+  const _TickerFocusView({
+    required this.data,
+    required this.editable,
+    required this.onOurGoal,
+    required this.onTheirGoal,
+    required this.onClose,
+  });
+
+  final _TickerFocusData data;
+  final bool editable;
+  final VoidCallback onOurGoal;
+  final VoidCallback onTheirGoal;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final expired =
+        data.clock.expired && data.status == TickerStatus.live;
+    final clockColor = expired ? const Color(0xFFFFA56B) : AppColors.yellow;
+    return Material(
+      color: AppColors.black,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const ClubLogo(size: 52),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'FC TEUGN · LIVE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .8,
+                      ),
+                    ),
+                  ),
+                  IconButton.filledTonal(
+                    onPressed: onClose,
+                    tooltip: 'Großansicht schließen',
+                    icon: const Icon(Icons.close_fullscreen_rounded),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final clockSize = min(
+                      constraints.maxWidth * .2,
+                      constraints.maxHeight * .28,
+                    ).clamp(58, 128);
+                    return SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                        Text(
+                          '${data.periodLabel} · ${_tickerStatus(data.status)}',
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          data.clock.countdown,
+                          style: TextStyle(
+                            color: clockColor,
+                            fontSize: clockSize.toDouble(),
+                            height: 1,
+                            letterSpacing: 4,
+                            fontWeight: FontWeight.w900,
+                            fontFeatures: const [
+                              FontFeature.tabularFigures(),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 720),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: data.clock.progress,
+                              minHeight: 10,
+                              backgroundColor: Colors.white12,
+                              color: clockColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _FocusTeamScore(
+                              team: 'FC Teugn',
+                              goals: data.ourGoals,
+                              highlighted: true,
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 26),
+                              child: Text(
+                                ':',
+                                style: TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 54,
+                                  fontWeight: FontWeight.w300,
+                                ),
+                              ),
+                            ),
+                            _FocusTeamScore(
+                              team: data.opponent,
+                              goals: data.theirGoals,
+                            ),
+                          ],
+                        ),
+                        if (expired) ...[
+                          const SizedBox(height: 22),
+                          const Text(
+                            'Abschnittszeit abgelaufen',
+                            style: TextStyle(
+                              color: Color(0xFFFFA56B),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (editable)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: onOurGoal,
+                          icon: const Icon(Icons.sports_soccer_rounded),
+                          label: const Text('Tor FC Teugn'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: onTheirGoal,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white38),
+                          ),
+                          icon: const Icon(Icons.sports_soccer_rounded),
+                          label: const Text('Tor Gegner'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FocusTeamScore extends StatelessWidget {
+  const _FocusTeamScore({
+    required this.team,
+    required this.goals,
+    this.highlighted = false,
+  });
+
+  final String team;
+  final int goals;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: min(MediaQuery.sizeOf(context).width * .28, 240.0),
+        child: Column(
+          children: [
+            Text(
+              '$goals',
+              style: TextStyle(
+                color: highlighted ? AppColors.yellow : Colors.white,
+                fontSize: 64,
+                height: 1,
+                fontWeight: FontWeight.w900,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              team,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+
 class _ConnectionChip extends StatelessWidget {
   const _ConnectionChip({
     required this.online,
@@ -2079,6 +2588,13 @@ String _clock(DateTime value) {
   final local = value.toLocal();
   return '${local.hour.toString().padLeft(2, '0')}:'
       '${local.minute.toString().padLeft(2, '0')}';
+}
+
+String _formatElapsed(int seconds) {
+  final minutes = seconds ~/ 60;
+  final remainder = seconds % 60;
+  return '${minutes.toString().padLeft(2, '0')}:'
+      '${remainder.toString().padLeft(2, '0')}';
 }
 
 bool _isConnectivityFailure(Object error) {

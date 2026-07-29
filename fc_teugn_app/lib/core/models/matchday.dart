@@ -371,6 +371,7 @@ class TickerEventModel {
     required this.elapsedSeconds,
     required this.ourGoals,
     required this.theirGoals,
+    this.period = 1,
     this.comment,
     this.scorer,
     this.assist,
@@ -382,6 +383,7 @@ class TickerEventModel {
   final int elapsedSeconds;
   final int ourGoals;
   final int theirGoals;
+  final int period;
   final String? comment;
   final MatchPlayer? scorer;
   final MatchPlayer? assist;
@@ -398,6 +400,7 @@ class TickerEventModel {
         elapsedSeconds: json['elapsedSeconds'] as int? ?? 0,
         ourGoals: json['ourGoals'] as int? ?? 0,
         theirGoals: json['theirGoals'] as int? ?? 0,
+        period: json['period'] as int? ?? 1,
         comment: json['comment'] as String?,
         scorer: json['scorer'] == null
             ? null

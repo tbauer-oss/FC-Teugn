@@ -498,7 +498,15 @@ class DataRepository {
   }
 
   Future<List<EventModel>> createEvent(EventWriteData data) async {
-    final res = await client.dio.post('/events', data: data.toJson());
+    final res = await client.dio.post(
+      '/events',
+      data: data.toJson(),
+      options: Options(
+        receiveTimeout: data.recurrence == null
+            ? const Duration(seconds: 15)
+            : const Duration(seconds: 45),
+      ),
+    );
     if (res.data is List<dynamic>) {
       return (res.data as List<dynamic>)
           .map((item) => EventModel.fromJson(item as Map<String, dynamic>))
