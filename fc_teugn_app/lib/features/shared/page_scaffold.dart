@@ -20,6 +20,20 @@ class PageScaffold extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontal = constraints.maxWidth >= 700 ? 32.0 : 18.0;
+        final compactHeader = constraints.maxWidth < 640;
+        final titleBlock = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppColors.muted,
+                  ),
+            ),
+          ],
+        );
         return CustomScrollView(
           slivers: [
             SliverPadding(
@@ -27,27 +41,27 @@ class PageScaffold extends StatelessWidget {
               sliver: SliverToBoxAdapter(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1180),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
+                  child: compactHeader
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            titleBlock,
+                            if (action != null) ...[
+                              const SizedBox(height: 16),
+                              SizedBox(width: double.infinity, child: action!),
+                            ],
+                          ],
+                        )
+                      : Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(title, style: Theme.of(context).textTheme.headlineMedium),
-                            const SizedBox(height: 6),
-                            Text(subtitle, style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: AppColors.muted,
-                            )),
+                            Expanded(child: titleBlock),
+                            if (action != null) ...[
+                              const SizedBox(width: 16),
+                              action!,
+                            ],
                           ],
                         ),
-                      ),
-                      if (action != null) ...[
-                        const SizedBox(width: 16),
-                        action!,
-                      ],
-                    ],
-                  ),
                 ),
               ),
             ),
@@ -75,6 +89,7 @@ class MetricCard extends StatelessWidget {
     required this.icon,
     required this.color,
     this.caption,
+    this.onTap,
   });
 
   final String label;
@@ -82,42 +97,70 @@ class MetricCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String? caption;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 21),
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: const BorderSide(color: AppColors.line),
+    );
+    return Material(
+      color: Colors.white,
+      shape: shape,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: color, size: 23),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    Text(
+                      label,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.navy,
+                          ),
+                    ),
+                    if (caption != null)
+                      Text(
+                        caption!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.muted,
+                            ),
+                      ),
+                  ],
+                ),
+              ),
+              if (onTap != null)
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.muted,
+                ),
+            ],
           ),
-          const Spacer(),
-          Text(value, style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 2),
-          Text(label, style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: AppColors.navy,
-          )),
-          if (caption != null) ...[
-            const SizedBox(height: 4),
-            Text(caption!, style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.muted,
-            )),
-          ],
-        ],
+        ),
       ),
     );
   }

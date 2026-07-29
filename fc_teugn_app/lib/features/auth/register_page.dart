@@ -104,8 +104,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         children: [
           Row(
             children: [
-              const ClubLogo(size: 62),
-              const SizedBox(width: 14),
+              const ClubLogo(size: 88),
+              const SizedBox(width: 18),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
