@@ -310,6 +310,7 @@ class _RegularTrainingTimes extends StatelessWidget {
           ],
         ),
       );
+}
 
 class _DateTile extends StatelessWidget {
   const _DateTile({required this.date});
