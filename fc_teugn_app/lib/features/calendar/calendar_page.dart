@@ -12,7 +12,7 @@ import '../../core/models/player.dart';
 import '../../core/providers.dart';
 import '../shared/page_scaffold.dart';
 
-enum CalendarView { day, week, month, agenda }
+enum CalendarView { day, week, month, year, agenda }
 
 class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key, required this.canManage});
@@ -26,6 +26,7 @@ class CalendarPage extends ConsumerStatefulWidget {
 class _CalendarPageState extends ConsumerState<CalendarPage> {
   CalendarView view = CalendarView.month;
   DateTime cursor = DateTime.now();
+  bool savingEvent = false;
   final selectedCategories = <EventCategory>{};
   final selectedTeams = <String>{};
 
@@ -52,11 +53,17 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           ),
           if (canManage)
             FilledButton.icon(
-              onPressed: organization == null
+              onPressed: organization == null || savingEvent
                   ? null
                   : () => _createEvent(organization),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Termin'),
+              icon: savingEvent
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_rounded),
+              label: Text(savingEvent ? 'Wird gespeichert…' : 'Termin'),
             ),
         ],
       ),
@@ -99,26 +106,14 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             data: (items) {
               final filtered = items.where(_matchesFilters).toList()
                 ..sort((a, b) => a.startAt.compareTo(b.startAt));
-              if (filtered.isEmpty) {
-                return EmptyState(
-                  icon: Icons.event_available_rounded,
-                  title: 'Keine passenden Termine',
-                  message: selectedCategories.isEmpty && selectedTeams.isEmpty
-                      ? 'Sobald ein Termin angelegt wurde, erscheint er hier.'
-                      : 'Passe die ausgewählten Filter an.',
-                );
-              }
               return switch (view) {
                 CalendarView.month => _MonthView(
                     cursor: cursor,
                     events: filtered,
                     onOpen: _openEvent,
                   ),
-                CalendarView.week => _PeriodAgenda(
-                    dates: List.generate(
-                      7,
-                      (index) => _monday(cursor).add(Duration(days: index)),
-                    ),
+                CalendarView.week => _WeekView(
+                    cursor: cursor,
                     events: filtered,
                     onOpen: _openEvent,
                   ),
@@ -133,6 +128,14 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                             .isBefore(DateTime.now().subtract(const Duration(days: 1))))
                         .toList(),
                     onOpen: _openEvent,
+                  ),
+                CalendarView.year => _YearView(
+                    cursor: cursor,
+                    events: filtered,
+                    onMonthSelected: (month) => setState(() {
+                      cursor = DateTime(cursor.year, month);
+                      view = CalendarView.month;
+                    }),
                   ),
               };
             },
@@ -158,6 +161,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         CalendarView.week => value.add(Duration(days: 7 * direction)),
         CalendarView.month || CalendarView.agenda =>
           DateTime(value.year, value.month + direction, 1),
+        CalendarView.year => DateTime(value.year + direction),
       };
 
   Future<void> _createEvent(OrganizationContext organization) async {
@@ -169,9 +173,55 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       ),
     );
     if (draft == null) return;
-    await _execute(() async {
-      await ref.read(repositoryProvider).createEvent(draft);
-    }, 'Termin wurde angelegt.');
+    setState(() => savingEvent = true);
+    var committed = false;
+    try {
+      final created =
+          await ref.read(repositoryProvider).createEvent(draft);
+      committed = true;
+      final createdIds = created.map((event) => event.id).toSet();
+      ref.invalidate(eventsProvider);
+      final refreshed = await ref.read(eventsProvider.future);
+      final confirmedIds = refreshed.map((event) => event.id).toSet();
+      if (!confirmedIds.containsAll(createdIds)) {
+        throw StateError('Der Termin fehlt nach der Aktualisierung.');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              created.length == 1
+                  ? 'Termin wurde gespeichert und bestätigt.'
+                  : '${created.length} Serientermine wurden gespeichert und bestätigt.',
+            ),
+          ),
+        );
+      }
+    } on DioException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_apiErrorMessage(
+            error,
+            'Der Termin konnte nicht gespeichert werden.',
+          ))),
+        );
+      }
+    } catch (_) {
+      ref.invalidate(eventsProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              committed
+                  ? 'Der Termin wurde gespeichert, aber der Kalender konnte nicht neu geladen werden.'
+                  : 'Der Termin konnte nicht gespeichert werden.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => savingEvent = false);
+    }
   }
 
   Future<void> _openEvent(EventModel event) async {
@@ -226,11 +276,20 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(success)));
       }
+    } on DioException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_apiErrorMessage(
+            error,
+            'Die Änderung konnte nicht gespeichert werden.',
+          ))),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Die Änderung konnte nicht gespeichert werden.'),
+            content: Text('Die Änderung konnte nicht bestätigt werden.'),
           ),
         );
       }
@@ -267,6 +326,7 @@ class _CalendarToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 720;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -295,17 +355,37 @@ class _CalendarToolbar extends StatelessWidget {
             ),
             TextButton(onPressed: onToday, child: const Text('Heute')),
             const SizedBox(width: 4),
-            SegmentedButton<CalendarView>(
-              segments: const [
-                ButtonSegment(value: CalendarView.day, label: Text('Tag')),
-                ButtonSegment(value: CalendarView.week, label: Text('Woche')),
-                ButtonSegment(value: CalendarView.month, label: Text('Monat')),
-                ButtonSegment(value: CalendarView.agenda, label: Text('Agenda')),
-              ],
-              selected: {view},
-              showSelectedIcon: false,
-              onSelectionChanged: (value) => onViewChanged(value.first),
-            ),
+            if (compact)
+              DropdownButton<CalendarView>(
+                value: view,
+                borderRadius: BorderRadius.circular(14),
+                items: [
+                  for (final value in CalendarView.values)
+                    DropdownMenuItem(
+                      value: value,
+                      child: Text(_calendarViewLabel(value)),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) onViewChanged(value);
+                },
+              )
+            else
+              SegmentedButton<CalendarView>(
+                segments: const [
+                  ButtonSegment(value: CalendarView.day, label: Text('Tag')),
+                  ButtonSegment(
+                      value: CalendarView.week, label: Text('Woche')),
+                  ButtonSegment(
+                      value: CalendarView.month, label: Text('Monat')),
+                  ButtonSegment(value: CalendarView.year, label: Text('Jahr')),
+                  ButtonSegment(
+                      value: CalendarView.agenda, label: Text('Agenda')),
+                ],
+                selected: {view},
+                showSelectedIcon: false,
+                onSelectionChanged: (value) => onViewChanged(value.first),
+              ),
             _FilterButton<EventCategory>(
               label: 'Kategorien',
               icon: Icons.category_outlined,
@@ -544,6 +624,434 @@ class _MonthDay extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _WeekView extends StatelessWidget {
+  const _WeekView({
+    required this.cursor,
+    required this.events,
+    required this.onOpen,
+  });
+
+  static const hourHeight = 52.0;
+  static const timeColumnWidth = 62.0;
+  static const dayColumnWidth = 146.0;
+
+  final DateTime cursor;
+  final List<EventModel> events;
+  final ValueChanged<EventModel> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final monday = _monday(cursor);
+    final dates = List.generate(
+      7,
+      (index) => monday.add(Duration(days: index)),
+    );
+    const bodyHeight = 24 * hourHeight;
+    const calendarWidth = timeColumnWidth + 7 * dayColumnWidth;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: calendarWidth,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const SizedBox(width: timeColumnWidth, height: 68),
+                  for (final date in dates)
+                    SizedBox(
+                      width: dayColumnWidth,
+                      height: 68,
+                      child: _WeekDayHeader(date: date),
+                    ),
+                ],
+              ),
+              const Divider(height: 1),
+              SizedBox(
+                height: bodyHeight,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(
+                      width: timeColumnWidth,
+                      height: bodyHeight,
+                      child: _TimeScale(),
+                    ),
+                    for (final date in dates)
+                      SizedBox(
+                        width: dayColumnWidth,
+                        height: bodyHeight,
+                        child: _WeekDayColumn(
+                          date: date,
+                          events: events
+                              .where((event) => _sameDay(event.startAt, date))
+                              .toList(),
+                          onOpen: onOpen,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeekDayHeader extends StatelessWidget {
+  const _WeekDayHeader({required this.date});
+
+  final DateTime date;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = _sameDay(date, DateTime.now());
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(left: BorderSide(color: AppColors.line)),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _weekday(date).substring(0, 2).toUpperCase(),
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .8,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: today ? AppColors.yellow : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                '${date.day}',
+                style: const TextStyle(
+                  color: AppColors.black,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TimeScale extends StatelessWidget {
+  const _TimeScale();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        for (var hour = 0; hour < 24; hour++)
+          Positioned(
+            top: hour * _WeekView.hourHeight - 7,
+            right: 9,
+            child: Text(
+              '${hour.toString().padLeft(2, '0')}:00',
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _WeekDayColumn extends StatelessWidget {
+  const _WeekDayColumn({
+    required this.date,
+    required this.events,
+    required this.onOpen,
+  });
+
+  final DateTime date;
+  final List<EventModel> events;
+  final ValueChanged<EventModel> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    return Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: _sameDay(date, now)
+                  ? AppColors.yellow.withValues(alpha: .035)
+                  : Colors.white,
+              border: const Border(
+                left: BorderSide(color: AppColors.line),
+              ),
+            ),
+          ),
+        ),
+        for (var hour = 0; hour < 24; hour++)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: hour * _WeekView.hourHeight,
+            child: const Divider(height: 1, color: AppColors.line),
+          ),
+        for (final event in events) _eventBlock(context, event),
+        if (_sameDay(date, now))
+          Positioned(
+            top: (now.hour + now.minute / 60) * _WeekView.hourHeight,
+            left: 0,
+            right: 0,
+            child: Container(height: 2, color: Colors.redAccent),
+          ),
+      ],
+    );
+  }
+
+  Widget _eventBlock(BuildContext context, EventModel event) {
+    final start = event.startAt.hour + event.startAt.minute / 60;
+    final durationMinutes = (event.endAt == null
+        ? 60
+        : event.endAt!.difference(event.startAt).inMinutes.clamp(30, 720))
+        .toDouble();
+    final height =
+        (durationMinutes / 60 * _WeekView.hourHeight)
+            .clamp(34.0, 310.0)
+            .toDouble();
+    final color = _categoryColor(event.category);
+    return Positioned(
+      top: start * _WeekView.hourHeight + 1,
+      left: 4,
+      right: 4,
+      height: height,
+      child: Material(
+        color: color.withValues(alpha: event.isCancelled ? .08 : .16),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => onOpen(event),
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              border: Border(left: BorderSide(color: color, width: 3)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.title,
+                  maxLines: height < 52 ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    decoration:
+                        event.isCancelled ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                if (height >= 52)
+                  Text(
+                    '${_time(event.startAt)} · ${event.location}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: color, fontSize: 9),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _YearView extends StatelessWidget {
+  const _YearView({
+    required this.cursor,
+    required this.events,
+    required this.onMonthSelected,
+  });
+
+  final DateTime cursor;
+  final List<EventModel> events;
+  final ValueChanged<int> onMonthSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1120
+            ? 4
+            : constraints.maxWidth >= 760
+                ? 3
+                : constraints.maxWidth >= 500
+                    ? 2
+                    : 1;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.08,
+          ),
+          itemCount: 12,
+          itemBuilder: (context, index) {
+            final month = index + 1;
+            return _MiniMonth(
+              year: cursor.year,
+              month: month,
+              events: events
+                  .where((event) =>
+                      event.startAt.year == cursor.year &&
+                      event.startAt.month == month)
+                  .toList(),
+              onTap: () => onMonthSelected(month),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _MiniMonth extends StatelessWidget {
+  const _MiniMonth({
+    required this.year,
+    required this.month,
+    required this.events,
+    required this.onTap,
+  });
+
+  final int year;
+  final int month;
+  final List<EventModel> events;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = DateTime(year, month);
+    final offset = first.weekday - 1;
+    final days = DateTime(year, month + 1, 0).day;
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _month(month),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  if (events.isNotEmpty)
+                    Chip(label: Text('${events.length}')),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  for (final label in ['M', 'D', 'M', 'D', 'F', 'S', 'S'])
+                    Expanded(
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Expanded(
+                child: GridView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                  ),
+                  itemCount: 42,
+                  itemBuilder: (context, index) {
+                    final day = index - offset + 1;
+                    if (day < 1 || day > days) return const SizedBox.shrink();
+                    final date = DateTime(year, month, day);
+                    final dayEvents = events
+                        .where((event) => _sameDay(event.startAt, date))
+                        .toList();
+                    final today = _sameDay(date, DateTime.now());
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 25,
+                          height: 25,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color:
+                                today ? AppColors.yellow : Colors.transparent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '$day',
+                            style: const TextStyle(
+                              color: AppColors.black,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        if (dayEvents.isNotEmpty)
+                          Positioned(
+                            bottom: 1,
+                            child: Container(
+                              width: 4,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: _categoryColor(dayEvents.first.category),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1984,13 +2492,46 @@ class _ManagementBar extends ConsumerWidget {
     final entireSeries =
         event.isRecurring ? await _seriesScope(context, 'Änderung') : false;
     if (entireSeries == null) return;
-    await ref.read(repositoryProvider).updateEvent(
-          eventId: event.id,
-          data: draft,
-          entireSeries: entireSeries,
+    try {
+      final repository = ref.read(repositoryProvider);
+      final updated = await repository.updateEvent(
+        eventId: event.id,
+        data: draft,
+        entireSeries: entireSeries,
+      );
+      final confirmed = await repository.event(event.id);
+      if (confirmed.id != updated.id ||
+          confirmed.title != draft.title ||
+          confirmed.startAt.toUtc() != draft.startAt.toUtc()) {
+        throw StateError('Terminänderung wurde nicht bestätigt.');
+      }
+      ref.invalidate(eventsProvider);
+      if (context.mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        Navigator.pop(context);
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Terminänderung wurde gespeichert.')),
         );
-    ref.invalidate(eventsProvider);
-    if (context.mounted) Navigator.pop(context);
+      }
+    } on DioException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_apiErrorMessage(
+            error,
+            'Der Termin konnte nicht geändert werden.',
+          ))),
+        );
+      }
+    } catch (_) {
+      ref.invalidate(eventsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Die Terminänderung konnte nicht bestätigt werden.'),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _cancel(BuildContext context, WidgetRef ref) async {
@@ -1999,13 +2540,44 @@ class _ManagementBar extends ConsumerWidget {
       builder: (context) => _CancelDialog(recurring: event.isRecurring),
     );
     if (result == null) return;
-    await ref.read(repositoryProvider).cancelEvent(
-          eventId: event.id,
-          reason: result.reason,
-          entireSeries: result.entireSeries,
+    try {
+      final repository = ref.read(repositoryProvider);
+      await repository.cancelEvent(
+        eventId: event.id,
+        reason: result.reason,
+        entireSeries: result.entireSeries,
+      );
+      final confirmed = await repository.event(event.id);
+      if (!confirmed.isCancelled) {
+        throw StateError('Terminabsage wurde nicht bestätigt.');
+      }
+      ref.invalidate(eventsProvider);
+      if (context.mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        Navigator.pop(context);
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Termin wurde abgesagt.')),
         );
-    ref.invalidate(eventsProvider);
-    if (context.mounted) Navigator.pop(context);
+      }
+    } on DioException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_apiErrorMessage(
+            error,
+            'Der Termin konnte nicht abgesagt werden.',
+          ))),
+        );
+      }
+    } catch (_) {
+      ref.invalidate(eventsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Die Terminabsage konnte nicht bestätigt werden.'),
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -3019,7 +3591,31 @@ String _periodLabel(CalendarView view, DateTime value) => switch (view) {
         '${_monday(value).day}. ${_month(_monday(value).month)} – ${_monday(value).add(const Duration(days: 6)).day}. ${_month(_monday(value).add(const Duration(days: 6)).month)}',
       CalendarView.month || CalendarView.agenda =>
         '${_month(value.month)} ${value.year}',
+      CalendarView.year => '${value.year}',
     };
+
+String _calendarViewLabel(CalendarView view) => switch (view) {
+      CalendarView.day => 'Tag',
+      CalendarView.week => 'Woche',
+      CalendarView.month => 'Monat',
+      CalendarView.year => 'Jahr',
+      CalendarView.agenda => 'Agenda',
+    };
+
+String _apiErrorMessage(DioException error, String fallback) {
+  final data = error.response?.data;
+  if (data is Map<String, dynamic>) {
+    final message = data['message'];
+    if (message is String && message.trim().isNotEmpty) return message;
+  }
+  if (error.type == DioExceptionType.connectionError ||
+      error.type == DioExceptionType.connectionTimeout ||
+      error.type == DioExceptionType.receiveTimeout ||
+      error.type == DioExceptionType.sendTimeout) {
+    return 'Keine Verbindung zum Terminserver. Bitte Internetverbindung prüfen und erneut versuchen.';
+  }
+  return fallback;
+}
 
 Color _categoryColor(EventCategory category) {
   if (category == EventCategory.training) return AppColors.teal;
