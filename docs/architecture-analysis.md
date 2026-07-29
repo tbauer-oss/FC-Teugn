@@ -92,10 +92,11 @@ Flutter-Oberfläche, Tests, Dokumentation und Deployment ausgeliefert.
 
 ## Fortschreibung
 
-Die persistente, benutzergetrennte Liveticker-Offline-Warteschlange,
-optimistische Anzeige, automatische idempotente Wiederholung und ein
-Sieben-Tage-Cache für den letzten Spielstand sind inzwischen umgesetzt.
-Web Push ist technisch angebunden; native Android-Push-Auslieferung benötigt
-weiterhin ein externes Firebase-Projekt. Noch offen bleiben insbesondere die
-Datenschutz-Self-Service-Werkzeuge, OpenAPI/Vertragstests, umfassende
-End-to-End-Tests sowie die vollständigen erweiterten Mannschaftsstammdaten.
+Die geplanten vertikalen Produktschnitte sind inzwischen umgesetzt. Dazu
+gehören die persistente Liveticker-Offline-Warteschlange, vollständige
+Mannschaftsstammdaten, Datenschutz-Self-Service, OpenAPI-Vertragstests und
+eine mutierende HTTP-End-to-End-Abnahme gegen eine isolierte
+PostgreSQL-Datenbank. Web Push ist technisch angebunden; native
+Android-Push-Auslieferung benötigt weiterhin ein externes Firebase-Projekt.
+Der konsolidierte Lieferstand und alle externen Restvoraussetzungen sind in
+[`ABSCHLUSSBERICHT.md`](ABSCHLUSSBERICHT.md) dokumentiert.
