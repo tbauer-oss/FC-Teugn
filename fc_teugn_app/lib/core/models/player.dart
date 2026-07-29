@@ -25,8 +25,7 @@ class PlayerCapabilities {
         canViewSensitive: json?['canViewSensitive'] as bool? ?? false,
         canEditSensitive: json?['canEditSensitive'] as bool? ?? false,
         canAddDevelopment: json?['canAddDevelopment'] as bool? ?? false,
-        canManageDocuments:
-            json?['canManageDocuments'] as bool? ?? false,
+        canManageDocuments: json?['canManageDocuments'] as bool? ?? false,
         canManagePhoto: json?['canManagePhoto'] as bool? ?? false,
       );
 }
@@ -85,8 +84,7 @@ class PlayerDocument {
   final String? note;
   final PlayerDocumentFile file;
 
-  factory PlayerDocument.fromJson(Map<String, dynamic> json) =>
-      PlayerDocument(
+  factory PlayerDocument.fromJson(Map<String, dynamic> json) => PlayerDocument(
         id: json['id'] as String,
         type: json['type'] as String,
         title: json['title'] as String,
@@ -144,8 +142,7 @@ class GuardianModel {
       relationship: json['relationship'] as String? ?? 'GUARDIAN',
       isLegalGuardian: json['isLegalGuardian'] as bool? ?? false,
       canPickup: json['canPickup'] as bool? ?? false,
-      receivesCommunication:
-          json['receivesCommunication'] as bool? ?? false,
+      receivesCommunication: json['receivesCommunication'] as bool? ?? false,
     );
   }
 }
@@ -302,6 +299,9 @@ class PlayerModel {
     this.goals = 0,
     this.assists = 0,
     this.appearances = 0,
+    this.starts = 0,
+    this.minutes = 0,
+    this.statisticsBySeason = const [],
     this.guardians = const [],
     this.medicalProfile,
     this.emergencyContacts = const [],
@@ -329,6 +329,9 @@ class PlayerModel {
   final int goals;
   final int assists;
   final int appearances;
+  final int starts;
+  final int minutes;
+  final List<PlayerSeasonStatistics> statisticsBySeason;
   final List<GuardianModel> guardians;
   final MedicalProfile? medicalProfile;
   final List<EmergencyContact> emergencyContacts;
@@ -378,6 +381,16 @@ class PlayerModel {
       goals: statistics?['goals'] as int? ?? 0,
       assists: statistics?['assists'] as int? ?? 0,
       appearances: statistics?['appearances'] as int? ?? 0,
+      starts: statistics?['starts'] as int? ?? 0,
+      minutes: statistics?['minutes'] as int? ?? 0,
+      statisticsBySeason:
+          (json['statisticsBySeason'] as List<dynamic>? ?? const [])
+              .map(
+                (item) => PlayerSeasonStatistics.fromJson(
+                  item as Map<String, dynamic>,
+                ),
+              )
+              .toList(),
       guardians: (json['parentLinks'] as List<dynamic>? ?? [])
           .map((item) => GuardianModel.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -386,25 +399,52 @@ class PlayerModel {
           : MedicalProfile.fromJson(
               json['medicalProfile'] as Map<String, dynamic>,
             ),
-      emergencyContacts:
-          (json['emergencyContacts'] as List<dynamic>? ?? [])
-              .map((item) =>
-                  EmergencyContact.fromJson(item as Map<String, dynamic>))
-              .toList(),
-      developmentNotes:
-          (json['developmentNotes'] as List<dynamic>? ?? [])
-              .map((item) =>
-                  DevelopmentNote.fromJson(item as Map<String, dynamic>))
-              .toList(),
-      consents: (json['consents'] as List<dynamic>? ?? [])
+      emergencyContacts: (json['emergencyContacts'] as List<dynamic>? ?? [])
           .map(
-              (item) => PlayerConsent.fromJson(item as Map<String, dynamic>))
+              (item) => EmergencyContact.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      developmentNotes: (json['developmentNotes'] as List<dynamic>? ?? [])
+          .map((item) => DevelopmentNote.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      consents: (json['consents'] as List<dynamic>? ?? [])
+          .map((item) => PlayerConsent.fromJson(item as Map<String, dynamic>))
           .toList(),
       capabilities: PlayerCapabilities.fromJson(
         json['capabilities'] as Map<String, dynamic>?,
       ),
     );
   }
+}
+
+class PlayerSeasonStatistics {
+  const PlayerSeasonStatistics({
+    required this.seasonId,
+    required this.seasonName,
+    required this.goals,
+    required this.assists,
+    required this.appearances,
+    required this.starts,
+    required this.minutes,
+  });
+
+  final String seasonId;
+  final String seasonName;
+  final int goals;
+  final int assists;
+  final int appearances;
+  final int starts;
+  final int minutes;
+
+  factory PlayerSeasonStatistics.fromJson(Map<String, dynamic> json) =>
+      PlayerSeasonStatistics(
+        seasonId: json['seasonId'] as String,
+        seasonName: json['seasonName'] as String? ?? 'Saison',
+        goals: json['goals'] as int? ?? 0,
+        assists: json['assists'] as int? ?? 0,
+        appearances: json['appearances'] as int? ?? 0,
+        starts: json['starts'] as int? ?? 0,
+        minutes: json['minutes'] as int? ?? 0,
+      );
 }
 
 PlayerStatus _status(String? value) => switch (value) {

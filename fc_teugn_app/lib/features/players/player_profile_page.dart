@@ -102,6 +102,8 @@ class _ProfileContent extends ConsumerWidget {
               children: [
                 _FactsCard(player: player),
                 const SizedBox(height: 16),
+                _SeasonStatisticsCard(player: player),
+                const SizedBox(height: 16),
                 _GuardiansCard(
                   guardians: player.guardians,
                   onAdd: player.capabilities.canEdit
@@ -590,6 +592,10 @@ class _ProfileHero extends StatelessWidget {
             icon: Icons.event_available_rounded,
             label: '${player.appearances} Einsätze',
           ),
+          _CareerStatChip(
+            icon: Icons.timer_outlined,
+            label: '${player.minutes} Minuten',
+          ),
           if (onEdit != null)
             OutlinedButton.icon(
               onPressed: onEdit,
@@ -618,6 +624,130 @@ class _ProfileHero extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SeasonStatisticsCard extends StatelessWidget {
+  const _SeasonStatisticsCard({required this.player});
+
+  final PlayerModel player;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.query_stats_rounded, color: AppColors.blue),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Statistik nach Saison',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Gesamtwerte und historische Saisonwerte aus Aufstellungen und Liveticker.',
+                style: TextStyle(color: AppColors.muted),
+              ),
+              const SizedBox(height: 14),
+              _PlayerStatisticRow(
+                label: 'Gesamt',
+                appearances: player.appearances,
+                starts: player.starts,
+                minutes: player.minutes,
+                goals: player.goals,
+                assists: player.assists,
+                emphasized: true,
+              ),
+              if (player.statisticsBySeason.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 14),
+                  child: Text('Noch keine Saisonwerte vorhanden.'),
+                )
+              else
+                for (final season in player.statisticsBySeason)
+                  _PlayerStatisticRow(
+                    label: season.seasonName,
+                    appearances: season.appearances,
+                    starts: season.starts,
+                    minutes: season.minutes,
+                    goals: season.goals,
+                    assists: season.assists,
+                  ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _PlayerStatisticRow extends StatelessWidget {
+  const _PlayerStatisticRow({
+    required this.label,
+    required this.appearances,
+    required this.starts,
+    required this.minutes,
+    required this.goals,
+    required this.assists,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final int appearances;
+  final int starts;
+  final int minutes;
+  final int goals;
+  final int assists;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: emphasized
+              ? AppColors.yellow.withValues(alpha: .16)
+              : AppColors.navy.withValues(alpha: .035),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: emphasized
+                ? AppColors.yellow.withValues(alpha: .55)
+                : AppColors.line,
+          ),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final values =
+                '$appearances Einsätze · $starts Startelf · $minutes Min. · '
+                '$goals Tore · $assists Assists';
+            if (constraints.maxWidth < 500) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 3),
+                  Text(values, style: const TextStyle(color: AppColors.muted)),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                Text(values, style: const TextStyle(color: AppColors.muted)),
+              ],
+            );
+          },
+        ),
+      );
 }
 
 class _CareerStatChip extends StatelessWidget {

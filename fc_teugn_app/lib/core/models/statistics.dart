@@ -4,12 +4,16 @@ class StatisticsOverview {
     required this.players,
     required this.matches,
     required this.individualScope,
+    required this.seasons,
+    this.selectedSeason,
   });
 
   final TeamStatistics team;
   final List<PlayerSeasonStatistic> players;
   final List<MatchResultStatistic> matches;
   final String individualScope;
+  final List<StatisticsSeason> seasons;
+  final StatisticsSeason? selectedSeason;
 
   factory StatisticsOverview.fromJson(Map<String, dynamic> json) =>
       StatisticsOverview(
@@ -28,10 +32,44 @@ class StatisticsOverview {
               ),
             )
             .toList(),
-        individualScope:
-            (json['privacy'] as Map<String, dynamic>?)?['individualScope']
-                    as String? ??
-                'OWN_PLAYERS',
+        individualScope: (json['privacy']
+                as Map<String, dynamic>?)?['individualScope'] as String? ??
+            'OWN_PLAYERS',
+        seasons: (json['seasons'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => StatisticsSeason.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(),
+        selectedSeason: json['selectedSeason'] == null
+            ? null
+            : StatisticsSeason.fromJson(
+                json['selectedSeason'] as Map<String, dynamic>,
+              ),
+      );
+}
+
+class StatisticsSeason {
+  const StatisticsSeason({
+    required this.id,
+    required this.name,
+    required this.startDate,
+    required this.endDate,
+    required this.isActive,
+  });
+
+  final String id;
+  final String name;
+  final DateTime startDate;
+  final DateTime endDate;
+  final bool isActive;
+
+  factory StatisticsSeason.fromJson(Map<String, dynamic> json) =>
+      StatisticsSeason(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? 'Saison',
+        startDate: DateTime.parse(json['startDate'] as String),
+        endDate: DateTime.parse(json['endDate'] as String),
+        isActive: json['isActive'] as bool? ?? false,
       );
 }
 
@@ -83,6 +121,7 @@ class PlayerSeasonStatistic {
     required this.goals,
     required this.assists,
     this.shirtNumber,
+    this.career,
   });
 
   final String id;
@@ -93,12 +132,43 @@ class PlayerSeasonStatistic {
   final int minutes;
   final int goals;
   final int assists;
+  final PlayerStatisticTotals? career;
 
   factory PlayerSeasonStatistic.fromJson(Map<String, dynamic> json) =>
       PlayerSeasonStatistic(
         id: json['id'] as String,
         name: json['name'] as String? ?? 'Spieler',
         shirtNumber: json['shirtNumber'] as int?,
+        appearances: json['appearances'] as int? ?? 0,
+        starts: json['starts'] as int? ?? 0,
+        minutes: json['minutes'] as int? ?? 0,
+        goals: json['goals'] as int? ?? 0,
+        assists: json['assists'] as int? ?? 0,
+        career: json['career'] == null
+            ? null
+            : PlayerStatisticTotals.fromJson(
+                json['career'] as Map<String, dynamic>,
+              ),
+      );
+}
+
+class PlayerStatisticTotals {
+  const PlayerStatisticTotals({
+    required this.appearances,
+    required this.starts,
+    required this.minutes,
+    required this.goals,
+    required this.assists,
+  });
+
+  final int appearances;
+  final int starts;
+  final int minutes;
+  final int goals;
+  final int assists;
+
+  factory PlayerStatisticTotals.fromJson(Map<String, dynamic> json) =>
+      PlayerStatisticTotals(
         appearances: json['appearances'] as int? ?? 0,
         starts: json['starts'] as int? ?? 0,
         minutes: json['minutes'] as int? ?? 0,
