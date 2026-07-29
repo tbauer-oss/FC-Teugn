@@ -17,6 +17,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { authRateLimit } from './middleware/rate-limit';
 import openApiDocument from '../openapi.json';
 import { readMediaAsset } from './controllers/media.controller';
+import { asyncHandler } from './middleware/async-handler';
 
 dotenv.config();
 
@@ -79,7 +80,7 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/', (_req, res) => res.json({ status: 'ok' }));
 app.get('/openapi.json', (_req, res) => res.json(openApiDocument));
-app.get('/media/:id', readMediaAsset);
+app.get('/media/:id', asyncHandler(readMediaAsset));
 
 app.use('/auth', authRateLimit, authRoutes);
 app.use('/players', playersRoutes);

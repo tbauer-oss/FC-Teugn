@@ -20,6 +20,7 @@ import {
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { Permission } from '../security/permissions';
 import { playerFileUpload } from '../middleware/player-files';
+import { asyncHandler } from '../middleware/async-handler';
 
 const router = Router();
 
@@ -27,15 +28,22 @@ router.use(requireAuth);
 router.use(requireApproved);
 
 router.get('/', listPlayers);
-router.post('/:id/photo', playerFileUpload.single('file'), uploadPlayerPhoto);
-router.delete('/:id/photo', removePlayerPhoto);
+router.post(
+  '/:id/photo',
+  playerFileUpload.single('file'),
+  asyncHandler(uploadPlayerPhoto),
+);
+router.delete('/:id/photo', asyncHandler(removePlayerPhoto));
 router.get('/:id/documents', listPlayerDocuments);
 router.post(
   '/:id/documents',
   playerFileUpload.single('file'),
-  uploadPlayerDocument,
+  asyncHandler(uploadPlayerDocument),
 );
-router.delete('/:id/documents/:documentId', deletePlayerDocument);
+router.delete(
+  '/:id/documents/:documentId',
+  asyncHandler(deletePlayerDocument),
+);
 router.get('/:id', getPlayer);
 router.post('/', requirePermission(Permission.MANAGE_PLAYERS), createPlayer);
 router.put('/:id', requirePermission(Permission.MANAGE_PLAYERS), updatePlayer);
