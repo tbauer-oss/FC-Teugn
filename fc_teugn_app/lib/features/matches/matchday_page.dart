@@ -2517,6 +2517,7 @@ class _FocusTeamScore extends StatelessWidget {
           ],
         ),
       );
+}
 
 class _ConnectionChip extends StatelessWidget {
   const _ConnectionChip({
