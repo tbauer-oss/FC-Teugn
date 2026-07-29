@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui' show FontFeature;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
