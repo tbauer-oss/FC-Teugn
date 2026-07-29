@@ -347,6 +347,32 @@ function eventData(body: Record<string, unknown>) {
   };
 }
 
+function matchTiming(
+  body: Record<string, unknown>,
+  fallback?: { periodCount: number; periodMinutes: number },
+) {
+  const periodCount =
+    body.periodCount == null
+      ? fallback?.periodCount ?? 2
+      : boundedInt(body.periodCount, 1, 8);
+  const periodMinutes =
+    body.periodMinutes == null
+      ? fallback?.periodMinutes ?? 30
+      : boundedInt(body.periodMinutes, 1, 90);
+  if (
+    periodCount == null ||
+    periodMinutes == null ||
+    periodCount * periodMinutes > 180
+  ) {
+    return null;
+  }
+  return {
+    periodCount,
+    periodMinutes,
+    durationMinutes: periodCount * periodMinutes,
+  };
+}
+
 export function generateOccurrences(
   startAt: Date,
   until: Date,
@@ -477,6 +503,13 @@ export async function createEvent(req: Request, res: Response) {
   if (data.endAt && data.endAt < data.startAt) {
     return res.status(400).json({ message: 'Das Ende darf nicht vor dem Beginn liegen.' });
   }
+  const timing = data.type === EventType.MATCH ? matchTiming(req.body) : null;
+  if (data.type === EventType.MATCH && !timing) {
+    return res.status(400).json({
+      message:
+        'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).',
+    });
+  }
   let teamIds = await validatedTargetTeams(req, req.body.teamIds, user.teamId);
   if (data.visibility === EventVisibility.CLUB) {
     if (!hasPermission(user.role, Permission.MANAGE_ORGANIZATION)) {
@@ -568,6 +601,17 @@ export async function createEvent(req: Request, res: Response) {
           attachments: {
             create: attachments,
           },
+          ...(data.type === EventType.MATCH && timing
+            ? {
+                matchDetails: {
+                  create: {
+                    opponent: data.opponent ?? 'Unbekannt',
+                    isHome: data.homeAway !== HomeAway.AWAY,
+                    ...timing,
+                  },
+                },
+              }
+            : {}),
         },
       });
       ids.push(event.id);
@@ -611,6 +655,16 @@ export async function updateEvent(req: Request, res: Response) {
   const parsed = eventData({ ...existing, ...req.body });
   if (!parsed.title || !parsed.startAt || !parsed.location) {
     return res.status(400).json({ message: 'Titel, Beginn und Ort sind erforderlich.' });
+  }
+  const timing =
+    parsed.type === EventType.MATCH
+      ? matchTiming(req.body, existing.matchDetails ?? undefined)
+      : null;
+  if (parsed.type === EventType.MATCH && !timing) {
+    return res.status(400).json({
+      message:
+        'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).',
+    });
   }
   const targetTeamIds = await validatedTargetTeams(
     req,
@@ -667,6 +721,22 @@ export async function updateEvent(req: Request, res: Response) {
             },
           },
         });
+        if (parsed.type === EventType.MATCH && timing) {
+          await tx.matchDetails.upsert({
+            where: { eventId: occurrence.id },
+            update: {
+              opponent: parsed.opponent ?? 'Unbekannt',
+              isHome: parsed.homeAway !== HomeAway.AWAY,
+              ...timing,
+            },
+            create: {
+              eventId: occurrence.id,
+              opponent: parsed.opponent ?? 'Unbekannt',
+              isHome: parsed.homeAway !== HomeAway.AWAY,
+              ...timing,
+            },
+          });
+        }
       }
     } else {
       await tx.event.update({
@@ -681,6 +751,22 @@ export async function updateEvent(req: Request, res: Response) {
           },
         },
       });
+      if (parsed.type === EventType.MATCH && timing) {
+        await tx.matchDetails.upsert({
+          where: { eventId: existing.id },
+          update: {
+            opponent: parsed.opponent ?? 'Unbekannt',
+            isHome: parsed.homeAway !== HomeAway.AWAY,
+            ...timing,
+          },
+          create: {
+            eventId: existing.id,
+            opponent: parsed.opponent ?? 'Unbekannt',
+            isHome: parsed.homeAway !== HomeAway.AWAY,
+            ...timing,
+          },
+        });
+      }
     }
     await tx.auditLog.create({
       data: {
@@ -1183,9 +1269,28 @@ export async function upsertMatchDetails(req: Request, res: Response) {
     return res.status(403).json({ message: 'Keine Berechtigung für diesen Termin.' });
   }
   const { opponent, isHome, competition, notes, ourGoals, theirGoals } = req.body;
+  const current = await prisma.matchDetails.findUnique({
+    where: { eventId: event.id },
+    select: { periodCount: true, periodMinutes: true },
+  });
+  const timing = matchTiming(req.body, current ?? undefined);
+  if (!timing) {
+    return res.status(400).json({
+      message:
+        'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).',
+    });
+  }
   const details = await prisma.matchDetails.upsert({
     where: { eventId: event.id },
-    update: { opponent, isHome, competition, notes, ourGoals, theirGoals },
+    update: {
+      opponent,
+      isHome,
+      competition,
+      notes,
+      ourGoals,
+      theirGoals,
+      ...timing,
+    },
     create: {
       eventId: event.id,
       opponent: opponent ?? 'Unbekannt',
@@ -1194,6 +1299,7 @@ export async function upsertMatchDetails(req: Request, res: Response) {
       notes,
       ourGoals,
       theirGoals,
+      ...timing,
     },
   });
   return res.json(details);

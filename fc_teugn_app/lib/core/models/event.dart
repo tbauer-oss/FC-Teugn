@@ -201,6 +201,9 @@ class MatchDetails {
   const MatchDetails({
     required this.opponent,
     required this.isHome,
+    this.durationMinutes = 60,
+    this.periodMinutes = 30,
+    this.periodCount = 2,
     this.competition,
     this.notes,
     this.ourGoals,
@@ -209,6 +212,9 @@ class MatchDetails {
 
   final String opponent;
   final bool isHome;
+  final int durationMinutes;
+  final int periodMinutes;
+  final int periodCount;
   final String? competition;
   final String? notes;
   final int? ourGoals;
@@ -218,6 +224,9 @@ class MatchDetails {
     return MatchDetails(
       opponent: json['opponent'] as String? ?? 'Unbekannt',
       isHome: json['isHome'] as bool? ?? true,
+      durationMinutes: json['durationMinutes'] as int? ?? 60,
+      periodMinutes: json['periodMinutes'] as int? ?? 30,
+      periodCount: json['periodCount'] as int? ?? 2,
       competition: json['competition'] as String?,
       notes: json['notes'] as String?,
       ourGoals: json['ourGoals'] as int?,
@@ -675,6 +684,8 @@ class EventWriteData {
     this.mapUrl,
     this.homeAway,
     this.opponent,
+    this.periodCount = 2,
+    this.periodMinutes = 30,
     this.venue,
     this.contactName,
     this.contactPhone,
@@ -703,6 +714,8 @@ class EventWriteData {
   final String? mapUrl;
   final HomeAway? homeAway;
   final String? opponent;
+  final int periodCount;
+  final int periodMinutes;
   final String? venue;
   final String? contactName;
   final String? contactPhone;
@@ -732,6 +745,9 @@ class EventWriteData {
         'mapUrl': mapUrl,
         'homeAway': homeAway?.apiName,
         'opponent': opponent,
+        'periodCount': periodCount,
+        'periodMinutes': periodMinutes,
+        'durationMinutes': periodCount * periodMinutes,
         'venue': venue,
         'contactName': contactName,
         'contactPhone': contactPhone,

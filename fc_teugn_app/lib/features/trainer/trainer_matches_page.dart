@@ -71,6 +71,8 @@ class TrainerMatchesPage extends ConsumerWidget {
                           notes: draft.notes,
                           ourGoals: draft.ourGoals,
                           theirGoals: draft.theirGoals,
+                          periodCount: draft.periodCount,
+                          periodMinutes: draft.periodMinutes,
                         );
                         ref.invalidate(eventsProvider);
                         if (context.mounted) {
@@ -108,6 +110,12 @@ class TrainerMatchesPage extends ConsumerWidget {
     final notes = TextEditingController(text: details?.notes ?? '');
     final ourGoals = TextEditingController(text: details?.ourGoals?.toString() ?? '');
     final theirGoals = TextEditingController(text: details?.theirGoals?.toString() ?? '');
+    final periodCount = TextEditingController(
+      text: (details?.periodCount ?? 2).toString(),
+    );
+    final periodMinutes = TextEditingController(
+      text: (details?.periodMinutes ?? 30).toString(),
+    );
     var isHome = details?.isHome ?? true;
 
     final result = await showDialog<_MatchDraft>(
@@ -169,6 +177,52 @@ class TrainerMatchesPage extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: periodCount,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            labelText: 'Spielabschnitte',
+                            helperText: '2 Halbzeiten / 4 Viertel',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: periodMinutes,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            labelText: 'Minuten je Abschnitt',
+                            helperText: 'z. B. 15',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Builder(
+                    builder: (context) {
+                      final count = int.tryParse(periodCount.text.trim());
+                      final minutes = int.tryParse(periodMinutes.text.trim());
+                      final total =
+                          count == null || minutes == null ? null : count * minutes;
+                      return Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          total == null
+                              ? 'Gesamtspielzeit: –'
+                              : 'Gesamtspielzeit: $count × $minutes = $total Minuten',
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: notes,
                     minLines: 2,
@@ -192,6 +246,25 @@ class TrainerMatchesPage extends ConsumerWidget {
                   );
                   return;
                 }
+                final count = int.tryParse(periodCount.text.trim());
+                final minutes = int.tryParse(periodMinutes.text.trim());
+                if (count == null ||
+                    count < 1 ||
+                    count > 8 ||
+                    minutes == null ||
+                    minutes < 1 ||
+                    minutes > 90 ||
+                    count * minutes > 180) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Bitte 1–8 Abschnitte und 1–90 Minuten je Abschnitt '
+                        '(maximal 180 Minuten insgesamt) eingeben.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
                 Navigator.pop(
                   context,
                   _MatchDraft(
@@ -201,6 +274,8 @@ class TrainerMatchesPage extends ConsumerWidget {
                     notes: notes.text.trim(),
                     ourGoals: int.tryParse(ourGoals.text),
                     theirGoals: int.tryParse(theirGoals.text),
+                    periodCount: count,
+                    periodMinutes: minutes,
                   ),
                 );
               },
@@ -214,6 +289,8 @@ class TrainerMatchesPage extends ConsumerWidget {
     notes.dispose();
     ourGoals.dispose();
     theirGoals.dispose();
+    periodCount.dispose();
+    periodMinutes.dispose();
     return result;
   }
 }
@@ -262,6 +339,11 @@ class _MatchCard extends StatelessWidget {
                   Text('${date.day}.${date.month}.${date.year} · ${event.location}'),
                   if (details?.competition?.isNotEmpty == true)
                     Text(details!.competition!, style: const TextStyle(color: AppColors.blue)),
+                  if (details != null)
+                    Text(
+                      '${details.periodCount} × ${details.periodMinutes} Min. '
+                      '· ${details.durationMinutes} Min. gesamt',
+                    ),
                 ],
               ),
             ),
@@ -301,6 +383,8 @@ class _MatchDraft {
     required this.isHome,
     required this.competition,
     required this.notes,
+    required this.periodCount,
+    required this.periodMinutes,
     this.ourGoals,
     this.theirGoals,
   });
@@ -308,6 +392,8 @@ class _MatchDraft {
   final bool isHome;
   final String competition;
   final String notes;
+  final int periodCount;
+  final int periodMinutes;
   final int? ourGoals;
   final int? theirGoals;
 }

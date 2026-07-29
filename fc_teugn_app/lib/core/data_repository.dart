@@ -617,6 +617,8 @@ class DataRepository {
     String? notes,
     int? ourGoals,
     int? theirGoals,
+    required int periodCount,
+    required int periodMinutes,
   }) async {
     await client.dio.put('/events/$eventId/match-details', data: {
       'opponent': opponent,
@@ -625,6 +627,9 @@ class DataRepository {
       'notes': notes,
       'ourGoals': ourGoals,
       'theirGoals': theirGoals,
+      'periodCount': periodCount,
+      'periodMinutes': periodMinutes,
+      'durationMinutes': periodCount * periodMinutes,
     });
   }
 

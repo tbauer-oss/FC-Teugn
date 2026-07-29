@@ -41,4 +41,21 @@ void main() {
       'WEEKLY',
     );
   });
+
+  test('match payload stores four quarters and calculated duration', () {
+    final payload = EventWriteData(
+      category: EventCategory.leagueMatch,
+      title: 'Punktspiel',
+      startAt: DateTime(2026, 9, 12, 10),
+      location: 'Sportplatz Teugn',
+      teamIds: const ['team-e1'],
+      opponent: 'Gegner',
+      periodCount: 4,
+      periodMinutes: 15,
+    ).toJson();
+
+    expect(payload['periodCount'], 4);
+    expect(payload['periodMinutes'], 15);
+    expect(payload['durationMinutes'], 60);
+  });
 }

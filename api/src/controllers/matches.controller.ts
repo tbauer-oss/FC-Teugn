@@ -262,6 +262,27 @@ export async function updateMatch(req: Request, res: Response) {
       return res.status(400).json({ message: 'Die BFV-URL ist ungültig.' });
     }
   }
+  const periodCount = Number(
+    body.periodCount ?? match.matchDetails?.periodCount ?? 2,
+  );
+  const periodMinutes = Number(
+    body.periodMinutes ?? match.matchDetails?.periodMinutes ?? 30,
+  );
+  if (
+    !Number.isInteger(periodCount) ||
+    periodCount < 1 ||
+    periodCount > 8 ||
+    !Number.isInteger(periodMinutes) ||
+    periodMinutes < 1 ||
+    periodMinutes > 90 ||
+    periodCount * periodMinutes > 180
+  ) {
+    return res.status(400).json({
+      message:
+        'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).',
+    });
+  }
+  const durationMinutes = periodCount * periodMinutes;
   const details = await prisma.matchDetails.upsert({
     where: { eventId: match.id },
     update: {
@@ -276,9 +297,9 @@ export async function updateMatch(req: Request, res: Response) {
       matchDay: text(body.matchDay, 50),
       pitch: text(body.pitch, 100),
       referee: text(body.referee, 100),
-      durationMinutes: integer(body.durationMinutes, 5, 180, 60),
-      periodMinutes: integer(body.periodMinutes, 1, 90, 30),
-      periodCount: integer(body.periodCount, 1, 8, 2),
+      durationMinutes,
+      periodMinutes,
+      periodCount,
       bfvMatchId: text(body.bfvMatchId, 100),
       bfvUrl,
       notes: text(body.notes, 2000),
@@ -296,9 +317,9 @@ export async function updateMatch(req: Request, res: Response) {
       matchDay: text(body.matchDay, 50),
       pitch: text(body.pitch, 100),
       referee: text(body.referee, 100),
-      durationMinutes: integer(body.durationMinutes, 5, 180, 60),
-      periodMinutes: integer(body.periodMinutes, 1, 90, 30),
-      periodCount: integer(body.periodCount, 1, 8, 2),
+      durationMinutes,
+      periodMinutes,
+      periodCount,
       bfvMatchId: text(body.bfvMatchId, 100),
       bfvUrl,
       notes: text(body.notes, 2000),
