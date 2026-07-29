@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,14 +7,59 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/football_options.dart';
 import '../../core/models/player.dart';
+import '../../core/player_view_preferences.dart';
 import '../../core/providers.dart';
+import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
-class TrainerPlayersPage extends ConsumerWidget {
+class TrainerPlayersPage extends ConsumerStatefulWidget {
   const TrainerPlayersPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TrainerPlayersPage> createState() =>
+      _TrainerPlayersPageState();
+}
+
+class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
+  final _search = TextEditingController();
+  final _viewPreferences = PlayerViewPreferences();
+  PlayerViewMode _viewMode = PlayerViewMode.compactCards;
+
+  String get _preferenceUserId =>
+      ref.read(authProvider).user?.id ?? 'anonymous';
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadViewMode());
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadViewMode() async {
+    try {
+      final mode = await _viewPreferences.load(_preferenceUserId);
+      if (mounted) setState(() => _viewMode = mode);
+    } catch (_) {
+      // The compact default remains usable if browser storage is unavailable.
+    }
+  }
+
+  Future<void> _selectViewMode(PlayerViewMode mode) async {
+    setState(() => _viewMode = mode);
+    try {
+      await _viewPreferences.save(_preferenceUserId, mode);
+    } catch (_) {
+      // A storage restriction must not prevent changing the current view.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final players = ref.watch(playersProvider);
 
     return PageScaffold(
@@ -50,30 +97,43 @@ class TrainerPlayersPage extends ConsumerWidget {
               ),
             );
           }
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 980
-                  ? 3
-                  : constraints.maxWidth >= 620
-                      ? 2
-                      : 1;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: items.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 14,
-                  mainAxisSpacing: 14,
-                  childAspectRatio: columns == 1 ? 2.9 : 2.15,
+          final query = _search.text.trim().toLowerCase();
+          final filtered = items.where((player) {
+            if (query.isEmpty) return true;
+            return [
+              player.fullName,
+              player.displayName,
+              player.position,
+              player.secondaryPosition,
+              player.shirtNumber?.toString(),
+            ].whereType<String>().join(' ').toLowerCase().contains(query);
+          }).toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _PlayerViewToolbar(
+                controller: _search,
+                mode: _viewMode,
+                visiblePlayers: filtered.length,
+                totalPlayers: items.length,
+                onSearchChanged: (_) => setState(() {}),
+                onModeChanged: _selectViewMode,
+              ),
+              const SizedBox(height: 14),
+              if (filtered.isEmpty)
+                const EmptyState(
+                  icon: Icons.person_search_rounded,
+                  title: 'Keine Spieler gefunden',
+                  message: 'Passe den Suchbegriff an.',
+                )
+              else
+                _PlayerCollection(
+                  players: filtered,
+                  mode: _viewMode,
+                  onOpen: (player) =>
+                      context.go('/trainer/players/${player.id}'),
                 ),
-                itemBuilder: (context, index) => _PlayerCard(
-                  player: items[index],
-                  onTap: () =>
-                      context.go('/trainer/players/${items[index].id}'),
-                ),
-              );
-            },
+            ],
           );
         },
       ),
@@ -115,8 +175,358 @@ class TrainerPlayersPage extends ConsumerWidget {
   }
 }
 
-class _PlayerCard extends StatelessWidget {
-  const _PlayerCard({required this.player, required this.onTap});
+class _PlayerViewToolbar extends StatelessWidget {
+  const _PlayerViewToolbar({
+    required this.controller,
+    required this.mode,
+    required this.visiblePlayers,
+    required this.totalPlayers,
+    required this.onSearchChanged,
+    required this.onModeChanged,
+  });
+
+  final TextEditingController controller;
+  final PlayerViewMode mode;
+  final int visiblePlayers;
+  final int totalPlayers;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<PlayerViewMode> onModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final search = SizedBox(
+            width: constraints.maxWidth < 760 ? constraints.maxWidth : 310,
+            child: TextField(
+              controller: controller,
+              onChanged: onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Spieler suchen',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: controller.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Suche löschen',
+                        onPressed: () {
+                          controller.clear();
+                          onSearchChanged('');
+                        },
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+              ),
+            ),
+          );
+          final switcher = SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<PlayerViewMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: PlayerViewMode.list,
+                  icon: Icon(Icons.view_list_rounded),
+                  label: Text('Liste'),
+                ),
+                ButtonSegment(
+                  value: PlayerViewMode.details,
+                  icon: Icon(Icons.table_rows_rounded),
+                  label: Text('Details'),
+                ),
+                ButtonSegment(
+                  value: PlayerViewMode.compactCards,
+                  icon: Icon(Icons.grid_view_rounded),
+                  label: Text('Karten klein'),
+                ),
+                ButtonSegment(
+                  value: PlayerViewMode.largeCards,
+                  icon: Icon(Icons.grid_on_rounded),
+                  label: Text('Karten groß'),
+                ),
+              ],
+              selected: {mode},
+              onSelectionChanged: (selection) =>
+                  onModeChanged(selection.first),
+            ),
+          );
+          final counter = Text(
+            visiblePlayers == totalPlayers
+                ? '$totalPlayers Spieler'
+                : '$visiblePlayers von $totalPlayers Spielern',
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontWeight: FontWeight.w700,
+            ),
+          );
+          if (constraints.maxWidth < 760) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                search,
+                const SizedBox(height: 10),
+                counter,
+                const SizedBox(height: 10),
+                switcher,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              search,
+              const SizedBox(width: 16),
+              counter,
+              const Spacer(),
+              Flexible(child: switcher),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PlayerCollection extends StatelessWidget {
+  const _PlayerCollection({
+    required this.players,
+    required this.mode,
+    required this.onOpen,
+  });
+
+  final List<PlayerModel> players;
+  final PlayerViewMode mode;
+  final ValueChanged<PlayerModel> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    if (mode == PlayerViewMode.list || mode == PlayerViewMode.details) {
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: players.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 7),
+        itemBuilder: (context, index) => _PlayerListRow(
+          player: players[index],
+          detailed: mode == PlayerViewMode.details,
+          onTap: () => onOpen(players[index]),
+        ),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = mode == PlayerViewMode.compactCards;
+        final targetWidth = compact ? 235.0 : 430.0;
+        final maximumColumns = compact ? 6 : 3;
+        final columns = (constraints.maxWidth / targetWidth)
+            .floor()
+            .clamp(1, maximumColumns)
+            .toInt();
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: players.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: compact ? 10 : 14,
+            mainAxisSpacing: compact ? 10 : 14,
+            childAspectRatio: compact
+                ? (columns == 1 ? 3.5 : 2.15)
+                : (columns == 1 ? 3.0 : 1.9),
+          ),
+          itemBuilder: (context, index) => compact
+              ? _CompactPlayerCard(
+                  player: players[index],
+                  onTap: () => onOpen(players[index]),
+                )
+              : _LargePlayerCard(
+                  player: players[index],
+                  onTap: () => onOpen(players[index]),
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _PlayerListRow extends StatelessWidget {
+  const _PlayerListRow({
+    required this.player,
+    required this.detailed,
+    required this.onTap,
+  });
+
+  final PlayerModel player;
+  final bool detailed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _statusStyle(player.status);
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(13),
+        side: const BorderSide(color: AppColors.line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: detailed ? 13 : 8,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final showDetailColumns =
+                  detailed && constraints.maxWidth >= 720;
+              return Row(
+                children: [
+                  _PlayerAvatar(player: player, size: detailed ? 48 : 38),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          player.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: detailed ? 16 : 14,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          showDetailColumns
+                              ? _playerSummary(player)
+                              : [
+                                  _playerSummary(player),
+                                  if (detailed)
+                                    _dominantFootLabel(player.dominantFoot),
+                                ].join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (showDetailColumns) ...[
+                    Expanded(
+                      flex: 2,
+                      child: _DetailValue(
+                        label: 'Position',
+                        value: _positionSummary(player),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: _DetailValue(
+                        label: 'Starker Fuß',
+                        value: _dominantFootLabel(player.dominantFoot),
+                      ),
+                    ),
+                  ],
+                  if (player.shirtNumber != null)
+                    SizedBox(
+                      width: 45,
+                      child: Text(
+                        '#${player.shirtNumber}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.blue,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  _StatusBadge(status: status, compact: !detailed),
+                  const SizedBox(width: 6),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.muted,
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+}
+
+class _CompactPlayerCard extends StatelessWidget {
+  const _CompactPlayerCard({required this.player, required this.onTap});
+
+  final PlayerModel player;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _statusStyle(player.status);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              _PlayerAvatar(player: player, size: 42),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      player.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _playerSummary(player),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    _StatusBadge(status: status, compact: true),
+                  ],
+                ),
+              ),
+              if (player.shirtNumber != null)
+                Text(
+                  '#${player.shirtNumber}',
+                  style: const TextStyle(
+                    color: AppColors.blue,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LargePlayerCard extends StatelessWidget {
+  const _LargePlayerCard({required this.player, required this.onTap});
 
   final PlayerModel player;
   final VoidCallback onTap;
@@ -132,17 +542,7 @@ class _PlayerCard extends StatelessWidget {
           padding: const EdgeInsets.all(18),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: AppColors.blue.withValues(alpha: .1),
-                child: Text(
-                  '${player.firstName[0]}${player.lastName[0]}'.toUpperCase(),
-                  style: const TextStyle(
-                    color: AppColors.blue,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
+              _PlayerAvatar(player: player, size: 58),
               const SizedBox(width: 15),
               Expanded(
                 child: Column(
@@ -170,42 +570,12 @@ class _PlayerCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 5),
-                    Text(
-                      [
-                        if (player.position?.isNotEmpty == true)
-                          player.position!,
-                        if (player.age != null) '${player.age} Jahre',
-                      ].join(' · ').isEmpty
-                          ? 'Profil vervollständigen'
-                          : [
-                              if (player.position?.isNotEmpty == true)
-                                player.position!,
-                              if (player.age != null) '${player.age} Jahre',
-                            ].join(' · '),
-                    ),
+                    Text(_playerSummary(player)),
                     const SizedBox(height: 9),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: status.$2.withValues(alpha: .1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        status.$1,
-                        style: TextStyle(
-                          color: status.$2,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
+                    _StatusBadge(status: status),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
               const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
             ],
           ),
@@ -213,14 +583,138 @@ class _PlayerCard extends StatelessWidget {
       ),
     );
   }
-
-  (String, Color) _statusStyle(PlayerStatus status) => switch (status) {
-        PlayerStatus.active => ('Aktiv', AppColors.teal),
-        PlayerStatus.injured => ('Verletzt', Colors.redAccent),
-        PlayerStatus.paused => ('Pausiert', AppColors.orange),
-        PlayerStatus.left => ('Ausgetreten', AppColors.muted),
-      };
 }
+
+class _PlayerAvatar extends StatelessWidget {
+  const _PlayerAvatar({required this.player, required this.size});
+
+  final PlayerModel player;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = Container(
+      alignment: Alignment.center,
+      color: AppColors.blue.withValues(alpha: .1),
+      child: Text(
+        '${player.firstName[0]}${player.lastName[0]}'.toUpperCase(),
+        style: const TextStyle(
+          color: AppColors.blue,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+    return ClipOval(
+      child: SizedBox.square(
+        dimension: size,
+        child: player.photoUrl == null
+            ? fallback
+            : Image.network(
+                player.photoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => fallback,
+              ),
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status, this.compact = false});
+
+  final (String, Color) status;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 7 : 9,
+        vertical: compact ? 2 : 4,
+      ),
+      decoration: BoxDecoration(
+        color: status.$2.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        status.$1,
+        style: TextStyle(
+          color: status.$2,
+          fontSize: compact ? 10 : 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailValue extends StatelessWidget {
+  const _DetailValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _playerSummary(PlayerModel player) {
+  final values = [
+    if (player.position?.isNotEmpty == true) player.position!,
+    if (player.age != null) '${player.age} Jahre',
+  ];
+  return values.isEmpty ? 'Profil vervollständigen' : values.join(' · ');
+}
+
+String _positionSummary(PlayerModel player) => [
+      if (player.position?.isNotEmpty == true) player.position!,
+      if (player.secondaryPosition?.isNotEmpty == true)
+        player.secondaryPosition!,
+    ].join(' / ').isEmpty
+        ? 'Noch offen'
+        : [
+            if (player.position?.isNotEmpty == true) player.position!,
+            if (player.secondaryPosition?.isNotEmpty == true)
+              player.secondaryPosition!,
+          ].join(' / ');
+
+String _dominantFootLabel(DominantFoot foot) => switch (foot) {
+      DominantFoot.right => 'Rechts',
+      DominantFoot.left => 'Links',
+      DominantFoot.both => 'Beidfüßig',
+      DominantFoot.unknown => 'Noch offen',
+    };
+
+(String, Color) _statusStyle(PlayerStatus status) => switch (status) {
+      PlayerStatus.active => ('Aktiv', AppColors.teal),
+      PlayerStatus.injured => ('Verletzt', Colors.redAccent),
+      PlayerStatus.paused => ('Pausiert', AppColors.orange),
+      PlayerStatus.left => ('Ausgetreten', AppColors.muted),
+    };
 
 class _CreatePlayerDialog extends StatefulWidget {
   const _CreatePlayerDialog();
