@@ -15,6 +15,7 @@ import importsRoutes from './routes/imports.routes';
 import teamOperationsRoutes from './routes/team-operations.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { authRateLimit } from './middleware/rate-limit';
+import openApiDocument from '../openapi.json';
 
 dotenv.config();
 
@@ -76,6 +77,7 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/', (_req, res) => res.json({ status: 'ok' }));
+app.get('/openapi.json', (_req, res) => res.json(openApiDocument));
 
 app.use('/auth', authRateLimit, authRoutes);
 app.use('/players', playersRoutes);

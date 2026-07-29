@@ -323,6 +323,18 @@ enum TeamGender {
   FEMALE
 }
 
+enum DataSubjectRequestType {
+  ERASURE
+  RECTIFICATION
+}
+
+enum DataSubjectRequestStatus {
+  RECEIVED
+  IN_REVIEW
+  COMPLETED
+  REJECTED
+}
+
 enum PlayerDocumentType {
   PHOTO_CONSENT
   PRIVACY_CONSENT
@@ -497,6 +509,8 @@ model User {
   createdChecklistTemplates    ChecklistTemplate[]      @relation("ChecklistTemplateCreator")
   createdChecklistRuns         ChecklistRun[]           @relation("ChecklistRunCreator")
   completedChecklistItems      ChecklistRunItem[]       @relation("ChecklistRunItemCompleter")
+  dataSubjectRequests          DataSubjectRequest[]     @relation("DataSubjectRequester")
+  reviewedDataSubjectRequests  DataSubjectRequest[]     @relation("DataSubjectReviewer")
 }
 
 model RefreshToken {
@@ -1623,4 +1637,23 @@ model AuditLog {
 
   @@index([teamId, createdAt])
   @@index([actorId, createdAt])
+}
+
+model DataSubjectRequest {
+  id           String                   @id @default(cuid())
+  userId       String
+  type         DataSubjectRequestType
+  status       DataSubjectRequestStatus @default(RECEIVED)
+  reason       String?
+  reviewNote   String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  user         User                     @relation("DataSubjectRequester", fields: [userId], references: [id], onDelete: Restrict)
+  reviewedBy   User?                    @relation("DataSubjectReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
 }

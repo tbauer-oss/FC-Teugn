@@ -83,6 +83,16 @@ class AppShell extends ConsumerWidget {
                         userName: authState.user?.name ?? '',
                         contextLabel: contextLabel,
                         onLogout: () => ref.read(authProvider.notifier).logout(),
+                        onPrivacy: () {
+                          ShellDestination? privacy;
+                          for (final item in destinations) {
+                            if (item.route.endsWith('/privacy')) {
+                              privacy = item;
+                              break;
+                            }
+                          }
+                          if (privacy != null) context.go(privacy.route);
+                        },
                       ),
                     Expanded(child: child),
                   ],
@@ -286,12 +296,14 @@ class _MobileHeader extends StatelessWidget {
     required this.userName,
     required this.contextLabel,
     required this.onLogout,
+    required this.onPrivacy,
   });
 
   final String title;
   final String userName;
   final String contextLabel;
   final VoidCallback onLogout;
+  final VoidCallback onPrivacy;
 
   @override
   Widget build(BuildContext context) {
@@ -316,6 +328,11 @@ class _MobileHeader extends StatelessWidget {
               ),
             ),
             _Avatar(name: userName, small: true),
+            IconButton(
+              tooltip: 'Datenschutz & meine Daten',
+              onPressed: onPrivacy,
+              icon: const Icon(Icons.shield_outlined),
+            ),
             IconButton(
               tooltip: 'Abmelden',
               onPressed: onLogout,

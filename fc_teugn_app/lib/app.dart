@@ -23,6 +23,7 @@ import 'features/statistics/statistics_page.dart';
 import 'features/training/training_pages.dart';
 import 'features/communications/communications_page.dart';
 import 'features/operations/team_operations_page.dart';
+import 'features/privacy/privacy_page.dart';
 import 'core/models/user.dart';
 import 'core/app_theme.dart';
 
@@ -106,6 +107,7 @@ class FCTeugnApp extends ConsumerWidget {
               ShellDestination(label: 'Nachrichten', icon: Icons.forum_rounded, route: '/trainer/messages'),
               ShellDestination(label: 'Orga', icon: Icons.assignment_turned_in_rounded, route: '/trainer/operations'),
               ShellDestination(label: 'Verein', icon: Icons.account_tree_rounded, route: '/trainer/organization', showOnMobile: false),
+              ShellDestination(label: 'Datenschutz', icon: Icons.shield_outlined, route: '/trainer/privacy', showOnMobile: false),
             ],
             child: child,
           ),
@@ -171,6 +173,10 @@ class FCTeugnApp extends ConsumerWidget {
               path: '/trainer/organization',
               builder: (context, state) => const OrganizationPage(),
             ),
+            GoRoute(
+              path: '/trainer/privacy',
+              builder: (context, state) => const PrivacyPage(),
+            ),
           ],
         ),
         ShellRoute(
@@ -184,6 +190,7 @@ class FCTeugnApp extends ConsumerWidget {
               ShellDestination(label: 'Statistik', icon: Icons.query_stats_rounded, route: '/parent/statistics', showOnMobile: false),
               ShellDestination(label: 'Nachrichten', icon: Icons.forum_rounded, route: '/parent/messages'),
               ShellDestination(label: 'Orga', icon: Icons.assignment_turned_in_rounded, route: '/parent/operations'),
+              ShellDestination(label: 'Datenschutz', icon: Icons.shield_outlined, route: '/parent/privacy', showOnMobile: false),
             ],
             child: child,
           ),
@@ -230,6 +237,10 @@ class FCTeugnApp extends ConsumerWidget {
             GoRoute(
               path: '/parent/operations',
               builder: (context, state) => const TeamOperationsPage(),
+            ),
+            GoRoute(
+              path: '/parent/privacy',
+              builder: (context, state) => const PrivacyPage(),
             ),
           ],
         ),

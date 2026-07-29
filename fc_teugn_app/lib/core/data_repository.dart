@@ -119,6 +119,57 @@ class DataRepository {
     await client.dio.delete('/organization/teams/$teamId/photo');
   }
 
+  Future<Map<String, dynamic>> exportPersonalData() async {
+    final res = await client.dio.get('/auth/privacy/export');
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> privacyRequests() async {
+    final res = await client.dio.get('/auth/privacy/requests');
+    return (res.data as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> requestAccountErasure({
+    required String confirmation,
+    String? reason,
+  }) async {
+    final res = await client.dio.post(
+      '/auth/privacy/erasure-requests',
+      data: {'confirmation': confirmation, 'reason': reason},
+    );
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> adminPrivacyRequests() async {
+    final res = await client.dio.get('/admin/privacy-requests');
+    return (res.data as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<void> reviewPrivacyRequest({
+    required String requestId,
+    required String status,
+    String? reviewNote,
+  }) async {
+    await client.dio.patch('/admin/privacy-requests/$requestId', data: {
+      'status': status,
+      'reviewNote': reviewNote,
+    });
+  }
+
+  Future<void> completeAccountErasure({
+    required String requestId,
+    String? reviewNote,
+  }) async {
+    await client.dio.post(
+      '/admin/privacy-requests/$requestId/complete-erasure',
+      data: {'reviewNote': reviewNote},
+    );
+  }
+
   Future<List<RuleProfileModel>> ruleProfiles() async {
     final res = await client.dio.get('/organization/rule-profiles');
     return (res.data as List<dynamic>)

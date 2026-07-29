@@ -8,6 +8,9 @@ current architecture assessment and implementation order are documented in
 The professional team master-data model and its protected photo handling are
 documented in
 [`docs/professional-team-profiles.md`](docs/professional-team-profiles.md).
+Datenschutz-Self-Service, der veröffentlichte OpenAPI-Vertrag und die
+Ende-zu-Ende-Abnahme sind unter
+[`docs/privacy-api-e2e.md`](docs/privacy-api-e2e.md) beschrieben.
 
 ## Frontend (Flutter web)
 - Source: [`fc_teugn_app/`](fc_teugn_app)
