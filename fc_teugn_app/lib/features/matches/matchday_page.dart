@@ -1087,8 +1087,11 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                           backgroundColor: _eventColor(event.type),
                           child: Icon(_eventIcon(event.type), color: Colors.white),
                         ),
-                        title: Text(_eventTitle(event)),
-                        subtitle: event.comment == null ? null : Text(event.comment!),
+                        title: Text(_eventTitle(event, fcIsHome: fcIsHome)),
+                        subtitle: _eventSubtitle(
+                          event,
+                          fcIsHome: fcIsHome,
+                        ),
                         trailing: Text(
                           "${event.elapsedSeconds ~/ 60}' · ${event.ourGoals}:${event.theirGoals}",
                           style: const TextStyle(fontWeight: FontWeight.w800),
@@ -1107,33 +1110,17 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
             .where((item) => item.status == NominationStatus.nominated)
             .toList() ??
         const [];
-    String? scorerId;
-    if (ours && members.isNotEmpty && mounted) {
-      scorerId = await showModalBottomSheet<String>(
-        context: context,
-        builder: (context) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.flash_on_rounded),
-                title: const Text('Sofort ohne Torschütze speichern'),
-                onTap: () => Navigator.pop(context, ''),
-              ),
-              for (final member in members)
-                ListTile(
-                  leading: CircleAvatar(
-                    child: Text(member.player.shirtNumber?.toString() ?? 'FC'),
-                  ),
-                  title: Text(member.player.name),
-                  onTap: () => Navigator.pop(context, member.player.id),
-                ),
-            ],
-          ),
-        ),
-      );
-      if (scorerId == null) return;
+    _GoalAttribution? attribution;
+    if (ours) {
+      if (members.isEmpty) {
+        _message(
+          'Bitte zuerst mindestens einen Spieler für den Spielkader nominieren.',
+        );
+        return;
+      }
       if (!mounted) return;
+      attribution = await _selectGoalAttribution(members);
+      if (attribution == null || !mounted) return;
     }
     await _send(
       ours
@@ -1143,11 +1130,122 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           : (widget.match.details?.isHome != false
               ? TickerEventType.awayGoal
               : TickerEventType.homeGoal),
-      scorerId: scorerId?.isEmpty == true ? null : scorerId,
+      scorerId: attribution?.scorerId,
+      assistId: attribution?.assistId,
     );
   }
 
-  Future<void> _send(TickerEventType type, {String? scorerId}) async {
+  Future<_GoalAttribution?> _selectGoalAttribution(
+    List<SquadMemberModel> members,
+  ) {
+    String? scorerId;
+    String? assistId;
+    return showDialog<_GoalAttribution>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Tor für FC Teugn'),
+          content: SizedBox(
+            width: 440,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Wer hat das Tor erzielt?',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: scorerId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Torschütze *',
+                    prefixIcon: Icon(Icons.sports_soccer_rounded),
+                  ),
+                  items: [
+                    for (final member in members)
+                      DropdownMenuItem(
+                        value: member.player.id,
+                        child: Text(_matchPlayerLabel(member.player)),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() {
+                      scorerId = value;
+                      if (assistId == value) assistId = null;
+                    });
+                  },
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Wer hat die Vorlage gegeben?',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Optional – kann leer bleiben.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('${scorerId ?? 'none'}-${assistId ?? 'none'}'),
+                  initialValue: assistId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Vorlagengeber (optional)',
+                    prefixIcon: Icon(Icons.assistant_direction_rounded),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: '',
+                      child: Text('Keine Vorlage'),
+                    ),
+                    for (final member in members)
+                      if (member.player.id != scorerId)
+                        DropdownMenuItem(
+                          value: member.player.id,
+                          child: Text(_matchPlayerLabel(member.player)),
+                        ),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(
+                      () => assistId = value?.isEmpty == true ? null : value,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton.icon(
+              onPressed: scorerId == null
+                  ? null
+                  : () => Navigator.pop(
+                        dialogContext,
+                        _GoalAttribution(
+                          scorerId: scorerId!,
+                          assistId: assistId,
+                        ),
+                      ),
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('Tor speichern'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _send(
+    TickerEventType type, {
+    String? scorerId,
+    String? assistId,
+  }) async {
     final now = DateTime.now();
     if (_lastQueuedAt != null &&
         now.difference(_lastQueuedAt!) < const Duration(milliseconds: 500)) {
@@ -1169,6 +1267,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           clientEventId: '${now.microsecondsSinceEpoch}-${type.name}',
           type: type,
           scorerId: scorerId,
+          assistId: assistId,
           createdAt: now,
         ),
       );
@@ -1425,10 +1524,33 @@ String _tickerStatus(TickerStatus status) => switch (status) {
       TickerStatus.finished => 'Beendet',
     };
 
-String _eventTitle(TickerEventModel event) => switch (event.type) {
-      TickerEventType.homeGoal =>
-        event.scorer == null ? 'Tor FC Teugn!' : 'Tor durch ${event.scorer!.name}!',
-      TickerEventType.awayGoal => 'Tor für den Gegner',
+class _GoalAttribution {
+  const _GoalAttribution({
+    required this.scorerId,
+    this.assistId,
+  });
+
+  final String scorerId;
+  final String? assistId;
+}
+
+String _matchPlayerLabel(MatchPlayer player) {
+  final number = player.shirtNumber == null ? '' : '${player.shirtNumber} · ';
+  return '$number${player.name}';
+}
+
+bool _isOurGoal(TickerEventType type, {required bool fcIsHome}) =>
+    (fcIsHome && type == TickerEventType.homeGoal) ||
+    (!fcIsHome && type == TickerEventType.awayGoal);
+
+String _eventTitle(
+  TickerEventModel event, {
+  required bool fcIsHome,
+}) => switch (event.type) {
+      TickerEventType.homeGoal || TickerEventType.awayGoal =>
+        _isOurGoal(event.type, fcIsHome: fcIsHome)
+            ? 'Tor durch ${event.scorer?.name ?? 'FC Teugn'}!'
+            : 'Tor für den Gegner',
       TickerEventType.matchStart => 'Das Spiel läuft',
       TickerEventType.periodEnd => 'Abschnitt beendet',
       TickerEventType.periodStart || TickerEventType.resume => 'Spiel fortgesetzt',
@@ -1437,6 +1559,18 @@ String _eventTitle(TickerEventModel event) => switch (event.type) {
       TickerEventType.comment => 'Ticker-Update',
       _ => 'Spielereignis',
     };
+
+Widget? _eventSubtitle(
+  TickerEventModel event, {
+  required bool fcIsHome,
+}) {
+  final lines = <String>[
+    if (_isOurGoal(event.type, fcIsHome: fcIsHome) && event.assist != null)
+      'Vorlage: ${event.assist!.name}',
+    if (event.comment?.trim().isNotEmpty == true) event.comment!.trim(),
+  ];
+  return lines.isEmpty ? null : Text(lines.join('\n'));
+}
 
 IconData _eventIcon(TickerEventType type) => switch (type) {
       TickerEventType.homeGoal || TickerEventType.awayGoal => Icons.sports_soccer_rounded,

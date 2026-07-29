@@ -579,13 +579,32 @@ export async function tickerCommand(req: Request, res: Response) {
   const clientEventId = text(req.body?.clientEventId, 100);
   if (!clientEventId) return res.status(400).json({ message: 'clientEventId ist erforderlich.' });
   const type = enumValue(TickerEventType, req.body?.type, TickerEventType.COMMENT);
+  const fcIsHome = match.matchDetails?.isHome !== false;
+  const isOurGoal =
+    (fcIsHome && type === TickerEventType.HOME_GOAL) ||
+    (!fcIsHome && type === TickerEventType.AWAY_GOAL);
   const allowedPlayerIds = new Set(
-    match.squads[0]?.members.map((member) => member.playerId) ?? [],
+    match.squads[0]?.members
+      .filter((member) => member.status === NominationStatus.NOMINATED)
+      .map((member) => member.playerId) ?? [],
   );
   const scorerId = text(req.body?.scorerId, 100);
   const assistId = text(req.body?.assistId, 100);
-  if ((scorerId && !allowedPlayerIds.has(scorerId)) || (assistId && !allowedPlayerIds.has(assistId))) {
-    return res.status(400).json({ message: 'Torschütze oder Vorlagengeber gehört nicht zum Kader.' });
+  if (isOurGoal && !scorerId) {
+    return res
+      .status(400)
+      .json({ message: 'Bei einem eigenen Tor ist der Torschütze erforderlich.' });
+  }
+  if (
+    (scorerId && !allowedPlayerIds.has(scorerId)) ||
+    (assistId && !allowedPlayerIds.has(assistId))
+  ) {
+    return res
+      .status(400)
+      .json({ message: 'Torschütze oder Vorlagengeber gehört nicht zum Kader.' });
+  }
+  if (scorerId && scorerId === assistId) {
+    return res.status(400).json({ message: 'Torschütze und Vorlagengeber müssen verschieden sein.' });
   }
   const result = await prisma.$transaction(async (tx) => {
     let ticker = await tx.liveTicker.upsert({
@@ -665,8 +684,8 @@ export async function tickerCommand(req: Request, res: Response) {
         elapsedSeconds,
         ourGoals,
         theirGoals,
-        scorerId: goalTypes.has(type) ? scorerId : null,
-        assistId: goalTypes.has(type) ? assistId : null,
+        scorerId: isOurGoal ? scorerId : null,
+        assistId: isOurGoal ? assistId : null,
         authorId: user.id,
         comment: text(req.body?.comment, 500),
       },

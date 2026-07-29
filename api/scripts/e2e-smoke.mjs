@@ -293,6 +293,7 @@ await request(
     clientEventId: `e2e-goal-2-${runId}`,
     type: 'HOME_GOAL',
     scorerId: playerId,
+    assistId: 'player-1',
   }),
 );
 
@@ -369,6 +370,16 @@ assert(
   matchStatistic.ourGoals === finished.ticker.ourGoals &&
     matchStatistic.theirGoals === finished.ticker.theirGoals,
   'Statistics score differs from the final ticker score',
+);
+const scorerStatistic = statistics.players.find((item) => item.id === playerId);
+const assistStatistic = statistics.players.find((item) => item.id === 'player-1');
+assert(
+  scorerStatistic?.goals >= 1,
+  'Ticker scorer was not added to the player statistics',
+);
+assert(
+  assistStatistic?.assists >= 1,
+  'Ticker assist was not added to the player statistics',
 );
 
 console.log(

@@ -85,6 +85,16 @@ void main() {
             'elapsedSeconds': 720,
             'ourGoals': 1,
             'theirGoals': 0,
+            'scorer': {
+              'id': 'player-1',
+              'firstName': 'Max',
+              'lastName': 'Muster',
+            },
+            'assist': {
+              'id': 'player-2',
+              'firstName': 'Tom',
+              'lastName': 'Beispiel',
+            },
           },
         ],
       },
@@ -94,6 +104,8 @@ void main() {
     expect(match.squad?.lineup?.status, LineupStatus.published);
     expect(match.squad?.lineup?.positions.single.player.name, 'Max Muster');
     expect(match.ticker?.events.single.type, TickerEventType.homeGoal);
+    expect(match.ticker?.events.single.scorer?.name, 'Max Muster');
+    expect(match.ticker?.events.single.assist?.name, 'Tom Beispiel');
     expect(match.ticker?.ourGoals, 1);
     expect(match.eligiblePlayers.single.displayName, 'Max');
     expect(match.eligiblePlayers.single.position, 'ST');
