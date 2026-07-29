@@ -54,7 +54,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refreshPlayers = false}) async {
     final request = ++_loadRequest;
     final userId = ref.read(authProvider).user?.id;
     final repository = ref.read(repositoryProvider);
@@ -65,16 +65,18 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       final match = await repository.match(matchId);
       var players = staffView ? match.eligiblePlayers : const <PlayerModel>[];
       if (staffView) {
+        if (refreshPlayers) {
+          ref.invalidate(playersProvider);
+        }
         try {
-          // Use the same authorized roster endpoint as the team overview.
-          // This avoids diverging player lists between "Team" and "Spiele".
-          players = (await repository.players())
-              .where(
-                (player) =>
-                    player.status == PlayerStatus.active ||
-                    player.status == PlayerStatus.injured,
-              )
-              .toList();
+          // Read the exact same Riverpod result shown on the team page. The
+          // match endpoint remains a fallback and both lists are merged, so a
+          // temporary second request can never turn ten visible players into
+          // an empty match roster.
+          final cachedPlayers = ref.read(playersProvider).asData?.value;
+          final List<PlayerModel> sharedPlayers =
+              cachedPlayers ?? await ref.read(playersProvider.future);
+          players = _mergeEligiblePlayers(players, sharedPlayers);
         } catch (_) {
           // The match response remains a usable fallback.
         }
@@ -235,6 +237,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                     allPlayers: _players,
                     editable: widget.staffView,
                     onSaved: _load,
+                    onReload: () => _load(refreshPlayers: true),
                   ),
                   _LineupTab(
                     match: match,
@@ -432,11 +435,13 @@ class _SquadTab extends ConsumerStatefulWidget {
     required this.allPlayers,
     required this.editable,
     required this.onSaved,
+    required this.onReload,
   });
   final MatchdayModel match;
   final List<PlayerModel> allPlayers;
   final bool editable;
   final Future<void> Function() onSaved;
+  final Future<void> Function() onReload;
 
   @override
   ConsumerState<_SquadTab> createState() => _SquadTabState();
@@ -526,7 +531,7 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
                       'keine aktiven Spielerprofile. Lege die Spieler unter '
                       '„Team“ an oder lade die Daten erneut.',
                   action: OutlinedButton.icon(
-                    onPressed: widget.onSaved,
+                    onPressed: widget.onReload,
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Spieler neu laden'),
                   ),
@@ -845,6 +850,22 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
             '${position.isCaptain}',
     ].join('|');
   }
+}
+
+List<PlayerModel> _mergeEligiblePlayers(
+  List<PlayerModel> matchPlayers,
+  List<PlayerModel> sharedPlayers,
+) {
+  final byId = <String, PlayerModel>{};
+  for (final player in [...matchPlayers, ...sharedPlayers]) {
+    if (player.status == PlayerStatus.active ||
+        player.status == PlayerStatus.injured) {
+      byId[player.id] = player;
+    }
+  }
+  final players = byId.values.toList()
+    ..sort((a, b) => a.fullName.compareTo(b.fullName));
+  return players;
 }
 
 class _PitchLines extends StatelessWidget {

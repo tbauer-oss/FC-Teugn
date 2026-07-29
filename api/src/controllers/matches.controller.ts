@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import {
-  AccountStatus,
   EventType,
   LineupStatus,
   MatchKind,
@@ -16,6 +15,7 @@ import { hasPermission, Permission } from '../security/permissions';
 import { Role } from '../types/enums';
 import { recalculateMatchStatistics } from '../services/statistics.service';
 import { rosterTeamIdsForMatch } from '../services/match-roster';
+import { accessibleTeamIds } from '../services/team-access';
 
 const matchInclude = {
   team: { select: { id: true, gameFormat: true } },
@@ -138,32 +138,6 @@ function enumValue<T extends Record<string, string>>(
   return (Object.values(values) as string[]).includes(normalized)
     ? (normalized as T[keyof T])
     : fallback;
-}
-
-async function clubIdForTeam(teamId: string) {
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { ageGroup: { select: { season: { select: { clubId: true } } } } },
-  });
-  return team?.ageGroup.season.clubId ?? null;
-}
-
-async function accessibleTeamIds(user: { id: string; teamId: string; role: Role }) {
-  if (hasPermission(user.role, Permission.MANAGE_ORGANIZATION)) {
-    const clubId = await clubIdForTeam(user.teamId);
-    const teams = clubId
-      ? await prisma.team.findMany({
-          where: { ageGroup: { season: { clubId } } },
-          select: { id: true },
-        })
-      : [];
-    return teams.length ? teams.map((team) => team.id) : [user.teamId];
-  }
-  const memberships = await prisma.teamMembership.findMany({
-    where: { userId: user.id, status: AccountStatus.APPROVED },
-    select: { teamId: true },
-  });
-  return [...new Set([user.teamId, ...memberships.map((item) => item.teamId)])];
 }
 
 function scope(teamIds: string[]): Prisma.EventWhereInput {

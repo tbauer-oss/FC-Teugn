@@ -103,6 +103,12 @@ test('club administrators can manage the organization', () => {
   );
 });
 
+test('system administrators always receive every defined permission', () => {
+  for (const permission of Object.values(Permission)) {
+    assert.equal(hasPermission(Role.SUPER_ADMIN, permission), true);
+  }
+});
+
 test('coaches can manage players and events but not the organization', () => {
   assert.equal(hasPermission(Role.COACH, Permission.MANAGE_PLAYERS), true);
   assert.equal(hasPermission(Role.COACH, Permission.MANAGE_DOCUMENTS), true);

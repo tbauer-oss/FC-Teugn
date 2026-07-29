@@ -98,7 +98,7 @@ class FCTeugnApp extends ConsumerWidget {
             title: 'Trainer Bereich',
             destinations: const [
               ShellDestination(label: 'Übersicht', icon: Icons.grid_view_rounded, route: '/trainer'),
-              ShellDestination(label: 'Freigaben', icon: Icons.check_circle, route: '/trainer/approvals', showOnMobile: false),
+              ShellDestination(label: 'Mitglieder', icon: Icons.manage_accounts_rounded, route: '/trainer/approvals', showOnMobile: false),
               ShellDestination(label: 'Team', icon: Icons.groups_rounded, route: '/trainer/players'),
               ShellDestination(label: 'Termine', icon: Icons.calendar_month_rounded, route: '/trainer/events'),
               ShellDestination(label: 'Spiele', icon: Icons.sports_soccer_rounded, route: '/trainer/matches'),

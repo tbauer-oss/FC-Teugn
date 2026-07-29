@@ -16,6 +16,7 @@ import {
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
+import { accessibleTeamIds } from '../services/team-access';
 
 const eventInclude = {
   series: true,
@@ -126,34 +127,6 @@ function typeForCategory(category: EventCategory) {
     return EventType.MATCH;
   }
   return EventType.EVENT;
-}
-
-async function clubIdForTeam(teamId: string) {
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { ageGroup: { select: { season: { select: { clubId: true } } } } },
-  });
-  return team?.ageGroup.season.clubId ?? null;
-}
-
-async function accessibleTeamIds(user: { id: string; teamId: string; role: Role | PrismaRole }) {
-  if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
-    const clubId = await clubIdForTeam(user.teamId);
-    if (!clubId) return [user.teamId];
-    const teams = await prisma.team.findMany({
-      where: { isActive: true, ageGroup: { season: { clubId } } },
-      select: { id: true },
-    });
-    return teams.map((team) => team.id);
-  }
-
-  const memberships = await prisma.teamMembership.findMany({
-    where: { userId: user.id, status: AccountStatus.APPROVED },
-    select: { teamId: true },
-  });
-  const ids = new Set(memberships.map((membership) => membership.teamId));
-  ids.add(user.teamId);
-  return [...ids];
 }
 
 function eventScope(teamIds: string[]): Prisma.EventWhereInput {

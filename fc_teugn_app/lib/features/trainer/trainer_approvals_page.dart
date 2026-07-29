@@ -6,6 +6,8 @@ import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
+import '../../core/role_permissions.dart';
+import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
 class TrainerApprovalsPage extends ConsumerWidget {
@@ -17,6 +19,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
     final members = ref.watch(membersProvider);
     final organization = ref.watch(organizationProvider).value;
     final players = ref.watch(playersProvider).value ?? const <PlayerModel>[];
+    final currentUser = ref.watch(authProvider).user;
 
     return PageScaffold(
       title: 'Mitglieder & Freigaben',
@@ -67,7 +70,19 @@ class TrainerApprovalsPage extends ConsumerWidget {
                     ),
                     onDetails: (user) => _showDetails(context, user),
                   ),
-                  _MemberList(value: members),
+                  _MemberList(
+                    value: members,
+                    onEdit: organization == null
+                        ? null
+                        : (user) => _editMember(
+                              context,
+                              ref,
+                              user,
+                              organization,
+                              players,
+                              currentUser?.role == UserRole.superAdmin,
+                            ),
+                  ),
                 ],
               ),
             ),
@@ -91,12 +106,15 @@ class TrainerApprovalsPage extends ConsumerWidget {
         user: user,
         organization: organization,
         players: players,
+        actorIsSuperAdmin:
+            ref.read(authProvider).user?.role == UserRole.superAdmin,
       ),
     );
     if (decision == null) return;
     try {
       await ref.read(repositoryProvider).approveUser(
             user.id,
+            status: decision.status,
             role: decision.role,
             teamIds: decision.teamIds,
             playerId: decision.playerId,
@@ -114,6 +132,55 @@ class TrainerApprovalsPage extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Freigabe konnte nicht gespeichert werden.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _editMember(
+    BuildContext context,
+    WidgetRef ref,
+    AppUser user,
+    OrganizationContext organization,
+    List<PlayerModel> players,
+    bool actorIsSuperAdmin,
+  ) async {
+    final decision = await showDialog<_ApprovalDecision>(
+      context: context,
+      builder: (context) => _ApprovalDialog(
+        user: user,
+        organization: organization,
+        players: players,
+        actorIsSuperAdmin: actorIsSuperAdmin,
+        editing: true,
+      ),
+    );
+    if (decision == null) return;
+    try {
+      await ref.read(repositoryProvider).approveUser(
+            user.id,
+            status: decision.status,
+            role: decision.role,
+            teamIds: decision.teamIds,
+            playerId: decision.playerId,
+            relationship: decision.relationship,
+            adminNote: decision.adminNote,
+          );
+      _refresh(ref);
+      ref.invalidate(playersProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${user.name} wurde aktualisiert.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Mitgliedseinstellungen konnten nicht gespeichert werden.',
+            ),
+          ),
         );
       }
     }
@@ -483,9 +550,10 @@ class _PendingListState extends State<_PendingList> {
 }
 
 class _MemberList extends StatelessWidget {
-  const _MemberList({required this.value});
+  const _MemberList({required this.value, required this.onEdit});
 
   final AsyncValue<List<AppUser>> value;
+  final ValueChanged<AppUser>? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -518,13 +586,28 @@ class _MemberList extends StatelessWidget {
                         .join(', '),
                 ].join(' · '),
               ),
-              trailing: Chip(
-                avatar: Icon(
-                  approved ? Icons.check_circle_rounded : Icons.block_rounded,
-                  size: 16,
-                  color: approved ? AppColors.teal : Colors.redAccent,
-                ),
-                label: Text(approved ? 'Freigegeben' : _status(user.status)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Chip(
+                    avatar: Icon(
+                      approved
+                          ? Icons.check_circle_rounded
+                          : Icons.block_rounded,
+                      size: 16,
+                      color: approved ? AppColors.teal : Colors.redAccent,
+                    ),
+                    label: Text(
+                      approved ? 'Freigegeben' : _status(user.status),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    tooltip: 'Rolle, Mannschaften und Rechte bearbeiten',
+                    onPressed: onEdit == null ? null : () => onEdit!(user),
+                    icon: const Icon(Icons.manage_accounts_outlined),
+                  ),
+                ],
               ),
             ),
           );
@@ -547,11 +630,15 @@ class _ApprovalDialog extends StatefulWidget {
     required this.user,
     required this.organization,
     required this.players,
+    required this.actorIsSuperAdmin,
+    this.editing = false,
   });
 
   final AppUser user;
   final OrganizationContext organization;
   final List<PlayerModel> players;
+  final bool actorIsSuperAdmin;
+  final bool editing;
 
   @override
   State<_ApprovalDialog> createState() => _ApprovalDialogState();
@@ -559,6 +646,7 @@ class _ApprovalDialog extends StatefulWidget {
 
 class _ApprovalDialogState extends State<_ApprovalDialog> {
   late UserRole role;
+  late AccountStatus status;
   late Set<String> teamIds;
   String? playerId;
   late final TextEditingController adminNote;
@@ -568,6 +656,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
   void initState() {
     super.initState();
     role = widget.user.role;
+    status = widget.editing ? widget.user.status : AccountStatus.approved;
     teamIds = widget.user.memberships.isEmpty
         ? {widget.organization.currentTeam.id}
         : widget.user.memberships.map((item) => item.teamId).toSet();
@@ -589,7 +678,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
     final canManageOrganization =
         widget.organization.can('MANAGE_ORGANIZATION');
     final roles = canManageOrganization
-        ? const [
+        ? [
+            if (widget.actorIsSuperAdmin) UserRole.superAdmin,
             UserRole.clubAdmin,
             UserRole.youthDirector,
             UserRole.coach,
@@ -603,7 +693,11 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
     if (!roles.contains(role)) role = roles.first;
 
     return AlertDialog(
-      title: Text('${widget.user.name} freigeben'),
+      title: Text(
+        widget.editing
+            ? '${widget.user.name} verwalten'
+            : '${widget.user.name} freigeben',
+      ),
       content: SizedBox(
         width: 620,
         child: SingleChildScrollView(
@@ -631,6 +725,38 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                 ],
                 onChanged: (value) => setState(() => role = value!),
               ),
+              if (widget.editing) ...[
+                const SizedBox(height: 14),
+                DropdownButtonFormField<AccountStatus>(
+                  initialValue: status,
+                  decoration: const InputDecoration(labelText: 'Kontostatus'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: AccountStatus.approved,
+                      child: Text('Freigegeben'),
+                    ),
+                    DropdownMenuItem(
+                      value: AccountStatus.pending,
+                      child: Text('Ausstehend'),
+                    ),
+                    DropdownMenuItem(
+                      value: AccountStatus.blocked,
+                      child: Text('Gesperrt'),
+                    ),
+                    DropdownMenuItem(
+                      value: AccountStatus.archived,
+                      child: Text('Archiviert'),
+                    ),
+                    DropdownMenuItem(
+                      value: AccountStatus.rejected,
+                      child: Text('Abgelehnt'),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => status = value!),
+                ),
+              ],
+              const SizedBox(height: 16),
+              _PermissionPreview(role: role),
               const SizedBox(height: 20),
               Text(
                 'Mannschaften',
@@ -640,7 +766,9 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
               ),
               const SizedBox(height: 5),
               const Text(
-                'Mindestens eine Mannschaft auswählen. Die erste Auswahl wird zum Standardteam.',
+                'Mindestens eine Mannschaft auswählen. Die erste Auswahl wird '
+                'zum Standardteam. Systemadministratoren besitzen unabhängig '
+                'davon systemweiten Zugriff.',
               ),
               const SizedBox(height: 10),
               Wrap(
@@ -667,7 +795,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                   initialValue: playerId,
                   decoration: InputDecoration(
                     labelText: role == UserRole.parent
-                        ? 'Kind / Spielerprofil *'
+                        ? 'Kind / Spielerprofil (optional)'
                         : 'Verknüpftes Spielerprofil *',
                   ),
                   items: [
@@ -742,12 +870,14 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
         ),
         FilledButton.icon(
           onPressed: teamIds.isEmpty ||
-                  ((role == UserRole.player || role == UserRole.parent) &&
-                      playerId == null)
+                  (role == UserRole.player &&
+                      playerId == null &&
+                      !widget.editing)
               ? null
               : () => Navigator.pop(
                     context,
                     _ApprovalDecision(
+                      status: status,
                       role: role,
                       teamIds: teamIds.toList(),
                       playerId: playerId,
@@ -757,7 +887,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                     ),
                   ),
           icon: const Icon(Icons.verified_user_rounded),
-          label: const Text('Freigeben'),
+          label: Text(widget.editing ? 'Änderungen speichern' : 'Freigeben'),
         ),
       ],
     );
@@ -777,8 +907,76 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
       };
 }
 
+class _PermissionPreview extends StatelessWidget {
+  const _PermissionPreview({required this.role});
+
+  final UserRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    final permissions = permissionsForUserRole(role);
+    final viewCount = permissions
+        .where((permission) => permission.kind == PermissionKind.view)
+        .length;
+    final editCount = permissions.length - viewCount;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.navy.withValues(alpha: .045),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.navy.withValues(alpha: .12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.admin_panel_settings_outlined, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  role == UserRole.superAdmin
+                      ? 'Uneingeschränkter Systemzugriff'
+                      : '$viewCount Ansichts- und $editCount Bearbeitungsrechte',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final permission in permissions)
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: Icon(
+                    permission.kind == PermissionKind.view
+                        ? Icons.visibility_outlined
+                        : Icons.edit_outlined,
+                    size: 15,
+                  ),
+                  label: Text(permission.label),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Die Rolle ist die verbindliche Rechte-Vorgabe. '
+            'Systemadministration umfasst immer alle Rechte.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ApprovalDecision {
   const _ApprovalDecision({
+    required this.status,
     required this.role,
     required this.teamIds,
     this.playerId,
@@ -786,6 +984,7 @@ class _ApprovalDecision {
     this.adminNote,
   });
 
+  final AccountStatus status;
   final UserRole role;
   final List<String> teamIds;
   final String? playerId;
