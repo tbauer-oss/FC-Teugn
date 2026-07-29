@@ -1748,6 +1748,16 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                 icon: const Icon(Icons.undo_rounded),
                 label: const Text('Letzte Aktion zurück'),
               ),
+              if (widget.match.canDelegateTicker)
+                OutlinedButton.icon(
+                  onPressed: _busy ||
+                          (ticker.status == TickerStatus.notStarted &&
+                              ticker.events.isEmpty)
+                      ? null
+                      : _confirmReset,
+                  icon: const Icon(Icons.restart_alt_rounded),
+                  label: const Text('Spiel zurücksetzen'),
+                ),
               FilledButton.tonalIcon(
                 onPressed:
                     _busy ? null : () => _confirmEnd(context),
@@ -2272,6 +2282,65 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     );
     if (confirmed == true && mounted) {
       await _send(TickerEventType.matchEnd);
+    }
+  }
+
+  Future<void> _confirmReset() async {
+    if (!widget.online || _pending.isNotEmpty) {
+      _message(
+        'Das Spiel kann nur mit Verbindung und ohne offene Tickeraktionen '
+        'zurückgesetzt werden.',
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.restart_alt_rounded, size: 34),
+        title: const Text('Spiel zurücksetzen?'),
+        content: const Text(
+          'Uhr, Spielabschnitt, Spielstand und der komplette Tickerverlauf '
+          'werden auf den Ausgangszustand zurückgesetzt. Tore und Vorlagen '
+          'werden aus den Statistiken entfernt. Kader und Aufstellung bleiben '
+          'erhalten. Eine bestehende Eltern-Freigabe wird aufgehoben.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.restart_alt_rounded),
+            label: const Text('Jetzt zurücksetzen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await ref.read(repositoryProvider).resetTicker(widget.match.id);
+      _warnedPeriods.clear();
+      await widget.onChanged();
+      if (mounted) {
+        _message(
+          'Das Spiel wurde zurückgesetzt. Kader und Aufstellung sind erhalten.',
+        );
+      }
+    } on DioException catch (error) {
+      if (!mounted) return;
+      final data = error.response?.data;
+      final message =
+          data is Map<String, dynamic> ? data['message'] as String? : null;
+      _message(message ?? 'Das Spiel konnte nicht zurückgesetzt werden.');
+    } catch (_) {
+      if (mounted) {
+        _message('Das Spiel konnte nicht zurückgesetzt werden.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 

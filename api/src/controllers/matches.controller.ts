@@ -956,3 +956,57 @@ export async function undoTickerEvent(req: Request, res: Response) {
   await recalculateMatchStatistics(match.id);
   return res.json(result);
 }
+
+export async function resetTicker(req: Request, res: Response) {
+  const user = req.user!;
+  if (!hasPermission(user.role, Permission.MANAGE_LIVE_TICKER)) {
+    return res.status(403).json({
+      message: 'Nur Trainer und Administratoren dürfen ein Spiel zurücksetzen.',
+    });
+  }
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.liveTicker.deleteMany({ where: { eventId: match.id } });
+    await tx.playerMatchStatistic.deleteMany({ where: { eventId: match.id } });
+    await tx.teamMatchStatistic.deleteMany({ where: { eventId: match.id } });
+    await tx.matchTickerDelegate.deleteMany({ where: { eventId: match.id } });
+    await tx.matchDetails.updateMany({
+      where: { eventId: match.id },
+      data: {
+        status: MatchStatus.PLANNED,
+        ourGoals: null,
+        theirGoals: null,
+        halfTimeOurGoals: null,
+        halfTimeTheirGoals: null,
+      },
+    });
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: 'LIVE_TICKER_RESET',
+      entityType: 'Event',
+      entityId: match.id,
+      metadata: {
+        previousStatus: match.liveTicker?.status ?? TickerStatus.NOT_STARTED,
+        previousOurGoals: match.liveTicker?.ourGoals ?? match.matchDetails?.ourGoals ?? 0,
+        previousTheirGoals: match.liveTicker?.theirGoals ?? match.matchDetails?.theirGoals ?? 0,
+        removedEvents: match.liveTicker?.events.length ?? 0,
+      },
+    },
+  });
+
+  return res.json({
+    status: TickerStatus.NOT_STARTED,
+    currentPeriod: 1,
+    elapsedSeconds: 0,
+    ourGoals: 0,
+    theirGoals: 0,
+    lastSequence: 0,
+    events: [],
+  });
+}

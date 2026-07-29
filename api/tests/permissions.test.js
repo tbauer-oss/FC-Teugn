@@ -185,6 +185,10 @@ test('matchday operations are restricted to assigned staff roles', () => {
     false,
   );
   assert.equal(
+    hasPermission(Role.PARENT, Permission.MANAGE_LIVE_TICKER),
+    false,
+  );
+  assert.equal(
     hasPermission(Role.PLAYER, Permission.MANAGE_LIVE_TICKER),
     false,
   );

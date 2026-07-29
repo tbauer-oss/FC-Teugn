@@ -163,6 +163,20 @@
     "/matches/{id}/ticker/events": {
       "post": {"tags": ["Spiele"], "summary": "Idempotentes Tickerkommando", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}], "responses": {"201": {"description": "Ereignis erstellt"}, "200": {"description": "Bereits bekanntes Ereignis"}}}
     },
+    "/matches/{id}/ticker/reset": {
+      "post": {
+        "tags": ["Spiele"],
+        "summary": "Liveticker eines Spiels auf den Ausgangszustand zurücksetzen",
+        "description": "Entfernt Uhr, Spielstand, Tickerereignisse und daraus berechnete Statistiken. Kader und Aufstellung bleiben erhalten. Nur für berechtigtes Vereinspersonal.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"$ref": "#/components/parameters/Id"}],
+        "responses": {
+          "200": {"description": "Zurückgesetzter Tickerzustand"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"description": "Spiel nicht gefunden"}
+        }
+      }
+    },
     "/trainings/{id}/plan": {
       "put": {"tags": ["Training"], "summary": "Trainingsplan speichern", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}], "responses": {"200": {"description": "Trainingsplan"}}}
     },

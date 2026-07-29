@@ -20,6 +20,7 @@ test('OpenAPI contract exposes security-critical production flows', () => {
     '/events/{id}/emergency-access',
     '/matches/{id}/lineup',
     '/matches/{id}/ticker/events',
+    '/matches/{id}/ticker/reset',
     '/admin/privacy-requests/{id}/complete-erasure',
   ]) {
     assert.ok(openapi.paths[path], `${path} fehlt im API-Vertrag`);

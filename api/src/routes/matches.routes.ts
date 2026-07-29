@@ -5,6 +5,7 @@ import {
   getTickerDelegation,
   listMatches,
   publishSquad,
+  resetTicker,
   tickerCommand,
   undoTickerEvent,
   updateLineup,
@@ -31,5 +32,10 @@ router.get('/:id/ticker/delegation', getTickerDelegation);
 router.put('/:id/ticker/delegation', updateTickerDelegation);
 router.post('/:id/ticker/events', tickerCommand);
 router.post('/:id/ticker/undo', undoTickerEvent);
+router.post(
+  '/:id/ticker/reset',
+  requirePermission(Permission.MANAGE_LIVE_TICKER),
+  resetTicker,
+);
 
 export default router;

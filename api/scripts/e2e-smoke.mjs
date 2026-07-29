@@ -513,6 +513,20 @@ await request(
     comment: 'Spielbezogene Elternfreigabe funktioniert',
   }),
 );
+const forbiddenReset = await fetch(
+  `${baseUrl}/matches/${match.id}/ticker/reset`,
+  {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...auth(parentClientAToken),
+    },
+  },
+);
+assert(
+  forbiddenReset.status === 403,
+  'A delegated parent was allowed to reset the complete live ticker',
+);
 await request(
   `/matches/${match.id}/ticker/delegation`,
   json('PUT', trainerToken, { parentId: null }),
@@ -527,6 +541,10 @@ const forbiddenDelegatedWrite = await fetch(
 assert(
   forbiddenDelegatedWrite.status === 403,
   'Revoked parent ticker delegation still permits writes',
+);
+await request(
+  `/matches/${match.id}/ticker/delegation`,
+  json('PUT', trainerToken, { parentId: registration.user.id }),
 );
 
 // 14. Trainer beendet das Spiel.
@@ -568,7 +586,52 @@ assert(
   'Ticker goals are missing from the player profile',
 );
 
-// 16. Nur die Systemadministration darf Termine und Spiele endgültig löschen.
+// 16. Vereinspersonal kann den Liveticker vollständig zurücksetzen.
+const resetTicker = await request(
+  `/matches/${match.id}/ticker/reset`,
+  {
+    method: 'POST',
+    headers: auth(trainerToken),
+  },
+);
+assert(
+  resetTicker.status === 'NOT_STARTED' &&
+    resetTicker.currentPeriod === 1 &&
+    resetTicker.elapsedSeconds === 0 &&
+    resetTicker.ourGoals === 0 &&
+    resetTicker.theirGoals === 0 &&
+    resetTicker.events.length === 0,
+  'Live ticker reset did not restore the initial state',
+);
+const matchAfterReset = await request(`/matches/${match.id}`, {
+  headers: auth(trainerToken),
+});
+assert(
+  matchAfterReset.matchDetails?.status === 'PLANNED' &&
+    matchAfterReset.liveTicker == null,
+  'Reset match is not planned or still exposes ticker data',
+);
+assert(
+  matchAfterReset.squads[0]?.members.length === 3 &&
+    matchAfterReset.squads[0]?.lineup?.positions.length === 2,
+  'Reset unexpectedly removed the squad or lineup',
+);
+const parentAfterReset = await request(`/matches/${match.id}`, {
+  headers: auth(parentClientAToken),
+});
+assert(
+  parentAfterReset.capabilities?.canManageTicker === false,
+  'Reset did not revoke the temporary parent ticker delegation',
+);
+const scorerAfterReset = await request(`/players/${playerId}`, {
+  headers: auth(trainerToken),
+});
+assert(
+  scorerAfterReset.statistics?.goals === 0,
+  'Reset ticker goals are still present in the player profile',
+);
+
+// 17. Nur die Systemadministration darf Termine und Spiele endgültig löschen.
 const forbiddenDelete = await fetch(
   `${baseUrl}/events/${match.id}?permanent=true`,
   {
@@ -628,5 +691,5 @@ assert(
 );
 
 console.log(
-  'E2E acceptance passed: registration, approval, guardian link, training, attendance, match, squad, lineup, two-client ticker, correction, statistics and permanent administrator deletion',
+  'E2E acceptance passed: registration, approval, guardian link, training, attendance, match, squad, lineup, two-client ticker, correction, statistics, staff-only ticker reset and permanent administrator deletion',
 );
