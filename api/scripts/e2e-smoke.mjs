@@ -513,6 +513,20 @@ await request(
     comment: 'Spielbezogene Elternfreigabe funktioniert',
   }),
 );
+const forbiddenReset = await fetch(
+  `${baseUrl}/matches/${match.id}/ticker/reset`,
+  {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...auth(parentClientAToken),
+    },
+  },
+);
+assert(
+  forbiddenReset.status === 403,
+  'A delegated parent was allowed to reset the complete live ticker',
+);
 await request(
   `/matches/${match.id}/ticker/delegation`,
   json('PUT', trainerToken, { parentId: null }),
@@ -527,6 +541,10 @@ const forbiddenDelegatedWrite = await fetch(
 assert(
   forbiddenDelegatedWrite.status === 403,
   'Revoked parent ticker delegation still permits writes',
+);
+await request(
+  `/matches/${match.id}/ticker/delegation`,
+  json('PUT', trainerToken, { parentId: registration.user.id }),
 );
 
 // 14. Trainer beendet das Spiel.
@@ -568,25 +586,7 @@ assert(
   'Ticker goals are missing from the player profile',
 );
 
-// 16. Nur Vereinspersonal darf den Liveticker vollständig zurücksetzen.
-await request(
-  `/matches/${match.id}/ticker/delegation`,
-  json('PUT', trainerToken, { parentId: registration.user.id }),
-);
-const forbiddenReset = await fetch(
-  `${baseUrl}/matches/${match.id}/ticker/reset`,
-  {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...auth(parentClientAToken),
-    },
-  },
-);
-assert(
-  forbiddenReset.status === 403,
-  'A delegated parent was allowed to reset the complete live ticker',
-);
+// 16. Vereinspersonal kann den Liveticker vollständig zurücksetzen.
 const resetTicker = await request(
   `/matches/${match.id}/ticker/reset`,
   {
