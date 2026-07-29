@@ -1,4 +1,5 @@
 import 'player.dart';
+import '../team_game_format.dart';
 
 enum MatchStatus {
   planned,
@@ -55,6 +56,7 @@ class MatchdayModel {
     this.squad,
     this.ticker,
     this.eligiblePlayers = const [],
+    this.gameFormat = TeamGameFormat.football7,
   });
 
   final String id;
@@ -67,6 +69,7 @@ class MatchdayModel {
   final MatchSquadModel? squad;
   final LiveTickerModel? ticker;
   final List<PlayerModel> eligiblePlayers;
+  final TeamGameFormat gameFormat;
 
   factory MatchdayModel.fromJson(Map<String, dynamic> json) {
     final squads = json['squads'] as List<dynamic>? ?? const [];
@@ -97,6 +100,7 @@ class MatchdayModel {
             (item) => PlayerModel.fromJson(item as Map<String, dynamic>),
           )
           .toList(),
+      gameFormat: TeamGameFormat.fromApi(json['teamGameFormat']),
     );
   }
 }

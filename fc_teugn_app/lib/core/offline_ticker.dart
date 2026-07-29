@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'models/matchday.dart';
+import 'team_game_format.dart';
 
 abstract class TickerOfflineStore {
   Future<String?> read(String key);
@@ -265,6 +266,7 @@ class CachedMatchdaySnapshot {
     required this.opponent,
     required this.isHome,
     required this.cachedAt,
+    this.gameFormat = TeamGameFormat.football7,
     this.meetingAt,
     this.ticker,
   });
@@ -279,6 +281,7 @@ class CachedMatchdaySnapshot {
   final bool isHome;
   final DateTime cachedAt;
   final LiveTickerModel? ticker;
+  final TeamGameFormat gameFormat;
 
   factory CachedMatchdaySnapshot.fromMatch(MatchdayModel match) {
     return CachedMatchdaySnapshot(
@@ -291,6 +294,7 @@ class CachedMatchdaySnapshot {
       opponent: match.details?.opponent ?? 'Gegner',
       isHome: match.details?.isHome ?? true,
       ticker: match.ticker,
+      gameFormat: match.gameFormat,
       cachedAt: DateTime.now(),
     );
   }
@@ -306,6 +310,7 @@ class CachedMatchdaySnapshot {
         'isHome': isHome,
         'cachedAt': cachedAt.toUtc().toIso8601String(),
         'ticker': ticker == null ? null : _tickerToJson(ticker!),
+        'teamGameFormat': gameFormat.apiValue,
       };
 
   factory CachedMatchdaySnapshot.fromJson(Map<String, dynamic> json) {
@@ -326,6 +331,7 @@ class CachedMatchdaySnapshot {
           : LiveTickerModel.fromJson(
               json['ticker'] as Map<String, dynamic>,
             ),
+      gameFormat: TeamGameFormat.fromApi(json['teamGameFormat']),
     );
   }
 
@@ -347,6 +353,7 @@ class CachedMatchdaySnapshot {
           theirGoals: ticker?.theirGoals,
         ),
         ticker: ticker,
+        gameFormat: gameFormat,
       );
 }
 

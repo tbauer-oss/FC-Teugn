@@ -14,6 +14,7 @@ import 'models/communication.dart';
 import 'models/competition_import.dart';
 import 'models/team_operations.dart';
 import 'models/emergency.dart';
+import 'team_game_format.dart';
 
 class DataRepository {
   final ApiClient client;
@@ -32,6 +33,7 @@ class DataRepository {
     String? level,
     String teamType = 'COMPETITIVE',
     String gender = 'MIXED',
+    TeamGameFormat gameFormat = TeamGameFormat.football7,
     List<int> birthYears = const [],
     String? description,
     String? trainingLocation,
@@ -49,6 +51,7 @@ class DataRepository {
       'level': level,
       'teamType': teamType,
       'gender': gender,
+      'gameFormat': gameFormat.apiValue,
       'birthYears': birthYears,
       'description': description,
       'trainingLocation': trainingLocation,
@@ -69,6 +72,7 @@ class DataRepository {
     String? level,
     required String teamType,
     required String gender,
+    required TeamGameFormat gameFormat,
     required List<int> birthYears,
     String? description,
     String? trainingLocation,
@@ -85,6 +89,7 @@ class DataRepository {
       'level': level,
       'teamType': teamType,
       'gender': gender,
+      'gameFormat': gameFormat.apiValue,
       'birthYears': birthYears,
       'description': description,
       'trainingLocation': trainingLocation,

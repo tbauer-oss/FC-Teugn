@@ -282,6 +282,7 @@ export async function applySeasonTransition(req: Request, res: Response) {
             name: teamPlan.targetName,
             shortName: teamPlan.shortName,
             level: teamPlan.level,
+            gameFormat: sourceTeam.gameFormat,
           },
         });
         teamMapping[sourceTeam.id] = targetTeam.id;
