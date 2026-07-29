@@ -1,10 +1,15 @@
 import { Request, Response } from 'express';
-import { DominantFoot, PlayerStatus } from '@prisma/client';
+import { DominantFoot, PlayerStatus, TickerEventType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
 import { accessibleTeamIds } from '../services/team-access';
 import { mediaAssetUrl } from '../services/media-access';
+
+const statisticGoalTypes: TickerEventType[] = [
+  TickerEventType.HOME_GOAL,
+  TickerEventType.AWAY_GOAL,
+];
 
 const publicPlayerSelect = {
   id: true,
@@ -33,17 +38,33 @@ const publicPlayerSelect = {
   matchStatistics: {
     select: { goals: true, assists: true, appeared: true },
   },
+  tickerGoals: {
+    where: {
+      revokedAt: null,
+      type: { in: statisticGoalTypes },
+    },
+    select: { id: true },
+  },
+  tickerAssists: {
+    where: {
+      revokedAt: null,
+      type: { in: statisticGoalTypes },
+    },
+    select: { id: true },
+  },
 } as const;
 
 function withCareerStatistics<T extends {
   matchStatistics: Array<{ goals: number; assists: number; appeared: boolean }>;
+  tickerGoals: Array<{ id: string }>;
+  tickerAssists: Array<{ id: string }>;
 }>(player: T) {
-  const { matchStatistics, ...data } = player;
+  const { matchStatistics, tickerGoals, tickerAssists, ...data } = player;
   return {
     ...data,
     statistics: {
-      goals: matchStatistics.reduce((sum, item) => sum + item.goals, 0),
-      assists: matchStatistics.reduce((sum, item) => sum + item.assists, 0),
+      goals: tickerGoals.length,
+      assists: tickerAssists.length,
       appearances: matchStatistics.filter((item) => item.appeared).length,
     },
   };

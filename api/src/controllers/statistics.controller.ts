@@ -1,4 +1,10 @@
-import { EventType, MatchKind, MatchStatus, Prisma } from '@prisma/client';
+import {
+  EventType,
+  MatchKind,
+  MatchStatus,
+  Prisma,
+  TickerEventType,
+} from '@prisma/client';
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { hasPermission, Permission } from '../security/permissions';
@@ -144,6 +150,70 @@ export async function statisticsOverview(req: Request, res: Response) {
       current.goals += stat.goals;
       current.assists += stat.assists;
       aggregated.set(stat.playerId, current);
+    }
+  }
+  // Goals and assists are read from the immutable ticker source of truth.
+  // This also repairs the display for older matches whose projection failed
+  // before automatic recalculation became reliable.
+  for (const player of aggregated.values()) {
+    player.goals = 0;
+    player.assists = 0;
+  }
+  const goalEvents = await prisma.liveTickerEvent.findMany({
+    where: {
+      revokedAt: null,
+      type: { in: [TickerEventType.HOME_GOAL, TickerEventType.AWAY_GOAL] },
+      ticker: { eventId: { in: matches.map((match) => match.id) } },
+    },
+    include: {
+      scorer: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          shirtNumber: true,
+        },
+      },
+      assist: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          shirtNumber: true,
+        },
+      },
+    },
+  });
+  const ensurePlayer = (
+    player: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      preferredName: string | null;
+      shirtNumber: number | null;
+    },
+  ) => {
+    const current = aggregated.get(player.id) ?? {
+      id: player.id,
+      name: player.preferredName || `${player.firstName} ${player.lastName}`,
+      shirtNumber: player.shirtNumber,
+      appearances: 0,
+      starts: 0,
+      minutes: 0,
+      goals: 0,
+      assists: 0,
+    };
+    aggregated.set(player.id, current);
+    return current;
+  };
+  for (const event of goalEvents) {
+    if (event.scorer && (!allowedPlayerIds || allowedPlayerIds.has(event.scorer.id))) {
+      ensurePlayer(event.scorer).goals += 1;
+    }
+    if (event.assist && (!allowedPlayerIds || allowedPlayerIds.has(event.assist.id))) {
+      ensurePlayer(event.assist).assists += 1;
     }
   }
 
