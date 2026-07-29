@@ -87,20 +87,28 @@ const trainingInclude = {
 
 export async function listTrainings(req: Request, res: Response) {
   const teamIds = await accessibleTeamIds(req.user!);
-  const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 30 * 86400000);
-  const to = req.query.to ? new Date(String(req.query.to)) : new Date(Date.now() + 180 * 86400000);
+  const from = req.query.from
+    ? new Date(String(req.query.from))
+    : new Date(Date.now() - 180 * 86400000);
+  const to = req.query.to
+    ? new Date(String(req.query.to))
+    : new Date(Date.now() + 550 * 86400000);
   const trainings = await prisma.event.findMany({
     where: {
       type: EventType.TRAINING,
       ...eventTeamScope(teamIds),
       startAt: {
-        gte: Number.isNaN(from.getTime()) ? new Date(Date.now() - 30 * 86400000) : from,
-        lte: Number.isNaN(to.getTime()) ? new Date(Date.now() + 180 * 86400000) : to,
+        gte: Number.isNaN(from.getTime())
+          ? new Date(Date.now() - 180 * 86400000)
+          : from,
+        lte: Number.isNaN(to.getTime())
+          ? new Date(Date.now() + 550 * 86400000)
+          : to,
       },
     },
     include: trainingInclude,
     orderBy: { startAt: 'asc' },
-    take: 100,
+    take: 500,
   });
   const roster = await prisma.player.findMany({
     where: { teamId: { in: teamIds }, status: { not: 'LEFT' } },

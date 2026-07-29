@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/models/event.dart';
+import '../../core/models/organization.dart';
 import '../../core/models/training.dart';
 import '../../core/providers.dart';
+import '../calendar/calendar_page.dart';
 import '../shared/page_scaffold.dart';
 
 class TrainingsPage extends ConsumerStatefulWidget {
@@ -16,7 +19,9 @@ class TrainingsPage extends ConsumerStatefulWidget {
 
 class _TrainingsPageState extends ConsumerState<TrainingsPage> {
   List<TrainingModel>? _trainings;
+  OrganizationContext? _organization;
   String? _error;
+  bool _creating = false;
 
   @override
   void initState() {
@@ -26,10 +31,25 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
 
   Future<void> _load() async {
     try {
-      final items = await ref.read(repositoryProvider).trainings();
-      if (mounted) setState(() => _trainings = items);
+      final repository = ref.read(repositoryProvider);
+      final values = await Future.wait([
+        repository.trainings(),
+        repository.organizationContext(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _trainings = values[0] as List<TrainingModel>;
+          _organization = values[1] as OrganizationContext;
+          _error = null;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() => _error = 'Trainings konnten nicht geladen werden.');
+      if (mounted) {
+        setState(
+          () => _error =
+              'Trainings konnten nicht geladen werden. Bitte versuche es erneut.',
+        );
+      }
     }
   }
 
@@ -37,11 +57,29 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
   Widget build(BuildContext context) => PageScaffold(
         title: 'Trainingsplanung',
         subtitle: 'Einheiten vorbereiten, Übungen kombinieren und Anwesenheit erfassen.',
+        action: FilledButton.icon(
+          onPressed:
+              _organization == null || _creating ? null : _createTraining,
+          icon: _creating
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add_rounded),
+          label: Text(
+            _creating ? 'Wird angelegt …' : 'Trainingstermin anlegen',
+          ),
+        ),
         child: _error != null
             ? EmptyState(
                 icon: Icons.fitness_center_rounded,
                 title: 'Trainingsplanung nicht erreichbar',
                 message: _error!,
+                action: FilledButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Erneut laden'),
+                ),
               )
             : _trainings == null
                 ? const Center(child: CircularProgressIndicator())
@@ -53,14 +91,50 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
         .where((item) => item.startAt.isAfter(DateTime.now().subtract(const Duration(days: 1))))
         .toList();
     if (upcoming.isEmpty) {
-      return const EmptyState(
-        icon: Icons.event_available_outlined,
-        title: 'Keine Trainingstermine geplant',
-        message: 'Lege zuerst im Kalender einen Trainingstermin an.',
+      return Column(
+        children: [
+          if (_organization != null) ...[
+            _RegularTrainingTimes(team: _organization!.currentTeam),
+            const SizedBox(height: 16),
+          ],
+          EmptyState(
+            icon: Icons.event_available_outlined,
+            title: 'Noch keine planbaren Trainingstermine',
+            message:
+                'Reguläre Trainingszeiten beschreiben den Wochenrhythmus. Lege daraus jetzt einen einzelnen Termin oder direkt eine Terminserie an.',
+            action: FilledButton.icon(
+              onPressed: _creating ? null : _createTraining,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Training oder Serie anlegen'),
+            ),
+          ),
+        ],
       );
     }
-    return ListView(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_organization != null) ...[
+          _RegularTrainingTimes(team: _organization!.currentTeam),
+          const SizedBox(height: 18),
+        ],
+        Row(
+          children: [
+            Text(
+              'Kommende Einheiten',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const Spacer(),
+            Text(
+              '${upcoming.length} Termine',
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
         for (final training in upcoming)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -123,6 +197,119 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
       ],
     );
   }
+
+  Future<void> _createTraining() async {
+    final organization = _organization;
+    if (organization == null) return;
+    final draft = await showDialog<EventWriteData>(
+      context: context,
+      builder: (context) => EventEditorDialog(
+        teams: organization.teams,
+        initialTeamId: organization.currentTeam.id,
+      ),
+    );
+    if (draft == null || !mounted) return;
+    setState(() => _creating = true);
+    try {
+      await ref.read(repositoryProvider).createEvent(draft);
+      ref.invalidate(eventsProvider);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Trainingstermin wurde angelegt und kann jetzt geplant werden.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Der Trainingstermin konnte nicht angelegt werden.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
+}
+
+class _RegularTrainingTimes extends StatelessWidget {
+  const _RegularTrainingTimes({required this.team});
+
+  final TeamSummary team;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppColors.black,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Wrap(
+          spacing: 18,
+          runSpacing: 14,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.yellow,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: const Icon(
+                Icons.calendar_month_rounded,
+                color: AppColors.black,
+              ),
+            ),
+            SizedBox(
+              width: 230,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'REGULÄRE TRAININGSZEITEN',
+                    style: TextStyle(
+                      color: AppColors.yellow,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .7,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    team.displayName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (team.trainingTimes.isEmpty)
+              const Text(
+                'Noch keine regelmäßigen Zeiten hinterlegt',
+                style: TextStyle(color: Colors.white70),
+              )
+            else
+              for (final value in team.trainingTimes)
+                Chip(
+                  avatar: const Icon(Icons.schedule_rounded, size: 17),
+                  label: Text(value),
+                ),
+            if (team.trainingLocation?.isNotEmpty == true)
+              Chip(
+                avatar: const Icon(Icons.location_on_outlined, size: 17),
+                label: Text(team.trainingLocation!),
+              ),
+          ],
+        ),
+      );
 }
 
 class _DateTile extends StatelessWidget {
