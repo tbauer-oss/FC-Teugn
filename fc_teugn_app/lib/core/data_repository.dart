@@ -776,6 +776,30 @@ class DataRepository {
     });
   }
 
+  Future<TickerDelegation> tickerDelegation(String eventId) async {
+    final response =
+        await client.dio.get('/matches/$eventId/ticker/delegation');
+    return TickerDelegation.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<TickerDelegateUser?> saveTickerDelegation({
+    required String eventId,
+    String? parentId,
+  }) async {
+    final response = await client.dio.put(
+      '/matches/$eventId/ticker/delegation',
+      data: {'parentId': parentId},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return data['delegate'] == null
+        ? null
+        : TickerDelegateUser.fromJson(
+            data['delegate'] as Map<String, dynamic>,
+          );
+  }
+
   Future<StatisticsOverview> statistics({
     DateTime? from,
     DateTime? to,

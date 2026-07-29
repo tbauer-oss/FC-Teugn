@@ -578,6 +578,18 @@ class _ProfileHero extends StatelessWidget {
             ),
           ),
           _StatusBadge(status: player.status),
+          _CareerStatChip(
+            icon: Icons.sports_soccer_rounded,
+            label: '${player.goals} Tore',
+          ),
+          _CareerStatChip(
+            icon: Icons.assistant_direction_rounded,
+            label: '${player.assists} Assists',
+          ),
+          _CareerStatChip(
+            icon: Icons.event_available_rounded,
+            label: '${player.appearances} Einsätze',
+          ),
           if (onEdit != null)
             OutlinedButton.icon(
               onPressed: onEdit,
@@ -606,6 +618,36 @@ class _ProfileHero extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CareerStatChip extends StatelessWidget {
+  const _CareerStatChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 17, color: AppColors.yellow),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _DocumentsCard extends ConsumerStatefulWidget {

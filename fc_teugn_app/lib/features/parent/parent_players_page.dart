@@ -37,7 +37,13 @@ class ParentPlayersPage extends ConsumerWidget {
                         ),
                       ),
                       title: Text(player.fullName),
-                      subtitle: Text(player.position ?? 'Position unbekannt'),
+                      subtitle: Text(
+                        [
+                          player.position ?? 'Position unbekannt',
+                          '${player.goals} Tore',
+                          '${player.assists} Assists',
+                        ].join(' · '),
+                      ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                     );
                   },

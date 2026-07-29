@@ -814,6 +814,8 @@ String _playerSummary(PlayerModel player) {
     if (player.teamName?.isNotEmpty == true) player.teamName!,
     if (player.position?.isNotEmpty == true) player.position!,
     if (player.age != null) '${player.age} Jahre',
+    '${player.goals} Tore',
+    '${player.assists} Assists',
   ];
   return values.isEmpty ? 'Profil vervollständigen' : values.join(' · ');
 }

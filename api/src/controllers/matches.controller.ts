@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import {
   EventType,
+  AccountStatus,
   LineupStatus,
   MatchKind,
   MatchStatus,
@@ -151,6 +152,32 @@ function isStaff(role: Role) {
   return hasPermission(role, Permission.MANAGE_EVENTS);
 }
 
+async function canManageTicker(
+  user: { id: string; role: Role },
+  eventId: string,
+) {
+  if (hasPermission(user.role, Permission.MANAGE_LIVE_TICKER)) return true;
+  if (user.role !== Role.PARENT) return false;
+  const delegation = await prisma.matchTickerDelegate.findFirst({
+    where: {
+      eventId,
+      userId: user.id,
+      revokedAt: null,
+      event: {
+        matchDetails: {
+          is: {
+            status: {
+              notIn: [MatchStatus.FINISHED, MatchStatus.RECORDED, MatchStatus.CANCELLED],
+            },
+          },
+        },
+      },
+    },
+    select: { id: true },
+  });
+  return delegation !== null;
+}
+
 async function findMatch(id: string, user: { id: string; teamId: string; role: Role }) {
   const teamIds = await accessibleTeamIds(user);
   return prisma.event.findFirst({ where: { id, ...scope(teamIds) }, include: matchInclude });
@@ -160,6 +187,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   match: T,
   staff: boolean,
   eligiblePlayers: Array<Prisma.PlayerGetPayload<{ select: typeof eligiblePlayerSelect }>> = [],
+  tickerEditable = staff,
 ) {
   const squad = match.squads[0] ?? null;
   const lineup = squad?.lineup;
@@ -172,7 +200,11 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
     teamGameFormat:
       match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat,
     eligiblePlayers: staff ? eligiblePlayers : undefined,
-    squads: squad && (staff || squad.publishedAt)
+    capabilities: {
+      canManageTicker: tickerEditable,
+      canDelegateTicker: staff,
+    },
+    squads: squad && (staff || tickerEditable || squad.publishedAt)
       ? [
           {
             ...squad,
@@ -195,8 +227,8 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
           ...match.liveTicker,
           events: match.liveTicker.events.map((event) => ({
             ...event,
-            scorer: staff || match.liveTicker?.publicScorersEnabled ? event.scorer : null,
-            assist: staff || match.liveTicker?.publicScorersEnabled ? event.assist : null,
+            scorer: tickerEditable || match.liveTicker?.publicScorersEnabled ? event.scorer : null,
+            assist: tickerEditable || match.liveTicker?.publicScorersEnabled ? event.assist : null,
           })),
         }
       : null,
@@ -232,6 +264,7 @@ export async function getMatch(req: Request, res: Response) {
   const match = await findMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   const staff = isStaff(user.role);
+  const tickerEditable = await canManageTicker(user, match.id);
   const accessibleIds = await accessibleTeamIds(user);
   const rosterTeamIds = rosterTeamIdsForMatch(accessibleIds);
   const eligiblePlayers = staff
@@ -244,7 +277,109 @@ export async function getMatch(req: Request, res: Response) {
         orderBy: [{ status: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
       })
     : [];
-  return res.json(serializeMatch(match, staff, eligiblePlayers));
+  return res.json(serializeMatch(match, staff, eligiblePlayers, tickerEditable));
+}
+
+export async function getTickerDelegation(req: Request, res: Response) {
+  const user = req.user!;
+  if (!hasPermission(user.role, Permission.MANAGE_LIVE_TICKER)) {
+    return res.status(403).json({ message: 'Keine Berechtigung für diese Freigabe.' });
+  }
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const teamIds = [
+    match.teamId,
+    ...match.targetTeams.map((target) => target.teamId),
+  ];
+  const candidates = await prisma.user.findMany({
+    where: {
+      role: Role.PARENT,
+      status: AccountStatus.APPROVED,
+      OR: [
+        { teamId: { in: teamIds } },
+        {
+          memberships: {
+            some: {
+              teamId: { in: teamIds },
+              role: Role.PARENT,
+              status: AccountStatus.APPROVED,
+            },
+          },
+        },
+        {
+          parentLinks: {
+            some: { player: { teamId: { in: teamIds } } },
+          },
+        },
+      ],
+    },
+    select: { id: true, name: true, email: true },
+    orderBy: { name: 'asc' },
+  });
+  const delegation = await prisma.matchTickerDelegate.findUnique({
+    where: { eventId: match.id },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  });
+  return res.json({
+    delegate:
+      delegation && delegation.revokedAt === null ? delegation.user : null,
+    candidates,
+  });
+}
+
+export async function updateTickerDelegation(req: Request, res: Response) {
+  const user = req.user!;
+  if (!hasPermission(user.role, Permission.MANAGE_LIVE_TICKER)) {
+    return res.status(403).json({ message: 'Keine Berechtigung für diese Freigabe.' });
+  }
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const closedStatuses = new Set<MatchStatus>([
+    MatchStatus.FINISHED,
+    MatchStatus.RECORDED,
+    MatchStatus.CANCELLED,
+  ]);
+  if (closedStatuses.has(match.matchDetails?.status ?? MatchStatus.PLANNED)) {
+    return res.status(400).json({ message: 'Für dieses Spiel kann keine Freigabe mehr erteilt werden.' });
+  }
+  const parentId = text(req.body?.parentId, 100);
+  if (!parentId) {
+    await prisma.matchTickerDelegate.deleteMany({ where: { eventId: match.id } });
+    return res.json({ delegate: null });
+  }
+  const teamIds = [match.teamId, ...match.targetTeams.map((target) => target.teamId)];
+  const parent = await prisma.user.findFirst({
+    where: {
+      id: parentId,
+      role: Role.PARENT,
+      status: AccountStatus.APPROVED,
+      OR: [
+        { teamId: { in: teamIds } },
+        { memberships: { some: { teamId: { in: teamIds }, status: AccountStatus.APPROVED } } },
+        { parentLinks: { some: { player: { teamId: { in: teamIds } } } } },
+      ],
+    },
+    select: { id: true, name: true, email: true },
+  });
+  if (!parent) {
+    return res.status(400).json({ message: 'Das Elternkonto gehört nicht zu diesem Spiel.' });
+  }
+  await prisma.matchTickerDelegate.upsert({
+    where: { eventId: match.id },
+    update: { userId: parent.id, grantedById: user.id, revokedAt: null },
+    create: { eventId: match.id, userId: parent.id, grantedById: user.id },
+  });
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: 'MATCH_TICKER_DELEGATED',
+      entityType: 'Event',
+      entityId: match.id,
+      metadata: { parentId: parent.id },
+    },
+  });
+  return res.json({ delegate: parent });
 }
 
 export async function updateMatch(req: Request, res: Response) {
@@ -579,13 +714,14 @@ export async function getTicker(req: Request, res: Response) {
       events: [],
     });
   }
+  const tickerEditable = await canManageTicker(req.user!, match.id);
   return res.json({
     ...ticker,
     elapsedSeconds: elapsed(ticker),
     events: ticker.events.map((event) => ({
       ...event,
-      scorer: isStaff(req.user!.role) || ticker.publicScorersEnabled ? event.scorer : null,
-      assist: isStaff(req.user!.role) || ticker.publicScorersEnabled ? event.assist : null,
+      scorer: tickerEditable || ticker.publicScorersEnabled ? event.scorer : null,
+      assist: tickerEditable || ticker.publicScorersEnabled ? event.assist : null,
     })),
   });
 }
@@ -599,6 +735,9 @@ export async function tickerCommand(req: Request, res: Response) {
   const user = req.user!;
   const match = await findMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  if (!(await canManageTicker(user, match.id))) {
+    return res.status(403).json({ message: 'Der Liveticker ist für dieses Konto nicht freigegeben.' });
+  }
   const clientEventId = text(req.body?.clientEventId, 100);
   if (!clientEventId) return res.status(400).json({ message: 'clientEventId ist erforderlich.' });
   const type = enumValue(TickerEventType, req.body?.type, TickerEventType.COMMENT);
@@ -738,9 +877,9 @@ export async function tickerCommand(req: Request, res: Response) {
         metadata: { type, sequence: result.event.sequence },
       },
     });
-    if (goalTypes.has(type) || type === TickerEventType.MATCH_END) {
-      await recalculateMatchStatistics(match.id).catch(() => undefined);
-    }
+  }
+  if (goalTypes.has(type) || type === TickerEventType.MATCH_END) {
+    await recalculateMatchStatistics(match.id);
   }
   return res.status(result.duplicate ? 200 : 201).json({
     ...result,
@@ -752,6 +891,9 @@ export async function undoTickerEvent(req: Request, res: Response) {
   const user = req.user!;
   const match = await findMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  if (!(await canManageTicker(user, match.id))) {
+    return res.status(403).json({ message: 'Der Liveticker ist für dieses Konto nicht freigegeben.' });
+  }
   const ticker = await prisma.liveTicker.findUnique({ where: { eventId: match.id } });
   if (!ticker) return res.status(400).json({ message: 'Der Liveticker wurde noch nicht gestartet.' });
   const target = await prisma.liveTickerEvent.findFirst({
@@ -811,6 +953,6 @@ export async function undoTickerEvent(req: Request, res: Response) {
       metadata: { correctedEventId: target.id },
     },
   });
-  await recalculateMatchStatistics(match.id).catch(() => undefined);
+  await recalculateMatchStatistics(match.id);
   return res.json(result);
 }
