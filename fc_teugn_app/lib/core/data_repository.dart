@@ -776,6 +776,10 @@ class DataRepository {
     });
   }
 
+  Future<void> resetTicker(String eventId) async {
+    await client.dio.post('/matches/$eventId/ticker/reset');
+  }
+
   Future<TickerDelegation> tickerDelegation(String eventId) async {
     final response =
         await client.dio.get('/matches/$eventId/ticker/delegation');
