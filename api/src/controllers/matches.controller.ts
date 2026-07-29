@@ -364,7 +364,15 @@ export async function updateSquad(req: Request, res: Response) {
     }
     return tx.squad.findUnique({
       where: { id: saved.id },
-      include: { members: { include: { player: true } } },
+      include: {
+        members: { include: { player: true } },
+        lineup: {
+          include: {
+            positions: { include: { player: true } },
+            substitutions: true,
+          },
+        },
+      },
     });
   });
   await prisma.auditLog.create({

@@ -649,12 +649,12 @@ class DataRepository {
     return MatchdayModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<void> saveMatchSquad({
+  Future<MatchSquadModel> saveMatchSquad({
     required String eventId,
     required List<({String playerId, NominationStatus status})> members,
     String? formation,
   }) async {
-    await client.dio.put('/matches/$eventId/squad', data: {
+    final response = await client.dio.put('/matches/$eventId/squad', data: {
       'formation': formation,
       'members': members
           .map(
@@ -665,6 +665,9 @@ class DataRepository {
           )
           .toList(),
     });
+    return MatchSquadModel.fromJson(
+      response.data as Map<String, dynamic>,
+    );
   }
 
   Future<void> publishMatchSquad(String eventId) async {
