@@ -1502,15 +1502,15 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   Timer? _queuePoller;
   Timer? _clockTimer;
   DateTime? _lastQueuedAt;
-  late DateTime _clockSynchronizedAt;
-  late int _elapsedAtSynchronization;
-  late TickerStatus _statusAtSynchronization;
+  late final StableElapsedClock _stableElapsedClock;
+  int _lastRenderedElapsedSeconds = -1;
   late final ValueNotifier<_TickerFocusData> _focusData;
   final Set<int> _warnedPeriods = {};
 
   @override
   void initState() {
     super.initState();
+    _stableElapsedClock = StableElapsedClock();
     _synchronizeClock(_ticker);
     _focusData = ValueNotifier(_tickerFocusData(_ticker));
     unawaited(_loadPending());
@@ -1521,7 +1521,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       },
     );
     _clockTimer = Timer.periodic(
-      const Duration(seconds: 1),
+      const Duration(milliseconds: 250),
       (_) => _tickClock(),
     );
   }
@@ -1530,6 +1530,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   void didUpdateWidget(covariant _TickerTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     _synchronizeClock(_ticker);
+    _lastRenderedElapsedSeconds = -1;
     if (!oldWidget.online && widget.online) {
       unawaited(_synchronizePending());
     }
@@ -1556,18 +1557,10 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       );
 
   void _synchronizeClock(LiveTickerModel ticker) {
-    _clockSynchronizedAt = DateTime.now();
-    _elapsedAtSynchronization = ticker.elapsedSeconds;
-    _statusAtSynchronization = ticker.status;
+    _stableElapsedClock.synchronize(ticker);
   }
 
-  int _effectiveElapsedSeconds() {
-    if (_statusAtSynchronization != TickerStatus.live) {
-      return _elapsedAtSynchronization;
-    }
-    return _elapsedAtSynchronization +
-        DateTime.now().difference(_clockSynchronizedAt).inSeconds;
-  }
+  int _effectiveElapsedSeconds() => _stableElapsedClock.elapsedSeconds;
 
   MatchClockValue _clockValue(LiveTickerModel ticker) => calculateMatchClock(
         ticker: ticker,
@@ -1606,12 +1599,20 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
 
   void _tickClock() {
     if (!mounted) return;
+    final elapsedSeconds = _effectiveElapsedSeconds();
+    if (elapsedSeconds == _lastRenderedElapsedSeconds) return;
+    _lastRenderedElapsedSeconds = elapsedSeconds;
     final ticker = _ticker;
-    final clock = _clockValue(ticker);
-    if (widget.editable &&
+    final clock = calculateMatchClock(
+      ticker: ticker,
+      periodMinutes: widget.match.details?.periodMinutes ?? 30,
+      effectiveElapsedSeconds: elapsedSeconds,
+    );
+    final shouldWarn = widget.editable &&
         ticker.status == TickerStatus.live &&
         clock.expired &&
-        _warnedPeriods.add(ticker.currentPeriod)) {
+        _warnedPeriods.add(ticker.currentPeriod);
+    if (shouldWarn) {
       unawaited(playTickerEndSignal());
     }
     setState(() {});

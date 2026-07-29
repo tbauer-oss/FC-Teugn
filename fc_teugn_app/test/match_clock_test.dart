@@ -57,15 +57,66 @@ void main() {
     expect(matchPeriodLabel(3, 4), '3. Viertel');
     expect(matchPeriodLabel(2, 3), 'Abschnitt 2 von 3');
   });
+
+  test('routine server polls do not reset or rewind the running clock', () {
+    var nowMilliseconds = 0;
+    final clock = StableElapsedClock(
+      monotonicMilliseconds: () => nowMilliseconds,
+    );
+    clock.synchronize(_ticker(currentPeriod: 1, elapsedSeconds: 100, events: []));
+
+    nowMilliseconds = 1900;
+    expect(clock.elapsedSeconds, 101);
+
+    clock.synchronize(_ticker(currentPeriod: 1, elapsedSeconds: 100, events: []));
+    nowMilliseconds = 2100;
+
+    expect(clock.elapsedSeconds, 102);
+  });
+
+  test('pausing a clock never makes the displayed time jump backwards', () {
+    var nowMilliseconds = 0;
+    final clock = StableElapsedClock(
+      monotonicMilliseconds: () => nowMilliseconds,
+    );
+    clock.synchronize(_ticker(currentPeriod: 1, elapsedSeconds: 100, events: []));
+
+    nowMilliseconds = 2900;
+    clock.synchronize(
+      _ticker(
+        currentPeriod: 1,
+        elapsedSeconds: 101,
+        status: TickerStatus.paused,
+        events: [],
+      ),
+    );
+    nowMilliseconds = 8000;
+
+    expect(clock.elapsedSeconds, 102);
+  });
+
+  test('a new period deliberately starts from the server baseline', () {
+    var nowMilliseconds = 0;
+    final clock = StableElapsedClock(
+      monotonicMilliseconds: () => nowMilliseconds,
+    );
+    clock.synchronize(_ticker(currentPeriod: 1, elapsedSeconds: 895, events: []));
+
+    nowMilliseconds = 7000;
+    clock.synchronize(_ticker(currentPeriod: 2, elapsedSeconds: 900, events: []));
+
+    expect(clock.elapsedSeconds, 900);
+  });
 }
 
 LiveTickerModel _ticker({
   required int currentPeriod,
   required int elapsedSeconds,
   required List<TickerEventModel> events,
+  TickerStatus status = TickerStatus.live,
 }) =>
     LiveTickerModel(
-      status: TickerStatus.live,
+      status: status,
       currentPeriod: currentPeriod,
       elapsedSeconds: elapsedSeconds,
       ourGoals: 0,
