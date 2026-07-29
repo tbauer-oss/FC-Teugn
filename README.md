@@ -11,6 +11,9 @@ documented in
 Datenschutz-Self-Service, der veröffentlichte OpenAPI-Vertrag und die
 Ende-zu-Ende-Abnahme sind unter
 [`docs/privacy-api-e2e.md`](docs/privacy-api-e2e.md) beschrieben.
+Der konsolidierte Lieferstand, die Buildnachweise und die verbleibenden
+externen Voraussetzungen stehen im
+[`docs/ABSCHLUSSBERICHT.md`](docs/ABSCHLUSSBERICHT.md).
 
 ## Frontend (Flutter web)
 - Source: [`fc_teugn_app/`](fc_teugn_app)
