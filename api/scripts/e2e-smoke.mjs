@@ -4,6 +4,7 @@ const trainerEmail =
 const password = process.env.E2E_PASSWORD ?? 'FC-Teugn_WEB!';
 const teamId = process.env.E2E_TEAM_ID ?? 'fc-teugn';
 const playerId = process.env.E2E_PLAYER_ID ?? 'player-2';
+const secondaryTeamId = process.env.E2E_SECONDARY_TEAM_ID ?? 'team-2';
 const runId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const parentEmail = `e2e-parent-${runId}@example.invalid`;
 
@@ -123,6 +124,42 @@ assert(
   !parentContext.permissions.includes('MANAGE_EVENTS'),
   'Parent unexpectedly has MANAGE_EVENTS',
 );
+
+// System-/Vereinsverwaltung kann Spieler mannschaftsunabhängig anlegen und verschieben.
+const movablePlayer = await request(
+  '/players',
+  json('POST', trainerToken, {
+    teamId,
+    firstName: 'E2E',
+    lastName: `Wechsel ${runId}`,
+    position: 'ZM',
+    status: 'ACTIVE',
+  }),
+);
+assert(
+  movablePlayer.teamId === teamId &&
+    movablePlayer.team?.ageGroup?.code,
+  'Created player does not expose its youth/team assignment',
+);
+const movedPlayer = await request(
+  `/players/${movablePlayer.id}`,
+  json('PUT', trainerToken, {
+    teamId: secondaryTeamId,
+    firstName: movablePlayer.firstName,
+    lastName: movablePlayer.lastName,
+    position: movablePlayer.position,
+    status: movablePlayer.status,
+  }),
+);
+assert(
+  movedPlayer.teamId === secondaryTeamId &&
+    movedPlayer.team?.id === secondaryTeamId,
+  'Player was not persisted in the selected target team',
+);
+await request(`/players/${movablePlayer.id}`, {
+  method: 'DELETE',
+  headers: auth(trainerToken),
+});
 
 const now = Date.now();
 

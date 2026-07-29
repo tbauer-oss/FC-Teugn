@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/football_options.dart';
+import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
@@ -89,6 +90,9 @@ class _ProfileContent extends ConsumerWidget {
               player.photoUrl != null && player.capabilities.canManagePhoto
                   ? () => _removePhoto(context, ref)
                   : null,
+          onDelete: player.capabilities.canEdit
+              ? () => _deletePlayer(context, ref)
+              : null,
         ),
         const SizedBox(height: 18),
         LayoutBuilder(
@@ -162,9 +166,14 @@ class _ProfileContent extends ConsumerWidget {
   }
 
   Future<void> _editBasics(BuildContext context, WidgetRef ref) async {
+    final organization = await ref.read(organizationProvider.future);
+    if (!context.mounted) return;
     final draft = await showDialog<PlayerModel>(
       context: context,
-      builder: (context) => _EditBasicsDialog(player: player),
+      builder: (context) => _EditBasicsDialog(
+        player: player,
+        teams: organization.teams,
+      ),
     );
     if (draft == null) return;
     if (!context.mounted) return;
@@ -177,11 +186,51 @@ class _ProfileContent extends ConsumerWidget {
     );
   }
 
+  Future<void> _deletePlayer(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Spielerprofil löschen?'),
+        content: Text(
+          '${player.fullName} wird einschließlich der zugehörigen Profildaten gelöscht. '
+          'Dieser Vorgang kann nicht rückgängig gemacht werden.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            child: const Text('Endgültig löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref.read(repositoryProvider).deletePlayer(player.id);
+      ref.invalidate(playersProvider);
+      if (context.mounted) context.go('/trainer/players');
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Das Spielerprofil konnte nicht gelöscht werden. '
+              'Prüfe bestehende Spiel- oder Statistikzuordnungen.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _editMedical(BuildContext context, WidgetRef ref) async {
     final draft = await showDialog<_MedicalDraft>(
       context: context,
-      builder: (context) =>
-          _MedicalDialog(profile: player.medicalProfile),
+      builder: (context) => _MedicalDialog(profile: player.medicalProfile),
     );
     if (draft == null) return;
     if (!context.mounted) return;
@@ -316,7 +365,8 @@ class _ProfileContent extends ConsumerWidget {
     if (decoded == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Das Bildformat wird nicht unterstützt.')),
+          const SnackBar(
+              content: Text('Das Bildformat wird nicht unterstützt.')),
         );
       }
       return;
@@ -349,7 +399,8 @@ class _ProfileContent extends ConsumerWidget {
       ref.invalidate(playersProvider);
       final confirmed = await ref.read(playerProvider(player.id).future);
       if (confirmed.photoUrl == null) {
-        throw StateError('Foto konnte nach dem Speichern nicht geladen werden.');
+        throw StateError(
+            'Foto konnte nach dem Speichern nicht geladen werden.');
       }
       onRefresh();
       if (context.mounted) {
@@ -359,17 +410,21 @@ class _ProfileContent extends ConsumerWidget {
       }
     } on DioException catch (error) {
       final response = error.response?.data;
-      final message =
-          response is Map<String, dynamic> ? response['message'] as String? : null;
+      final message = response is Map<String, dynamic>
+          ? response['message'] as String?
+          : null;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message ?? 'Foto konnte nicht gespeichert werden.')),
+          SnackBar(
+              content:
+                  Text(message ?? 'Foto konnte nicht gespeichert werden.')),
         );
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(
+          const SnackBar(
+              content: Text(
             'Das Foto wurde nicht vollständig bestätigt. Bitte erneut versuchen.',
           )),
         );
@@ -415,12 +470,14 @@ class _ProfileHero extends StatelessWidget {
     required this.onEdit,
     required this.onPhoto,
     required this.onRemovePhoto,
+    required this.onDelete,
   });
 
   final PlayerModel player;
   final VoidCallback? onEdit;
   final ValueChanged<ImageSource>? onPhoto;
   final VoidCallback? onRemovePhoto;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -446,11 +503,13 @@ class _ProfileHero extends StatelessWidget {
               CircleAvatar(
                 radius: 42,
                 backgroundColor: AppColors.yellow,
-                backgroundImage:
-                    player.photoUrl == null ? null : NetworkImage(player.photoUrl!),
+                backgroundImage: player.photoUrl == null
+                    ? null
+                    : NetworkImage(player.photoUrl!),
                 child: player.photoUrl == null
                     ? Text(
-                        '${player.firstName[0]}${player.lastName[0]}'.toUpperCase(),
+                        '${player.firstName[0]}${player.lastName[0]}'
+                            .toUpperCase(),
                         style: const TextStyle(
                           color: AppColors.navy,
                           fontSize: 21,
@@ -536,6 +595,13 @@ class _ProfileHero extends StatelessWidget {
               icon: const Icon(Icons.delete_outline_rounded),
               label: const Text('Foto entfernen'),
             ),
+          if (onDelete != null)
+            TextButton.icon(
+              onPressed: onDelete,
+              style: TextButton.styleFrom(foregroundColor: Colors.red.shade200),
+              icon: const Icon(Icons.delete_forever_outlined),
+              label: const Text('Spieler löschen'),
+            ),
         ],
       ),
     );
@@ -565,8 +631,7 @@ class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
   }
 
   void _reload() {
-    _documents =
-        ref.read(repositoryProvider).playerDocuments(widget.playerId);
+    _documents = ref.read(repositoryProvider).playerDocuments(widget.playerId);
   }
 
   @override
@@ -719,10 +784,9 @@ class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
     );
   }
 
-  String _fileSize(int bytes) =>
-      bytes >= 1024 * 1024
-          ? '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB'
-          : '${(bytes / 1024).ceil()} KB';
+  String _fileSize(int bytes) => bytes >= 1024 * 1024
+      ? '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB'
+      : '${(bytes / 1024).ceil()} KB';
 
   String _documentType(String type) => switch (type) {
         'PHOTO_CONSENT' => 'Fotoeinwilligung',
@@ -782,9 +846,13 @@ class _FactsCard extends StatelessWidget {
           _Fact(label: 'Rufname', value: player.displayName),
           _Fact(
             label: 'Geburtsdatum',
-            value: player.birthDate == null ? 'Nicht hinterlegt' : _date(player.birthDate!),
+            value: player.birthDate == null
+                ? 'Nicht hinterlegt'
+                : _date(player.birthDate!),
           ),
-          _Fact(label: 'Alter', value: player.age == null ? '–' : '${player.age} Jahre'),
+          _Fact(
+              label: 'Alter',
+              value: player.age == null ? '–' : '${player.age} Jahre'),
           _Fact(label: 'Hauptposition', value: player.position ?? 'Noch offen'),
           _Fact(label: 'Nebenposition', value: player.secondaryPosition ?? '–'),
           _Fact(label: 'Starker Fuß', value: _foot(player.dominantFoot)),
@@ -936,7 +1004,8 @@ class _MedicalCard extends StatelessWidget {
             _MedicalLine(label: 'Allergien', value: medical.allergies),
             _MedicalLine(label: 'Medikamente', value: medical.medications),
             _MedicalLine(label: 'Besonderheiten', value: medical.conditions),
-            _MedicalLine(label: 'Notfallhinweis', value: medical.emergencyNotes),
+            _MedicalLine(
+                label: 'Notfallhinweis', value: medical.emergencyNotes),
           ],
           const Divider(height: 26),
           Row(
@@ -1104,7 +1173,8 @@ class _DevelopmentEntry extends StatelessWidget {
     );
   }
 
-  String _category(String value) => const {
+  String _category(String value) =>
+      const {
         'TECHNIQUE': 'Technik',
         'TACTICS': 'Taktik',
         'ATHLETIC': 'Athletik',
@@ -1227,9 +1297,13 @@ class _Section extends StatelessWidget {
 }
 
 class _EditBasicsDialog extends StatefulWidget {
-  const _EditBasicsDialog({required this.player});
+  const _EditBasicsDialog({
+    required this.player,
+    required this.teams,
+  });
 
   final PlayerModel player;
+  final List<TeamSummary> teams;
 
   @override
   State<_EditBasicsDialog> createState() => _EditBasicsDialogState();
@@ -1245,6 +1319,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
   String? secondaryPosition;
   late PlayerStatus status;
   late DominantFoot dominantFoot;
+  late String teamId;
 
   @override
   void initState() {
@@ -1260,6 +1335,9 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
         TextEditingController(text: player.shirtNumber?.toString() ?? '');
     status = player.status;
     dominantFoot = player.dominantFoot;
+    teamId = widget.teams.any((team) => team.id == player.teamId)
+        ? player.teamId!
+        : widget.teams.first.id;
   }
 
   @override
@@ -1282,6 +1360,27 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              DropdownButtonFormField<String>(
+                initialValue: teamId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Jugend / Mannschaft',
+                  prefixIcon: Icon(Icons.groups_rounded),
+                  helperText:
+                      'Administratoren können Spieler hier verschieben.',
+                ),
+                items: [
+                  for (final team in widget.teams)
+                    DropdownMenuItem(
+                      value: team.id,
+                      child: Text(team.displayName),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => teamId = value);
+                },
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
@@ -1333,8 +1432,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
                         currentValue: position,
                         showCode: true,
                       ),
-                      onChanged: (value) =>
-                          setState(() => position = value),
+                      onChanged: (value) => setState(() => position = value),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1432,8 +1530,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
         ),
         FilledButton(
           onPressed: () {
-            if (firstName.text.trim().isEmpty ||
-                lastName.text.trim().isEmpty) {
+            if (firstName.text.trim().isEmpty || lastName.text.trim().isEmpty) {
               return;
             }
             final original = widget.player;
@@ -1441,7 +1538,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
               context,
               PlayerModel(
                 id: original.id,
-                teamId: original.teamId,
+                teamId: teamId,
                 firstName: firstName.text.trim(),
                 lastName: lastName.text.trim(),
                 preferredName: _optional(preferredName),
@@ -1454,8 +1551,15 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
                 status: status,
                 joinedAt: original.joinedAt,
                 photoUrl: original.photoUrl,
-                teamName: original.teamName,
-                ageGroupCode: original.ageGroupCode,
+                teamName: widget.teams
+                    .where((team) => team.id == teamId)
+                    .firstOrNull
+                    ?.name,
+                ageGroupCode: widget.teams
+                    .where((team) => team.id == teamId)
+                    .firstOrNull
+                    ?.ageGroup
+                    .code,
                 guardians: original.guardians,
                 medicalProfile: original.medicalProfile,
                 emergencyContacts: original.emergencyContacts,
@@ -1563,8 +1667,7 @@ class _MedicalDialogState extends State<_MedicalDialog> {
                 controller: emergencyNotes,
                 minLines: 2,
                 maxLines: 4,
-                decoration:
-                    const InputDecoration(labelText: 'Notfallhinweise'),
+                decoration: const InputDecoration(labelText: 'Notfallhinweise'),
               ),
             ],
           ),
@@ -1670,8 +1773,7 @@ class _GuardianDialogState extends State<_GuardianDialog> {
               contentPadding: EdgeInsets.zero,
               value: canPickup,
               title: const Text('Abholberechtigt'),
-              onChanged: (value) =>
-                  setState(() => canPickup = value ?? false),
+              onChanged: (value) => setState(() => canPickup = value ?? false),
             ),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
@@ -1850,8 +1952,7 @@ class _DevelopmentDialogState extends State<_DevelopmentDialog> {
                 controller: notes,
                 minLines: 3,
                 maxLines: 6,
-                decoration:
-                    const InputDecoration(labelText: 'Beobachtung *'),
+                decoration: const InputDecoration(labelText: 'Beobachtung *'),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int?>(
@@ -1862,7 +1963,8 @@ class _DevelopmentDialogState extends State<_DevelopmentDialog> {
                   DropdownMenuItem(value: 1, child: Text('1 – Einstieg')),
                   DropdownMenuItem(value: 2, child: Text('2 – Aufbau')),
                   DropdownMenuItem(value: 3, child: Text('3 – Stabil')),
-                  DropdownMenuItem(value: 4, child: Text('4 – Fortgeschritten')),
+                  DropdownMenuItem(
+                      value: 4, child: Text('4 – Fortgeschritten')),
                   DropdownMenuItem(value: 5, child: Text('5 – Sehr stark')),
                 ],
                 onChanged: (value) => setState(() => rating = value),

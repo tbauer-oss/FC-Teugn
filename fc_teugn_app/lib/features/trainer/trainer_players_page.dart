@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/football_options.dart';
+import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
 import '../../core/player_view_preferences.dart';
 import '../../core/providers.dart';
@@ -16,14 +17,14 @@ class TrainerPlayersPage extends ConsumerStatefulWidget {
   const TrainerPlayersPage({super.key});
 
   @override
-  ConsumerState<TrainerPlayersPage> createState() =>
-      _TrainerPlayersPageState();
+  ConsumerState<TrainerPlayersPage> createState() => _TrainerPlayersPageState();
 }
 
 class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
   final _search = TextEditingController();
   final _viewPreferences = PlayerViewPreferences();
   PlayerViewMode _viewMode = PlayerViewMode.compactCards;
+  String? _selectedTeamId;
 
   String get _preferenceUserId =>
       ref.read(authProvider).user?.id ?? 'anonymous';
@@ -61,13 +62,16 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
   @override
   Widget build(BuildContext context) {
     final players = ref.watch(playersProvider);
+    final organization = ref.watch(organizationProvider).asData?.value;
+    final teams = organization?.teams ?? const <TeamSummary>[];
 
     return PageScaffold(
-      title: 'Mannschaft',
+      title: 'Spieler',
       subtitle:
-          'Spielerprofile, Entwicklung, Kontakte und Einwilligungen sicher verwalten.',
+          'Alle Jugenden und Mannschaften vereinsweit verwalten und Spieler sicher zuordnen.',
       action: FilledButton.icon(
-        onPressed: () => _createPlayer(context, ref),
+        onPressed:
+            teams.isEmpty ? null : () => _createPlayer(context, ref, teams),
         icon: const Icon(Icons.person_add_alt_1_rounded),
         label: const Text('Spieler anlegen'),
       ),
@@ -91,23 +95,33 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
               message:
                   'Lege das erste Spielerprofil mit Stammdaten und Mannschaftszuordnung an.',
               action: FilledButton.icon(
-                onPressed: () => _createPlayer(context, ref),
+                onPressed: teams.isEmpty
+                    ? null
+                    : () => _createPlayer(context, ref, teams),
                 icon: const Icon(Icons.add_rounded),
                 label: const Text('Erstes Profil anlegen'),
               ),
             );
           }
           final query = _search.text.trim().toLowerCase();
-          final filtered = items.where((player) {
-            if (query.isEmpty) return true;
-            return [
-              player.fullName,
-              player.displayName,
-              player.position,
-              player.secondaryPosition,
-              player.shirtNumber?.toString(),
-            ].whereType<String>().join(' ').toLowerCase().contains(query);
-          }).toList();
+          final filtered = items
+              .where((player) {
+                if (query.isEmpty) return true;
+                return [
+                  player.fullName,
+                  player.displayName,
+                  player.ageGroupCode,
+                  player.teamName,
+                  player.position,
+                  player.secondaryPosition,
+                  player.shirtNumber?.toString(),
+                ].whereType<String>().join(' ').toLowerCase().contains(query);
+              })
+              .where(
+                (player) =>
+                    _selectedTeamId == null || player.teamId == _selectedTeamId,
+              )
+              .toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -118,6 +132,10 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
                 totalPlayers: items.length,
                 onSearchChanged: (_) => setState(() {}),
                 onModeChanged: _selectViewMode,
+                teams: teams,
+                selectedTeamId: _selectedTeamId,
+                onTeamChanged: (value) =>
+                    setState(() => _selectedTeamId = value),
               ),
               const SizedBox(height: 14),
               if (filtered.isEmpty)
@@ -127,9 +145,10 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
                   message: 'Passe den Suchbegriff an.',
                 )
               else
-                _PlayerCollection(
+                _CategorizedPlayerCollection(
                   players: filtered,
                   mode: _viewMode,
+                  groupByTeam: _selectedTeamId == null,
                   onOpen: (player) =>
                       context.go('/trainer/players/${player.id}'),
                 ),
@@ -140,14 +159,22 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
     );
   }
 
-  Future<void> _createPlayer(BuildContext context, WidgetRef ref) async {
+  Future<void> _createPlayer(
+    BuildContext context,
+    WidgetRef ref,
+    List<TeamSummary> teams,
+  ) async {
     final draft = await showDialog<_PlayerDraft>(
       context: context,
-      builder: (context) => const _CreatePlayerDialog(),
+      builder: (context) => _CreatePlayerDialog(
+        teams: teams,
+        initialTeamId: _selectedTeamId,
+      ),
     );
     if (draft == null) return;
     try {
       final player = await ref.read(repositoryProvider).createPlayer(
+            teamId: draft.teamId,
             firstName: draft.firstName,
             lastName: draft.lastName,
             preferredName: draft.preferredName,
@@ -183,6 +210,9 @@ class _PlayerViewToolbar extends StatelessWidget {
     required this.totalPlayers,
     required this.onSearchChanged,
     required this.onModeChanged,
+    required this.teams,
+    required this.selectedTeamId,
+    required this.onTeamChanged,
   });
 
   final TextEditingController controller;
@@ -191,6 +221,9 @@ class _PlayerViewToolbar extends StatelessWidget {
   final int totalPlayers;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<PlayerViewMode> onModeChanged;
+  final List<TeamSummary> teams;
+  final String? selectedTeamId;
+  final ValueChanged<String?> onTeamChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -252,8 +285,7 @@ class _PlayerViewToolbar extends StatelessWidget {
                 ),
               ],
               selected: {mode},
-              onSelectionChanged: (selection) =>
-                  onModeChanged(selection.first),
+              onSelectionChanged: (selection) => onModeChanged(selection.first),
             ),
           );
           final counter = Text(
@@ -265,11 +297,36 @@ class _PlayerViewToolbar extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           );
+          final teamFilter = SizedBox(
+            width: constraints.maxWidth < 760 ? constraints.maxWidth : 245,
+            child: DropdownButtonFormField<String?>(
+              initialValue: selectedTeamId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Jugend / Mannschaft',
+                prefixIcon: Icon(Icons.account_tree_rounded),
+              ),
+              items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('Alle Jugenden'),
+                ),
+                for (final team in teams)
+                  DropdownMenuItem<String?>(
+                    value: team.id,
+                    child: Text(team.displayName),
+                  ),
+              ],
+              onChanged: onTeamChanged,
+            ),
+          );
           if (constraints.maxWidth < 760) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 search,
+                const SizedBox(height: 10),
+                teamFilter,
                 const SizedBox(height: 10),
                 counter,
                 const SizedBox(height: 10),
@@ -280,6 +337,8 @@ class _PlayerViewToolbar extends StatelessWidget {
           return Row(
             children: [
               search,
+              const SizedBox(width: 12),
+              teamFilter,
               const SizedBox(width: 16),
               counter,
               const Spacer(),
@@ -288,6 +347,74 @@ class _PlayerViewToolbar extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _CategorizedPlayerCollection extends StatelessWidget {
+  const _CategorizedPlayerCollection({
+    required this.players,
+    required this.mode,
+    required this.groupByTeam,
+    required this.onOpen,
+  });
+
+  final List<PlayerModel> players;
+  final PlayerViewMode mode;
+  final bool groupByTeam;
+  final ValueChanged<PlayerModel> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!groupByTeam) {
+      return _PlayerCollection(players: players, mode: mode, onOpen: onOpen);
+    }
+    final groups = <String, List<PlayerModel>>{};
+    for (final player in players) {
+      final key = [
+        if (player.ageGroupCode?.isNotEmpty == true)
+          '${player.ageGroupCode}-Jugend',
+        if (player.teamName?.isNotEmpty == true) player.teamName!,
+      ].join(' · ');
+      groups
+          .putIfAbsent(
+            key.isEmpty ? 'Ohne Mannschaftsangabe' : key,
+            () => [],
+          )
+          .add(player);
+    }
+    final entries = groups.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < entries.length; index++) ...[
+          if (index > 0) const SizedBox(height: 20),
+          Row(
+            children: [
+              const Icon(Icons.groups_rounded, size: 20, color: AppColors.blue),
+              const SizedBox(width: 8),
+              Text(
+                entries[index].key,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${entries[index].value.length} Spieler',
+                style: const TextStyle(color: AppColors.muted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          _PlayerCollection(
+            players: entries[index].value,
+            mode: mode,
+            onOpen: onOpen,
+          ),
+        ],
+      ],
     );
   }
 }
@@ -384,8 +511,7 @@ class _PlayerListRow extends StatelessWidget {
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final showDetailColumns =
-                  detailed && constraints.maxWidth >= 720;
+              final showDetailColumns = detailed && constraints.maxWidth >= 720;
               return Row(
                 children: [
                   _PlayerAvatar(player: player, size: detailed ? 48 : 38),
@@ -461,7 +587,6 @@ class _PlayerListRow extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _CompactPlayerCard extends StatelessWidget {
@@ -684,6 +809,9 @@ class _DetailValue extends StatelessWidget {
 
 String _playerSummary(PlayerModel player) {
   final values = [
+    if (player.ageGroupCode?.isNotEmpty == true)
+      '${player.ageGroupCode}-Jugend',
+    if (player.teamName?.isNotEmpty == true) player.teamName!,
     if (player.position?.isNotEmpty == true) player.position!,
     if (player.age != null) '${player.age} Jahre',
   ];
@@ -717,7 +845,13 @@ String _dominantFootLabel(DominantFoot foot) => switch (foot) {
     };
 
 class _CreatePlayerDialog extends StatefulWidget {
-  const _CreatePlayerDialog();
+  const _CreatePlayerDialog({
+    required this.teams,
+    this.initialTeamId,
+  });
+
+  final List<TeamSummary> teams;
+  final String? initialTeamId;
 
   @override
   State<_CreatePlayerDialog> createState() => _CreatePlayerDialogState();
@@ -735,6 +869,15 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
   String? _position;
   String? _secondaryPosition;
   DominantFoot _dominantFoot = DominantFoot.unknown;
+  late String _teamId;
+
+  @override
+  void initState() {
+    super.initState();
+    _teamId = widget.teams.any((team) => team.id == widget.initialTeamId)
+        ? widget.initialTeamId!
+        : widget.teams.first.id;
+  }
 
   @override
   void dispose() {
@@ -758,6 +901,25 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                DropdownButtonFormField<String>(
+                  initialValue: _teamId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Jugend / Mannschaft *',
+                    prefixIcon: Icon(Icons.groups_rounded),
+                  ),
+                  items: [
+                    for (final team in widget.teams)
+                      DropdownMenuItem(
+                        value: team.id,
+                        child: Text(team.displayName),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => _teamId = value);
+                  },
+                ),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -785,8 +947,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _preferredName,
-                        decoration:
-                            const InputDecoration(labelText: 'Rufname'),
+                        decoration: const InputDecoration(labelText: 'Rufname'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -817,8 +978,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                       child: _DateField(
                         label: 'Im Verein seit',
                         value: _joinedAt,
-                        onChanged: (value) =>
-                            setState(() => _joinedAt = value),
+                        onChanged: (value) => setState(() => _joinedAt = value),
                         firstDate: DateTime(2000),
                         lastDate: DateTime.now(),
                       ),
@@ -840,8 +1000,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                           emptyLabel: 'Noch offen',
                           showCode: true,
                         ),
-                        onChanged: (value) =>
-                            setState(() => _position = value),
+                        onChanged: (value) => setState(() => _position = value),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -890,8 +1049,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                           ),
                         ],
                         onChanged: (value) => setState(
-                          () => _dominantFoot =
-                              value ?? DominantFoot.unknown,
+                          () => _dominantFoot = value ?? DominantFoot.unknown,
                         ),
                       ),
                     ),
@@ -922,6 +1080,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
             Navigator.pop(
               context,
               _PlayerDraft(
+                teamId: _teamId,
                 firstName: _firstName.text.trim(),
                 lastName: _lastName.text.trim(),
                 preferredName: _optional(_preferredName),
@@ -993,6 +1152,7 @@ class _DateField extends StatelessWidget {
 
 class _PlayerDraft {
   const _PlayerDraft({
+    required this.teamId,
     required this.firstName,
     required this.lastName,
     required this.dominantFoot,
@@ -1005,6 +1165,7 @@ class _PlayerDraft {
     this.joinedAt,
   });
 
+  final String teamId;
   final String firstName;
   final String lastName;
   final String? preferredName;

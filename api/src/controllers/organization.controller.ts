@@ -9,7 +9,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { Permission, permissionsForRole } from '../security/permissions';
-import { canManageTeam } from '../services/team-access';
+import { accessibleTeamIds, canManageTeam } from '../services/team-access';
 import { objectStorage } from '../services/object-storage';
 import { mediaAssetUrl } from '../services/media-access';
 
@@ -174,6 +174,11 @@ export async function organizationContext(req: Request, res: Response) {
   const clubId = currentTeam.ageGroup.season.clubId;
   const permissions = permissionsForRole(user.role);
   const canViewAllTeams = permissions.includes(Permission.MANAGE_ORGANIZATION);
+  const visibleTeamIds = await accessibleTeamIds(user);
+  const seasonScope =
+    user.role === Role.SUPER_ADMIN
+      ? { isActive: true }
+      : { clubId, isActive: true };
   const memberships = canViewAllTeams ? [] : await prisma.teamMembership.findMany({
     where: { userId: user.id, status: AccountStatus.APPROVED },
     select: { teamId: true },
@@ -181,13 +186,13 @@ export async function organizationContext(req: Request, res: Response) {
   const membershipTeamIds = memberships.map((membership) => membership.teamId);
   const [ageGroups, teams, players, members, upcomingEvents, pendingApprovals] = await Promise.all([
     prisma.ageGroup.findMany({
-      where: { season: { clubId, isActive: true } },
+      where: { season: seasonScope },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: { id: true, name: true, code: true, sortOrder: true },
     }),
     prisma.team.findMany({
       where: {
-        ageGroup: { season: { clubId, isActive: true } },
+        ageGroup: { season: seasonScope },
         ...(canViewAllTeams ? {} : {
           id: { in: membershipTeamIds.length > 0 ? membershipTeamIds : [user.teamId] },
         }),
@@ -195,11 +200,39 @@ export async function organizationContext(req: Request, res: Response) {
       orderBy: [{ isActive: 'desc' }, { ageGroup: { sortOrder: 'asc' } }, { name: 'asc' }],
       include: hierarchyInclude,
     }),
-    prisma.player.count({ where: { teamId: user.teamId } }),
-    prisma.user.count({ where: { teamId: user.teamId, status: AccountStatus.APPROVED } }),
-    prisma.event.count({ where: { teamId: user.teamId, startAt: { gte: new Date() } } }),
+    prisma.player.count({ where: { teamId: { in: visibleTeamIds } } }),
+    prisma.user.count({
+      where: {
+        status: AccountStatus.APPROVED,
+        ...(user.role === Role.SUPER_ADMIN
+          ? {}
+          : { OR: [
+              { teamId: { in: visibleTeamIds } },
+              { memberships: { some: { teamId: { in: visibleTeamIds } } } },
+            ] }),
+      },
+    }),
+    prisma.event.count({
+      where: {
+        startAt: { gte: new Date() },
+        OR: [
+          { teamId: { in: visibleTeamIds } },
+          { targetTeams: { some: { teamId: { in: visibleTeamIds } } } },
+        ],
+      },
+    }),
     permissions.includes(Permission.MANAGE_MEMBERS)
-      ? prisma.user.count({ where: { teamId: user.teamId, status: AccountStatus.PENDING } })
+      ? prisma.user.count({
+          where: {
+            status: AccountStatus.PENDING,
+            ...(user.role === Role.SUPER_ADMIN
+              ? {}
+              : { OR: [
+                  { teamId: { in: visibleTeamIds } },
+                  { memberships: { some: { teamId: { in: visibleTeamIds } } } },
+                ] }),
+          },
+        })
       : Promise.resolve(0),
   ]);
   const serializedTeams = await Promise.all(
@@ -243,7 +276,9 @@ export async function createTeam(req: Request, res: Response) {
   const ageGroup = await prisma.ageGroup.findFirst({
     where: {
       id: body.ageGroupId,
-      season: { clubId: currentTeam.ageGroup.season.clubId, isActive: true },
+      season: user.role === Role.SUPER_ADMIN
+        ? { isActive: true }
+        : { clubId: currentTeam.ageGroup.season.clubId, isActive: true },
     },
   });
   if (!ageGroup) return res.status(404).json({ message: 'Altersklasse nicht gefunden.' });

@@ -179,8 +179,7 @@ class DataRepository {
   Future<List<RuleProfileModel>> ruleProfiles() async {
     final res = await client.dio.get('/organization/rule-profiles');
     return (res.data as List<dynamic>)
-        .map((item) =>
-            RuleProfileModel.fromJson(item as Map<String, dynamic>))
+        .map((item) => RuleProfileModel.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 
@@ -232,13 +231,12 @@ class DataRepository {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    final res =
-        await client.dio.post('/organization/season-transitions/preview', data: {
+    final res = await client.dio
+        .post('/organization/season-transitions/preview', data: {
       'name': name,
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
-      'idempotencyKey':
-          'season-$name-${DateTime.now().microsecondsSinceEpoch}',
+      'idempotencyKey': 'season-$name-${DateTime.now().microsecondsSinceEpoch}',
     });
     return SeasonTransitionModel.fromJson(res.data as Map<String, dynamic>);
   }
@@ -286,8 +284,7 @@ class DataRepository {
   Future<List<PlayerDocument>> playerDocuments(String playerId) async {
     final res = await client.dio.get('/players/$playerId/documents');
     return (res.data as List<dynamic>)
-        .map((item) =>
-            PlayerDocument.fromJson(item as Map<String, dynamic>))
+        .map((item) => PlayerDocument.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 
@@ -329,6 +326,7 @@ class DataRepository {
   }
 
   Future<PlayerModel> createPlayer({
+    required String teamId,
     required String firstName,
     required String lastName,
     DateTime? birthDate,
@@ -342,6 +340,7 @@ class DataRepository {
     DateTime? joinedAt,
   }) async {
     final res = await client.dio.post('/players', data: {
+      'teamId': teamId,
       'firstName': firstName,
       'lastName': lastName,
       'birthDate': birthDate?.toIso8601String(),
@@ -359,6 +358,7 @@ class DataRepository {
 
   Future<PlayerModel> updatePlayer(PlayerModel player) async {
     final res = await client.dio.put('/players/${player.id}', data: {
+      'teamId': player.teamId,
       'firstName': player.firstName,
       'lastName': player.lastName,
       'preferredName': player.preferredName,
@@ -373,6 +373,10 @@ class DataRepository {
       'photoUrl': player.photoUrl,
     });
     return PlayerModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> deletePlayer(String playerId) async {
+    await client.dio.delete('/players/$playerId');
   }
 
   Future<void> updateMedicalProfile({
@@ -947,8 +951,7 @@ class DataRepository {
     );
     return (res.data as List<dynamic>)
         .map(
-          (item) =>
-              AnnouncementModel.fromJson(item as Map<String, dynamic>),
+          (item) => AnnouncementModel.fromJson(item as Map<String, dynamic>),
         )
         .toList();
   }
@@ -985,8 +988,7 @@ class DataRepository {
     final res = await client.dio.get('/notifications');
     return (res.data as List<dynamic>)
         .map(
-          (item) =>
-              AppNotificationModel.fromJson(item as Map<String, dynamic>),
+          (item) => AppNotificationModel.fromJson(item as Map<String, dynamic>),
         )
         .toList();
   }
