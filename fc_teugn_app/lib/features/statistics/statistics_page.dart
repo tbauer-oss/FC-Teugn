@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/app_theme.dart';
 import '../../core/models/organization.dart';
 import '../../core/models/statistics.dart';
-import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/role_permissions.dart';
 import '../auth/auth_controller.dart';
