@@ -33,29 +33,38 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   bool _loading = true;
   bool _online = true;
   bool _usingOfflineSnapshot = false;
+  bool _refreshingTicker = false;
   String? _error;
   Timer? _poller;
+  int _loadRequest = 0;
 
   @override
   void initState() {
     super.initState();
-    _load();
-    _poller = Timer.periodic(const Duration(seconds: 3), (_) => _refreshTicker());
+    unawaited(_load());
+    _poller = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) unawaited(_refreshTicker());
+    });
   }
 
   @override
   void dispose() {
     _poller?.cancel();
+    _loadRequest += 1;
     super.dispose();
   }
 
   Future<void> _load() async {
+    final request = ++_loadRequest;
     final userId = ref.read(authProvider).user?.id;
+    final repository = ref.read(repositoryProvider);
+    final offlineQueue = ref.read(tickerOfflineQueueProvider);
+    final matchId = widget.matchId;
+    final staffView = widget.staffView;
     try {
-      final repository = ref.read(repositoryProvider);
-      final match = await repository.match(widget.matchId);
-      List<PlayerModel> players = const [];
-      if (widget.staffView) {
+      final match = await repository.match(matchId);
+      var players = _players;
+      if (staffView) {
         try {
           players = await repository.players();
         } catch (_) {
@@ -64,16 +73,16 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       }
       if (userId != null) {
         try {
-          await ref.read(tickerOfflineQueueProvider).cacheMatch(
-                userId: userId,
-                match: match,
-              );
+          await offlineQueue.cacheMatch(
+            userId: userId,
+            match: match,
+          );
         } catch (_) {
           // A storage failure must never turn a successful network load into
           // an offline error.
         }
       }
-      if (!mounted) return;
+      if (!mounted || request != _loadRequest) return;
       setState(() {
         _match = match;
         _players = players;
@@ -82,20 +91,27 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         _usingOfflineSnapshot = false;
         _error = null;
       });
-    } catch (_) {
-      if (!mounted) return;
+    } catch (error) {
+      if (!mounted || request != _loadRequest) return;
+      if (_match != null) {
+        setState(() {
+          _loading = false;
+          if (_isConnectivityFailure(error)) _online = false;
+        });
+        return;
+      }
       MatchdayModel? cached;
       if (userId != null) {
         try {
-          cached = await ref.read(tickerOfflineQueueProvider).cachedMatch(
-                userId: userId,
-                eventId: widget.matchId,
-              );
+          cached = await offlineQueue.cachedMatch(
+            userId: userId,
+            eventId: matchId,
+          );
         } catch (_) {
           cached = null;
         }
       }
-      if (!mounted) return;
+      if (!mounted || request != _loadRequest) return;
       setState(() {
         _loading = false;
         _online = false;
@@ -108,13 +124,19 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   }
 
   Future<void> _refreshTicker() async {
-    if (!mounted || _match == null) return;
+    if (!mounted || _match == null || _refreshingTicker) return;
+    final repository = ref.read(repositoryProvider);
+    final offlineQueue = ref.read(tickerOfflineQueueProvider);
+    final userId = ref.read(authProvider).user?.id;
+    final matchId = widget.matchId;
+    _refreshingTicker = true;
     try {
-      final ticker = await ref.read(repositoryProvider).ticker(widget.matchId);
+      final ticker = await repository.ticker(matchId);
       if (!mounted) return;
+      late final MatchdayModel updatedMatch;
       setState(() {
         final current = _match!;
-        _match = MatchdayModel(
+        updatedMatch = MatchdayModel(
           id: current.id,
           title: current.title,
           startAt: current.startAt,
@@ -125,22 +147,26 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           squad: current.squad,
           ticker: ticker,
         );
+        _match = updatedMatch;
         _online = true;
         _usingOfflineSnapshot = false;
       });
-      final userId = ref.read(authProvider).user?.id;
       if (userId != null) {
         try {
-          await ref.read(tickerOfflineQueueProvider).cacheMatch(
-                userId: userId,
-                match: _match!,
-              );
+          await offlineQueue.cacheMatch(
+            userId: userId,
+            match: updatedMatch,
+          );
         } catch (_) {
           // Keep the live ticker usable even if local cache storage fails.
         }
       }
-    } catch (_) {
-      if (mounted) setState(() => _online = false);
+    } catch (error) {
+      if (mounted && _isConnectivityFailure(error)) {
+        setState(() => _online = false);
+      }
+    } finally {
+      _refreshingTicker = false;
     }
   }
 
@@ -413,10 +439,16 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
   @override
   void initState() {
     super.initState();
-    _selected = {
-      for (final member in widget.match.squad?.members ?? const <SquadMemberModel>[])
-        member.player.id: member.status,
-    };
+    _selected = _selectionFrom(widget.match);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SquadTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_saving &&
+        _squadFingerprint(oldWidget.match) != _squadFingerprint(widget.match)) {
+      _selected = _selectionFrom(widget.match);
+    }
   }
 
   @override
@@ -506,28 +538,34 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
     );
   }
 
-  Future<void> _save() async {
+  Future<bool> _save() async {
+    final repository = ref.read(repositoryProvider);
     setState(() => _saving = true);
     try {
-      await ref.read(repositoryProvider).saveMatchSquad(
-            eventId: widget.match.id,
-            members: _selected.entries
-                .map((item) => (playerId: item.key, status: item.value))
-                .toList(),
-          );
+      await repository.saveMatchSquad(
+        eventId: widget.match.id,
+        members: _selected.entries
+            .map((item) => (playerId: item.key, status: item.value))
+            .toList(),
+      );
+      if (!mounted) return false;
       await widget.onSaved();
       if (mounted) _message('Kader wurde gespeichert.');
+      return true;
     } catch (_) {
       if (mounted) _message('Kader konnte nicht gespeichert werden.');
+      return false;
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
   Future<void> _publish() async {
-    await _save();
+    final repository = ref.read(repositoryProvider);
+    if (!await _save() || !mounted) return;
     try {
-      await ref.read(repositoryProvider).publishMatchSquad(widget.match.id);
+      await repository.publishMatchSquad(widget.match.id);
+      if (!mounted) return;
       await widget.onSaved();
       if (mounted) _message('Nominierung wurde veröffentlicht.');
     } catch (_) {
@@ -537,6 +575,19 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
 
   void _message(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  Map<String, NominationStatus> _selectionFrom(MatchdayModel match) => {
+        for (final member
+            in match.squad?.members ?? const <SquadMemberModel>[])
+          member.player.id: member.status,
+      };
+
+  String _squadFingerprint(MatchdayModel match) {
+    final members = match.squad?.members ?? const <SquadMemberModel>[];
+    return members
+        .map((member) => '${member.player.id}:${member.status.name}')
+        .join('|');
+  }
 }
 
 class _LineupTab extends ConsumerStatefulWidget {
@@ -561,6 +612,19 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
   @override
   void initState() {
     super.initState();
+    final lineup = widget.match.squad?.lineup;
+    _formation = lineup?.formation ?? '2-3-1';
+    _positions = lineup?.positions.toList() ?? _initialPositions();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LineupTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_saving ||
+        _lineupFingerprint(oldWidget.match) ==
+            _lineupFingerprint(widget.match)) {
+      return;
+    }
     final lineup = widget.match.squad?.lineup;
     _formation = lineup?.formation ?? '2-3-1';
     _positions = lineup?.positions.toList() ?? _initialPositions();
@@ -701,15 +765,17 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
   }
 
   Future<void> _save(LineupStatus status) async {
+    final repository = ref.read(repositoryProvider);
     setState(() => _saving = true);
     try {
-      await ref.read(repositoryProvider).saveLineup(
-            eventId: widget.match.id,
-            formation: _formation,
-            fieldSize: 7,
-            status: status,
-            positions: _positions,
-          );
+      await repository.saveLineup(
+        eventId: widget.match.id,
+        formation: _formation,
+        fieldSize: 7,
+        status: status,
+        positions: _positions,
+      );
+      if (!mounted) return;
       await widget.onSaved();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -731,6 +797,19 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  String _lineupFingerprint(MatchdayModel match) {
+    final lineup = match.squad?.lineup;
+    if (lineup == null) return '';
+    return [
+      lineup.formation,
+      for (final position in lineup.positions)
+        '${position.player.id}:${position.positionCode}:'
+            '${position.x}:${position.y}:${position.period}:'
+            '${position.isStarter}:${position.isGoalkeeper}:'
+            '${position.isCaptain}',
+    ].join('|');
   }
 }
 
@@ -821,7 +900,9 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     unawaited(_loadPending());
     _queuePoller = Timer.periodic(
       const Duration(seconds: 5),
-      (_) => unawaited(_synchronizePending()),
+      (_) {
+        if (mounted) unawaited(_synchronizePending());
+      },
     );
   }
 
@@ -1045,6 +1126,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         ),
       );
       if (scorerId == null) return;
+      if (!mounted) return;
     }
     await _send(
       ours
@@ -1065,6 +1147,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       return;
     }
     final userId = ref.read(authProvider).user?.id;
+    final offlineQueue = ref.read(tickerOfflineQueueProvider);
     if (userId == null) {
       _message('Die Sitzung ist abgelaufen. Bitte erneut anmelden.');
       return;
@@ -1072,16 +1155,16 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     setState(() => _busy = true);
     try {
       _lastQueuedAt = now;
-      await ref.read(tickerOfflineQueueProvider).enqueue(
-            QueuedTickerAction(
-              userId: userId,
-              eventId: widget.match.id,
-              clientEventId: '${now.microsecondsSinceEpoch}-${type.name}',
-              type: type,
-              scorerId: scorerId,
-              createdAt: now,
-            ),
-          );
+      await offlineQueue.enqueue(
+        QueuedTickerAction(
+          userId: userId,
+          eventId: widget.match.id,
+          clientEventId: '${now.microsecondsSinceEpoch}-${type.name}',
+          type: type,
+          scorerId: scorerId,
+          createdAt: now,
+        ),
+      );
       await _loadPending();
       unawaited(_synchronizePending(showSuccess: false));
     } on StateError catch (error) {
@@ -1098,14 +1181,15 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   Future<void> _loadPending() async {
     final userId = ref.read(authProvider).user?.id;
     if (userId == null) return;
+    final offlineQueue = ref.read(tickerOfflineQueueProvider);
     try {
-      final pending = await ref.read(tickerOfflineQueueProvider).pending(
-            userId: userId,
-            eventId: widget.match.id,
-          );
+      final pending = await offlineQueue.pending(
+        userId: userId,
+        eventId: widget.match.id,
+      );
       if (mounted) setState(() => _pending = pending);
     } catch (_) {
-      if (mounted) setState(() => _queueOffline = true);
+      // A browser storage problem is not a network outage.
     }
   }
 
@@ -1113,45 +1197,45 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     if (_syncing || _pending.isEmpty) return;
     final userId = ref.read(authProvider).user?.id;
     if (userId == null) return;
+    final offlineQueue = ref.read(tickerOfflineQueueProvider);
+    final repository = ref.read(repositoryProvider);
     setState(() => _syncing = true);
     TickerQueueSyncResult result;
     try {
-      result = await ref.read(tickerOfflineQueueProvider).synchronize(
-            userId: userId,
-            eventId: widget.match.id,
-            send: (action) async {
-              try {
-                await ref.read(repositoryProvider).sendTickerEvent(
-                      eventId: action.eventId,
-                      clientEventId: action.clientEventId,
-                      type: action.type,
-                      scorerId: action.scorerId,
-                      assistId: action.assistId,
-                      comment: action.comment,
-                      period: action.period,
-                    );
-              } on DioException catch (error) {
-                final status = error.response?.statusCode;
-                if (status != null &&
-                    [400, 403, 404, 409, 422].contains(status)) {
-                  final data = error.response?.data;
-                  final message = data is Map<String, dynamic>
-                      ? data['message'] as String?
-                      : null;
-                  throw PermanentTickerActionError(
-                    message ?? 'Die Aktion wurde vom Server abgelehnt.',
-                  );
-                }
-                rethrow;
-              }
-            },
-          );
+      result = await offlineQueue.synchronize(
+        userId: userId,
+        eventId: widget.match.id,
+        send: (action) async {
+          try {
+            await repository.sendTickerEvent(
+              eventId: action.eventId,
+              clientEventId: action.clientEventId,
+              type: action.type,
+              scorerId: action.scorerId,
+              assistId: action.assistId,
+              comment: action.comment,
+              period: action.period,
+            );
+          } on DioException catch (error) {
+            final status = error.response?.statusCode;
+            if (status != null && [400, 403, 404, 409, 422].contains(status)) {
+              final data = error.response?.data;
+              final message =
+                  data is Map<String, dynamic> ? data['message'] as String? : null;
+              throw PermanentTickerActionError(
+                message ?? 'Die Aktion wurde vom Server abgelehnt.',
+              );
+            }
+            rethrow;
+          }
+        },
+      );
     } catch (_) {
       if (mounted) {
-        setState(() {
-          _syncing = false;
-          _queueOffline = true;
-        });
+        setState(() => _syncing = false);
+        _message(
+          'Die Ticker-Synchronisierung konnte nicht abgeschlossen werden.',
+        );
       }
       return;
     }
@@ -1182,12 +1266,13 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       );
       return;
     }
+    final repository = ref.read(repositoryProvider);
     setState(() => _busy = true);
     try {
-      await ref.read(repositoryProvider).undoTickerEvent(
-            eventId: widget.match.id,
-            clientEventId: '${DateTime.now().microsecondsSinceEpoch}-undo',
-          );
+      await repository.undoTickerEvent(
+        eventId: widget.match.id,
+        clientEventId: '${DateTime.now().microsecondsSinceEpoch}-undo',
+      );
       await widget.onChanged();
     } catch (_) {
       if (mounted) _message('Die letzte Aktion konnte nicht rückgängig gemacht werden.');
@@ -1214,7 +1299,9 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         ],
       ),
     );
-    if (confirmed == true) await _send(TickerEventType.matchEnd);
+    if (confirmed == true && mounted) {
+      await _send(TickerEventType.matchEnd);
+    }
   }
 
   void _message(String text) =>
@@ -1291,6 +1378,15 @@ String _clock(DateTime value) {
   final local = value.toLocal();
   return '${local.hour.toString().padLeft(2, '0')}:'
       '${local.minute.toString().padLeft(2, '0')}';
+}
+
+bool _isConnectivityFailure(Object error) {
+  if (error is! DioException) return false;
+  return error.response == null ||
+      error.type == DioExceptionType.connectionError ||
+      error.type == DioExceptionType.connectionTimeout ||
+      error.type == DioExceptionType.sendTimeout ||
+      error.type == DioExceptionType.receiveTimeout;
 }
 
 class _TickerMetric extends StatelessWidget {
