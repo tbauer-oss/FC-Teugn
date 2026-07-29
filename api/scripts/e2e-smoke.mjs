@@ -234,11 +234,35 @@ const match = await request(
     location: 'E2E Hauptplatz',
     opponent: 'E2E Gegner',
     homeAway: 'HOME',
+    periodCount: 4,
+    periodMinutes: 15,
     teamIds: [teamId],
     visibility: 'TEAM',
   }),
 );
 assert(match.id, 'Match creation failed');
+assert(
+  match.matchDetails?.periodCount === 4 &&
+    match.matchDetails?.periodMinutes === 15 &&
+    match.matchDetails?.durationMinutes === 60,
+  'Match creation did not preserve the configured four quarters',
+);
+const updatedCalendarMatch = await request(
+  `/events/${match.id}/match-details`,
+  json('PUT', trainerToken, {
+    opponent: 'E2E Gegner',
+    isHome: true,
+    competition: 'E2E-Abnahme',
+    periodCount: 3,
+    periodMinutes: 20,
+  }),
+);
+assert(
+  updatedCalendarMatch.periodCount === 3 &&
+    updatedCalendarMatch.periodMinutes === 20 &&
+    updatedCalendarMatch.durationMinutes === 60,
+  'Calendar match editor did not persist the configured periods',
+);
 await request(
   `/matches/${match.id}`,
   json('PUT', trainerToken, {
@@ -247,14 +271,19 @@ await request(
     kind: 'FRIENDLY',
     status: 'CONFIRMED',
     competition: 'E2E-Abnahme',
-    durationMinutes: 60,
-    periodMinutes: 30,
-    periodCount: 2,
+    periodMinutes: 15,
+    periodCount: 4,
   }),
 );
 const editableMatch = await request(`/matches/${match.id}`, {
   headers: auth(trainerToken),
 });
+assert(
+  editableMatch.matchDetails?.periodCount === 4 &&
+    editableMatch.matchDetails?.periodMinutes === 15 &&
+    editableMatch.matchDetails?.durationMinutes === 60,
+  'Matchday editor did not persist the configured four quarters',
+);
 assert(
   editableMatch.eligiblePlayers.some((player) => player.id === 'player-1') &&
     editableMatch.eligiblePlayers.some((player) => player.id === playerId) &&

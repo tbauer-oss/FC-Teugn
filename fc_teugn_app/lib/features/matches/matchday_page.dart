@@ -1527,6 +1527,13 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     final displayedOurGoals = ticker.ourGoals + pendingOurGoals;
     final displayedTheirGoals = ticker.theirGoals + pendingTheirGoals;
     final connected = widget.online && !_queueOffline;
+    final periodCount = widget.match.details?.periodCount ?? 2;
+    final nextPeriod = ticker.currentPeriod < periodCount
+        ? ticker.currentPeriod + 1
+        : periodCount;
+    final canStartNextPeriod =
+        ticker.status == TickerStatus.notStarted ||
+        ticker.currentPeriod < periodCount;
     return Column(
       children: [
         Row(
@@ -1575,23 +1582,32 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                 label: const Text('Tor Gegner'),
               ),
               OutlinedButton.icon(
-                onPressed: _busy
+                onPressed: _busy || !canStartNextPeriod
                     ? null
                     : () => _send(
                           ticker.status == TickerStatus.notStarted
                               ? TickerEventType.matchStart
-                              : TickerEventType.resume,
+                              : TickerEventType.periodStart,
+                          period: ticker.status == TickerStatus.notStarted
+                              ? 1
+                              : nextPeriod,
                         ),
                 icon: const Icon(Icons.play_arrow_rounded),
                 label: Text(
-                  ticker.status == TickerStatus.notStarted ? 'Spiel starten' : 'Fortsetzen',
+                  ticker.status == TickerStatus.notStarted
+                      ? 'Spiel starten'
+                      : 'Abschnitt $nextPeriod starten',
                 ),
               ),
               OutlinedButton.icon(
-                onPressed:
-                    _busy ? null : () => _send(TickerEventType.periodEnd),
+                onPressed: _busy || ticker.status != TickerStatus.live
+                    ? null
+                    : () => _send(
+                          TickerEventType.periodEnd,
+                          period: ticker.currentPeriod,
+                        ),
                 icon: const Icon(Icons.pause_rounded),
-                label: const Text('Halbzeit'),
+                label: Text('Abschnitt ${ticker.currentPeriod} beenden'),
               ),
               OutlinedButton.icon(
                 onPressed: _busy ? null : _undo,
@@ -1820,6 +1836,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     TickerEventType type, {
     String? scorerId,
     String? assistId,
+    int? period,
   }) async {
     final now = DateTime.now();
     if (_lastQueuedAt != null &&
@@ -1843,6 +1860,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           type: type,
           scorerId: scorerId,
           assistId: assistId,
+          period: period,
           createdAt: now,
         ),
       );

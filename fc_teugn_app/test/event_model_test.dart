@@ -98,4 +98,18 @@ void main() {
       'WEEKLY',
     );
   });
+
+  test('parses the configured match period model', () {
+    final details = MatchDetails.fromJson({
+      'opponent': 'SV Beispiel',
+      'isHome': true,
+      'periodCount': 4,
+      'periodMinutes': 15,
+      'durationMinutes': 60,
+    });
+
+    expect(details.periodCount, 4);
+    expect(details.periodMinutes, 15);
+    expect(details.durationMinutes, 60);
+  });
 }

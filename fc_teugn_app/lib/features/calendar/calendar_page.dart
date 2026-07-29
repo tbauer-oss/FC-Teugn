@@ -2604,6 +2604,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   late final TextEditingController address;
   late final TextEditingController mapUrl;
   late final TextEditingController opponent;
+  late final TextEditingController periodCount;
+  late final TextEditingController periodMinutes;
   late final TextEditingController venue;
   late final TextEditingController contactName;
   late final TextEditingController contactPhone;
@@ -2640,6 +2642,12 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     address = TextEditingController(text: event?.address);
     mapUrl = TextEditingController(text: event?.mapUrl);
     opponent = TextEditingController(text: event?.opponent);
+    periodCount = TextEditingController(
+      text: (event?.matchDetails?.periodCount ?? 2).toString(),
+    );
+    periodMinutes = TextEditingController(
+      text: (event?.matchDetails?.periodMinutes ?? 30).toString(),
+    );
     venue = TextEditingController(text: event?.venue);
     contactName = TextEditingController(text: event?.contactName);
     contactPhone = TextEditingController(text: event?.contactPhone);
@@ -2679,6 +2687,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       address,
       mapUrl,
       opponent,
+      periodCount,
+      periodMinutes,
       venue,
       contactName,
       contactPhone,
@@ -2802,6 +2812,44 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 value: HomeAway.neutral, child: Text('Neutral')),
                           ],
                           onChanged: (value) => setState(() => homeAway = value),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: periodCount,
+                                keyboardType: TextInputType.number,
+                                onChanged: (_) => setState(() {}),
+                                decoration: const InputDecoration(
+                                  labelText: 'Spielabschnitte',
+                                  helperText: 'z. B. 2 Halbzeiten oder 4 Viertel',
+                                ),
+                                validator: (value) =>
+                                    _matchNumber(value, 1, 8),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: periodMinutes,
+                                keyboardType: TextInputType.number,
+                                onChanged: (_) => setState(() {}),
+                                decoration: const InputDecoration(
+                                  labelText: 'Minuten je Abschnitt',
+                                  helperText: 'z. B. 15 Minuten',
+                                ),
+                                validator: (value) =>
+                                    _matchNumber(value, 1, 90),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Gesamtspielzeit: ${_matchDurationLabel()}',
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
                       const SizedBox(height: 18),
@@ -3038,6 +3086,22 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'Pflichtfeld' : null;
 
+  String? _matchNumber(String? value, int minimum, int maximum) {
+    if (!category.isMatch) return null;
+    final parsed = int.tryParse(value?.trim() ?? '');
+    if (parsed == null || parsed < minimum || parsed > maximum) {
+      return '$minimum bis $maximum eingeben';
+    }
+    return null;
+  }
+
+  String _matchDurationLabel() {
+    final count = int.tryParse(periodCount.text.trim());
+    final minutes = int.tryParse(periodMinutes.text.trim());
+    if (count == null || minutes == null) return '–';
+    return '$count × $minutes Minuten = ${count * minutes} Minuten';
+  }
+
   String? _optional(TextEditingController controller) {
     final value = controller.text.trim();
     return value.isEmpty ? null : value;
@@ -3063,6 +3127,16 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       );
       return;
     }
+    final matchPeriodCount = int.tryParse(periodCount.text.trim()) ?? 2;
+    final matchPeriodMinutes = int.tryParse(periodMinutes.text.trim()) ?? 30;
+    if (category.isMatch && matchPeriodCount * matchPeriodMinutes > 180) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Die Gesamtspielzeit darf höchstens 180 Minuten betragen.'),
+        ),
+      );
+      return;
+    }
     Navigator.pop(
       context,
       EventWriteData(
@@ -3077,6 +3151,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         mapUrl: _optional(mapUrl),
         homeAway: homeAway,
         opponent: _optional(opponent),
+        periodCount: matchPeriodCount,
+        periodMinutes: matchPeriodMinutes,
         venue: _optional(venue),
         contactName: _optional(contactName),
         contactPhone: _optional(contactPhone),
