@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
+import '../../core/club_logo.dart';
 import '../auth/auth_controller.dart';
 import '../../core/providers.dart';
 
@@ -210,7 +211,7 @@ class _DesktopNavigation extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 5),
                 child: Material(
                   color: selectedIndex == index
-                      ? Colors.white.withValues(alpha: .12)
+                      ? AppColors.yellow
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(14),
                   child: InkWell(
@@ -224,7 +225,7 @@ class _DesktopNavigation extends StatelessWidget {
                             destinations[index].icon,
                             size: 21,
                             color: selectedIndex == index
-                                ? Colors.white
+                                ? AppColors.black
                                 : Colors.white.withValues(alpha: .62),
                           ),
                           const SizedBox(width: 13),
@@ -232,7 +233,7 @@ class _DesktopNavigation extends StatelessWidget {
                             destinations[index].label,
                             style: TextStyle(
                               color: selectedIndex == index
-                                  ? Colors.white
+                                  ? AppColors.black
                                   : Colors.white.withValues(alpha: .68),
                               fontWeight: selectedIndex == index
                                   ? FontWeight.w700
@@ -246,7 +247,7 @@ class _DesktopNavigation extends StatelessWidget {
                 ),
               ),
             const Spacer(),
-            const Divider(color: Color(0xFF29455D)),
+            const Divider(color: Color(0xFF3A3D3B)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -357,23 +358,7 @@ class _ClubBrand extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: compact ? 36 : 42,
-          height: compact ? 36 : 42,
-          decoration: BoxDecoration(
-            color: AppColors.orange,
-            borderRadius: BorderRadius.circular(13),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            'FC',
-            style: TextStyle(
-              color: AppColors.navy,
-              fontWeight: FontWeight.w900,
-              fontSize: compact ? 13 : 15,
-            ),
-          ),
-        ),
+        ClubLogo(size: compact ? 40 : 48),
         const SizedBox(width: 11),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,

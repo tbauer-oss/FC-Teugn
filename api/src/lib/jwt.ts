@@ -5,6 +5,8 @@ const ACCESS_SECRET: Secret =
 const REFRESH_SECRET: Secret = process.env.REFRESH_TOKEN_SECRET || 'refresh_secret';
 const EMERGENCY_SECRET: Secret =
   process.env.EMERGENCY_ACCESS_SECRET || `${String(ACCESS_SECRET)}:emergency`;
+const MEDIA_SECRET: Secret =
+  process.env.MEDIA_ACCESS_SECRET || `${String(ACCESS_SECRET)}:media`;
 
 function signToken(payload: object, secret: Secret, expiresIn: SignOptions['expiresIn']) {
   const options: SignOptions = { expiresIn };
@@ -52,6 +54,26 @@ export function verifyEmergencyAccessToken(token: string) {
     typeof decoded.eventId !== 'string'
   ) {
     throw new Error('Invalid emergency access token');
+  }
+  return decoded;
+}
+
+export interface MediaAccessClaims {
+  kind: 'media-access';
+  assetId: string;
+}
+
+export function signMediaAccessToken(
+  payload: Omit<MediaAccessClaims, 'kind'>,
+  expiresIn: SignOptions['expiresIn'] = '15m',
+) {
+  return signToken({ ...payload, kind: 'media-access' }, MEDIA_SECRET, expiresIn);
+}
+
+export function verifyMediaAccessToken(token: string) {
+  const decoded = jwt.verify(token, MEDIA_SECRET) as MediaAccessClaims;
+  if (decoded.kind !== 'media-access' || typeof decoded.assetId !== 'string') {
+    throw new Error('Invalid media access token');
   }
   return decoded;
 }

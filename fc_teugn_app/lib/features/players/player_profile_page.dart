@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -334,15 +335,45 @@ class _ProfileContent extends ConsumerWidget {
         : cropped;
     final bytes = Uint8List.fromList(img.encodeJpg(resized, quality: 84));
     if (!context.mounted) return;
-    await _run(
-      context,
-      () => ref.read(repositoryProvider).uploadPlayerPhoto(
+    try {
+      final uploaded = await ref.read(repositoryProvider).uploadPlayerPhoto(
             playerId: player.id,
             bytes: bytes,
             fileName: '${player.id}.jpg',
-          ),
-      'Spielerfoto geschützt gespeichert.',
-    );
+          );
+      if (uploaded.photoUrl == null) {
+        throw StateError('Foto wurde nicht vom Backend bestätigt.');
+      }
+      ref.invalidate(playerProvider(player.id));
+      ref.invalidate(playersProvider);
+      final confirmed = await ref.read(playerProvider(player.id).future);
+      if (confirmed.photoUrl == null) {
+        throw StateError('Foto konnte nach dem Speichern nicht geladen werden.');
+      }
+      onRefresh();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Spielerfoto geschützt gespeichert.')),
+        );
+      }
+    } on DioException catch (error) {
+      final response = error.response?.data;
+      final message =
+          response is Map<String, dynamic> ? response['message'] as String? : null;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message ?? 'Foto konnte nicht gespeichert werden.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(
+            'Das Foto wurde nicht vollständig bestätigt. Bitte erneut versuchen.',
+          )),
+        );
+      }
+    }
   }
 
   Future<void> _removePhoto(BuildContext context, WidgetRef ref) async {
@@ -397,7 +428,7 @@ class _ProfileHero extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.navy, Color(0xFF175A70)],
+          colors: [AppColors.black, Color(0xFF3A3400)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

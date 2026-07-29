@@ -98,12 +98,12 @@ class DataRepository {
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<void> uploadTeamPhoto({
+  Future<TeamSummary> uploadTeamPhoto({
     required String teamId,
     required Uint8List bytes,
     required String fileName,
   }) async {
-    await client.dio.post(
+    final res = await client.dio.post(
       '/organization/teams/$teamId/photo',
       data: FormData.fromMap({
         'file': MultipartFile.fromBytes(
@@ -113,6 +113,7 @@ class DataRepository {
         ),
       }),
     );
+    return TeamSummary.fromJson(res.data as Map<String, dynamic>);
   }
 
   Future<void> removeTeamPhoto(String teamId) async {
@@ -255,7 +256,7 @@ class DataRepository {
     return PlayerModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<void> uploadPlayerPhoto({
+  Future<PlayerModel> uploadPlayerPhoto({
     required String playerId,
     required Uint8List bytes,
     required String fileName,
@@ -270,6 +271,7 @@ class DataRepository {
         ),
       }),
     );
+    return player(playerId);
   }
 
   Future<void> removePlayerPhoto(String playerId) async {

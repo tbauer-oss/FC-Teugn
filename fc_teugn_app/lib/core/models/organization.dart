@@ -17,8 +17,8 @@ class ClubSummary {
         id: json['id'] as String,
         name: json['name'] as String,
         shortName: json['shortName'] as String? ?? '',
-        primaryColor: json['primaryColor'] as String? ?? '#176B87',
-        accentColor: json['accentColor'] as String? ?? '#FFB000',
+        primaryColor: json['primaryColor'] as String? ?? '#171918',
+        accentColor: json['accentColor'] as String? ?? '#FFE600',
       );
 }
 

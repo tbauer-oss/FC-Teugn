@@ -1,7 +1,6 @@
 import {
   del,
-  issueSignedToken,
-  presignUrl,
+  get,
   put,
 } from '@vercel/blob';
 
@@ -16,8 +15,15 @@ export interface ObjectStorage {
     data: Buffer,
     contentType: string,
   ): Promise<StoredObject>;
-  signedReadUrl(pathname: string, validForSeconds?: number): Promise<string>;
+  readPrivate(pathname: string): Promise<StoredObjectContent | null>;
   delete(pathname: string): Promise<void>;
+}
+
+export interface StoredObjectContent {
+  data: Buffer;
+  contentType: string;
+  size: number;
+  etag: string;
 }
 
 export class VercelBlobStorage implements ObjectStorage {
@@ -35,20 +41,24 @@ export class VercelBlobStorage implements ObjectStorage {
     return { pathname: blob.pathname, url: blob.url };
   }
 
-  async signedReadUrl(pathname: string, validForSeconds = 600) {
-    const validUntil = Date.now() + validForSeconds * 1000;
-    const token = await issueSignedToken({
-      pathname,
-      operations: ['get'],
-      validUntil,
-    });
-    const result = await presignUrl(token, {
-      operation: 'get',
-      pathname,
-      access: 'private',
-      validUntil,
-    });
-    return result.presignedUrl;
+  async readPrivate(pathname: string): Promise<StoredObjectContent | null> {
+    const result = await get(pathname, { access: 'private' });
+    if (!result || result.statusCode !== 200) return null;
+
+    const reader = result.stream.getReader();
+    const chunks: Uint8Array[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+
+    return {
+      data: Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))),
+      contentType: result.blob.contentType,
+      size: result.blob.size,
+      etag: result.blob.etag,
+    };
   }
 
   async delete(pathname: string) {

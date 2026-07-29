@@ -7,6 +7,7 @@ import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/club_logo.dart';
 import '../../core/models/organization.dart';
 import '../../core/providers.dart';
 import '../shared/page_scaffold.dart';
@@ -137,21 +138,42 @@ class _OrganizationContent extends ConsumerWidget {
         : oriented;
     final bytes = Uint8List.fromList(img.encodeJpg(resized, quality: 86));
     try {
-      await ref.read(repositoryProvider).uploadTeamPhoto(
+      final uploaded = await ref.read(repositoryProvider).uploadTeamPhoto(
             teamId: team.id,
             bytes: bytes,
             fileName: '${team.id}.jpg',
           );
+      if (uploaded.photoUrl == null) {
+        throw StateError('Foto wurde nicht vom Backend bestätigt.');
+      }
       ref.invalidate(organizationProvider);
+      final refreshed = await ref.read(organizationProvider.future);
+      final confirmed = refreshed.teams.any(
+        (candidate) => candidate.id == team.id && candidate.photoUrl != null,
+      );
+      if (!confirmed) {
+        throw StateError('Foto konnte nach dem Speichern nicht geladen werden.');
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Mannschaftsfoto geschützt gespeichert.')),
         );
       }
+    } on DioException catch (error) {
+      final response = error.response?.data;
+      final message =
+          response is Map<String, dynamic> ? response['message'] as String? : null;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message ?? 'Foto konnte nicht gespeichert werden.')),
+        );
+      }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Foto konnte nicht gespeichert werden.')),
+          const SnackBar(content: Text(
+            'Das Foto wurde nicht vollständig bestätigt. Bitte erneut versuchen.',
+          )),
         );
       }
     }
@@ -245,7 +267,7 @@ class _ClubHero extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.navy, Color(0xFF174D68)],
+          colors: [AppColors.black, Color(0xFF3A3400)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -256,23 +278,7 @@ class _ClubHero extends StatelessWidget {
         runSpacing: 18,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Container(
-            width: 66,
-            height: 66,
-            decoration: BoxDecoration(
-              color: AppColors.orange,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              data.club.shortName,
-              style: const TextStyle(
-                color: AppColors.navy,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
+          const ClubLogo(size: 76),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

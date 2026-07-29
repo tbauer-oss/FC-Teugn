@@ -1,21 +1,30 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
-  static const navy = Color(0xFF102A43);
-  static const blue = Color(0xFF176B87);
-  static const teal = Color(0xFF18A999);
-  static const orange = Color(0xFFFFB000);
-  static const background = Color(0xFFF4F7F9);
-  static const line = Color(0xFFDCE5EA);
-  static const muted = Color(0xFF627D8C);
+  static const black = Color(0xFF171918);
+  static const charcoal = Color(0xFF292C2A);
+  static const yellow = Color(0xFFFFE600);
+  static const yellowDark = Color(0xFF9B8300);
+  static const success = Color(0xFF16815A);
+
+  // Bestehende semantische Namen bleiben kompatibel, tragen aber die Vereins-CI.
+  static const navy = black;
+  static const blue = yellowDark;
+  static const teal = success;
+  static const orange = yellow;
+  static const background = Color(0xFFF7F7F3);
+  static const line = Color(0xFFE3E1D6);
+  static const muted = Color(0xFF686B67);
 }
 
 ThemeData buildAppTheme() {
   final scheme = ColorScheme.fromSeed(
-    seedColor: AppColors.blue,
+    seedColor: AppColors.yellow,
     brightness: Brightness.light,
-    primary: AppColors.blue,
-    secondary: AppColors.teal,
+    primary: AppColors.yellow,
+    onPrimary: AppColors.black,
+    secondary: AppColors.black,
+    onSecondary: Colors.white,
     surface: Colors.white,
   );
 
@@ -75,7 +84,7 @@ ThemeData buildAppTheme() {
       border: border,
       enabledBorder: border,
       focusedBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppColors.blue, width: 2),
+        borderSide: const BorderSide(color: AppColors.yellowDark, width: 2),
       ),
       errorBorder: border.copyWith(
         borderSide: BorderSide(color: scheme.error),
@@ -83,6 +92,8 @@ ThemeData buildAppTheme() {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
+        backgroundColor: AppColors.yellow,
+        foregroundColor: AppColors.black,
         minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
