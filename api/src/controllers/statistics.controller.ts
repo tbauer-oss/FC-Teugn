@@ -44,6 +44,35 @@ type PlayerIdentity = {
   shirtNumber: number | null;
 };
 
+export function canSelectStatisticsTeam(role: Role) {
+  return (
+    role === Role.SUPER_ADMIN ||
+    role === Role.CLUB_ADMIN ||
+    role === Role.TRAINER_ADMIN ||
+    role === Role.YOUTH_DIRECTOR
+  );
+}
+
+export function resolveStatisticsTeamIds(
+  user: { role: Role; teamId: string },
+  accessibleTeamIds: string[],
+  requestedTeamIds: string[],
+) {
+  if (!canSelectStatisticsTeam(user.role)) {
+    return accessibleTeamIds.includes(user.teamId) ? [user.teamId] : [];
+  }
+  if (requestedTeamIds.some((teamId) => !accessibleTeamIds.includes(teamId))) {
+    return null;
+  }
+  if (requestedTeamIds.length > 0) {
+    return [requestedTeamIds[0]];
+  }
+  if (accessibleTeamIds.includes(user.teamId)) {
+    return [user.teamId];
+  }
+  return accessibleTeamIds.length > 0 ? [accessibleTeamIds[0]] : [];
+}
+
 function emptyPlayerStatistic(player: PlayerIdentity): PlayerStatisticRow {
   return {
     id: player.id,
@@ -81,8 +110,19 @@ export async function statisticsOverview(req: Request, res: Response) {
   });
   const requestedTeams = String(req.query.teamIds ?? '')
     .split(',')
-    .filter((id) => accessible.includes(id));
-  const baseTeamIds = requestedTeams.length ? requestedTeams : accessible;
+    .map((id) => id.trim())
+    .filter(Boolean);
+  const baseTeamIds = resolveStatisticsTeamIds(
+    { role: user.role as Role, teamId: user.teamId },
+    accessible,
+    requestedTeams,
+  );
+  if (baseTeamIds === null) {
+    return res.status(403).json({ message: 'Mannschaft nicht freigegeben.' });
+  }
+  if (baseTeamIds.length === 0) {
+    return res.status(404).json({ message: 'Keine Mannschaft verfügbar.' });
+  }
   const availableSeasons = [
     ...new Map(
       accessibleTeams
@@ -419,6 +459,9 @@ export async function statisticsOverview(req: Request, res: Response) {
     trainingAttendance,
     privacy: {
       individualScope: allowedPlayerIds ? 'OWN_PLAYERS' : 'ASSIGNED_TEAMS',
+      teamSelection: canSelectStatisticsTeam(user.role as Role)
+        ? 'ADMIN_SELECTABLE'
+        : 'REGISTRATION_TEAM',
       publicRanking: false,
     },
   });
