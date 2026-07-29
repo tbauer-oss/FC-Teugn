@@ -18,6 +18,18 @@ void main() {
         'periodMinutes': 30,
         'periodCount': 2,
       },
+      'eligiblePlayers': [
+        {
+          'id': 'player-1',
+          'teamId': 'team-1',
+          'firstName': 'Max',
+          'lastName': 'Muster',
+          'dominantFoot': 'RIGHT',
+          'status': 'ACTIVE',
+          'position': 'ST',
+          'shirtNumber': 9,
+        },
+      ],
       'squads': [
         {
           'id': 'squad-1',
@@ -83,6 +95,8 @@ void main() {
     expect(match.squad?.lineup?.positions.single.player.name, 'Max Muster');
     expect(match.ticker?.events.single.type, TickerEventType.homeGoal);
     expect(match.ticker?.ourGoals, 1);
+    expect(match.eligiblePlayers.single.displayName, 'Max');
+    expect(match.eligiblePlayers.single.position, 'ST');
   });
 
   test('converts camel-case enum values to API constants', () {

@@ -6,6 +6,7 @@ import {
   MatchKind,
   MatchStatus,
   NominationStatus,
+  PlayerStatus,
   Prisma,
   TickerEventType,
   TickerStatus,
@@ -87,6 +88,23 @@ const matchInclude = {
   },
 } as const;
 
+const eligiblePlayerSelect = {
+  id: true,
+  teamId: true,
+  firstName: true,
+  lastName: true,
+  preferredName: true,
+  birthDate: true,
+  nationality: true,
+  position: true,
+  secondaryPosition: true,
+  dominantFoot: true,
+  shirtNumber: true,
+  status: true,
+  joinedAt: true,
+  photoUrl: true,
+} as const;
+
 function text(value: unknown, max = 300) {
   if (typeof value !== 'string') return null;
   const result = value.trim();
@@ -154,6 +172,7 @@ async function findMatch(id: string, user: { id: string; teamId: string; role: R
 function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof matchInclude }>>(
   match: T,
   staff: boolean,
+  eligiblePlayers: Array<Prisma.PlayerGetPayload<{ select: typeof eligiblePlayerSelect }>> = [],
 ) {
   const squad = match.squads[0] ?? null;
   const lineup = squad?.lineup;
@@ -163,6 +182,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now()));
   return {
     ...match,
+    eligiblePlayers: staff ? eligiblePlayers : undefined,
     squads: squad && (staff || squad.publishedAt)
       ? [
           {
@@ -219,9 +239,27 @@ export async function listMatches(req: Request, res: Response) {
 }
 
 export async function getMatch(req: Request, res: Response) {
-  const match = await findMatch(req.params.id, req.user!);
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
-  return res.json(serializeMatch(match, isStaff(req.user!.role)));
+  const staff = isStaff(user.role);
+  const accessibleIds = await accessibleTeamIds(user);
+  const targetIds = (
+    match.targetTeams.length
+      ? match.targetTeams.map((target) => target.teamId)
+      : [match.teamId]
+  ).filter((teamId) => accessibleIds.includes(teamId));
+  const eligiblePlayers = staff
+    ? await prisma.player.findMany({
+        where: {
+          teamId: { in: targetIds },
+          status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
+        },
+        select: eligiblePlayerSelect,
+        orderBy: [{ status: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
+      })
+    : [];
+  return res.json(serializeMatch(match, staff, eligiblePlayers));
 }
 
 export async function updateMatch(req: Request, res: Response) {
@@ -300,8 +338,18 @@ export async function updateSquad(req: Request, res: Response) {
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   const members = Array.isArray(req.body?.members) ? req.body.members : [];
   const ids = [...new Set(members.map((item: { playerId?: unknown }) => text(item.playerId, 100)).filter(Boolean))] as string[];
+  const accessibleIds = await accessibleTeamIds(user);
+  const targetIds = (
+    match.targetTeams.length
+      ? match.targetTeams.map((target) => target.teamId)
+      : [match.teamId]
+  ).filter((teamId) => accessibleIds.includes(teamId));
   const validPlayers = await prisma.player.findMany({
-    where: { id: { in: ids }, teamId: { in: await accessibleTeamIds(user) } },
+    where: {
+      id: { in: ids },
+      teamId: { in: targetIds },
+      status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
+    },
     select: { id: true },
   });
   if (validPlayers.length !== ids.length) {
