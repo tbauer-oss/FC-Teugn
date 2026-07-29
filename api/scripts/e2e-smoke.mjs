@@ -519,6 +519,65 @@ assert(
   'Ticker assist was not added to the player statistics',
 );
 
+// 15. Nur die Systemadministration darf Termine und Spiele endgültig löschen.
+const forbiddenDelete = await fetch(
+  `${baseUrl}/events/${match.id}?permanent=true`,
+  {
+    method: 'DELETE',
+    headers: {
+      'content-type': 'application/json',
+      ...auth(parentClientAToken),
+    },
+  },
+);
+assert(
+  forbiddenDelete.status === 403,
+  'A non-administrator was allowed to permanently delete a match',
+);
+const deletedMatch = await request(
+  `/events/${match.id}?permanent=true`,
+  {
+    method: 'DELETE',
+    headers: auth(trainerToken),
+  },
+);
+assert(
+  deletedMatch.status === 'DELETED' && deletedMatch.deletedCount === 1,
+  'System administrator could not permanently delete the match',
+);
+
+const disposableEvent = await request(
+  '/events',
+  json('POST', trainerToken, {
+    title: `E2E Löschtermin ${runId}`,
+    category: 'TEAM_MEETING',
+    startAt: new Date(now + 259_200_000).toISOString(),
+    location: 'E2E Vereinsheim',
+    teamIds: [teamId],
+    visibility: 'TEAM',
+  }),
+);
+const deletedEvent = await request(
+  `/events/${disposableEvent.id}?permanent=true`,
+  {
+    method: 'DELETE',
+    headers: auth(trainerToken),
+  },
+);
+assert(
+  deletedEvent.status === 'DELETED' && deletedEvent.deletedCount === 1,
+  'System administrator could not permanently delete the event',
+);
+const eventsAfterDeletion = await request('/events', {
+  headers: auth(trainerToken),
+});
+assert(
+  !eventsAfterDeletion.some(
+    (event) => event.id === match.id || event.id === disposableEvent.id,
+  ),
+  'A permanently deleted match or event is still visible',
+);
+
 console.log(
-  'E2E acceptance passed: registration, approval, guardian link, training, attendance, match, squad, lineup, two-client ticker, correction and statistics',
+  'E2E acceptance passed: registration, approval, guardian link, training, attendance, match, squad, lineup, two-client ticker, correction, statistics and permanent administrator deletion',
 );

@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/football_options.dart';
 import '../../core/models/event.dart';
+import '../../core/models/user.dart';
 import '../../core/providers.dart';
+import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import '../imports/competition_import_dialog.dart';
 
@@ -15,6 +17,8 @@ class TrainerMatchesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final events = ref.watch(eventsProvider);
     final repository = ref.watch(repositoryProvider);
+    final isSystemAdmin =
+        ref.watch(authProvider).user?.role == UserRole.superAdmin;
 
     return PageScaffold(
       title: 'Spieltage',
@@ -59,6 +63,9 @@ class TrainerMatchesPage extends ConsumerWidget {
                   child: _MatchCard(
                     event: match,
                     onOpen: () => context.push('/trainer/matches/${match.id}'),
+                    onDelete: isSystemAdmin
+                        ? () => _deleteMatch(context, ref, match)
+                        : null,
                     onEdit: () async {
                       final draft = await _openMatchDialog(context, match);
                       if (draft == null) return;
@@ -101,6 +108,89 @@ class TrainerMatchesPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _deleteMatch(
+    BuildContext context,
+    WidgetRef ref,
+    EventModel event,
+  ) async {
+    var entireSeries = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          icon: Icon(
+            Icons.warning_amber_rounded,
+            color: Theme.of(dialogContext).colorScheme.error,
+          ),
+          title: const Text('Spiel endgültig löschen?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '„${event.title}“ wird mit Kader, Aufstellung, Liveticker, '
+                'Statistiken und Rückmeldungen dauerhaft gelöscht. Diese '
+                'Aktion kann nicht rückgängig gemacht werden.',
+              ),
+              if (event.isRecurring) ...[
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Dieses und alle folgenden Spiele der Serie löschen',
+                  ),
+                  value: entireSeries,
+                  onChanged: (value) => setDialogState(
+                    () => entireSeries = value ?? false,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+              ),
+              icon: const Icon(Icons.delete_forever_rounded),
+              label: const Text('Endgültig löschen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref.read(repositoryProvider).deleteEventPermanently(
+            eventId: event.id,
+            entireSeries: entireSeries,
+          );
+      ref.invalidate(eventsProvider);
+      final refreshed = await ref.read(eventsProvider.future);
+      if (refreshed.any((item) => item.id == event.id)) {
+        throw StateError('Das gelöschte Spiel ist weiterhin vorhanden.');
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Spiel wurde endgültig gelöscht.')),
+        );
+      }
+    } catch (_) {
+      ref.invalidate(eventsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Spiel konnte nicht gelöscht werden.')),
+        );
+      }
+    }
   }
 
   Future<_MatchDraft?> _openMatchDialog(BuildContext context, EventModel event) async {
@@ -300,10 +390,12 @@ class _MatchCard extends StatelessWidget {
     required this.event,
     required this.onEdit,
     required this.onOpen,
+    this.onDelete,
   });
   final EventModel event;
   final VoidCallback onEdit;
   final VoidCallback onOpen;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -363,6 +455,13 @@ class _MatchCard extends StatelessWidget {
                   icon: const Icon(Icons.edit_rounded, size: 18),
                   label: const Text('Daten'),
                 ),
+                if (onDelete != null)
+                  IconButton(
+                    onPressed: onDelete,
+                    color: Theme.of(context).colorScheme.error,
+                    tooltip: 'Spiel endgültig löschen',
+                    icon: const Icon(Icons.delete_forever_rounded),
+                  ),
                 FilledButton.icon(
                   onPressed: onOpen,
                   icon: const Icon(Icons.stadium_rounded, size: 18),

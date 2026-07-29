@@ -9,7 +9,9 @@ import '../../core/models/emergency.dart';
 import '../../core/models/event.dart';
 import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
+import '../../core/models/user.dart';
 import '../../core/providers.dart';
+import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
 enum CalendarView { day, week, month, year, agenda }
@@ -2441,6 +2443,8 @@ class _ManagementBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isSystemAdmin =
+        ref.watch(authProvider).user?.role == UserRole.superAdmin;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -2473,6 +2477,19 @@ class _ManagementBar extends ConsumerWidget {
               onPressed: () => _cancel(context, ref),
               icon: const Icon(Icons.event_busy_rounded),
               label: const Text('Absagen'),
+            ),
+          if (isSystemAdmin)
+            OutlinedButton.icon(
+              onPressed: () => _deletePermanently(context, ref),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              icon: const Icon(Icons.delete_forever_rounded),
+              label: Text(
+                event.type == EventType.match
+                    ? 'Spiel löschen'
+                    : 'Termin löschen',
+              ),
             ),
         ],
       ),
@@ -2574,6 +2591,92 @@ class _ManagementBar extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Die Terminabsage konnte nicht bestätigt werden.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deletePermanently(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final entireSeries =
+        event.isRecurring ? await _seriesScope(context, 'Löschung') : false;
+    if (entireSeries == null || !context.mounted) return;
+    final entity = event.type == EventType.match ? 'Spiel' : 'Termin';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.warning_amber_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: Text('$entity endgültig löschen?'),
+        content: Text(
+          entireSeries
+              ? 'Dieser und alle folgenden Termine der Serie werden mit '
+                  'Kader, Aufstellung, Liveticker und Rückmeldungen dauerhaft gelöscht. '
+                  'Diese Aktion kann nicht rückgängig gemacht werden.'
+              : '„${event.title}“ wird mit Kader, Aufstellung, Liveticker und '
+                  'Rückmeldungen dauerhaft gelöscht. Diese Aktion kann nicht '
+                  'rückgängig gemacht werden.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            icon: const Icon(Icons.delete_forever_rounded),
+            label: const Text('Endgültig löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      final repository = ref.read(repositoryProvider);
+      await repository.deleteEventPermanently(
+        eventId: event.id,
+        entireSeries: entireSeries,
+      );
+      ref.invalidate(eventsProvider);
+      final refreshed = await ref.read(eventsProvider.future);
+      if (refreshed.any((item) => item.id == event.id)) {
+        throw StateError('Der gelöschte Termin ist weiterhin vorhanden.');
+      }
+      if (context.mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        Navigator.pop(context);
+        messenger.showSnackBar(
+          SnackBar(content: Text('$entity wurde endgültig gelöscht.')),
+        );
+      }
+    } on DioException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _apiErrorMessage(
+                error,
+                '$entity konnte nicht gelöscht werden.',
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      ref.invalidate(eventsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$entity konnte nicht sicher gelöscht werden.'),
           ),
         );
       }
