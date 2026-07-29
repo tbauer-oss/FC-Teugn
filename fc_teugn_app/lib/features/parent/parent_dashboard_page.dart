@@ -122,30 +122,45 @@ class _ParentEventRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final date = event.startAt.toLocal();
-    return Row(
-      children: [
-        CircleAvatar(
-          backgroundColor: AppColors.teal.withValues(alpha: .12),
-          foregroundColor: AppColors.teal,
-          child: Icon(event.type == EventType.match
-              ? Icons.sports_soccer_rounded
-              : Icons.sports_rounded),
+    final route = event.type == EventType.match
+        ? '/parent/matches/${event.id}'
+        : '/parent/events';
+    final details = [
+      '${date.day}.${date.month}.${date.year}',
+      '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} Uhr',
+      if (event.location.trim().isNotEmpty) event.location,
+    ].join(' · ');
+    return InkWell(
+      onTap: () => context.go(route),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: AppColors.teal.withValues(alpha: .12),
+              foregroundColor: AppColors.teal,
+              child: Icon(event.type == EventType.match
+                  ? Icons.sports_soccer_rounded
+                  : Icons.sports_rounded),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(event.title, style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.navy,
+                  )),
+                  Text(details),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+          ],
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(event.title, style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                color: AppColors.navy,
-              )),
-              Text('${date.day}.${date.month}.${date.year} · ${event.location}'),
-            ],
-          ),
-        ),
-        const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
-      ],
+      ),
     );
   }
 }

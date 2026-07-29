@@ -32,14 +32,94 @@ class AppShell extends ConsumerWidget {
   final Widget child;
   final String title;
 
-  int _selectedIndex(String location, List<ShellDestination> items) {
-    for (var i = 1; i < items.length; i++) {
-      if (location == items[i].route ||
-          location.startsWith('${items[i].route}/')) {
+  int? _matchingIndex(String location, List<ShellDestination> items) {
+    for (var i = 0; i < items.length; i++) {
+      if (location == items[i].route) {
         return i;
       }
     }
-    return 0;
+    for (var i = items.length - 1; i >= 0; i--) {
+      if (location.startsWith('${items[i].route}/')) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  int _selectedIndex(String location, List<ShellDestination> items) {
+    return _matchingIndex(location, items) ?? 0;
+  }
+
+  Future<void> _showMoreMenu(
+    BuildContext context,
+    List<ShellDestination> destinations,
+    String location,
+  ) {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * .78,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+              children: [
+                Text(
+                  'Weitere Bereiche',
+                  style: Theme.of(sheetContext).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Alle Funktionen, übersichtlich an einem Ort.',
+                  style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.muted,
+                      ),
+                ),
+                const SizedBox(height: 14),
+                for (final destination in destinations)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: ListTile(
+                      selected: location == destination.route ||
+                          location.startsWith('${destination.route}/'),
+                      selectedTileColor: AppColors.yellow.withValues(alpha: .2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      leading: Icon(destination.icon),
+                      title: Text(destination.label),
+                      subtitle: Text(_destinationHint(destination.label)),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        context.go(destination.route);
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _destinationHint(String label) {
+    return switch (label) {
+      'Mitglieder' => 'Freigaben, Rollen und Berechtigungen',
+      'Training' => 'Einheiten und Übungen vorbereiten',
+      'Statistik' => 'Leistungen und Saisonwerte',
+      'Nachrichten' => 'Im Team austauschen',
+      'Orga' => 'Aufgaben und Material',
+      'Verein' => 'Mannschaften und Verein verwalten',
+      'Datenschutz' => 'Meine Daten und Einwilligungen',
+      _ => 'Bereich öffnen',
+    };
   }
 
   @override
@@ -48,9 +128,17 @@ class AppShell extends ConsumerWidget {
     final organization = ref.watch(organizationProvider).value;
     final location = GoRouterState.of(context).matchedLocation;
     final selectedIndex = _selectedIndex(location, destinations);
-    final mobileDestinations =
+    final mobileCandidates =
         destinations.where((destination) => destination.showOnMobile).toList();
-    final mobileSelectedIndex = _selectedIndex(location, mobileDestinations);
+    final mobileDestinations = mobileCandidates.take(4).toList();
+    final primaryRoutes =
+        mobileDestinations.map((destination) => destination.route).toSet();
+    final moreDestinations = destinations
+        .where((destination) => !primaryRoutes.contains(destination.route))
+        .toList();
+    final primaryMobileIndex = _matchingIndex(location, mobileDestinations);
+    final mobileSelectedIndex =
+        primaryMobileIndex ?? mobileDestinations.length;
     final contextLabel = organization == null
         ? 'FC Teugn Jugend'
         : '${organization.currentTeam.ageGroup.code}-Jugend · ${organization.currentTeam.name}';
@@ -106,8 +194,13 @@ class AppShell extends ConsumerWidget {
               : NavigationBar(
                   height: 72,
                   selectedIndex: mobileSelectedIndex,
-                  onDestinationSelected: (index) =>
-                      context.go(mobileDestinations[index].route),
+                  onDestinationSelected: (index) {
+                    if (index < mobileDestinations.length) {
+                      context.go(mobileDestinations[index].route);
+                      return;
+                    }
+                    _showMoreMenu(context, moreDestinations, location);
+                  },
                   destinations: [
                     for (final destination in mobileDestinations)
                       NavigationDestination(
@@ -115,6 +208,14 @@ class AppShell extends ConsumerWidget {
                         selectedIcon: Icon(destination.icon, color: AppColors.blue),
                         label: destination.label,
                       ),
+                    const NavigationDestination(
+                      icon: Icon(Icons.more_horiz_rounded),
+                      selectedIcon: Icon(
+                        Icons.more_horiz_rounded,
+                        color: AppColors.blue,
+                      ),
+                      label: 'Mehr',
+                    ),
                   ],
                 ),
         );

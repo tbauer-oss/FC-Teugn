@@ -33,36 +33,51 @@ class TrainerDashboardPage extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          GridView.count(
-            crossAxisCount: MediaQuery.sizeOf(context).width >= 1100 ? 3 : 1,
-            childAspectRatio: MediaQuery.sizeOf(context).width >= 1100 ? 1.65 : 2.5,
-            crossAxisSpacing: 14,
-            mainAxisSpacing: 14,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              MetricCard(
-                label: 'Spieler im Team',
-                value: '${players.value?.length ?? '–'}',
-                icon: Icons.groups_rounded,
-                color: AppColors.blue,
-                caption: players.isLoading ? 'Wird geladen …' : 'Aktueller Kader',
-              ),
-              MetricCard(
-                label: 'Nächste Termine',
-                value: '${nextEvents.length}',
-                icon: Icons.calendar_month_rounded,
-                color: AppColors.teal,
-                caption: 'In den kommenden Wochen',
-              ),
-              MetricCard(
-                label: 'Offene Freigaben',
-                value: '${approvals.value?.length ?? '–'}',
-                icon: Icons.person_add_alt_1_rounded,
-                color: AppColors.orange,
-                caption: 'Neue Vereinsmitglieder',
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 960
+                  ? 3
+                  : constraints.maxWidth >= 560
+                      ? 2
+                      : 1;
+              final width =
+                  (constraints.maxWidth - (columns - 1) * 14) / columns;
+              final cards = [
+                MetricCard(
+                  label: 'Spieler im Team',
+                  value: '${players.value?.length ?? '–'}',
+                  icon: Icons.groups_rounded,
+                  color: AppColors.blue,
+                  caption:
+                      players.isLoading ? 'Wird geladen …' : 'Kader öffnen',
+                  onTap: () => context.go('/trainer/players'),
+                ),
+                MetricCard(
+                  label: 'Nächste Termine',
+                  value: '${nextEvents.length}',
+                  icon: Icons.calendar_month_rounded,
+                  color: AppColors.teal,
+                  caption: 'Kalender öffnen',
+                  onTap: () => context.go('/trainer/events'),
+                ),
+                MetricCard(
+                  label: 'Offene Freigaben',
+                  value: '${approvals.value?.length ?? '–'}',
+                  icon: Icons.person_add_alt_1_rounded,
+                  color: AppColors.orange,
+                  caption: 'Anfragen prüfen',
+                  onTap: () => context.go('/trainer/approvals'),
+                ),
+              ];
+              return Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: [
+                  for (final card in cards)
+                    SizedBox(width: width, height: 118, child: card),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 18),
           LayoutBuilder(
@@ -143,55 +158,76 @@ class _EventRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final date = event.startAt.toLocal();
-    return Row(
-      children: [
-        Container(
-          width: 52,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            children: [
-              Text(
-                _month(date.month),
-                style: const TextStyle(
-                  color: AppColors.blue,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 10,
-                ),
+    final route = switch (event.type) {
+      EventType.match => '/trainer/matches/${event.id}',
+      EventType.training => '/trainer/training/${event.id}',
+      _ => '/trainer/events',
+    };
+    final details = [
+      '${_time(date)} Uhr',
+      if (event.location.trim().isNotEmpty) event.location,
+    ].join(' · ');
+    return InkWell(
+      onTap: () => context.go(route),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(12),
               ),
-              Text(
-                '${date.day}',
-                style: Theme.of(context).textTheme.titleLarge,
+              child: Column(
+                children: [
+                  Text(
+                    _month(date.month),
+                    style: const TextStyle(
+                      color: AppColors.blue,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                    ),
+                  ),
+                  Text(
+                    '${date.day}',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(event.title, style: const TextStyle(
+                    color: AppColors.navy,
+                    fontWeight: FontWeight.w700,
+                  )),
+                  const SizedBox(height: 3),
+                  Text(details),
+                ],
+              ),
+            ),
+            Icon(
+              event.type == EventType.match
+                  ? Icons.sports_soccer_rounded
+                  : event.type == EventType.training
+                      ? Icons.sports_rounded
+                      : Icons.celebration_rounded,
+              color: AppColors.muted,
+            ),
+            const SizedBox(width: 6),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.muted,
+            ),
+          ],
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(event.title, style: const TextStyle(
-                color: AppColors.navy,
-                fontWeight: FontWeight.w700,
-              )),
-              const SizedBox(height: 3),
-              Text('${_time(date)} Uhr · ${event.location}'),
-            ],
-          ),
-        ),
-        Icon(
-          event.type == EventType.match
-              ? Icons.sports_soccer_rounded
-              : event.type == EventType.training
-                  ? Icons.sports_rounded
-                  : Icons.celebration_rounded,
-          color: AppColors.muted,
-        ),
-      ],
+      ),
     );
   }
 
@@ -210,9 +246,10 @@ class _ShortcutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
-      ('Spieler verwalten', Icons.groups_rounded, '/trainer/players'),
+      ('Kader & Spieler', Icons.groups_rounded, '/trainer/players'),
       ('Freigaben prüfen', Icons.verified_user_rounded, '/trainer/approvals'),
-      ('Spieltag planen', Icons.sports_soccer_rounded, '/trainer/matches'),
+      ('Spiele & Aufstellung', Icons.sports_soccer_rounded, '/trainer/matches'),
+      ('Nachricht senden', Icons.forum_rounded, '/trainer/messages'),
     ];
     return Card(
       child: Padding(
@@ -220,7 +257,7 @@ class _ShortcutCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Schnellzugriff', style: Theme.of(context).textTheme.titleLarge),
+            Text('Direkt erledigen', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 14),
             for (final action in actions)
               Padding(

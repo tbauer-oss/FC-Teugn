@@ -52,7 +52,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const _LoginBrand(),
+                          const _LoginBrand(logoSize: 92),
                           const Spacer(),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -116,7 +116,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 if (!wide) ...[
-                                  const _LoginBrand(dark: true),
+                                  const _LoginBrand(dark: true, logoSize: 82),
                                   const SizedBox(height: 42),
                                 ],
                                 Text('Willkommen zurück', style: Theme.of(context).textTheme.displaySmall),
@@ -235,16 +235,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 }
 
 class _LoginBrand extends StatelessWidget {
-  const _LoginBrand({this.dark = false});
+  const _LoginBrand({this.dark = false, this.logoSize = 82});
   final bool dark;
+  final double logoSize;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const ClubLogo(size: 54),
-        const SizedBox(width: 12),
+        ClubLogo(size: logoSize),
+        const SizedBox(width: 16),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -253,14 +254,14 @@ class _LoginBrand extends StatelessWidget {
               style: TextStyle(
                 color: dark ? AppColors.navy : Colors.white,
                 fontWeight: FontWeight.w900,
-                fontSize: 17,
+                fontSize: 19,
               ),
             ),
             Text(
               'JUGENDFUSSBALL',
               style: TextStyle(
                 color: dark ? AppColors.muted : Colors.white60,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.25,
               ),

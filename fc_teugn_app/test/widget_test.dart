@@ -12,5 +12,6 @@ void main() {
 
     expect(find.text('Willkommen zurück'), findsOneWidget);
     expect(find.text('Anmelden'), findsOneWidget);
+    expect(find.bySemanticsLabel('Wappen des FC Teugn'), findsOneWidget);
   });
 }
