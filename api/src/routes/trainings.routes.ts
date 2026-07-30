@@ -9,6 +9,7 @@ import {
   recordTrainingAttendance,
   saveExercise,
   saveTrainingPlan,
+  updateRecreationalOccupancy,
 } from '../controllers/trainings.controller';
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { Permission } from '../security/permissions';
@@ -20,6 +21,11 @@ router.get(
   '/occupancy',
   requirePermission(Permission.MANAGE_TRAINING),
   listPitchOccupancy,
+);
+router.patch(
+  '/occupancy/recreational',
+  requirePermission(Permission.MANAGE_TRAINING),
+  updateRecreationalOccupancy,
 );
 router.get('/', requirePermission(Permission.MANAGE_TRAINING), listTrainings);
 router.get('/exercises', requirePermission(Permission.MANAGE_TRAINING), listExercises);

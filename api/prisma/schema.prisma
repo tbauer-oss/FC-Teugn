@@ -436,19 +436,21 @@ model Club {
 }
 
 model Season {
-  id                String                   @id @default(cuid())
-  clubId            String
-  name              String
-  startDate         DateTime
-  endDate           DateTime
-  isActive          Boolean                  @default(false)
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-  club              Club                     @relation(fields: [clubId], references: [id])
-  ageGroups         AgeGroup[]
-  playerAssignments PlayerSeasonAssignment[]
-  sourceTransitions SeasonTransition[]       @relation("SeasonTransitionSource")
-  targetTransitions SeasonTransition[]       @relation("SeasonTransitionTarget")
+  id                           String                   @id @default(cuid())
+  clubId                       String
+  name                         String
+  startDate                    DateTime
+  endDate                      DateTime
+  isActive                     Boolean                  @default(false)
+  recreationalTrainingLocation String?
+  recreationalTrainingTimes    String[]                 @default([])
+  createdAt                    DateTime                 @default(now())
+  updatedAt                    DateTime                 @updatedAt
+  club                         Club                     @relation(fields: [clubId], references: [id])
+  ageGroups                    AgeGroup[]
+  playerAssignments            PlayerSeasonAssignment[]
+  sourceTransitions            SeasonTransition[]       @relation("SeasonTransitionSource")
+  targetTransitions            SeasonTransition[]       @relation("SeasonTransitionTarget")
 
   @@unique([clubId, name])
   @@index([clubId, isActive])
