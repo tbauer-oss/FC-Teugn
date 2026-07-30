@@ -556,6 +556,7 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 700;
     if (!widget.editable) {
       final members = widget.match.squad?.members
               .where((member) => member.status == NominationStatus.nominated)
@@ -570,11 +571,17 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
         );
       }
       return ListView(
+        padding: EdgeInsets.zero,
         children: [
           for (final member in members)
             Card(
+              margin: EdgeInsets.only(bottom: compact ? 4 : 8),
               child: ListTile(
+                dense: compact,
+                visualDensity:
+                    compact ? const VisualDensity(vertical: -3) : null,
                 leading: CircleAvatar(
+                  radius: compact ? 18 : null,
                   child: Text(member.player.shirtNumber?.toString() ?? 'FC'),
                 ),
                 title: Text(member.player.name),
@@ -587,47 +594,68 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
     }
     return Column(
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) => Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SizedBox(
-                width: constraints.maxWidth > 900
-                    ? constraints.maxWidth - 650
-                    : constraints.maxWidth,
-                child: Text(
-                  '${_selected.length} von ${widget.allPlayers.length} '
-                  'Spielern ausgewählt',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${_selected.length}/${widget.allPlayers.length} ausgewählt',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              OutlinedButton.icon(
+            ),
+            if (compact) ...[
+              IconButton(
                 onPressed:
                     _saving || widget.allPlayers.isEmpty ? null : _selectAll,
+                tooltip: 'Alle auswählen',
                 icon: const Icon(Icons.select_all_rounded),
-                label: const Text('Alle auswählen'),
               ),
-              OutlinedButton.icon(
+              IconButton(
                 onPressed: _saving || _selected.isEmpty ? null : _deselectAll,
+                tooltip: 'Alle abwählen',
                 icon: const Icon(Icons.deselect_rounded),
-                label: const Text('Alle abwählen'),
               ),
-              OutlinedButton.icon(
+              IconButton(
                 onPressed: _saving ? null : _publish,
+                tooltip: 'Veröffentlichen',
                 icon: const Icon(Icons.campaign_outlined),
-                label: const Text('Veröffentlichen'),
               ),
-              FilledButton.icon(
+              IconButton.filled(
                 onPressed: _saving ? null : _save,
+                tooltip: 'Kader speichern',
                 icon: const Icon(Icons.save_outlined),
-                label: const Text('Kader speichern'),
               ),
-            ],
-          ),
+            ] else
+              Wrap(
+                spacing: 10,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _saving || widget.allPlayers.isEmpty
+                        ? null
+                        : _selectAll,
+                    icon: const Icon(Icons.select_all_rounded),
+                    label: const Text('Alle auswählen'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed:
+                        _saving || _selected.isEmpty ? null : _deselectAll,
+                    icon: const Icon(Icons.deselect_rounded),
+                    label: const Text('Alle abwählen'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _saving ? null : _publish,
+                    icon: const Icon(Icons.campaign_outlined),
+                    label: const Text('Veröffentlichen'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Kader speichern'),
+                  ),
+                ],
+              ),
+          ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: compact ? 6 : 12),
         Expanded(
           child: widget.allPlayers.isEmpty
               ? EmptyState(
@@ -643,10 +671,20 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
                   ),
                 )
               : ListView(
+                  padding: EdgeInsets.zero,
                   children: [
                     for (final player in widget.allPlayers)
                       Card(
+                        margin: EdgeInsets.only(bottom: compact ? 3 : 8),
                         child: CheckboxListTile(
+                          dense: compact,
+                          visualDensity: compact
+                              ? const VisualDensity(vertical: -4)
+                              : null,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: compact ? 10 : 16,
+                            vertical: compact ? 0 : 4,
+                          ),
                           value: _selected.containsKey(player.id),
                           onChanged: (value) => setState(() {
                             if (value == true) {
@@ -656,12 +694,13 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
                             }
                           }),
                           secondary: CircleAvatar(
+                            radius: compact ? 17 : null,
                             child: Text(player.shirtNumber?.toString() ?? 'FC'),
                           ),
                           title: Text(player.displayName),
                           subtitle: Wrap(
                             spacing: 7,
-                            runSpacing: 4,
+                            runSpacing: compact ? 1 : 4,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               PlayerTeamChip(player: player, compact: true),
@@ -771,6 +810,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
   late List<LineupPositionModel> _positions;
   late String _formation;
   bool _saving = false;
+  Timer? _positionSaveDebounce;
 
   int get _fieldSize => widget.match.gameFormat.playerCount;
   List<MatchPlayer> get _nominatedPlayers =>
@@ -805,6 +845,12 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     final lineup = widget.match.squad?.lineup;
     _formation = lineup?.formation ?? widget.match.gameFormat.defaultFormation;
     _positions = lineup?.positions.toList() ?? _initialPositions();
+  }
+
+  @override
+  void dispose() {
+    _positionSaveDebounce?.cancel();
+    super.dispose();
   }
 
   List<LineupPositionModel> _initialPositions() {
@@ -869,6 +915,11 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
               ];
               final actions = <Widget>[
                 OutlinedButton.icon(
+                  onPressed: _showLineupFullscreen,
+                  icon: const Icon(Icons.open_in_full_rounded),
+                  label: const Text('Vollbild'),
+                ),
+                OutlinedButton.icon(
                   onPressed: _saving ? null : () => _save(LineupStatus.draft),
                   icon: const Icon(Icons.save_outlined),
                   label: const Text('Entwurf'),
@@ -880,6 +931,82 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                   label: const Text('Veröffentlichen'),
                 ),
               ];
+              if (constraints.maxWidth < 700) {
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _formation,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Formation',
+                              isDense: true,
+                            ),
+                            items: {
+                              _formation,
+                              ...widget.match.gameFormat.formations,
+                            }
+                                .map(
+                                  (value) => DropdownMenuItem(
+                                    value: value,
+                                    child: Text(value),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) =>
+                                setState(() => _formation = value!),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton(
+                          onPressed: _saving
+                              ? null
+                              : () => setState(() {
+                                    _positions = planInitialLineup(
+                                      players: _nominatedPlayers,
+                                      fieldSize: _fieldSize,
+                                    );
+                                    _schedulePositionSave();
+                                  }),
+                          tooltip: 'Nach Positionen aufstellen',
+                          icon: const Icon(Icons.auto_awesome_rounded),
+                        ),
+                        IconButton.filledTonal(
+                          onPressed: _showLineupFullscreen,
+                          tooltip: 'Aufstellung im Vollbild',
+                          icon: const Icon(Icons.open_in_full_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _saving
+                                ? null
+                                : () => _save(LineupStatus.draft),
+                            icon: const Icon(Icons.save_outlined),
+                            label: const Text('Speichern'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _saving
+                                ? null
+                                : () => _save(LineupStatus.published),
+                            icon: const Icon(Icons.publish_rounded),
+                            label: const Text('Freigeben'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
               if (constraints.maxWidth < 900) {
                 return Wrap(
                   spacing: 10,
@@ -934,15 +1061,20 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
               final pitchWidth = min(constraints.maxWidth, 720.0).toDouble();
               final pitchHeight =
                   min(constraints.maxHeight - 170, pitchWidth * .72).toDouble();
-              return Column(
+              return ListView(
+                padding: EdgeInsets.zero,
                 children: [
-                  _buildPitch(pitchWidth, max(260, pitchHeight).toDouble()),
+                  Center(
+                    child: _buildPitch(
+                        pitchWidth, max(260, pitchHeight).toDouble()),
+                  ),
                   const SizedBox(height: 12),
                   SizedBox(
                     height: 150,
                     width: double.infinity,
                     child: _buildBench(vertical: false),
                   ),
+                  const SizedBox(height: 8),
                 ],
               );
             },
@@ -952,11 +1084,16 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     );
   }
 
-  Widget _buildPitch(double width, double height) {
+  Widget _buildPitch(
+    double width,
+    double height, {
+    StateSetter? fullscreenSetState,
+    bool showHint = true,
+  }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (widget.editable)
+        if (widget.editable && showHint)
           const Padding(
             padding: EdgeInsets.only(bottom: 8),
             child: Text(
@@ -979,23 +1116,36 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                   left: _positions[index].x * (width - 76),
                   top: _positions[index].y * (height - 62),
                   child: GestureDetector(
-                    onTap: widget.editable ? () => _editPosition(index) : null,
+                    behavior: HitTestBehavior.opaque,
+                    onTap: widget.editable
+                        ? () async {
+                            await _editPosition(index);
+                            if (fullscreenSetState != null) {
+                              fullscreenSetState(() {});
+                            }
+                          }
+                        : null,
                     onPanUpdate: widget.editable
                         ? (details) {
                             setState(() {
                               final item = _positions[index];
                               _positions[index] = _copyPosition(
                                 item,
-                                x: (item.x + details.delta.dx / width)
+                                x: (item.x +
+                                        details.delta.dx / max(1, width - 76))
                                     .clamp(0, 1)
                                     .toDouble(),
-                                y: (item.y + details.delta.dy / height)
+                                y: (item.y +
+                                        details.delta.dy / max(1, height - 62))
                                     .clamp(0, 1)
                                     .toDouble(),
                               );
                             });
+                            fullscreenSetState?.call(() {});
                           }
                         : null,
+                    onPanEnd:
+                        widget.editable ? (_) => _schedulePositionSave() : null,
                     child: _PlayerMarker(position: _positions[index]),
                   ),
                 ),
@@ -1006,7 +1156,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     );
   }
 
-  Widget _buildBench({required bool vertical}) {
+  Widget _buildBench({
+    required bool vertical,
+    StateSetter? fullscreenSetState,
+  }) {
     final players = _benchPlayers;
     return Card(
       margin: EdgeInsets.zero,
@@ -1033,7 +1186,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                       ? ListView(
                           children: [
                             for (final player in players)
-                              _benchPlayerTile(player),
+                              _benchPlayerTile(
+                                player,
+                                fullscreenSetState: fullscreenSetState,
+                              ),
                           ],
                         )
                       : ListView.separated(
@@ -1042,7 +1198,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                           separatorBuilder: (_, __) => const SizedBox(width: 8),
                           itemBuilder: (_, index) => SizedBox(
                             width: 210,
-                            child: _benchPlayerTile(players[index]),
+                            child: _benchPlayerTile(
+                              players[index],
+                              fullscreenSetState: fullscreenSetState,
+                            ),
                           ),
                         ),
             ),
@@ -1052,7 +1211,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     );
   }
 
-  Widget _benchPlayerTile(MatchPlayer player) {
+  Widget _benchPlayerTile(
+    MatchPlayer player, {
+    StateSetter? fullscreenSetState,
+  }) {
     return Card(
       color: AppColors.background,
       child: ListTile(
@@ -1063,9 +1225,138 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         title: Text(player.name),
         subtitle: Text('Position: ${player.position ?? 'FLEX'}'),
         trailing: widget.editable ? const Icon(Icons.swap_horiz_rounded) : null,
-        onTap: widget.editable ? () => _bringOntoField(player) : null,
+        onTap: widget.editable
+            ? () async {
+                await _bringOntoField(player);
+                fullscreenSetState?.call(() {});
+                _schedulePositionSave();
+              }
+            : null,
       ),
     );
+  }
+
+  Future<void> _showLineupFullscreen() async {
+    await showDialog<void>(
+      context: context,
+      useSafeArea: false,
+      builder: (dialogContext) => Dialog.fullscreen(
+        child: StatefulBuilder(
+          builder: (context, setFullscreenState) => Scaffold(
+            appBar: AppBar(
+              title: Text('Aufstellung · $_formation'),
+              actions: [
+                if (widget.editable)
+                  IconButton(
+                    onPressed: _saving
+                        ? null
+                        : () async {
+                            await _save(LineupStatus.draft);
+                            setFullscreenState(() {});
+                          },
+                    tooltip: 'Aufstellung speichern',
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                  ),
+                IconButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  tooltip: 'Vollbild schließen',
+                  icon: const Icon(Icons.close_fullscreen_rounded),
+                ),
+              ],
+            ),
+            body: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final landscape =
+                      constraints.maxWidth > constraints.maxHeight * 1.15;
+                  if (landscape) {
+                    final pitchWidth =
+                        min(constraints.maxWidth * .68, 900.0).toDouble();
+                    final pitchHeight =
+                        min(constraints.maxHeight - 24, pitchWidth * .68)
+                            .toDouble();
+                    return Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Center(
+                              child: _buildPitch(
+                                pitchWidth,
+                                pitchHeight,
+                                fullscreenSetState: setFullscreenState,
+                                showHint: false,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width:
+                                min(300, constraints.maxWidth * .28).toDouble(),
+                            child: _buildBench(
+                              vertical: true,
+                              fullscreenSetState: setFullscreenState,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  final pitchWidth =
+                      min(constraints.maxWidth - 20, 720.0).toDouble();
+                  final pitchHeight = min(
+                    constraints.maxHeight * .58,
+                    pitchWidth * .82,
+                  ).toDouble();
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+                    child: Column(
+                      children: [
+                        _buildPitch(
+                          pitchWidth,
+                          max(280, pitchHeight).toDouble(),
+                          fullscreenSetState: setFullscreenState,
+                          showHint: false,
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: _buildBench(
+                              vertical: false,
+                              fullscreenSetState: setFullscreenState,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _schedulePositionSave() {
+    if (!widget.editable) return;
+    _positionSaveDebounce?.cancel();
+    _positionSaveDebounce = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted) return;
+      if (_saving) {
+        _schedulePositionSave();
+        return;
+      }
+      unawaited(_save(LineupStatus.draft, quiet: true));
+    });
   }
 
   Future<void> _editPosition(int index) async {
@@ -1177,6 +1468,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     if (result == null || !mounted) return;
     if (result.onBench) {
       setState(() => _positions.removeAt(index));
+      _schedulePositionSave();
       return;
     }
     final selectedPlayer =
@@ -1221,6 +1513,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         isCaptain: result.isCaptain,
       );
     });
+    _schedulePositionSave();
   }
 
   Future<void> _bringOntoField(MatchPlayer player) async {
@@ -1249,6 +1542,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
           ),
         );
       });
+      _schedulePositionSave();
       return;
     }
     final replaceIndex = await showDialog<int>(
@@ -1291,6 +1585,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         player: player,
       );
     });
+    _schedulePositionSave();
   }
 
   LineupPositionModel _copyPosition(
@@ -1313,7 +1608,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         isCaptain: isCaptain ?? position.isCaptain,
       );
 
-  Future<void> _save(LineupStatus status) async {
+  Future<void> _save(
+    LineupStatus status, {
+    bool quiet = false,
+  }) async {
     final repository = ref.read(repositoryProvider);
     setState(() => _saving = true);
     try {
@@ -1331,7 +1629,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
       }
       if (!mounted) return;
       await widget.onSaved(savedLineup);
-      if (mounted) {
+      if (mounted && !quiet) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -1343,7 +1641,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         );
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && !quiet) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text('Aufstellung konnte nicht gespeichert werden.')),
@@ -1669,6 +1967,93 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     final canStartNextPeriod = ticker.status == TickerStatus.notStarted ||
         (ticker.status == TickerStatus.halfTime &&
             ticker.currentPeriod < periodCount);
+    final mobile = MediaQuery.sizeOf(context).width < 700;
+    if (mobile) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(2, 0, 2, 20),
+        children: [
+          Center(
+            child: _ConnectionChip(
+              online: connected,
+              syncing: _syncing,
+              pending: _pending.length,
+            ),
+          ),
+          if (widget.match.canDelegateTicker) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : _manageDelegation,
+              icon: const Icon(Icons.supervisor_account_rounded),
+              label: const Text('Eltern-Freigabe verwalten'),
+            ),
+          ],
+          const SizedBox(height: 8),
+          _CountdownCard(
+            clock: clock,
+            periodLabel: matchPeriodLabel(ticker.currentPeriod, periodCount),
+            status: ticker.status,
+            onExpand: _showFocusMode,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
+            children: [
+              _TickerMetric(
+                label: 'SPIELSTAND',
+                value: '${scores.ours}:${scores.theirs}',
+              ),
+              _TickerMetric(
+                label: 'GESPIELT',
+                value: _formatElapsed(clock.elapsedSeconds),
+              ),
+              _TickerMetric(
+                label: 'ABSCHNITT',
+                value: '${ticker.currentPeriod}/$periodCount',
+              ),
+              _TickerMetric(
+                label: 'STATUS',
+                value: _tickerStatus(ticker.status),
+              ),
+            ],
+          ),
+          if (widget.editable) ...[
+            const SizedBox(height: 12),
+            _mobileGoalButtons(),
+            const SizedBox(height: 8),
+            _mobileTickerControls(
+              ticker: ticker,
+              canStartNextPeriod: canStartNextPeriod,
+              nextPeriod: nextPeriod,
+            ),
+          ],
+          if (_pending.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _pendingActionsPanel(),
+          ],
+          const SizedBox(height: 14),
+          Text(
+            'Spielverlauf',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 6),
+          if (ticker.events.isEmpty)
+            const SizedBox(
+              height: 220,
+              child: EmptyState(
+                icon: Icons.bolt_outlined,
+                title: 'Noch keine Tickerereignisse',
+                message:
+                    'Zum Spielstart erscheinen hier alle Aktionen chronologisch.',
+              ),
+            )
+          else
+            for (final event in ticker.events.reversed)
+              _tickerEventCard(event, fcIsHome: fcIsHome),
+        ],
+      );
+    }
     return Column(
       children: [
         Row(
@@ -1868,6 +2253,159 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       ],
     );
   }
+
+  Widget _mobileGoalButtons() => Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: _busy ? null : () => _goal(true),
+              icon: const Icon(Icons.sports_soccer_rounded),
+              label: const Text('Tor FC Teugn'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: FilledButton.tonalIcon(
+              onPressed: _busy ? null : () => _goal(false),
+              icon: const Icon(Icons.sports_soccer_rounded),
+              label: const Text('Tor Gegner'),
+            ),
+          ),
+        ],
+      );
+
+  Widget _mobileTickerControls({
+    required LiveTickerModel ticker,
+    required bool canStartNextPeriod,
+    required int nextPeriod,
+  }) {
+    final controls = <Widget>[
+      OutlinedButton.icon(
+        onPressed: _busy || !canStartNextPeriod
+            ? null
+            : () => _startPeriod(ticker, nextPeriod),
+        icon: const Icon(Icons.play_arrow_rounded),
+        label: Text(
+          ticker.status == TickerStatus.notStarted
+              ? 'Spiel starten'
+              : 'Abschnitt $nextPeriod starten',
+        ),
+      ),
+      OutlinedButton.icon(
+        onPressed: _busy || ticker.status != TickerStatus.live
+            ? null
+            : () => _send(
+                  TickerEventType.periodEnd,
+                  period: ticker.currentPeriod,
+                ),
+        icon: const Icon(Icons.pause_rounded),
+        label: Text('Abschnitt ${ticker.currentPeriod} beenden'),
+      ),
+      if (ticker.status == TickerStatus.live)
+        OutlinedButton.icon(
+          onPressed: _busy ? null : () => _send(TickerEventType.interruption),
+          icon: const Icon(Icons.timer_off_outlined),
+          label: const Text('Uhr pausieren'),
+        ),
+      if (ticker.status == TickerStatus.interrupted)
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _resumeClock,
+          icon: const Icon(Icons.timer_outlined),
+          label: const Text('Uhr fortsetzen'),
+        ),
+      OutlinedButton.icon(
+        onPressed: _busy ? null : _undo,
+        icon: const Icon(Icons.undo_rounded),
+        label: const Text('Letzte Aktion zurück'),
+      ),
+      if (widget.match.canDelegateTicker)
+        OutlinedButton.icon(
+          onPressed: _busy ||
+                  (ticker.status == TickerStatus.notStarted &&
+                      ticker.events.isEmpty)
+              ? null
+              : _confirmReset,
+          icon: const Icon(Icons.restart_alt_rounded),
+          label: const Text('Spiel zurücksetzen'),
+        ),
+      FilledButton.tonalIcon(
+        onPressed: _busy ? null : () => _confirmEnd(context),
+        icon: const Icon(Icons.stop_circle_outlined),
+        label: const Text('Spiel beenden'),
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) => Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final control in controls)
+            SizedBox(
+              width: constraints.maxWidth > 460
+                  ? (constraints.maxWidth - 8) / 2
+                  : constraints.maxWidth,
+              child: control,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pendingActionsPanel() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF7ED),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFFDBA74)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Lokal vorgemerkte Aktionen',
+              style: TextStyle(
+                color: Color(0xFF9A3412),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            for (final action in _pending.take(4))
+              Text(
+                '• ${_queuedActionLabel(action.type)} · '
+                '${_clock(action.createdAt)} Uhr',
+              ),
+            if (_pending.length > 4)
+              Text(
+                '• ${_pending.length - 4} weitere Aktionen',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+          ],
+        ),
+      );
+
+  Widget _tickerEventCard(
+    TickerEventModel event, {
+    required bool fcIsHome,
+  }) =>
+      Card(
+        margin: const EdgeInsets.only(bottom: 5),
+        child: ListTile(
+          dense: true,
+          leading: CircleAvatar(
+            backgroundColor: _eventColor(event.type),
+            child: Icon(_eventIcon(event.type), color: Colors.white),
+          ),
+          title: Text(_eventTitle(event, fcIsHome: fcIsHome)),
+          subtitle: _eventSubtitle(event, fcIsHome: fcIsHome),
+          trailing: Text(
+            "${event.elapsedSeconds ~/ 60}'\n"
+            '${event.ourGoals}:${event.theirGoals}',
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      );
 
   Future<void> _startPeriod(
     LiveTickerModel ticker,

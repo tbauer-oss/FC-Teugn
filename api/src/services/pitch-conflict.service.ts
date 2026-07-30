@@ -1,4 +1,4 @@
-import { AccountStatus, Role } from '@prisma/client';
+import { AccountStatus, HomeAway, Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 const WEEKDAYS = [
@@ -66,6 +66,16 @@ function isOpenPitch(value: string) {
   return !pitch || pitch.includes('offen') || pitch.includes('unklar');
 }
 
+export function requestableEventPitch(
+  homeAway: HomeAway | null,
+  pitch: string | null | undefined,
+) {
+  const value = pitch?.trim();
+  return homeAway !== HomeAway.AWAY && value && !isOpenPitch(value)
+    ? value
+    : null;
+}
+
 export function pitchesOverlap(left: string, right: string) {
   if (isOpenPitch(left) || isOpenPitch(right)) return false;
   const a = normalizedPitch(left);
@@ -88,12 +98,15 @@ export function parseTrainingSlot(
   raw: string,
   defaultPitch: string | null,
 ): ParsedSlot | null {
-  const match = raw.trim().match(
-    /^(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)\s+(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})(?:\s*·\s*Platz:\s*(.+))?$/i,
+  const dayMatch = raw.match(
+    /(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)/i,
   );
-  if (!match) return null;
-  const startMinute = Number(match[2]) * 60 + Number(match[3]);
-  const endMinute = Number(match[4]) * 60 + Number(match[5]);
+  const timeMatch = raw.match(
+    /(\d{1,2}):(\d{2})\s*(?:-|–|—|bis)\s*(\d{1,2}):(\d{2})/i,
+  );
+  if (!dayMatch || !timeMatch) return null;
+  const startMinute = Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
+  const endMinute = Number(timeMatch[3]) * 60 + Number(timeMatch[4]);
   if (
     startMinute < 0 ||
     startMinute >= 24 * 60 ||
@@ -104,14 +117,22 @@ export function parseTrainingSlot(
   }
   const weekday =
     WEEKDAYS.find(
-      (item) => item.toLocaleLowerCase('de-DE') === match[1].toLocaleLowerCase('de-DE'),
-    ) ?? match[1];
+      (item) =>
+        item.toLocaleLowerCase('de-DE') ===
+        dayMatch[1].toLocaleLowerCase('de-DE'),
+    ) ?? dayMatch[1];
+  const pitchMatch = raw.match(
+    /(?:·|\|)\s*Platz:\s*(.+?)\s*$/i,
+  );
   return {
     raw,
     weekday,
     startMinute,
     endMinute,
-    pitch: match[6]?.trim() || defaultPitch?.trim() || 'Platz noch offen / unklar',
+    pitch:
+      pitchMatch?.[1]?.trim() ||
+      defaultPitch?.trim() ||
+      'Platz noch offen / unklar',
   };
 }
 
