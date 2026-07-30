@@ -85,6 +85,58 @@ extension EventCategoryX on EventCategory {
         EventCategory.indoorTournament,
         EventCategory.footballFestival,
       }.contains(this);
+
+  List<String> get titleSuggestions => switch (this) {
+        EventCategory.training => const [
+            'Training',
+            'Torwarttraining',
+            'Athletiktraining',
+            'Abschlusstraining',
+            'Testtraining',
+          ],
+        EventCategory.leagueMatch => const [
+            'Pflichtspiel',
+            'Heimspiel',
+            'Auswärtsspiel',
+          ],
+        EventCategory.friendlyMatch => const [
+            'Freundschaftsspiel',
+            'Testspiel',
+          ],
+        EventCategory.cupMatch => const ['Pokalspiel'],
+        EventCategory.tournament => const ['Turnier', 'Sommerturnier'],
+        EventCategory.indoorTournament => const ['Hallenturnier'],
+        EventCategory.footballFestival => const ['Fußballfestival'],
+        EventCategory.teamMeeting => const [
+            'Mannschaftsbesprechung',
+            'Trainerbesprechung',
+          ],
+        EventCategory.parentsMeeting => const [
+            'Elternabend',
+            'Elterninformation',
+          ],
+        EventCategory.christmasParty => const ['Weihnachtsfeier'],
+        EventCategory.seasonClosing => const ['Saisonabschluss'],
+        EventCategory.clubEvent => const [
+            'Vereinsveranstaltung',
+            'Vereinsfest',
+            'Arbeitseinsatz',
+          ],
+        EventCategory.trip => const ['Ausflug', 'Mannschaftsfahrt'],
+        EventCategory.photoSession => const [
+            'Fototermin',
+            'Mannschaftsfoto',
+          ],
+        EventCategory.specialEvent => const [
+            'Sonderveranstaltung',
+            'Infoveranstaltung',
+          ],
+      };
+}
+
+String resolveEventTitle(String? title, EventCategory category) {
+  final value = title?.trim() ?? '';
+  return value.isEmpty ? category.label : value;
 }
 
 extension AttendanceStatusX on AttendanceStatus {

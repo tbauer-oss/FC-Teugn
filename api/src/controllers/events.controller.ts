@@ -129,6 +129,27 @@ function typeForCategory(category: EventCategory) {
   return EventType.EVENT;
 }
 
+function titleForCategory(category: EventCategory) {
+  const titles: Record<EventCategory, string> = {
+    [EventCategory.TRAINING]: 'Training',
+    [EventCategory.LEAGUE_MATCH]: 'Pflichtspiel',
+    [EventCategory.FRIENDLY_MATCH]: 'Freundschaftsspiel',
+    [EventCategory.CUP_MATCH]: 'Pokalspiel',
+    [EventCategory.TOURNAMENT]: 'Turnier',
+    [EventCategory.INDOOR_TOURNAMENT]: 'Hallenturnier',
+    [EventCategory.FOOTBALL_FESTIVAL]: 'Fußballfestival',
+    [EventCategory.TEAM_MEETING]: 'Mannschaftsbesprechung',
+    [EventCategory.PARENTS_MEETING]: 'Elternabend',
+    [EventCategory.CHRISTMAS_PARTY]: 'Weihnachtsfeier',
+    [EventCategory.SEASON_CLOSING]: 'Saisonabschluss',
+    [EventCategory.CLUB_EVENT]: 'Vereinsveranstaltung',
+    [EventCategory.TRIP]: 'Ausflug',
+    [EventCategory.PHOTO_SESSION]: 'Fototermin',
+    [EventCategory.SPECIAL_EVENT]: 'Sonderveranstaltung',
+  };
+  return titles[category];
+}
+
 function eventScope(teamIds: string[]): Prisma.EventWhereInput {
   return {
     OR: [{ teamId: { in: teamIds } }, { targetTeams: { some: { teamId: { in: teamIds } } } }],
@@ -315,7 +336,7 @@ function eventData(body: Record<string, unknown>) {
     category,
     status: enumValue(EventStatus, body.status, EventStatus.SCHEDULED),
     visibility: enumValue(EventVisibility, body.visibility, EventVisibility.TEAM),
-    title: clean(body.title),
+    title: clean(body.title) ?? titleForCategory(category),
     startAt: validDate(body.startAt),
     endAt: validDate(body.endAt),
     meetingAt: validDate(body.meetingAt),
@@ -497,8 +518,8 @@ export async function getEvent(req: Request, res: Response) {
 export async function createEvent(req: Request, res: Response) {
   const user = req.user!;
   const data = eventData(req.body);
-  if (!data.title || !data.startAt || !data.location) {
-    return res.status(400).json({ message: 'Titel, Beginn und Ort sind erforderlich.' });
+  if (!data.startAt || !data.location) {
+    return res.status(400).json({ message: 'Beginn und Ort sind erforderlich.' });
   }
   if (data.endAt && data.endAt < data.startAt) {
     return res.status(400).json({ message: 'Das Ende darf nicht vor dem Beginn liegen.' });
@@ -681,8 +702,8 @@ export async function updateEvent(req: Request, res: Response) {
   }
   const scope = req.query.scope === 'series' ? 'series' : 'single';
   const parsed = eventData({ ...existing, ...req.body });
-  if (!parsed.title || !parsed.startAt || !parsed.location) {
-    return res.status(400).json({ message: 'Titel, Beginn und Ort sind erforderlich.' });
+  if (!parsed.startAt || !parsed.location) {
+    return res.status(400).json({ message: 'Beginn und Ort sind erforderlich.' });
   }
   const timing =
     parsed.type === EventType.MATCH

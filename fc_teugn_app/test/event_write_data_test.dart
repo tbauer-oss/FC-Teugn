@@ -2,6 +2,26 @@ import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('event title uses the category label when left blank', () {
+    expect(resolveEventTitle('', EventCategory.training), 'Training');
+    expect(resolveEventTitle('   ', EventCategory.parentsMeeting), 'Elternabend');
+    expect(
+      resolveEventTitle('Individuelle Einheit', EventCategory.training),
+      'Individuelle Einheit',
+    );
+  });
+
+  test('event categories provide useful editable title suggestions', () {
+    expect(
+      EventCategory.training.titleSuggestions,
+      containsAll(['Training', 'Torwarttraining', 'Abschlusstraining']),
+    );
+    expect(
+      EventCategory.clubEvent.titleSuggestions,
+      containsAll(['Vereinsveranstaltung', 'Vereinsfest', 'Arbeitseinsatz']),
+    );
+  });
+
   test('event payload preserves required fields and UTC timestamps', () {
     final start = DateTime(2026, 9, 12, 10, 30);
     final end = DateTime(2026, 9, 12, 12);
