@@ -712,7 +712,6 @@ class _TeamEditorDialog extends StatefulWidget {
 class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _level;
-  late final TextEditingController _birthYears;
   late final TextEditingController _description;
   late final TextEditingController _trainingLocation;
   late final TextEditingController _trainingTimes;
@@ -726,13 +725,14 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   late String _gender;
   late TeamGameFormat _gameFormat;
   late bool _isActive;
+  late Set<int> _birthYears;
 
   @override
   void initState() {
     super.initState();
     final team = widget.team;
     _level = TextEditingController(text: team?.level);
-    _birthYears = TextEditingController(text: team?.birthYears.join(', '));
+    _birthYears = {...?team?.birthYears};
     _description = TextEditingController(text: team?.description);
     _trainingLocation = TextEditingController(text: team?.trainingLocation);
     _trainingTimes =
@@ -754,7 +754,6 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   void dispose() {
     for (final controller in [
       _level,
-      _birthYears,
       _description,
       _trainingLocation,
       _trainingTimes,
@@ -947,12 +946,9 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
               ),
               const SizedBox(height: 12),
               _twoColumns(
-                TextFormField(
-                  controller: _birthYears,
-                  decoration: const InputDecoration(
-                    labelText: 'Jahrgänge',
-                    hintText: 'z. B. 2015, 2016',
-                  ),
+                _BirthYearMultiSelectField(
+                  selectedYears: _birthYears,
+                  onTap: _selectBirthYears,
                 ),
                 TextFormField(
                   controller: _level,
@@ -1069,19 +1065,82 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
               ]),
       );
 
+  Future<void> _selectBirthYears() async {
+    final currentYear = DateTime.now().year;
+    final availableYears = List.generate(26, (index) => currentYear - index);
+    final selected = await showDialog<Set<int>>(
+      context: context,
+      builder: (dialogContext) {
+        var draft = {..._birthYears};
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Jahrgänge auswählen'),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Wähle alle Geburtsjahrgänge aus, die zu dieser '
+                      'Mannschaft gehören.',
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final year in availableYears)
+                          FilterChip(
+                            label: Text('$year'),
+                            selected: draft.contains(year),
+                            onSelected: (value) => setDialogState(() {
+                              if (value) {
+                                draft.add(year);
+                              } else {
+                                draft.remove(year);
+                              }
+                            }),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed:
+                    draft.isEmpty ? null : () => setDialogState(draft.clear),
+                child: const Text('Alle abwählen'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(dialogContext, draft),
+                icon: const Icon(Icons.check_rounded),
+                label: Text('${draft.length} übernehmen'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected != null && mounted) {
+      setState(() => _birthYears = selected);
+    }
+  }
+
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     final selectedAgeGroup = widget.ageGroups.firstWhere(
       (group) => group.id == _ageGroupId,
     );
     final compactName = '${selectedAgeGroup.code}$_teamNumber';
-    final years = _birthYears.text
-        .split(RegExp(r'[,;\s]+'))
-        .map(int.tryParse)
-        .whereType<int>()
-        .toSet()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
+    final years = _birthYears.toList()..sort((a, b) => b.compareTo(a));
     Navigator.pop(
       context,
       _TeamDraft(
@@ -1107,6 +1166,50 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         dfbnetTeamId: _optional(_dfbnetTeamId),
         bfvTeamUrl: _optional(_bfvTeamUrl),
         isActive: _isActive,
+      ),
+    );
+  }
+}
+
+class _BirthYearMultiSelectField extends StatelessWidget {
+  const _BirthYearMultiSelectField({
+    required this.selectedYears,
+    required this.onTap,
+  });
+
+  final Set<int> selectedYears;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final years = selectedYears.toList()..sort((a, b) => b.compareTo(a));
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: InputDecorator(
+        isEmpty: years.isEmpty,
+        decoration: const InputDecoration(
+          labelText: 'Jahrgänge',
+          helperText: 'Mehrfachauswahl möglich',
+          prefixIcon: Icon(Icons.cake_outlined),
+          suffixIcon: Icon(Icons.arrow_drop_down_rounded),
+        ),
+        child: years.isEmpty
+            ? const Text(
+                'Jahrgänge auswählen',
+                style: TextStyle(color: AppColors.muted),
+              )
+            : Wrap(
+                spacing: 6,
+                runSpacing: 5,
+                children: [
+                  for (final year in years)
+                    Chip(
+                      visualDensity: VisualDensity.compact,
+                      label: Text('$year'),
+                    ),
+                ],
+              ),
       ),
     );
   }
