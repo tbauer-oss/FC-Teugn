@@ -10,6 +10,7 @@ import 'models/organization.dart';
 import 'models/matchday.dart';
 import 'models/statistics.dart';
 import 'models/training.dart';
+import 'models/pitch_occupancy.dart';
 import 'models/communication.dart';
 import 'models/competition_import.dart';
 import 'models/team_operations.dart';
@@ -839,6 +840,26 @@ class DataRepository {
     return TrainingModel.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<List<TrainingCoachModel>> trainingCoaches(
+    String trainingId,
+  ) async {
+    final res = await client.dio.get('/trainings/$trainingId/coaches');
+    return (res.data as List<dynamic>)
+        .map(
+          (item) => TrainingCoachModel.fromJson(
+            item as Map<String, dynamic>,
+          ),
+        )
+        .toList();
+  }
+
+  Future<PitchOccupancyPlan> pitchOccupancy() async {
+    final res = await client.dio.get('/trainings/occupancy');
+    return PitchOccupancyPlan.fromJson(
+      res.data as Map<String, dynamic>,
+    );
+  }
+
   Future<List<TrainingExerciseModel>> trainingExercises() async {
     final res = await client.dio.get('/trainings/exercises');
     return (res.data as List<dynamic>)
@@ -854,9 +875,9 @@ class DataRepository {
     required List<String> focusAreas,
     required int durationMinutes,
     required List<TrainingPlanItemModel> items,
+    required List<String> coachIds,
     String? learningGoals,
     String? participantNotes,
-    String? coaches,
     String? materials,
     String? pitchSetup,
     String? feedback,
@@ -866,7 +887,7 @@ class DataRepository {
       'durationMinutes': durationMinutes,
       'learningGoals': learningGoals,
       'participantNotes': participantNotes,
-      'coaches': coaches,
+      'coachIds': coachIds,
       'materials': materials,
       'pitchSetup': pitchSetup,
       'feedback': feedback,

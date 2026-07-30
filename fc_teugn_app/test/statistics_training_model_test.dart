@@ -91,6 +91,15 @@ void main() {
       'trainingPlan': {
         'focusAreas': ['Passspiel'],
         'durationMinutes': 75,
+        'coachAssignments': [
+          {
+            'user': {
+              'id': 'coach-1',
+              'name': 'Erika Trainer',
+              'role': 'COACH',
+            },
+          },
+        ],
         'items': [
           {
             'title': 'Rondo',
@@ -102,6 +111,7 @@ void main() {
     });
 
     expect(training.plan?.items.single.phase, TrainingPhase.warmUp);
+    expect(training.plan?.coaches.single.name, 'Erika Trainer');
     expect(
       training.attendance.single.status,
       TrainingAttendanceStatus.leftEarly,

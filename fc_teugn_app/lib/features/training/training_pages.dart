@@ -5,10 +5,14 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
 import '../../core/models/organization.dart';
+import '../../core/models/pitch_occupancy.dart';
 import '../../core/models/training.dart';
 import '../../core/providers.dart';
 import '../calendar/calendar_page.dart';
 import '../shared/page_scaffold.dart';
+import 'pitch_occupancy_board.dart';
+
+enum _TrainingPageView { sessions, occupancy }
 
 class TrainingsPage extends ConsumerStatefulWidget {
   const TrainingsPage({super.key});
@@ -20,8 +24,10 @@ class TrainingsPage extends ConsumerStatefulWidget {
 class _TrainingsPageState extends ConsumerState<TrainingsPage> {
   List<TrainingModel>? _trainings;
   OrganizationContext? _organization;
+  PitchOccupancyPlan? _occupancy;
   String? _error;
   bool _creating = false;
+  _TrainingPageView _view = _TrainingPageView.sessions;
 
   @override
   void initState() {
@@ -35,11 +41,13 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
       final values = await Future.wait([
         repository.trainings(),
         repository.organizationContext(),
+        repository.pitchOccupancy(),
       ]);
       if (mounted) {
         setState(() {
           _trainings = values[0] as List<TrainingModel>;
           _organization = values[1] as OrganizationContext;
+          _occupancy = values[2] as PitchOccupancyPlan;
           _error = null;
         });
       }
@@ -57,19 +65,22 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
   Widget build(BuildContext context) => PageScaffold(
         title: 'Trainingsplanung',
         subtitle: 'Einheiten vorbereiten, Übungen kombinieren und Anwesenheit erfassen.',
-        action: FilledButton.icon(
-          onPressed:
-              _organization == null || _creating ? null : _createTraining,
-          icon: _creating
-              ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.add_rounded),
-          label: Text(
-            _creating ? 'Wird angelegt …' : 'Trainingstermin anlegen',
-          ),
-        ),
+        action: _view == _TrainingPageView.occupancy
+            ? null
+            : FilledButton.icon(
+                onPressed: _organization == null || _creating
+                    ? null
+                    : _createTraining,
+                icon: _creating
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add_rounded),
+                label: Text(
+                  _creating ? 'Wird angelegt …' : 'Trainingstermin anlegen',
+                ),
+              ),
         child: _error != null
             ? EmptyState(
                 icon: Icons.fitness_center_rounded,
@@ -83,7 +94,38 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
               )
             : _trainings == null
                 ? const Center(child: CircularProgressIndicator())
-                : _buildList(context),
+                : _buildContent(context),
+      );
+
+  Widget _buildContent(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SegmentedButton<_TrainingPageView>(
+              segments: const [
+                ButtonSegment(
+                  value: _TrainingPageView.sessions,
+                  icon: Icon(Icons.fitness_center_rounded),
+                  label: Text('Meine Trainings'),
+                ),
+                ButtonSegment(
+                  value: _TrainingPageView.occupancy,
+                  icon: Icon(Icons.stadium_rounded),
+                  label: Text('Platzbelegung'),
+                ),
+              ],
+              selected: {_view},
+              onSelectionChanged: (selection) =>
+                  setState(() => _view = selection.first),
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (_view == _TrainingPageView.sessions)
+            _buildList(context)
+          else if (_occupancy != null)
+            PitchOccupancyBoard(plan: _occupancy!),
+        ],
       );
 
   Widget _buildList(BuildContext context) {
@@ -179,6 +221,18 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                                         : '${training.plan!.items.length} Bausteine · ${training.plan!.durationMinutes} Min.',
                                   ),
                                 ),
+                                if (training.plan?.coaches.isNotEmpty == true)
+                                  Chip(
+                                    avatar: const Icon(
+                                      Icons.groups_2_outlined,
+                                      size: 17,
+                                    ),
+                                    label: Text(
+                                      training.plan!.coaches
+                                          .map((coach) => coach.name)
+                                          .join(', '),
+                                    ),
+                                  ),
                                 if (training.plan?.focusAreas.isNotEmpty == true)
                                   for (final focus in training.plan!.focusAreas.take(3))
                                     Chip(label: Text(focus)),
@@ -353,11 +407,12 @@ class TrainingPlannerPage extends ConsumerStatefulWidget {
 class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
   TrainingModel? _training;
   List<TrainingExerciseModel> _exercises = const [];
+  List<TrainingCoachModel> _availableCoaches = const [];
+  Set<String> _selectedCoachIds = {};
   List<TrainingPlanItemModel> _items = [];
   Map<String, TrainingAttendanceStatus> _attendance = {};
   final _focus = TextEditingController();
   final _goals = TextEditingController();
-  final _coaches = TextEditingController();
   final _materials = TextEditingController();
   final _pitch = TextEditingController();
   final _feedback = TextEditingController();
@@ -375,7 +430,6 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
   void dispose() {
     _focus.dispose();
     _goals.dispose();
-    _coaches.dispose();
     _materials.dispose();
     _pitch.dispose();
     _feedback.dispose();
@@ -388,16 +442,19 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
       final values = await Future.wait([
         repository.training(widget.trainingId),
         repository.trainingExercises(),
+        repository.trainingCoaches(widget.trainingId),
       ]);
       final training = values.first as TrainingModel;
       if (!mounted) return;
       setState(() {
         _training = training;
         _exercises = values[1] as List<TrainingExerciseModel>;
+        _availableCoaches = values[2] as List<TrainingCoachModel>;
+        _selectedCoachIds =
+            training.plan?.coaches.map((coach) => coach.id).toSet() ?? {};
         _items = training.plan?.items.toList() ?? [];
         _focus.text = training.plan?.focusAreas.join(', ') ?? '';
         _goals.text = training.plan?.learningGoals ?? '';
-        _coaches.text = training.plan?.coaches ?? '';
         _materials.text = training.plan?.materials ?? '';
         _pitch.text = training.plan?.pitchSetup ?? '';
         _feedback.text = training.plan?.feedback ?? '';
@@ -490,12 +547,12 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
               ),
               SizedBox(
                 width: 390,
-                child: TextField(
-                  controller: _coaches,
-                  decoration: const InputDecoration(
-                    labelText: 'Trainerteam',
-                    prefixIcon: Icon(Icons.sports_rounded),
-                  ),
+                child: _CoachMultiSelectField(
+                  coaches: _availableCoaches,
+                  selectedIds: _selectedCoachIds,
+                  onTap: _availableCoaches.isEmpty
+                      ? null
+                      : _selectCoaches,
                 ),
               ),
             ],
@@ -991,8 +1048,8 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
               (sum, item) => sum + item.durationMinutes,
             ),
             items: _items,
+            coachIds: _selectedCoachIds.toList(),
             learningGoals: _goals.text,
-            coaches: _coaches.text,
             materials: _materials.text,
             pitchSetup: _pitch.text,
             feedback: _feedback.text,
@@ -1025,7 +1082,185 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
   void _message(String message) => ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
+
+  Future<void> _selectCoaches() async {
+    final selected = await showModalBottomSheet<Set<String>>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        var draft = {..._selectedCoachIds};
+        return StatefulBuilder(
+          builder: (context, setSheetState) => SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * .78,
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 12, 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Trainerteam auswählen',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 3),
+                              const Text(
+                                'Mehrere Trainer der zugeordneten Jugend sind möglich.',
+                                style: TextStyle(color: AppColors.muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => setSheetState(
+                            () => draft = draft.length ==
+                                    _availableCoaches.length
+                                ? {}
+                                : _availableCoaches
+                                    .map((coach) => coach.id)
+                                    .toSet(),
+                          ),
+                          child: Text(
+                            draft.length == _availableCoaches.length
+                                ? 'Alle abwählen'
+                                : 'Alle auswählen',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      children: [
+                        for (final coach in _availableCoaches)
+                          CheckboxListTile(
+                            value: draft.contains(coach.id),
+                            secondary: CircleAvatar(
+                              backgroundColor:
+                                  AppColors.yellow.withValues(alpha: .35),
+                              foregroundColor: AppColors.black,
+                              child: Text(_initials(coach.name)),
+                            ),
+                            title: Text(coach.name),
+                            subtitle: Text(_coachRoleLabel(coach.role)),
+                            onChanged: (value) => setSheetState(() {
+                              if (value == true) {
+                                draft.add(coach.id);
+                              } else {
+                                draft.remove(coach.id);
+                              }
+                            }),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () =>
+                            Navigator.pop(context, draft),
+                        icon: const Icon(Icons.check_rounded),
+                        label: Text(
+                          '${draft.length} ${draft.length == 1 ? 'Person' : 'Personen'} übernehmen',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (selected != null && mounted) {
+      setState(() => _selectedCoachIds = selected);
+    }
+  }
 }
+
+class _CoachMultiSelectField extends StatelessWidget {
+  const _CoachMultiSelectField({
+    required this.coaches,
+    required this.selectedIds,
+    required this.onTap,
+  });
+
+  final List<TrainingCoachModel> coaches;
+  final Set<String> selectedIds;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected =
+        coaches.where((coach) => selectedIds.contains(coach.id)).toList();
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'Trainerteam',
+          helperText: coaches.isEmpty
+              ? 'Noch keine Trainer für diese Jugend freigegeben'
+              : 'Mehrfachauswahl möglich',
+          prefixIcon: const Icon(Icons.groups_2_outlined),
+          suffixIcon: onTap == null
+              ? null
+              : const Icon(Icons.arrow_drop_down_rounded),
+        ),
+        isEmpty: selected.isEmpty,
+        child: selected.isEmpty
+            ? const Text(
+                'Trainer auswählen',
+                style: TextStyle(color: AppColors.muted),
+              )
+            : Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final coach in selected)
+                    Chip(
+                      avatar: CircleAvatar(
+                        child: Text(
+                          _initials(coach.name),
+                          style: const TextStyle(fontSize: 9),
+                        ),
+                      ),
+                      label: Text(coach.name),
+                    ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+String _initials(String name) => name
+    .trim()
+    .split(RegExp(r'\s+'))
+    .where((part) => part.isNotEmpty)
+    .take(2)
+    .map((part) => part[0].toUpperCase())
+    .join();
+
+String _coachRoleLabel(String role) => switch (role) {
+      'COACH' || 'TRAINER' => 'Trainer/in',
+      'ASSISTANT_COACH' => 'Co-Trainer/in',
+      'TRAINER_ADMIN' => 'Trainer-Administration',
+      'TEAM_MANAGER' => 'Teammanagement',
+      _ => 'Trainerteam',
+    };
 
 String _phaseLabel(TrainingPhase phase) => switch (phase) {
       TrainingPhase.warmUp => 'Aufwärmen',

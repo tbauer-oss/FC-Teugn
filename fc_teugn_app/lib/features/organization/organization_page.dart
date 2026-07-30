@@ -809,8 +809,11 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
               _twoColumns(
                 TextFormField(
                   controller: _trainingLocation,
-                  decoration:
-                      const InputDecoration(labelText: 'Trainingsort'),
+                  decoration: const InputDecoration(
+                    labelText: 'Trainingsplatz / Bereich',
+                    hintText: 'z. B. Platz 1 unten',
+                    helperText: 'Bestimmt die Farbe im Platzbelegungsplan.',
+                  ),
                 ),
                 TextFormField(
                   controller: _homeVenue,
@@ -825,6 +828,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Reguläre Trainingszeiten',
                   hintText: 'Eine Zeit pro Zeile, z. B. Dienstag 17:00–18:30',
+                  helperText:
+                      'Diese Zeiten erscheinen für alle Trainer im gemeinsamen Platzplan.',
                 ),
               ),
               const SizedBox(height: 22),

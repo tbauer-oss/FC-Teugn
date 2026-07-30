@@ -1,12 +1,25 @@
 import {
+  AccountStatus,
   EventType,
   Prisma,
+  Role,
   TrainingAttendanceStatus,
   TrainingPhase,
 } from '@prisma/client';
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
-import { accessibleTeamIds, eventTeamScope } from '../services/team-access';
+import {
+  accessibleTeamIds,
+  eventTeamScope,
+} from '../services/team-access';
+
+const trainingCoachRoles: Role[] = [
+  Role.COACH,
+  Role.TRAINER,
+  Role.ASSISTANT_COACH,
+  Role.TRAINER_ADMIN,
+  Role.TEAM_MANAGER,
+];
 
 function text(value: unknown, max = 1000) {
   if (typeof value !== 'string') return null;
@@ -77,6 +90,14 @@ const trainingInclude = {
   },
   trainingPlan: {
     include: {
+      coachAssignments: {
+        orderBy: { createdAt: 'asc' as const },
+        include: {
+          user: {
+            select: { id: true, name: true, role: true },
+          },
+        },
+      },
       items: {
         orderBy: { position: 'asc' as const },
         include: { exercise: true },
@@ -84,6 +105,133 @@ const trainingInclude = {
     },
   },
 } as const;
+
+async function eligibleTrainingCoaches(teamIds: string[]) {
+  const users = await prisma.user.findMany({
+    where: {
+      status: AccountStatus.APPROVED,
+      OR: [
+        {
+          teamId: { in: teamIds },
+          role: { in: trainingCoachRoles },
+        },
+        {
+          memberships: {
+            some: {
+              teamId: { in: teamIds },
+              status: AccountStatus.APPROVED,
+              role: { in: trainingCoachRoles },
+            },
+          },
+        },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      teamId: true,
+      memberships: {
+        where: {
+          teamId: { in: teamIds },
+          status: AccountStatus.APPROVED,
+          role: { in: trainingCoachRoles },
+        },
+        select: { teamId: true, role: true },
+      },
+    },
+    orderBy: { name: 'asc' },
+  });
+  return users.map((user) => ({
+    id: user.id,
+    name: user.name,
+    role: user.memberships[0]?.role ?? user.role,
+    teamIds: [
+      ...new Set([
+        ...(teamIds.includes(user.teamId) ? [user.teamId] : []),
+        ...user.memberships.map((membership) => membership.teamId),
+      ]),
+    ],
+  }));
+}
+
+export async function listPitchOccupancy(req: Request, res: Response) {
+  const currentTeam = await prisma.team.findUnique({
+    where: { id: req.user!.teamId },
+    select: {
+      ageGroup: {
+        select: {
+          season: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+              club: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!currentTeam) {
+    return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  }
+  const season = currentTeam.ageGroup.season;
+  const teams = await prisma.team.findMany({
+    where: {
+      isActive: true,
+      ageGroup: { seasonId: season.id },
+    },
+    orderBy: [
+      { ageGroup: { sortOrder: 'asc' } },
+      { name: 'asc' },
+    ],
+    select: {
+      id: true,
+      name: true,
+      shortName: true,
+      trainingLocation: true,
+      trainingTimes: true,
+      ageGroup: {
+        select: { code: true, name: true, sortOrder: true },
+      },
+    },
+  });
+  return res.json({
+    club: season.club,
+    season: {
+      id: season.id,
+      name: season.name,
+      startDate: season.startDate,
+      endDate: season.endDate,
+    },
+    teams,
+  });
+}
+
+export async function listTrainingCoaches(req: Request, res: Response) {
+  const teamIds = await accessibleTeamIds(req.user!);
+  const training = await prisma.event.findFirst({
+    where: {
+      id: req.params.id,
+      type: EventType.TRAINING,
+      ...eventTeamScope(teamIds),
+    },
+    select: {
+      teamId: true,
+      targetTeams: { select: { teamId: true } },
+    },
+  });
+  if (!training) {
+    return res.status(404).json({ message: 'Training nicht gefunden.' });
+  }
+  const trainingTeamIds = [
+    training.teamId,
+    ...training.targetTeams.map((target) => target.teamId),
+  ];
+  return res.json(await eligibleTrainingCoaches(trainingTeamIds));
+}
 
 export async function listTrainings(req: Request, res: Response) {
   const teamIds = await accessibleTeamIds(req.user!);
@@ -168,13 +316,32 @@ export async function saveTrainingPlan(req: Request, res: Response) {
   const teamIds = await accessibleTeamIds(user);
   const training = await prisma.event.findFirst({
     where: { id: req.params.id, type: EventType.TRAINING, ...eventTeamScope(teamIds) },
-    select: { id: true, teamId: true },
+    select: {
+      id: true,
+      teamId: true,
+      targetTeams: { select: { teamId: true } },
+    },
   });
   if (!training) return res.status(404).json({ message: 'Training nicht gefunden.' });
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
   if (items.length > 40) {
     return res.status(400).json({ message: 'Ein Trainingsplan darf höchstens 40 Bausteine enthalten.' });
   }
+  const coachIds = stringList(req.body.coachIds, 20);
+  const trainingTeamIds = [
+    training.teamId,
+    ...training.targetTeams.map((target) => target.teamId),
+  ];
+  const eligibleCoaches = await eligibleTrainingCoaches(trainingTeamIds);
+  const eligibleCoachIds = new Set(eligibleCoaches.map((coach) => coach.id));
+  if (coachIds.some((coachId) => !eligibleCoachIds.has(coachId))) {
+    return res.status(400).json({
+      message: 'Mindestens ein ausgewählter Trainer gehört nicht zum Trainerteam dieser Jugend.',
+    });
+  }
+  const coachNames = coachIds
+    .map((coachId) => eligibleCoaches.find((coach) => coach.id === coachId)?.name)
+    .filter((name): name is string => Boolean(name));
   const exerciseIds: string[] = Array.from(
     new Set<string>(
       (items as Record<string, unknown>[])
@@ -198,7 +365,7 @@ export async function saveTrainingPlan(req: Request, res: Response) {
         learningGoals: text(req.body.learningGoals, 2000),
         durationMinutes: integer(req.body.durationMinutes, 10, 300, 90),
         participantNotes: text(req.body.participantNotes, 1000),
-        coaches: text(req.body.coaches, 500),
+        coaches: coachNames.length ? coachNames.join(', ') : null,
         materials: text(req.body.materials, 1000),
         pitchSetup: text(req.body.pitchSetup, 2000),
         feedback: text(req.body.feedback, 2000),
@@ -210,12 +377,23 @@ export async function saveTrainingPlan(req: Request, res: Response) {
         learningGoals: text(req.body.learningGoals, 2000),
         durationMinutes: integer(req.body.durationMinutes, 10, 300, 90),
         participantNotes: text(req.body.participantNotes, 1000),
-        coaches: text(req.body.coaches, 500),
+        coaches: coachNames.length ? coachNames.join(', ') : null,
         materials: text(req.body.materials, 1000),
         pitchSetup: text(req.body.pitchSetup, 2000),
         feedback: text(req.body.feedback, 2000),
       },
     });
+    await tx.trainingPlanCoach.deleteMany({
+      where: { trainingPlanId: saved.id },
+    });
+    if (coachIds.length) {
+      await tx.trainingPlanCoach.createMany({
+        data: coachIds.map((userId) => ({
+          trainingPlanId: saved.id,
+          userId,
+        })),
+      });
+    }
     await tx.trainingPlanItem.deleteMany({ where: { trainingPlanId: saved.id } });
     if (items.length) {
       await tx.trainingPlanItem.createMany({
@@ -233,6 +411,12 @@ export async function saveTrainingPlan(req: Request, res: Response) {
     return tx.trainingPlan.findUnique({
       where: { id: saved.id },
       include: {
+        coachAssignments: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            user: { select: { id: true, name: true, role: true } },
+          },
+        },
         items: {
           orderBy: { position: 'asc' },
           include: { exercise: true },
@@ -250,6 +434,7 @@ export async function saveTrainingPlan(req: Request, res: Response) {
       metadata: {
         itemCount: items.length,
         durationMinutes: plan?.durationMinutes,
+        coachIds,
       } as Prisma.InputJsonValue,
     },
   });
