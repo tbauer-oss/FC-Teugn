@@ -104,6 +104,21 @@ class DataRepository {
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<TeamSummary> updateTrainingSchedule({
+    required String teamId,
+    required List<String> trainingTimes,
+    String? trainingLocation,
+  }) async {
+    final res = await client.dio.patch(
+      '/organization/teams/$teamId/training-schedule',
+      data: {
+        'trainingLocation': trainingLocation,
+        'trainingTimes': trainingTimes,
+      },
+    );
+    return TeamSummary.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<TeamSummary> uploadTeamPhoto({
     required String teamId,
     required Uint8List bytes,

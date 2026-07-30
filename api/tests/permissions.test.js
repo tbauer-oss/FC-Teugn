@@ -107,6 +107,17 @@ test('club administrators can manage the organization', () => {
   );
 });
 
+test('youth directors can manage club-wide training schedules', () => {
+  assert.equal(
+    hasPermission(Role.YOUTH_DIRECTOR, Permission.MANAGE_ORGANIZATION),
+    true,
+  );
+  assert.equal(
+    hasPermission(Role.YOUTH_DIRECTOR, Permission.MANAGE_TRAINING),
+    true,
+  );
+});
+
 test('system administrators always receive every defined permission', () => {
   for (const permission of Object.values(Permission)) {
     assert.equal(hasPermission(Role.SUPER_ADMIN, permission), true);

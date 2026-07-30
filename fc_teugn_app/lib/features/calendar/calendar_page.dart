@@ -173,6 +173,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       builder: (context) => EventEditorDialog(
         teams: organization.teams,
         initialTeamId: organization.currentTeam.id,
+        seasonName: organization.season.name,
+        seasonEnd: organization.season.endDate,
       ),
     );
     if (draft == null) return;
@@ -2517,6 +2519,8 @@ class _ManagementBar extends ConsumerWidget {
       builder: (context) => EventEditorDialog(
         teams: organization.teams,
         initialTeamId: organization.currentTeam.id,
+        seasonName: organization.season.name,
+        seasonEnd: organization.season.endDate,
         event: event,
       ),
     );
@@ -2704,11 +2708,15 @@ class EventEditorDialog extends StatefulWidget {
     super.key,
     required this.teams,
     required this.initialTeamId,
+    this.seasonName,
+    this.seasonEnd,
     this.event,
   });
 
   final List<TeamSummary> teams;
   final String initialTeamId;
+  final String? seasonName;
+  final DateTime? seasonEnd;
   final EventModel? event;
 
   @override
@@ -3189,13 +3197,19 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 setState(() => frequency = value ?? frequency),
                           ),
                           const SizedBox(height: 12),
-                          _DateTimeField(
-                            label: 'Serienende',
-                            dateOnly: true,
-                            value: recurrenceUntil,
-                            onChanged: (value) =>
-                                setState(() => recurrenceUntil = value),
-                          ),
+                          if (category == EventCategory.training)
+                            _SeasonSeriesInfo(
+                              seasonName: widget.seasonName,
+                              seasonEnd: widget.seasonEnd,
+                            )
+                          else
+                            _DateTimeField(
+                              label: 'Serienende',
+                              dateOnly: true,
+                              value: recurrenceUntil,
+                              onChanged: (value) =>
+                                  setState(() => recurrenceUntil = value),
+                            ),
                           if (frequency == RecurrenceFrequency.custom) ...[
                             const SizedBox(height: 12),
                             Wrap(
@@ -3288,9 +3302,19 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       );
       return;
     }
-    if (recurring && recurrenceUntil == null) {
+    final resolvedRecurrenceUntil =
+        category == EventCategory.training && recurring
+            ? widget.seasonEnd
+            : recurrenceUntil;
+    if (recurring && resolvedRecurrenceUntil == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte ein Serienende auswählen.')),
+        SnackBar(
+          content: Text(
+            category == EventCategory.training
+                ? 'Für die Mannschaft ist kein Saisonende hinterlegt.'
+                : 'Bitte ein Serienende auswählen.',
+          ),
+        ),
       );
       return;
     }
@@ -3341,11 +3365,52 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         recurrence: recurring
             ? EventRecurrenceDraft(
                 frequency: frequency,
-                until: recurrenceUntil!,
+                until: resolvedRecurrenceUntil!,
                 interval: interval,
                 weekdays: weekdays.toList(),
               )
             : null,
+      ),
+    );
+  }
+}
+
+class _SeasonSeriesInfo extends StatelessWidget {
+  const _SeasonSeriesInfo({
+    required this.seasonName,
+    required this.seasonEnd,
+  });
+
+  final String? seasonName;
+  final DateTime? seasonEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final end = seasonEnd;
+    final endLabel = end == null
+        ? 'dem hinterlegten Saisonende'
+        : '${end.day.toString().padLeft(2, '0')}.'
+            '${end.month.toString().padLeft(2, '0')}.${end.year}';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.teal.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.teal.withValues(alpha: .22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.event_repeat_rounded, color: AppColors.teal),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Die Trainingsserie gilt automatisch für die Saison '
+              '${seasonName ?? ''} bis $endLabel. '
+              'Ein manuelles Serienende ist nicht nötig.',
+            ),
+          ),
+        ],
       ),
     );
   }

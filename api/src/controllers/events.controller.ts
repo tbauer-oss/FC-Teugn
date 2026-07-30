@@ -368,6 +368,27 @@ function eventData(body: Record<string, unknown>) {
   };
 }
 
+async function activeSeasonEndForTeams(teamIds: string[]) {
+  const teams = await prisma.team.findMany({
+    where: { id: { in: teamIds } },
+    select: {
+      ageGroup: {
+        select: {
+          season: { select: { endDate: true } },
+        },
+      },
+    },
+  });
+  if (teams.length !== teamIds.length) return null;
+  const earliest = teams
+    .map((team) => team.ageGroup.season.endDate)
+    .sort((left, right) => left.getTime() - right.getTime())[0];
+  if (!earliest) return null;
+  const inclusive = new Date(earliest);
+  inclusive.setUTCHours(23, 59, 59, 999);
+  return inclusive;
+}
+
 function matchTiming(
   body: Record<string, unknown>,
   fallback?: { periodCount: number; periodMinutes: number },
@@ -562,7 +583,7 @@ export async function createEvent(req: Request, res: Response) {
         )
     : [];
   const recurrence = req.body.recurrence as Record<string, unknown> | undefined;
-  const recurrenceUntil = validDate(recurrence?.until);
+  let recurrenceUntil = validDate(recurrence?.until);
   const frequency = recurrence
     ? enumValue(
         RecurrenceFrequency,
@@ -576,8 +597,20 @@ export async function createEvent(req: Request, res: Response) {
         .map((value) => boundedInt(value, 1, 7))
         .filter((value): value is number => value !== null)
     : [];
+  if (recurrence && data.category === EventCategory.TRAINING) {
+    recurrenceUntil = await activeSeasonEndForTeams(teamIds);
+    if (!recurrenceUntil) {
+      return res.status(400).json({
+        message: 'Für die ausgewählten Mannschaften wurde kein Saisonende gefunden.',
+      });
+    }
+  }
   if (recurrence && (!recurrenceUntil || recurrenceUntil < data.startAt)) {
-    return res.status(400).json({ message: 'Für die Serie ist ein gültiges Enddatum nötig.' });
+    return res.status(400).json({
+      message: data.category === EventCategory.TRAINING
+        ? 'Der Trainingsbeginn liegt nach dem Ende der Saison.'
+        : 'Für die Serie ist ein gültiges Enddatum nötig.',
+    });
   }
 
   const starts =
