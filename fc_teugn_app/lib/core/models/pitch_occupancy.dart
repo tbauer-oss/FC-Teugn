@@ -6,6 +6,7 @@ class PitchOccupancyPlan {
     required this.clubName,
     required this.seasonName,
     required this.teams,
+    this.indoor = false,
     this.recreationalSchedule,
     this.seniorSchedule,
     this.approvedConflictKeys = const {},
@@ -16,6 +17,7 @@ class PitchOccupancyPlan {
   final String clubName;
   final String seasonName;
   final List<PitchOccupancyTeam> teams;
+  final bool indoor;
   final PitchOccupancyTeam? recreationalSchedule;
   final PitchOccupancyTeam? seniorSchedule;
   final Set<String> approvedConflictKeys;
@@ -67,6 +69,7 @@ class PitchOccupancyPlan {
       seasonId: season['id'] as String? ?? '',
       clubName: club['name'] as String? ?? 'FC Teugn',
       seasonName: season['name'] as String? ?? '',
+      indoor: json['mode'] == 'INDOOR',
       teams: (json['teams'] as List<dynamic>? ?? const [])
           .map((item) =>
               PitchOccupancyTeam.fromJson(item as Map<String, dynamic>))

@@ -163,6 +163,7 @@ async function eligibleTrainingCoaches(teamIds: string[]) {
 }
 
 export async function listPitchOccupancy(req: Request, res: Response) {
+  const indoor = String(req.query.mode ?? '').toUpperCase() === 'INDOOR';
   const currentTeam = await prisma.team.findUnique({
     where: { id: req.user!.teamId },
     select: {
@@ -208,11 +209,21 @@ export async function listPitchOccupancy(req: Request, res: Response) {
       trainingTimes: true,
       trainingPartnerIds: true,
       matchdayTimes: true,
+      indoorTrainingLocation: true,
+      indoorTrainingTimes: true,
+      indoorTrainingPartnerIds: true,
       ageGroup: {
         select: { code: true, name: true, sortOrder: true },
       },
     },
   });
+  const occupancyTeams = teams.map((team) => indoor ? {
+    ...team,
+    trainingLocation: team.indoorTrainingLocation,
+    trainingTimes: team.indoorTrainingTimes,
+    trainingPartnerIds: team.indoorTrainingPartnerIds,
+    matchdayTimes: [],
+  } : team);
   const recreationalSchedule = {
     id: `recreational:${season.id}`,
     name: 'Freizeitkicker',
@@ -249,15 +260,17 @@ export async function listPitchOccupancy(req: Request, res: Response) {
       startDate: season.startDate,
       endDate: season.endDate,
     },
+    mode: indoor ? 'INDOOR' : 'OUTDOOR',
     teams: [
-      ...teams,
-      ...(seniorSchedule.trainingTimes.length > 0 ||
-      seniorSchedule.matchdayTimes.length > 0
-        ? [seniorSchedule]
-        : []),
-      ...(recreationalSchedule.trainingTimes.length > 0
-        ? [recreationalSchedule]
-        : []),
+      ...occupancyTeams,
+      ...(!indoor &&
+              (seniorSchedule.trainingTimes.length > 0 ||
+                seniorSchedule.matchdayTimes.length > 0)
+          ? [seniorSchedule]
+          : []),
+      ...(!indoor && recreationalSchedule.trainingTimes.length > 0
+          ? [recreationalSchedule]
+          : []),
     ],
     recreationalSchedule,
     seniorSchedule,

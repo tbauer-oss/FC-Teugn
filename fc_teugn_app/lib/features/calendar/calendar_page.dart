@@ -161,60 +161,148 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     if (organization == null) return events;
     final result = [...events];
     for (final team in organization.teams) {
-      for (final rawSlot in team.trainingTimes) {
-        final slot = RegularTrainingSlot.tryParse(
-          rawSlot,
-          fallbackLocation: team.trainingLocation,
-        );
-        if (slot == null) continue;
-        for (final occurrence in slot.occurrences(
-          organization.season.startDate,
-          organization.season.endDate,
-        )) {
-          final alreadyStored = events.any(
-            (event) =>
-                event.category == EventCategory.training &&
-                (event.teamId == team.id ||
-                    event.targetTeams.any((target) => target.id == team.id)) &&
-                event.startAt.difference(occurrence.$1).abs() <
-                    const Duration(minutes: 5),
+      final seasonStart = team.seasonStartDate ?? organization.season.startDate;
+      final seasonEnd = team.seasonEndDate ?? organization.season.endDate;
+      void addSchedule(
+        List<String> rawSlots,
+        String? fallbackLocation,
+        DateTime start,
+        DateTime end, {
+        required bool indoor,
+        DateTime? pauseStart,
+        DateTime? pauseEnd,
+      }) {
+        for (final rawSlot in rawSlots) {
+          final slot = RegularTrainingSlot.tryParse(
+            rawSlot,
+            fallbackLocation: fallbackLocation,
           );
-          if (alreadyStored) continue;
-          result.add(
-            EventModel(
-              id: 'training-plan:${team.id}:'
-                  '${occurrence.$1.millisecondsSinceEpoch}',
-              teamId: team.id,
-              type: EventType.training,
-              category: EventCategory.training,
-              status: EventStatus.scheduled,
-              visibility: EventVisibility.team,
-              title: 'Training · ${team.displayName}',
-              startAt: occurrence.$1,
-              endAt: occurrence.$2,
-              location: slot.location,
-              attendanceFinalized: false,
-              targetTeams: [
-                EventTeam(
-                  id: team.id,
-                  name: team.name,
-                  ageGroupCode: team.ageGroup.code,
-                ),
-              ],
-              attachments: const [],
-              attendance: const [],
-              attendanceSummary: const AttendanceSummary(),
-              missingAttendance: const [],
-              carpoolOffers: const [],
-              capabilities: const EventCapabilities(),
-              reminderMinutes: const [],
-              description:
-                  'Reguläre Trainingszeit laut Platzbelegungsplan der Saison '
-                  '${organization.season.name}.',
-            ),
-          );
+          if (slot == null) continue;
+          for (final occurrence in slot.occurrences(
+            start,
+            end,
+          )) {
+            if (pauseStart != null &&
+                pauseEnd != null &&
+                !occurrence.$1.isBefore(pauseStart) &&
+                !occurrence.$1.isAfter(pauseEnd)) {
+              continue;
+            }
+            final alreadyStored = events.any(
+              (event) =>
+                  event.category == EventCategory.training &&
+                  (event.teamId == team.id ||
+                      event.targetTeams
+                          .any((target) => target.id == team.id)) &&
+                  event.startAt.difference(occurrence.$1).abs() <
+                      const Duration(minutes: 5),
+            );
+            if (alreadyStored) continue;
+            result.add(
+              EventModel(
+                id: 'training-plan:${team.id}:'
+                    '${occurrence.$1.millisecondsSinceEpoch}',
+                teamId: team.id,
+                type: EventType.training,
+                category: EventCategory.training,
+                status: EventStatus.scheduled,
+                visibility: EventVisibility.team,
+                title: 'Training · ${team.displayName}',
+                startAt: occurrence.$1,
+                endAt: occurrence.$2,
+                location: slot.location,
+                attendanceFinalized: false,
+                targetTeams: [
+                  EventTeam(
+                    id: team.id,
+                    name: team.name,
+                    ageGroupCode: team.ageGroup.code,
+                  ),
+                ],
+                attachments: const [],
+                attendance: const [],
+                attendanceSummary: const AttendanceSummary(),
+                missingAttendance: const [],
+                carpoolOffers: const [],
+                capabilities: const EventCapabilities(),
+                reminderMinutes: const [],
+                description:
+                    'Reguläre ${indoor ? 'Hallen' : 'Platz'}trainingszeit '
+                    'laut Belegungsplan der Saison '
+                    '${organization.season.name}.',
+              ),
+            );
+          }
         }
       }
+
+      addSchedule(
+        team.trainingTimes,
+        team.trainingLocation,
+        seasonStart,
+        seasonEnd,
+        indoor: false,
+        pauseStart: team.indoorSeasonStartDate,
+        pauseEnd: team.indoorSeasonEndDate,
+      );
+      if (team.indoorSeasonStartDate != null &&
+          team.indoorSeasonEndDate != null) {
+        addSchedule(
+          team.indoorTrainingTimes,
+          team.indoorTrainingLocation,
+          team.indoorSeasonStartDate!,
+          team.indoorSeasonEndDate!,
+          indoor: true,
+        );
+      }
+
+      EventModel seasonMarker(
+        String id,
+        String title,
+        DateTime date,
+        EventCategory category,
+      ) =>
+          EventModel(
+            id: '$id:${team.id}:${date.millisecondsSinceEpoch}',
+            teamId: team.id,
+            type: EventType.event,
+            category: category,
+            status: EventStatus.scheduled,
+            visibility: EventVisibility.team,
+            title: '$title · ${team.displayName}',
+            startAt: DateTime(date.year, date.month, date.day, 9),
+            endAt: DateTime(date.year, date.month, date.day, 10),
+            location: '',
+            attendanceFinalized: false,
+            targetTeams: [
+              EventTeam(
+                id: team.id,
+                name: team.name,
+                ageGroupCode: team.ageGroup.code,
+              ),
+            ],
+            attachments: const [],
+            attendance: const [],
+            attendanceSummary: const AttendanceSummary(),
+            missingAttendance: const [],
+            carpoolOffers: const [],
+            capabilities: const EventCapabilities(),
+            reminderMinutes: const [],
+            description: 'Automatische Markierung der Mannschaftssaison.',
+          );
+      result
+        ..add(seasonMarker(
+          'season-start',
+          'Saisonanfang',
+          seasonStart,
+          EventCategory.specialEvent,
+        ))
+        ..add(seasonMarker(
+          'season-end',
+          'Saisonende',
+          seasonEnd,
+          EventCategory.seasonClosing,
+        ));
     }
     return result;
   }
@@ -247,7 +335,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         teams: organization.teams,
         initialTeamId: organization.currentTeam.id,
         seasonName: organization.season.name,
-        seasonEnd: organization.season.endDate,
+        seasonEnd: organization.currentTeam.seasonEndDate ??
+            organization.season.endDate,
       ),
     );
     if (draft == null) return;
@@ -2892,7 +2981,11 @@ class _ManagementBar extends ConsumerWidget {
         teams: organization.teams,
         initialTeamId: organization.currentTeam.id,
         seasonName: organization.season.name,
-        seasonEnd: organization.season.endDate,
+        seasonEnd: organization.teams
+                .where((team) => team.id == event.teamId)
+                .firstOrNull
+                ?.seasonEndDate ??
+            organization.season.endDate,
         event: event,
       ),
     );

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import {
   AccountStatus,
+  EventType,
   Role,
   TeamGameFormat,
   TeamGender,
@@ -57,6 +58,12 @@ type TeamInput = {
   description?: string | null;
   trainingLocation?: string | null;
   trainingTimes?: unknown;
+  seasonStartDate?: unknown;
+  seasonEndDate?: unknown;
+  indoorSeasonStartDate?: unknown;
+  indoorSeasonEndDate?: unknown;
+  indoorTrainingLocation?: string | null;
+  indoorTrainingTimes?: unknown;
   homeVenue?: string | null;
   bfvTeamId?: string | null;
   dfbnetTeamId?: string | null;
@@ -100,6 +107,12 @@ function validUrl(value: unknown) {
   }
 }
 
+function optionalDate(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function normalizedTeamData(body: TeamInput) {
   const parsedTeamNumber = Number(body.teamNumber);
   return {
@@ -127,12 +140,34 @@ function normalizedTeamData(body: TeamInput) {
     description: optionalText(body.description, 1500),
     trainingLocation: optionalText(body.trainingLocation, 200),
     trainingTimes: stringList(body.trainingTimes, 14, 100),
+    seasonStartDate: optionalDate(body.seasonStartDate),
+    seasonEndDate: optionalDate(body.seasonEndDate),
+    indoorSeasonStartDate: optionalDate(body.indoorSeasonStartDate),
+    indoorSeasonEndDate: optionalDate(body.indoorSeasonEndDate),
+    indoorTrainingLocation: optionalText(body.indoorTrainingLocation, 200),
+    indoorTrainingTimes: stringList(body.indoorTrainingTimes, 14, 100),
     homeVenue: optionalText(body.homeVenue, 200),
     bfvTeamId: optionalText(body.bfvTeamId, 120),
     dfbnetTeamId: optionalText(body.dfbnetTeamId, 120),
     bfvTeamUrl: validUrl(body.bfvTeamUrl),
     isActive: body.isActive !== false,
   };
+}
+
+function scheduleDateError(data: ReturnType<typeof normalizedTeamData>) {
+  if (data.seasonStartDate && data.seasonEndDate &&
+      data.seasonStartDate > data.seasonEndDate) {
+    return 'Der Saisonanfang muss vor dem Saisonende liegen.';
+  }
+  if ((data.indoorSeasonStartDate === null) !==
+      (data.indoorSeasonEndDate === null)) {
+    return 'Für die Hallensaison müssen Anfang und Ende angegeben werden.';
+  }
+  if (data.indoorSeasonStartDate && data.indoorSeasonEndDate &&
+      data.indoorSeasonStartDate > data.indoorSeasonEndDate) {
+    return 'Der Anfang der Hallensaison muss vor ihrem Ende liegen.';
+  }
+  return null;
 }
 
 export function teamDisplayName(
@@ -323,6 +358,8 @@ export async function createTeam(req: Request, res: Response) {
   const user = req.user!;
   const body = req.body as TeamInput;
   const data = normalizedTeamData(body);
+  const dateError = scheduleDateError(data);
+  if (dateError) return res.status(400).json({ message: dateError });
   if (!body.ageGroupId) {
     return res.status(400).json({ message: 'Eine Jugend muss ausgewählt werden.' });
   }
@@ -414,6 +451,8 @@ export async function updateTeam(req: Request, res: Response) {
   }
   const body = req.body as TeamInput;
   const data = normalizedTeamData(body);
+  const dateError = scheduleDateError(data);
+  if (dateError) return res.status(400).json({ message: dateError });
   if (body.teamNumber !== undefined && data.teamNumber === null) {
     return res.status(400).json({
       message: 'Die Mannschaftsnummer muss zwischen 1 und 5 liegen.',
@@ -458,6 +497,25 @@ export async function updateTeam(req: Request, res: Response) {
       },
       include: hierarchyInclude,
     });
+    if (data.seasonEndDate) {
+      const inclusiveSeasonEnd = new Date(data.seasonEndDate);
+      inclusiveSeasonEnd.setUTCHours(23, 59, 59, 999);
+      await tx.eventSeries.updateMany({
+        where: {
+          teamId,
+          until: { gt: inclusiveSeasonEnd },
+        },
+        data: { until: inclusiveSeasonEnd },
+      });
+      await tx.event.deleteMany({
+        where: {
+          teamId,
+          type: EventType.TRAINING,
+          seriesId: { not: null },
+          startAt: { gt: inclusiveSeasonEnd },
+        },
+      });
+    }
     await tx.auditLog.create({
       data: {
         actorId: user.id,
@@ -752,6 +810,12 @@ function teamSnapshot(team: ReturnType<typeof normalizedTeamData> & { ageGroupId
     birthYears: team.birthYears,
     trainingLocation: team.trainingLocation,
     trainingTimes: team.trainingTimes,
+    seasonStartDate: team.seasonStartDate,
+    seasonEndDate: team.seasonEndDate,
+    indoorSeasonStartDate: team.indoorSeasonStartDate,
+    indoorSeasonEndDate: team.indoorSeasonEndDate,
+    indoorTrainingLocation: team.indoorTrainingLocation,
+    indoorTrainingTimes: team.indoorTrainingTimes,
     homeVenue: team.homeVenue,
     bfvTeamId: team.bfvTeamId,
     dfbnetTeamId: team.dfbnetTeamId,
@@ -776,6 +840,13 @@ async function serializeTeam(team: {
   trainingTimes: string[];
   trainingPartnerIds: string[];
   matchdayTimes: string[];
+  seasonStartDate: Date | null;
+  seasonEndDate: Date | null;
+  indoorSeasonStartDate: Date | null;
+  indoorSeasonEndDate: Date | null;
+  indoorTrainingLocation: string | null;
+  indoorTrainingTimes: string[];
+  indoorTrainingPartnerIds: string[];
   homeVenue: string | null;
   bfvTeamId: string | null;
   dfbnetTeamId: string | null;
@@ -816,6 +887,13 @@ async function serializeTeam(team: {
     trainingTimes: team.trainingTimes,
     trainingPartnerIds: team.trainingPartnerIds,
     matchdayTimes: team.matchdayTimes,
+    seasonStartDate: team.seasonStartDate,
+    seasonEndDate: team.seasonEndDate,
+    indoorSeasonStartDate: team.indoorSeasonStartDate,
+    indoorSeasonEndDate: team.indoorSeasonEndDate,
+    indoorTrainingLocation: team.indoorTrainingLocation,
+    indoorTrainingTimes: team.indoorTrainingTimes,
+    indoorTrainingPartnerIds: team.indoorTrainingPartnerIds,
     homeVenue: team.homeVenue,
     bfvTeamId: team.bfvTeamId,
     dfbnetTeamId: team.dfbnetTeamId,

@@ -81,6 +81,12 @@ class _OrganizationContent extends ConsumerWidget {
           description: draft.description,
           trainingLocation: draft.trainingLocation,
           trainingTimes: draft.trainingTimes,
+          seasonStartDate: draft.seasonStartDate,
+          seasonEndDate: draft.seasonEndDate,
+          indoorSeasonStartDate: draft.indoorSeasonStartDate,
+          indoorSeasonEndDate: draft.indoorSeasonEndDate,
+          indoorTrainingLocation: draft.indoorTrainingLocation,
+          indoorTrainingTimes: draft.indoorTrainingTimes,
           homeVenue: draft.homeVenue,
           bfvTeamId: draft.bfvTeamId,
           dfbnetTeamId: draft.dfbnetTeamId,
@@ -101,6 +107,12 @@ class _OrganizationContent extends ConsumerWidget {
           description: draft.description,
           trainingLocation: draft.trainingLocation,
           trainingTimes: draft.trainingTimes,
+          seasonStartDate: draft.seasonStartDate,
+          seasonEndDate: draft.seasonEndDate,
+          indoorSeasonStartDate: draft.indoorSeasonStartDate,
+          indoorSeasonEndDate: draft.indoorSeasonEndDate,
+          indoorTrainingLocation: draft.indoorTrainingLocation,
+          indoorTrainingTimes: draft.indoorTrainingTimes,
           homeVenue: draft.homeVenue,
           bfvTeamId: draft.bfvTeamId,
           dfbnetTeamId: draft.dfbnetTeamId,
@@ -633,6 +645,26 @@ class _TeamCard extends StatelessWidget {
                       icon: Icons.schedule_rounded,
                       text: team.trainingTimes.join(' · ')),
                 ],
+                if (team.seasonStartDate != null ||
+                    team.seasonEndDate != null) ...[
+                  const SizedBox(height: 7),
+                  _InfoLine(
+                    icon: Icons.date_range_rounded,
+                    text: 'Mannschaftssaison '
+                        '${_date(team.seasonStartDate) ?? 'Vereinsstart'} – '
+                        '${_date(team.seasonEndDate) ?? 'Vereinsende'}',
+                  ),
+                ],
+                if (team.indoorSeasonStartDate != null &&
+                    team.indoorSeasonEndDate != null) ...[
+                  const SizedBox(height: 7),
+                  _InfoLine(
+                    icon: Icons.sports_handball_rounded,
+                    text: 'Halle ${_date(team.indoorSeasonStartDate)} – '
+                        '${_date(team.indoorSeasonEndDate)}'
+                        '${team.indoorTrainingLocation?.isNotEmpty == true ? ' · ${team.indoorTrainingLocation}' : ''}',
+                  ),
+                ],
                 if (team.staff.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text('Teamverantwortliche',
@@ -694,6 +726,11 @@ class _TeamCard extends StatelessWidget {
         'YOUTH_DIRECTOR' => 'Jugendleitung',
         _ => 'Vereinsleitung',
       };
+
+  String? _date(DateTime? value) => value == null
+      ? null
+      : '${value.day.toString().padLeft(2, '0')}.'
+          '${value.month.toString().padLeft(2, '0')}.${value.year}';
 }
 
 class _InfoLine extends StatelessWidget {
@@ -734,6 +771,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   late final TextEditingController _description;
   late final TextEditingController _trainingLocation;
   late final TextEditingController _trainingTimes;
+  late final TextEditingController _indoorTrainingLocation;
+  late final TextEditingController _indoorTrainingTimes;
   late final TextEditingController _homeVenue;
   late final TextEditingController _bfvTeamId;
   late final TextEditingController _dfbnetTeamId;
@@ -745,6 +784,10 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   late TeamGameFormat _gameFormat;
   late bool _isActive;
   late Set<int> _birthYears;
+  DateTime? _seasonStartDate;
+  DateTime? _seasonEndDate;
+  DateTime? _indoorSeasonStartDate;
+  DateTime? _indoorSeasonEndDate;
 
   @override
   void initState() {
@@ -756,6 +799,14 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
     _trainingLocation = TextEditingController(text: team?.trainingLocation);
     _trainingTimes =
         TextEditingController(text: team?.trainingTimes.join('\n'));
+    _indoorTrainingLocation =
+        TextEditingController(text: team?.indoorTrainingLocation);
+    _indoorTrainingTimes =
+        TextEditingController(text: team?.indoorTrainingTimes.join('\n'));
+    _seasonStartDate = team?.seasonStartDate;
+    _seasonEndDate = team?.seasonEndDate;
+    _indoorSeasonStartDate = team?.indoorSeasonStartDate;
+    _indoorSeasonEndDate = team?.indoorSeasonEndDate;
     _homeVenue = TextEditingController(text: team?.homeVenue);
     _bfvTeamId = TextEditingController(text: team?.bfvTeamId);
     _dfbnetTeamId = TextEditingController(text: team?.dfbnetTeamId);
@@ -776,6 +827,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
       _description,
       _trainingLocation,
       _trainingTimes,
+      _indoorTrainingLocation,
+      _indoorTrainingTimes,
       _homeVenue,
       _bfvTeamId,
       _dfbnetTeamId,
@@ -1013,6 +1066,63 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                       'Diese Zeiten erscheinen für alle Trainer im gemeinsamen Platzplan.',
                 ),
               ),
+              const SizedBox(height: 16),
+              Text('Mannschaftssaison',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              const Text(
+                'Diese Grenzen steuern Saisonmarkierungen und die '
+                'automatische Trainingsserie im Kalender.',
+                style: TextStyle(color: AppColors.muted),
+              ),
+              const SizedBox(height: 10),
+              _twoColumns(
+                _dateField(
+                  'Saisonanfang',
+                  _seasonStartDate,
+                  (value) => setState(() => _seasonStartDate = value),
+                ),
+                _dateField(
+                  'Saisonende',
+                  _seasonEndDate,
+                  (value) => setState(() => _seasonEndDate = value),
+                ),
+              ),
+              const SizedBox(height: 22),
+              Text('Wintersaison & Halle',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 10),
+              _twoColumns(
+                _dateField(
+                  'Hallenstart',
+                  _indoorSeasonStartDate,
+                  (value) => setState(() => _indoorSeasonStartDate = value),
+                ),
+                _dateField(
+                  'Hallenende',
+                  _indoorSeasonEndDate,
+                  (value) => setState(() => _indoorSeasonEndDate = value),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _indoorTrainingLocation,
+                decoration: const InputDecoration(
+                  labelText: 'Sporthalle / Hallenbereich',
+                  hintText: 'z. B. Mehrzweckhalle Teugn',
+                  prefixIcon: Icon(Icons.sports_handball_rounded),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _indoorTrainingTimes,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Reguläre Hallentrainingszeiten',
+                  hintText: 'Eine Zeit pro Zeile, z. B. Freitag 17:00–18:30',
+                ),
+              ),
               const SizedBox(height: 22),
               Text('Verbandsreferenzen',
                   style: Theme.of(context).textTheme.titleMedium),
@@ -1082,6 +1192,43 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                 const SizedBox(width: 12),
                 Expanded(child: second),
               ]),
+      );
+
+  Widget _dateField(
+    String label,
+    DateTime? value,
+    ValueChanged<DateTime?> onChanged,
+  ) =>
+      InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () async {
+          final selected = await showDatePicker(
+            context: context,
+            initialDate: value ?? DateTime.now(),
+            firstDate: DateTime(DateTime.now().year - 2),
+            lastDate: DateTime(DateTime.now().year + 4, 12, 31),
+          );
+          if (selected != null) onChanged(selected);
+        },
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: const Icon(Icons.event_rounded),
+            suffixIcon: value == null
+                ? null
+                : IconButton(
+                    tooltip: 'Datum entfernen',
+                    onPressed: () => onChanged(null),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+          ),
+          child: Text(
+            value == null
+                ? 'Vereinssaison verwenden'
+                : '${value.day.toString().padLeft(2, '0')}.'
+                    '${value.month.toString().padLeft(2, '0')}.${value.year}',
+          ),
+        ),
       );
 
   Future<void> _selectBirthYears() async {
@@ -1155,6 +1302,33 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
+    if (_seasonStartDate != null &&
+        _seasonEndDate != null &&
+        _seasonStartDate!.isAfter(_seasonEndDate!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Der Saisonanfang muss vor dem Saisonende liegen.'),
+        ),
+      );
+      return;
+    }
+    if ((_indoorSeasonStartDate == null) != (_indoorSeasonEndDate == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte Hallenanfang und Hallenende angeben.'),
+        ),
+      );
+      return;
+    }
+    if (_indoorSeasonStartDate != null &&
+        _indoorSeasonStartDate!.isAfter(_indoorSeasonEndDate!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Der Hallenanfang muss vor dem Hallenende liegen.'),
+        ),
+      );
+      return;
+    }
     final selectedAgeGroup = widget.ageGroups.firstWhere(
       (group) => group.id == _ageGroupId,
     );
@@ -1176,6 +1350,16 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         description: _optional(_description),
         trainingLocation: _optional(_trainingLocation),
         trainingTimes: _trainingTimes.text
+            .split('\n')
+            .map((value) => value.trim())
+            .where((value) => value.isNotEmpty)
+            .toList(),
+        seasonStartDate: _seasonStartDate,
+        seasonEndDate: _seasonEndDate,
+        indoorSeasonStartDate: _indoorSeasonStartDate,
+        indoorSeasonEndDate: _indoorSeasonEndDate,
+        indoorTrainingLocation: _optional(_indoorTrainingLocation),
+        indoorTrainingTimes: _indoorTrainingTimes.text
             .split('\n')
             .map((value) => value.trim())
             .where((value) => value.isNotEmpty)
@@ -1245,11 +1429,17 @@ class _TeamDraft {
     required this.gameFormat,
     required this.birthYears,
     required this.trainingTimes,
+    required this.indoorTrainingTimes,
     required this.isActive,
     this.shortName,
     this.level,
     this.description,
     this.trainingLocation,
+    this.seasonStartDate,
+    this.seasonEndDate,
+    this.indoorSeasonStartDate,
+    this.indoorSeasonEndDate,
+    this.indoorTrainingLocation,
     this.homeVenue,
     this.bfvTeamId,
     this.dfbnetTeamId,
@@ -1268,6 +1458,12 @@ class _TeamDraft {
   final String? description;
   final String? trainingLocation;
   final List<String> trainingTimes;
+  final DateTime? seasonStartDate;
+  final DateTime? seasonEndDate;
+  final DateTime? indoorSeasonStartDate;
+  final DateTime? indoorSeasonEndDate;
+  final String? indoorTrainingLocation;
+  final List<String> indoorTrainingTimes;
   final String? homeVenue;
   final String? bfvTeamId;
   final String? dfbnetTeamId;

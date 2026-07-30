@@ -90,6 +90,13 @@ class TeamSummary {
     this.trainingTimes = const [],
     this.trainingPartnerIds = const [],
     this.matchdayTimes = const [],
+    this.seasonStartDate,
+    this.seasonEndDate,
+    this.indoorSeasonStartDate,
+    this.indoorSeasonEndDate,
+    this.indoorTrainingLocation,
+    this.indoorTrainingTimes = const [],
+    this.indoorTrainingPartnerIds = const [],
     this.homeVenue,
     this.bfvTeamId,
     this.dfbnetTeamId,
@@ -114,6 +121,13 @@ class TeamSummary {
   final List<String> trainingTimes;
   final List<String> trainingPartnerIds;
   final List<String> matchdayTimes;
+  final DateTime? seasonStartDate;
+  final DateTime? seasonEndDate;
+  final DateTime? indoorSeasonStartDate;
+  final DateTime? indoorSeasonEndDate;
+  final String? indoorTrainingLocation;
+  final List<String> indoorTrainingTimes;
+  final List<String> indoorTrainingPartnerIds;
   final String? homeVenue;
   final String? bfvTeamId;
   final String? dfbnetTeamId;
@@ -162,6 +176,27 @@ class TeamSummary {
         matchdayTimes: (json['matchdayTimes'] as List<dynamic>? ?? [])
             .whereType<String>()
             .toList(),
+        seasonStartDate: DateTime.tryParse(
+          json['seasonStartDate'] as String? ?? '',
+        ),
+        seasonEndDate: DateTime.tryParse(
+          json['seasonEndDate'] as String? ?? '',
+        ),
+        indoorSeasonStartDate: DateTime.tryParse(
+          json['indoorSeasonStartDate'] as String? ?? '',
+        ),
+        indoorSeasonEndDate: DateTime.tryParse(
+          json['indoorSeasonEndDate'] as String? ?? '',
+        ),
+        indoorTrainingLocation: json['indoorTrainingLocation'] as String?,
+        indoorTrainingTimes:
+            (json['indoorTrainingTimes'] as List<dynamic>? ?? [])
+                .whereType<String>()
+                .toList(),
+        indoorTrainingPartnerIds:
+            (json['indoorTrainingPartnerIds'] as List<dynamic>? ?? [])
+                .whereType<String>()
+                .toList(),
         homeVenue: json['homeVenue'] as String?,
         bfvTeamId: json['bfvTeamId'] as String?,
         dfbnetTeamId: json['dfbnetTeamId'] as String?,
