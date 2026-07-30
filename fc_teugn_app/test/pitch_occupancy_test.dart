@@ -62,6 +62,66 @@ void main() {
     expect(firstTeam.slots.single.overlaps(otherPitch.slots.single), isFalse);
   });
 
+  test('supports a different pitch for each training day', () {
+    const team = PitchOccupancyTeam(
+      id: 'e1',
+      name: 'E1',
+      ageGroupCode: 'E',
+      location: 'Platz 1 unten',
+      trainingTimes: [
+        'Dienstag 17:00–18:30 · Platz: Platz 1 unten',
+        'Donnerstag 17:00–18:30 · Platz: Platz 2 oben',
+      ],
+    );
+
+    expect(team.slots, hasLength(2));
+    expect(team.slots.first.location, 'Platz 1 unten');
+    expect(team.slots.last.location, 'Platz 2 oben');
+    expect(team.locationLabel, 'Unterschiedliche Plätze');
+  });
+
+  test('slot-specific pitches are used for conflict detection', () {
+    const first = PitchOccupancyTeam(
+      id: 'e1',
+      name: 'E1',
+      ageGroupCode: 'E',
+      location: 'Platz 1 unten',
+      trainingTimes: [
+        'Dienstag 17:00–18:30 · Platz: Platz 2 oben',
+      ],
+    );
+    const second = PitchOccupancyTeam(
+      id: 'd1',
+      name: 'D1',
+      ageGroupCode: 'D',
+      location: 'Platz 1 unten',
+      trainingTimes: ['Dienstag 17:30–19:00'],
+    );
+
+    expect(first.slots.single.overlaps(second.slots.single), isFalse);
+  });
+
+  test('an open pitch does not create a false conflict', () {
+    const first = PitchOccupancyTeam(
+      id: 'e1',
+      name: 'E1',
+      ageGroupCode: 'E',
+      location: 'Platz 1 unten',
+      trainingTimes: [
+        'Dienstag 17:00–18:30 · Platz: Platz noch offen / unklar',
+      ],
+    );
+    const second = PitchOccupancyTeam(
+      id: 'd1',
+      name: 'D1',
+      ageGroupCode: 'D',
+      location: 'Platz 1 unten',
+      trainingTimes: ['Dienstag 17:30–19:00'],
+    );
+
+    expect(first.slots.single.overlaps(second.slots.single), isFalse);
+  });
+
   test('parses the dedicated recreational schedule separately', () {
     final plan = PitchOccupancyPlan.fromJson({
       'club': {'name': 'FC Teugn'},
@@ -94,6 +154,30 @@ void main() {
     expect(team.slots, hasLength(2));
     expect(team.slots.first.overlaps(team.slots.last), isFalse);
     expect(team.slots.last.kind, PitchOccupancySlotKind.matchday);
+  });
+
+  test('matchday slots keep their individual or open pitch', () {
+    const team = PitchOccupancyTeam(
+      id: 'e1',
+      name: 'E1',
+      ageGroupCode: 'E',
+      location: 'Platz 1 unten',
+      trainingTimes: [],
+      matchdayTimes: [
+        'Samstag 10:00–12:00 · Platz: Platz noch offen / unklar',
+        'Sonntag 14:00–16:00 · Platz: Platz 2 oben',
+      ],
+    );
+
+    expect(team.slots, hasLength(2));
+    expect(team.slots.first.location, 'Platz noch offen / unklar');
+    expect(team.slots.last.location, 'Platz 2 oben');
+    expect(
+      team.slots.every(
+        (slot) => slot.kind == PitchOccupancySlotKind.matchday,
+      ),
+      isTrue,
+    );
   });
 
   test('joint training is not reported as a conflict', () {

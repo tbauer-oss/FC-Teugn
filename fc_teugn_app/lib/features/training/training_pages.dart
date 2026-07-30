@@ -471,12 +471,14 @@ class _TrainingScheduleDialog extends StatefulWidget {
 class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
   static const _recreationalId = 'recreational';
   static const _seniorId = 'seniors';
+  static const _openLocation = 'Platz noch offen / unklar';
   static const _trainingLocations = [
     'Platz 1 unten',
     'Platz 2 oben',
     'Sportplatz Teugn · beide Plätze',
     'Sportplatz Hausen',
     'Sporthalle',
+    _openLocation,
   ];
 
   late String _teamId;
@@ -496,9 +498,18 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
 
   List<String> get _availableLocations {
     final values = [..._trainingLocations];
-    final current = _location?.trim();
-    if (current != null && current.isNotEmpty && !values.contains(current)) {
-      values.add(current);
+    final savedLocations = [
+      _location,
+      ..._times.map((time) => time.location),
+      ..._matchdayTimes.map((time) => time.location),
+    ];
+    for (final savedLocation in savedLocations) {
+      final location = savedLocation?.trim();
+      if (location != null &&
+          location.isNotEmpty &&
+          !values.contains(location)) {
+        values.add(location);
+      }
     }
     return values;
   }
@@ -534,7 +545,10 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
     _legacyTimes = [];
     _legacyMatchdayTimes = [];
     for (final value in trainingTimes) {
-      final parsed = _TrainingTimeSelection.tryParse(value);
+      final parsed = _TrainingTimeSelection.tryParse(
+        value,
+        defaultLocation: _location ?? _openLocation,
+      );
       if (parsed == null) {
         _legacyTimes.add(value);
       } else {
@@ -542,7 +556,10 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
       }
     }
     for (final value in matchdayTimes) {
-      final parsed = _TrainingTimeSelection.tryParse(value);
+      final parsed = _TrainingTimeSelection.tryParse(
+        value,
+        defaultLocation: _openLocation,
+      );
       if (parsed == null) {
         _legacyMatchdayTimes.add(value);
       } else {
@@ -637,8 +654,8 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                   initialValue: _location,
                   isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'Trainingsplatz / Bereich',
-                    hintText: 'Trainingsplatz auswählen',
+                    labelText: 'Standardplatz für neue Trainingszeiten',
+                    hintText: 'Standardplatz auswählen',
                     prefixIcon: Icon(Icons.location_on_outlined),
                   ),
                   items: [
@@ -674,6 +691,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                                     weekday: 1,
                                     start: TimeOfDay(hour: 17, minute: 0),
                                     end: TimeOfDay(hour: 18, minute: 30),
+                                    location: _openLocation,
                                   ),
                                 );
                                 _validationMessage = null;
@@ -704,6 +722,9 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                         '${_teamId}_${index}_${_times[index].weekday}',
                       ),
                       value: _times[index],
+                      locations: _availableLocations,
+                      fallbackLocation: _location,
+                      showLocation: true,
                       onChanged: (value) => setState(() {
                         _times[index] = value;
                         _validationMessage = null;
@@ -797,6 +818,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                                         hour: 12,
                                         minute: 0,
                                       ),
+                                      location: _openLocation,
                                     ),
                                   );
                                 }),
@@ -819,6 +841,9 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                           'matchday_${_teamId}_${index}_${_matchdayTimes[index].weekday}',
                         ),
                         value: _matchdayTimes[index],
+                        locations: _availableLocations,
+                        fallbackLocation: _openLocation,
+                        showLocation: true,
                         onChanged: (value) => setState(() {
                           _matchdayTimes[index] = value;
                           _validationMessage = null;
@@ -874,19 +899,29 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                 });
                 return;
               }
-              if (_times.isNotEmpty && _location == null) {
+              if ([..._times, ..._matchdayTimes].any(
+                (value) => (value.location ?? _openLocation).trim().isEmpty,
+              )) {
                 setState(() {
                   _validationMessage =
-                      'Bitte wähle für die Trainingszeit einen Platz aus.';
+                      'Bitte wähle für jeden Termin einen Platz aus.';
                 });
                 return;
               }
               final times = [
-                ..._times.map((value) => value.storageValue),
+                ..._times.map(
+                  (value) => value
+                      .copyWith(location: value.location ?? _location)
+                      .storageValue,
+                ),
                 ..._legacyTimes,
               ].take(14).toList();
               final matchdayTimes = [
-                ..._matchdayTimes.map((value) => value.storageValue),
+                ..._matchdayTimes.map(
+                  (value) => value
+                      .copyWith(location: value.location ?? _openLocation)
+                      .storageValue,
+                ),
                 ..._legacyMatchdayTimes,
               ].take(14).toList();
               Navigator.pop(
@@ -917,11 +952,17 @@ class _TrainingTimeRow extends StatelessWidget {
     required this.value,
     required this.onChanged,
     required this.onDelete,
+    this.locations = const [],
+    this.fallbackLocation,
+    this.showLocation = false,
   });
 
   final _TrainingTimeSelection value;
   final ValueChanged<_TrainingTimeSelection> onChanged;
   final VoidCallback onDelete;
+  final List<String> locations;
+  final String? fallbackLocation;
+  final bool showLocation;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -982,6 +1023,25 @@ class _TrainingTimeRow extends StatelessWidget {
               onPressed: onDelete,
               icon: const Icon(Icons.delete_outline_rounded),
             );
+            final selectedLocation = value.location ?? fallbackLocation;
+            final location = DropdownButtonFormField<String>(
+              key: ValueKey(
+                'slot_location_${value.weekday}_${selectedLocation ?? ''}',
+              ),
+              initialValue: selectedLocation,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Platz für diesen Trainingstag',
+                isDense: true,
+                prefixIcon: Icon(Icons.location_on_outlined, size: 19),
+              ),
+              items: [
+                for (final item in locations)
+                  DropdownMenuItem(value: item, child: Text(item)),
+              ],
+              onChanged: (selected) =>
+                  onChanged(value.copyWith(location: selected)),
+            );
 
             if (constraints.maxWidth < 470) {
               return Column(
@@ -994,15 +1054,27 @@ class _TrainingTimeRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   times,
+                  if (showLocation) ...[
+                    const SizedBox(height: 8),
+                    location,
+                  ],
                 ],
               );
             }
-            return Row(
+            return Column(
               children: [
-                SizedBox(width: 154, child: day),
-                const SizedBox(width: 10),
-                Expanded(child: times),
-                delete,
+                Row(
+                  children: [
+                    SizedBox(width: 154, child: day),
+                    const SizedBox(width: 10),
+                    Expanded(child: times),
+                    delete,
+                  ],
+                ),
+                if (showLocation) ...[
+                  const SizedBox(height: 9),
+                  location,
+                ],
               ],
             );
           },
@@ -1106,6 +1178,7 @@ class _TrainingTimeSelection {
     required this.weekday,
     required this.start,
     required this.end,
+    this.location,
   });
 
   static const weekdays = [
@@ -1121,25 +1194,35 @@ class _TrainingTimeSelection {
   final int weekday;
   final TimeOfDay start;
   final TimeOfDay end;
+  final String? location;
 
   int get startMinutes => start.hour * 60 + start.minute;
   int get endMinutes => end.hour * 60 + end.minute;
 
-  String get storageValue =>
-      '${weekdays[weekday - 1]} ${formatTime(start)}–${formatTime(end)}';
+  String get storageValue {
+    final time =
+        '${weekdays[weekday - 1]} ${formatTime(start)}–${formatTime(end)}';
+    final place = location?.trim();
+    return place == null || place.isEmpty ? time : '$time · Platz: $place';
+  }
 
   _TrainingTimeSelection copyWith({
     int? weekday,
     TimeOfDay? start,
     TimeOfDay? end,
+    String? location,
   }) =>
       _TrainingTimeSelection(
         weekday: weekday ?? this.weekday,
         start: start ?? this.start,
         end: end ?? this.end,
+        location: location ?? this.location,
       );
 
-  static _TrainingTimeSelection? tryParse(String value) {
+  static _TrainingTimeSelection? tryParse(
+    String value, {
+    String? defaultLocation,
+  }) {
     final dayMatch = RegExp(
       r'(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)',
       caseSensitive: false,
@@ -1168,10 +1251,15 @@ class _TrainingTimeSelection {
         endMinute > 59) {
       return null;
     }
+    final locationMatch = RegExp(
+      r'(?:·|\|)\s*Platz:\s*(.+?)\s*$',
+      caseSensitive: false,
+    ).firstMatch(value);
     return _TrainingTimeSelection(
       weekday: weekday,
       start: TimeOfDay(hour: startHour, minute: startMinute),
       end: TimeOfDay(hour: endHour, minute: endMinute),
+      location: locationMatch?.group(1)?.trim() ?? defaultLocation,
     );
   }
 
