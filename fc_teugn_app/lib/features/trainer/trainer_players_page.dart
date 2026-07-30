@@ -398,17 +398,18 @@ class _CategorizedPlayerCollection extends StatelessWidget {
       children: [
         for (var index = 0; index < entries.length; index++) ...[
           if (index > 0) const SizedBox(height: 20),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const Icon(Icons.groups_rounded, size: 20, color: AppColors.blue),
-              const SizedBox(width: 8),
               Text(
                 entries[index].key,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
               ),
-              const SizedBox(width: 8),
               Text(
                 '${entries[index].value.length} Spieler',
                 style: const TextStyle(color: AppColors.muted),
@@ -519,8 +520,9 @@ class _PlayerListRow extends StatelessWidget {
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
+              final compact = constraints.maxWidth < 600;
               final showDetailColumns = detailed && constraints.maxWidth >= 720;
-              return Row(
+              final identity = Row(
                 children: [
                   _PlayerAvatar(player: player, size: detailed ? 48 : 38),
                   const SizedBox(width: 12),
@@ -553,6 +555,57 @@ class _PlayerListRow extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (compact && player.shirtNumber != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Text(
+                        '#${player.shirtNumber}',
+                        style: const TextStyle(
+                          color: AppColors.blue,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  if (compact)
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.muted,
+                    ),
+                ],
+              );
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    identity,
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: EdgeInsets.only(left: detailed ? 60 : 50),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 5,
+                        children: [
+                          PlayerTeamChip(player: player, compact: true),
+                          _StatusBadge(status: status, compact: true),
+                          if (detailed)
+                            _MobileDetailChip(
+                              label: _positionSummary(player),
+                              icon: Icons.sports_soccer_rounded,
+                            ),
+                          if (detailed)
+                            _MobileDetailChip(
+                              label: _dominantFootLabel(player.dominantFoot),
+                              icon: Icons.directions_run_rounded,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: identity),
                   if (showDetailColumns) ...[
                     Expanded(
                       flex: 2,
@@ -569,7 +622,7 @@ class _PlayerListRow extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (player.shirtNumber != null)
+                  if (!compact && player.shirtNumber != null)
                     SizedBox(
                       width: 45,
                       child: Text(
@@ -594,6 +647,35 @@ class _PlayerListRow extends StatelessWidget {
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MobileDetailChip extends StatelessWidget {
+  const _MobileDetailChip({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.blue),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+          ),
+        ],
       ),
     );
   }
@@ -870,6 +952,39 @@ String _dominantFootLabel(DominantFoot foot) => switch (foot) {
       PlayerStatus.left => ('Ausgetreten', AppColors.muted),
     };
 
+class _ResponsivePlayerFields extends StatelessWidget {
+  const _ResponsivePlayerFields({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 480) {
+          return Column(
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                children[index],
+                if (index != children.length - 1) const SizedBox(height: 12),
+              ],
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              Expanded(child: children[index]),
+              if (index != children.length - 1) const SizedBox(width: 12),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _CreatePlayerDialog extends StatefulWidget {
   const _CreatePlayerDialog({
     required this.teams,
@@ -946,147 +1061,123 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                   },
                 ),
                 const SizedBox(height: 12),
-                Row(
+                _ResponsivePlayerFields(
                   children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _firstName,
-                        decoration:
-                            const InputDecoration(labelText: 'Vorname *'),
-                        validator: _required,
-                      ),
+                    TextFormField(
+                      controller: _firstName,
+                      decoration:
+                          const InputDecoration(labelText: 'Vorname *'),
+                      validator: _required,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _lastName,
-                        decoration:
-                            const InputDecoration(labelText: 'Nachname *'),
-                        validator: _required,
-                      ),
+                    TextFormField(
+                      controller: _lastName,
+                      decoration:
+                          const InputDecoration(labelText: 'Nachname *'),
+                      validator: _required,
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
+                _ResponsivePlayerFields(
                   children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _preferredName,
-                        decoration: const InputDecoration(labelText: 'Rufname'),
-                      ),
+                    TextFormField(
+                      controller: _preferredName,
+                      decoration: const InputDecoration(labelText: 'Rufname'),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _nationality,
-                        decoration:
-                            const InputDecoration(labelText: 'Nationalität'),
-                      ),
+                    TextFormField(
+                      controller: _nationality,
+                      decoration:
+                          const InputDecoration(labelText: 'Nationalität'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
+                _ResponsivePlayerFields(
                   children: [
-                    Expanded(
-                      child: _DateField(
-                        label: 'Geburtsdatum',
-                        value: _birthDate,
-                        onChanged: (value) =>
-                            setState(() => _birthDate = value),
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime.now(),
-                      ),
+                    _DateField(
+                      label: 'Geburtsdatum',
+                      value: _birthDate,
+                      onChanged: (value) =>
+                          setState(() => _birthDate = value),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _DateField(
-                        label: 'Im Verein seit',
-                        value: _joinedAt,
-                        onChanged: (value) => setState(() => _joinedAt = value),
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime.now(),
-                      ),
+                    _DateField(
+                      label: 'Im Verein seit',
+                      value: _joinedAt,
+                      onChanged: (value) => setState(() => _joinedAt = value),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
+                _ResponsivePlayerFields(
                   children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String?>(
-                        initialValue: _position,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Hauptposition',
-                        ),
-                        items: footballOptionItems(
-                          options: footballPositions,
-                          emptyLabel: 'Noch offen',
-                          showCode: true,
-                        ),
-                        onChanged: (value) => setState(() => _position = value),
+                    DropdownButtonFormField<String?>(
+                      initialValue: _position,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Hauptposition',
                       ),
+                      items: footballOptionItems(
+                        options: footballPositions,
+                        emptyLabel: 'Noch offen',
+                        showCode: true,
+                      ),
+                      onChanged: (value) => setState(() => _position = value),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String?>(
-                        initialValue: _secondaryPosition,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Nebenposition',
-                        ),
-                        items: footballOptionItems(
-                          options: footballPositions,
-                          emptyLabel: 'Keine Nebenposition',
-                          showCode: true,
-                        ),
-                        onChanged: (value) =>
-                            setState(() => _secondaryPosition = value),
+                    DropdownButtonFormField<String?>(
+                      initialValue: _secondaryPosition,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Nebenposition',
                       ),
+                      items: footballOptionItems(
+                        options: footballPositions,
+                        emptyLabel: 'Keine Nebenposition',
+                        showCode: true,
+                      ),
+                      onChanged: (value) =>
+                          setState(() => _secondaryPosition = value),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
+                _ResponsivePlayerFields(
                   children: [
-                    Expanded(
-                      child: DropdownButtonFormField<DominantFoot>(
-                        initialValue: _dominantFoot,
-                        decoration:
-                            const InputDecoration(labelText: 'Starker Fuß'),
-                        items: const [
-                          DropdownMenuItem(
-                            value: DominantFoot.unknown,
-                            child: Text('Noch offen'),
-                          ),
-                          DropdownMenuItem(
-                            value: DominantFoot.right,
-                            child: Text('Rechts'),
-                          ),
-                          DropdownMenuItem(
-                            value: DominantFoot.left,
-                            child: Text('Links'),
-                          ),
-                          DropdownMenuItem(
-                            value: DominantFoot.both,
-                            child: Text('Beidfüßig'),
-                          ),
-                        ],
-                        onChanged: (value) => setState(
-                          () => _dominantFoot = value ?? DominantFoot.unknown,
+                    DropdownButtonFormField<DominantFoot>(
+                      initialValue: _dominantFoot,
+                      isExpanded: true,
+                      decoration:
+                          const InputDecoration(labelText: 'Starker Fuß'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: DominantFoot.unknown,
+                          child: Text('Noch offen'),
                         ),
+                        DropdownMenuItem(
+                          value: DominantFoot.right,
+                          child: Text('Rechts'),
+                        ),
+                        DropdownMenuItem(
+                          value: DominantFoot.left,
+                          child: Text('Links'),
+                        ),
+                        DropdownMenuItem(
+                          value: DominantFoot.both,
+                          child: Text('Beidfüßig'),
+                        ),
+                      ],
+                      onChanged: (value) => setState(
+                        () => _dominantFoot = value ?? DominantFoot.unknown,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _shirtNumber,
-                        keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'Trikotnummer'),
-                      ),
+                    TextFormField(
+                      controller: _shirtNumber,
+                      keyboardType: TextInputType.number,
+                      decoration:
+                          const InputDecoration(labelText: 'Trikotnummer'),
                     ),
                   ],
                 ),
