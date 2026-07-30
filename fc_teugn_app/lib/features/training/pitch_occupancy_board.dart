@@ -449,7 +449,7 @@ class _DesktopTeamRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    team.location,
+                    team.locationLabel,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -622,17 +622,19 @@ class _SlotPill extends StatelessWidget {
                         fontSize: compact ? 11 : 14,
                       ),
                     ),
-                    if (!compact) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        '${slot.teamLabel} · ${slot.location}',
-                        style: const TextStyle(
-                          color: AppColors.black,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    const SizedBox(height: 2),
+                    Text(
+                      compact
+                          ? slot.location
+                          : '${slot.teamLabel} · ${slot.location}',
+                      maxLines: compact ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.black,
+                        fontSize: compact ? 9 : 12,
+                        fontWeight: FontWeight.w700,
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),

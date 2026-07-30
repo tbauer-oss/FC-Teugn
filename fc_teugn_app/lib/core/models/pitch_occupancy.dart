@@ -110,6 +110,15 @@ class PitchOccupancyTeam {
   final List<String> matchdayTimes;
 
   String get label => ageGroupCode.isEmpty ? name : '$ageGroupCode · $name';
+  String get locationLabel {
+    final locations = slots
+        .where((slot) => slot.kind == PitchOccupancySlotKind.training)
+        .map((slot) => slot.location)
+        .toSet();
+    if (locations.isEmpty) return location;
+    if (locations.length == 1) return locations.single;
+    return 'Unterschiedliche Plätze';
+  }
 
   List<PitchOccupancySlot> get slots => [
         ...trainingTimes
@@ -214,6 +223,8 @@ class PitchOccupancySlot {
       kind == PitchOccupancySlotKind.training &&
       other.kind == PitchOccupancySlotKind.training &&
       weekday == other.weekday &&
+      !_isOpenLocation(location) &&
+      !_isOpenLocation(other.location) &&
       _normalizedLocation(location) == _normalizedLocation(other.location) &&
       startMinute < other.endMinute &&
       other.startMinute < endMinute;
@@ -250,13 +261,19 @@ class PitchOccupancySlot {
         endMinute > 1440) {
       return null;
     }
+    final locationMatch = RegExp(
+      r'(?:·|\|)\s*Platz:\s*(.+?)\s*$',
+      caseSensitive: false,
+    ).firstMatch(rawValue);
+    final slotLocation = locationMatch?.group(1)?.trim();
     return PitchOccupancySlot(
       teamId: team.id,
       teamLabel: team.label,
       weekday: weekday,
       startMinute: startMinute,
       endMinute: endMinute,
-      location: team.location,
+      location:
+          slotLocation?.isNotEmpty == true ? slotLocation! : team.location,
       rawValue: rawValue,
       kind: kind,
     );
@@ -268,4 +285,9 @@ class PitchOccupancySlot {
 
   static String _normalizedLocation(String value) =>
       value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  static bool _isOpenLocation(String value) {
+    final normalized = _normalizedLocation(value);
+    return normalized.contains('offen') || normalized.contains('unklar');
+  }
 }
