@@ -2880,10 +2880,26 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             setState(() => category = value ?? category),
                       ),
                       const SizedBox(height: 12),
-                      TextFormField(
-                        controller: title,
-                        decoration: const InputDecoration(labelText: 'Titel'),
-                        validator: _required,
+                      LayoutBuilder(
+                        builder: (context, constraints) => DropdownMenu<String>(
+                          controller: title,
+                          width: constraints.maxWidth,
+                          label: const Text('Titel (optional)'),
+                          hintText: category.label,
+                          helperText:
+                              'Vorschlag wählen oder eigenen Titel eingeben. '
+                              'Leer = ${category.label}.',
+                          enableFilter: true,
+                          enableSearch: true,
+                          requestFocusOnTap: true,
+                          dropdownMenuEntries: [
+                            for (final suggestion in category.titleSuggestions)
+                              DropdownMenuEntry(
+                                value: suggestion,
+                                label: suggestion,
+                              ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 12),
                       _DateTimeField(
@@ -3292,7 +3308,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       context,
       EventWriteData(
         category: category,
-        title: title.text.trim(),
+        title: resolveEventTitle(title.text, category),
         startAt: startAt,
         endAt: endAt,
         meetingAt: category.isMatch &&
