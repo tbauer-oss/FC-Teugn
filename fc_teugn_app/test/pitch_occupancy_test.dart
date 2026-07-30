@@ -61,4 +61,23 @@ void main() {
     expect(firstTeam.slots.single.overlaps(secondTeam.slots.single), isTrue);
     expect(firstTeam.slots.single.overlaps(otherPitch.slots.single), isFalse);
   });
+
+  test('parses the dedicated recreational schedule separately', () {
+    final plan = PitchOccupancyPlan.fromJson({
+      'club': {'name': 'FC Teugn'},
+      'season': {'name': '2026/27'},
+      'teams': <Map<String, dynamic>>[],
+      'recreationalSchedule': {
+        'id': 'recreational:season-1',
+        'name': 'Freizeitkicker',
+        'shortName': 'Freizeitkicker',
+        'trainingLocation': 'Platz 1 unten',
+        'trainingTimes': ['Montag 19:30–21:00'],
+        'ageGroup': {'code': '', 'name': 'Freizeit'},
+      },
+    });
+
+    expect(plan.recreationalSchedule?.label, 'Freizeitkicker');
+    expect(plan.recreationalSchedule?.slots.single.timeLabel, '19:30–21:00');
+  });
 }

@@ -7,7 +7,9 @@ import '../../core/models/event.dart';
 import '../../core/models/organization.dart';
 import '../../core/models/pitch_occupancy.dart';
 import '../../core/models/training.dart';
+import '../../core/models/user.dart';
 import '../../core/providers.dart';
+import '../auth/auth_controller.dart';
 import '../calendar/calendar_page.dart';
 import '../shared/page_scaffold.dart';
 import 'pitch_occupancy_board.dart';
@@ -324,16 +326,28 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
         teams: organization.teams.where((team) => team.isActive).toList(),
         initialTeamId: organization.currentTeam.id,
         season: organization.season,
+        allowRecreational:
+            ref.read(authProvider).user?.role == UserRole.superAdmin,
+        recreationalSchedule: _occupancy?.recreationalSchedule,
       ),
     );
     if (draft == null || !mounted) return;
     setState(() => _creating = true);
     try {
-      await ref.read(repositoryProvider).updateTrainingSchedule(
-            teamId: draft.teamId,
-            trainingTimes: draft.trainingTimes,
-            trainingLocation: draft.trainingLocation,
-          );
+      final repository = ref.read(repositoryProvider);
+      if (draft.isRecreational) {
+        await repository.updateRecreationalPitchOccupancy(
+          seasonId: organization.season.id,
+          trainingTimes: draft.trainingTimes,
+          trainingLocation: draft.trainingLocation,
+        );
+      } else {
+        await repository.updateTrainingSchedule(
+          teamId: draft.teamId,
+          trainingTimes: draft.trainingTimes,
+          trainingLocation: draft.trainingLocation,
+        );
+      }
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -358,11 +372,13 @@ class _TrainingScheduleDraft {
   const _TrainingScheduleDraft({
     required this.teamId,
     required this.trainingTimes,
+    this.isRecreational = false,
     this.trainingLocation,
   });
 
   final String teamId;
   final List<String> trainingTimes;
+  final bool isRecreational;
   final String? trainingLocation;
 }
 
@@ -371,11 +387,15 @@ class _TrainingScheduleDialog extends StatefulWidget {
     required this.teams,
     required this.initialTeamId,
     required this.season,
+    required this.allowRecreational,
+    this.recreationalSchedule,
   });
 
   final List<TeamSummary> teams;
   final String initialTeamId;
   final SeasonSummary season;
+  final bool allowRecreational;
+  final PitchOccupancyTeam? recreationalSchedule;
 
   @override
   State<_TrainingScheduleDialog> createState() =>
@@ -383,6 +403,7 @@ class _TrainingScheduleDialog extends StatefulWidget {
 }
 
 class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
+  static const _recreationalId = 'recreational';
   static const _trainingLocations = [
     'Platz 1 unten',
     'Platz 2 oben',
@@ -396,6 +417,8 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
   List<_TrainingTimeSelection> _times = [];
   List<String> _legacyTimes = [];
   String? _validationMessage;
+
+  bool get _isRecreational => _teamId == _recreationalId;
 
   TeamSummary get _team =>
       widget.teams.firstWhere((team) => team.id == _teamId);
@@ -419,11 +442,19 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
   }
 
   void _loadTeam() {
-    _location = _team.trainingLocation?.trim();
+    final location = _isRecreational
+        ? widget.recreationalSchedule?.location == 'Platz offen'
+            ? null
+            : widget.recreationalSchedule?.location
+        : _team.trainingLocation;
+    final trainingTimes = _isRecreational
+        ? widget.recreationalSchedule?.trainingTimes ?? const <String>[]
+        : _team.trainingTimes;
+    _location = location?.trim();
     if (_location?.isEmpty == true) _location = null;
     _times = [];
     _legacyTimes = [];
-    for (final value in _team.trainingTimes) {
+    for (final value in trainingTimes) {
       final parsed = _TrainingTimeSelection.tryParse(value);
       if (parsed == null) {
         _legacyTimes.add(value);
@@ -448,7 +479,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                   initialValue: _teamId,
                   isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'Jugend / Mannschaft',
+                    labelText: 'Mannschaft / Gruppe',
                     prefixIcon: Icon(Icons.groups_rounded),
                   ),
                   items: [
@@ -456,6 +487,13 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                       DropdownMenuItem(
                         value: team.id,
                         child: Text(team.displayName),
+                      ),
+                    if (widget.allowRecreational)
+                      const DropdownMenuItem(
+                        value: _recreationalId,
+                        child: Text(
+                          'Freizeitkicker · nur Systemadministration',
+                        ),
                       ),
                   ],
                   onChanged: (value) {
@@ -466,6 +504,33 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                     });
                   },
                 ),
+                if (_isRecreational) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(13),
+                    decoration: BoxDecoration(
+                      color: AppColors.yellow.withValues(alpha: .18),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.yellowDark.withValues(alpha: .35),
+                      ),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.admin_panel_settings_outlined, size: 20),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Dieser Platz-Slot gehört keiner Jugendmannschaft. '
+                            'Er kann ausschließlich durch die '
+                            'Systemadministration geändert werden.',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   key: ValueKey('training_location_${_teamId}_$_location'),
@@ -600,6 +665,13 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                 });
                 return;
               }
+              if (_times.isNotEmpty && _location == null) {
+                setState(() {
+                  _validationMessage =
+                      'Bitte wähle für die Trainingszeit einen Platz aus.';
+                });
+                return;
+              }
               final times = [
                 ..._times.map((value) => value.storageValue),
                 ..._legacyTimes,
@@ -609,6 +681,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                 _TrainingScheduleDraft(
                   teamId: _teamId,
                   trainingTimes: times,
+                  isRecreational: _isRecreational,
                   trainingLocation: _location,
                 ),
               );

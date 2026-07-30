@@ -885,6 +885,21 @@ class DataRepository {
     );
   }
 
+  Future<void> updateRecreationalPitchOccupancy({
+    required String seasonId,
+    required List<String> trainingTimes,
+    String? trainingLocation,
+  }) async {
+    await client.dio.patch(
+      '/trainings/occupancy/recreational',
+      data: {
+        'seasonId': seasonId,
+        'trainingLocation': trainingLocation,
+        'trainingTimes': trainingTimes,
+      },
+    );
+  }
+
   Future<List<TrainingExerciseModel>> trainingExercises() async {
     final res = await client.dio.get('/trainings/exercises');
     return (res.data as List<dynamic>)

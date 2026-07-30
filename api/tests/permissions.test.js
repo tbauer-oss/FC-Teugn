@@ -44,6 +44,9 @@ const {
   checklistItems,
 } = require('../dist/src/controllers/team-operations.controller');
 const {
+  canManageRecreationalOccupancy,
+} = require('../dist/src/controllers/trainings.controller');
+const {
   canDeleteTeamRole,
   teamDisplayName,
 } = require('../dist/src/controllers/organization.controller');
@@ -368,6 +371,13 @@ test('only system administrators can delete teams', () => {
   assert.equal(canDeleteTeamRole(Role.CLUB_ADMIN), false);
   assert.equal(canDeleteTeamRole(Role.YOUTH_DIRECTOR), false);
   assert.equal(canDeleteTeamRole(Role.TRAINER_ADMIN), false);
+});
+
+test('only system administrators can manage recreational pitch slots', () => {
+  assert.equal(canManageRecreationalOccupancy(Role.SUPER_ADMIN), true);
+  assert.equal(canManageRecreationalOccupancy(Role.CLUB_ADMIN), false);
+  assert.equal(canManageRecreationalOccupancy(Role.YOUTH_DIRECTOR), false);
+  assert.equal(canManageRecreationalOccupancy(Role.COACH), false);
 });
 
 test('season transition preview respects explicit team overrides', () => {

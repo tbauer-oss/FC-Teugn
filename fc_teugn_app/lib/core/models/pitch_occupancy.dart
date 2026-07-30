@@ -3,11 +3,13 @@ class PitchOccupancyPlan {
     required this.clubName,
     required this.seasonName,
     required this.teams,
+    this.recreationalSchedule,
   });
 
   final String clubName;
   final String seasonName;
   final List<PitchOccupancyTeam> teams;
+  final PitchOccupancyTeam? recreationalSchedule;
 
   List<PitchOccupancySlot> get slots => [
         for (final team in teams) ...team.slots,
@@ -26,6 +28,11 @@ class PitchOccupancyPlan {
             ),
           )
           .toList(),
+      recreationalSchedule: json['recreationalSchedule'] == null
+          ? null
+          : PitchOccupancyTeam.fromJson(
+              json['recreationalSchedule'] as Map<String, dynamic>,
+            ),
     );
   }
 }
@@ -53,8 +60,7 @@ class PitchOccupancyTeam {
       .toList();
 
   factory PitchOccupancyTeam.fromJson(Map<String, dynamic> json) {
-    final ageGroup =
-        json['ageGroup'] as Map<String, dynamic>? ?? const {};
+    final ageGroup = json['ageGroup'] as Map<String, dynamic>? ?? const {};
     return PitchOccupancyTeam(
       id: json['id'] as String,
       name: json['shortName'] as String? ??
@@ -98,13 +104,11 @@ class PitchOccupancySlot {
   final String location;
   final String rawValue;
 
-  String get timeLabel =>
-      '${_time(startMinute)}–${_time(endMinute)}';
+  String get timeLabel => '${_time(startMinute)}–${_time(endMinute)}';
 
   bool overlaps(PitchOccupancySlot other) =>
       weekday == other.weekday &&
-      _normalizedLocation(location) ==
-          _normalizedLocation(other.location) &&
+      _normalizedLocation(location) == _normalizedLocation(other.location) &&
       startMinute < other.endMinute &&
       other.startMinute < endMinute;
 

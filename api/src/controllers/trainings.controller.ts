@@ -167,6 +167,8 @@ export async function listPitchOccupancy(req: Request, res: Response) {
               name: true,
               startDate: true,
               endDate: true,
+              recreationalTrainingLocation: true,
+              recreationalTrainingTimes: true,
               club: { select: { id: true, name: true } },
             },
           },
@@ -198,6 +200,18 @@ export async function listPitchOccupancy(req: Request, res: Response) {
       },
     },
   });
+  const recreationalSchedule = {
+    id: `recreational:${season.id}`,
+    name: 'Freizeitkicker',
+    shortName: 'Freizeitkicker',
+    trainingLocation: season.recreationalTrainingLocation,
+    trainingTimes: season.recreationalTrainingTimes,
+    ageGroup: {
+      code: '',
+      name: 'Freizeit',
+      sortOrder: 999,
+    },
+  };
   return res.json({
     club: season.club,
     season: {
@@ -206,7 +220,87 @@ export async function listPitchOccupancy(req: Request, res: Response) {
       startDate: season.startDate,
       endDate: season.endDate,
     },
-    teams,
+    teams: [
+      ...teams,
+      ...(recreationalSchedule.trainingTimes.length > 0
+        ? [recreationalSchedule]
+        : []),
+    ],
+    recreationalSchedule,
+  });
+}
+
+export function canManageRecreationalOccupancy(role: Role) {
+  return role === Role.SUPER_ADMIN;
+}
+
+export async function updateRecreationalOccupancy(
+  req: Request,
+  res: Response,
+) {
+  const user = req.user!;
+  if (!canManageRecreationalOccupancy(user.role)) {
+    return res.status(403).json({
+      message:
+        'Nur die Systemadministration darf den Freizeitkickern einen Platz zuweisen.',
+    });
+  }
+  const seasonId = text(req.body?.seasonId, 100);
+  if (!seasonId) {
+    return res.status(400).json({ message: 'Eine Saison muss ausgewählt sein.' });
+  }
+  const trainingLocation = text(req.body?.trainingLocation, 200);
+  const trainingTimes = stringList(req.body?.trainingTimes, 7);
+  const season = await prisma.$transaction(async (tx) => {
+    const existing = await tx.season.findFirst({
+      where: { id: seasonId, isActive: true },
+      select: {
+        id: true,
+        recreationalTrainingLocation: true,
+        recreationalTrainingTimes: true,
+      },
+    });
+    if (!existing) return null;
+    const updated = await tx.season.update({
+      where: { id: seasonId },
+      data: {
+        recreationalTrainingLocation: trainingLocation,
+        recreationalTrainingTimes: trainingTimes,
+      },
+      select: {
+        id: true,
+        recreationalTrainingLocation: true,
+        recreationalTrainingTimes: true,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: user.teamId,
+        action: 'RECREATIONAL_PITCH_OCCUPANCY_UPDATED',
+        entityType: 'Season',
+        entityId: seasonId,
+        metadata: {
+          before: {
+            trainingLocation: existing.recreationalTrainingLocation,
+            trainingTimes: existing.recreationalTrainingTimes,
+          },
+          after: { trainingLocation, trainingTimes },
+        },
+      },
+    });
+    return updated;
+  });
+  if (!season) {
+    return res.status(404).json({ message: 'Aktive Saison nicht gefunden.' });
+  }
+  return res.json({
+    id: `recreational:${season.id}`,
+    name: 'Freizeitkicker',
+    shortName: 'Freizeitkicker',
+    trainingLocation: season.recreationalTrainingLocation,
+    trainingTimes: season.recreationalTrainingTimes,
+    ageGroup: { code: '', name: 'Freizeit', sortOrder: 999 },
   });
 }
 
