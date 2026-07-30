@@ -1019,6 +1019,53 @@ class DataRepository {
     );
   }
 
+  Future<void> createIndoorOccupancyEntry({
+    required String seasonId,
+    required String title,
+    required String location,
+    required DateTime startAt,
+    required DateTime endAt,
+    String? notes,
+  }) async {
+    await client.dio.post(
+      '/trainings/occupancy/indoor-entries',
+      data: {
+        'seasonId': seasonId,
+        'title': title,
+        'location': location,
+        'startAt': startAt.toUtc().toIso8601String(),
+        'endAt': endAt.toUtc().toIso8601String(),
+        'notes': notes,
+      },
+    );
+  }
+
+  Future<void> updateIndoorOccupancyEntry({
+    required String entryId,
+    required String title,
+    required String location,
+    required DateTime startAt,
+    required DateTime endAt,
+    String? notes,
+  }) async {
+    await client.dio.put(
+      '/trainings/occupancy/indoor-entries/$entryId',
+      data: {
+        'title': title,
+        'location': location,
+        'startAt': startAt.toUtc().toIso8601String(),
+        'endAt': endAt.toUtc().toIso8601String(),
+        'notes': notes,
+      },
+    );
+  }
+
+  Future<void> deleteIndoorOccupancyEntry(String entryId) async {
+    await client.dio.delete(
+      '/trainings/occupancy/indoor-entries/$entryId',
+    );
+  }
+
   Future<List<TrainingExerciseModel>> trainingExercises() async {
     final res = await client.dio.get('/trainings/exercises');
     return (res.data as List<dynamic>)

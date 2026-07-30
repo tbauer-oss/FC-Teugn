@@ -8,12 +8,16 @@ class PitchOccupancyBoard extends StatelessWidget {
   const PitchOccupancyBoard({
     required this.plan,
     this.onConflictApproval,
+    this.onEditSpecialEntry,
+    this.onDeleteSpecialEntry,
     super.key,
   });
 
   final PitchOccupancyPlan plan;
   final void Function(PitchOccupancyConflict conflict, bool approved)?
       onConflictApproval;
+  final void Function(IndoorOccupancyEntry entry)? onEditSpecialEntry;
+  final void Function(IndoorOccupancyEntry entry)? onDeleteSpecialEntry;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +66,17 @@ class PitchOccupancyBoard extends StatelessWidget {
           matchdayCount: slots
               .where((slot) => slot.kind == PitchOccupancySlotKind.matchday)
               .length,
+          specialCount: plan.specialEntries.length,
         ),
+        if (plan.indoor && plan.specialEntries.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _SpecialOccupancySection(
+            entries: plan.specialEntries,
+            canManage: plan.canManageOccupancy,
+            onEdit: onEditSpecialEntry,
+            onDelete: onDeleteSpecialEntry,
+          ),
+        ],
         const SizedBox(height: 10),
         if (openConflicts.isNotEmpty)
           _Notice(
@@ -170,12 +184,14 @@ class _PlanHeader extends StatelessWidget {
     required this.slotCount,
     required this.conflictCount,
     required this.matchdayCount,
+    required this.specialCount,
   });
 
   final PitchOccupancyPlan plan;
   final int slotCount;
   final int conflictCount;
   final int matchdayCount;
+  final int specialCount;
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +255,10 @@ class _PlanHeader extends StatelessWidget {
                 ),
               ),
               _HeaderMetric(value: '$slotCount', label: 'Belegungen'),
-              _HeaderMetric(value: '$matchdayCount', label: 'Spieltage'),
+              _HeaderMetric(
+                value: '${plan.indoor ? specialCount : matchdayCount}',
+                label: plan.indoor ? 'Sondertermine' : 'Spieltage',
+              ),
               _HeaderMetric(
                 value: '$conflictCount',
                 label: 'Konflikte',
@@ -277,6 +296,155 @@ class _PlanHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SpecialOccupancySection extends StatelessWidget {
+  const _SpecialOccupancySection({
+    required this.entries,
+    required this.canManage,
+    this.onEdit,
+    this.onDelete,
+  });
+
+  final List<IndoorOccupancyEntry> entries;
+  final bool canManage;
+  final void Function(IndoorOccupancyEntry entry)? onEdit;
+  final void Function(IndoorOccupancyEntry entry)? onDelete;
+
+  String _date(DateTime value) => '${value.day.toString().padLeft(2, '0')}.'
+      '${value.month.toString().padLeft(2, '0')}.${value.year}';
+
+  String _time(DateTime value) => '${value.hour.toString().padLeft(2, '0')}:'
+      '${value.minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF73D2DE).withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFF73D2DE).withValues(alpha: .45),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.event_busy_rounded, color: AppColors.blue),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'Individuelle Hallenbelegungen',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Einmalige Nutzungen durch andere Abteilungen, Vereine oder '
+              'Veranstaltungen.',
+              style: TextStyle(color: AppColors.muted),
+            ),
+            const SizedBox(height: 10),
+            for (final entry in entries)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 7),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF73D2DE),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.business_rounded,
+                          color: AppColors.black,
+                        ),
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.title,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${_date(entry.startAt)} · '
+                              '${_time(entry.startAt)}–${_time(entry.endAt)} Uhr',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            Text(
+                              entry.location,
+                              style: const TextStyle(color: AppColors.muted),
+                            ),
+                            if (entry.notes?.trim().isNotEmpty == true)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 3),
+                                child: Text(
+                                  entry.notes!,
+                                  style: const TextStyle(
+                                    color: AppColors.muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (canManage)
+                        PopupMenuButton<String>(
+                          tooltip: 'Sonderbelegung verwalten',
+                          onSelected: (value) {
+                            if (value == 'edit') onEdit?.call(entry);
+                            if (value == 'delete') onDelete?.call(entry);
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: ListTile(
+                                leading: Icon(Icons.edit_outlined),
+                                title: Text('Bearbeiten'),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: ListTile(
+                                leading: Icon(Icons.delete_outline),
+                                title: Text('Löschen'),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
 }
 
 class _HeaderMetric extends StatelessWidget {

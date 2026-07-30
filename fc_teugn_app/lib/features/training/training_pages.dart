@@ -89,6 +89,13 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                     icon: const Icon(Icons.edit_calendar_rounded),
                     label: const Text('Trainingszeiten verwalten'),
                   ),
+                  if (_view == _TrainingPageView.indoorOccupancy)
+                    FilledButton.icon(
+                      onPressed:
+                          _creating ? null : () => _editIndoorOccupancyEntry(),
+                      icon: const Icon(Icons.add_business_rounded),
+                      label: const Text('Sonderbelegung eintragen'),
+                    ),
                   if (_view == _TrainingPageView.sessions)
                     FilledButton.icon(
                       onPressed: _organization == null || _creating
@@ -171,6 +178,8 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             PitchOccupancyBoard(
               plan: _indoorOccupancy!,
               onConflictApproval: _setConflictApproval,
+              onEditSpecialEntry: _editIndoorOccupancyEntry,
+              onDeleteSpecialEntry: _deleteIndoorOccupancyEntry,
             ),
         ],
       );
@@ -439,6 +448,371 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
       }
     }
   }
+
+  Future<void> _editIndoorOccupancyEntry([
+    IndoorOccupancyEntry? existing,
+  ]) async {
+    final plan = _indoorOccupancy;
+    if (plan == null || !_canManageOccupancy) return;
+    final draft = await showDialog<_IndoorOccupancyDraft>(
+      context: context,
+      builder: (context) => _IndoorOccupancyDialog(existing: existing),
+    );
+    if (draft == null || !mounted) return;
+    setState(() => _creating = true);
+    try {
+      final repository = ref.read(repositoryProvider);
+      if (existing == null) {
+        await repository.createIndoorOccupancyEntry(
+          seasonId: plan.seasonId,
+          title: draft.title,
+          location: draft.location,
+          startAt: draft.startAt,
+          endAt: draft.endAt,
+          notes: draft.notes,
+        );
+      } else {
+        await repository.updateIndoorOccupancyEntry(
+          entryId: existing.id,
+          title: draft.title,
+          location: draft.location,
+          startAt: draft.startAt,
+          endAt: draft.endAt,
+          notes: draft.notes,
+        );
+      }
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              existing == null
+                  ? 'Die Hallen-Sonderbelegung wurde eingetragen.'
+                  : 'Die Hallen-Sonderbelegung wurde aktualisiert.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Die Hallen-Sonderbelegung konnte nicht gespeichert werden.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
+
+  Future<void> _deleteIndoorOccupancyEntry(
+    IndoorOccupancyEntry entry,
+  ) async {
+    if (!_canManageOccupancy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sonderbelegung löschen?'),
+        content: Text(
+          '„${entry.title}“ wird dauerhaft aus der Hallenbelegung entfernt.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _creating = true);
+    try {
+      await ref.read(repositoryProvider).deleteIndoorOccupancyEntry(entry.id);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sonderbelegung wurde gelöscht.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sonderbelegung konnte nicht gelöscht werden.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
+}
+
+class _IndoorOccupancyDraft {
+  const _IndoorOccupancyDraft({
+    required this.title,
+    required this.location,
+    required this.startAt,
+    required this.endAt,
+    this.notes,
+  });
+
+  final String title;
+  final String location;
+  final DateTime startAt;
+  final DateTime endAt;
+  final String? notes;
+}
+
+class _IndoorOccupancyDialog extends StatefulWidget {
+  const _IndoorOccupancyDialog({this.existing});
+
+  final IndoorOccupancyEntry? existing;
+
+  @override
+  State<_IndoorOccupancyDialog> createState() => _IndoorOccupancyDialogState();
+}
+
+class _IndoorOccupancyDialogState extends State<_IndoorOccupancyDialog> {
+  static const _locations = [
+    'Mehrzweckhalle Teugn',
+    'Sporthalle',
+    'Hallenbereich 1',
+    'Hallenbereich 2',
+    'Gesamte Halle',
+    'Noch offen / unklar',
+  ];
+
+  late final TextEditingController _title;
+  late final TextEditingController _location;
+  late final TextEditingController _notes;
+  late DateTime _startAt;
+  late DateTime _endAt;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    final initialStart = widget.existing?.startAt ??
+        DateTime(now.year, now.month, now.day + 1, 18);
+    _startAt = initialStart;
+    _endAt =
+        widget.existing?.endAt ?? initialStart.add(const Duration(hours: 2));
+    _title = TextEditingController(text: widget.existing?.title);
+    _location = TextEditingController(text: widget.existing?.location);
+    _notes = TextEditingController(text: widget.existing?.notes);
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _location.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  String _date(DateTime value) => '${value.day.toString().padLeft(2, '0')}.'
+      '${value.month.toString().padLeft(2, '0')}.${value.year}';
+
+  String _time(DateTime value) => '${value.hour.toString().padLeft(2, '0')}:'
+      '${value.minute.toString().padLeft(2, '0')} Uhr';
+
+  Future<void> _pickDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _startAt,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 1100)),
+    );
+    if (selected == null) return;
+    final duration = _endAt.difference(_startAt);
+    setState(() {
+      _startAt = DateTime(
+        selected.year,
+        selected.month,
+        selected.day,
+        _startAt.hour,
+        _startAt.minute,
+      );
+      _endAt = _startAt.add(duration);
+    });
+  }
+
+  Future<void> _pickTime({required bool start}) async {
+    final value = start ? _startAt : _endAt;
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(value),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (selected == null) return;
+    setState(() {
+      final next = DateTime(
+        _startAt.year,
+        _startAt.month,
+        _startAt.day,
+        selected.hour,
+        selected.minute,
+      );
+      if (start) {
+        final duration = _endAt.difference(_startAt);
+        _startAt = next;
+        _endAt = _startAt.add(
+          duration.isNegative || duration == Duration.zero
+              ? const Duration(hours: 2)
+              : duration,
+        );
+      } else {
+        _endAt = next;
+      }
+    });
+  }
+
+  void _submit() {
+    final title = _title.text.trim();
+    final location = _location.text.trim();
+    if (title.isEmpty || location.isEmpty) {
+      setState(
+        () => _error = 'Bitte Bezeichnung und Hallenbereich angeben.',
+      );
+      return;
+    }
+    if (!_endAt.isAfter(_startAt)) {
+      setState(() => _error = 'Das Ende muss nach dem Beginn liegen.');
+      return;
+    }
+    Navigator.pop(
+      context,
+      _IndoorOccupancyDraft(
+        title: title,
+        location: location,
+        startAt: _startAt,
+        endAt: _endAt,
+        notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(
+          widget.existing == null
+              ? 'Hallen-Sonderbelegung'
+              : 'Sonderbelegung bearbeiten',
+        ),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Für Tennis, Faschingsverein, Veranstaltungen oder andere '
+                  'einmalige Hallennutzungen.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _title,
+                  decoration: const InputDecoration(
+                    labelText: 'Bezeichnung',
+                    hintText: 'z. B. Tennis oder Faschingsverein',
+                    prefixIcon: Icon(Icons.badge_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Autocomplete<String>(
+                  initialValue: TextEditingValue(text: _location.text),
+                  optionsBuilder: (value) => _locations.where(
+                    (item) => item
+                        .toLowerCase()
+                        .contains(value.text.trim().toLowerCase()),
+                  ),
+                  onSelected: (value) => _location.text = value,
+                  fieldViewBuilder:
+                      (context, controller, focusNode, onSubmitted) {
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      onChanged: (value) => _location.text = value,
+                      decoration: const InputDecoration(
+                        labelText: 'Halle / Hallenbereich',
+                        hintText: 'Auswählen oder individuell eingeben',
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _pickDate,
+                  icon: const Icon(Icons.calendar_month_rounded),
+                  label: Text('Datum · ${_date(_startAt)}'),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _pickTime(start: true),
+                        icon: const Icon(Icons.schedule_rounded),
+                        label: Text('Beginn · ${_time(_startAt)}'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _pickTime(start: false),
+                        icon: const Icon(Icons.schedule_outlined),
+                        label: Text('Ende · ${_time(_endAt)}'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _notes,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Notiz (optional)',
+                    prefixIcon: Icon(Icons.notes_rounded),
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            onPressed: _submit,
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Speichern'),
+          ),
+        ],
+      );
 }
 
 class _TrainingScheduleDraft {
