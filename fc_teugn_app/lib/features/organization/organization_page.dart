@@ -57,6 +57,7 @@ class _OrganizationContent extends ConsumerWidget {
       context: context,
       builder: (_) => _TeamEditorDialog(
         ageGroups: data.ageGroups,
+        teams: data.teams,
         initialAgeGroup: initialAgeGroup,
         team: team,
       ),
@@ -67,6 +68,7 @@ class _OrganizationContent extends ConsumerWidget {
       if (team == null) {
         await repository.createTeam(
           ageGroupId: draft.ageGroupId,
+          teamNumber: draft.teamNumber,
           name: draft.name,
           shortName: draft.shortName,
           level: draft.level,
@@ -86,6 +88,7 @@ class _OrganizationContent extends ConsumerWidget {
       } else {
         await repository.updateTeam(
           teamId: team.id,
+          teamNumber: draft.teamNumber,
           name: draft.name,
           shortName: draft.shortName,
           level: draft.level,
@@ -107,17 +110,19 @@ class _OrganizationContent extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(team == null
-              ? '${draft.name} wurde angelegt.'
-              : '${draft.name} wurde aktualisiert.'),
+              ? '${draft.displayName} wurde angelegt.'
+              : '${draft.displayName} wurde aktualisiert.'),
         ));
       }
     } on DioException catch (error) {
       final response = error.response?.data;
-      final message =
-          response is Map<String, dynamic> ? response['message'] as String? : null;
+      final message = response is Map<String, dynamic>
+          ? response['message'] as String?
+          : null;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(message ?? 'Mannschaft konnte nicht gespeichert werden.'),
+          content:
+              Text(message ?? 'Mannschaft konnte nicht gespeichert werden.'),
         ));
       }
     }
@@ -155,26 +160,32 @@ class _OrganizationContent extends ConsumerWidget {
         (candidate) => candidate.id == team.id && candidate.photoUrl != null,
       );
       if (!confirmed) {
-        throw StateError('Foto konnte nach dem Speichern nicht geladen werden.');
+        throw StateError(
+            'Foto konnte nach dem Speichern nicht geladen werden.');
       }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mannschaftsfoto geschützt gespeichert.')),
+          const SnackBar(
+              content: Text('Mannschaftsfoto geschützt gespeichert.')),
         );
       }
     } on DioException catch (error) {
       final response = error.response?.data;
-      final message =
-          response is Map<String, dynamic> ? response['message'] as String? : null;
+      final message = response is Map<String, dynamic>
+          ? response['message'] as String?
+          : null;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message ?? 'Foto konnte nicht gespeichert werden.')),
+          SnackBar(
+              content:
+                  Text(message ?? 'Foto konnte nicht gespeichert werden.')),
         );
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(
+          const SnackBar(
+              content: Text(
             'Das Foto wurde nicht vollständig bestätigt. Bitte erneut versuchen.',
           )),
         );
@@ -484,7 +495,7 @@ class _TeamCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(team.name,
+                      child: Text(team.displayName,
                           style: Theme.of(context).textTheme.titleLarge),
                     ),
                     if (isCurrent)
@@ -493,8 +504,7 @@ class _TeamCard extends StatelessWidget {
                         child: Icon(Icons.check_circle_rounded,
                             color: AppColors.teal),
                       ),
-                    if (!team.isActive)
-                      const Chip(label: Text('Inaktiv')),
+                    if (!team.isActive) const Chip(label: Text('Inaktiv')),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -534,7 +544,8 @@ class _TeamCard extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     team.staff
-                        .map((member) => '${member.name} · ${_role(member.role)}')
+                        .map((member) =>
+                            '${member.name} · ${_role(member.role)}')
                         .join('\n'),
                   ),
                 ],
@@ -599,10 +610,12 @@ class _InfoLine extends StatelessWidget {
 class _TeamEditorDialog extends StatefulWidget {
   const _TeamEditorDialog({
     required this.ageGroups,
+    required this.teams,
     required this.initialAgeGroup,
     this.team,
   });
   final List<AgeGroupSummary> ageGroups;
+  final List<TeamSummary> teams;
   final AgeGroupSummary initialAgeGroup;
   final TeamSummary? team;
 
@@ -612,8 +625,6 @@ class _TeamEditorDialog extends StatefulWidget {
 
 class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _name;
-  late final TextEditingController _shortName;
   late final TextEditingController _level;
   late final TextEditingController _birthYears;
   late final TextEditingController _description;
@@ -624,6 +635,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   late final TextEditingController _dfbnetTeamId;
   late final TextEditingController _bfvTeamUrl;
   late String _ageGroupId;
+  late int _teamNumber;
   late String _teamType;
   late String _gender;
   late TeamGameFormat _gameFormat;
@@ -633,8 +645,6 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   void initState() {
     super.initState();
     final team = widget.team;
-    _name = TextEditingController(text: team?.name);
-    _shortName = TextEditingController(text: team?.shortName);
     _level = TextEditingController(text: team?.level);
     _birthYears = TextEditingController(text: team?.birthYears.join(', '));
     _description = TextEditingController(text: team?.description);
@@ -646,18 +656,17 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
     _dfbnetTeamId = TextEditingController(text: team?.dfbnetTeamId);
     _bfvTeamUrl = TextEditingController(text: team?.bfvTeamUrl);
     _ageGroupId = team?.ageGroup.id ?? widget.initialAgeGroup.id;
+    _teamNumber = team?.teamNumber ?? _nextAvailableTeamNumber(_ageGroupId);
     _teamType = team?.teamType ?? 'COMPETITIVE';
     _gender = team?.gender ?? 'MIXED';
-    _gameFormat = team?.gameFormat ??
-        suggestedGameFormat(widget.initialAgeGroup.code);
+    _gameFormat =
+        team?.gameFormat ?? suggestedGameFormat(widget.initialAgeGroup.code);
     _isActive = team?.isActive ?? true;
   }
 
   @override
   void dispose() {
     for (final controller in [
-      _name,
-      _shortName,
       _level,
       _birthYears,
       _description,
@@ -678,6 +687,30 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
     return value.isEmpty ? null : value;
   }
 
+  Set<int> _usedTeamNumbers(String ageGroupId) => widget.teams
+      .where(
+        (team) => team.ageGroup.id == ageGroupId && team.id != widget.team?.id,
+      )
+      .map((team) => team.teamNumber)
+      .toSet();
+
+  int _nextAvailableTeamNumber(String ageGroupId) {
+    final used = _usedTeamNumbers(ageGroupId);
+    return List.generate(20, (index) => index + 1)
+        .firstWhere((number) => !used.contains(number), orElse: () => 1);
+  }
+
+  int _projectedTeamCount(String ageGroupId) {
+    final existing =
+        widget.teams.where((team) => team.ageGroup.id == ageGroupId).length;
+    return widget.team == null ? existing + 1 : existing;
+  }
+
+  String _displayName(AgeGroupSummary ageGroup) =>
+      _projectedTeamCount(ageGroup.id) <= 1
+          ? '${ageGroup.code}-Jugend'
+          : '${ageGroup.code}$_teamNumber-Jugend';
+
   @override
   Widget build(BuildContext context) {
     final editing = widget.team != null;
@@ -688,6 +721,13 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
       _gameFormat,
       ...gameFormatsForAgeGroup(selectedAgeGroup.code),
     };
+    final usedTeamNumbers = _usedTeamNumbers(_ageGroupId);
+    final availableTeamNumbers = List.generate(20, (index) => index + 1)
+        .where(
+          (number) =>
+              number == _teamNumber || !usedTeamNumbers.contains(number),
+        )
+        .toList();
     return AlertDialog(
       title: Text(editing ? 'Mannschaft bearbeiten' : 'Neue Mannschaft'),
       content: SizedBox(
@@ -714,9 +754,64 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                         );
                         setState(() {
                           _ageGroupId = value!;
+                          _teamNumber = _nextAvailableTeamNumber(_ageGroupId);
                           _gameFormat = suggestedGameFormat(group.code);
                         });
                       },
+              ),
+              const SizedBox(height: 12),
+              _twoColumns(
+                DropdownButtonFormField<int>(
+                  key: ValueKey('$_ageGroupId-$_teamNumber'),
+                  initialValue: _teamNumber,
+                  decoration: const InputDecoration(
+                    labelText: 'Mannschaft innerhalb der Jugend *',
+                    helperText:
+                        'Nummern können in jeder Jugend separat vergeben werden.',
+                    prefixIcon: Icon(Icons.format_list_numbered_rounded),
+                  ),
+                  items: [
+                    for (final number in availableTeamNumbers)
+                      DropdownMenuItem(
+                        value: number,
+                        child: Text(
+                          '${selectedAgeGroup.code}$number-Mannschaft',
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _teamNumber = value!),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 13,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.yellowSoft.withValues(alpha: .55),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Angezeigter Mannschaftsname',
+                        style: TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _displayName(selectedAgeGroup),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<TeamGameFormat>(
@@ -734,23 +829,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                       child: Text(format.label),
                     ),
                 ],
-                onChanged: (value) =>
-                    setState(() => _gameFormat = value!),
-              ),
-              const SizedBox(height: 12),
-              _twoColumns(
-                TextFormField(
-                  controller: _name,
-                  decoration:
-                      const InputDecoration(labelText: 'Mannschaftsname *'),
-                  validator: (value) => value == null || value.trim().isEmpty
-                      ? 'Bitte Namen eingeben.'
-                      : null,
-                ),
-                TextFormField(
-                  controller: _shortName,
-                  decoration: const InputDecoration(labelText: 'Kurzname'),
-                ),
+                onChanged: (value) => setState(() => _gameFormat = value!),
               ),
               const SizedBox(height: 12),
               _twoColumns(
@@ -817,7 +896,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                 ),
                 TextFormField(
                   controller: _homeVenue,
-                  decoration: const InputDecoration(labelText: 'Heimspielstätte'),
+                  decoration:
+                      const InputDecoration(labelText: 'Heimspielstätte'),
                 ),
               ),
               const SizedBox(height: 12),
@@ -843,7 +923,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                 ),
                 TextFormField(
                   controller: _dfbnetTeamId,
-                  decoration: const InputDecoration(labelText: 'DFBnet-Team-ID'),
+                  decoration:
+                      const InputDecoration(labelText: 'DFBnet-Team-ID'),
                 ),
               ),
               const SizedBox(height: 12),
@@ -904,6 +985,10 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
+    final selectedAgeGroup = widget.ageGroups.firstWhere(
+      (group) => group.id == _ageGroupId,
+    );
+    final compactName = '${selectedAgeGroup.code}$_teamNumber';
     final years = _birthYears.text
         .split(RegExp(r'[,;\s]+'))
         .map(int.tryParse)
@@ -915,8 +1000,10 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
       context,
       _TeamDraft(
         ageGroupId: _ageGroupId,
-        name: _name.text.trim(),
-        shortName: _optional(_shortName),
+        teamNumber: _teamNumber,
+        name: compactName,
+        displayName: _displayName(selectedAgeGroup),
+        shortName: compactName,
         level: _optional(_level),
         teamType: _teamType,
         gender: _gender,
@@ -942,7 +1029,9 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
 class _TeamDraft {
   const _TeamDraft({
     required this.ageGroupId,
+    required this.teamNumber,
     required this.name,
+    required this.displayName,
     required this.teamType,
     required this.gender,
     required this.gameFormat,
@@ -959,7 +1048,9 @@ class _TeamDraft {
     this.bfvTeamUrl,
   });
   final String ageGroupId;
+  final int teamNumber;
   final String name;
+  final String displayName;
   final String? shortName;
   final String? level;
   final String teamType;

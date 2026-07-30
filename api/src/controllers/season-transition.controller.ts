@@ -89,6 +89,7 @@ export async function previewSeasonTransition(req: Request, res: Response) {
   const teamPlans = buildTransitionTeamPlans(
     sourceTeams.map((team) => ({
       id: team.id,
+      teamNumber: team.teamNumber,
       name: team.name,
       shortName: team.shortName,
       level: team.level,
@@ -189,6 +190,7 @@ export async function applySeasonTransition(req: Request, res: Response) {
     targetSeason: { name: string; startDate: string; endDate: string };
     teams: Array<{
       sourceTeamId: string;
+      teamNumber: number;
       targetAgeGroupCode: string;
       targetName: string;
       shortName: string | null;
@@ -270,17 +272,26 @@ export async function applySeasonTransition(req: Request, res: Response) {
       let archivedPlayers = 0;
       let copiedMemberships = 0;
       let copiedRuleProfiles = 0;
+      const usedNumbersByAgeGroup = new Map<string, Set<number>>();
 
       for (const teamPlan of plan.teams) {
         const sourceTeam = sourceTeamById.get(teamPlan.sourceTeamId);
         if (!sourceTeam) throw new Error(`Mannschaft ${teamPlan.sourceTeamId} wurde nicht gefunden.`);
         const targetAgeGroupId = targetAgeGroups.get(teamPlan.targetAgeGroupCode.toUpperCase());
         if (!targetAgeGroupId) throw new Error('Ziel-Altersklasse wurde nicht angelegt.');
+        const usedNumbers = usedNumbersByAgeGroup.get(targetAgeGroupId) ?? new Set<number>();
+        let teamNumber = teamPlan.teamNumber;
+        while (usedNumbers.has(teamNumber)) teamNumber += 1;
+        usedNumbers.add(teamNumber);
+        usedNumbersByAgeGroup.set(targetAgeGroupId, usedNumbers);
+        const compactName =
+          `${teamPlan.targetAgeGroupCode.toUpperCase()}${teamNumber}`;
         const targetTeam = await tx.team.create({
           data: {
             ageGroupId: targetAgeGroupId,
-            name: teamPlan.targetName,
-            shortName: teamPlan.shortName,
+            teamNumber,
+            name: compactName,
+            shortName: compactName,
             level: teamPlan.level,
             gameFormat: sourceTeam.gameFormat,
           },

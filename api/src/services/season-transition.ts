@@ -8,6 +8,7 @@ export function nextAgeGroupCode(code: string) {
 }
 export interface TransitionTeamInput {
   id: string;
+  teamNumber?: number;
   name: string;
   shortName: string | null;
   level: string | null;
@@ -34,6 +35,7 @@ export function buildTransitionTeamPlans(
     const override = overrideByTeam.get(team.id);
     return {
       sourceTeamId: team.id,
+      teamNumber: team.teamNumber ?? 1,
       sourceName: team.name,
       sourceAgeGroupCode: team.ageGroup.code,
       targetAgeGroupCode:

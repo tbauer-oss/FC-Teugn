@@ -123,7 +123,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             ],
           ),
           const SizedBox(height: 26),
-          _sectionTitle(context, 'Persönliche Angaben', 'Wer beantragt den Zugang?'),
+          _sectionTitle(
+              context, 'Persönliche Angaben', 'Wer beantragt den Zugang?'),
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -228,7 +229,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           ),
           const SizedBox(height: 14),
           if (options.teams.isEmpty)
-            const Text('Aktuell sind keine Mannschaften zur Registrierung freigegeben.')
+            const Text(
+                'Aktuell sind keine Mannschaften zur Registrierung freigegeben.')
           else
             Wrap(
               spacing: 8,
@@ -275,7 +277,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _relationship,
-              decoration: const InputDecoration(labelText: 'Beziehung zum Kind'),
+              decoration:
+                  const InputDecoration(labelText: 'Beziehung zum Kind'),
               items: const [
                 DropdownMenuItem(value: 'MOTHER', child: Text('Mutter')),
                 DropdownMenuItem(value: 'FATHER', child: Text('Vater')),
@@ -283,7 +286,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   value: 'GUARDIAN',
                   child: Text('Sorgeberechtigte Person'),
                 ),
-                DropdownMenuItem(value: 'OTHER', child: Text('Andere Beziehung')),
+                DropdownMenuItem(
+                    value: 'OTHER', child: Text('Andere Beziehung')),
               ],
               onChanged: (value) => setState(() => _relationship = value!),
             ),
@@ -335,9 +339,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: authState.loading
-                  ? null
-                  : () => _submit(options),
+              onPressed: authState.loading ? null : () => _submit(options),
               icon: authState.loading
                   ? const SizedBox(
                       width: 18,
@@ -384,8 +386,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
           role: _role,
           teamIds: _teamIds.toList(),
-          childName:
-              _role == UserRole.parent ? _childName.text.trim() : null,
+          childName: _role == UserRole.parent ? _childName.text.trim() : null,
           relationship: _role == UserRole.parent ? _relationship : null,
           privacyAccepted: _privacyAccepted,
           termsAccepted: _termsAccepted,
@@ -429,11 +430,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         final ageGroup = ageGroupEntry as Map<String, dynamic>;
         for (final teamEntry in ageGroup['teams'] as List<dynamic>) {
           final team = teamEntry as Map<String, dynamic>;
+          final teamLabel =
+              team['displayName'] as String? ?? '${ageGroup['code']}-Jugend';
           teams.add(
             _RegistrationTeam(
               id: team['id'] as String,
-              label:
-                  '${ageGroup['code']}-Jugend · ${team['name']} · ${season['name']}',
+              label: '$teamLabel · ${season['name']}',
             ),
           );
         }
@@ -487,10 +489,12 @@ class _ConsentTile extends StatelessWidget {
               onPressed: () => showDialog<void>(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: Text('${document!.title} · Version ${document!.version}'),
+                  title:
+                      Text('${document!.title} · Version ${document!.version}'),
                   content: SizedBox(
                     width: 620,
-                    child: SingleChildScrollView(child: Text(document!.content)),
+                    child:
+                        SingleChildScrollView(child: Text(document!.content)),
                   ),
                   actions: [
                     FilledButton(

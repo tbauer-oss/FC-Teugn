@@ -46,6 +46,7 @@ const hierarchyInclude = {
 
 type TeamInput = {
   ageGroupId?: string;
+  teamNumber?: unknown;
   name?: string;
   shortName?: string | null;
   level?: string | null;
@@ -100,7 +101,14 @@ function validUrl(value: unknown) {
 }
 
 function normalizedTeamData(body: TeamInput) {
+  const parsedTeamNumber = Number(body.teamNumber);
   return {
+    teamNumber:
+      Number.isInteger(parsedTeamNumber) &&
+      parsedTeamNumber >= 1 &&
+      parsedTeamNumber <= 20
+        ? parsedTeamNumber
+        : null,
     name: optionalText(body.name, 120),
     shortName: optionalText(body.shortName, 40),
     level: optionalText(body.level, 80),
@@ -127,6 +135,21 @@ function normalizedTeamData(body: TeamInput) {
   };
 }
 
+export function teamDisplayName(
+  ageGroupCode: string,
+  teamNumber: number,
+  teamCount: number,
+) {
+  const code = ageGroupCode.trim().toUpperCase();
+  return teamCount <= 1
+    ? `${code}-Jugend`
+    : `${code}${teamNumber}-Jugend`;
+}
+
+function compactTeamName(ageGroupCode: string, teamNumber: number) {
+  return `${ageGroupCode.trim().toUpperCase()}${teamNumber}`;
+}
+
 export async function publicOrganization(_req: Request, res: Response) {
   const seasons = await prisma.season.findMany({
     where: { isActive: true },
@@ -138,8 +161,14 @@ export async function publicOrganization(_req: Request, res: Response) {
         include: {
           teams: {
             where: { isActive: true },
-            orderBy: { name: 'asc' },
-            select: { id: true, name: true, shortName: true, level: true },
+            orderBy: { teamNumber: 'asc' },
+            select: {
+              id: true,
+              name: true,
+              shortName: true,
+              level: true,
+              teamNumber: true,
+            },
           },
         },
       },
@@ -159,7 +188,17 @@ export async function publicOrganization(_req: Request, res: Response) {
       startDate: season.startDate,
       endDate: season.endDate,
     },
-    ageGroups: season.ageGroups,
+    ageGroups: season.ageGroups.map((ageGroup) => ({
+      ...ageGroup,
+      teams: ageGroup.teams.map((team) => ({
+        ...team,
+        displayName: teamDisplayName(
+          ageGroup.code,
+          team.teamNumber,
+          ageGroup.teams.length,
+        ),
+      })),
+    })),
   })));
 }
 
@@ -197,7 +236,11 @@ export async function organizationContext(req: Request, res: Response) {
           id: { in: membershipTeamIds.length > 0 ? membershipTeamIds : [user.teamId] },
         }),
       },
-      orderBy: [{ isActive: 'desc' }, { ageGroup: { sortOrder: 'asc' } }, { name: 'asc' }],
+      orderBy: [
+        { isActive: 'desc' },
+        { ageGroup: { sortOrder: 'asc' } },
+        { teamNumber: 'asc' },
+      ],
       include: hierarchyInclude,
     }),
     prisma.player.count({ where: { teamId: { in: visibleTeamIds } } }),
@@ -235,11 +278,27 @@ export async function organizationContext(req: Request, res: Response) {
         })
       : Promise.resolve(0),
   ]);
+  const groupedTeamCounts = await prisma.team.groupBy({
+    by: ['ageGroupId'],
+    where: { ageGroup: { season: seasonScope } },
+    _count: { _all: true },
+  });
+  const teamCountByAgeGroup = new Map(
+    groupedTeamCounts.map((item) => [item.ageGroupId, item._count._all]),
+  );
   const serializedTeams = await Promise.all(
-    teams.map((team) => serializeTeam(team, canViewAllTeams || team.id === user.teamId)),
+    teams.map((team) => serializeTeam(
+      team,
+      canViewAllTeams || team.id === user.teamId,
+      teamCountByAgeGroup.get(team.ageGroupId),
+    )),
   );
   const serializedCurrent = serializedTeams.find((team) => team.id === currentTeam.id)
-    ?? await serializeTeam(currentTeam, true);
+    ?? await serializeTeam(
+      currentTeam,
+      true,
+      teamCountByAgeGroup.get(currentTeam.ageGroupId),
+    );
   return res.json({
     club: currentTeam.ageGroup.season.club,
     season: {
@@ -261,10 +320,14 @@ export async function createTeam(req: Request, res: Response) {
   const user = req.user!;
   const body = req.body as TeamInput;
   const data = normalizedTeamData(body);
-  if (!body.ageGroupId || !data.name) {
-    return res.status(400).json({ message: 'Altersklasse und Mannschaftsname sind erforderlich.' });
+  if (!body.ageGroupId) {
+    return res.status(400).json({ message: 'Eine Jugend muss ausgewählt werden.' });
   }
-  const teamName = data.name;
+  if (body.teamNumber !== undefined && data.teamNumber === null) {
+    return res.status(400).json({
+      message: 'Die Mannschaftsnummer muss zwischen 1 und 20 liegen.',
+    });
+  }
   if (body.bfvTeamUrl && !data.bfvTeamUrl) {
     return res.status(400).json({ message: 'Die BFV-Adresse ist ungültig.' });
   }
@@ -282,17 +345,42 @@ export async function createTeam(req: Request, res: Response) {
     },
   });
   if (!ageGroup) return res.status(404).json({ message: 'Altersklasse nicht gefunden.' });
-  const duplicate = await prisma.team.findFirst({
-    where: { ageGroupId: body.ageGroupId, name: { equals: data.name, mode: 'insensitive' } },
+  const existingNumbers = await prisma.team.findMany({
+    where: { ageGroupId: body.ageGroupId },
+    select: { teamNumber: true },
   });
-  if (duplicate) return res.status(409).json({ message: 'Diese Mannschaft existiert bereits.' });
+  const usedNumbers = new Set(existingNumbers.map((team) => team.teamNumber));
+  const teamNumber = data.teamNumber
+    ?? Array.from({ length: 20 }, (_, index) => index + 1)
+      .find((number) => !usedNumbers.has(number));
+  if (!teamNumber) {
+    return res.status(409).json({
+      message: 'Für diese Jugend sind bereits 20 Mannschaften angelegt.',
+    });
+  }
+  const teamName = compactTeamName(ageGroup.code, teamNumber);
+  const duplicate = await prisma.team.findFirst({
+    where: { ageGroupId: body.ageGroupId, teamNumber },
+  });
+  if (duplicate) {
+    return res.status(409).json({
+      message: `${ageGroup.code}${teamNumber}-Jugend existiert bereits.`,
+    });
+  }
+  const {
+    teamNumber: _requestedTeamNumber,
+    name: _name,
+    shortName: _shortName,
+    ...profileData
+  } = data;
   const team = await prisma.$transaction(async (tx) => {
     const created = await tx.team.create({
       data: {
-        ...data,
+        ...profileData,
         name: teamName,
         ageGroupId: body.ageGroupId!,
-        shortName: data.shortName ?? teamName,
+        teamNumber,
+        shortName: teamName,
       },
       include: hierarchyInclude,
     });
@@ -303,7 +391,11 @@ export async function createTeam(req: Request, res: Response) {
         action: 'TEAM_CREATED',
         entityType: 'Team',
         entityId: created.id,
-        metadata: { name: created.name, ageGroupId: body.ageGroupId },
+        metadata: {
+          name: created.name,
+          teamNumber,
+          ageGroupId: body.ageGroupId,
+        },
       },
     });
     return created;
@@ -319,25 +411,45 @@ export async function updateTeam(req: Request, res: Response) {
   }
   const body = req.body as TeamInput;
   const data = normalizedTeamData(body);
-  if (!data.name) return res.status(400).json({ message: 'Mannschaftsname ist erforderlich.' });
-  const teamName = data.name;
+  if (body.teamNumber !== undefined && data.teamNumber === null) {
+    return res.status(400).json({
+      message: 'Die Mannschaftsnummer muss zwischen 1 und 20 liegen.',
+    });
+  }
   if (body.bfvTeamUrl && !data.bfvTeamUrl) {
     return res.status(400).json({ message: 'Die BFV-Adresse ist ungültig.' });
   }
   const existing = await prisma.team.findUnique({ where: { id: teamId }, include: hierarchyInclude });
   if (!existing) return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  const teamNumber = data.teamNumber ?? existing.teamNumber;
+  const teamName = compactTeamName(existing.ageGroup.code, teamNumber);
   const duplicate = await prisma.team.findFirst({
     where: {
       ageGroupId: existing.ageGroupId,
       id: { not: teamId },
-      name: { equals: teamName, mode: 'insensitive' },
+      teamNumber,
     },
   });
-  if (duplicate) return res.status(409).json({ message: 'Diese Mannschaft existiert bereits.' });
+  if (duplicate) {
+    return res.status(409).json({
+      message: `${existing.ageGroup.code}${teamNumber}-Jugend existiert bereits.`,
+    });
+  }
+  const {
+    teamNumber: _requestedTeamNumber,
+    name: _name,
+    shortName: _shortName,
+    ...profileData
+  } = data;
   const team = await prisma.$transaction(async (tx) => {
     const updated = await tx.team.update({
       where: { id: teamId },
-      data: { ...data, name: teamName },
+      data: {
+        ...profileData,
+        teamNumber,
+        name: teamName,
+        shortName: teamName,
+      },
       include: hierarchyInclude,
     });
     await tx.auditLog.create({
@@ -489,6 +601,7 @@ export async function removeTeamPhoto(req: Request, res: Response) {
 
 function teamSnapshot(team: ReturnType<typeof normalizedTeamData> & { ageGroupId?: string }) {
   return {
+    teamNumber: team.teamNumber,
     name: team.name,
     shortName: team.shortName,
     level: team.level,
@@ -508,6 +621,8 @@ function teamSnapshot(team: ReturnType<typeof normalizedTeamData> & { ageGroupId
 
 async function serializeTeam(team: {
   id: string;
+  ageGroupId: string;
+  teamNumber: number;
   name: string;
   shortName: string | null;
   level: string | null;
@@ -534,11 +649,20 @@ async function serializeTeam(team: {
     code: string;
     season: { id: string; name: string };
   };
-}, includePrivate: boolean) {
+}, includePrivate: boolean, ageGroupTeamCount?: number) {
+  const teamCount = ageGroupTeamCount ?? await prisma.team.count({
+    where: { ageGroupId: team.ageGroupId },
+  });
   return {
     id: team.id,
+    teamNumber: team.teamNumber,
     name: team.name,
     shortName: team.shortName,
+    displayName: teamDisplayName(
+      team.ageGroup.code,
+      team.teamNumber,
+      teamCount,
+    ),
     level: team.level,
     teamType: team.teamType,
     gender: team.gender,
