@@ -44,6 +44,9 @@ class PageScaffold extends StatelessWidget {
           ],
         );
         return CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: ClampingScrollPhysics(),
+          ),
           slivers: [
             SliverPadding(
               padding: EdgeInsets.fromLTRB(

@@ -50,6 +50,16 @@ class AppShell extends ConsumerWidget {
     return _matchingIndex(location, items) ?? 0;
   }
 
+  Future<void> _refreshApp(WidgetRef ref) async {
+    ref.invalidate(repositoryProvider);
+    ref.invalidate(organizationProvider);
+    try {
+      await ref.read(organizationProvider.future);
+    } catch (_) {
+      // Die aktuell sichtbare Seite zeigt ihren eigenen Ladefehler an.
+    }
+  }
+
   Future<void> _showMoreMenu(
     BuildContext context,
     List<ShellDestination> destinations,
@@ -183,7 +193,12 @@ class AppShell extends ConsumerWidget {
                           if (privacy != null) context.go(privacy.route);
                         },
                       ),
-                    Expanded(child: child),
+                    Expanded(
+                      child: RefreshIndicator.adaptive(
+                        onRefresh: () => _refreshApp(ref),
+                        child: child,
+                      ),
+                    ),
                   ],
                 ),
               ),
