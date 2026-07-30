@@ -235,4 +235,33 @@ void main() {
 
     expect(plan.conflicts.single.approved, isTrue);
   });
+
+  test('parses individual indoor occupancy entries with local times', () {
+    final plan = PitchOccupancyPlan.fromJson({
+      'club': {'name': 'FC Teugn'},
+      'season': {'id': 'season', 'name': '2026/27'},
+      'mode': 'INDOOR',
+      'teams': <Map<String, dynamic>>[],
+      'canManageOccupancy': true,
+      'specialEntries': [
+        {
+          'id': 'entry-1',
+          'title': 'Faschingsverein',
+          'location': 'Gesamte Halle',
+          'startAt': '2027-02-06T17:00:00.000Z',
+          'endAt': '2027-02-06T22:00:00.000Z',
+          'notes': 'Aufbau und Veranstaltung',
+        },
+      ],
+    });
+
+    expect(plan.indoor, isTrue);
+    expect(plan.canManageOccupancy, isTrue);
+    expect(plan.specialEntries, hasLength(1));
+    expect(plan.specialEntries.single.title, 'Faschingsverein');
+    expect(plan.specialEntries.single.location, 'Gesamte Halle');
+    expect(plan.specialEntries.single.endAt.isAfter(
+      plan.specialEntries.single.startAt,
+    ), isTrue);
+  });
 }

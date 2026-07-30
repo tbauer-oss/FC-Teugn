@@ -12,6 +12,9 @@ import {
   updateRecreationalOccupancy,
   updateSeniorOccupancy,
   updateOccupancyConflictApproval,
+  createIndoorOccupancyEntry,
+  updateIndoorOccupancyEntry,
+  deleteIndoorOccupancyEntry,
 } from '../controllers/trainings.controller';
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { Permission } from '../security/permissions';
@@ -38,6 +41,21 @@ router.patch(
   '/occupancy/conflicts',
   requirePermission(Permission.MANAGE_TRAINING),
   updateOccupancyConflictApproval,
+);
+router.post(
+  '/occupancy/indoor-entries',
+  requirePermission(Permission.MANAGE_TRAINING),
+  createIndoorOccupancyEntry,
+);
+router.put(
+  '/occupancy/indoor-entries/:entryId',
+  requirePermission(Permission.MANAGE_TRAINING),
+  updateIndoorOccupancyEntry,
+);
+router.delete(
+  '/occupancy/indoor-entries/:entryId',
+  requirePermission(Permission.MANAGE_TRAINING),
+  deleteIndoorOccupancyEntry,
 );
 router.get('/', requirePermission(Permission.MANAGE_TRAINING), listTrainings);
 router.get('/exercises', requirePermission(Permission.MANAGE_TRAINING), listExercises);

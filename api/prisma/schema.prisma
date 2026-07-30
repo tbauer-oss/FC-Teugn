@@ -473,9 +473,26 @@ model Season {
   playerAssignments            PlayerSeasonAssignment[]
   sourceTransitions            SeasonTransition[]       @relation("SeasonTransitionSource")
   targetTransitions            SeasonTransition[]       @relation("SeasonTransitionTarget")
+  indoorOccupancyEntries       IndoorOccupancyEntry[]
 
   @@unique([clubId, name])
   @@index([clubId, isActive])
+}
+
+model IndoorOccupancyEntry {
+  id          String   @id @default(cuid())
+  seasonId    String
+  title       String
+  location    String
+  startAt     DateTime
+  endAt       DateTime
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  season      Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@index([seasonId, startAt])
 }
 
 model AgeGroup {

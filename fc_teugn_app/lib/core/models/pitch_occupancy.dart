@@ -11,6 +11,7 @@ class PitchOccupancyPlan {
     this.seniorSchedule,
     this.approvedConflictKeys = const {},
     this.canManageOccupancy = false,
+    this.specialEntries = const [],
   });
 
   final String seasonId;
@@ -22,6 +23,7 @@ class PitchOccupancyPlan {
   final PitchOccupancyTeam? seniorSchedule;
   final Set<String> approvedConflictKeys;
   final bool canManageOccupancy;
+  final List<IndoorOccupancyEntry> specialEntries;
 
   List<PitchOccupancySlot> get slots => [
         for (final team in teams) ...team.slots,
@@ -89,8 +91,43 @@ class PitchOccupancyPlan {
               .whereType<String>()
               .toSet(),
       canManageOccupancy: json['canManageOccupancy'] as bool? ?? false,
+      specialEntries: (json['specialEntries'] as List<dynamic>? ?? const [])
+          .map(
+            (item) => IndoorOccupancyEntry.fromJson(
+              item as Map<String, dynamic>,
+            ),
+          )
+          .toList(),
     );
   }
+}
+
+class IndoorOccupancyEntry {
+  const IndoorOccupancyEntry({
+    required this.id,
+    required this.title,
+    required this.location,
+    required this.startAt,
+    required this.endAt,
+    this.notes,
+  });
+
+  final String id;
+  final String title;
+  final String location;
+  final DateTime startAt;
+  final DateTime endAt;
+  final String? notes;
+
+  factory IndoorOccupancyEntry.fromJson(Map<String, dynamic> json) =>
+      IndoorOccupancyEntry(
+        id: json['id'] as String? ?? '',
+        title: json['title'] as String? ?? 'Sonderbelegung',
+        location: json['location'] as String? ?? 'Halle',
+        startAt: DateTime.parse(json['startAt'] as String).toLocal(),
+        endAt: DateTime.parse(json['endAt'] as String).toLocal(),
+        notes: json['notes'] as String?,
+      );
 }
 
 class PitchOccupancyTeam {

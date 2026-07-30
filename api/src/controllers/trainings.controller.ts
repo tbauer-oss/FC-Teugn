@@ -252,6 +252,12 @@ export async function listPitchOccupancy(req: Request, res: Response) {
       sortOrder: 998,
     },
   };
+  const specialEntries = indoor
+    ? await prisma.indoorOccupancyEntry.findMany({
+        where: { seasonId: season.id },
+        orderBy: [{ startAt: 'asc' }, { title: 'asc' }],
+      })
+    : [];
   return res.json({
     club: season.club,
     season: {
@@ -274,9 +280,160 @@ export async function listPitchOccupancy(req: Request, res: Response) {
     ],
     recreationalSchedule,
     seniorSchedule,
+    specialEntries,
     approvedConflictKeys: season.approvedOccupancyConflictKeys,
     canManageOccupancy: occupancyAdminRoles.includes(req.user!.role as Role),
   });
+}
+
+async function editableOccupancySeason(user: Request['user'], seasonId: string) {
+  if (!user || !canManageClubOccupancy(user.role as Role)) return null;
+  const clubId =
+    user.role === Role.SUPER_ADMIN ? null : await clubIdForTeam(user.teamId);
+  return prisma.season.findFirst({
+    where: {
+      id: seasonId,
+      isActive: true,
+      ...(user.role === Role.SUPER_ADMIN
+        ? {}
+        : clubId
+          ? { clubId }
+          : { id: '__unauthorized__' }),
+    },
+    select: { id: true },
+  });
+}
+
+function indoorEntryData(body: Record<string, unknown>) {
+  const title = text(body.title, 120);
+  const location = text(body.location, 200);
+  const startAt = new Date(String(body.startAt ?? ''));
+  const endAt = new Date(String(body.endAt ?? ''));
+  if (!title || !location) {
+    return { error: 'Bezeichnung und Hallenbereich sind erforderlich.' } as const;
+  }
+  if (
+    Number.isNaN(startAt.getTime()) ||
+    Number.isNaN(endAt.getTime()) ||
+    endAt <= startAt
+  ) {
+    return { error: 'Beginn und Ende des Termins sind ungültig.' } as const;
+  }
+  if (endAt.getTime() - startAt.getTime() > 7 * 86400000) {
+    return { error: 'Eine einzelne Hallenbelegung darf höchstens sieben Tage dauern.' } as const;
+  }
+  return {
+    data: {
+      title,
+      location,
+      startAt,
+      endAt,
+      notes: text(body.notes, 1000),
+    },
+  } as const;
+}
+
+export async function createIndoorOccupancyEntry(req: Request, res: Response) {
+  const seasonId = text(req.body?.seasonId, 100);
+  if (!seasonId) {
+    return res.status(400).json({ message: 'Eine Saison muss ausgewählt sein.' });
+  }
+  const season = await editableOccupancySeason(req.user, seasonId);
+  if (!season) {
+    return res.status(403).json({
+      message:
+        'Nur Systemadministration, Vereinsleitung oder Jugendleitung dürfen Hallen-Sonderbelegungen verwalten.',
+    });
+  }
+  const parsed = indoorEntryData(req.body ?? {});
+  if ('error' in parsed) return res.status(400).json({ message: parsed.error });
+  const entry = await prisma.$transaction(async (tx) => {
+    const created = await tx.indoorOccupancyEntry.create({
+      data: {
+        seasonId,
+        ...parsed.data,
+        createdById: req.user!.id,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: req.user!.id,
+        teamId: req.user!.teamId,
+        action: 'INDOOR_OCCUPANCY_ENTRY_CREATED',
+        entityType: 'IndoorOccupancyEntry',
+        entityId: created.id,
+        metadata: parsed.data,
+      },
+    });
+    return created;
+  });
+  return res.status(201).json(entry);
+}
+
+export async function updateIndoorOccupancyEntry(req: Request, res: Response) {
+  const existing = await prisma.indoorOccupancyEntry.findUnique({
+    where: { id: req.params.entryId },
+  });
+  if (!existing) {
+    return res.status(404).json({ message: 'Hallenbelegung nicht gefunden.' });
+  }
+  const season = await editableOccupancySeason(req.user, existing.seasonId);
+  if (!season) {
+    return res.status(403).json({
+      message:
+        'Nur Systemadministration, Vereinsleitung oder Jugendleitung dürfen Hallen-Sonderbelegungen verwalten.',
+    });
+  }
+  const parsed = indoorEntryData(req.body ?? {});
+  if ('error' in parsed) return res.status(400).json({ message: parsed.error });
+  const entry = await prisma.$transaction(async (tx) => {
+    const updated = await tx.indoorOccupancyEntry.update({
+      where: { id: existing.id },
+      data: parsed.data,
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: req.user!.id,
+        teamId: req.user!.teamId,
+        action: 'INDOOR_OCCUPANCY_ENTRY_UPDATED',
+        entityType: 'IndoorOccupancyEntry',
+        entityId: existing.id,
+        metadata: { before: existing, after: parsed.data },
+      },
+    });
+    return updated;
+  });
+  return res.json(entry);
+}
+
+export async function deleteIndoorOccupancyEntry(req: Request, res: Response) {
+  const existing = await prisma.indoorOccupancyEntry.findUnique({
+    where: { id: req.params.entryId },
+  });
+  if (!existing) {
+    return res.status(404).json({ message: 'Hallenbelegung nicht gefunden.' });
+  }
+  const season = await editableOccupancySeason(req.user, existing.seasonId);
+  if (!season) {
+    return res.status(403).json({
+      message:
+        'Nur Systemadministration, Vereinsleitung oder Jugendleitung dürfen Hallen-Sonderbelegungen verwalten.',
+    });
+  }
+  await prisma.$transaction([
+    prisma.indoorOccupancyEntry.delete({ where: { id: existing.id } }),
+    prisma.auditLog.create({
+      data: {
+        actorId: req.user!.id,
+        teamId: req.user!.teamId,
+        action: 'INDOOR_OCCUPANCY_ENTRY_DELETED',
+        entityType: 'IndoorOccupancyEntry',
+        entityId: existing.id,
+        metadata: existing,
+      },
+    }),
+  ]);
+  return res.status(204).send();
 }
 
 export function canManageRecreationalOccupancy(role: Role) {
