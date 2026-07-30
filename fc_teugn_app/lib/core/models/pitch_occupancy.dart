@@ -110,6 +110,10 @@ class IndoorOccupancyEntry {
     required this.startAt,
     required this.endAt,
     this.notes,
+    this.isRecurring = false,
+    this.recurrenceWeekdays = const [],
+    this.recurrenceIntervalWeeks = 1,
+    this.recurrenceUntil,
   });
 
   final String id;
@@ -118,6 +122,10 @@ class IndoorOccupancyEntry {
   final DateTime startAt;
   final DateTime endAt;
   final String? notes;
+  final bool isRecurring;
+  final List<int> recurrenceWeekdays;
+  final int recurrenceIntervalWeeks;
+  final DateTime? recurrenceUntil;
 
   factory IndoorOccupancyEntry.fromJson(Map<String, dynamic> json) =>
       IndoorOccupancyEntry(
@@ -127,6 +135,16 @@ class IndoorOccupancyEntry {
         startAt: DateTime.parse(json['startAt'] as String).toLocal(),
         endAt: DateTime.parse(json['endAt'] as String).toLocal(),
         notes: json['notes'] as String?,
+        isRecurring: json['isRecurring'] as bool? ?? false,
+        recurrenceWeekdays:
+            (json['recurrenceWeekdays'] as List<dynamic>? ?? const [])
+                .whereType<num>()
+                .map((value) => value.toInt())
+                .toList(),
+        recurrenceIntervalWeeks: json['recurrenceIntervalWeeks'] as int? ?? 1,
+        recurrenceUntil: DateTime.tryParse(
+          json['recurrenceUntil'] as String? ?? '',
+        )?.toLocal(),
       );
 }
 

@@ -480,17 +480,21 @@ model Season {
 }
 
 model IndoorOccupancyEntry {
-  id          String   @id @default(cuid())
-  seasonId    String
-  title       String
-  location    String
-  startAt     DateTime
-  endAt       DateTime
-  notes       String?
-  createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  season      Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  id                      String   @id @default(cuid())
+  seasonId                String
+  title                   String
+  location                String   @default("Sporthalle")
+  startAt                 DateTime
+  endAt                   DateTime
+  notes                   String?
+  isRecurring             Boolean  @default(false)
+  recurrenceWeekdays      Int[]    @default([])
+  recurrenceIntervalWeeks Int      @default(1)
+  recurrenceUntil         DateTime?
+  createdById             String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  season                  Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   @@index([seasonId, startAt])
 }

@@ -306,11 +306,30 @@ async function editableOccupancySeason(user: Request['user'], seasonId: string) 
 
 function indoorEntryData(body: Record<string, unknown>) {
   const title = text(body.title, 120);
-  const location = text(body.location, 200);
   const startAt = new Date(String(body.startAt ?? ''));
   const endAt = new Date(String(body.endAt ?? ''));
-  if (!title || !location) {
-    return { error: 'Bezeichnung und Hallenbereich sind erforderlich.' } as const;
+  const isRecurring = body.isRecurring === true;
+  const recurrenceWeekdays = [
+    ...new Set(
+      (Array.isArray(body.recurrenceWeekdays)
+        ? body.recurrenceWeekdays
+        : []
+      )
+        .map(Number)
+        .filter((value) => Number.isInteger(value) && value >= 1 && value <= 7),
+    ),
+  ].sort();
+  const recurrenceIntervalWeeks = integer(
+    body.recurrenceIntervalWeeks,
+    1,
+    4,
+    1,
+  );
+  const recurrenceUntil = isRecurring
+    ? new Date(String(body.recurrenceUntil ?? ''))
+    : null;
+  if (!title) {
+    return { error: 'Eine Bezeichnung ist erforderlich.' } as const;
   }
   if (
     Number.isNaN(startAt.getTime()) ||
@@ -322,13 +341,29 @@ function indoorEntryData(body: Record<string, unknown>) {
   if (endAt.getTime() - startAt.getTime() > 7 * 86400000) {
     return { error: 'Eine einzelne Hallenbelegung darf höchstens sieben Tage dauern.' } as const;
   }
+  if (
+    isRecurring &&
+    (recurrenceWeekdays.length === 0 ||
+      !recurrenceUntil ||
+      Number.isNaN(recurrenceUntil.getTime()) ||
+      recurrenceUntil < startAt)
+  ) {
+    return {
+      error:
+        'Für einen Serientermin müssen Wochentage und ein gültiges Serienende angegeben werden.',
+    } as const;
+  }
   return {
     data: {
       title,
-      location,
+      location: 'Sporthalle',
       startAt,
       endAt,
       notes: text(body.notes, 1000),
+      isRecurring,
+      recurrenceWeekdays: isRecurring ? recurrenceWeekdays : [],
+      recurrenceIntervalWeeks: isRecurring ? recurrenceIntervalWeeks : 1,
+      recurrenceUntil,
     },
   } as const;
 }

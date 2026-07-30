@@ -94,7 +94,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                       onPressed:
                           _creating ? null : () => _editIndoorOccupancyEntry(),
                       icon: const Icon(Icons.add_business_rounded),
-                      label: const Text('Sonderbelegung eintragen'),
+                      label: const Text('Fremdbelegung eintragen'),
                     ),
                   if (_view == _TrainingPageView.sessions)
                     FilledButton.icon(
@@ -456,7 +456,10 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
     if (plan == null || !_canManageOccupancy) return;
     final draft = await showDialog<_IndoorOccupancyDraft>(
       context: context,
-      builder: (context) => _IndoorOccupancyDialog(existing: existing),
+      builder: (context) => _IndoorOccupancyDialog(
+        existing: existing,
+        defaultSeriesEnd: _organization?.season.endDate,
+      ),
     );
     if (draft == null || !mounted) return;
     setState(() => _creating = true);
@@ -466,18 +469,24 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
         await repository.createIndoorOccupancyEntry(
           seasonId: plan.seasonId,
           title: draft.title,
-          location: draft.location,
           startAt: draft.startAt,
           endAt: draft.endAt,
+          isRecurring: draft.isRecurring,
+          recurrenceWeekdays: draft.recurrenceWeekdays,
+          recurrenceIntervalWeeks: draft.recurrenceIntervalWeeks,
+          recurrenceUntil: draft.recurrenceUntil,
           notes: draft.notes,
         );
       } else {
         await repository.updateIndoorOccupancyEntry(
           entryId: existing.id,
           title: draft.title,
-          location: draft.location,
           startAt: draft.startAt,
           endAt: draft.endAt,
+          isRecurring: draft.isRecurring,
+          recurrenceWeekdays: draft.recurrenceWeekdays,
+          recurrenceIntervalWeeks: draft.recurrenceIntervalWeeks,
+          recurrenceUntil: draft.recurrenceUntil,
           notes: draft.notes,
         );
       }
@@ -558,43 +567,57 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
 class _IndoorOccupancyDraft {
   const _IndoorOccupancyDraft({
     required this.title,
-    required this.location,
     required this.startAt,
     required this.endAt,
+    required this.isRecurring,
+    required this.recurrenceWeekdays,
+    required this.recurrenceIntervalWeeks,
+    this.recurrenceUntil,
     this.notes,
   });
 
   final String title;
-  final String location;
   final DateTime startAt;
   final DateTime endAt;
+  final bool isRecurring;
+  final List<int> recurrenceWeekdays;
+  final int recurrenceIntervalWeeks;
+  final DateTime? recurrenceUntil;
   final String? notes;
 }
 
 class _IndoorOccupancyDialog extends StatefulWidget {
-  const _IndoorOccupancyDialog({this.existing});
+  const _IndoorOccupancyDialog({
+    this.existing,
+    this.defaultSeriesEnd,
+  });
 
   final IndoorOccupancyEntry? existing;
+  final DateTime? defaultSeriesEnd;
 
   @override
   State<_IndoorOccupancyDialog> createState() => _IndoorOccupancyDialogState();
 }
 
 class _IndoorOccupancyDialogState extends State<_IndoorOccupancyDialog> {
-  static const _locations = [
-    'Mehrzweckhalle Teugn',
-    'Sporthalle',
-    'Hallenbereich 1',
-    'Hallenbereich 2',
-    'Gesamte Halle',
-    'Noch offen / unklar',
+  static const _weekdayLabels = [
+    'Mo',
+    'Di',
+    'Mi',
+    'Do',
+    'Fr',
+    'Sa',
+    'So',
   ];
 
   late final TextEditingController _title;
-  late final TextEditingController _location;
   late final TextEditingController _notes;
   late DateTime _startAt;
   late DateTime _endAt;
+  late bool _isRecurring;
+  late Set<int> _recurrenceWeekdays;
+  late int _recurrenceIntervalWeeks;
+  late DateTime _recurrenceUntil;
   String? _error;
 
   @override
@@ -606,15 +629,24 @@ class _IndoorOccupancyDialogState extends State<_IndoorOccupancyDialog> {
     _startAt = initialStart;
     _endAt =
         widget.existing?.endAt ?? initialStart.add(const Duration(hours: 2));
+    _isRecurring = widget.existing?.isRecurring ?? true;
+    _recurrenceWeekdays = {
+      ...(widget.existing?.recurrenceWeekdays ?? const <int>[]),
+    };
+    if (_isRecurring && _recurrenceWeekdays.isEmpty) {
+      _recurrenceWeekdays.add(_startAt.weekday);
+    }
+    _recurrenceIntervalWeeks = widget.existing?.recurrenceIntervalWeeks ?? 1;
+    _recurrenceUntil = widget.existing?.recurrenceUntil ??
+        widget.defaultSeriesEnd ??
+        DateTime(_startAt.year + 1, 6, 30);
     _title = TextEditingController(text: widget.existing?.title);
-    _location = TextEditingController(text: widget.existing?.location);
     _notes = TextEditingController(text: widget.existing?.notes);
   }
 
   @override
   void dispose() {
     _title.dispose();
-    _location.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -644,6 +676,23 @@ class _IndoorOccupancyDialogState extends State<_IndoorOccupancyDialog> {
       );
       _endAt = _startAt.add(duration);
     });
+  }
+
+  Future<void> _pickSeriesEnd() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate:
+          _recurrenceUntil.isBefore(_startAt) ? _startAt : _recurrenceUntil,
+      firstDate: DateTime(
+        _startAt.year,
+        _startAt.month,
+        _startAt.day,
+      ),
+      lastDate: DateTime.now().add(const Duration(days: 1500)),
+    );
+    if (selected != null) {
+      setState(() => _recurrenceUntil = selected);
+    }
   }
 
   Future<void> _pickTime({required bool start}) async {
@@ -681,24 +730,46 @@ class _IndoorOccupancyDialogState extends State<_IndoorOccupancyDialog> {
 
   void _submit() {
     final title = _title.text.trim();
-    final location = _location.text.trim();
-    if (title.isEmpty || location.isEmpty) {
-      setState(
-        () => _error = 'Bitte Bezeichnung und Hallenbereich angeben.',
-      );
+    if (title.isEmpty) {
+      setState(() => _error = 'Bitte eine Bezeichnung angeben.');
       return;
     }
     if (!_endAt.isAfter(_startAt)) {
       setState(() => _error = 'Das Ende muss nach dem Beginn liegen.');
       return;
     }
+    if (_isRecurring &&
+        (_recurrenceWeekdays.isEmpty ||
+            _recurrenceUntil.isBefore(DateTime(
+              _startAt.year,
+              _startAt.month,
+              _startAt.day,
+            )))) {
+      setState(
+        () => _error =
+            'Bitte mindestens einen Wochentag und ein gültiges Serienende wählen.',
+      );
+      return;
+    }
     Navigator.pop(
       context,
       _IndoorOccupancyDraft(
         title: title,
-        location: location,
         startAt: _startAt,
         endAt: _endAt,
+        isRecurring: _isRecurring,
+        recurrenceWeekdays: _recurrenceWeekdays.toList()..sort(),
+        recurrenceIntervalWeeks: _recurrenceIntervalWeeks,
+        recurrenceUntil: _isRecurring
+            ? DateTime(
+                _recurrenceUntil.year,
+                _recurrenceUntil.month,
+                _recurrenceUntil.day,
+                23,
+                59,
+                59,
+              )
+            : null,
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
       ),
     );
@@ -719,8 +790,8 @@ class _IndoorOccupancyDialogState extends State<_IndoorOccupancyDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Für Tennis, Faschingsverein, Veranstaltungen oder andere '
-                  'einmalige Hallennutzungen.',
+                  'Für regelmäßige oder einmalige Nutzungen der Sporthalle '
+                  'durch Tennis, Faschingsverein oder andere Gruppen.',
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -732,27 +803,15 @@ class _IndoorOccupancyDialogState extends State<_IndoorOccupancyDialog> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Autocomplete<String>(
-                  initialValue: TextEditingValue(text: _location.text),
-                  optionsBuilder: (value) => _locations.where(
-                    (item) => item
-                        .toLowerCase()
-                        .contains(value.text.trim().toLowerCase()),
+                const InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Ort',
+                    prefixIcon: Icon(Icons.location_on_outlined),
                   ),
-                  onSelected: (value) => _location.text = value,
-                  fieldViewBuilder:
-                      (context, controller, focusNode, onSubmitted) {
-                    return TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      onChanged: (value) => _location.text = value,
-                      decoration: const InputDecoration(
-                        labelText: 'Halle / Hallenbereich',
-                        hintText: 'Auswählen oder individuell eingeben',
-                        prefixIcon: Icon(Icons.location_on_outlined),
-                      ),
-                    );
-                  },
+                  child: Text(
+                    'Sporthalle',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
@@ -780,6 +839,89 @@ class _IndoorOccupancyDialogState extends State<_IndoorOccupancyDialog> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Als Serientermin eintragen',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: const Text(
+                    'Für regelmäßig wiederkehrende Hallenbelegungen.',
+                  ),
+                  value: _isRecurring,
+                  onChanged: (value) => setState(() {
+                    _isRecurring = value;
+                    if (value && _recurrenceWeekdays.isEmpty) {
+                      _recurrenceWeekdays.add(_startAt.weekday);
+                    }
+                  }),
+                ),
+                if (_isRecurring) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Wochentage',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  const SizedBox(height: 7),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: [
+                      for (var weekday = 1; weekday <= 7; weekday++)
+                        FilterChip(
+                          label: Text(_weekdayLabels[weekday - 1]),
+                          selected: _recurrenceWeekdays.contains(weekday),
+                          onSelected: (selected) => setState(() {
+                            if (selected) {
+                              _recurrenceWeekdays.add(weekday);
+                            } else {
+                              _recurrenceWeekdays.remove(weekday);
+                            }
+                          }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    initialValue: _recurrenceIntervalWeeks,
+                    decoration: const InputDecoration(
+                      labelText: 'Wiederholung',
+                      prefixIcon: Icon(Icons.repeat_rounded),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 1,
+                        child: Text('Jede Woche'),
+                      ),
+                      DropdownMenuItem(
+                        value: 2,
+                        child: Text('Alle zwei Wochen'),
+                      ),
+                      DropdownMenuItem(
+                        value: 3,
+                        child: Text('Alle drei Wochen'),
+                      ),
+                      DropdownMenuItem(
+                        value: 4,
+                        child: Text('Alle vier Wochen'),
+                      ),
+                    ],
+                    onChanged: (value) => setState(
+                      () => _recurrenceIntervalWeeks = value ?? 1,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _pickSeriesEnd,
+                    icon: const Icon(Icons.event_available_rounded),
+                    label: Text(
+                      'Serienende · ${_date(_recurrenceUntil)}',
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   controller: _notes,

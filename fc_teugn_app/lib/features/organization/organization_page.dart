@@ -771,7 +771,6 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   late final TextEditingController _description;
   late final TextEditingController _trainingLocation;
   late final TextEditingController _trainingTimes;
-  late final TextEditingController _indoorTrainingLocation;
   late final TextEditingController _indoorTrainingTimes;
   late final TextEditingController _homeVenue;
   late final TextEditingController _bfvTeamId;
@@ -799,8 +798,6 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
     _trainingLocation = TextEditingController(text: team?.trainingLocation);
     _trainingTimes =
         TextEditingController(text: team?.trainingTimes.join('\n'));
-    _indoorTrainingLocation =
-        TextEditingController(text: team?.indoorTrainingLocation);
     _indoorTrainingTimes =
         TextEditingController(text: team?.indoorTrainingTimes.join('\n'));
     _seasonStartDate = team?.seasonStartDate;
@@ -827,7 +824,6 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
       _description,
       _trainingLocation,
       _trainingTimes,
-      _indoorTrainingLocation,
       _indoorTrainingTimes,
       _homeVenue,
       _bfvTeamId,
@@ -1105,12 +1101,14 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _indoorTrainingLocation,
-                decoration: const InputDecoration(
-                  labelText: 'Sporthalle / Hallenbereich',
-                  hintText: 'z. B. Mehrzweckhalle Teugn',
+              const InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Halle',
                   prefixIcon: Icon(Icons.sports_handball_rounded),
+                ),
+                child: Text(
+                  'Sporthalle',
+                  style: TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
               const SizedBox(height: 12),
@@ -1358,7 +1356,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         seasonEndDate: _seasonEndDate,
         indoorSeasonStartDate: _indoorSeasonStartDate,
         indoorSeasonEndDate: _indoorSeasonEndDate,
-        indoorTrainingLocation: _optional(_indoorTrainingLocation),
+        indoorTrainingLocation: 'Sporthalle',
         indoorTrainingTimes: _indoorTrainingTimes.text
             .split('\n')
             .map((value) => value.trim())
