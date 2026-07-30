@@ -593,7 +593,7 @@ class _Notice extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.navy,
                       fontWeight: FontWeight.w900,
                     ),
