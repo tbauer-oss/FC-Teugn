@@ -84,6 +84,8 @@ class TeamSummary {
     this.teamType = 'COMPETITIVE',
     this.gender = 'MIXED',
     this.gameFormat = TeamGameFormat.football7,
+    this.periodCount = 2,
+    this.periodMinutes = 30,
     this.birthYears = const [],
     this.description,
     this.trainingLocation,
@@ -115,6 +117,8 @@ class TeamSummary {
   final String teamType;
   final String gender;
   final TeamGameFormat gameFormat;
+  final int periodCount;
+  final int periodMinutes;
   final List<int> birthYears;
   final String? description;
   final String? trainingLocation;
@@ -161,6 +165,8 @@ class TeamSummary {
         teamType: json['teamType'] as String? ?? 'COMPETITIVE',
         gender: json['gender'] as String? ?? 'MIXED',
         gameFormat: TeamGameFormat.fromApi(json['gameFormat']),
+        periodCount: (json['periodCount'] as num?)?.toInt() ?? 2,
+        periodMinutes: (json['periodMinutes'] as num?)?.toInt() ?? 30,
         birthYears: (json['birthYears'] as List<dynamic>? ?? [])
             .whereType<num>()
             .map((value) => value.toInt())

@@ -40,4 +40,23 @@ void main() {
       TeamGameFormat.football7,
     );
   });
+
+  test('provides current BFV match-time defaults per team model', () {
+    expect(
+      bfvMatchDefaults('E', TeamGameFormat.football7).durationLabel,
+      '4 × 15 Minuten',
+    );
+    expect(
+      bfvMatchDefaults('D', TeamGameFormat.football9).durationLabel,
+      '2 × 30 Minuten',
+    );
+    expect(
+      bfvMatchDefaults('C', TeamGameFormat.football11).durationLabel,
+      '2 × 35 Minuten',
+    );
+    expect(
+      bfvMatchDefaults('A', TeamGameFormat.football11).durationLabel,
+      '2 × 45 Minuten',
+    );
+  });
 }
