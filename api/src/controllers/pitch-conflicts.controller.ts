@@ -12,6 +12,7 @@ import { notifyUsers } from '../services/notification.service';
 import {
   CLUB_MATCH_PITCHES,
   findPitchConflicts,
+  requestableEventPitch,
 } from '../services/pitch-conflict.service';
 
 const responseStatuses = new Set<PitchConflictRequestStatus>([
@@ -95,14 +96,11 @@ export async function createPitchConflictRequestsForEvent(input: {
       matchDetails: true,
     },
   });
-  if (
-    !event ||
-    event.type !== 'MATCH' ||
-    event.homeAway === HomeAway.AWAY
-  ) {
-    return [];
-  }
-  const pitch = event.matchDetails?.pitch || event.venue;
+  if (!event) return [];
+  const pitch = requestableEventPitch(
+    event.homeAway,
+    event.matchDetails?.pitch || event.venue,
+  );
   if (!pitch) return [];
   const endAt = durationEnd(
     event.startAt,
@@ -170,7 +168,10 @@ export async function createPitchConflictRequestsForEvent(input: {
       },
     });
     await notifyUsers([conflict.headCoach.id], {
-      category: NotificationCategory.MATCH,
+      category:
+        event.type === 'MATCH'
+          ? NotificationCategory.MATCH
+          : NotificationCategory.EVENT,
       title: `Platzfreigabe: ${event.title}`,
       body:
         `${conflict.trainingTeamName} trainiert ${conflict.weekday} ` +

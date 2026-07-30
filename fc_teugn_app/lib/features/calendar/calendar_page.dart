@@ -14,6 +14,7 @@ import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
+import '../../core/regular_training_schedule.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
@@ -108,7 +109,11 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               ),
             ),
             data: (items) {
-              final filtered = items.where(_matchesFilters).toList()
+              final calendarItems = _withRegularTrainings(
+                items,
+                organization,
+              );
+              final filtered = calendarItems.where(_matchesFilters).toList()
                 ..sort((a, b) => a.startAt.compareTo(b.startAt));
               return switch (view) {
                 CalendarView.month => _MonthView(
@@ -147,6 +152,71 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         ],
       ),
     );
+  }
+
+  List<EventModel> _withRegularTrainings(
+    List<EventModel> events,
+    OrganizationContext? organization,
+  ) {
+    if (organization == null) return events;
+    final result = [...events];
+    for (final team in organization.teams) {
+      for (final rawSlot in team.trainingTimes) {
+        final slot = RegularTrainingSlot.tryParse(
+          rawSlot,
+          fallbackLocation: team.trainingLocation,
+        );
+        if (slot == null) continue;
+        for (final occurrence in slot.occurrences(
+          organization.season.startDate,
+          organization.season.endDate,
+        )) {
+          final alreadyStored = events.any(
+            (event) =>
+                event.category == EventCategory.training &&
+                (event.teamId == team.id ||
+                    event.targetTeams.any((target) => target.id == team.id)) &&
+                event.startAt.difference(occurrence.$1).abs() <
+                    const Duration(minutes: 5),
+          );
+          if (alreadyStored) continue;
+          result.add(
+            EventModel(
+              id: 'training-plan:${team.id}:'
+                  '${occurrence.$1.millisecondsSinceEpoch}',
+              teamId: team.id,
+              type: EventType.training,
+              category: EventCategory.training,
+              status: EventStatus.scheduled,
+              visibility: EventVisibility.team,
+              title: 'Training · ${team.displayName}',
+              startAt: occurrence.$1,
+              endAt: occurrence.$2,
+              location: slot.location,
+              attendanceFinalized: false,
+              targetTeams: [
+                EventTeam(
+                  id: team.id,
+                  name: team.name,
+                  ageGroupCode: team.ageGroup.code,
+                ),
+              ],
+              attachments: const [],
+              attendance: const [],
+              attendanceSummary: const AttendanceSummary(),
+              missingAttendance: const [],
+              carpoolOffers: const [],
+              capabilities: const EventCapabilities(),
+              reminderMinutes: const [],
+              description:
+                  'Reguläre Trainingszeit laut Platzbelegungsplan der Saison '
+                  '${organization.season.name}.',
+            ),
+          );
+        }
+      }
+    }
+    return result;
   }
 
   bool _matchesFilters(EventModel event) {
@@ -3220,8 +3290,6 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             category = value ?? category;
                             if (category.isMatch) {
                               homeAway ??= HomeAway.home;
-                            } else {
-                              pitchConflicts = const [];
                             }
                           });
                           _refreshPitchConflicts();
@@ -3341,51 +3409,6 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             _refreshPitchConflicts();
                           },
                         ),
-                        if (_usesClubPitch) ...[
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: selectedPitch,
-                            decoration: const InputDecoration(
-                              labelText: 'Platz für dieses Spiel',
-                              helperText:
-                                  'Die Platzbelegung wird sofort auf Trainingskonflikte geprüft.',
-                            ),
-                            items: [
-                              for (final pitch in pitchOptions)
-                                DropdownMenuItem(
-                                  value: pitch,
-                                  child: Text(pitch),
-                                ),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                selectedPitch =
-                                    value ?? 'Platz noch offen / unklar';
-                                venue.text = selectedPitch;
-                                if (selectedPitch !=
-                                    'Platz noch offen / unklar') {
-                                  if (location.text.trim().isEmpty) {
-                                    location.text = 'Sportplatz Teugn';
-                                  }
-                                }
-                              });
-                              _refreshPitchConflicts();
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          _PitchConflictPanel(
-                            checking: checkingPitchConflicts,
-                            pitchIsOpen:
-                                selectedPitch == 'Platz noch offen / unklar',
-                            error: pitchConflictError,
-                            conflicts: pitchConflicts,
-                            requestApprovals: requestPitchConflictApprovals,
-                            messageController: pitchConflictMessage,
-                            onRequestApprovalsChanged: (value) => setState(
-                              () => requestPitchConflictApprovals = value,
-                            ),
-                          ),
-                        ],
                         const SizedBox(height: 12),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3429,6 +3452,50 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                         Text(
                           'Gesamtspielzeit: ${_matchDurationLabel()}',
                           style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                      if (_usesClubPitch) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedPitch,
+                          decoration: const InputDecoration(
+                            labelText: 'Platz für diesen Termin',
+                            helperText:
+                                'Wird sofort mit allen regulären Trainingszeiten abgeglichen.',
+                          ),
+                          items: [
+                            for (final pitch in pitchOptions)
+                              DropdownMenuItem(
+                                value: pitch,
+                                child: Text(pitch),
+                              ),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              selectedPitch =
+                                  value ?? 'Platz noch offen / unklar';
+                              venue.text = selectedPitch;
+                              if (selectedPitch !=
+                                      'Platz noch offen / unklar' &&
+                                  location.text.trim().isEmpty) {
+                                location.text = 'Sportplatz Teugn';
+                              }
+                            });
+                            _refreshPitchConflicts();
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        _PitchConflictPanel(
+                          checking: checkingPitchConflicts,
+                          pitchIsOpen:
+                              selectedPitch == 'Platz noch offen / unklar',
+                          error: pitchConflictError,
+                          conflicts: pitchConflicts,
+                          requestApprovals: requestPitchConflictApprovals,
+                          messageController: pitchConflictMessage,
+                          onRequestApprovalsChanged: (value) => setState(
+                            () => requestPitchConflictApprovals = value,
+                          ),
                         ),
                       ],
                       const SizedBox(height: 18),
@@ -3809,9 +3876,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   }
 
   bool get _usesClubPitch =>
-      category.isMatch &&
       category != EventCategory.indoorTournament &&
-      homeAway != HomeAway.away;
+      (!category.isMatch || homeAway != HomeAway.away);
 
   Future<void> _refreshPitchConflicts() async {
     final revision = ++pitchCheckRevision;
@@ -4020,6 +4086,24 @@ class _PitchConflictPanel extends StatelessWidget {
                         'z. B. Freundschaftsspiel – können wir euer Training verlegen?',
                   ),
                 ),
+            ] else ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: .7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Eine direkte Anfrage ist noch nicht möglich, weil bei der '
+                  'betroffenen Mannschaft kein freigegebener Haupttrainer '
+                  'hinterlegt ist. Bitte die Trainerzuordnung unter '
+                  '„Mitglieder & Freigaben“ ergänzen.',
+                ),
+              ),
             ],
           ],
         ),
