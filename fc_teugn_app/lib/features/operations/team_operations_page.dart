@@ -10,8 +10,7 @@ class TeamOperationsPage extends ConsumerStatefulWidget {
   const TeamOperationsPage({super.key});
 
   @override
-  ConsumerState<TeamOperationsPage> createState() =>
-      _TeamOperationsPageState();
+  ConsumerState<TeamOperationsPage> createState() => _TeamOperationsPageState();
 }
 
 class _TeamOperationsPageState extends ConsumerState<TeamOperationsPage> {
@@ -128,9 +127,7 @@ class _TeamOperationsPageState extends ConsumerState<TeamOperationsPage> {
                                 itemId: item.id,
                                 isCompleted: value,
                               ),
-                          value
-                              ? 'Punkt erledigt.'
-                              : 'Punkt wieder geöffnet.',
+                          value ? 'Punkt erledigt.' : 'Punkt wieder geöffnet.',
                         ),
                       ),
                     ],
@@ -248,42 +245,44 @@ class _PageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.blue.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(15),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 700;
+        final identity = Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.blue.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(
+                Icons.assignment_turned_in_rounded,
+                color: AppColors.blue,
+              ),
             ),
-            child: const Icon(
-              Icons.assignment_turned_in_rounded,
-              color: AppColors.blue,
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Team-Organisation',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                  ),
+                  Text(
+                    'Aufgaben, Material und wiederverwendbare Abläufe',
+                    style: TextStyle(color: AppColors.muted),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Team-Organisation',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-                ),
-                Text(
-                  'Aufgaben, Material und wiederverwendbare Abläufe',
-                  style: TextStyle(color: AppColors.muted),
-                ),
-              ],
-            ),
-          ),
-          if (organization.teams.length > 1)
-            SizedBox(
-              width: 220,
-              child: DropdownButtonFormField<String>(
+          ],
+        );
+        final selector = organization.teams.length > 1
+            ? DropdownButtonFormField<String>(
                 initialValue: selectedTeamId,
                 decoration: const InputDecoration(labelText: 'Mannschaft'),
                 items: [
@@ -297,10 +296,37 @@ class _PageHeader extends StatelessWidget {
                     ),
                 ],
                 onChanged: onTeamChanged,
-              ),
-            ),
-        ],
-      ),
+              )
+            : null;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            compact ? 14 : 24,
+            compact ? 16 : 22,
+            compact ? 14 : 24,
+            12,
+          ),
+          child: compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    identity,
+                    if (selector != null) ...[
+                      const SizedBox(height: 12),
+                      selector,
+                    ],
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: identity),
+                    if (selector != null) ...[
+                      const SizedBox(width: 16),
+                      SizedBox(width: 220, child: selector),
+                    ],
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -483,8 +509,14 @@ class _ChecklistsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 40),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 14 : 24,
+        compact ? 16 : 22,
+        compact ? 14 : 24,
+        40,
+      ),
       children: [
         _SectionHeader(
           title: 'Laufende Checklisten',
@@ -508,7 +540,7 @@ class _ChecklistsTab extends StatelessWidget {
             children: [
               for (final run in data.checklistRuns)
                 SizedBox(
-                  width: 440,
+                  width: compact ? double.infinity : 440,
                   child: Card(
                     child: Padding(
                       padding: const EdgeInsets.all(18),
@@ -556,7 +588,8 @@ class _ChecklistsTab extends StatelessWidget {
                               title: Text(item.title),
                               subtitle: item.completedBy == null
                                   ? null
-                                  : Text('Erledigt von ${item.completedBy!.name}'),
+                                  : Text(
+                                      'Erledigt von ${item.completedBy!.name}'),
                             ),
                         ],
                       ),
@@ -624,8 +657,14 @@ class _TabCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 40),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 14 : 24,
+        compact ? 16 : 22,
+        compact ? 14 : 24,
+        40,
+      ),
       children: [
         header,
         const SizedBox(height: 16),
@@ -657,30 +696,47 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 560;
+        final labels = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
               ),
-              Text(subtitle, style: const TextStyle(color: AppColors.muted)),
-            ],
-          ),
-        ),
-        if (actionLabel != null)
-          FilledButton.icon(
-            onPressed: onAction,
-            icon: const Icon(Icons.add_rounded),
-            label: Text(actionLabel!),
-          ),
-      ],
+            ),
+            Text(subtitle, style: const TextStyle(color: AppColors.muted)),
+          ],
+        );
+        final action = actionLabel == null
+            ? null
+            : FilledButton.icon(
+                onPressed: onAction,
+                icon: const Icon(Icons.add_rounded),
+                label: Text(actionLabel!),
+              );
+        return compact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  labels,
+                  if (action != null) ...[
+                    const SizedBox(height: 12),
+                    action,
+                  ],
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(child: labels),
+                  if (action != null) action,
+                ],
+              );
+      },
     );
   }
 }
@@ -706,8 +762,9 @@ class _OperationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return SizedBox(
-      width: width,
+      width: compact ? double.infinity : width,
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -933,8 +990,7 @@ class _TaskDialogState extends State<_TaskDialog> {
                       child: Text(member.name),
                     ),
                 ],
-                onChanged: (value) =>
-                    setState(() => _assigneeUserId = value),
+                onChanged: (value) => setState(() => _assigneeUserId = value),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -947,7 +1003,9 @@ class _TaskDialogState extends State<_TaskDialog> {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.event_rounded),
                 title: Text(
-                  _dueAt == null ? 'Keine Frist' : 'Fällig am ${_date(_dueAt!)}',
+                  _dueAt == null
+                      ? 'Keine Frist'
+                      : 'Fällig am ${_date(_dueAt!)}',
                 ),
                 trailing: TextButton(
                   onPressed: () async {

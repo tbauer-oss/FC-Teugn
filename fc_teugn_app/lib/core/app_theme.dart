@@ -121,9 +121,21 @@ ThemeData buildAppTheme() {
     ),
     chipTheme: ChipThemeData(
       backgroundColor: AppColors.background,
+      selectedColor: AppColors.yellowSoft,
+      disabledColor: AppColors.background,
       side: const BorderSide(color: AppColors.line),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+      labelStyle: const TextStyle(
+        color: AppColors.black,
+        fontWeight: FontWeight.w700,
+        fontSize: 12,
+      ),
+      secondaryLabelStyle: const TextStyle(
+        color: AppColors.black,
+        fontWeight: FontWeight.w800,
+        fontSize: 12,
+      ),
+      iconTheme: const IconThemeData(color: AppColors.gold),
     ),
     tabBarTheme: const TabBarThemeData(
       labelColor: AppColors.black,

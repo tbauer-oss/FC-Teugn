@@ -19,7 +19,9 @@ enum NotificationCategory {
 
 T _enum<T extends Enum>(List<T> values, Object? raw, T fallback) {
   final normalized = raw?.toString().toLowerCase().replaceAll('_', '');
-  return values.where((item) => item.name.toLowerCase() == normalized).firstOrNull ??
+  return values
+          .where((item) => item.name.toLowerCase() == normalized)
+          .firstOrNull ??
       fallback;
 }
 
@@ -88,16 +90,14 @@ class AnnouncementModel {
         authorName:
             (json['author'] as Map<String, dynamic>?)?['name'] as String? ??
                 'Trainerteam',
-        teamNames: (json['targetTeams'] as List<dynamic>? ?? const [])
-            .map((item) {
-              final team =
-                  (item as Map<String, dynamic>)['team']
-                      as Map<String, dynamic>;
-              return team['shortName'] as String? ??
-                  team['name'] as String? ??
-                  'Team';
-            })
-            .toList(),
+        teamNames:
+            (json['targetTeams'] as List<dynamic>? ?? const []).map((item) {
+          final team =
+              (item as Map<String, dynamic>)['team'] as Map<String, dynamic>;
+          return team['shortName'] as String? ??
+              team['name'] as String? ??
+              'Team';
+        }).toList(),
         requireReadReceipt: json['requireReadReceipt'] as bool? ?? false,
         pushEnabled: json['pushEnabled'] as bool? ?? false,
         isRead: json['isRead'] as bool? ?? false,
@@ -208,4 +208,145 @@ class PushConfiguration {
         androidConfigured: json['androidConfigured'] as bool? ?? false,
         vapidPublicKey: json['vapidPublicKey'] as String?,
       );
+}
+
+enum PitchConflictRequestStatus {
+  pending,
+  approved,
+  declined,
+  callbackRequested,
+  cancelled,
+}
+
+class PitchConflictCoach {
+  const PitchConflictCoach({
+    required this.id,
+    required this.name,
+    required this.role,
+    this.phone,
+    this.email,
+  });
+
+  final String id;
+  final String name;
+  final String role;
+  final String? phone;
+  final String? email;
+
+  factory PitchConflictCoach.fromJson(Map<String, dynamic> json) =>
+      PitchConflictCoach(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? 'Haupttrainer',
+        role: json['role'] as String? ?? 'COACH',
+        phone: json['phone'] as String?,
+        email: json['email'] as String?,
+      );
+}
+
+class PitchConflictPreview {
+  const PitchConflictPreview({
+    required this.trainingTeamId,
+    required this.trainingTeamName,
+    required this.ageGroupCode,
+    required this.trainingScheduleValue,
+    required this.weekday,
+    required this.startLabel,
+    required this.endLabel,
+    required this.pitch,
+    this.headCoach,
+  });
+
+  final String trainingTeamId;
+  final String trainingTeamName;
+  final String ageGroupCode;
+  final String trainingScheduleValue;
+  final String weekday;
+  final String startLabel;
+  final String endLabel;
+  final String pitch;
+  final PitchConflictCoach? headCoach;
+
+  factory PitchConflictPreview.fromJson(Map<String, dynamic> json) =>
+      PitchConflictPreview(
+        trainingTeamId: json['trainingTeamId'] as String,
+        trainingTeamName: json['trainingTeamName'] as String? ?? 'Mannschaft',
+        ageGroupCode: json['ageGroupCode'] as String? ?? '',
+        trainingScheduleValue: json['trainingScheduleValue'] as String? ?? '',
+        weekday: json['weekday'] as String? ?? '',
+        startLabel: json['startLabel'] as String? ?? '',
+        endLabel: json['endLabel'] as String? ?? '',
+        pitch: json['pitch'] as String? ?? '',
+        headCoach: json['headCoach'] == null
+            ? null
+            : PitchConflictCoach.fromJson(
+                json['headCoach'] as Map<String, dynamic>,
+              ),
+      );
+}
+
+class PitchConflictRequestModel {
+  const PitchConflictRequestModel({
+    required this.id,
+    required this.status,
+    required this.direction,
+    required this.canRespond,
+    required this.pitch,
+    required this.trainingScheduleValue,
+    required this.eventTitle,
+    required this.eventStartAt,
+    required this.trainingTeamName,
+    required this.requesterName,
+    required this.recipientName,
+    this.opponent,
+    this.message,
+    this.responseMessage,
+    this.recipientPhone,
+  });
+
+  final String id;
+  final PitchConflictRequestStatus status;
+  final String direction;
+  final bool canRespond;
+  final String pitch;
+  final String trainingScheduleValue;
+  final String eventTitle;
+  final DateTime eventStartAt;
+  final String? opponent;
+  final String trainingTeamName;
+  final String requesterName;
+  final String recipientName;
+  final String? recipientPhone;
+  final String? message;
+  final String? responseMessage;
+
+  factory PitchConflictRequestModel.fromJson(Map<String, dynamic> json) {
+    final event = json['event'] as Map<String, dynamic>? ?? const {};
+    final team = json['trainingTeam'] as Map<String, dynamic>? ?? const {};
+    final requester = json['requester'] as Map<String, dynamic>? ?? const {};
+    final recipient = json['recipient'] as Map<String, dynamic>? ?? const {};
+    return PitchConflictRequestModel(
+      id: json['id'] as String,
+      status: _enum(
+        PitchConflictRequestStatus.values,
+        json['status'],
+        PitchConflictRequestStatus.pending,
+      ),
+      direction: json['direction'] as String? ?? 'OUTGOING',
+      canRespond: json['canRespond'] as bool? ?? false,
+      pitch: json['pitch'] as String? ?? '',
+      trainingScheduleValue: json['trainingScheduleValue'] as String? ?? '',
+      eventTitle: event['title'] as String? ?? 'Spiel',
+      eventStartAt: DateTime.parse(
+        event['startAt'] as String? ?? DateTime.now().toIso8601String(),
+      ).toLocal(),
+      opponent: event['opponent'] as String?,
+      trainingTeamName:
+          team['shortName'] as String? ?? team['name'] as String? ?? 'Team',
+      requesterName: requester['name'] as String? ?? 'Anfragende Person',
+      recipientName: recipient['name'] as String? ?? 'Haupttrainer',
+      recipientPhone: recipient['phone'] as String?,
+      message: json['message'] as String?,
+      responseMessage: json['responseMessage'] as String?,
+    );
+  }
 }

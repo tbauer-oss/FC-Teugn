@@ -19,25 +19,39 @@ class PageScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontal = constraints.maxWidth >= 700 ? 32.0 : 18.0;
+        final mobile = constraints.maxWidth < 600;
+        final horizontal = constraints.maxWidth >= 700 ? 32.0 : 14.0;
         final compactHeader = constraints.maxWidth < 640;
         final titleBlock = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 6),
+            Text(
+              title,
+              style: mobile
+                  ? Theme.of(context).textTheme.headlineSmall
+                  : Theme.of(context).textTheme.headlineMedium,
+            ),
+            SizedBox(height: mobile ? 4 : 6),
             Text(
               subtitle,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.muted,
-                  ),
+              style: (mobile
+                      ? Theme.of(context).textTheme.bodyMedium
+                      : Theme.of(context).textTheme.bodyLarge)
+                  ?.copyWith(
+                color: AppColors.muted,
+              ),
             ),
           ],
         );
         return CustomScrollView(
           slivers: [
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(horizontal, 28, horizontal, 18),
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                mobile ? 18 : 28,
+                horizontal,
+                mobile ? 14 : 18,
+              ),
               sliver: SliverToBoxAdapter(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1180),
@@ -66,7 +80,12 @@ class PageScaffold extends StatelessWidget {
               ),
             ),
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 32),
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                0,
+                horizontal,
+                mobile ? 20 : 32,
+              ),
               sliver: SliverToBoxAdapter(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1180),
@@ -101,6 +120,7 @@ class MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(18),
       side: const BorderSide(color: AppColors.line),
@@ -112,17 +132,17 @@ class MetricCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(compact ? 14 : 18),
           child: Row(
             children: [
               Container(
-                width: 46,
-                height: 46,
+                width: compact ? 40 : 46,
+                height: compact ? 40 : 46,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(icon, color: color, size: 23),
+                child: Icon(icon, color: color, size: compact ? 21 : 23),
               ),
               const SizedBox(width: 14),
               Expanded(

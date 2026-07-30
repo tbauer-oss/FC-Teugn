@@ -17,6 +17,7 @@ import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
 import { accessibleTeamIds } from '../services/team-access';
+import { createPitchConflictRequestsForEvent } from './pitch-conflicts.controller';
 
 const eventInclude = {
   series: true,
@@ -689,6 +690,7 @@ export async function createEvent(req: Request, res: Response) {
           eventId: event.id!,
           opponent: data.opponent ?? 'Unbekannt',
           isHome: data.homeAway !== HomeAway.AWAY,
+          pitch: data.venue,
           ...timing,
         })),
       });
@@ -712,6 +714,17 @@ export async function createEvent(req: Request, res: Response) {
     orderBy: { startAt: 'asc' },
     include: eventInclude,
   });
+  if (req.body.requestPitchConflictApprovals === true) {
+    await Promise.all(
+      createdIds.map((eventId) =>
+        createPitchConflictRequestsForEvent({
+          eventId,
+          requesterId: user.id,
+          message: clean(req.body.pitchConflictMessage),
+        }),
+      ),
+    );
+  }
   const accessibleIds = await accessibleTeamIds(user);
   const roster = isStaff(user.role)
     ? await rosterForTeamIds(accessibleIds)
@@ -813,12 +826,14 @@ export async function updateEvent(req: Request, res: Response) {
             update: {
               opponent: parsed.opponent ?? 'Unbekannt',
               isHome: parsed.homeAway !== HomeAway.AWAY,
+              pitch: parsed.venue,
               ...timing,
             },
             create: {
               eventId: occurrence.id,
               opponent: parsed.opponent ?? 'Unbekannt',
               isHome: parsed.homeAway !== HomeAway.AWAY,
+              pitch: parsed.venue,
               ...timing,
             },
           });
@@ -843,12 +858,14 @@ export async function updateEvent(req: Request, res: Response) {
           update: {
             opponent: parsed.opponent ?? 'Unbekannt',
             isHome: parsed.homeAway !== HomeAway.AWAY,
+            pitch: parsed.venue,
             ...timing,
           },
           create: {
             eventId: existing.id,
             opponent: parsed.opponent ?? 'Unbekannt',
             isHome: parsed.homeAway !== HomeAway.AWAY,
+            pitch: parsed.venue,
             ...timing,
           },
         });
@@ -865,6 +882,13 @@ export async function updateEvent(req: Request, res: Response) {
       },
     });
   });
+  if (req.body.requestPitchConflictApprovals === true) {
+    await createPitchConflictRequestsForEvent({
+      eventId: existing.id,
+      requesterId: user.id,
+      message: clean(req.body.pitchConflictMessage),
+    });
+  }
   return getEvent(req, res);
 }
 
@@ -961,6 +985,20 @@ export async function deleteEvent(req: Request, res: Response) {
         },
       });
     }
+    await tx.pitchConflictRequest.updateMany({
+      where: {
+        status: 'PENDING',
+        ...(scope === 'series' && existing.seriesId
+          ? {
+              event: {
+                seriesId: existing.seriesId,
+                startAt: { gte: existing.startAt },
+              },
+            }
+          : { eventId: existing.id }),
+      },
+      data: { status: 'CANCELLED' },
+    });
     await tx.auditLog.create({
       data: {
         actorId: user.id,

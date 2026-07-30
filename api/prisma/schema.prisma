@@ -217,6 +217,14 @@ enum NotificationCategory {
   SYSTEM
 }
 
+enum PitchConflictRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  CALLBACK_REQUESTED
+  CANCELLED
+}
+
 enum NotificationDeliveryStatus {
   PENDING
   SENT
@@ -420,6 +428,7 @@ model Team {
   checklistRuns           ChecklistRun[]
   photoAsset              FileAsset?                @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
   ownedFileAssets         FileAsset[]               @relation("TeamFileOwner")
+  pitchConflictRequests   PitchConflictRequest[]
 
   @@index([ageGroupId, isActive, deletedAt])
 }
@@ -523,6 +532,9 @@ model User {
   registrationRequest          RegistrationRequest?
   registrationReviews          RegistrationRequest[]    @relation("RegistrationReviewer")
   registrationHistory          RegistrationHistory[]    @relation("RegistrationHistoryActor")
+  requestedPitchConflicts      PitchConflictRequest[]    @relation("PitchConflictRequester")
+  receivedPitchConflicts       PitchConflictRequest[]    @relation("PitchConflictRecipient")
+  answeredPitchConflicts       PitchConflictRequest[]    @relation("PitchConflictResponder")
   consents                     UserConsent[]
   uploadedFileAssets           FileAsset[]              @relation("FileAssetUploader")
   refreshTokens                RefreshToken[]
@@ -899,10 +911,40 @@ model Event {
   teamMatchStatistic  TeamMatchStatistic?
   playerMatchStats    PlayerMatchStatistic[]
   tickerDelegate      MatchTickerDelegate?
+  pitchConflictRequests PitchConflictRequest[]
 
   @@index([teamId, startAt])
   @@index([seriesId, startAt])
   @@index([status, startAt])
+}
+
+model PitchConflictRequest {
+  id                    String                     @id @default(cuid())
+  eventId               String
+  trainingTeamId        String
+  requesterId           String
+  recipientId           String
+  respondedById         String?
+  status                PitchConflictRequestStatus @default(PENDING)
+  pitch                 String
+  trainingScheduleValue String
+  conflictStartAt       DateTime
+  conflictEndAt         DateTime
+  message               String?
+  responseMessage       String?
+  respondedAt           DateTime?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  event                 Event                      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  trainingTeam          Team                       @relation(fields: [trainingTeamId], references: [id], onDelete: Cascade)
+  requester             User                       @relation("PitchConflictRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipient             User                       @relation("PitchConflictRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  respondedBy           User?                      @relation("PitchConflictResponder", fields: [respondedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, trainingTeamId, trainingScheduleValue])
+  @@index([recipientId, status, createdAt])
+  @@index([requesterId, createdAt])
+  @@index([trainingTeamId, conflictStartAt])
 }
 
 model EventSeries {

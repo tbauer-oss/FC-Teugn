@@ -5,7 +5,9 @@ import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/data_repository.dart';
 import '../../core/meeting_time.dart';
+import '../../core/models/communication.dart';
 import '../../core/models/emergency.dart';
 import '../../core/models/event.dart';
 import '../../core/models/organization.dart';
@@ -82,10 +84,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             onPrevious: () => setState(() => cursor = _shift(cursor, -1)),
             onNext: () => setState(() => cursor = _shift(cursor, 1)),
             onToday: () => setState(() => cursor = DateTime.now()),
-            onCategoriesChanged: (values) =>
-                setState(() => selectedCategories
-                  ..clear()
-                  ..addAll(values)),
+            onCategoriesChanged: (values) => setState(() => selectedCategories
+              ..clear()
+              ..addAll(values)),
             onTeamsChanged: (values) => setState(() => selectedTeams
               ..clear()
               ..addAll(values)),
@@ -127,8 +128,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                   ),
                 CalendarView.agenda => _AgendaView(
                     events: filtered
-                        .where((event) => !event.startAt
-                            .isBefore(DateTime.now().subtract(const Duration(days: 1))))
+                        .where((event) => !event.startAt.isBefore(
+                            DateTime.now().subtract(const Duration(days: 1))))
                         .toList(),
                     onOpen: _openEvent,
                   ),
@@ -149,8 +150,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   }
 
   bool _matchesFilters(EventModel event) {
-    final categoryMatches =
-        selectedCategories.isEmpty || selectedCategories.contains(event.category);
+    final categoryMatches = selectedCategories.isEmpty ||
+        selectedCategories.contains(event.category);
     final eventTeamIds = event.targetTeams.isEmpty
         ? {event.teamId}
         : event.targetTeams.map((team) => team.id).toSet();
@@ -162,7 +163,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   DateTime _shift(DateTime value, int direction) => switch (view) {
         CalendarView.day => value.add(Duration(days: direction)),
         CalendarView.week => value.add(Duration(days: 7 * direction)),
-        CalendarView.month || CalendarView.agenda =>
+        CalendarView.month ||
+        CalendarView.agenda =>
           DateTime(value.year, value.month + direction, 1),
         CalendarView.year => DateTime(value.year + direction),
       };
@@ -171,6 +173,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     final draft = await showDialog<EventWriteData>(
       context: context,
       builder: (context) => EventEditorDialog(
+        repository: ref.read(repositoryProvider),
         teams: organization.teams,
         initialTeamId: organization.currentTeam.id,
         seasonName: organization.season.name,
@@ -185,7 +188,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     } on DioException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_apiErrorMessage(
+          SnackBar(
+              content: Text(_apiErrorMessage(
             error,
             'Der Termin konnte nicht gespeichert werden.',
           ))),
@@ -218,7 +222,10 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           SnackBar(
             content: Text(
               created.length == 1
-                  ? 'Termin wurde gespeichert und bestätigt.'
+                  ? draft.requestPitchConflictApprovals
+                      ? 'Termin gespeichert. Die Platzfreigabe wurde beim '
+                          'zuständigen Haupttrainer angefragt.'
+                      : 'Termin wurde gespeichert und bestätigt.'
                   : '${created.length} Serientermine wurden gespeichert und bestätigt.',
             ),
           ),
@@ -298,7 +305,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     } on DioException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_apiErrorMessage(
+          SnackBar(
+              content: Text(_apiErrorMessage(
             error,
             'Die Änderung konnte nicht gespeichert werden.',
           ))),
@@ -345,85 +353,135 @@ class _CalendarToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 720;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            IconButton.filledTonal(
-              tooltip: 'Zurück',
-              onPressed: onPrevious,
-              icon: const Icon(Icons.chevron_left_rounded),
-            ),
-            SizedBox(
-              width: 172,
-              child: Text(
-                _periodLabel(view, cursor),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 680;
+            final viewPicker = DropdownButton<CalendarView>(
+              value: view,
+              borderRadius: BorderRadius.circular(14),
+              items: [
+                for (final value in CalendarView.values)
+                  DropdownMenuItem(
+                    value: value,
+                    child: Text(_calendarViewLabel(value)),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) onViewChanged(value);
+              },
+            );
+            final filters = [
+              _FilterButton<EventCategory>(
+                label: 'Kategorien',
+                icon: Icons.category_outlined,
+                values: EventCategory.values,
+                selected: selectedCategories,
+                itemLabel: (item) => item.label,
+                onChanged: onCategoriesChanged,
               ),
-            ),
-            IconButton.filledTonal(
-              tooltip: 'Weiter',
-              onPressed: onNext,
-              icon: const Icon(Icons.chevron_right_rounded),
-            ),
-            TextButton(onPressed: onToday, child: const Text('Heute')),
-            const SizedBox(width: 4),
-            if (compact)
-              DropdownButton<CalendarView>(
-                value: view,
-                borderRadius: BorderRadius.circular(14),
-                items: [
-                  for (final value in CalendarView.values)
-                    DropdownMenuItem(
-                      value: value,
-                      child: Text(_calendarViewLabel(value)),
+              if (teams.length > 1)
+                _FilterButton<String>(
+                  label: 'Mannschaften',
+                  icon: Icons.groups_rounded,
+                  values: teams.map((team) => team.id).toList(),
+                  selected: selectedTeams,
+                  itemLabel: (id) =>
+                      teams.firstWhere((team) => team.id == id).displayName,
+                  onChanged: onTeamsChanged,
+                ),
+            ];
+            if (compact) {
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      IconButton.filledTonal(
+                        tooltip: 'Zurück',
+                        onPressed: onPrevious,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                      ),
+                      Expanded(
+                        child: Text(
+                          _periodLabel(view, cursor),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      IconButton.filledTonal(
+                        tooltip: 'Weiter',
+                        onPressed: onNext,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        TextButton(
+                          onPressed: onToday,
+                          child: const Text('Heute'),
+                        ),
+                        const SizedBox(width: 8),
+                        viewPicker,
+                        const SizedBox(width: 10),
+                        ...filters.expand(
+                          (item) => [item, const SizedBox(width: 8)],
+                        ),
+                      ],
                     ),
+                  ),
                 ],
-                onChanged: (value) {
-                  if (value != null) onViewChanged(value);
-                },
-              )
-            else
-              SegmentedButton<CalendarView>(
-                segments: const [
-                  ButtonSegment(value: CalendarView.day, label: Text('Tag')),
-                  ButtonSegment(
-                      value: CalendarView.week, label: Text('Woche')),
-                  ButtonSegment(
-                      value: CalendarView.month, label: Text('Monat')),
-                  ButtonSegment(value: CalendarView.year, label: Text('Jahr')),
-                  ButtonSegment(
-                      value: CalendarView.agenda, label: Text('Agenda')),
-                ],
-                selected: {view},
-                showSelectedIcon: false,
-                onSelectionChanged: (value) => onViewChanged(value.first),
-              ),
-            _FilterButton<EventCategory>(
-              label: 'Kategorien',
-              icon: Icons.category_outlined,
-              values: EventCategory.values,
-              selected: selectedCategories,
-              itemLabel: (item) => item.label,
-              onChanged: onCategoriesChanged,
-            ),
-            if (teams.length > 1)
-              _FilterButton<String>(
-                label: 'Mannschaften',
-                icon: Icons.groups_rounded,
-                values: teams.map((team) => team.id).toList(),
-                selected: selectedTeams,
-                itemLabel: (id) =>
-                    teams.firstWhere((team) => team.id == id).displayName,
-                onChanged: onTeamsChanged,
-              ),
-          ],
+              );
+            }
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                IconButton.filledTonal(
+                  tooltip: 'Zurück',
+                  onPressed: onPrevious,
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
+                SizedBox(
+                  width: 172,
+                  child: Text(
+                    _periodLabel(view, cursor),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                IconButton.filledTonal(
+                  tooltip: 'Weiter',
+                  onPressed: onNext,
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+                TextButton(onPressed: onToday, child: const Text('Heute')),
+                SegmentedButton<CalendarView>(
+                  segments: const [
+                    ButtonSegment(value: CalendarView.day, label: Text('Tag')),
+                    ButtonSegment(
+                        value: CalendarView.week, label: Text('Woche')),
+                    ButtonSegment(
+                        value: CalendarView.month, label: Text('Monat')),
+                    ButtonSegment(
+                        value: CalendarView.year, label: Text('Jahr')),
+                    ButtonSegment(
+                        value: CalendarView.agenda, label: Text('Agenda')),
+                  ],
+                  selected: {view},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (value) => onViewChanged(value.first),
+                ),
+                ...filters,
+              ],
+            );
+          },
         ),
       ),
     );
@@ -501,6 +559,13 @@ class _MonthView extends StatelessWidget {
     final offset = first.weekday - 1;
     final days = DateTime(cursor.year, cursor.month + 1, 0).day;
     final totalCells = ((offset + days + 6) ~/ 7) * 7;
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return _MobileMonthView(
+        cursor: cursor,
+        events: events,
+        onOpen: onOpen,
+      );
+    }
 
     return Card(
       child: SingleChildScrollView(
@@ -511,8 +576,15 @@ class _MonthView extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  for (final label
-                      in ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'])
+                  for (final label in [
+                    'Mo',
+                    'Di',
+                    'Mi',
+                    'Do',
+                    'Fr',
+                    'Sa',
+                    'So'
+                  ])
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 13),
@@ -548,8 +620,9 @@ class _MonthView extends StatelessWidget {
                     );
                   }
                   final date = DateTime(cursor.year, cursor.month, day);
-                  final dayEvents =
-                      events.where((event) => _sameDay(event.startAt, date)).toList();
+                  final dayEvents = events
+                      .where((event) => _sameDay(event.startAt, date))
+                      .toList();
                   return _MonthDay(
                     date: date,
                     events: dayEvents,
@@ -557,6 +630,238 @@ class _MonthView extends StatelessWidget {
                   );
                 },
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileMonthView extends StatelessWidget {
+  const _MobileMonthView({
+    required this.cursor,
+    required this.events,
+    required this.onOpen,
+  });
+
+  final DateTime cursor;
+  final List<EventModel> events;
+  final ValueChanged<EventModel> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = DateTime(cursor.year, cursor.month);
+    final offset = first.weekday - 1;
+    final dayCount = DateTime(cursor.year, cursor.month + 1, 0).day;
+    final totalCells = ((offset + dayCount + 6) ~/ 7) * 7;
+    final monthEvents = events
+        .where(
+          (event) =>
+              event.startAt.year == cursor.year &&
+              event.startAt.month == cursor.month,
+        )
+        .toList()
+      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    for (final label in const [
+                      'Mo',
+                      'Di',
+                      'Mi',
+                      'Do',
+                      'Fr',
+                      'Sa',
+                      'So'
+                    ])
+                      Expanded(
+                        child: Text(
+                          label,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: totalCells,
+                  itemBuilder: (context, index) {
+                    final day = index - offset + 1;
+                    if (day < 1 || day > dayCount) {
+                      return const SizedBox.shrink();
+                    }
+                    final date = DateTime(cursor.year, cursor.month, day);
+                    final dayEvents = monthEvents
+                        .where((event) => _sameDay(event.startAt, date))
+                        .toList();
+                    final today = _sameDay(date, DateTime.now());
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: dayEvents.isEmpty
+                          ? null
+                          : () => _showMobileDay(
+                                context,
+                                date,
+                                dayEvents,
+                                onOpen,
+                              ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(3),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 30,
+                              height: 30,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: today
+                                    ? AppColors.yellow
+                                    : dayEvents.isNotEmpty
+                                        ? AppColors.yellowSoft
+                                        : Colors.transparent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '$day',
+                                style: const TextStyle(
+                                  color: AppColors.black,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            if (dayEvents.isNotEmpty)
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  for (final event in dayEvents.take(3))
+                                    Container(
+                                      width: 4,
+                                      height: 4,
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _categoryColor(event.category),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Termine im Monat',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        if (monthEvents.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(18),
+              child: Text('In diesem Monat sind keine Termine eingetragen.'),
+            ),
+          )
+        else
+          for (final event in monthEvents)
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                leading: CircleAvatar(
+                  backgroundColor:
+                      _categoryColor(event.category).withValues(alpha: .12),
+                  child: Text(
+                    '${event.startAt.day}',
+                    style: TextStyle(
+                      color: _categoryColor(event.category),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  event.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${_time(event.startAt)} Uhr · ${event.location}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => onOpen(event),
+              ),
+            ),
+      ],
+    );
+  }
+
+  void _showMobileDay(
+    BuildContext context,
+    DateTime date,
+    List<EventModel> dayEvents,
+    ValueChanged<EventModel> onOpen,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${date.day}.${date.month}.${date.year}',
+                style: Theme.of(sheetContext).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 10),
+              for (final event in dayEvents)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.event_rounded,
+                    color: _categoryColor(event.category),
+                  ),
+                  title: Text(event.title),
+                  subtitle:
+                      Text('${_time(event.startAt)} Uhr · ${event.location}'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    onOpen(event);
+                  },
+                ),
             ],
           ),
         ),
@@ -851,13 +1156,12 @@ class _WeekDayColumn extends StatelessWidget {
   Widget _eventBlock(BuildContext context, EventModel event) {
     final start = event.startAt.hour + event.startAt.minute / 60;
     final durationMinutes = (event.endAt == null
-        ? 60
-        : event.endAt!.difference(event.startAt).inMinutes.clamp(30, 720))
+            ? 60
+            : event.endAt!.difference(event.startAt).inMinutes.clamp(30, 720))
         .toDouble();
-    final height =
-        (durationMinutes / 60 * _WeekView.hourHeight)
-            .clamp(34.0, 310.0)
-            .toDouble();
+    final height = (durationMinutes / 60 * _WeekView.hourHeight)
+        .clamp(34.0, 310.0)
+        .toDouble();
     final color = _categoryColor(event.category);
     return Positioned(
       top: start * _WeekView.hourHeight + 1,
@@ -992,8 +1296,7 @@ class _MiniMonth extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
-                  if (events.isNotEmpty)
-                    Chip(label: Text('${events.length}')),
+                  if (events.isNotEmpty) Chip(label: Text('${events.length}')),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1017,8 +1320,7 @@ class _MiniMonth extends StatelessWidget {
               Expanded(
                 child: GridView.builder(
                   physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 7,
                   ),
                   itemCount: 42,
@@ -1177,7 +1479,8 @@ class _NoEventsRow extends StatelessWidget {
         border: Border.all(color: AppColors.line),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Text('Keine Termine', style: TextStyle(color: AppColors.muted)),
+      child:
+          const Text('Keine Termine', style: TextStyle(color: AppColors.muted)),
     );
   }
 }
@@ -1234,14 +1537,12 @@ class _EventCard extends StatelessWidget {
                       children: [
                         Text(
                           event.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(
-                                decoration: event.isCancelled
-                                    ? TextDecoration.lineThrough
-                                    : null,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    decoration: event.isCancelled
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                  ),
                         ),
                         if (event.isRecurring)
                           const Icon(Icons.repeat_rounded,
@@ -1515,9 +1816,8 @@ class _EmergencyAccessCard extends ConsumerWidget {
       );
     } on DioException catch (error) {
       final data = error.response?.data;
-      final message = data is Map<String, dynamic>
-          ? data['message'] as String?
-          : null;
+      final message =
+          data is Map<String, dynamic> ? data['message'] as String? : null;
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -1655,11 +1955,13 @@ class _EmergencyViewDialog extends StatelessWidget {
                       children: [
                         Text(
                           event.title,
-                          style:
-                              Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                    color: const Color(0xFF881337),
-                                    fontWeight: FontWeight.w900,
-                                  ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(
+                                color: const Color(0xFF881337),
+                                fontWeight: FontWeight.w900,
+                              ),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -1949,7 +2251,8 @@ class _DetailsHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(event.category.label,
-                    style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+                    style:
+                        TextStyle(color: color, fontWeight: FontWeight.w800)),
                 Text(event.title,
                     style: Theme.of(context).textTheme.headlineSmall),
                 if (event.isCancelled)
@@ -2124,9 +2427,7 @@ class _AttendanceSection extends ConsumerWidget {
             runSpacing: 8,
             children: [
               _StatusMetric(
-                  label: 'Zugesagt',
-                  value: summary.yes,
-                  color: AppColors.teal),
+                  label: 'Zugesagt', value: summary.yes, color: AppColors.teal),
               _StatusMetric(
                   label: 'Abgesagt',
                   value: summary.no,
@@ -2199,8 +2500,8 @@ class _AttendanceSection extends ConsumerWidget {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content:
-                                Text('Rückmeldung konnte nicht gespeichert werden.'),
+                            content: Text(
+                                'Rückmeldung konnte nicht gespeichert werden.'),
                           ),
                         );
                       }
@@ -2399,7 +2700,8 @@ class _CarpoolSection extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Fahrangebot konnte nicht gespeichert werden.')),
+          const SnackBar(
+              content: Text('Fahrangebot konnte nicht gespeichert werden.')),
         );
       }
     }
@@ -2429,7 +2731,8 @@ class _CarpoolSection extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mitfahranfrage konnte nicht gesendet werden.')),
+          const SnackBar(
+              content: Text('Mitfahranfrage konnte nicht gesendet werden.')),
         );
       }
     }
@@ -2475,9 +2778,7 @@ class _ManagementBar extends ConsumerWidget {
           if (!event.attendanceFinalized)
             TextButton.icon(
               onPressed: () async {
-                await ref
-                    .read(repositoryProvider)
-                    .finalizeAttendance(event.id);
+                await ref.read(repositoryProvider).finalizeAttendance(event.id);
                 ref.invalidate(eventsProvider);
                 if (context.mounted) Navigator.pop(context);
               },
@@ -2517,6 +2818,7 @@ class _ManagementBar extends ConsumerWidget {
     final draft = await showDialog<EventWriteData>(
       context: context,
       builder: (context) => EventEditorDialog(
+        repository: ref.read(repositoryProvider),
         teams: organization.teams,
         initialTeamId: organization.currentTeam.id,
         seasonName: organization.season.name,
@@ -2552,7 +2854,8 @@ class _ManagementBar extends ConsumerWidget {
     } on DioException catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_apiErrorMessage(
+          SnackBar(
+              content: Text(_apiErrorMessage(
             error,
             'Der Termin konnte nicht geändert werden.',
           ))),
@@ -2598,7 +2901,8 @@ class _ManagementBar extends ConsumerWidget {
     } on DioException catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_apiErrorMessage(
+          SnackBar(
+              content: Text(_apiErrorMessage(
             error,
             'Der Termin konnte nicht abgesagt werden.',
           ))),
@@ -2706,6 +3010,7 @@ class _ManagementBar extends ConsumerWidget {
 class EventEditorDialog extends StatefulWidget {
   const EventEditorDialog({
     super.key,
+    required this.repository,
     required this.teams,
     required this.initialTeamId,
     this.seasonName,
@@ -2713,6 +3018,7 @@ class EventEditorDialog extends StatefulWidget {
     this.event,
   });
 
+  final DataRepository repository;
   final List<TeamSummary> teams;
   final String initialTeamId;
   final String? seasonName;
@@ -2726,6 +3032,13 @@ class EventEditorDialog extends StatefulWidget {
 enum _MeetingTimeMode { beforeKickoff, exactTime }
 
 class _EventEditorDialogState extends State<EventEditorDialog> {
+  static const pitchOptions = [
+    'Platz 1 unten',
+    'Platz 2 oben',
+    'Sportplatz Teugn · beide Plätze',
+    'Platz noch offen / unklar',
+  ];
+
   final formKey = GlobalKey<FormState>();
   late final TextEditingController title;
   late final TextEditingController location;
@@ -2745,6 +3058,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   late final TextEditingController internalNote;
   late final TextEditingController attachmentName;
   late final TextEditingController attachmentUrl;
+  late final TextEditingController pitchConflictMessage;
   late EventCategory category;
   late EventVisibility visibility;
   HomeAway? homeAway;
@@ -2762,6 +3076,12 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   int interval = 1;
   final weekdays = <int>{};
   final reminderMinutes = <int>{1440, 120};
+  String selectedPitch = 'Platz noch offen / unklar';
+  List<PitchConflictPreview> pitchConflicts = const [];
+  bool checkingPitchConflicts = false;
+  String? pitchConflictError;
+  bool requestPitchConflictApprovals = true;
+  int pitchCheckRevision = 0;
 
   @override
   void initState() {
@@ -2790,11 +3110,15 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     internalNote = TextEditingController(text: event?.internalNote);
     attachmentName = TextEditingController();
     attachmentUrl = TextEditingController();
+    pitchConflictMessage = TextEditingController();
     category = event?.category ?? EventCategory.training;
     visibility = event?.visibility ?? EventVisibility.team;
-    homeAway = event?.homeAway;
-    startAt = event?.startAt ??
-        DateTime.now().add(const Duration(days: 1, hours: 1));
+    homeAway = event?.homeAway ?? (category.isMatch ? HomeAway.home : null);
+    if (event?.venue != null && pitchOptions.contains(event!.venue)) {
+      selectedPitch = event.venue!;
+    }
+    startAt =
+        event?.startAt ?? DateTime.now().add(const Duration(days: 1, hours: 1));
     endAt = event?.endAt ?? startAt.add(const Duration(hours: 1, minutes: 30));
     meetingAt = event?.meetingAt;
     final savedMeetingOffset = standardMeetingOffset(startAt, meetingAt);
@@ -2812,6 +3136,9 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     reminderMinutes
       ..clear()
       ..addAll(event?.reminderMinutes ?? const [1440, 120]);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshPitchConflicts();
+    });
   }
 
   @override
@@ -2835,6 +3162,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       internalNote,
       attachmentName,
       attachmentUrl,
+      pitchConflictMessage,
     ]) {
       controller.dispose();
     }
@@ -2855,7 +3183,9 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                 children: [
                   Expanded(
                     child: Text(
-                      widget.event == null ? 'Termin anlegen' : 'Termin bearbeiten',
+                      widget.event == null
+                          ? 'Termin anlegen'
+                          : 'Termin bearbeiten',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                   ),
@@ -2876,7 +3206,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                     children: [
                       DropdownButtonFormField<EventCategory>(
                         initialValue: category,
-                        decoration: const InputDecoration(labelText: 'Kategorie'),
+                        decoration:
+                            const InputDecoration(labelText: 'Kategorie'),
                         items: [
                           for (final value in EventCategory.values)
                             DropdownMenuItem(
@@ -2884,8 +3215,17 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                               child: Text(value.label),
                             ),
                         ],
-                        onChanged: (value) =>
-                            setState(() => category = value ?? category),
+                        onChanged: (value) {
+                          setState(() {
+                            category = value ?? category;
+                            if (category.isMatch) {
+                              homeAway ??= HomeAway.home;
+                            } else {
+                              pitchConflicts = const [];
+                            }
+                          });
+                          _refreshPitchConflicts();
+                        },
                       ),
                       const SizedBox(height: 12),
                       LayoutBuilder(
@@ -2913,16 +3253,20 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       _DateTimeField(
                         label: 'Beginn',
                         value: startAt,
-                        onChanged: (value) => setState(() {
-                          startAt = value ?? startAt;
-                        }),
+                        onChanged: (value) {
+                          setState(() => startAt = value ?? startAt);
+                          _refreshPitchConflicts();
+                        },
                       ),
                       const SizedBox(height: 12),
                       _DateTimeField(
                         label: 'Ende',
                         value: endAt,
                         allowClear: true,
-                        onChanged: (value) => setState(() => endAt = value),
+                        onChanged: (value) {
+                          setState(() => endAt = value);
+                          _refreshPitchConflicts();
+                        },
                       ),
                       const SizedBox(height: 12),
                       if (category.isMatch)
@@ -2963,8 +3307,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: address,
-                        decoration:
-                            const InputDecoration(labelText: 'Adresse (optional)'),
+                        decoration: const InputDecoration(
+                            labelText: 'Adresse (optional)'),
                       ),
                       if (category.isMatch) ...[
                         const SizedBox(height: 12),
@@ -2984,10 +3328,64 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             DropdownMenuItem(
                                 value: HomeAway.away, child: Text('Auswärts')),
                             DropdownMenuItem(
-                                value: HomeAway.neutral, child: Text('Neutral')),
+                                value: HomeAway.neutral,
+                                child: Text('Neutral')),
                           ],
-                          onChanged: (value) => setState(() => homeAway = value),
+                          onChanged: (value) {
+                            setState(() {
+                              homeAway = value;
+                              if (value == HomeAway.away) {
+                                pitchConflicts = const [];
+                              }
+                            });
+                            _refreshPitchConflicts();
+                          },
                         ),
+                        if (_usesClubPitch) ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedPitch,
+                            decoration: const InputDecoration(
+                              labelText: 'Platz für dieses Spiel',
+                              helperText:
+                                  'Die Platzbelegung wird sofort auf Trainingskonflikte geprüft.',
+                            ),
+                            items: [
+                              for (final pitch in pitchOptions)
+                                DropdownMenuItem(
+                                  value: pitch,
+                                  child: Text(pitch),
+                                ),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                selectedPitch =
+                                    value ?? 'Platz noch offen / unklar';
+                                venue.text = selectedPitch;
+                                if (selectedPitch !=
+                                    'Platz noch offen / unklar') {
+                                  if (location.text.trim().isEmpty) {
+                                    location.text = 'Sportplatz Teugn';
+                                  }
+                                }
+                              });
+                              _refreshPitchConflicts();
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          _PitchConflictPanel(
+                            checking: checkingPitchConflicts,
+                            pitchIsOpen:
+                                selectedPitch == 'Platz noch offen / unklar',
+                            error: pitchConflictError,
+                            conflicts: pitchConflicts,
+                            requestApprovals: requestPitchConflictApprovals,
+                            messageController: pitchConflictMessage,
+                            onRequestApprovalsChanged: (value) => setState(
+                              () => requestPitchConflictApprovals = value,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2996,13 +3394,16 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                               child: TextFormField(
                                 controller: periodCount,
                                 keyboardType: TextInputType.number,
-                                onChanged: (_) => setState(() {}),
+                                onChanged: (_) {
+                                  setState(() {});
+                                  _refreshPitchConflicts();
+                                },
                                 decoration: const InputDecoration(
                                   labelText: 'Spielabschnitte',
-                                  helperText: 'z. B. 2 Halbzeiten oder 4 Viertel',
+                                  helperText:
+                                      'z. B. 2 Halbzeiten oder 4 Viertel',
                                 ),
-                                validator: (value) =>
-                                    _matchNumber(value, 1, 8),
+                                validator: (value) => _matchNumber(value, 1, 8),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -3010,7 +3411,10 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                               child: TextFormField(
                                 controller: periodMinutes,
                                 keyboardType: TextInputType.number,
-                                onChanged: (_) => setState(() {}),
+                                onChanged: (_) {
+                                  setState(() {});
+                                  _refreshPitchConflicts();
+                                },
                                 decoration: const InputDecoration(
                                   labelText: 'Minuten je Abschnitt',
                                   helperText: 'z. B. 15 Minuten',
@@ -3039,11 +3443,14 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             FilterChip(
                               label: Text(team.displayName),
                               selected: teamIds.contains(team.id),
-                              onSelected: (selected) => setState(() {
-                                selected
-                                    ? teamIds.add(team.id)
-                                    : teamIds.remove(team.id);
-                              }),
+                              onSelected: (selected) {
+                                setState(() {
+                                  selected
+                                      ? teamIds.add(team.id)
+                                      : teamIds.remove(team.id);
+                                });
+                                _refreshPitchConflicts();
+                              },
                             ),
                         ],
                       ),
@@ -3055,8 +3462,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                           TextFormField(
                             controller: description,
                             maxLines: 3,
-                            decoration:
-                                const InputDecoration(labelText: 'Beschreibung'),
+                            decoration: const InputDecoration(
+                                labelText: 'Beschreibung'),
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -3065,11 +3472,12 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 const InputDecoration(labelText: 'Kartenlink'),
                           ),
                           const SizedBox(height: 12),
-                          TextFormField(
-                            controller: venue,
-                            decoration:
-                                const InputDecoration(labelText: 'Spielstätte'),
-                          ),
+                          if (!_usesClubPitch)
+                            TextFormField(
+                              controller: venue,
+                              decoration: const InputDecoration(
+                                  labelText: 'Spielstätte'),
+                            ),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: contactName,
@@ -3126,8 +3534,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                           const SizedBox(height: 12),
                           DropdownButtonFormField<EventVisibility>(
                             initialValue: visibility,
-                            decoration:
-                                const InputDecoration(labelText: 'Sichtbarkeit'),
+                            decoration: const InputDecoration(
+                                labelText: 'Sichtbarkeit'),
                             items: const [
                               DropdownMenuItem(
                                   value: EventVisibility.team,
@@ -3139,8 +3547,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                   value: EventVisibility.staffOnly,
                                   child: Text('Nur Trainerteam')),
                             ],
-                            onChanged: (value) =>
-                                setState(() => visibility = value ?? visibility),
+                            onChanged: (value) => setState(
+                                () => visibility = value ?? visibility),
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -3218,8 +3626,15 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 for (var day = 1; day <= 7; day++)
                                   FilterChip(
                                     label: Text(
-                                      const ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-                                          [day - 1],
+                                      const [
+                                        'Mo',
+                                        'Di',
+                                        'Mi',
+                                        'Do',
+                                        'Fr',
+                                        'Sa',
+                                        'So'
+                                      ][day - 1],
                                     ),
                                     selected: weekdays.contains(day),
                                     onSelected: (selected) => setState(() {
@@ -3290,6 +3705,20 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
 
   void _save() {
     if (!(formKey.currentState?.validate() ?? false)) return;
+    if (_usesClubPitch &&
+        selectedPitch != 'Platz noch offen / unklar' &&
+        (pitchConflictError != null || checkingPitchConflicts)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bitte warte auf eine erfolgreiche Platzprüfung, '
+            'bevor du den Termin speicherst.',
+          ),
+        ),
+      );
+      _refreshPitchConflicts();
+      return;
+    }
     if (teamIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Mindestens eine Mannschaft auswählen.')),
@@ -3323,7 +3752,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     if (category.isMatch && matchPeriodCount * matchPeriodMinutes > 180) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Die Gesamtspielzeit darf höchstens 180 Minuten betragen.'),
+          content:
+              Text('Die Gesamtspielzeit darf höchstens 180 Minuten betragen.'),
         ),
       );
       return;
@@ -3347,7 +3777,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         opponent: _optional(opponent),
         periodCount: matchPeriodCount,
         periodMinutes: matchPeriodMinutes,
-        venue: _optional(venue),
+        venue: _usesClubPitch ? selectedPitch : _optional(venue),
         contactName: _optional(contactName),
         contactPhone: _optional(contactPhone),
         description: _optional(description),
@@ -3370,6 +3800,229 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                 weekdays: weekdays.toList(),
               )
             : null,
+        requestPitchConflictApprovals: _usesClubPitch &&
+            requestPitchConflictApprovals &&
+            pitchConflicts.any((item) => item.headCoach != null),
+        pitchConflictMessage: _optional(pitchConflictMessage),
+      ),
+    );
+  }
+
+  bool get _usesClubPitch =>
+      category.isMatch &&
+      category != EventCategory.indoorTournament &&
+      homeAway != HomeAway.away;
+
+  Future<void> _refreshPitchConflicts() async {
+    final revision = ++pitchCheckRevision;
+    if (!mounted) return;
+    if (!_usesClubPitch ||
+        selectedPitch == 'Platz noch offen / unklar' ||
+        teamIds.isEmpty) {
+      if (mounted) {
+        setState(() {
+          checkingPitchConflicts = false;
+          pitchConflicts = const [];
+          pitchConflictError = null;
+        });
+      }
+      return;
+    }
+    setState(() {
+      checkingPitchConflicts = true;
+      pitchConflictError = null;
+    });
+    try {
+      final conflicts = await widget.repository.checkPitchConflicts(
+        startAt: startAt,
+        endAt: endAt,
+        pitch: selectedPitch,
+        homeAway: homeAway?.name.toUpperCase() ?? 'HOME',
+        teamIds: teamIds.toList(),
+        periodCount: int.tryParse(periodCount.text.trim()) ?? 2,
+        periodMinutes: int.tryParse(periodMinutes.text.trim()) ?? 30,
+      );
+      if (!mounted || revision != pitchCheckRevision) return;
+      setState(() {
+        pitchConflicts = conflicts;
+        checkingPitchConflicts = false;
+        pitchConflictError = null;
+      });
+    } catch (_) {
+      if (!mounted || revision != pitchCheckRevision) return;
+      setState(() {
+        pitchConflicts = const [];
+        checkingPitchConflicts = false;
+        pitchConflictError =
+            'Die Platzbelegung konnte gerade nicht geprüft werden. '
+            'Bitte erneut versuchen, bevor du den Termin speicherst.';
+      });
+    }
+  }
+}
+
+class _PitchConflictPanel extends StatelessWidget {
+  const _PitchConflictPanel({
+    required this.checking,
+    required this.pitchIsOpen,
+    required this.error,
+    required this.conflicts,
+    required this.requestApprovals,
+    required this.messageController,
+    required this.onRequestApprovalsChanged,
+  });
+
+  final bool checking;
+  final bool pitchIsOpen;
+  final String? error;
+  final List<PitchConflictPreview> conflicts;
+  final bool requestApprovals;
+  final TextEditingController messageController;
+  final ValueChanged<bool> onRequestApprovalsChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (pitchIsOpen) {
+      return const Card(
+        child: ListTile(
+          leading: Icon(Icons.help_outline_rounded),
+          title: Text('Platz noch offen'),
+          subtitle: Text(
+            'Sobald Platz 1 oder Platz 2 gewählt ist, wird die '
+            'Trainingsbelegung automatisch geprüft.',
+          ),
+        ),
+      );
+    }
+    if (checking) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('Platzbelegung wird geprüft …'),
+            ],
+          ),
+        ),
+      );
+    }
+    if (error != null) {
+      return Card(
+        color: Theme.of(context).colorScheme.errorContainer,
+        child: ListTile(
+          leading: Icon(
+            Icons.cloud_off_rounded,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          title: const Text('Platzprüfung nicht möglich'),
+          subtitle: Text(error!),
+        ),
+      );
+    }
+    if (conflicts.isEmpty) {
+      return Card(
+        color: Colors.green.withValues(alpha: .08),
+        child: const ListTile(
+          leading: Icon(Icons.check_circle_rounded, color: Colors.green),
+          title: Text('Kein Trainingskonflikt'),
+          subtitle: Text('Der gewählte Platz ist in diesem Zeitraum frei.'),
+        ),
+      );
+    }
+    final requestable =
+        conflicts.where((item) => item.headCoach != null).length;
+    return Card(
+      color:
+          Theme.of(context).colorScheme.errorContainer.withValues(alpha: .45),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${conflicts.length} Trainingskonflikt'
+                    '${conflicts.length == 1 ? '' : 'e'} erkannt',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            for (final conflict in conflicts)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: ListTile(
+                    leading: const Icon(Icons.sports_soccer_rounded),
+                    title: Text(
+                      '${conflict.trainingTeamName}: '
+                      '${conflict.weekday} ${conflict.startLabel}–${conflict.endLabel} Uhr',
+                    ),
+                    subtitle: Text(
+                      '${conflict.pitch}\n'
+                      '${conflict.headCoach == null ? 'Kein Haupttrainer hinterlegt' : 'Haupttrainer: ${conflict.headCoach!.name}'}',
+                    ),
+                    isThreeLine: true,
+                    trailing: conflict.headCoach?.phone == null
+                        ? null
+                        : IconButton(
+                            tooltip: 'Haupttrainer anrufen',
+                            onPressed: () => launchUrl(
+                              Uri(
+                                scheme: 'tel',
+                                path: conflict.headCoach!.phone,
+                              ),
+                            ),
+                            icon: const Icon(Icons.phone_rounded),
+                          ),
+                  ),
+                ),
+              ),
+            if (requestable > 0) ...[
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: requestApprovals,
+                onChanged: onRequestApprovalsChanged,
+                title: Text(
+                  requestable == 1
+                      ? 'Freigabe beim Haupttrainer anfragen'
+                      : 'Freigaben bei den Haupttrainern anfragen',
+                ),
+                subtitle: const Text(
+                  'Die Anfrage erscheint direkt unter Nachrichten und als Benachrichtigung.',
+                ),
+              ),
+              if (requestApprovals)
+                TextFormField(
+                  controller: messageController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Nachricht zur Abstimmung (optional)',
+                    hintText:
+                        'z. B. Freundschaftsspiel – können wir euer Training verlegen?',
+                  ),
+                ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -3461,8 +4114,7 @@ class _MatchMeetingTimeField extends StatelessWidget {
           ],
           selected: {mode},
           showSelectedIcon: false,
-          onSelectionChanged: (selection) =>
-              onModeChanged(selection.first),
+          onSelectionChanged: (selection) => onModeChanged(selection.first),
         ),
         const SizedBox(height: 12),
         if (mode == _MeetingTimeMode.beforeKickoff)
@@ -3471,8 +4123,7 @@ class _MatchMeetingTimeField extends StatelessWidget {
             isExpanded: true,
             decoration: InputDecoration(
               labelText: 'Abstand vor Spielbeginn',
-              helperText:
-                  'Treffpunkt: ${_fullDate(calculatedMeetingAt)} · '
+              helperText: 'Treffpunkt: ${_fullDate(calculatedMeetingAt)} · '
                   '${_time(calculatedMeetingAt)} Uhr',
               prefixIcon: const Icon(Icons.notifications_active_outlined),
             ),
@@ -3536,7 +4187,8 @@ class _DateTimeField extends StatelessWidget {
           initialTime: TimeOfDay.fromDateTime(initial),
         );
         if (time == null) return;
-        onChanged(DateTime(date.year, date.month, date.day, time.hour, time.minute));
+        onChanged(
+            DateTime(date.year, date.month, date.day, time.hour, time.minute));
       },
       child: InputDecorator(
         decoration: InputDecoration(
@@ -3625,15 +4277,13 @@ class _AttendanceDialogState extends State<_AttendanceDialog> {
               for (final value in AttendanceStatus.values)
                 DropdownMenuItem(value: value, child: Text(value.label)),
             ],
-            onChanged: (value) =>
-                setState(() => status = value ?? status),
+            onChanged: (value) => setState(() => status = value ?? status),
           ),
           if (status == AttendanceStatus.no) ...[
             const SizedBox(height: 12),
             TextField(
               controller: reason,
-              decoration:
-                  const InputDecoration(labelText: 'Grund (optional)'),
+              decoration: const InputDecoration(labelText: 'Grund (optional)'),
             ),
           ],
           CheckboxListTile(
@@ -3699,8 +4349,8 @@ class _CarpoolDialogState extends State<_CarpoolDialog> {
   @override
   void initState() {
     super.initState();
-    departureAt =
-        widget.event.meetingAt ?? widget.event.startAt.subtract(const Duration(minutes: 30));
+    departureAt = widget.event.meetingAt ??
+        widget.event.startAt.subtract(const Duration(minutes: 30));
   }
 
   @override
@@ -3795,8 +4445,7 @@ class _PlayerSelectionDialog extends StatefulWidget {
   final List<PlayerModel> players;
 
   @override
-  State<_PlayerSelectionDialog> createState() =>
-      _PlayerSelectionDialogState();
+  State<_PlayerSelectionDialog> createState() => _PlayerSelectionDialogState();
 }
 
 class _PlayerSelectionDialogState extends State<_PlayerSelectionDialog> {
@@ -3993,7 +4642,8 @@ String _periodLabel(CalendarView view, DateTime value) => switch (view) {
       CalendarView.day => '${value.day}. ${_month(value.month)} ${value.year}',
       CalendarView.week =>
         '${_monday(value).day}. ${_month(_monday(value).month)} – ${_monday(value).add(const Duration(days: 6)).day}. ${_month(_monday(value).add(const Duration(days: 6)).month)}',
-      CalendarView.month || CalendarView.agenda =>
+      CalendarView.month ||
+      CalendarView.agenda =>
         '${_month(value.month)} ${value.year}',
       CalendarView.year => '${value.year}',
     };

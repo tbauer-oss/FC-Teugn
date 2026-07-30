@@ -193,9 +193,8 @@ class EventSeriesModel {
         RecurrenceFrequency.weekly,
       ),
       interval: json['interval'] as int? ?? 1,
-      weekdays: (json['weekdays'] as List<dynamic>? ?? [])
-          .whereType<int>()
-          .toList(),
+      weekdays:
+          (json['weekdays'] as List<dynamic>? ?? []).whereType<int>().toList(),
       until: _localDate(json['until'] as String),
     );
   }
@@ -476,8 +475,8 @@ class CarpoolOffer {
       departureAt: _localDate(json['departureAt'] as String),
       notes: json['notes'] as String?,
       passengers: (json['passengers'] as List<dynamic>? ?? [])
-          .map((item) =>
-              CarpoolPassenger.fromJson(item as Map<String, dynamic>))
+          .map(
+              (item) => CarpoolPassenger.fromJson(item as Map<String, dynamic>))
           .toList(),
       canManage: json['canManage'] as bool? ?? false,
     );
@@ -502,8 +501,7 @@ class EventCapabilities {
       canManage: json?['canManage'] as bool? ?? false,
       canRespond: json?['canRespond'] as bool? ?? false,
       canOfferRide: json?['canOfferRide'] as bool? ?? false,
-      canOpenEmergencyView:
-          json?['canOpenEmergencyView'] as bool? ?? false,
+      canOpenEmergencyView: json?['canOpenEmergencyView'] as bool? ?? false,
     );
   }
 }
@@ -627,9 +625,7 @@ class EventModel {
       ),
       title: json['title'] as String,
       startAt: _localDate(json['startAt'] as String),
-      endAt: json['endAt'] == null
-          ? null
-          : _localDate(json['endAt'] as String),
+      endAt: json['endAt'] == null ? null : _localDate(json['endAt'] as String),
       meetingAt: json['meetingAt'] == null
           ? null
           : _localDate(json['meetingAt'] as String),
@@ -670,8 +666,7 @@ class EventModel {
           .map((item) => EventTeam.fromJson(item as Map<String, dynamic>))
           .toList(),
       attachments: (json['attachments'] as List<dynamic>? ?? [])
-          .map((item) =>
-              EventAttachment.fromJson(item as Map<String, dynamic>))
+          .map((item) => EventAttachment.fromJson(item as Map<String, dynamic>))
           .toList(),
       matchDetails: json['matchDetails'] == null
           ? null
@@ -679,21 +674,18 @@ class EventModel {
               json['matchDetails'] as Map<String, dynamic>,
             ),
       attendance: (json['attendance'] as List<dynamic>? ?? [])
-          .map((item) =>
-              EventAttendance.fromJson(item as Map<String, dynamic>))
+          .map((item) => EventAttendance.fromJson(item as Map<String, dynamic>))
           .toList(),
       attendanceSummary: AttendanceSummary.fromJson(
         json['attendanceSummary'] as Map<String, dynamic>?,
       ),
-      missingAttendance:
-          (json['missingAttendance'] as List<dynamic>? ?? [])
-              .map((item) => MissingAttendance.fromJson(
-                    item as Map<String, dynamic>,
-                  ))
-              .toList(),
+      missingAttendance: (json['missingAttendance'] as List<dynamic>? ?? [])
+          .map((item) => MissingAttendance.fromJson(
+                item as Map<String, dynamic>,
+              ))
+          .toList(),
       carpoolOffers: (json['carpoolOffers'] as List<dynamic>? ?? [])
-          .map((item) =>
-              CarpoolOffer.fromJson(item as Map<String, dynamic>))
+          .map((item) => CarpoolOffer.fromJson(item as Map<String, dynamic>))
           .toList(),
       capabilities: EventCapabilities.fromJson(
         json['capabilities'] as Map<String, dynamic>?,
@@ -764,6 +756,8 @@ class EventWriteData {
     this.attachmentName,
     this.attachmentUrl,
     this.recurrence,
+    this.requestPitchConflictApprovals = false,
+    this.pitchConflictMessage,
   });
 
   final EventCategory category;
@@ -795,6 +789,8 @@ class EventWriteData {
   final String? attachmentName;
   final String? attachmentUrl;
   final EventRecurrenceDraft? recurrence;
+  final bool requestPitchConflictApprovals;
+  final String? pitchConflictMessage;
 
   Map<String, dynamic> toJson() => {
         'category': category.apiName,
@@ -833,5 +829,7 @@ class EventWriteData {
             },
         ],
         if (recurrence != null) 'recurrence': recurrence!.toJson(),
+        'requestPitchConflictApprovals': requestPitchConflictApprovals,
+        'pitchConflictMessage': pitchConflictMessage,
       };
 }

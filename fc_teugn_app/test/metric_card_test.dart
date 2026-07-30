@@ -33,4 +33,43 @@ void main() {
     await tester.tap(find.text('Spieler im Team'));
     expect(tapped, isTrue);
   });
+
+  testWidgets('page scaffold stays readable on a narrow phone', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(390, 844),
+            textScaler: TextScaler.linear(1.25),
+          ),
+          child: Scaffold(
+            body: PageScaffold(
+              title: 'Mitglieder & Freigaben',
+              subtitle:
+                  'Anfragen prüfen, Rollen festlegen und Zugriffe zuordnen.',
+              action: FilledButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: const Text('Mitglied anlegen'),
+              ),
+              child: const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Mobiler Inhalt'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Mitglieder & Freigaben'), findsOneWidget);
+    expect(find.text('Mitglied anlegen'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

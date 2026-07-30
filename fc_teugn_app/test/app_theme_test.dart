@@ -10,5 +10,8 @@ void main() {
     expect(theme.tabBarTheme.labelColor, AppColors.black);
     expect(theme.tabBarTheme.indicatorColor, AppColors.gold);
     expect(theme.tabBarTheme.labelColor, isNot(AppColors.yellow));
+    expect(theme.chipTheme.labelStyle?.color, AppColors.black);
+    expect(theme.chipTheme.secondaryLabelStyle?.color, AppColors.black);
+    expect(theme.chipTheme.selectedColor, AppColors.yellowSoft);
   });
 }

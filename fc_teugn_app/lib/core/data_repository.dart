@@ -558,6 +558,62 @@ class DataRepository {
     return EventModel.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<List<PitchConflictPreview>> checkPitchConflicts({
+    required DateTime startAt,
+    required DateTime? endAt,
+    required String pitch,
+    required String homeAway,
+    required List<String> teamIds,
+    required int periodCount,
+    required int periodMinutes,
+  }) async {
+    final res = await client.dio.post(
+      '/events/pitch-conflicts/check',
+      data: {
+        'startAt': startAt.toUtc().toIso8601String(),
+        'endAt': endAt?.toUtc().toIso8601String(),
+        'pitch': pitch,
+        'homeAway': homeAway,
+        'teamIds': teamIds,
+        'periodCount': periodCount,
+        'periodMinutes': periodMinutes,
+      },
+    );
+    final data = res.data as Map<String, dynamic>;
+    return (data['conflicts'] as List<dynamic>? ?? const [])
+        .map(
+          (item) => PitchConflictPreview.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<List<PitchConflictRequestModel>> pitchConflictRequests() async {
+    final res = await client.dio.get('/events/pitch-conflict-requests/list');
+    return (res.data as List<dynamic>)
+        .map(
+          (item) =>
+              PitchConflictRequestModel.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<PitchConflictRequestModel> respondToPitchConflictRequest({
+    required String requestId,
+    required PitchConflictRequestStatus status,
+    String? responseMessage,
+  }) async {
+    final res = await client.dio.patch(
+      '/events/pitch-conflict-requests/$requestId',
+      data: {
+        'status': communicationApiEnum(status),
+        'responseMessage': responseMessage,
+      },
+    );
+    return PitchConflictRequestModel.fromJson(
+      res.data as Map<String, dynamic>,
+    );
+  }
+
   Future<void> cancelEvent({
     required String eventId,
     required String reason,
