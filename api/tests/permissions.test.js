@@ -357,6 +357,7 @@ test('season transition advances youth age groups without changing A youth', () 
 
 test('team display names omit the number only for a single youth team', () => {
   assert.equal(teamDisplayName('E', 1, 1), 'E-Jugend');
+  assert.equal(teamDisplayName('E', 2, 1), 'E2-Jugend');
   assert.equal(teamDisplayName('E', 1, 3), 'E1-Jugend');
   assert.equal(teamDisplayName('E', 2, 3), 'E2-Jugend');
   assert.equal(teamDisplayName('E', 3, 3), 'E3-Jugend');

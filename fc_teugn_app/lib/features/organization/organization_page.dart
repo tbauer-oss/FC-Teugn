@@ -782,7 +782,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
 
   int _nextAvailableTeamNumber(String ageGroupId) {
     final used = _usedTeamNumbers(ageGroupId);
-    return List.generate(20, (index) => index + 1)
+    return List.generate(5, (index) => index + 1)
         .firstWhere((number) => !used.contains(number), orElse: () => 1);
   }
 
@@ -793,7 +793,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   }
 
   String _displayName(AgeGroupSummary ageGroup) =>
-      _projectedTeamCount(ageGroup.id) <= 1
+      _projectedTeamCount(ageGroup.id) <= 1 && _teamNumber == 1
           ? '${ageGroup.code}-Jugend'
           : '${ageGroup.code}$_teamNumber-Jugend';
 
@@ -808,7 +808,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
       ...gameFormatsForAgeGroup(selectedAgeGroup.code),
     };
     final usedTeamNumbers = _usedTeamNumbers(_ageGroupId);
-    final availableTeamNumbers = List.generate(20, (index) => index + 1)
+    final availableTeamNumbers = List.generate(5, (index) => index + 1)
         .where(
           (number) =>
               number == _teamNumber || !usedTeamNumbers.contains(number),
@@ -861,7 +861,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                       DropdownMenuItem(
                         value: number,
                         child: Text(
-                          '${selectedAgeGroup.code}$number-Mannschaft',
+                          '${selectedAgeGroup.code}$number-Jugend',
                         ),
                       ),
                   ],

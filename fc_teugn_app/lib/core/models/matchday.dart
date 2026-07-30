@@ -40,7 +40,9 @@ enum TickerEventType {
 
 T _enum<T extends Enum>(List<T> values, Object? raw, T fallback) {
   final normalized = raw?.toString().toLowerCase().replaceAll('_', '');
-  return values.where((item) => item.name.toLowerCase() == normalized).firstOrNull ??
+  return values
+          .where((item) => item.name.toLowerCase() == normalized)
+          .firstOrNull ??
       fallback;
 }
 
@@ -56,6 +58,7 @@ class MatchdayModel {
     this.squad,
     this.ticker,
     this.eligiblePlayers = const [],
+    this.playerPoolAgeGroupCode,
     this.gameFormat = TeamGameFormat.football7,
     this.canManageTicker = false,
     this.canDelegateTicker = false,
@@ -71,6 +74,7 @@ class MatchdayModel {
   final MatchSquadModel? squad;
   final LiveTickerModel? ticker;
   final List<PlayerModel> eligiblePlayers;
+  final String? playerPoolAgeGroupCode;
   final TeamGameFormat gameFormat;
   final bool canManageTicker;
   final bool canDelegateTicker;
@@ -105,6 +109,7 @@ class MatchdayModel {
             (item) => PlayerModel.fromJson(item as Map<String, dynamic>),
           )
           .toList(),
+      playerPoolAgeGroupCode: json['playerPoolAgeGroupCode'] as String?,
       gameFormat: TeamGameFormat.fromApi(json['teamGameFormat']),
       canManageTicker: capabilities?['canManageTicker'] as bool? ?? false,
       canDelegateTicker: capabilities?['canDelegateTicker'] as bool? ?? false,
@@ -255,7 +260,8 @@ class MatchSquadModel {
   final List<SquadMemberModel> members;
   final LineupModel? lineup;
 
-  factory MatchSquadModel.fromJson(Map<String, dynamic> json) => MatchSquadModel(
+  factory MatchSquadModel.fromJson(Map<String, dynamic> json) =>
+      MatchSquadModel(
         id: json['id'] as String,
         name: json['name'] as String?,
         formation: json['formation'] as String?,
@@ -264,8 +270,7 @@ class MatchSquadModel {
             : DateTime.parse(json['publishedAt'] as String),
         members: (json['members'] as List<dynamic>? ?? const [])
             .map(
-              (item) =>
-                  SquadMemberModel.fromJson(item as Map<String, dynamic>),
+              (item) => SquadMemberModel.fromJson(item as Map<String, dynamic>),
             )
             .toList(),
         lineup: json['lineup'] == null
@@ -392,7 +397,8 @@ class LiveTickerModel {
   final int lastSequence;
   final List<TickerEventModel> events;
 
-  factory LiveTickerModel.fromJson(Map<String, dynamic> json) => LiveTickerModel(
+  factory LiveTickerModel.fromJson(Map<String, dynamic> json) =>
+      LiveTickerModel(
         status: _enum(
           TickerStatus.values,
           json['status'],
@@ -405,8 +411,7 @@ class LiveTickerModel {
         lastSequence: json['lastSequence'] as int? ?? 0,
         events: (json['events'] as List<dynamic>? ?? const [])
             .map(
-              (item) =>
-                  TickerEventModel.fromJson(item as Map<String, dynamic>),
+              (item) => TickerEventModel.fromJson(item as Map<String, dynamic>),
             )
             .toList(),
       );
