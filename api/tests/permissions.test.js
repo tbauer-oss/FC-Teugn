@@ -44,6 +44,9 @@ const {
   checklistItems,
 } = require('../dist/src/controllers/team-operations.controller');
 const {
+  teamDisplayName,
+} = require('../dist/src/controllers/organization.controller');
+const {
   selectPresentAttendance,
 } = require('../dist/src/controllers/emergency.controller');
 
@@ -351,11 +354,19 @@ test('season transition advances youth age groups without changing A youth', () 
   assert.equal(nextAgeGroupCode('A'), 'A');
 });
 
+test('team display names omit the number only for a single youth team', () => {
+  assert.equal(teamDisplayName('E', 1, 1), 'E-Jugend');
+  assert.equal(teamDisplayName('E', 1, 3), 'E1-Jugend');
+  assert.equal(teamDisplayName('E', 2, 3), 'E2-Jugend');
+  assert.equal(teamDisplayName('E', 3, 3), 'E3-Jugend');
+});
+
 test('season transition preview respects explicit team overrides', () => {
   const plans = buildTransitionTeamPlans(
     [
       {
         id: 'team-e1',
+        teamNumber: 1,
         name: 'E1',
         shortName: 'E1',
         level: 'Kreisliga',
@@ -377,6 +388,7 @@ test('season transition preview respects explicit team overrides', () => {
   assert.deepEqual(
     {
       targetAgeGroupCode: plans[0].targetAgeGroupCode,
+      teamNumber: plans[0].teamNumber,
       targetName: plans[0].targetName,
       includePlayers: plans[0].includePlayers,
       includeStaff: plans[0].includeStaff,
@@ -384,6 +396,7 @@ test('season transition preview respects explicit team overrides', () => {
     },
     {
       targetAgeGroupCode: 'D',
+      teamNumber: 1,
       targetName: 'D2',
       includePlayers: true,
       includeStaff: false,

@@ -29,6 +29,7 @@ class DataRepository {
 
   Future<TeamSummary> createTeam({
     required String ageGroupId,
+    required int teamNumber,
     required String name,
     String? shortName,
     String? level,
@@ -47,6 +48,7 @@ class DataRepository {
   }) async {
     final res = await client.dio.post('/organization/teams', data: {
       'ageGroupId': ageGroupId,
+      'teamNumber': teamNumber,
       'name': name,
       'shortName': shortName,
       'level': level,
@@ -68,6 +70,7 @@ class DataRepository {
 
   Future<TeamSummary> updateTeam({
     required String teamId,
+    required int teamNumber,
     required String name,
     String? shortName,
     String? level,
@@ -86,6 +89,7 @@ class DataRepository {
   }) async {
     final res = await client.dio.patch('/organization/teams/$teamId', data: {
       'name': name,
+      'teamNumber': teamNumber,
       'shortName': shortName,
       'level': level,
       'teamType': teamType,

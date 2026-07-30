@@ -6,6 +6,8 @@ void main() {
     final team = TeamSummary.fromJson({
       'id': 'team-1',
       'name': 'E1',
+      'teamNumber': 1,
+      'displayName': 'E1-Jugend',
       'shortName': 'E1',
       'level': 'Gruppe',
       'teamType': 'DEVELOPMENT',
@@ -33,6 +35,8 @@ void main() {
     });
 
     expect(team.teamType, 'DEVELOPMENT');
+    expect(team.teamNumber, 1);
+    expect(team.displayName, 'E1-Jugend');
     expect(team.birthYears, [2015, 2016]);
     expect(team.trainingTimes, ['Dienstag 17:00–18:30']);
     expect(team.staff.single.name, 'Max Trainer');
@@ -53,5 +57,6 @@ void main() {
     expect(team.birthYears, isEmpty);
     expect(team.trainingTimes, isEmpty);
     expect(team.staff, isEmpty);
+    expect(team.displayName, 'F1-Jugend');
   });
 }

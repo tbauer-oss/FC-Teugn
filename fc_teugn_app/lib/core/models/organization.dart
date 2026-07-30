@@ -61,7 +61,8 @@ class AgeGroupSummary {
   final String code;
   final int sortOrder;
 
-  factory AgeGroupSummary.fromJson(Map<String, dynamic> json) => AgeGroupSummary(
+  factory AgeGroupSummary.fromJson(Map<String, dynamic> json) =>
+      AgeGroupSummary(
         id: json['id'] as String,
         name: json['name'] as String,
         code: json['code'] as String,
@@ -75,6 +76,8 @@ class TeamSummary {
     required this.name,
     required this.ageGroup,
     required this.seasonName,
+    this.teamNumber = 1,
+    this.apiDisplayName,
     this.shortName,
     this.level,
     this.isActive = true,
@@ -95,6 +98,8 @@ class TeamSummary {
 
   final String id;
   final String name;
+  final int teamNumber;
+  final String? apiDisplayName;
   final String? shortName;
   final String? level;
   final bool isActive;
@@ -114,11 +119,24 @@ class TeamSummary {
   final AgeGroupSummary ageGroup;
   final String seasonName;
 
-  String get displayName => '${ageGroup.code}-Jugend · $name';
+  String get displayName {
+    if (apiDisplayName?.isNotEmpty == true) return apiDisplayName!;
+    final compactName = name.trim();
+    if (RegExp(
+      '^${RegExp.escape(ageGroup.code)}\\d+\$',
+      caseSensitive: false,
+    ).hasMatch(compactName)) {
+      return '$compactName-Jugend';
+    }
+    if (compactName.toLowerCase().endsWith('-jugend')) return compactName;
+    return '${ageGroup.code}-Jugend · $compactName';
+  }
 
   factory TeamSummary.fromJson(Map<String, dynamic> json) => TeamSummary(
         id: json['id'] as String,
         name: json['name'] as String,
+        teamNumber: (json['teamNumber'] as num?)?.toInt() ?? 1,
+        apiDisplayName: json['displayName'] as String?,
         shortName: json['shortName'] as String?,
         level: json['level'] as String?,
         isActive: json['isActive'] as bool? ?? true,
@@ -219,8 +237,7 @@ class OrganizationContext {
   factory OrganizationContext.fromJson(Map<String, dynamic> json) =>
       OrganizationContext(
         club: ClubSummary.fromJson(json['club'] as Map<String, dynamic>),
-        season:
-            SeasonSummary.fromJson(json['season'] as Map<String, dynamic>),
+        season: SeasonSummary.fromJson(json['season'] as Map<String, dynamic>),
         currentTeam:
             TeamSummary.fromJson(json['currentTeam'] as Map<String, dynamic>),
         ageGroups: (json['ageGroups'] as List<dynamic>? ?? [])
@@ -228,8 +245,7 @@ class OrganizationContext {
                 AgeGroupSummary.fromJson(item as Map<String, dynamic>))
             .toList(),
         teams: (json['teams'] as List<dynamic>? ?? [])
-            .map(
-                (item) => TeamSummary.fromJson(item as Map<String, dynamic>))
+            .map((item) => TeamSummary.fromJson(item as Map<String, dynamic>))
             .toList(),
         permissions: (json['permissions'] as List<dynamic>? ?? [])
             .map((item) => item as String)
@@ -277,10 +293,8 @@ class RuleProfileModel {
 
   factory RuleProfileModel.fromJson(Map<String, dynamic> json) {
     final team = json['team'] as Map<String, dynamic>? ?? const {};
-    final ageGroup =
-        team['ageGroup'] as Map<String, dynamic>? ?? const {};
-    final approvedBy =
-        json['approvedBy'] as Map<String, dynamic>? ?? const {};
+    final ageGroup = team['ageGroup'] as Map<String, dynamic>? ?? const {};
+    final approvedBy = json['approvedBy'] as Map<String, dynamic>? ?? const {};
     return RuleProfileModel(
       id: json['id'] as String,
       teamId: json['teamId'] as String,

@@ -377,6 +377,7 @@ enum ChecklistRunStatus {
 model Team {
   id                      String                    @id @default(cuid())
   ageGroupId              String
+  teamNumber              Int                       @default(1)
   name                    String
   shortName               String?
   level                   String?
@@ -417,6 +418,7 @@ model Team {
   photoAsset              FileAsset?                @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
   ownedFileAssets         FileAsset[]               @relation("TeamFileOwner")
 
+  @@unique([ageGroupId, teamNumber])
   @@index([ageGroupId, isActive])
 }
 
@@ -1163,16 +1165,16 @@ model LiveTickerEvent {
 }
 
 model MatchTickerDelegate {
-  id          String   @id @default(cuid())
-  eventId     String   @unique
+  id          String    @id @default(cuid())
+  eventId     String    @unique
   userId      String
   grantedById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   revokedAt   DateTime?
-  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user        User     @relation("TickerDelegate", fields: [userId], references: [id], onDelete: Cascade)
-  grantedBy   User     @relation("TickerDelegateGranter", fields: [grantedById], references: [id], onDelete: Restrict)
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User      @relation("TickerDelegate", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy   User      @relation("TickerDelegateGranter", fields: [grantedById], references: [id], onDelete: Restrict)
 
   @@index([userId, revokedAt])
 }
@@ -1264,10 +1266,10 @@ model PlayerMatchStatistic {
 }
 
 model TrainingPlan {
-  id               String             @id @default(cuid())
-  eventId          String             @unique
+  id               String              @id @default(cuid())
+  eventId          String              @unique
   createdById      String
-  focusAreas       String[]           @default([])
+  focusAreas       String[]            @default([])
   learningGoals    String?
   durationMinutes  Int
   participantNotes String?
@@ -1275,10 +1277,10 @@ model TrainingPlan {
   materials        String?
   pitchSetup       String?
   feedback         String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  event            Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  createdBy        User               @relation("TrainingPlanAuthor", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  event            Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy        User                @relation("TrainingPlanAuthor", fields: [createdById], references: [id], onDelete: Restrict)
   coachAssignments TrainingPlanCoach[]
   items            TrainingPlanItem[]
 }

@@ -46,9 +46,14 @@ async function main() {
   });
   const team = await prisma.team.upsert({
     where: { id: 'fc-teugn' },
-    update: { ageGroupId: ageGroup.id, gameFormat: 'FOOTBALL_5' },
+    update: {
+      ageGroupId: ageGroup.id,
+      teamNumber: 1,
+      gameFormat: 'FOOTBALL_5',
+    },
     create: {
       id: 'fc-teugn',
+      teamNumber: 1,
       name: 'E1',
       shortName: 'E1',
       ageGroupId: ageGroup.id,
@@ -57,9 +62,14 @@ async function main() {
   });
   const secondTeam = await prisma.team.upsert({
     where: { id: 'fc-teugn-e2' },
-    update: { ageGroupId: ageGroup.id, gameFormat: 'FOOTBALL_4' },
+    update: {
+      ageGroupId: ageGroup.id,
+      teamNumber: 2,
+      gameFormat: 'FOOTBALL_4',
+    },
     create: {
       id: 'fc-teugn-e2',
+      teamNumber: 2,
       name: 'E2',
       shortName: 'E2',
       ageGroupId: ageGroup.id,

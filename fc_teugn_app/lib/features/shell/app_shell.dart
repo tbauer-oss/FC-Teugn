@@ -137,11 +137,10 @@ class AppShell extends ConsumerWidget {
         .where((destination) => !primaryRoutes.contains(destination.route))
         .toList();
     final primaryMobileIndex = _matchingIndex(location, mobileDestinations);
-    final mobileSelectedIndex =
-        primaryMobileIndex ?? mobileDestinations.length;
+    final mobileSelectedIndex = primaryMobileIndex ?? mobileDestinations.length;
     final contextLabel = organization == null
         ? 'FC Teugn Jugend'
-        : '${organization.currentTeam.ageGroup.code}-Jugend · ${organization.currentTeam.name}';
+        : organization.currentTeam.displayName;
     final seasonLabel = organization?.season.name ?? '2026/27';
 
     return LayoutBuilder(
@@ -171,7 +170,8 @@ class AppShell extends ConsumerWidget {
                         title: title,
                         userName: authState.user?.name ?? '',
                         contextLabel: contextLabel,
-                        onLogout: () => ref.read(authProvider.notifier).logout(),
+                        onLogout: () =>
+                            ref.read(authProvider.notifier).logout(),
                         onPrivacy: () {
                           ShellDestination? privacy;
                           for (final item in destinations) {
@@ -205,7 +205,8 @@ class AppShell extends ConsumerWidget {
                     for (final destination in mobileDestinations)
                       NavigationDestination(
                         icon: Icon(destination.icon),
-                        selectedIcon: Icon(destination.icon, color: AppColors.blue),
+                        selectedIcon:
+                            Icon(destination.icon, color: AppColors.blue),
                         label: destination.label,
                       ),
                     const NavigationDestination(
@@ -319,7 +320,8 @@ class _DesktopNavigation extends StatelessWidget {
                     onTap: () => onSelect(index),
                     borderRadius: BorderRadius.circular(14),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
                       child: Row(
                         children: [
                           Icon(
