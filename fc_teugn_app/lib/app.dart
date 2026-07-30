@@ -38,6 +38,7 @@ class FCTeugnApp extends ConsumerWidget {
         title: 'FC Teugn Jugend',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
+        builder: _forceGerman24HourClock,
         home: const Scaffold(
           body: Center(child: CircularProgressIndicator()),
         ),
@@ -252,6 +253,13 @@ class FCTeugnApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: buildAppTheme(),
+      builder: _forceGerman24HourClock,
     );
   }
 }
+
+Widget _forceGerman24HourClock(BuildContext context, Widget? child) =>
+    MediaQuery(
+      data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+      child: child ?? const SizedBox.shrink(),
+    );

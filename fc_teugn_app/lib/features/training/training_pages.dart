@@ -31,6 +31,14 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
   bool _creating = false;
   _TrainingPageView _view = _TrainingPageView.sessions;
 
+  bool get _canManageOccupancy => switch (ref.read(authProvider).user?.role) {
+        UserRole.superAdmin ||
+        UserRole.clubAdmin ||
+        UserRole.youthDirector =>
+          true,
+        _ => false,
+      };
+
   @override
   void initState() {
     super.initState();
@@ -66,8 +74,9 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
   @override
   Widget build(BuildContext context) => PageScaffold(
         title: 'Trainingsplanung',
-        subtitle: 'Einheiten vorbereiten, Übungen kombinieren und Anwesenheit erfassen.',
-        action: _organization?.can('MANAGE_ORGANIZATION') == true
+        subtitle:
+            'Einheiten vorbereiten, Übungen kombinieren und Anwesenheit erfassen.',
+        action: _canManageOccupancy
             ? Wrap(
                 spacing: 10,
                 runSpacing: 8,
@@ -146,13 +155,17 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           if (_view == _TrainingPageView.sessions)
             _buildList(context)
           else if (_occupancy != null)
-            PitchOccupancyBoard(plan: _occupancy!),
+            PitchOccupancyBoard(
+              plan: _occupancy!,
+              onConflictApproval: _setConflictApproval,
+            ),
         ],
       );
 
   Widget _buildList(BuildContext context) {
     final upcoming = _trainings!
-        .where((item) => item.startAt.isAfter(DateTime.now().subtract(const Duration(days: 1))))
+        .where((item) => item.startAt
+            .isAfter(DateTime.now().subtract(const Duration(days: 1))))
         .toList();
     if (upcoming.isEmpty) {
       return Column(
@@ -255,8 +268,10 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                                           .join(', '),
                                     ),
                                   ),
-                                if (training.plan?.focusAreas.isNotEmpty == true)
-                                  for (final focus in training.plan!.focusAreas.take(3))
+                                if (training.plan?.focusAreas.isNotEmpty ==
+                                    true)
+                                  for (final focus
+                                      in training.plan!.focusAreas.take(3))
                                     Chip(label: Text(focus)),
                               ],
                             ),
@@ -316,8 +331,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
 
   Future<void> _manageTrainingTimes() async {
     final organization = _organization;
-    if (organization == null ||
-        !organization.can('MANAGE_ORGANIZATION')) {
+    if (organization == null || !_canManageOccupancy) {
       return;
     }
     final draft = await showDialog<_TrainingScheduleDraft>(
@@ -328,7 +342,9 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
         season: organization.season,
         allowRecreational:
             ref.read(authProvider).user?.role == UserRole.superAdmin,
+        allowSeniors: _canManageOccupancy,
         recreationalSchedule: _occupancy?.recreationalSchedule,
+        seniorSchedule: _occupancy?.seniorSchedule,
       ),
     );
     if (draft == null || !mounted) return;
@@ -341,10 +357,19 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           trainingTimes: draft.trainingTimes,
           trainingLocation: draft.trainingLocation,
         );
+      } else if (draft.isSenior) {
+        await repository.updateSeniorPitchOccupancy(
+          seasonId: organization.season.id,
+          trainingTimes: draft.trainingTimes,
+          matchdayTimes: draft.matchdayTimes,
+          trainingLocation: draft.trainingLocation,
+        );
       } else {
         await repository.updateTrainingSchedule(
           teamId: draft.teamId,
           trainingTimes: draft.trainingTimes,
+          trainingPartnerIds: draft.trainingPartnerIds,
+          matchdayTimes: draft.matchdayTimes,
           trainingLocation: draft.trainingLocation,
         );
       }
@@ -366,19 +391,56 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
       if (mounted) setState(() => _creating = false);
     }
   }
+
+  Future<void> _setConflictApproval(
+    PitchOccupancyConflict conflict,
+    bool approved,
+  ) async {
+    final plan = _occupancy;
+    if (plan == null || !_canManageOccupancy) return;
+    try {
+      await ref.read(repositoryProvider).setPitchOccupancyConflictApproval(
+            seasonId: plan.seasonId,
+            conflictKey: conflict.key,
+            approved: approved,
+          );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Die Konfliktbewertung wurde gespeichert.'),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Die Bestätigung konnte nicht gespeichert werden.'),
+          ),
+        );
+      }
+    }
+  }
 }
 
 class _TrainingScheduleDraft {
   const _TrainingScheduleDraft({
     required this.teamId,
     required this.trainingTimes,
+    required this.trainingPartnerIds,
+    required this.matchdayTimes,
     this.isRecreational = false,
+    this.isSenior = false,
     this.trainingLocation,
   });
 
   final String teamId;
   final List<String> trainingTimes;
+  final List<String> trainingPartnerIds;
+  final List<String> matchdayTimes;
   final bool isRecreational;
+  final bool isSenior;
   final String? trainingLocation;
 }
 
@@ -388,14 +450,18 @@ class _TrainingScheduleDialog extends StatefulWidget {
     required this.initialTeamId,
     required this.season,
     required this.allowRecreational,
+    required this.allowSeniors,
     this.recreationalSchedule,
+    this.seniorSchedule,
   });
 
   final List<TeamSummary> teams;
   final String initialTeamId;
   final SeasonSummary season;
   final bool allowRecreational;
+  final bool allowSeniors;
   final PitchOccupancyTeam? recreationalSchedule;
+  final PitchOccupancyTeam? seniorSchedule;
 
   @override
   State<_TrainingScheduleDialog> createState() =>
@@ -404,6 +470,7 @@ class _TrainingScheduleDialog extends StatefulWidget {
 
 class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
   static const _recreationalId = 'recreational';
+  static const _seniorId = 'seniors';
   static const _trainingLocations = [
     'Platz 1 unten',
     'Platz 2 oben',
@@ -415,10 +482,14 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
   late String _teamId;
   String? _location;
   List<_TrainingTimeSelection> _times = [];
+  List<_TrainingTimeSelection> _matchdayTimes = [];
+  Set<String> _trainingPartnerIds = {};
   List<String> _legacyTimes = [];
+  List<String> _legacyMatchdayTimes = [];
   String? _validationMessage;
 
   bool get _isRecreational => _teamId == _recreationalId;
+  bool get _isSenior => _teamId == _seniorId;
 
   TeamSummary get _team =>
       widget.teams.firstWhere((team) => team.id == _teamId);
@@ -442,24 +513,40 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
   }
 
   void _loadTeam() {
-    final location = _isRecreational
-        ? widget.recreationalSchedule?.location == 'Platz offen'
+    final specialSchedule = _isRecreational
+        ? widget.recreationalSchedule
+        : _isSenior
+            ? widget.seniorSchedule
+            : null;
+    final location = specialSchedule != null
+        ? specialSchedule.location == 'Platz offen'
             ? null
-            : widget.recreationalSchedule?.location
+            : specialSchedule.location
         : _team.trainingLocation;
-    final trainingTimes = _isRecreational
-        ? widget.recreationalSchedule?.trainingTimes ?? const <String>[]
-        : _team.trainingTimes;
+    final trainingTimes = specialSchedule?.trainingTimes ?? _team.trainingTimes;
+    final matchdayTimes = specialSchedule?.matchdayTimes ?? _team.matchdayTimes;
     _location = location?.trim();
     if (_location?.isEmpty == true) _location = null;
     _times = [];
+    _matchdayTimes = [];
+    _trainingPartnerIds =
+        specialSchedule == null ? _team.trainingPartnerIds.toSet() : {};
     _legacyTimes = [];
+    _legacyMatchdayTimes = [];
     for (final value in trainingTimes) {
       final parsed = _TrainingTimeSelection.tryParse(value);
       if (parsed == null) {
         _legacyTimes.add(value);
       } else {
         _times.add(parsed);
+      }
+    }
+    for (final value in matchdayTimes) {
+      final parsed = _TrainingTimeSelection.tryParse(value);
+      if (parsed == null) {
+        _legacyMatchdayTimes.add(value);
+      } else {
+        _matchdayTimes.add(parsed);
       }
     }
     _validationMessage = null;
@@ -487,6 +574,11 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                       DropdownMenuItem(
                         value: team.id,
                         child: Text(team.displayName),
+                      ),
+                    if (widget.allowSeniors)
+                      const DropdownMenuItem(
+                        value: _seniorId,
+                        child: Text('Herren · Vereinsbelegung'),
                       ),
                     if (widget.allowRecreational)
                       const DropdownMenuItem(
@@ -531,6 +623,14 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                     ),
                   ),
                 ],
+                if (_isSenior) ...[
+                  const SizedBox(height: 12),
+                  const _ScheduleHint(
+                    icon: Icons.shield_outlined,
+                    message:
+                        'Die Herren werden im gemeinsamen Belegungsplan berücksichtigt. Die Pflege ist der Systemadministration, Vereinsleitung und Jugendleitung vorbehalten.',
+                  ),
+                ],
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   key: ValueKey('training_location_${_teamId}_$_location'),
@@ -566,7 +666,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                       ),
                     ),
                     TextButton.icon(
-                      onPressed: _times.length + _legacyTimes.length >= 7
+                      onPressed: _times.length + _legacyTimes.length >= 14
                           ? null
                           : () => setState(() {
                                 _times.add(
@@ -613,8 +713,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                         _validationMessage = null;
                       }),
                     ),
-                    if (index < _times.length - 1)
-                      const SizedBox(height: 8),
+                    if (index < _times.length - 1) const SizedBox(height: 8),
                   ],
                 if (_legacyTimes.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -624,11 +723,121 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
+                if (!_isRecreational && !_isSenior) ...[
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Gemeinsames Training',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Wähle Mannschaften, die diese Zeiten gemeinsam nutzen. Identische Belegungen gelten dann nicht als Konflikt.',
+                    style: TextStyle(color: AppColors.muted),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: [
+                      for (final team in widget.teams)
+                        if (team.id != _teamId)
+                          FilterChip(
+                            label: Text(team.displayName),
+                            selected: _trainingPartnerIds.contains(team.id),
+                            onSelected: (selected) => setState(() {
+                              if (selected) {
+                                _trainingPartnerIds.add(team.id);
+                              } else {
+                                _trainingPartnerIds.remove(team.id);
+                              }
+                            }),
+                          ),
+                    ],
+                  ),
+                ],
+                if (!_isRecreational) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Mögliche Spieltage',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              'Nur informativ – Spieltage lösen keine Belegungskonflikte aus.',
+                              style: TextStyle(color: AppColors.muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _matchdayTimes.length +
+                                    _legacyMatchdayTimes.length >=
+                                14
+                            ? null
+                            : () => setState(() {
+                                  _matchdayTimes.add(
+                                    const _TrainingTimeSelection(
+                                      weekday: 6,
+                                      start: TimeOfDay(
+                                        hour: 10,
+                                        minute: 0,
+                                      ),
+                                      end: TimeOfDay(
+                                        hour: 12,
+                                        minute: 0,
+                                      ),
+                                    ),
+                                  );
+                                }),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Spieltag'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_matchdayTimes.isEmpty)
+                    const _EmptyScheduleRow(
+                      text: 'Noch kein möglicher Spieltag eingetragen.',
+                    )
+                  else
+                    for (var index = 0;
+                        index < _matchdayTimes.length;
+                        index++) ...[
+                      _TrainingTimeRow(
+                        key: ValueKey(
+                          'matchday_${_teamId}_${index}_${_matchdayTimes[index].weekday}',
+                        ),
+                        value: _matchdayTimes[index],
+                        onChanged: (value) => setState(() {
+                          _matchdayTimes[index] = value;
+                          _validationMessage = null;
+                        }),
+                        onDelete: () => setState(() {
+                          _matchdayTimes.removeAt(index);
+                          _validationMessage = null;
+                        }),
+                      ),
+                      if (index < _matchdayTimes.length - 1)
+                        const SizedBox(height: 8),
+                    ],
+                ],
                 if (_validationMessage != null) ...[
                   const SizedBox(height: 8),
                   Text(
                     _validationMessage!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error),
                   ),
                 ],
                 const SizedBox(height: 14),
@@ -655,7 +864,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
           ),
           FilledButton(
             onPressed: () {
-              final invalidTime = _times.any(
+              final invalidTime = [..._times, ..._matchdayTimes].any(
                 (value) => value.endMinutes <= value.startMinutes,
               );
               if (invalidTime) {
@@ -675,13 +884,20 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
               final times = [
                 ..._times.map((value) => value.storageValue),
                 ..._legacyTimes,
-              ].take(7).toList();
+              ].take(14).toList();
+              final matchdayTimes = [
+                ..._matchdayTimes.map((value) => value.storageValue),
+                ..._legacyMatchdayTimes,
+              ].take(14).toList();
               Navigator.pop(
                 context,
                 _TrainingScheduleDraft(
                   teamId: _teamId,
                   trainingTimes: times,
+                  trainingPartnerIds: _trainingPartnerIds.toList(),
+                  matchdayTimes: matchdayTimes,
                   isRecreational: _isRecreational,
+                  isSenior: _isSenior,
                   trainingLocation: _location,
                 ),
               );
@@ -691,8 +907,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
         ],
       );
 
-  String _date(DateTime value) =>
-      '${value.day.toString().padLeft(2, '0')}.'
+  String _date(DateTime value) => '${value.day.toString().padLeft(2, '0')}.'
       '${value.month.toString().padLeft(2, '0')}.${value.year}';
 }
 
@@ -815,6 +1030,12 @@ class _TimePickerButton extends StatelessWidget {
             helpText: '$label auswählen',
             confirmText: 'Übernehmen',
             cancelText: 'Abbrechen',
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                alwaysUse24HourFormat: true,
+              ),
+              child: child!,
+            ),
           );
           if (selected != null) onSelected(selected);
         },
@@ -830,6 +1051,53 @@ class _TimePickerButton extends StatelessWidget {
             ),
           ],
         ),
+      );
+}
+
+class _ScheduleHint extends StatelessWidget {
+  const _ScheduleHint({
+    required this.icon,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.yellow.withValues(alpha: .14),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.yellowDark.withValues(alpha: .28),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 9),
+            Expanded(child: Text(message)),
+          ],
+        ),
+      );
+}
+
+class _EmptyScheduleRow extends StatelessWidget {
+  const _EmptyScheduleRow({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Text(text, textAlign: TextAlign.center),
       );
 }
 
@@ -882,8 +1150,7 @@ class _TrainingTimeSelection {
     ).firstMatch(value);
     if (dayMatch == null || timeMatch == null) return null;
     final weekday = weekdays.indexWhere(
-          (day) =>
-              day.toLowerCase() == dayMatch.group(1)!.toLowerCase(),
+          (day) => day.toLowerCase() == dayMatch.group(1)!.toLowerCase(),
         ) +
         1;
     final startHour = int.tryParse(timeMatch.group(1)!) ?? -1;
@@ -1023,7 +1290,8 @@ class TrainingPlannerPage extends ConsumerStatefulWidget {
   final String trainingId;
 
   @override
-  ConsumerState<TrainingPlannerPage> createState() => _TrainingPlannerPageState();
+  ConsumerState<TrainingPlannerPage> createState() =>
+      _TrainingPlannerPageState();
 }
 
 class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
@@ -1128,8 +1396,12 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
             const TabBar(
               isScrollable: true,
               tabs: [
-                Tab(icon: Icon(Icons.view_timeline_rounded), text: 'Einheitsplan'),
-                Tab(icon: Icon(Icons.auto_stories_outlined), text: 'Übungsbibliothek'),
+                Tab(
+                    icon: Icon(Icons.view_timeline_rounded),
+                    text: 'Einheitsplan'),
+                Tab(
+                    icon: Icon(Icons.auto_stories_outlined),
+                    text: 'Übungsbibliothek'),
                 Tab(icon: Icon(Icons.fact_check_outlined), text: 'Anwesenheit'),
               ],
             ),
@@ -1172,9 +1444,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                 child: _CoachMultiSelectField(
                   coaches: _availableCoaches,
                   selectedIds: _selectedCoachIds,
-                  onTap: _availableCoaches.isEmpty
-                      ? null
-                      : _selectCoaches,
+                  onTap: _availableCoaches.isEmpty ? null : _selectCoaches,
                 ),
               ),
             ],
@@ -1265,7 +1535,8 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                   key: ValueKey('$index-${item.title}'),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: _phaseColor(item.phase).withValues(alpha: .12),
+                      backgroundColor:
+                          _phaseColor(item.phase).withValues(alpha: .12),
                       child: Text(
                         '${item.durationMinutes}',
                         style: TextStyle(
@@ -1301,9 +1572,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
               onPressed: _saving ? null : _savePlan,
               icon: const Icon(Icons.save_rounded),
               label: Text(
-                _saving
-                    ? 'Wird gespeichert …'
-                    : 'Trainingsplan speichern',
+                _saving ? 'Wird gespeichert …' : 'Trainingsplan speichern',
               ),
             ),
           ),
@@ -1334,10 +1603,12 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                 ? const EmptyState(
                     icon: Icons.auto_stories_outlined,
                     title: 'Übungsbibliothek ist leer',
-                    message: 'Lege wiederverwendbare Übungen für dein Trainerteam an.',
+                    message:
+                        'Lege wiederverwendbare Übungen für dein Trainerteam an.',
                   )
                 : GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 430,
                       mainAxisExtent: 245,
                       crossAxisSpacing: 12,
@@ -1357,7 +1628,8 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                                   Chip(label: Text(exercise.category)),
                                   const Spacer(),
                                   if (exercise.isFavorite)
-                                    const Icon(Icons.star_rounded, color: AppColors.orange),
+                                    const Icon(Icons.star_rounded,
+                                        color: AppColors.orange),
                                 ],
                               ),
                               Text(
@@ -1469,7 +1741,8 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
               ListTile(
                 leading: const Icon(Icons.sports_soccer_rounded),
                 title: Text(exercise.title),
-                subtitle: Text('${exercise.category} · ${exercise.durationMinutes} Min.'),
+                subtitle: Text(
+                    '${exercise.category} · ${exercise.durationMinutes} Min.'),
                 onTap: () => Navigator.pop(context, exercise),
               ),
           ],
@@ -1515,7 +1788,8 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                 TextField(
                   controller: duration,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Dauer in Minuten'),
+                  decoration:
+                      const InputDecoration(labelText: 'Dauer in Minuten'),
                 ),
               ],
             ),
@@ -1574,7 +1848,8 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                     Expanded(
                       child: TextField(
                         controller: category,
-                        decoration: const InputDecoration(labelText: 'Kategorie'),
+                        decoration:
+                            const InputDecoration(labelText: 'Kategorie'),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1636,7 +1911,9 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
               } catch (_) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Übung konnte nicht gespeichert werden.')),
+                    const SnackBar(
+                        content:
+                            Text('Übung konnte nicht gespeichert werden.')),
                   );
                 }
               }
@@ -1742,12 +2019,12 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                         ),
                         TextButton(
                           onPressed: () => setSheetState(
-                            () => draft = draft.length ==
-                                    _availableCoaches.length
-                                ? {}
-                                : _availableCoaches
-                                    .map((coach) => coach.id)
-                                    .toSet(),
+                            () => draft =
+                                draft.length == _availableCoaches.length
+                                    ? {}
+                                    : _availableCoaches
+                                        .map((coach) => coach.id)
+                                        .toSet(),
                           ),
                           child: Text(
                             draft.length == _availableCoaches.length
@@ -1790,8 +2067,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                     child: SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: () =>
-                            Navigator.pop(context, draft),
+                        onPressed: () => Navigator.pop(context, draft),
                         icon: const Icon(Icons.check_rounded),
                         label: Text(
                           '${draft.length} ${draft.length == 1 ? 'Person' : 'Personen'} übernehmen',
@@ -1837,9 +2113,8 @@ class _CoachMultiSelectField extends StatelessWidget {
               ? 'Noch keine Trainer für diese Jugend freigegeben'
               : 'Mehrfachauswahl möglich',
           prefixIcon: const Icon(Icons.groups_2_outlined),
-          suffixIcon: onTap == null
-              ? null
-              : const Icon(Icons.arrow_drop_down_rounded),
+          suffixIcon:
+              onTap == null ? null : const Icon(Icons.arrow_drop_down_rounded),
         ),
         isEmpty: selected.isEmpty,
         child: selected.isEmpty
