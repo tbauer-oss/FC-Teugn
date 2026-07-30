@@ -53,79 +53,120 @@ class _OrganizationAdminToolsState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Vereinsadministration',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 5),
-                  const Text(
-                    'Regelwerke versionieren und den Saisonwechsel kontrolliert vorbereiten.',
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              tooltip: 'Neu laden',
-              onPressed: _loading ? null : _reload,
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 850;
-            final cards = [
-              Expanded(
-                child: _AdminPanel(
-                  icon: Icons.rule_folder_outlined,
-                  title: 'Regelprofile',
-                  subtitle: 'Versioniert, nachvollziehbar und freigabepflichtig',
-                  actionLabel: 'Neues Regelprofil',
-                  onAction: _createRuleProfile,
-                  child: _loading
-                      ? const LinearProgressIndicator()
-                      : _RuleProfileList(
-                          profiles: _profiles,
-                          onApprove: _approveRuleProfile,
-                        ),
+            final heading = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Vereinsadministration',
+                  style: Theme.of(context).textTheme.headlineSmall,
                 ),
-              ),
-              Expanded(
-                child: _AdminPanel(
-                  icon: Icons.swap_horiz_rounded,
-                  title: 'Geführter Saisonwechsel',
-                  subtitle: 'Vorschau vor jeder Änderung – keine Altdatenlöschung',
-                  actionLabel: 'Saison vorbereiten',
-                  onAction: _prepareSeason,
-                  child: _loading
-                      ? const LinearProgressIndicator()
-                      : _SeasonTransitionList(transitions: _transitions),
+                const SizedBox(height: 5),
+                const Text(
+                  'Saisonwechsel kontrolliert vorbereiten und Regelprofile bei Bedarf öffnen.',
                 ),
-              ),
-            ];
-            if (wide) {
-              return Row(
+              ],
+            );
+            final actions = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _loading ? null : _showRuleProfiles,
+                  icon: const Icon(Icons.rule_folder_outlined),
+                  label: Text(
+                    _profiles.isEmpty
+                        ? 'Regelprofile'
+                        : 'Regelprofile (${_profiles.length})',
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: 'Neu laden',
+                  onPressed: _loading ? null : _reload,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            );
+            if (constraints.maxWidth < 650) {
+              return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [cards[0], const SizedBox(width: 16), cards[1]],
+                children: [
+                  heading,
+                  const SizedBox(height: 12),
+                  actions,
+                ],
               );
             }
-            return Column(
+            return Row(
               children: [
-                SizedBox(width: double.infinity, child: cards[0].child),
-                const SizedBox(height: 16),
-                SizedBox(width: double.infinity, child: cards[1].child),
+                Expanded(child: heading),
+                const SizedBox(width: 12),
+                actions,
               ],
             );
           },
         ),
+        const SizedBox(height: 16),
+        _AdminPanel(
+          icon: Icons.swap_horiz_rounded,
+          title: 'Geführter Saisonwechsel',
+          subtitle: 'Vorschau vor jeder Änderung – keine Altdatenlöschung',
+          actionLabel: 'Saison vorbereiten',
+          onAction: _prepareSeason,
+          child: _loading
+              ? const LinearProgressIndicator()
+              : _SeasonTransitionList(transitions: _transitions),
+        ),
       ],
+    );
+  }
+
+  Future<void> _showRuleProfiles() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, dialogSetState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.rule_folder_outlined),
+              SizedBox(width: 10),
+              Expanded(child: Text('Regelprofile')),
+            ],
+          ),
+          content: SizedBox(
+            width: 760,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * .65,
+              ),
+              child: SingleChildScrollView(
+                child: _RuleProfileList(
+                  profiles: _profiles,
+                  onApprove: (profile) async {
+                    await _approveRuleProfile(profile);
+                    if (dialogContext.mounted) dialogSetState(() {});
+                  },
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Schließen'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                await _createRuleProfile();
+                if (dialogContext.mounted) dialogSetState(() {});
+              },
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Neues Regelprofil'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -154,7 +195,8 @@ class _OrganizationAdminToolsState
       await _reload();
       _message('Regelprofil wurde als neuer Entwurf gespeichert.');
     } on DioException catch (error) {
-      _message(_dioMessage(error, 'Regelprofil konnte nicht gespeichert werden.'));
+      _message(
+          _dioMessage(error, 'Regelprofil konnte nicht gespeichert werden.'));
     }
   }
 
@@ -194,15 +236,18 @@ class _OrganizationAdminToolsState
       await ref.read(repositoryProvider).applySeasonTransition(preview.id);
       ref.invalidate(organizationProvider);
       await _reload();
-      _message('Saison ${draft.name} wurde vollständig angelegt und aktiviert.');
+      _message(
+          'Saison ${draft.name} wurde vollständig angelegt und aktiviert.');
     } on DioException catch (error) {
-      _message(_dioMessage(error, 'Saisonwechsel konnte nicht ausgeführt werden.'));
+      _message(
+          _dioMessage(error, 'Saisonwechsel konnte nicht ausgeführt werden.'));
     }
   }
 
   void _message(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -247,7 +292,8 @@ class _AdminPanel extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: Theme.of(context).textTheme.titleLarge),
+                      Text(title,
+                          style: Theme.of(context).textTheme.titleLarge),
                       Text(
                         subtitle,
                         style: Theme.of(context)
@@ -293,7 +339,7 @@ class _RuleProfileList extends StatelessWidget {
     }
     return Column(
       children: [
-        for (final profile in profiles.take(5))
+        for (final profile in profiles)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Container(
@@ -362,7 +408,8 @@ class _SeasonTransitionList extends StatelessWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
-              backgroundColor: _statusColor(transition.status).withValues(alpha: .12),
+              backgroundColor:
+                  _statusColor(transition.status).withValues(alpha: .12),
               child: Icon(
                 transition.status == 'APPLIED'
                     ? Icons.check_rounded
@@ -489,7 +536,9 @@ class _RuleProfileDialogState extends State<_RuleProfileDialog> {
                   children: [
                     Expanded(child: _numberField(_periodCount, 'Abschnitte')),
                     const SizedBox(width: 10),
-                    Expanded(child: _numberField(_periodMinutes, 'Minuten je Abschnitt')),
+                    Expanded(
+                        child: _numberField(
+                            _periodMinutes, 'Minuten je Abschnitt')),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -856,8 +905,7 @@ String _dioMessage(DioException error, String fallback) {
       : fallback;
 }
 
-String _date(DateTime date) =>
-    '${date.day.toString().padLeft(2, '0')}.'
+String _date(DateTime date) => '${date.day.toString().padLeft(2, '0')}.'
     '${date.month.toString().padLeft(2, '0')}.${date.year}';
 
 String _statusLabel(String status) => switch (status) {

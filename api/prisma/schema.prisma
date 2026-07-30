@@ -392,6 +392,8 @@ model Team {
   teamType                TeamType                  @default(COMPETITIVE)
   gender                  TeamGender                @default(MIXED)
   gameFormat              TeamGameFormat            @default(FOOTBALL_7)
+  periodCount             Int                       @default(2)
+  periodMinutes           Int                       @default(30)
   birthYears              Int[]                     @default([])
   description             String?
   trainingLocation        String?

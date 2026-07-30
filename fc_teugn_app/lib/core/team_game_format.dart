@@ -38,9 +38,8 @@ enum TeamGameFormat {
       );
 }
 
-TeamGameFormat suggestedGameFormat(String ageGroupCode) => switch (
-      ageGroupCode.toUpperCase()
-    ) {
+TeamGameFormat suggestedGameFormat(String ageGroupCode) =>
+    switch (ageGroupCode.toUpperCase()) {
       'G' => TeamGameFormat.football3,
       'F' => TeamGameFormat.football4,
       'E' => TeamGameFormat.football5,
@@ -48,9 +47,8 @@ TeamGameFormat suggestedGameFormat(String ageGroupCode) => switch (
       _ => TeamGameFormat.football11,
     };
 
-List<TeamGameFormat> gameFormatsForAgeGroup(String ageGroupCode) => switch (
-      ageGroupCode.toUpperCase()
-    ) {
+List<TeamGameFormat> gameFormatsForAgeGroup(String ageGroupCode) =>
+    switch (ageGroupCode.toUpperCase()) {
       'G' => const [TeamGameFormat.football3],
       'F' => const [
           TeamGameFormat.football3,
@@ -72,3 +70,94 @@ List<TeamGameFormat> gameFormatsForAgeGroup(String ageGroupCode) => switch (
         ],
       _ => const [TeamGameFormat.football11],
     };
+
+const bfvRulesSourceLabel =
+    'BFV Jugendordnung (16.07.2026) / Minifußball-Richtlinie (17.04.2026)';
+
+class BfvMatchDefaults {
+  const BfvMatchDefaults({
+    required this.periodCount,
+    required this.periodMinutes,
+    required this.description,
+  });
+
+  final int periodCount;
+  final int periodMinutes;
+  final String description;
+
+  String get durationLabel => '$periodCount × $periodMinutes Minuten';
+}
+
+BfvMatchDefaults bfvMatchDefaults(
+  String ageGroupCode,
+  TeamGameFormat format,
+) {
+  final code = ageGroupCode.trim().toUpperCase();
+  if (code == 'A') {
+    return const BfvMatchDefaults(
+      periodCount: 2,
+      periodMinutes: 45,
+      description: 'A-Junioren',
+    );
+  }
+  if (code == 'B') {
+    return const BfvMatchDefaults(
+      periodCount: 2,
+      periodMinutes: 40,
+      description: 'B-Junioren',
+    );
+  }
+  if (code == 'C') {
+    return const BfvMatchDefaults(
+      periodCount: 2,
+      periodMinutes: 35,
+      description: 'C-Junioren',
+    );
+  }
+  if (code == 'D') {
+    return format == TeamGameFormat.football7
+        ? const BfvMatchDefaults(
+            periodCount: 6,
+            periodMinutes: 12,
+            description: 'D-Junioren im Twin-Modus',
+          )
+        : const BfvMatchDefaults(
+            periodCount: 2,
+            periodMinutes: 30,
+            description: 'D-Junioren 9 gegen 9',
+          );
+  }
+  if (format == TeamGameFormat.football7) {
+    return const BfvMatchDefaults(
+      periodCount: 4,
+      periodMinutes: 15,
+      description: 'Fußball 7',
+    );
+  }
+  if (format == TeamGameFormat.football5) {
+    return const BfvMatchDefaults(
+      periodCount: 5,
+      periodMinutes: 12,
+      description: 'Fußball 5',
+    );
+  }
+  if (format == TeamGameFormat.football4) {
+    return const BfvMatchDefaults(
+      periodCount: 5,
+      periodMinutes: 10,
+      description: 'Fußball 4',
+    );
+  }
+  if (format == TeamGameFormat.football3) {
+    return const BfvMatchDefaults(
+      periodCount: 5,
+      periodMinutes: 7,
+      description: 'Fußball 3',
+    );
+  }
+  return const BfvMatchDefaults(
+    periodCount: 2,
+    periodMinutes: 30,
+    description: 'BFV-Standard',
+  );
+}

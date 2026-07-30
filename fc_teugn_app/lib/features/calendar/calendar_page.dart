@@ -3250,16 +3250,24 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   void initState() {
     super.initState();
     final event = widget.event;
+    final initialTeam = widget.teams.cast<TeamSummary?>().firstWhere(
+          (team) => team?.id == widget.initialTeamId,
+          orElse: () => widget.teams.isEmpty ? null : widget.teams.first,
+        );
     title = TextEditingController(text: event?.title);
     location = TextEditingController(text: event?.location);
     address = TextEditingController(text: event?.address);
     mapUrl = TextEditingController(text: event?.mapUrl);
     opponent = TextEditingController(text: event?.opponent);
     periodCount = TextEditingController(
-      text: (event?.matchDetails?.periodCount ?? 2).toString(),
+      text: (event?.matchDetails?.periodCount ?? initialTeam?.periodCount ?? 2)
+          .toString(),
     );
     periodMinutes = TextEditingController(
-      text: (event?.matchDetails?.periodMinutes ?? 30).toString(),
+      text: (event?.matchDetails?.periodMinutes ??
+              initialTeam?.periodMinutes ??
+              30)
+          .toString(),
     );
     venue = TextEditingController(text: event?.venue);
     contactName = TextEditingController(text: event?.contactName);
@@ -3608,6 +3616,15 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                   selected
                                       ? teamIds.add(team.id)
                                       : teamIds.remove(team.id);
+                                  if (widget.event == null &&
+                                      category.isMatch &&
+                                      selected &&
+                                      teamIds.length == 1) {
+                                    periodCount.text =
+                                        team.periodCount.toString();
+                                    periodMinutes.text =
+                                        team.periodMinutes.toString();
+                                  }
                                 });
                                 _refreshPitchConflicts();
                               },

@@ -62,6 +62,8 @@ class _OrganizationContent extends ConsumerWidget {
         teams: data.teams,
         initialAgeGroup: initialAgeGroup,
         team: team,
+        canCustomizeMatchRules:
+            ref.read(authProvider).user?.role == UserRole.superAdmin,
       ),
     );
     if (draft == null) return;
@@ -77,6 +79,8 @@ class _OrganizationContent extends ConsumerWidget {
           teamType: draft.teamType,
           gender: draft.gender,
           gameFormat: draft.gameFormat,
+          periodCount: draft.periodCount,
+          periodMinutes: draft.periodMinutes,
           birthYears: draft.birthYears,
           description: draft.description,
           trainingLocation: draft.trainingLocation,
@@ -103,6 +107,8 @@ class _OrganizationContent extends ConsumerWidget {
           teamType: draft.teamType,
           gender: draft.gender,
           gameFormat: draft.gameFormat,
+          periodCount: draft.periodCount,
+          periodMinutes: draft.periodMinutes,
           birthYears: draft.birthYears,
           description: draft.description,
           trainingLocation: draft.trainingLocation,
@@ -626,6 +632,12 @@ class _TeamCard extends StatelessWidget {
                   icon: Icons.sports_soccer_rounded,
                   text: team.gameFormat.label,
                 ),
+                const SizedBox(height: 7),
+                _InfoLine(
+                  icon: Icons.timer_outlined,
+                  text:
+                      '${team.periodCount} × ${team.periodMinutes} Minuten Spielzeit',
+                ),
                 if (team.birthYears.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   _InfoLine(
@@ -754,11 +766,13 @@ class _TeamEditorDialog extends StatefulWidget {
     required this.ageGroups,
     required this.teams,
     required this.initialAgeGroup,
+    required this.canCustomizeMatchRules,
     this.team,
   });
   final List<AgeGroupSummary> ageGroups;
   final List<TeamSummary> teams;
   final AgeGroupSummary initialAgeGroup;
+  final bool canCustomizeMatchRules;
   final TeamSummary? team;
 
   @override
@@ -781,6 +795,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   late String _teamType;
   late String _gender;
   late TeamGameFormat _gameFormat;
+  late int _periodCount;
+  late int _periodMinutes;
   late bool _isActive;
   late Set<int> _birthYears;
   DateTime? _seasonStartDate;
@@ -814,6 +830,12 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
     _gender = team?.gender ?? 'MIXED';
     _gameFormat =
         team?.gameFormat ?? suggestedGameFormat(widget.initialAgeGroup.code);
+    final defaults = bfvMatchDefaults(
+      team?.ageGroup.code ?? widget.initialAgeGroup.code,
+      _gameFormat,
+    );
+    _periodCount = team?.periodCount ?? defaults.periodCount;
+    _periodMinutes = team?.periodMinutes ?? defaults.periodMinutes;
     _isActive = team?.isActive ?? true;
   }
 
@@ -909,6 +931,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                           _ageGroupId = value!;
                           _teamNumber = _nextAvailableTeamNumber(_ageGroupId);
                           _gameFormat = suggestedGameFormat(group.code);
+                          _applyBfvDefaults(group.code);
                         });
                       },
               ),
@@ -982,7 +1005,27 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                       child: Text(format.label),
                     ),
                 ],
-                onChanged: (value) => setState(() => _gameFormat = value!),
+                onChanged: (value) {
+                  setState(() {
+                    _gameFormat = value!;
+                    _applyBfvDefaults(selectedAgeGroup.code);
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+              _MatchRuleEditor(
+                ageGroupCode: selectedAgeGroup.code,
+                gameFormat: _gameFormat,
+                periodCount: _periodCount,
+                periodMinutes: _periodMinutes,
+                enabled: widget.canCustomizeMatchRules,
+                onPeriodCountChanged: (value) =>
+                    setState(() => _periodCount = value),
+                onPeriodMinutesChanged: (value) =>
+                    setState(() => _periodMinutes = value),
+                onReset: () => setState(
+                  () => _applyBfvDefaults(selectedAgeGroup.code),
+                ),
               ),
               const SizedBox(height: 12),
               _twoColumns(
@@ -1344,6 +1387,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         teamType: _teamType,
         gender: _gender,
         gameFormat: _gameFormat,
+        periodCount: _periodCount,
+        periodMinutes: _periodMinutes,
         birthYears: years,
         description: _optional(_description),
         trainingLocation: _optional(_trainingLocation),
@@ -1367,6 +1412,175 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         dfbnetTeamId: _optional(_dfbnetTeamId),
         bfvTeamUrl: _optional(_bfvTeamUrl),
         isActive: _isActive,
+      ),
+    );
+  }
+
+  void _applyBfvDefaults(String ageGroupCode) {
+    final defaults = bfvMatchDefaults(ageGroupCode, _gameFormat);
+    _periodCount = defaults.periodCount;
+    _periodMinutes = defaults.periodMinutes;
+  }
+}
+
+class _MatchRuleEditor extends StatelessWidget {
+  const _MatchRuleEditor({
+    required this.ageGroupCode,
+    required this.gameFormat,
+    required this.periodCount,
+    required this.periodMinutes,
+    required this.enabled,
+    required this.onPeriodCountChanged,
+    required this.onPeriodMinutesChanged,
+    required this.onReset,
+  });
+
+  final String ageGroupCode;
+  final TeamGameFormat gameFormat;
+  final int periodCount;
+  final int periodMinutes;
+  final bool enabled;
+  final ValueChanged<int> onPeriodCountChanged;
+  final ValueChanged<int> onPeriodMinutesChanged;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    final defaults = bfvMatchDefaults(ageGroupCode, gameFormat);
+    final customized = periodCount != defaults.periodCount ||
+        periodMinutes != defaults.periodMinutes;
+    final minuteOptions = <int>{
+      5,
+      7,
+      8,
+      10,
+      12,
+      15,
+      20,
+      25,
+      30,
+      35,
+      40,
+      45,
+      60,
+      periodMinutes,
+    }.toList()
+      ..sort();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.yellowSoft.withValues(alpha: .35),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.timer_outlined, color: AppColors.blue),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'Spielzeit der Mannschaft',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              if (customized)
+                const Chip(
+                  avatar: Icon(Icons.tune_rounded, size: 16),
+                  label: Text('Individuell'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'BFV-Ausgangspunkt: ${defaults.description} · '
+            '${defaults.durationLabel}',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.muted),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final fields = [
+                DropdownButtonFormField<int>(
+                  initialValue: periodCount,
+                  decoration: const InputDecoration(
+                    labelText: 'Spielabschnitte',
+                    prefixIcon: Icon(Icons.view_agenda_outlined),
+                  ),
+                  items: [
+                    for (var value = 1; value <= 8; value++)
+                      DropdownMenuItem(
+                        value: value,
+                        child: Text('$value Abschnitte'),
+                      ),
+                  ],
+                  onChanged:
+                      enabled ? (value) => onPeriodCountChanged(value!) : null,
+                ),
+                DropdownButtonFormField<int>(
+                  initialValue: periodMinutes,
+                  decoration: const InputDecoration(
+                    labelText: 'Minuten je Abschnitt',
+                    prefixIcon: Icon(Icons.schedule_rounded),
+                  ),
+                  items: [
+                    for (final value in minuteOptions)
+                      DropdownMenuItem(
+                        value: value,
+                        child: Text('$value Minuten'),
+                      ),
+                  ],
+                  onChanged: enabled
+                      ? (value) => onPeriodMinutesChanged(value!)
+                      : null,
+                ),
+              ];
+              if (constraints.maxWidth < 520) {
+                return Column(
+                  children: [
+                    fields.first,
+                    const SizedBox(height: 10),
+                    fields.last,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: fields.first),
+                  const SizedBox(width: 10),
+                  Expanded(child: fields.last),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  enabled
+                      ? bfvRulesSourceLabel
+                      : 'Individuelle Anpassungen sind der Systemadministration vorbehalten.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.muted),
+                ),
+              ),
+              if (enabled && customized)
+                TextButton.icon(
+                  onPressed: onReset,
+                  icon: const Icon(Icons.settings_backup_restore_rounded),
+                  label: const Text('BFV-Wert'),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1425,6 +1639,8 @@ class _TeamDraft {
     required this.teamType,
     required this.gender,
     required this.gameFormat,
+    required this.periodCount,
+    required this.periodMinutes,
     required this.birthYears,
     required this.trainingTimes,
     required this.indoorTrainingTimes,
@@ -1452,6 +1668,8 @@ class _TeamDraft {
   final String teamType;
   final String gender;
   final TeamGameFormat gameFormat;
+  final int periodCount;
+  final int periodMinutes;
   final List<int> birthYears;
   final String? description;
   final String? trainingLocation;

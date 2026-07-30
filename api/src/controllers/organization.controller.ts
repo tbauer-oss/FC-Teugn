@@ -54,6 +54,8 @@ type TeamInput = {
   teamType?: TeamType;
   gender?: TeamGender;
   gameFormat?: TeamGameFormat;
+  periodCount?: unknown;
+  periodMinutes?: unknown;
   birthYears?: unknown;
   description?: string | null;
   trainingLocation?: string | null;
@@ -115,6 +117,8 @@ function optionalDate(value: unknown) {
 
 function normalizedTeamData(body: TeamInput) {
   const parsedTeamNumber = Number(body.teamNumber);
+  const parsedPeriodCount = Number(body.periodCount);
+  const parsedPeriodMinutes = Number(body.periodMinutes);
   return {
     teamNumber:
       Number.isInteger(parsedTeamNumber) &&
@@ -136,6 +140,18 @@ function normalizedTeamData(body: TeamInput) {
     )
       ? body.gameFormat!
       : TeamGameFormat.FOOTBALL_7,
+    periodCount:
+      Number.isInteger(parsedPeriodCount) &&
+      parsedPeriodCount >= 1 &&
+      parsedPeriodCount <= 8
+        ? parsedPeriodCount
+        : 2,
+    periodMinutes:
+      Number.isInteger(parsedPeriodMinutes) &&
+      parsedPeriodMinutes >= 1 &&
+      parsedPeriodMinutes <= 90
+        ? parsedPeriodMinutes
+        : 30,
     birthYears: birthYears(body.birthYears),
     description: optionalText(body.description, 1500),
     trainingLocation: optionalText(body.trainingLocation, 200),
@@ -160,6 +176,9 @@ function normalizedTeamData(body: TeamInput) {
 }
 
 function scheduleDateError(data: ReturnType<typeof normalizedTeamData>) {
+  if (data.periodCount * data.periodMinutes > 180) {
+    return 'Die gesamte Spielzeit darf 180 Minuten nicht überschreiten.';
+  }
   if (data.seasonStartDate && data.seasonEndDate &&
       data.seasonStartDate > data.seasonEndDate) {
     return 'Der Saisonanfang muss vor dem Saisonende liegen.';
@@ -171,6 +190,23 @@ function scheduleDateError(data: ReturnType<typeof normalizedTeamData>) {
   if (data.indoorSeasonStartDate && data.indoorSeasonEndDate &&
       data.indoorSeasonStartDate > data.indoorSeasonEndDate) {
     return 'Der Anfang der Hallensaison muss vor ihrem Ende liegen.';
+  }
+  return null;
+}
+
+function teamTimingError(body: TeamInput) {
+  const periodCount = Number(body.periodCount ?? 2);
+  const periodMinutes = Number(body.periodMinutes ?? 30);
+  if (
+    !Number.isInteger(periodCount) ||
+    periodCount < 1 ||
+    periodCount > 8 ||
+    !Number.isInteger(periodMinutes) ||
+    periodMinutes < 1 ||
+    periodMinutes > 90 ||
+    periodCount * periodMinutes > 180
+  ) {
+    return 'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).';
   }
   return null;
 }
@@ -363,6 +399,8 @@ export async function createTeam(req: Request, res: Response) {
   const user = req.user!;
   const body = req.body as TeamInput;
   const data = normalizedTeamData(body);
+  const timingError = teamTimingError(body);
+  if (timingError) return res.status(400).json({ message: timingError });
   const dateError = scheduleDateError(data);
   if (dateError) return res.status(400).json({ message: dateError });
   if (!body.ageGroupId) {
@@ -456,6 +494,8 @@ export async function updateTeam(req: Request, res: Response) {
   }
   const body = req.body as TeamInput;
   const data = normalizedTeamData(body);
+  const timingError = teamTimingError(body);
+  if (timingError) return res.status(400).json({ message: timingError });
   const dateError = scheduleDateError(data);
   if (dateError) return res.status(400).json({ message: dateError });
   if (body.teamNumber !== undefined && data.teamNumber === null) {
@@ -812,6 +852,8 @@ function teamSnapshot(team: ReturnType<typeof normalizedTeamData> & { ageGroupId
     teamType: team.teamType,
     gender: team.gender,
     gameFormat: team.gameFormat,
+    periodCount: team.periodCount,
+    periodMinutes: team.periodMinutes,
     birthYears: team.birthYears,
     trainingLocation: team.trainingLocation,
     trainingTimes: team.trainingTimes,
@@ -839,6 +881,8 @@ async function serializeTeam(team: {
   teamType: TeamType;
   gender: TeamGender;
   gameFormat: TeamGameFormat;
+  periodCount: number;
+  periodMinutes: number;
   birthYears: number[];
   description: string | null;
   trainingLocation: string | null;
@@ -886,6 +930,8 @@ async function serializeTeam(team: {
     teamType: team.teamType,
     gender: team.gender,
     gameFormat: team.gameFormat,
+    periodCount: team.periodCount,
+    periodMinutes: team.periodMinutes,
     birthYears: team.birthYears,
     description: team.description,
     trainingLocation: team.trainingLocation,
