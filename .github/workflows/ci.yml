@@ -121,3 +121,16 @@ jobs:
         env:
           FC_TEUGN_REQUIRE_RELEASE_SIGNING: 'true'
         run: flutter build appbundle --release
+
+      - name: Build signed installable Android APK
+        env:
+          FC_TEUGN_REQUIRE_RELEASE_SIGNING: 'true'
+        run: flutter build apk --release
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: fc-teugn-jugend-android-apk
+          path: fc_teugn_app/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
