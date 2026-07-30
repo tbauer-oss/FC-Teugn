@@ -39,71 +39,112 @@ class TrainerApprovalsPage extends ConsumerWidget {
         icon: const Icon(Icons.person_add_alt_1_rounded),
         label: const Text('Mitglied anlegen'),
       ),
-      child: DefaultTabController(
-        length: 2,
-        child: Column(
-          children: [
-            Card(
-              child: TabBar(
-                padding: const EdgeInsets.all(6),
-                dividerColor: Colors.transparent,
-                tabs: [
-                  Tab(
-                    text: mobile
-                        ? 'Anfragen (${pending.value?.length ?? '–'})'
-                        : 'Offene Anfragen (${pending.value?.length ?? '–'})',
-                  ),
-                  Tab(text: 'Mitglieder (${members.value?.length ?? '–'})'),
-                ],
+      child: mobile
+          ? _MobileMemberTabs(
+              pending: pending,
+              members: members,
+              organization: organization,
+              onApprove: (user) =>
+                  _approve(context, ref, user, organization, players),
+              onNeedsInfo: (user) => _reviewWithoutApproval(
+                context,
+                ref,
+                user,
+                status: AccountStatus.pending,
+                reviewStatus: RegistrationReviewStatus.needsInfo,
+                title: 'Rückfrage markieren',
               ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 620,
-              child: TabBarView(
+              onReject: (user) => _reviewWithoutApproval(
+                context,
+                ref,
+                user,
+                status: AccountStatus.rejected,
+                reviewStatus: RegistrationReviewStatus.completed,
+                title: 'Registrierung ablehnen',
+              ),
+              onDetails: (user) => _showDetails(context, user),
+              onEdit: organization == null
+                  ? null
+                  : (user) => _editMember(
+                        context,
+                        ref,
+                        user,
+                        organization,
+                        players,
+                        currentUser?.role == UserRole.superAdmin,
+                      ),
+            )
+          : DefaultTabController(
+              length: 2,
+              child: Column(
                 children: [
-                  _PendingList(
-                    value: pending,
-                    organization: organization,
-                    onApprove: (user) =>
-                        _approve(context, ref, user, organization, players),
-                    onNeedsInfo: (user) => _reviewWithoutApproval(
-                      context,
-                      ref,
-                      user,
-                      status: AccountStatus.pending,
-                      reviewStatus: RegistrationReviewStatus.needsInfo,
-                      title: 'Rückfrage markieren',
+                  Card(
+                    child: TabBar(
+                      padding: const EdgeInsets.all(6),
+                      dividerColor: Colors.transparent,
+                      tabs: [
+                        Tab(
+                          text:
+                              'Offene Anfragen (${pending.value?.length ?? '–'})',
+                        ),
+                        Tab(
+                          text: 'Mitglieder (${members.value?.length ?? '–'})',
+                        ),
+                      ],
                     ),
-                    onReject: (user) => _reviewWithoutApproval(
-                      context,
-                      ref,
-                      user,
-                      status: AccountStatus.rejected,
-                      reviewStatus: RegistrationReviewStatus.completed,
-                      title: 'Registrierung ablehnen',
-                    ),
-                    onDetails: (user) => _showDetails(context, user),
                   ),
-                  _MemberList(
-                    value: members,
-                    onEdit: organization == null
-                        ? null
-                        : (user) => _editMember(
-                              context,
-                              ref,
-                              user,
-                              organization,
-                              players,
-                              currentUser?.role == UserRole.superAdmin,
-                            ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 620,
+                    child: TabBarView(
+                      children: [
+                        _PendingList(
+                          value: pending,
+                          organization: organization,
+                          onApprove: (user) => _approve(
+                            context,
+                            ref,
+                            user,
+                            organization,
+                            players,
+                          ),
+                          onNeedsInfo: (user) => _reviewWithoutApproval(
+                            context,
+                            ref,
+                            user,
+                            status: AccountStatus.pending,
+                            reviewStatus: RegistrationReviewStatus.needsInfo,
+                            title: 'Rückfrage markieren',
+                          ),
+                          onReject: (user) => _reviewWithoutApproval(
+                            context,
+                            ref,
+                            user,
+                            status: AccountStatus.rejected,
+                            reviewStatus: RegistrationReviewStatus.completed,
+                            title: 'Registrierung ablehnen',
+                          ),
+                          onDetails: (user) => _showDetails(context, user),
+                        ),
+                        _MemberList(
+                          value: members,
+                          onEdit: organization == null
+                              ? null
+                              : (user) => _editMember(
+                                    context,
+                                    ref,
+                                    user,
+                                    organization,
+                                    players,
+                                    currentUser?.role == UserRole.superAdmin,
+                                  ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -397,6 +438,80 @@ class TrainerApprovalsPage extends ConsumerWidget {
   }
 }
 
+class _MobileMemberTabs extends StatefulWidget {
+  const _MobileMemberTabs({
+    required this.pending,
+    required this.members,
+    required this.organization,
+    required this.onApprove,
+    required this.onNeedsInfo,
+    required this.onReject,
+    required this.onDetails,
+    required this.onEdit,
+  });
+
+  final AsyncValue<List<AppUser>> pending;
+  final AsyncValue<List<AppUser>> members;
+  final OrganizationContext? organization;
+  final ValueChanged<AppUser> onApprove;
+  final ValueChanged<AppUser> onNeedsInfo;
+  final ValueChanged<AppUser> onReject;
+  final ValueChanged<AppUser> onDetails;
+  final ValueChanged<AppUser>? onEdit;
+
+  @override
+  State<_MobileMemberTabs> createState() => _MobileMemberTabsState();
+}
+
+class _MobileMemberTabsState extends State<_MobileMemberTabs> {
+  var _selectedIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SegmentedButton<int>(
+          showSelectedIcon: false,
+          expandedInsets: EdgeInsets.zero,
+          segments: [
+            ButtonSegment(
+              value: 0,
+              label: Text('Anfragen (${widget.pending.value?.length ?? '–'})'),
+            ),
+            ButtonSegment(
+              value: 1,
+              label:
+                  Text('Mitglieder (${widget.members.value?.length ?? '–'})'),
+            ),
+          ],
+          selected: {_selectedIndex},
+          onSelectionChanged: (selection) {
+            setState(() => _selectedIndex = selection.first);
+          },
+        ),
+        const SizedBox(height: 14),
+        if (_selectedIndex == 0)
+          _PendingList(
+            value: widget.pending,
+            organization: widget.organization,
+            onApprove: widget.onApprove,
+            onNeedsInfo: widget.onNeedsInfo,
+            onReject: widget.onReject,
+            onDetails: widget.onDetails,
+            embedded: true,
+          )
+        else
+          _MemberList(
+            value: widget.members,
+            onEdit: widget.onEdit,
+            embedded: true,
+          ),
+      ],
+    );
+  }
+}
+
 class _PendingList extends StatefulWidget {
   const _PendingList({
     required this.value,
@@ -405,6 +520,7 @@ class _PendingList extends StatefulWidget {
     required this.onNeedsInfo,
     required this.onReject,
     required this.onDetails,
+    this.embedded = false,
   });
 
   final AsyncValue<List<AppUser>> value;
@@ -413,6 +529,7 @@ class _PendingList extends StatefulWidget {
   final ValueChanged<AppUser> onNeedsInfo;
   final ValueChanged<AppUser> onReject;
   final ValueChanged<AppUser> onDetails;
+  final bool embedded;
 
   @override
   State<_PendingList> createState() => _PendingListState();
@@ -433,6 +550,7 @@ class _PendingListState extends State<_PendingList> {
         message: 'Die offenen Anfragen konnten nicht geladen werden.',
       ),
       data: (users) {
+        final mobile = MediaQuery.sizeOf(context).width < 600;
         if (users.isEmpty) {
           return const EmptyState(
             icon: Icons.verified_user_rounded,
@@ -456,6 +574,9 @@ class _PendingListState extends State<_PendingList> {
           return matchesQuery && matchesRole && matchesTeam;
         }).toList();
         return ListView.separated(
+          shrinkWrap: widget.embedded,
+          physics:
+              widget.embedded ? const NeverScrollableScrollPhysics() : null,
           itemCount: filtered.length + 1,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
@@ -469,7 +590,7 @@ class _PendingListState extends State<_PendingList> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       SizedBox(
-                        width: 250,
+                        width: mobile ? double.infinity : 250,
                         child: TextField(
                           decoration: const InputDecoration(
                             labelText: 'Name, E-Mail oder Kind',
@@ -479,7 +600,7 @@ class _PendingListState extends State<_PendingList> {
                         ),
                       ),
                       SizedBox(
-                        width: 190,
+                        width: mobile ? double.infinity : 190,
                         child: DropdownButtonFormField<UserRole?>(
                           initialValue: _role,
                           decoration: const InputDecoration(labelText: 'Rolle'),
@@ -512,7 +633,7 @@ class _PendingListState extends State<_PendingList> {
                       ),
                       if (widget.organization != null)
                         SizedBox(
-                          width: 220,
+                          width: mobile ? double.infinity : 220,
                           child: DropdownButtonFormField<String?>(
                             initialValue: _teamId,
                             decoration:
@@ -651,10 +772,15 @@ class _PendingListState extends State<_PendingList> {
 }
 
 class _MemberList extends StatelessWidget {
-  const _MemberList({required this.value, required this.onEdit});
+  const _MemberList({
+    required this.value,
+    required this.onEdit,
+    this.embedded = false,
+  });
 
   final AsyncValue<List<AppUser>> value;
   final ValueChanged<AppUser>? onEdit;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
@@ -665,116 +791,154 @@ class _MemberList extends StatelessWidget {
         title: 'Mitglieder nicht erreichbar',
         message: 'Die Mitgliederliste konnte nicht geladen werden.',
       ),
-      data: (users) => ListView.separated(
-        itemCount: users.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, index) {
-          final user = users[index];
-          final approved = user.status == AccountStatus.approved;
-          return Card(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 620;
-                final status = Chip(
-                  avatar: Icon(
-                    approved ? Icons.check_circle_rounded : Icons.block_rounded,
-                    size: 16,
-                    color: approved ? AppColors.teal : Colors.redAccent,
-                  ),
-                  label: Text(
-                    approved ? 'Freigegeben' : _status(user.status),
-                  ),
-                );
-                final edit = IconButton.filledTonal(
-                  tooltip: 'Rolle, Mannschaften und Rechte bearbeiten',
-                  onPressed: onEdit == null ? null : () => onEdit!(user),
-                  icon: const Icon(Icons.manage_accounts_outlined),
-                );
-                return Padding(
-                  padding: EdgeInsets.all(compact ? 14 : 10),
-                  child: compact
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                CircleAvatar(
-                                  child: Text(_initials(user.name)),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        user.name,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleLarge,
-                                      ),
-                                      Text(
-                                        [
-                                          user.roleLabel,
-                                          if (user.memberships.isNotEmpty)
-                                            user.memberships
-                                                .map(
-                                                  (item) =>
-                                                      '${item.ageGroupCode} · ${item.teamName} (${_teamRoleLabel(item.role)})',
-                                                )
-                                                .join(', '),
-                                        ].join(' · '),
-                                      ),
-                                    ],
+      data: (users) {
+        if (users.isEmpty) {
+          return const EmptyState(
+            icon: Icons.group_off_outlined,
+            title: 'Noch keine Mitglieder',
+            message: 'Freigegebene Mitglieder werden hier angezeigt.',
+          );
+        }
+        return ListView.separated(
+          shrinkWrap: embedded,
+          physics: embedded ? const NeverScrollableScrollPhysics() : null,
+          itemCount: users.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final user = users[index];
+            final approved = user.status == AccountStatus.approved;
+            return Card(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 620;
+                  final status = Chip(
+                    avatar: Icon(
+                      approved
+                          ? Icons.check_circle_rounded
+                          : Icons.block_rounded,
+                      size: 16,
+                      color: approved ? AppColors.teal : Colors.redAccent,
+                    ),
+                    label: Text(
+                      approved ? 'Freigegeben' : _status(user.status),
+                    ),
+                  );
+                  final edit = IconButton.filledTonal(
+                    tooltip: 'Rolle, Mannschaften und Rechte bearbeiten',
+                    onPressed: onEdit == null ? null : () => onEdit!(user),
+                    icon: const Icon(Icons.manage_accounts_outlined),
+                  );
+                  final memberships = Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      Chip(
+                        visualDensity: VisualDensity.compact,
+                        avatar: const Icon(Icons.badge_outlined, size: 15),
+                        label: Text(user.roleLabel),
+                      ),
+                      for (final membership in user.memberships)
+                        Chip(
+                          visualDensity: VisualDensity.compact,
+                          avatar: const Icon(Icons.groups_outlined, size: 15),
+                          label: Text(
+                            '${membership.ageGroupCode} · '
+                            '${membership.teamName} · '
+                            '${_teamRoleLabel(membership.role)}',
+                          ),
+                        ),
+                    ],
+                  );
+                  return Padding(
+                    padding: EdgeInsets.all(compact ? 14 : 10),
+                    child: compact
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    child: Text(_initials(user.name)),
                                   ),
-                                ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          user.name,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                        ),
+                                        Text(
+                                          user.email,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: AppColors.muted,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  edit,
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              memberships,
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: status,
+                              ),
+                            ],
+                          )
+                        : ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            leading: CircleAvatar(
+                              child: Text(_initials(user.name)),
+                            ),
+                            title: Text(user.name),
+                            subtitle: Text(
+                              [
+                                user.roleLabel,
+                                if (user.memberships.isNotEmpty)
+                                  user.memberships
+                                      .map(
+                                        (item) =>
+                                            '${item.ageGroupCode}-Jugend ${item.teamName} (${_teamRoleLabel(item.role)})',
+                                      )
+                                      .join(', '),
+                              ].join(' · '),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                status,
+                                const SizedBox(width: 8),
                                 edit,
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: status,
-                            ),
-                          ],
-                        )
-                      : ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
                           ),
-                          leading: CircleAvatar(
-                            child: Text(_initials(user.name)),
-                          ),
-                          title: Text(user.name),
-                          subtitle: Text(
-                            [
-                              user.roleLabel,
-                              if (user.memberships.isNotEmpty)
-                                user.memberships
-                                    .map(
-                                      (item) =>
-                                          '${item.ageGroupCode}-Jugend ${item.teamName} (${_teamRoleLabel(item.role)})',
-                                    )
-                                    .join(', '),
-                            ].join(' · '),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              status,
-                              const SizedBox(width: 8),
-                              edit,
-                            ],
-                          ),
-                        ),
-                );
-              },
-            ),
-          );
-        },
-      ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
