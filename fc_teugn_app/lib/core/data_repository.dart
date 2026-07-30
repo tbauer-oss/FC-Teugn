@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 
 import 'api_client.dart';
 import 'models/event.dart';
@@ -508,6 +509,82 @@ class DataRepository {
       'note': note,
       'expiresAt': expiresAt?.toIso8601String(),
     });
+  }
+
+  Future<List<ConsentTemplate>> consentTemplates() async {
+    final res = await client.dio.get('/players/consent-templates');
+    return (res.data as List<dynamic>)
+        .map(
+          (item) => ConsentTemplate.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<void> signConsent({
+    required String playerId,
+    required String type,
+    required String templateVersion,
+    required List<String> selections,
+    required Map<String, dynamic> signatureData,
+    required bool guardianAuthorityConfirmed,
+    required bool explicitConsent,
+    String? note,
+    String? childAssentName,
+  }) async {
+    await client.dio.post('/players/$playerId/consents/$type/sign', data: {
+      'templateVersion': templateVersion,
+      'selections': selections,
+      'signatureData': signatureData,
+      'guardianAuthorityConfirmed': guardianAuthorityConfirmed,
+      'explicitConsent': explicitConsent,
+      'note': note,
+      'childAssentName': childAssentName,
+      'clientSignedAt': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  Future<void> revokeConsent({
+    required String playerId,
+    required String type,
+    String? reason,
+  }) async {
+    await client.dio.post('/players/$playerId/consents/$type/revoke', data: {
+      'reason': reason,
+    });
+  }
+
+  Future<void> downloadConsentTemplate(ConsentTemplate template) async {
+    await _downloadConsentPdf(
+      '/players/consent-templates/${template.type}/pdf',
+      'FC-Teugn-${template.shortTitle}-Vorlage.pdf',
+    );
+  }
+
+  Future<void> downloadConsentEvidence({
+    required String playerId,
+    required String type,
+    required PlayerConsentEvidence evidence,
+  }) async {
+    await _downloadConsentPdf(
+      '/players/$playerId/consents/$type/evidence/${evidence.id}/pdf',
+      'FC-Teugn-${type.toLowerCase()}-Nachweis.pdf',
+    );
+  }
+
+  Future<void> _downloadConsentPdf(String path, String fileName) async {
+    final response = await client.dio.get<List<int>>(
+      path,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final bytes = Uint8List.fromList(response.data ?? const []);
+    if (bytes.isEmpty) {
+      throw StateError('Das PDF ist leer.');
+    }
+    await FilePicker.saveFile(
+      dialogTitle: 'PDF speichern',
+      fileName: fileName,
+      bytes: bytes,
+    );
   }
 
   Future<List<EventModel>> events({

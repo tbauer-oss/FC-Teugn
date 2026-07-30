@@ -30,6 +30,11 @@ final playerProvider =
   return ref.watch(repositoryProvider).player(playerId);
 });
 
+final consentTemplatesProvider =
+    FutureProvider<List<ConsentTemplate>>((ref) async {
+  return ref.watch(repositoryProvider).consentTemplates();
+});
+
 final eventsProvider = FutureProvider<List<EventModel>>((ref) async {
   return ref.watch(repositoryProvider).events();
 });

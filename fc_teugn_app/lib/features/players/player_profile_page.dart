@@ -131,10 +131,11 @@ class _ProfileContent extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     _ConsentCard(
+                      playerId: player.id,
                       consents: player.consents,
-                      editable: player.capabilities.canEditSensitive,
-                      onChange: (type, status) =>
-                          _changeConsent(context, ref, type, status),
+                      canSign: player.capabilities.canDigitallyConsent,
+                      canManage: player.capabilities.canEditSensitive,
+                      onRefresh: onRefresh,
                     ),
                     const SizedBox(height: 12),
                     _DocumentsCard(
@@ -187,10 +188,11 @@ class _ProfileContent extends ConsumerWidget {
                 if (player.capabilities.canViewSensitive) ...[
                   const SizedBox(height: 16),
                   _ConsentCard(
+                    playerId: player.id,
                     consents: player.consents,
-                    editable: player.capabilities.canEditSensitive,
-                    onChange: (type, status) =>
-                        _changeConsent(context, ref, type, status),
+                    canSign: player.capabilities.canDigitallyConsent,
+                    canManage: player.capabilities.canEditSensitive,
+                    onRefresh: onRefresh,
                   ),
                 ],
               ],
@@ -377,25 +379,6 @@ class _ProfileContent extends ConsumerWidget {
             rating: draft.rating,
           ),
       'Entwicklungsnotiz hinzugefügt.',
-    );
-  }
-
-  Future<void> _changeConsent(
-    BuildContext context,
-    WidgetRef ref,
-    String type,
-    String status,
-  ) async {
-    await _run(
-      context,
-      () => ref.read(repositoryProvider).updateConsent(
-            playerId: player.id,
-            type: type,
-            status: status,
-          ),
-      status == 'GRANTED'
-          ? 'Einwilligung erteilt.'
-          : 'Einwilligung widerrufen.',
     );
   }
 
@@ -1623,88 +1606,80 @@ class _DevelopmentEntry extends StatelessWidget {
       'Allgemein';
 }
 
-class _ConsentCard extends StatelessWidget {
+class _ConsentCard extends ConsumerWidget {
   const _ConsentCard({
+    required this.playerId,
     required this.consents,
-    required this.editable,
-    required this.onChange,
+    required this.canSign,
+    required this.canManage,
+    required this.onRefresh,
   });
 
+  final String playerId;
   final List<PlayerConsent> consents;
-  final bool editable;
-  final void Function(String type, String status) onChange;
-
-  static const types = {
-    'PHOTO': 'Einzelfotos',
-    'TEAM_PHOTO': 'Mannschaftsfotos',
-    'TRANSPORT': 'Mitfahrten',
-    'MEDICAL_DATA': 'Gesundheitsdaten',
-    'COMMUNICATION': 'Digitale Kommunikation',
-  };
+  final bool canSign;
+  final bool canManage;
+  final VoidCallback onRefresh;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final templates = ref.watch(consentTemplatesProvider);
     return _Section(
-      title: 'Einwilligungen',
+      title: 'Einwilligungen & Vorlagen',
       icon: Icons.fact_check_outlined,
-      child: Column(
-        children: [
-          for (final entry in types.entries)
-            Builder(
-              builder: (context) {
-                final current = _consent(entry.key);
-                final granted = current?.status == 'GRANTED';
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Icon(
-                          granted
-                              ? Icons.check_circle_rounded
-                              : Icons.pending_outlined,
-                          color: granted ? AppColors.teal : AppColors.orange,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              entry.value,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                            Text(
-                              granted
-                                  ? 'Erteilt'
-                                  : 'Ausstehend oder widerrufen',
-                              style: const TextStyle(color: AppColors.muted),
-                            ),
-                            if (editable)
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton(
-                                  onPressed: () => onChange(
-                                    entry.key,
-                                    granted ? 'REVOKED' : 'GRANTED',
-                                  ),
-                                  child:
-                                      Text(granted ? 'Widerrufen' : 'Erteilen'),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+      child: templates.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (_, __) => EmptyState(
+          icon: Icons.description_outlined,
+          title: 'Vorlagen nicht erreichbar',
+          message: 'Bitte die Einwilligungsvorlagen erneut laden.',
+          action: OutlinedButton.icon(
+            onPressed: () => ref.invalidate(consentTemplatesProvider),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Neu laden'),
+          ),
+        ),
+        data: (items) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Jede Einwilligung ist freiwillig, einzeln wählbar und jederzeit mit Wirkung für die Zukunft widerrufbar.',
+              style: TextStyle(color: AppColors.muted),
             ),
-        ],
+            const SizedBox(height: 12),
+            for (final template in items) ...[
+              _ConsentTile(
+                template: template,
+                consent: _consent(template.type),
+                canSign: canSign,
+                canManage: canManage,
+                onTemplate: () => _downloadTemplate(context, ref, template),
+                onSign: () => _sign(context, ref, template),
+                onRevoke: () => _revoke(context, ref, template),
+                onEvidence: (evidence) =>
+                    _downloadEvidence(context, ref, template, evidence),
+              ),
+              if (template != items.last) const Divider(height: 22),
+            ],
+            const SizedBox(height: 10),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                color: Color(0xFFFFF8D8),
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Die Vorlagen sind DSGVO-orientiert und für die Vereinsprüfung vorbereitet. Vor dem verbindlichen Einsatz müssen Vereinsanschrift, Kommunikationsdienste und die Datenschutzinformationen durch den Verein aktuell gehalten und fachlich geprüft werden.',
+                  style: TextStyle(fontSize: 12, height: 1.35),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1715,6 +1690,654 @@ class _ConsentCard extends StatelessWidget {
     }
     return null;
   }
+
+  Future<void> _downloadTemplate(
+    BuildContext context,
+    WidgetRef ref,
+    ConsentTemplate template,
+  ) async {
+    await _action(
+      context,
+      () => ref.read(repositoryProvider).downloadConsentTemplate(template),
+      'PDF-Vorlage wurde bereitgestellt.',
+    );
+  }
+
+  Future<void> _downloadEvidence(
+    BuildContext context,
+    WidgetRef ref,
+    ConsentTemplate template,
+    PlayerConsentEvidence evidence,
+  ) async {
+    await _action(
+      context,
+      () => ref.read(repositoryProvider).downloadConsentEvidence(
+            playerId: playerId,
+            type: template.type,
+            evidence: evidence,
+          ),
+      'Signierter Nachweis wurde bereitgestellt.',
+    );
+  }
+
+  Future<void> _sign(
+    BuildContext context,
+    WidgetRef ref,
+    ConsentTemplate template,
+  ) async {
+    if (!canSign) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Digital unterschreiben kann nur eine zugeordnete sorgeberechtigte Person.',
+          ),
+        ),
+      );
+      return;
+    }
+    final draft = await showDialog<_DigitalConsentDraft>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _DigitalConsentDialog(template: template),
+    );
+    if (draft == null || !context.mounted) return;
+    await _action(
+      context,
+      () => ref.read(repositoryProvider).signConsent(
+            playerId: playerId,
+            type: template.type,
+            templateVersion: template.version,
+            selections: draft.selections,
+            signatureData: draft.signatureData,
+            guardianAuthorityConfirmed: true,
+            explicitConsent: template.explicit,
+            note: draft.note,
+            childAssentName: draft.childAssentName,
+          ),
+      'Einwilligung wurde digital unterschrieben und nachweisbar gespeichert.',
+      refresh: true,
+    );
+  }
+
+  Future<void> _revoke(
+    BuildContext context,
+    WidgetRef ref,
+    ConsentTemplate template,
+  ) async {
+    final reason = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Einwilligung widerrufen?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Der Widerruf gilt für die Zukunft. Bereits rechtmäßig erfolgte Verarbeitungen bleiben davon unberührt.',
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: reason,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Grund (optional)',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Widerrufen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await _action(
+      context,
+      () => ref.read(repositoryProvider).revokeConsent(
+            playerId: playerId,
+            type: template.type,
+            reason: reason.text.trim().isEmpty ? null : reason.text.trim(),
+          ),
+      'Einwilligung wurde widerrufen.',
+      refresh: true,
+    );
+  }
+
+  Future<void> _action(
+    BuildContext context,
+    Future<void> Function() action,
+    String success, {
+    bool refresh = false,
+  }) async {
+    try {
+      await action();
+      if (!context.mounted) return;
+      if (refresh) onRefresh();
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(success)));
+    } on DioException catch (error) {
+      if (!context.mounted) return;
+      final data = error.response?.data;
+      final message =
+          data is Map<String, dynamic> ? data['message'] as String? : null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(message ?? 'Aktion konnte nicht ausgeführt werden.')),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aktion konnte nicht ausgeführt werden.')),
+      );
+    }
+  }
+}
+
+class _ConsentTile extends StatelessWidget {
+  const _ConsentTile({
+    required this.template,
+    required this.consent,
+    required this.canSign,
+    required this.canManage,
+    required this.onTemplate,
+    required this.onSign,
+    required this.onRevoke,
+    required this.onEvidence,
+  });
+
+  final ConsentTemplate template;
+  final PlayerConsent? consent;
+  final bool canSign;
+  final bool canManage;
+  final VoidCallback onTemplate;
+  final VoidCallback onSign;
+  final VoidCallback onRevoke;
+  final void Function(PlayerConsentEvidence evidence) onEvidence;
+
+  @override
+  Widget build(BuildContext context) {
+    final granted = consent?.status == 'GRANTED';
+    final revoked = consent?.status == 'REVOKED';
+    final evidence = consent?.latestEvidence;
+    final date = consent?.grantedAt == null
+        ? null
+        : MaterialLocalizations.of(context)
+            .formatMediumDate(consent!.grantedAt!.toLocal());
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: granted
+                    ? AppColors.teal.withValues(alpha: .12)
+                    : AppColors.orange.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                granted
+                    ? Icons.verified_user_rounded
+                    : revoked
+                        ? Icons.cancel_outlined
+                        : Icons.pending_actions_outlined,
+                color: granted ? AppColors.teal : AppColors.orange,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    template.shortTitle,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    granted
+                        ? 'Erteilt${date == null ? '' : ' am $date'}'
+                        : revoked
+                            ? 'Widerrufen'
+                            : 'Noch nicht erteilt',
+                    style: TextStyle(
+                      color: granted ? AppColors.teal : AppColors.muted,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            OutlinedButton.icon(
+              onPressed: onTemplate,
+              icon: const Icon(Icons.download_outlined, size: 18),
+              label: const Text('Vorlage'),
+            ),
+            if (canSign && !granted)
+              FilledButton.icon(
+                onPressed: onSign,
+                icon: const Icon(Icons.draw_outlined, size: 18),
+                label: const Text('Digital ausfüllen'),
+              ),
+            if (evidence != null && evidence.action == 'GRANTED')
+              OutlinedButton.icon(
+                onPressed: () => onEvidence(evidence),
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: const Text('Nachweis'),
+              ),
+            if (granted && (canSign || canManage))
+              TextButton.icon(
+                onPressed: onRevoke,
+                icon: const Icon(Icons.undo_rounded, size: 18),
+                label: const Text('Widerrufen'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DigitalConsentDraft {
+  const _DigitalConsentDraft({
+    required this.selections,
+    required this.signatureData,
+    this.note,
+    this.childAssentName,
+  });
+
+  final List<String> selections;
+  final Map<String, dynamic> signatureData;
+  final String? note;
+  final String? childAssentName;
+}
+
+class _DigitalConsentDialog extends StatefulWidget {
+  const _DigitalConsentDialog({required this.template});
+
+  final ConsentTemplate template;
+
+  @override
+  State<_DigitalConsentDialog> createState() => _DigitalConsentDialogState();
+}
+
+class _DigitalConsentDialogState extends State<_DigitalConsentDialog> {
+  final selected = <String>{};
+  final note = TextEditingController();
+  final childAssent = TextEditingController();
+  final signatureKey = GlobalKey<_SignaturePadState>();
+  bool authorityConfirmed = false;
+  bool informationConfirmed = false;
+  bool explicitConfirmed = false;
+
+  @override
+  void dispose() {
+    note.dispose();
+    childAssent.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: compact ? 12 : 40,
+        vertical: compact ? 12 : 28,
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 680, maxHeight: 820),
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                compact ? 16 : 24,
+                16,
+                8,
+                10,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.template.shortTitle,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    tooltip: 'Schließen',
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(compact ? 16 : 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.template.purpose),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Rechtsgrundlage: ${widget.template.legalBasis}',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Wofür gilt die Einwilligung?',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    for (final option in widget.template.options)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: selected.contains(option.id),
+                        title: Text(option.label),
+                        subtitle: option.description == null
+                            ? null
+                            : Text(option.description!),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (value) => setState(() {
+                          if (value == true) {
+                            selected.add(option.id);
+                          } else {
+                            selected.remove(option.id);
+                          }
+                        }),
+                      ),
+                    if (widget.template.risks != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF3D5),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          widget.template.risks!,
+                          style: const TextStyle(fontSize: 13, height: 1.35),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: note,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Ergänzung oder Einschränkung (optional)',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: childAssent,
+                      decoration: const InputDecoration(
+                        labelText:
+                            'Zustimmung des Kindes / Jugendlichen (optional)',
+                        helperText:
+                            'Empfohlen, sobald das Kind die Bedeutung selbst verstehen kann.',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: authorityConfirmed,
+                      title: const Text(
+                        'Ich bin sorgeberechtigt oder nachweislich bevollmächtigt.',
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      onChanged: (value) => setState(
+                        () => authorityConfirmed = value == true,
+                      ),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: informationConfirmed,
+                      title: const Text(
+                        'Ich habe Zweck, Empfänger, Speicherdauer, Freiwilligkeit und Widerrufsrecht verstanden.',
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      onChanged: (value) => setState(
+                        () => informationConfirmed = value == true,
+                      ),
+                    ),
+                    if (widget.template.explicit)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: explicitConfirmed,
+                        title: const Text(
+                          'Ich willige ausdrücklich in die Verarbeitung der ausgewählten Gesundheitsdaten ein.',
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (value) => setState(
+                          () => explicitConfirmed = value == true,
+                        ),
+                      ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Unterschrift',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => signatureKey.currentState?.clear(),
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          label: const Text('Leeren'),
+                        ),
+                      ],
+                    ),
+                    _SignaturePad(key: signatureKey),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Vorlagenversion ${widget.template.version} · Der signierte Inhalt, Zeitpunkt und eine SHA-256-Nachweis-ID werden unveränderbar protokolliert.',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: compact
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: _submit,
+                          icon: const Icon(Icons.verified_user_outlined),
+                          label: const Text('Verbindlich unterschreiben'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Abbrechen'),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Abbrechen'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: _submit,
+                          icon: const Icon(Icons.verified_user_outlined),
+                          label: const Text('Verbindlich unterschreiben'),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _submit() {
+    final signature = signatureKey.currentState?.data;
+    if (selected.isEmpty) {
+      _message('Bitte mindestens einen Umfang auswählen.');
+      return;
+    }
+    if (!authorityConfirmed || !informationConfirmed) {
+      _message('Bitte die erforderlichen Bestätigungen aktivieren.');
+      return;
+    }
+    if (widget.template.explicit && !explicitConfirmed) {
+      _message('Bitte die ausdrückliche Einwilligung bestätigen.');
+      return;
+    }
+    if (signature == null) {
+      _message('Bitte im Unterschriftsfeld unterschreiben.');
+      return;
+    }
+    Navigator.pop(
+      context,
+      _DigitalConsentDraft(
+        selections: selected.toList(),
+        signatureData: signature,
+        note: note.text.trim().isEmpty ? null : note.text.trim(),
+        childAssentName:
+            childAssent.text.trim().isEmpty ? null : childAssent.text.trim(),
+      ),
+    );
+  }
+
+  void _message(String value) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+}
+
+class _SignaturePad extends StatefulWidget {
+  const _SignaturePad({super.key});
+
+  @override
+  State<_SignaturePad> createState() => _SignaturePadState();
+}
+
+class _SignaturePadState extends State<_SignaturePad> {
+  final strokes = <List<Offset>>[];
+  Size size = Size.zero;
+
+  Map<String, dynamic>? get data {
+    final points = strokes.expand((stroke) => stroke).length;
+    if (points < 8 || size.isEmpty) return null;
+    return {
+      'width': size.width,
+      'height': size.height,
+      'strokes': [
+        for (final stroke in strokes)
+          [
+            for (final point in stroke) {'x': point.dx, 'y': point.dy},
+          ],
+      ],
+    };
+  }
+
+  void clear() => setState(strokes.clear);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        size = Size(constraints.maxWidth, 150);
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onPanStart: (details) =>
+              setState(() => strokes.add([details.localPosition])),
+          onPanUpdate: (details) => setState(() {
+            if (strokes.isEmpty) strokes.add([]);
+            strokes.last.add(details.localPosition);
+          }),
+          child: CustomPaint(
+            painter: _SignaturePainter(strokes),
+            size: size,
+            child: strokes.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Hier mit Finger oder Maus unterschreiben',
+                      style: TextStyle(color: AppColors.muted),
+                    ),
+                  )
+                : null,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SignaturePainter extends CustomPainter {
+  const _SignaturePainter(this.strokes);
+
+  final List<List<Offset>> strokes;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final background = Paint()..color = const Color(0xFFFFFEF8);
+    final border = Paint()
+      ..color = const Color(0xFFD8D5C8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final rect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(12),
+    );
+    canvas.drawRRect(rect, background);
+    canvas.drawRRect(rect, border);
+    final ink = Paint()
+      ..color = AppColors.black
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 2.2
+      ..style = PaintingStyle.stroke;
+    canvas.save();
+    canvas.clipRRect(rect);
+    for (final stroke in strokes) {
+      if (stroke.length < 2) continue;
+      final path = Path()..moveTo(stroke.first.dx, stroke.first.dy);
+      for (final point in stroke.skip(1)) {
+        path.lineTo(point.dx, point.dy);
+      }
+      canvas.drawPath(path, ink);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _SignaturePainter oldDelegate) => true;
 }
 
 class _Section extends StatelessWidget {

@@ -10,6 +10,7 @@ class PlayerCapabilities {
     this.canAddDevelopment = false,
     this.canManageDocuments = false,
     this.canManagePhoto = false,
+    this.canDigitallyConsent = false,
   });
 
   final bool canEdit;
@@ -18,6 +19,7 @@ class PlayerCapabilities {
   final bool canAddDevelopment;
   final bool canManageDocuments;
   final bool canManagePhoto;
+  final bool canDigitallyConsent;
 
   factory PlayerCapabilities.fromJson(Map<String, dynamic>? json) =>
       PlayerCapabilities(
@@ -27,6 +29,7 @@ class PlayerCapabilities {
         canAddDevelopment: json?['canAddDevelopment'] as bool? ?? false,
         canManageDocuments: json?['canManageDocuments'] as bool? ?? false,
         canManagePhoto: json?['canManagePhoto'] as bool? ?? false,
+        canDigitallyConsent: json?['canDigitallyConsent'] as bool? ?? false,
       );
 }
 
@@ -255,6 +258,9 @@ class PlayerConsent {
     this.grantedAt,
     this.expiresAt,
     this.note,
+    this.templateVersion,
+    this.currentHash,
+    this.latestEvidence,
   });
 
   final String id;
@@ -263,6 +269,9 @@ class PlayerConsent {
   final DateTime? grantedAt;
   final DateTime? expiresAt;
   final String? note;
+  final String? templateVersion;
+  final String? currentHash;
+  final PlayerConsentEvidence? latestEvidence;
 
   factory PlayerConsent.fromJson(Map<String, dynamic> json) => PlayerConsent(
         id: json['id'] as String,
@@ -275,6 +284,112 @@ class PlayerConsent {
             ? null
             : DateTime.parse(json['expiresAt'] as String),
         note: json['note'] as String?,
+        templateVersion: json['templateVersion'] as String?,
+        currentHash: json['currentHash'] as String?,
+        latestEvidence: _latestGrantedEvidence(json['evidence']),
+      );
+
+  static PlayerConsentEvidence? _latestGrantedEvidence(Object? value) {
+    final entries = value is List<dynamic> ? value : const <dynamic>[];
+    for (final entry in entries) {
+      final evidence =
+          PlayerConsentEvidence.fromJson(entry as Map<String, dynamic>);
+      if (evidence.action == 'GRANTED') return evidence;
+    }
+    return null;
+  }
+}
+
+class PlayerConsentEvidence {
+  const PlayerConsentEvidence({
+    required this.id,
+    required this.action,
+    required this.templateVersion,
+    required this.signerName,
+    required this.documentHash,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String action;
+  final String templateVersion;
+  final String signerName;
+  final String documentHash;
+  final DateTime createdAt;
+
+  factory PlayerConsentEvidence.fromJson(Map<String, dynamic> json) =>
+      PlayerConsentEvidence(
+        id: json['id'] as String,
+        action: json['action'] as String? ?? 'PENDING',
+        templateVersion: json['templateVersion'] as String? ?? '',
+        signerName: json['signerName'] as String? ?? '',
+        documentHash: json['documentHash'] as String? ?? '',
+        createdAt: DateTime.parse(json['createdAt'] as String),
+      );
+}
+
+class ConsentTemplateOption {
+  const ConsentTemplateOption({
+    required this.id,
+    required this.label,
+    this.description,
+  });
+
+  final String id;
+  final String label;
+  final String? description;
+
+  factory ConsentTemplateOption.fromJson(Map<String, dynamic> json) =>
+      ConsentTemplateOption(
+        id: json['id'] as String,
+        label: json['label'] as String,
+        description: json['description'] as String?,
+      );
+}
+
+class ConsentTemplate {
+  const ConsentTemplate({
+    required this.type,
+    required this.version,
+    required this.title,
+    required this.shortTitle,
+    required this.purpose,
+    required this.legalBasis,
+    required this.retention,
+    required this.options,
+    required this.explicit,
+    this.risks,
+  });
+
+  final String type;
+  final String version;
+  final String title;
+  final String shortTitle;
+  final String purpose;
+  final String legalBasis;
+  final String retention;
+  final String? risks;
+  final List<ConsentTemplateOption> options;
+  final bool explicit;
+
+  factory ConsentTemplate.fromJson(Map<String, dynamic> json) =>
+      ConsentTemplate(
+        type: json['type'] as String,
+        version: json['version'] as String,
+        title: json['title'] as String,
+        shortTitle: json['shortTitle'] as String,
+        purpose: json['purpose'] as String,
+        legalBasis: json['legalBasis'] as String,
+        retention: json['retention'] as String,
+        risks: json['risks'] as String?,
+        explicit: json['explicit'] as bool? ?? false,
+        options: (json['options'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => ConsentTemplateOption.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
       );
 }
 

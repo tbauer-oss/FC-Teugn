@@ -355,7 +355,25 @@ export async function getPlayer(req: Request, res: Response) {
       emergencyContacts: canViewSensitive
         ? { orderBy: [{ priority: 'asc' }, { name: 'asc' }] }
         : false,
-      consents: canViewSensitive ? { orderBy: { type: 'asc' } } : false,
+      consents: canViewSensitive
+        ? {
+            orderBy: { type: 'asc' },
+            include: {
+              evidence: {
+                orderBy: { createdAt: 'desc' },
+                take: 10,
+                select: {
+                  id: true,
+                  action: true,
+                  templateVersion: true,
+                  signerName: true,
+                  documentHash: true,
+                  createdAt: true,
+                },
+              },
+            },
+          }
+        : false,
       developmentNotes: {
         where: canViewStaffNotes
           ? {}
@@ -381,6 +399,7 @@ export async function getPlayer(req: Request, res: Response) {
       canEditSensitive:
         hasPermission(user.role, Permission.MANAGE_SENSITIVE_PLAYER) ||
         guardian?.isLegalGuardian === true,
+      canDigitallyConsent: guardian?.isLegalGuardian === true,
       canManageDocuments:
         hasPermission(user.role, Permission.MANAGE_DOCUMENTS) ||
         guardian?.isLegalGuardian === true,
