@@ -720,7 +720,7 @@ class _TeamCard extends StatelessWidget {
   }
 
   String _role(String role) => switch (role) {
-        'COACH' || 'TRAINER' => 'Trainer',
+        'COACH' || 'TRAINER' => 'Haupttrainer',
         'ASSISTANT_COACH' => 'Co-Trainer',
         'TEAM_MANAGER' => 'Teammanager',
         'YOUTH_DIRECTOR' => 'Jugendleitung',
