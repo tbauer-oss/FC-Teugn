@@ -10,8 +10,15 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import {
   accessibleTeamIds,
+  clubIdForTeam,
   eventTeamScope,
 } from '../services/team-access';
+
+const occupancyAdminRoles: Role[] = [
+  Role.SUPER_ADMIN,
+  Role.CLUB_ADMIN,
+  Role.YOUTH_DIRECTOR,
+];
 
 const trainingCoachRoles: Role[] = [
   Role.COACH,
@@ -169,6 +176,10 @@ export async function listPitchOccupancy(req: Request, res: Response) {
               endDate: true,
               recreationalTrainingLocation: true,
               recreationalTrainingTimes: true,
+              seniorTrainingLocation: true,
+              seniorTrainingTimes: true,
+              seniorMatchdayTimes: true,
+              approvedOccupancyConflictKeys: true,
               club: { select: { id: true, name: true } },
             },
           },
@@ -195,6 +206,8 @@ export async function listPitchOccupancy(req: Request, res: Response) {
       shortName: true,
       trainingLocation: true,
       trainingTimes: true,
+      trainingPartnerIds: true,
+      matchdayTimes: true,
       ageGroup: {
         select: { code: true, name: true, sortOrder: true },
       },
@@ -206,10 +219,26 @@ export async function listPitchOccupancy(req: Request, res: Response) {
     shortName: 'Freizeitkicker',
     trainingLocation: season.recreationalTrainingLocation,
     trainingTimes: season.recreationalTrainingTimes,
+    trainingPartnerIds: [],
+    matchdayTimes: [],
     ageGroup: {
       code: '',
       name: 'Freizeit',
       sortOrder: 999,
+    },
+  };
+  const seniorSchedule = {
+    id: `seniors:${season.id}`,
+    name: 'Herren',
+    shortName: 'Herren',
+    trainingLocation: season.seniorTrainingLocation,
+    trainingTimes: season.seniorTrainingTimes,
+    trainingPartnerIds: [],
+    matchdayTimes: season.seniorMatchdayTimes,
+    ageGroup: {
+      code: '',
+      name: 'Herren',
+      sortOrder: 998,
     },
   };
   return res.json({
@@ -222,16 +251,27 @@ export async function listPitchOccupancy(req: Request, res: Response) {
     },
     teams: [
       ...teams,
+      ...(seniorSchedule.trainingTimes.length > 0 ||
+      seniorSchedule.matchdayTimes.length > 0
+        ? [seniorSchedule]
+        : []),
       ...(recreationalSchedule.trainingTimes.length > 0
         ? [recreationalSchedule]
         : []),
     ],
     recreationalSchedule,
+    seniorSchedule,
+    approvedConflictKeys: season.approvedOccupancyConflictKeys,
+    canManageOccupancy: occupancyAdminRoles.includes(req.user!.role as Role),
   });
 }
 
 export function canManageRecreationalOccupancy(role: Role) {
   return role === Role.SUPER_ADMIN;
+}
+
+export function canManageClubOccupancy(role: Role) {
+  return occupancyAdminRoles.includes(role);
 }
 
 export async function updateRecreationalOccupancy(
@@ -250,7 +290,7 @@ export async function updateRecreationalOccupancy(
     return res.status(400).json({ message: 'Eine Saison muss ausgewählt sein.' });
   }
   const trainingLocation = text(req.body?.trainingLocation, 200);
-  const trainingTimes = stringList(req.body?.trainingTimes, 7);
+  const trainingTimes = stringList(req.body?.trainingTimes, 14);
   const season = await prisma.$transaction(async (tx) => {
     const existing = await tx.season.findFirst({
       where: { id: seasonId, isActive: true },
@@ -302,6 +342,149 @@ export async function updateRecreationalOccupancy(
     trainingTimes: season.recreationalTrainingTimes,
     ageGroup: { code: '', name: 'Freizeit', sortOrder: 999 },
   });
+}
+
+export async function updateSeniorOccupancy(req: Request, res: Response) {
+  const user = req.user!;
+  if (!canManageClubOccupancy(user.role as Role)) {
+    return res.status(403).json({
+      message:
+        'Nur Systemadministration, Vereinsleitung oder Jugendleitung dürfen die Herren-Belegung verwalten.',
+    });
+  }
+  const seasonId = text(req.body?.seasonId, 100);
+  if (!seasonId) {
+    return res.status(400).json({ message: 'Eine Saison muss ausgewählt sein.' });
+  }
+  const trainingLocation = text(req.body?.trainingLocation, 200);
+  const trainingTimes = stringList(req.body?.trainingTimes, 14);
+  const matchdayTimes = stringList(req.body?.matchdayTimes, 14);
+  const clubId = user.role === Role.SUPER_ADMIN
+    ? null
+    : await clubIdForTeam(user.teamId);
+  const season = await prisma.$transaction(async (tx) => {
+    const existing = await tx.season.findFirst({
+      where: {
+        id: seasonId,
+        isActive: true,
+        ...(user.role === Role.SUPER_ADMIN
+          ? {}
+          : clubId
+            ? { clubId }
+            : { id: '__unauthorized__' }),
+      },
+      select: {
+        id: true,
+        seniorTrainingLocation: true,
+        seniorTrainingTimes: true,
+        seniorMatchdayTimes: true,
+      },
+    });
+    if (!existing) return null;
+    const updated = await tx.season.update({
+      where: { id: seasonId },
+      data: {
+        seniorTrainingLocation: trainingLocation,
+        seniorTrainingTimes: trainingTimes,
+        seniorMatchdayTimes: matchdayTimes,
+      },
+      select: {
+        id: true,
+        seniorTrainingLocation: true,
+        seniorTrainingTimes: true,
+        seniorMatchdayTimes: true,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: user.teamId,
+        action: 'SENIOR_PITCH_OCCUPANCY_UPDATED',
+        entityType: 'Season',
+        entityId: seasonId,
+        metadata: {
+          before: existing,
+          after: { trainingLocation, trainingTimes, matchdayTimes },
+        },
+      },
+    });
+    return updated;
+  });
+  if (!season) {
+    return res.status(404).json({ message: 'Aktive Saison nicht gefunden.' });
+  }
+  return res.json({
+    id: `seniors:${season.id}`,
+    name: 'Herren',
+    shortName: 'Herren',
+    trainingLocation: season.seniorTrainingLocation,
+    trainingTimes: season.seniorTrainingTimes,
+    trainingPartnerIds: [],
+    matchdayTimes: season.seniorMatchdayTimes,
+    ageGroup: { code: '', name: 'Herren', sortOrder: 998 },
+  });
+}
+
+export async function updateOccupancyConflictApproval(
+  req: Request,
+  res: Response,
+) {
+  const user = req.user!;
+  if (!canManageClubOccupancy(user.role as Role)) {
+    return res.status(403).json({
+      message:
+        'Diese Überschneidung darf nicht bestätigt werden.',
+    });
+  }
+  const seasonId = text(req.body?.seasonId, 100);
+  const conflictKey = text(req.body?.conflictKey, 500);
+  const approved = req.body?.approved !== false;
+  if (!seasonId || !conflictKey) {
+    return res.status(400).json({
+      message: 'Saison und Konflikt müssen angegeben werden.',
+    });
+  }
+  const clubId = user.role === Role.SUPER_ADMIN
+    ? null
+    : await clubIdForTeam(user.teamId);
+  const season = await prisma.season.findFirst({
+    where: {
+      id: seasonId,
+      isActive: true,
+      ...(user.role === Role.SUPER_ADMIN
+        ? {}
+        : clubId
+          ? { clubId }
+          : { id: '__unauthorized__' }),
+    },
+    select: { id: true, approvedOccupancyConflictKeys: true },
+  });
+  if (!season) {
+    return res.status(404).json({ message: 'Aktive Saison nicht gefunden.' });
+  }
+  const keys = new Set(season.approvedOccupancyConflictKeys);
+  if (approved) keys.add(conflictKey);
+  else keys.delete(conflictKey);
+  const approvedConflictKeys = [...keys].slice(-200);
+  await prisma.$transaction([
+    prisma.season.update({
+      where: { id: seasonId },
+      data: { approvedOccupancyConflictKeys: approvedConflictKeys },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: user.teamId,
+        action: approved
+          ? 'PITCH_OCCUPANCY_CONFLICT_APPROVED'
+          : 'PITCH_OCCUPANCY_CONFLICT_REOPENED',
+        entityType: 'Season',
+        entityId: seasonId,
+        metadata: { conflictKey },
+      },
+    }),
+  ]);
+  return res.json({ approvedConflictKeys });
 }
 
 export async function listTrainingCoaches(req: Request, res: Response) {

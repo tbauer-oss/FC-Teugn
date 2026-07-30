@@ -1,38 +1,91 @@
+enum PitchOccupancySlotKind { training, matchday }
+
 class PitchOccupancyPlan {
   const PitchOccupancyPlan({
+    required this.seasonId,
     required this.clubName,
     required this.seasonName,
     required this.teams,
     this.recreationalSchedule,
+    this.seniorSchedule,
+    this.approvedConflictKeys = const {},
+    this.canManageOccupancy = false,
   });
 
+  final String seasonId;
   final String clubName;
   final String seasonName;
   final List<PitchOccupancyTeam> teams;
   final PitchOccupancyTeam? recreationalSchedule;
+  final PitchOccupancyTeam? seniorSchedule;
+  final Set<String> approvedConflictKeys;
+  final bool canManageOccupancy;
 
   List<PitchOccupancySlot> get slots => [
         for (final team in teams) ...team.slots,
       ];
 
+  List<PitchOccupancyConflict> get conflicts {
+    final trainingSlots = slots
+        .where((slot) => slot.kind == PitchOccupancySlotKind.training)
+        .toList();
+    final result = <PitchOccupancyConflict>[];
+    for (var first = 0; first < trainingSlots.length; first++) {
+      for (var second = first + 1; second < trainingSlots.length; second++) {
+        final left = trainingSlots[first];
+        final right = trainingSlots[second];
+        if (left.teamId == right.teamId ||
+            !left.overlaps(right) ||
+            teamsTrainTogether(left.teamId, right.teamId)) {
+          continue;
+        }
+        final key = PitchOccupancyConflict.keyFor(left, right);
+        result.add(
+          PitchOccupancyConflict(
+            key: key,
+            first: left,
+            second: right,
+            approved: approvedConflictKeys.contains(key),
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
+  bool teamsTrainTogether(String firstTeamId, String secondTeamId) {
+    final first = teams.where((team) => team.id == firstTeamId).firstOrNull;
+    final second = teams.where((team) => team.id == secondTeamId).firstOrNull;
+    return first?.trainingPartnerIds.contains(secondTeamId) == true ||
+        second?.trainingPartnerIds.contains(firstTeamId) == true;
+  }
+
   factory PitchOccupancyPlan.fromJson(Map<String, dynamic> json) {
     final club = json['club'] as Map<String, dynamic>? ?? const {};
     final season = json['season'] as Map<String, dynamic>? ?? const {};
     return PitchOccupancyPlan(
+      seasonId: season['id'] as String? ?? '',
       clubName: club['name'] as String? ?? 'FC Teugn',
       seasonName: season['name'] as String? ?? '',
       teams: (json['teams'] as List<dynamic>? ?? const [])
-          .map(
-            (item) => PitchOccupancyTeam.fromJson(
-              item as Map<String, dynamic>,
-            ),
-          )
+          .map((item) =>
+              PitchOccupancyTeam.fromJson(item as Map<String, dynamic>))
           .toList(),
       recreationalSchedule: json['recreationalSchedule'] == null
           ? null
           : PitchOccupancyTeam.fromJson(
               json['recreationalSchedule'] as Map<String, dynamic>,
             ),
+      seniorSchedule: json['seniorSchedule'] == null
+          ? null
+          : PitchOccupancyTeam.fromJson(
+              json['seniorSchedule'] as Map<String, dynamic>,
+            ),
+      approvedConflictKeys:
+          (json['approvedConflictKeys'] as List<dynamic>? ?? const [])
+              .whereType<String>()
+              .toSet(),
+      canManageOccupancy: json['canManageOccupancy'] as bool? ?? false,
     );
   }
 }
@@ -44,6 +97,8 @@ class PitchOccupancyTeam {
     required this.ageGroupCode,
     required this.location,
     required this.trainingTimes,
+    this.trainingPartnerIds = const [],
+    this.matchdayTimes = const [],
   });
 
   final String id;
@@ -51,13 +106,31 @@ class PitchOccupancyTeam {
   final String ageGroupCode;
   final String location;
   final List<String> trainingTimes;
+  final List<String> trainingPartnerIds;
+  final List<String> matchdayTimes;
 
   String get label => ageGroupCode.isEmpty ? name : '$ageGroupCode · $name';
 
-  List<PitchOccupancySlot> get slots => trainingTimes
-      .map((value) => PitchOccupancySlot.tryParse(this, value))
-      .whereType<PitchOccupancySlot>()
-      .toList();
+  List<PitchOccupancySlot> get slots => [
+        ...trainingTimes
+            .map(
+              (value) => PitchOccupancySlot.tryParse(
+                this,
+                value,
+                PitchOccupancySlotKind.training,
+              ),
+            )
+            .whereType<PitchOccupancySlot>(),
+        ...matchdayTimes
+            .map(
+              (value) => PitchOccupancySlot.tryParse(
+                this,
+                value,
+                PitchOccupancySlotKind.matchday,
+              ),
+            )
+            .whereType<PitchOccupancySlot>(),
+      ];
 
   factory PitchOccupancyTeam.fromJson(Map<String, dynamic> json) {
     final ageGroup = json['ageGroup'] as Map<String, dynamic>? ?? const {};
@@ -71,7 +144,34 @@ class PitchOccupancyTeam {
       trainingTimes: (json['trainingTimes'] as List<dynamic>? ?? const [])
           .whereType<String>()
           .toList(),
+      trainingPartnerIds:
+          (json['trainingPartnerIds'] as List<dynamic>? ?? const [])
+              .whereType<String>()
+              .toList(),
+      matchdayTimes: (json['matchdayTimes'] as List<dynamic>? ?? const [])
+          .whereType<String>()
+          .toList(),
     );
+  }
+}
+
+class PitchOccupancyConflict {
+  const PitchOccupancyConflict({
+    required this.key,
+    required this.first,
+    required this.second,
+    required this.approved,
+  });
+
+  final String key;
+  final PitchOccupancySlot first;
+  final PitchOccupancySlot second;
+  final bool approved;
+
+  static String keyFor(PitchOccupancySlot first, PitchOccupancySlot second) {
+    final signatures = [first.conflictSignature, second.conflictSignature]
+      ..sort();
+    return signatures.join('||');
   }
 }
 
@@ -84,6 +184,7 @@ class PitchOccupancySlot {
     required this.endMinute,
     required this.location,
     required this.rawValue,
+    required this.kind,
   });
 
   static const weekdays = [
@@ -103,10 +204,15 @@ class PitchOccupancySlot {
   final int endMinute;
   final String location;
   final String rawValue;
+  final PitchOccupancySlotKind kind;
 
   String get timeLabel => '${_time(startMinute)}–${_time(endMinute)}';
+  String get conflictSignature =>
+      '$teamId:$weekday:$startMinute:$endMinute:${_normalizedLocation(location)}';
 
   bool overlaps(PitchOccupancySlot other) =>
+      kind == PitchOccupancySlotKind.training &&
+      other.kind == PitchOccupancySlotKind.training &&
       weekday == other.weekday &&
       _normalizedLocation(location) == _normalizedLocation(other.location) &&
       startMinute < other.endMinute &&
@@ -114,8 +220,9 @@ class PitchOccupancySlot {
 
   static PitchOccupancySlot? tryParse(
     PitchOccupancyTeam team,
-    String rawValue,
-  ) {
+    String rawValue, [
+    PitchOccupancySlotKind kind = PitchOccupancySlotKind.training,
+  ]) {
     final dayMatch = RegExp(
       r'(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)',
       caseSensitive: false,
@@ -151,6 +258,7 @@ class PitchOccupancySlot {
       endMinute: endMinute,
       location: team.location,
       rawValue: rawValue,
+      kind: kind,
     );
   }
 

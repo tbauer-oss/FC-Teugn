@@ -88,6 +88,8 @@ class TeamSummary {
     this.description,
     this.trainingLocation,
     this.trainingTimes = const [],
+    this.trainingPartnerIds = const [],
+    this.matchdayTimes = const [],
     this.homeVenue,
     this.bfvTeamId,
     this.dfbnetTeamId,
@@ -110,6 +112,8 @@ class TeamSummary {
   final String? description;
   final String? trainingLocation;
   final List<String> trainingTimes;
+  final List<String> trainingPartnerIds;
+  final List<String> matchdayTimes;
   final String? homeVenue;
   final String? bfvTeamId;
   final String? dfbnetTeamId;
@@ -150,6 +154,12 @@ class TeamSummary {
         description: json['description'] as String?,
         trainingLocation: json['trainingLocation'] as String?,
         trainingTimes: (json['trainingTimes'] as List<dynamic>? ?? [])
+            .whereType<String>()
+            .toList(),
+        trainingPartnerIds: (json['trainingPartnerIds'] as List<dynamic>? ?? [])
+            .whereType<String>()
+            .toList(),
+        matchdayTimes: (json['matchdayTimes'] as List<dynamic>? ?? [])
             .whereType<String>()
             .toList(),
         homeVenue: json['homeVenue'] as String?,

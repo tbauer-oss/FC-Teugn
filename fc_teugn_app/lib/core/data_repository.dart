@@ -117,6 +117,8 @@ class DataRepository {
   Future<TeamSummary> updateTrainingSchedule({
     required String teamId,
     required List<String> trainingTimes,
+    required List<String> trainingPartnerIds,
+    required List<String> matchdayTimes,
     String? trainingLocation,
   }) async {
     final res = await client.dio.patch(
@@ -124,6 +126,8 @@ class DataRepository {
       data: {
         'trainingLocation': trainingLocation,
         'trainingTimes': trainingTimes,
+        'trainingPartnerIds': trainingPartnerIds,
+        'matchdayTimes': matchdayTimes,
       },
     );
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
@@ -896,6 +900,38 @@ class DataRepository {
         'seasonId': seasonId,
         'trainingLocation': trainingLocation,
         'trainingTimes': trainingTimes,
+      },
+    );
+  }
+
+  Future<void> updateSeniorPitchOccupancy({
+    required String seasonId,
+    required List<String> trainingTimes,
+    required List<String> matchdayTimes,
+    String? trainingLocation,
+  }) async {
+    await client.dio.patch(
+      '/trainings/occupancy/seniors',
+      data: {
+        'seasonId': seasonId,
+        'trainingLocation': trainingLocation,
+        'trainingTimes': trainingTimes,
+        'matchdayTimes': matchdayTimes,
+      },
+    );
+  }
+
+  Future<void> setPitchOccupancyConflictApproval({
+    required String seasonId,
+    required String conflictKey,
+    required bool approved,
+  }) async {
+    await client.dio.patch(
+      '/trainings/occupancy/conflicts',
+      data: {
+        'seasonId': seasonId,
+        'conflictKey': conflictKey,
+        'approved': approved,
       },
     );
   }

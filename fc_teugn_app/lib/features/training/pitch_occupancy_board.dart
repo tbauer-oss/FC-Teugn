@@ -7,26 +7,50 @@ import '../shared/page_scaffold.dart';
 class PitchOccupancyBoard extends StatelessWidget {
   const PitchOccupancyBoard({
     required this.plan,
+    this.onConflictApproval,
     super.key,
   });
 
   final PitchOccupancyPlan plan;
+  final void Function(PitchOccupancyConflict conflict, bool approved)?
+      onConflictApproval;
 
   @override
   Widget build(BuildContext context) {
     final slots = plan.slots;
+    final conflicts = plan.conflicts;
+    final openConflicts =
+        conflicts.where((conflict) => !conflict.approved).toList();
     final conflictSlots = {
-      for (var index = 0; index < slots.length; index++)
-        if (slots.indexed.any(
-          (other) =>
-              other.$1 != index && slots[index].overlaps(other.$2),
-        ))
-          slots[index],
+      for (final conflict in openConflicts) ...[
+        conflict.first,
+        conflict.second,
+      ],
     };
+    final approvedSlots = {
+      for (final conflict in conflicts.where((item) => item.approved)) ...[
+        conflict.first,
+        conflict.second,
+      ],
+    };
+    final jointTrainingLabels = <String>{
+      for (final team in plan.teams)
+        for (final partnerId in team.trainingPartnerIds)
+          if (plan.teams.any((candidate) => candidate.id == partnerId))
+            ([
+              team.label,
+              plan.teams.firstWhere((item) => item.id == partnerId).label
+            ]..sort())
+                .join(' + '),
+    }.toList()
+      ..sort();
     final unparsedCount = plan.teams.fold<int>(
       0,
       (sum, team) =>
-          sum + team.trainingTimes.length - team.slots.length,
+          sum +
+          team.trainingTimes.length +
+          team.matchdayTimes.length -
+          team.slots.length,
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -34,18 +58,62 @@ class PitchOccupancyBoard extends StatelessWidget {
         _PlanHeader(
           plan: plan,
           slotCount: slots.length,
-          conflictCount: conflictSlots.length,
+          conflictCount: openConflicts.length,
+          matchdayCount: slots
+              .where((slot) => slot.kind == PitchOccupancySlotKind.matchday)
+              .length,
         ),
-        const SizedBox(height: 16),
-        if (conflictSlots.isNotEmpty)
+        const SizedBox(height: 10),
+        if (openConflicts.isNotEmpty)
           _Notice(
             icon: Icons.warning_amber_rounded,
             color: Colors.deepOrange,
             title: 'Mögliche Platzüberschneidung',
             message:
-                '${conflictSlots.length} Belegungen überschneiden sich am gleichen Platz. Bitte im Trainerteam abstimmen.',
+                '${openConflicts.length} Überschneidung(en) sind noch offen. Berechtigte Leitungen können abgestimmte Belegungen bestätigen.',
           ),
-        if (conflictSlots.isNotEmpty) const SizedBox(height: 12),
+        if (openConflicts.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          for (final conflict in openConflicts)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: _ConflictRow(
+                conflict: conflict,
+                canManage: plan.canManageOccupancy,
+                onChanged: onConflictApproval,
+              ),
+            ),
+        ],
+        if (conflicts.any((conflict) => conflict.approved)) ...[
+          const SizedBox(height: 8),
+          _Notice(
+            icon: Icons.verified_rounded,
+            color: AppColors.teal,
+            title: 'Abgestimmte Überschneidungen',
+            message:
+                '${conflicts.where((conflict) => conflict.approved).length} Überschneidung(en) wurden bestätigt und gelten nicht mehr als Konflikt.',
+          ),
+          if (plan.canManageOccupancy)
+            for (final conflict
+                in conflicts.where((conflict) => conflict.approved))
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: _ConflictRow(
+                  conflict: conflict,
+                  canManage: true,
+                  onChanged: onConflictApproval,
+                ),
+              ),
+        ],
+        if (jointTrainingLabels.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _Notice(
+            icon: Icons.groups_2_rounded,
+            color: AppColors.blue,
+            title: 'Gemeinsame Trainings',
+            message: jointTrainingLabels.join(' · '),
+          ),
+        ],
         if (unparsedCount > 0)
           _Notice(
             icon: Icons.edit_calendar_outlined,
@@ -68,10 +136,12 @@ class PitchOccupancyBoard extends StatelessWidget {
                 ? _DesktopBoard(
                     plan: plan,
                     conflictSlots: conflictSlots,
+                    approvedSlots: approvedSlots,
                   )
                 : _MobileBoard(
                     slots: slots,
                     conflictSlots: conflictSlots,
+                    approvedSlots: approvedSlots,
                   ),
           ),
         const SizedBox(height: 14),
@@ -92,18 +162,20 @@ class _PlanHeader extends StatelessWidget {
     required this.plan,
     required this.slotCount,
     required this.conflictCount,
+    required this.matchdayCount,
   });
 
   final PitchOccupancyPlan plan;
   final int slotCount;
   final int conflictCount;
+  final int matchdayCount;
 
   @override
   Widget build(BuildContext context) {
     final locations = plan.slots.map((slot) => slot.location).toSet().toList()
       ..sort();
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.black, Color(0xFF343000)],
@@ -157,6 +229,7 @@ class _PlanHeader extends StatelessWidget {
                 ),
               ),
               _HeaderMetric(value: '$slotCount', label: 'Belegungen'),
+              _HeaderMetric(value: '$matchdayCount', label: 'Spieltage'),
               _HeaderMetric(
                 value: '$conflictCount',
                 label: 'Konflikte',
@@ -165,7 +238,7 @@ class _PlanHeader extends StatelessWidget {
             ],
           ),
           if (locations.isNotEmpty) ...[
-            const SizedBox(height: 18),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -173,7 +246,7 @@ class _PlanHeader extends StatelessWidget {
                 for (final location in locations)
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                     decoration: BoxDecoration(
                       color: _locationColor(location),
                       borderRadius: BorderRadius.circular(999),
@@ -244,10 +317,12 @@ class _DesktopBoard extends StatelessWidget {
   const _DesktopBoard({
     required this.plan,
     required this.conflictSlots,
+    required this.approvedSlots,
   });
 
   final PitchOccupancyPlan plan;
   final Set<PitchOccupancySlot> conflictSlots;
+  final Set<PitchOccupancySlot> approvedSlots;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -256,8 +331,8 @@ class _DesktopBoard extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              const teamWidth = 170.0;
-              const dayWidth = 138.0;
+              const teamWidth = 150.0;
+              const dayWidth = 124.0;
               return SizedBox(
                 width: teamWidth + dayWidth * 7,
                 child: Column(
@@ -276,15 +351,14 @@ class _DesktopBoard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    for (var index = 0;
-                        index < plan.teams.length;
-                        index++)
+                    for (var index = 0; index < plan.teams.length; index++)
                       _DesktopTeamRow(
                         team: plan.teams[index],
                         teamWidth: teamWidth,
                         dayWidth: dayWidth,
                         shaded: index.isOdd,
                         conflictSlots: conflictSlots,
+                        approvedSlots: approvedSlots,
                       ),
                   ],
                 ),
@@ -309,10 +383,9 @@ class _BoardHeaderCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
         width: width,
-        height: 52,
+        height: 42,
         child: Align(
-          alignment:
-              alignedLeft ? Alignment.centerLeft : Alignment.center,
+          alignment: alignedLeft ? Alignment.centerLeft : Alignment.center,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Text(
@@ -334,6 +407,7 @@ class _DesktopTeamRow extends StatelessWidget {
     required this.dayWidth,
     required this.shaded,
     required this.conflictSlots,
+    required this.approvedSlots,
   });
 
   final PitchOccupancyTeam team;
@@ -341,11 +415,11 @@ class _DesktopTeamRow extends StatelessWidget {
   final double dayWidth;
   final bool shaded;
   final Set<PitchOccupancySlot> conflictSlots;
+  final Set<PitchOccupancySlot> approvedSlots;
 
   @override
   Widget build(BuildContext context) {
-    final background =
-        shaded ? const Color(0xFFF8F7F2) : Colors.white;
+    final background = shaded ? const Color(0xFFF8F7F2) : Colors.white;
     return Container(
       color: background,
       child: IntrinsicHeight(
@@ -354,8 +428,8 @@ class _DesktopTeamRow extends StatelessWidget {
           children: [
             Container(
               width: teamWidth,
-              constraints: const BoxConstraints(minHeight: 82),
-              padding: const EdgeInsets.all(13),
+              constraints: const BoxConstraints(minHeight: 62),
+              padding: const EdgeInsets.all(9),
               decoration: const BoxDecoration(
                 border: Border(
                   right: BorderSide(color: AppColors.line),
@@ -389,8 +463,8 @@ class _DesktopTeamRow extends StatelessWidget {
             for (var weekday = 1; weekday <= 7; weekday++)
               Container(
                 width: dayWidth,
-                constraints: const BoxConstraints(minHeight: 82),
-                padding: const EdgeInsets.all(7),
+                constraints: const BoxConstraints(minHeight: 62),
+                padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(
                   border: Border(
                     right: BorderSide(color: AppColors.line),
@@ -403,10 +477,11 @@ class _DesktopTeamRow extends StatelessWidget {
                     for (final slot
                         in team.slots.where((slot) => slot.weekday == weekday))
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        padding: const EdgeInsets.symmetric(vertical: 2),
                         child: _SlotPill(
                           slot: slot,
                           conflict: conflictSlots.contains(slot),
+                          approved: approvedSlots.contains(slot),
                           compact: true,
                         ),
                       ),
@@ -424,10 +499,12 @@ class _MobileBoard extends StatelessWidget {
   const _MobileBoard({
     required this.slots,
     required this.conflictSlots,
+    required this.approvedSlots,
   });
 
   final List<PitchOccupancySlot> slots;
   final Set<PitchOccupancySlot> conflictSlots;
+  final Set<PitchOccupancySlot> approvedSlots;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -435,10 +512,10 @@ class _MobileBoard extends StatelessWidget {
           for (var weekday = 1; weekday <= 7; weekday++)
             if (slots.any((slot) => slot.weekday == weekday))
               Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -470,18 +547,20 @@ class _MobileBoard extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        for (final slot in slots
-                            .where((slot) => slot.weekday == weekday)
-                            .toList()
-                          ..sort(
-                            (a, b) =>
-                                a.startMinute.compareTo(b.startMinute),
-                          ))
+                        for (final slot
+                            in slots
+                                .where((slot) => slot.weekday == weekday)
+                                .toList()
+                              ..sort(
+                                (a, b) =>
+                                    a.startMinute.compareTo(b.startMinute),
+                              ))
                           Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: _SlotPill(
                               slot: slot,
                               conflict: conflictSlots.contains(slot),
+                              approved: approvedSlots.contains(slot),
                             ),
                           ),
                       ],
@@ -497,11 +576,13 @@ class _SlotPill extends StatelessWidget {
   const _SlotPill({
     required this.slot,
     required this.conflict,
+    this.approved = false,
     this.compact = false,
   });
 
   final PitchOccupancySlot slot;
   final bool conflict;
+  final bool approved;
   final bool compact;
 
   @override
@@ -511,13 +592,17 @@ class _SlotPill extends StatelessWidget {
           width: double.infinity,
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 7 : 12,
-            vertical: compact ? 7 : 10,
+            vertical: compact ? 5 : 8,
           ),
           decoration: BoxDecoration(
             color: _locationColor(slot.location),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: conflict ? Colors.deepOrange : Colors.transparent,
+              color: conflict
+                  ? Colors.deepOrange
+                  : approved
+                      ? AppColors.teal
+                      : Colors.transparent,
               width: conflict ? 2 : 1,
             ),
           ),
@@ -528,7 +613,9 @@ class _SlotPill extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      slot.timeLabel,
+                      slot.kind == PitchOccupancySlotKind.matchday
+                          ? 'Spieltag · ${slot.timeLabel}'
+                          : slot.timeLabel,
                       style: TextStyle(
                         color: AppColors.black,
                         fontWeight: FontWeight.w900,
@@ -554,6 +641,18 @@ class _SlotPill extends StatelessWidget {
                   Icons.warning_amber_rounded,
                   color: Colors.deepOrange,
                   size: 18,
+                ),
+              if (!conflict && approved)
+                const Icon(
+                  Icons.verified_rounded,
+                  color: AppColors.teal,
+                  size: 17,
+                ),
+              if (slot.kind == PitchOccupancySlotKind.matchday)
+                const Icon(
+                  Icons.sports_soccer_rounded,
+                  color: AppColors.blue,
+                  size: 17,
                 ),
             ],
           ),
@@ -603,6 +702,66 @@ class _Notice extends StatelessWidget {
                 ],
               ),
             ),
+          ],
+        ),
+      );
+}
+
+class _ConflictRow extends StatelessWidget {
+  const _ConflictRow({
+    required this.conflict,
+    required this.canManage,
+    required this.onChanged,
+  });
+
+  final PitchOccupancyConflict conflict;
+  final bool canManage;
+  final void Function(PitchOccupancyConflict conflict, bool approved)?
+      onChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: (conflict.approved ? AppColors.teal : Colors.deepOrange)
+              .withValues(alpha: .06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: (conflict.approved ? AppColors.teal : Colors.deepOrange)
+                .withValues(alpha: .2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              conflict.approved
+                  ? Icons.verified_rounded
+                  : Icons.compare_arrows_rounded,
+              color: conflict.approved ? AppColors.teal : Colors.deepOrange,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '${conflict.first.teamLabel} ↔ ${conflict.second.teamLabel} · '
+                '${PitchOccupancySlot.weekdays[conflict.first.weekday - 1]} '
+                '${conflict.first.timeLabel} · ${conflict.first.location}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            if (canManage)
+              TextButton.icon(
+                onPressed: onChanged == null
+                    ? null
+                    : () => onChanged!(conflict, !conflict.approved),
+                icon: Icon(
+                  conflict.approved
+                      ? Icons.undo_rounded
+                      : Icons.check_circle_outline_rounded,
+                ),
+                label: Text(
+                  conflict.approved ? 'Wieder öffnen' : 'Abgestimmt',
+                ),
+              ),
           ],
         ),
       );

@@ -126,7 +126,7 @@ function normalizedTeamData(body: TeamInput) {
     birthYears: birthYears(body.birthYears),
     description: optionalText(body.description, 1500),
     trainingLocation: optionalText(body.trainingLocation, 200),
-    trainingTimes: stringList(body.trainingTimes, 7, 100),
+    trainingTimes: stringList(body.trainingTimes, 14, 100),
     homeVenue: optionalText(body.homeVenue, 200),
     bfvTeamId: optionalText(body.bfvTeamId, 120),
     dfbnetTeamId: optionalText(body.dfbnetTeamId, 120),
@@ -566,16 +566,60 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
     });
   }
   const trainingLocation = optionalText(req.body.trainingLocation, 200);
-  const trainingTimes = stringList(req.body.trainingTimes, 7, 100);
+  const trainingTimes = stringList(req.body.trainingTimes, 14, 100);
+  const matchdayTimes = stringList(req.body.matchdayTimes, 14, 100);
+  const requestedPartnerIds = stringList(req.body.trainingPartnerIds, 12, 100)
+    .filter((id) => id !== teamId);
   const team = await prisma.$transaction(async (tx) => {
     const existing = await tx.team.findUnique({
       where: { id: teamId },
       include: hierarchyInclude,
     });
     if (!existing) return null;
+    const validPartners = requestedPartnerIds.length === 0
+      ? []
+      : await tx.team.findMany({
+          where: {
+            id: { in: requestedPartnerIds },
+            ageGroup: { seasonId: existing.ageGroup.season.id },
+            isActive: true,
+            deletedAt: null,
+          },
+          select: { id: true },
+        });
+    const trainingPartnerIds = validPartners.map((partner) => partner.id);
+    const partnerTeams = await tx.team.findMany({
+      where: {
+        id: {
+          in: [
+            ...new Set([
+              ...existing.trainingPartnerIds,
+              ...trainingPartnerIds,
+            ]),
+          ],
+        },
+        ageGroup: { seasonId: existing.ageGroup.season.id },
+        deletedAt: null,
+      },
+      select: { id: true, trainingPartnerIds: true },
+    });
+    for (const partner of partnerTeams) {
+      const reciprocalIds = new Set(partner.trainingPartnerIds);
+      if (trainingPartnerIds.includes(partner.id)) reciprocalIds.add(teamId);
+      else reciprocalIds.delete(teamId);
+      await tx.team.update({
+        where: { id: partner.id },
+        data: { trainingPartnerIds: [...reciprocalIds] },
+      });
+    }
     const updated = await tx.team.update({
       where: { id: teamId },
-      data: { trainingLocation, trainingTimes },
+      data: {
+        trainingLocation,
+        trainingTimes,
+        trainingPartnerIds,
+        matchdayTimes,
+      },
       include: hierarchyInclude,
     });
     await tx.auditLog.create({
@@ -589,8 +633,15 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
           before: {
             trainingLocation: existing.trainingLocation,
             trainingTimes: existing.trainingTimes,
+            trainingPartnerIds: existing.trainingPartnerIds,
+            matchdayTimes: existing.matchdayTimes,
           },
-          after: { trainingLocation, trainingTimes },
+          after: {
+            trainingLocation,
+            trainingTimes,
+            trainingPartnerIds,
+            matchdayTimes,
+          },
         },
       },
     });
@@ -723,6 +774,8 @@ async function serializeTeam(team: {
   description: string | null;
   trainingLocation: string | null;
   trainingTimes: string[];
+  trainingPartnerIds: string[];
+  matchdayTimes: string[];
   homeVenue: string | null;
   bfvTeamId: string | null;
   dfbnetTeamId: string | null;
@@ -761,6 +814,8 @@ async function serializeTeam(team: {
     description: team.description,
     trainingLocation: team.trainingLocation,
     trainingTimes: team.trainingTimes,
+    trainingPartnerIds: team.trainingPartnerIds,
+    matchdayTimes: team.matchdayTimes,
     homeVenue: team.homeVenue,
     bfvTeamId: team.bfvTeamId,
     dfbnetTeamId: team.dfbnetTeamId,

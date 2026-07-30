@@ -10,6 +10,8 @@ import {
   saveExercise,
   saveTrainingPlan,
   updateRecreationalOccupancy,
+  updateSeniorOccupancy,
+  updateOccupancyConflictApproval,
 } from '../controllers/trainings.controller';
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { Permission } from '../security/permissions';
@@ -26,6 +28,16 @@ router.patch(
   '/occupancy/recreational',
   requirePermission(Permission.MANAGE_TRAINING),
   updateRecreationalOccupancy,
+);
+router.patch(
+  '/occupancy/seniors',
+  requirePermission(Permission.MANAGE_TRAINING),
+  updateSeniorOccupancy,
+);
+router.patch(
+  '/occupancy/conflicts',
+  requirePermission(Permission.MANAGE_TRAINING),
+  updateOccupancyConflictApproval,
 );
 router.get('/', requirePermission(Permission.MANAGE_TRAINING), listTrainings);
 router.get('/exercises', requirePermission(Permission.MANAGE_TRAINING), listExercises);

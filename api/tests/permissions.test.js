@@ -44,6 +44,7 @@ const {
   checklistItems,
 } = require('../dist/src/controllers/team-operations.controller');
 const {
+  canManageClubOccupancy,
   canManageRecreationalOccupancy,
 } = require('../dist/src/controllers/trainings.controller');
 const {
@@ -378,6 +379,14 @@ test('only system administrators can manage recreational pitch slots', () => {
   assert.equal(canManageRecreationalOccupancy(Role.CLUB_ADMIN), false);
   assert.equal(canManageRecreationalOccupancy(Role.YOUTH_DIRECTOR), false);
   assert.equal(canManageRecreationalOccupancy(Role.COACH), false);
+});
+
+test('club occupancy confirmations and senior slots are limited to leadership', () => {
+  assert.equal(canManageClubOccupancy(Role.SUPER_ADMIN), true);
+  assert.equal(canManageClubOccupancy(Role.CLUB_ADMIN), true);
+  assert.equal(canManageClubOccupancy(Role.YOUTH_DIRECTOR), true);
+  assert.equal(canManageClubOccupancy(Role.TRAINER_ADMIN), false);
+  assert.equal(canManageClubOccupancy(Role.COACH), false);
 });
 
 test('season transition preview respects explicit team overrides', () => {

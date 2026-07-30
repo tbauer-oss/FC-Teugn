@@ -388,6 +388,8 @@ model Team {
   description             String?
   trainingLocation        String?
   trainingTimes           String[]                  @default([])
+  trainingPartnerIds      String[]                  @default([])
+  matchdayTimes            String[]                  @default([])
   homeVenue               String?
   bfvTeamId               String?
   dfbnetTeamId            String?
@@ -444,6 +446,10 @@ model Season {
   isActive                     Boolean                  @default(false)
   recreationalTrainingLocation String?
   recreationalTrainingTimes    String[]                 @default([])
+  seniorTrainingLocation       String?
+  seniorTrainingTimes          String[]                 @default([])
+  seniorMatchdayTimes           String[]                 @default([])
+  approvedOccupancyConflictKeys String[]                @default([])
   createdAt                    DateTime                 @default(now())
   updatedAt                    DateTime                 @updatedAt
   club                         Club                     @relation(fields: [clubId], references: [id])

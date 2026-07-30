@@ -80,4 +80,75 @@ void main() {
     expect(plan.recreationalSchedule?.label, 'Freizeitkicker');
     expect(plan.recreationalSchedule?.slots.single.timeLabel, '19:30–21:00');
   });
+
+  test('matchday slots never create training conflicts', () {
+    const team = PitchOccupancyTeam(
+      id: 'e1',
+      name: 'E1',
+      ageGroupCode: 'E',
+      location: 'Platz 1 unten',
+      trainingTimes: ['Samstag 10:00–12:00'],
+      matchdayTimes: ['Samstag 10:00–12:00'],
+    );
+
+    expect(team.slots, hasLength(2));
+    expect(team.slots.first.overlaps(team.slots.last), isFalse);
+    expect(team.slots.last.kind, PitchOccupancySlotKind.matchday);
+  });
+
+  test('joint training is not reported as a conflict', () {
+    const first = PitchOccupancyTeam(
+      id: 'e1',
+      name: 'E1',
+      ageGroupCode: 'E',
+      location: 'Platz 2 oben',
+      trainingTimes: ['Dienstag 17:00–18:30'],
+      trainingPartnerIds: ['e2'],
+    );
+    const second = PitchOccupancyTeam(
+      id: 'e2',
+      name: 'E2',
+      ageGroupCode: 'E',
+      location: 'Platz 2 oben',
+      trainingTimes: ['Dienstag 17:00–18:30'],
+    );
+    const plan = PitchOccupancyPlan(
+      seasonId: 'season',
+      clubName: 'FC Teugn',
+      seasonName: '2026/27',
+      teams: [first, second],
+    );
+
+    expect(plan.conflicts, isEmpty);
+  });
+
+  test('approved conflicts remain identifiable but are marked approved', () {
+    const first = PitchOccupancyTeam(
+      id: 'e',
+      name: 'E',
+      ageGroupCode: 'E',
+      location: 'Platz 1 unten',
+      trainingTimes: ['Dienstag 17:00–18:30'],
+    );
+    const second = PitchOccupancyTeam(
+      id: 'd',
+      name: 'D',
+      ageGroupCode: 'D',
+      location: 'Platz 1 unten',
+      trainingTimes: ['Dienstag 18:00–19:30'],
+    );
+    final key = PitchOccupancyConflict.keyFor(
+      first.slots.single,
+      second.slots.single,
+    );
+    final plan = PitchOccupancyPlan(
+      seasonId: 'season',
+      clubName: 'FC Teugn',
+      seasonName: '2026/27',
+      teams: const [first, second],
+      approvedConflictKeys: {key},
+    );
+
+    expect(plan.conflicts.single.approved, isTrue);
+  });
 }
