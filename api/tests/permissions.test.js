@@ -44,6 +44,7 @@ const {
   checklistItems,
 } = require('../dist/src/controllers/team-operations.controller');
 const {
+  canDeleteTeamRole,
   teamDisplayName,
 } = require('../dist/src/controllers/organization.controller');
 const {
@@ -359,6 +360,13 @@ test('team display names omit the number only for a single youth team', () => {
   assert.equal(teamDisplayName('E', 1, 3), 'E1-Jugend');
   assert.equal(teamDisplayName('E', 2, 3), 'E2-Jugend');
   assert.equal(teamDisplayName('E', 3, 3), 'E3-Jugend');
+});
+
+test('only system administrators can delete teams', () => {
+  assert.equal(canDeleteTeamRole(Role.SUPER_ADMIN), true);
+  assert.equal(canDeleteTeamRole(Role.CLUB_ADMIN), false);
+  assert.equal(canDeleteTeamRole(Role.YOUTH_DIRECTOR), false);
+  assert.equal(canDeleteTeamRole(Role.TRAINER_ADMIN), false);
 });
 
 test('season transition preview respects explicit team overrides', () => {

@@ -19,31 +19,50 @@ export async function clubIdForTeam(teamId: string) {
 
 export async function accessibleTeamIds(user: TeamScopedUser) {
   if (String(user.role) === Role.SUPER_ADMIN) {
-    const teams = await prisma.team.findMany({ select: { id: true } });
+    const teams = await prisma.team.findMany({
+      where: { deletedAt: null },
+      select: { id: true },
+    });
     return teams.map((team) => team.id);
   }
   if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
     const clubId = await clubIdForTeam(user.teamId);
     if (!clubId) return [user.teamId];
     const teams = await prisma.team.findMany({
-      where: { ageGroup: { season: { clubId } } },
+      where: {
+        ageGroup: { season: { clubId } },
+        deletedAt: null,
+      },
       select: { id: true },
     });
     return teams.map((team) => team.id);
   }
   const memberships = await prisma.teamMembership.findMany({
-    where: { userId: user.id, status: AccountStatus.APPROVED },
+    where: {
+      userId: user.id,
+      status: AccountStatus.APPROVED,
+      team: { deletedAt: null },
+    },
     select: { teamId: true },
   });
-  return [...new Set([user.teamId, ...memberships.map((item) => item.teamId)])];
+  const currentTeam = await prisma.team.findFirst({
+    where: { id: user.teamId, deletedAt: null },
+    select: { id: true },
+  });
+  return [
+    ...new Set([
+      ...(currentTeam ? [currentTeam.id] : []),
+      ...memberships.map((item) => item.teamId),
+    ]),
+  ];
 }
 
 export async function canManageTeam(user: TeamScopedUser, teamId: string) {
   if (String(user.role) === Role.SUPER_ADMIN) {
     return Boolean(await prisma.team.findUnique({
       where: { id: teamId },
-      select: { id: true },
-    }));
+      select: { id: true, deletedAt: true },
+    }).then((team) => team && team.deletedAt === null));
   }
   if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
     const [currentClubId, targetClubId] = await Promise.all([

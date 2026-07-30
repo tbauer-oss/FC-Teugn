@@ -274,11 +274,13 @@ export async function listTrainings(req: Request, res: Response) {
   return res.json(
     trainings.map((training) => ({
       ...training,
-      roster: roster.filter((player) =>
-        [
-          training.teamId,
-          ...training.targetTeams.map((target) => target.teamId),
-        ].includes(player.teamId),
+      roster: roster.filter(
+        (player) =>
+          player.teamId !== null &&
+          [
+            training.teamId,
+            ...training.targetTeams.map((target) => target.teamId),
+          ].includes(player.teamId),
       ),
     })),
   );

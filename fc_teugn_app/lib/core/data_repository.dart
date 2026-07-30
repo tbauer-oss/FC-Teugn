@@ -108,6 +108,12 @@ class DataRepository {
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<int> deleteTeam(String teamId) async {
+    final res = await client.dio.delete('/organization/teams/$teamId');
+    final data = res.data as Map<String, dynamic>;
+    return (data['unassignedPlayerCount'] as num?)?.toInt() ?? 0;
+  }
+
   Future<TeamSummary> updateTrainingSchedule({
     required String teamId,
     required List<String> trainingTimes,

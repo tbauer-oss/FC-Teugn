@@ -131,6 +131,16 @@
         "security": [{"bearerAuth": []}],
         "parameters": [{"$ref": "#/components/parameters/Id"}],
         "responses": {"200": {"description": "Mannschaft aktualisiert"}, "403": {"$ref": "#/components/responses/Forbidden"}}
+      },
+      "delete": {
+        "tags": ["Organisation"],
+        "summary": "Mannschaft als Systemadministration löschen und Spieler freistellen",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"$ref": "#/components/parameters/Id"}],
+        "responses": {
+          "200": {"description": "Mannschaft archiviert und Spieler als nicht zugeordnet markiert"},
+          "403": {"$ref": "#/components/responses/Forbidden"}
+        }
       }
     },
     "/players": {
