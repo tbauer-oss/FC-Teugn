@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
-    "test": "npm run build && node --test tests/permissions.test.js tests/privacy-contract.test.js tests/match-roster.test.js",
+    "test": "npm run build && node --test tests/permissions.test.js tests/privacy-contract.test.js tests/match-roster.test.js tests/pitch-conflict.test.js",
     "test:e2e": "node scripts/e2e-smoke.mjs",
     "start": "node dist/src/index.js",
     "postinstall": "prisma generate",

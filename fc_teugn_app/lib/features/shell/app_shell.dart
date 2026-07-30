@@ -411,40 +411,50 @@ class _MobileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(18, 10, 8, 10),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
-          children: [
-            const _ClubBrand(light: false, compact: true),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                contextLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.navy,
-                  fontWeight: FontWeight.w700,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 430;
+        return Container(
+          color: Colors.white,
+          padding: EdgeInsets.fromLTRB(narrow ? 12 : 18, 8, 6, 8),
+          child: SafeArea(
+            bottom: false,
+            child: Row(
+              children: [
+                if (narrow)
+                  const ClubLogo(size: 38)
+                else
+                  const _ClubBrand(light: false, compact: true),
+                SizedBox(width: narrow ? 10 : 14),
+                Expanded(
+                  child: Text(
+                    contextLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.navy,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ),
+                _Avatar(name: userName, small: true),
+                IconButton(
+                  visualDensity: narrow ? VisualDensity.compact : null,
+                  tooltip: 'Datenschutz & meine Daten',
+                  onPressed: onPrivacy,
+                  icon: const Icon(Icons.shield_outlined),
+                ),
+                IconButton(
+                  visualDensity: narrow ? VisualDensity.compact : null,
+                  tooltip: 'Abmelden',
+                  onPressed: onLogout,
+                  icon: const Icon(Icons.logout_rounded),
+                ),
+              ],
             ),
-            _Avatar(name: userName, small: true),
-            IconButton(
-              tooltip: 'Datenschutz & meine Daten',
-              onPressed: onPrivacy,
-              icon: const Icon(Icons.shield_outlined),
-            ),
-            IconButton(
-              tooltip: 'Abmelden',
-              onPressed: onLogout,
-              icon: const Icon(Icons.logout_rounded),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

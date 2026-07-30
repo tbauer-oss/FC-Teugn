@@ -24,6 +24,11 @@ import {
 } from '../controllers/emergency.controller';
 import { sensitiveActionRateLimit } from '../middleware/rate-limit';
 import { Permission } from '../security/permissions';
+import {
+  checkPitchConflicts,
+  listPitchConflictRequests,
+  respondToPitchConflictRequest,
+} from '../controllers/pitch-conflicts.controller';
 
 const router = Router();
 
@@ -33,6 +38,16 @@ router.use(requireAuth);
 router.use(requireApproved);
 
 router.get('/', listEvents);
+router.get('/pitch-conflict-requests/list', listPitchConflictRequests);
+router.post(
+  '/pitch-conflicts/check',
+  requirePermission(Permission.MANAGE_EVENTS),
+  checkPitchConflicts,
+);
+router.patch(
+  '/pitch-conflict-requests/:requestId',
+  respondToPitchConflictRequest,
+);
 router.post('/calendar-subscription', calendarSubscription);
 router.post(
   '/:id/emergency-access',

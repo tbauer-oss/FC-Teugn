@@ -295,6 +295,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
     final draft = await showDialog<EventWriteData>(
       context: context,
       builder: (context) => EventEditorDialog(
+        repository: ref.read(repositoryProvider),
         teams: organization.teams,
         initialTeamId: organization.currentTeam.id,
         seasonName: organization.season.name,
@@ -1331,13 +1332,35 @@ class _RegularTrainingTimes extends StatelessWidget {
             else
               for (final value in team.trainingTimes)
                 Chip(
-                  avatar: const Icon(Icons.schedule_rounded, size: 17),
-                  label: Text(value),
+                  backgroundColor: Colors.white,
+                  avatar: const Icon(
+                    Icons.schedule_rounded,
+                    size: 17,
+                    color: AppColors.gold,
+                  ),
+                  label: Text(
+                    value,
+                    style: const TextStyle(
+                      color: AppColors.black,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
             if (team.trainingLocation?.isNotEmpty == true)
               Chip(
-                avatar: const Icon(Icons.location_on_outlined, size: 17),
-                label: Text(team.trainingLocation!),
+                backgroundColor: Colors.white,
+                avatar: const Icon(
+                  Icons.location_on_outlined,
+                  size: 17,
+                  color: AppColors.gold,
+                ),
+                label: Text(
+                  team.trainingLocation!,
+                  style: const TextStyle(
+                    color: AppColors.black,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
           ],
         ),

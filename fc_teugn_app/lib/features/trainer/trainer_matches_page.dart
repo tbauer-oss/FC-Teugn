@@ -46,13 +46,16 @@ class TrainerMatchesPage extends ConsumerWidget {
       ),
       child: events.when(
         data: (items) {
-          final matches = items.where((event) => event.type == EventType.match).toList()
+          final matches = items
+              .where((event) => event.type == EventType.match)
+              .toList()
             ..sort((a, b) => b.startAt.compareTo(a.startAt));
           if (matches.isEmpty) {
             return const EmptyState(
               icon: Icons.sports_soccer_rounded,
               title: 'Noch kein Spiel angelegt',
-              message: 'Lege unter „Termine“ ein Spiel an, um hier den Spieltag zu planen.',
+              message:
+                  'Lege unter „Termine“ ein Spiel an, um hier den Spieltag zu planen.',
             );
           }
           return Column(
@@ -84,13 +87,16 @@ class TrainerMatchesPage extends ConsumerWidget {
                         ref.invalidate(eventsProvider);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Spieldaten gespeichert.')),
+                            const SnackBar(
+                                content: Text('Spieldaten gespeichert.')),
                           );
                         }
                       } catch (_) {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Spieldaten konnten nicht gespeichert werden.')),
+                            const SnackBar(
+                                content: Text(
+                                    'Spieldaten konnten nicht gespeichert werden.')),
                           );
                         }
                       }
@@ -193,13 +199,16 @@ class TrainerMatchesPage extends ConsumerWidget {
     }
   }
 
-  Future<_MatchDraft?> _openMatchDialog(BuildContext context, EventModel event) async {
+  Future<_MatchDraft?> _openMatchDialog(
+      BuildContext context, EventModel event) async {
     final details = event.matchDetails;
     final opponent = TextEditingController(text: details?.opponent ?? '');
     String? competition = details?.competition ?? 'Liga';
     final notes = TextEditingController(text: details?.notes ?? '');
-    final ourGoals = TextEditingController(text: details?.ourGoals?.toString() ?? '');
-    final theirGoals = TextEditingController(text: details?.theirGoals?.toString() ?? '');
+    final ourGoals =
+        TextEditingController(text: details?.ourGoals?.toString() ?? '');
+    final theirGoals =
+        TextEditingController(text: details?.theirGoals?.toString() ?? '');
     final periodCount = TextEditingController(
       text: (details?.periodCount ?? 2).toString(),
     );
@@ -221,11 +230,18 @@ class TrainerMatchesPage extends ConsumerWidget {
                 children: [
                   SegmentedButton<bool>(
                     segments: const [
-                      ButtonSegment(value: true, label: Text('Heimspiel'), icon: Icon(Icons.home_rounded)),
-                      ButtonSegment(value: false, label: Text('Auswärts'), icon: Icon(Icons.directions_bus_rounded)),
+                      ButtonSegment(
+                          value: true,
+                          label: Text('Heimspiel'),
+                          icon: Icon(Icons.home_rounded)),
+                      ButtonSegment(
+                          value: false,
+                          label: Text('Auswärts'),
+                          icon: Icon(Icons.directions_bus_rounded)),
                     ],
                     selected: {isHome},
-                    onSelectionChanged: (value) => setState(() => isHome = value.first),
+                    onSelectionChanged: (value) =>
+                        setState(() => isHome = value.first),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -236,15 +252,13 @@ class TrainerMatchesPage extends ConsumerWidget {
                   DropdownButtonFormField<String?>(
                     initialValue: competition,
                     isExpanded: true,
-                    decoration:
-                        const InputDecoration(labelText: 'Wettbewerb'),
+                    decoration: const InputDecoration(labelText: 'Wettbewerb'),
                     items: footballOptionItems(
                       options: footballCompetitions,
                       emptyLabel: 'Nicht angegeben',
                       currentValue: competition,
                     ),
-                    onChanged: (value) =>
-                        setState(() => competition = value),
+                    onChanged: (value) => setState(() => competition = value),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -253,7 +267,8 @@ class TrainerMatchesPage extends ConsumerWidget {
                         child: TextField(
                           controller: ourGoals,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Tore FC Teugn'),
+                          decoration:
+                              const InputDecoration(labelText: 'Tore FC Teugn'),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -261,7 +276,8 @@ class TrainerMatchesPage extends ConsumerWidget {
                         child: TextField(
                           controller: theirGoals,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Tore Gegner'),
+                          decoration:
+                              const InputDecoration(labelText: 'Tore Gegner'),
                         ),
                       ),
                     ],
@@ -300,8 +316,9 @@ class TrainerMatchesPage extends ConsumerWidget {
                     builder: (context) {
                       final count = int.tryParse(periodCount.text.trim());
                       final minutes = int.tryParse(periodMinutes.text.trim());
-                      final total =
-                          count == null || minutes == null ? null : count * minutes;
+                      final total = count == null || minutes == null
+                          ? null
+                          : count * minutes;
                       return Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -332,7 +349,8 @@ class TrainerMatchesPage extends ConsumerWidget {
               onPressed: () {
                 if (opponent.text.trim().isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Bitte einen Gegner eintragen.')),
+                    const SnackBar(
+                        content: Text('Bitte einen Gegner eintragen.')),
                   );
                   return;
                 }
@@ -403,74 +421,127 @@ class _MatchCard extends StatelessWidget {
     final date = event.startAt.toLocal();
     final hasResult = details?.ourGoals != null && details?.theirGoals != null;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                color: AppColors.blue.withValues(alpha: .1),
-                borderRadius: BorderRadius.circular(16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 680;
+          final title = details == null
+              ? event.title
+              : 'FC Teugn ${details.isHome ? '–' : '@'} ${details.opponent}';
+          final information = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: compact ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              child: const Icon(Icons.sports_soccer_rounded, color: AppColors.blue),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    details == null
-                        ? event.title
-                        : 'FC Teugn ${details.isHome ? '–' : '@'} ${details.opponent}',
-                    style: Theme.of(context).textTheme.titleLarge,
+              const SizedBox(height: 4),
+              Text(
+                '${date.day}.${date.month}.${date.year} · ${event.location}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (details?.competition?.isNotEmpty == true)
+                Text(
+                  details!.competition!,
+                  style: const TextStyle(color: AppColors.blue),
+                ),
+              if (details != null)
+                Text(
+                  '${details.periodCount} × ${details.periodMinutes} Min. '
+                  '· ${details.durationMinutes} Min. gesamt',
+                ),
+            ],
+          );
+          final actions = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_rounded, size: 18),
+                label: const Text('Daten'),
+              ),
+              if (onDelete != null)
+                IconButton.filledTonal(
+                  onPressed: onDelete,
+                  color: Theme.of(context).colorScheme.error,
+                  tooltip: 'Spiel endgültig löschen',
+                  icon: const Icon(Icons.delete_forever_rounded),
+                ),
+              FilledButton.icon(
+                onPressed: onOpen,
+                icon: const Icon(Icons.stadium_rounded, size: 18),
+                label: const Text('Spieltag'),
+              ),
+            ],
+          );
+          return Padding(
+            padding: EdgeInsets.all(compact ? 14 : 20),
+            child: compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: AppColors.blue.withValues(alpha: .1),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.sports_soccer_rounded,
+                              color: AppColors.blue,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(child: information),
+                          if (hasResult) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              '${details!.ourGoals}:${details.theirGoals}',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Align(alignment: Alignment.centerLeft, child: actions),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          color: AppColors.blue.withValues(alpha: .1),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.sports_soccer_rounded,
+                          color: AppColors.blue,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(child: information),
+                      if (hasResult)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            '${details!.ourGoals} : ${details.theirGoals}',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                        ),
+                      actions,
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text('${date.day}.${date.month}.${date.year} · ${event.location}'),
-                  if (details?.competition?.isNotEmpty == true)
-                    Text(details!.competition!, style: const TextStyle(color: AppColors.blue)),
-                  if (details != null)
-                    Text(
-                      '${details.periodCount} × ${details.periodMinutes} Min. '
-                      '· ${details.durationMinutes} Min. gesamt',
-                    ),
-                ],
-              ),
-            ),
-            if (hasResult)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  '${details!.ourGoals} : ${details.theirGoals}',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              ),
-            Wrap(
-              spacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_rounded, size: 18),
-                  label: const Text('Daten'),
-                ),
-                if (onDelete != null)
-                  IconButton(
-                    onPressed: onDelete,
-                    color: Theme.of(context).colorScheme.error,
-                    tooltip: 'Spiel endgültig löschen',
-                    icon: const Icon(Icons.delete_forever_rounded),
-                  ),
-                FilledButton.icon(
-                  onPressed: onOpen,
-                  icon: const Icon(Icons.stadium_rounded, size: 18),
-                  label: const Text('Spieltag'),
-                ),
-              ],
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

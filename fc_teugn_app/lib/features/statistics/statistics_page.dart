@@ -45,9 +45,9 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
           ? (_selectedTeamId ?? user.teamId)
           : user.teamId;
       final overview = await ref.read(repositoryProvider).statistics(
-            teamIds: [teamId],
-            seasonId: _seasonId,
-          );
+        teamIds: [teamId],
+        seasonId: _seasonId,
+      );
       if (!mounted) return;
       setState(() {
         _overview = overview;
@@ -83,8 +83,7 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
     final selectedLabel = overview.selectedSeason?.name ?? 'Gesamt';
     final user = ref.watch(authProvider).user;
     final organization = ref.watch(organizationProvider).value;
-    final canSelectTeam =
-        user != null && canSelectStatisticsTeam(user.role);
+    final canSelectTeam = user != null && canSelectStatisticsTeam(user.role);
     final statisticsTeams = _teamOptions(organization);
     final registeredTeamId = user?.teamId;
     final selectedTeamId = canSelectTeam
@@ -102,7 +101,8 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final seasonSelector = DropdownButtonFormField<String>(
-                  key: ValueKey('statistics-season-${_seasonId ?? _allSeasons}'),
+                  key:
+                      ValueKey('statistics-season-${_seasonId ?? _allSeasons}'),
                   initialValue: _seasonId ?? _allSeasons,
                   decoration: const InputDecoration(
                     labelText: 'Auswertungszeitraum',
@@ -199,38 +199,54 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
           ),
         ),
         const SizedBox(height: 18),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _MetricCard(
-              label: 'Spiele · $selectedLabel',
-              value: '${team.matches}',
-              icon: Icons.sports_soccer_rounded,
-            ),
-            _MetricCard(
-              label: 'Siege',
-              value: '${team.wins}',
-              icon: Icons.emoji_events_rounded,
-              color: AppColors.teal,
-            ),
-            _MetricCard(
-              label: 'Siegquote',
-              value: '${team.winRate.toStringAsFixed(1)} %',
-              icon: Icons.trending_up_rounded,
-            ),
-            _MetricCard(
-              label: 'Tore',
-              value: '${team.goalsFor}:${team.goalsAgainst}',
-              icon: Icons.scoreboard_rounded,
-              color: AppColors.orange,
-            ),
-            _MetricCard(
-              label: 'Tore/Spiel',
-              value: team.goalsPerMatch.toStringAsFixed(2),
-              icon: Icons.analytics_outlined,
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 600;
+            final cardWidth = compact ? (constraints.maxWidth - 10) / 2 : 190.0;
+            return Wrap(
+              spacing: compact ? 10 : 12,
+              runSpacing: compact ? 10 : 12,
+              children: [
+                _MetricCard(
+                  width: cardWidth,
+                  compact: compact,
+                  label: 'Spiele · $selectedLabel',
+                  value: '${team.matches}',
+                  icon: Icons.sports_soccer_rounded,
+                ),
+                _MetricCard(
+                  width: cardWidth,
+                  compact: compact,
+                  label: 'Siege',
+                  value: '${team.wins}',
+                  icon: Icons.emoji_events_rounded,
+                  color: AppColors.teal,
+                ),
+                _MetricCard(
+                  width: cardWidth,
+                  compact: compact,
+                  label: 'Siegquote',
+                  value: '${team.winRate.toStringAsFixed(1)} %',
+                  icon: Icons.trending_up_rounded,
+                ),
+                _MetricCard(
+                  width: cardWidth,
+                  compact: compact,
+                  label: 'Tore',
+                  value: '${team.goalsFor}:${team.goalsAgainst}',
+                  icon: Icons.scoreboard_rounded,
+                  color: AppColors.orange,
+                ),
+                _MetricCard(
+                  width: cardWidth,
+                  compact: compact,
+                  label: 'Tore/Spiel',
+                  value: team.goalsPerMatch.toStringAsFixed(2),
+                  icon: Icons.analytics_outlined,
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 18),
         _FormCard(form: team.form),
@@ -349,33 +365,51 @@ class _MetricCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    this.width = 190,
+    this.compact = false,
     this.color = AppColors.blue,
   });
   final String label;
   final String value;
   final IconData icon;
   final Color color;
+  final double width;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: 190,
+        width: width,
         child: Card(
           child: Padding(
-            padding: const EdgeInsets.all(18),
+            padding: EdgeInsets.all(compact ? 12 : 18),
             child: Row(
               children: [
                 CircleAvatar(
+                  radius: compact ? 18 : 20,
                   backgroundColor: color.withValues(alpha: .1),
-                  child: Icon(icon, color: color),
+                  child: Icon(icon, color: color, size: compact ? 20 : 24),
                 ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(value,
-                        style: Theme.of(context).textTheme.headlineSmall),
-                    Text(label, style: const TextStyle(color: AppColors.muted)),
-                  ],
+                SizedBox(width: compact ? 8 : 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: compact
+                            ? Theme.of(context).textTheme.titleLarge
+                            : Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.muted),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -391,37 +425,37 @@ class _FormCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
         child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
+          padding: const EdgeInsets.all(16),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const Icon(Icons.timeline_rounded, color: AppColors.blue),
-              const SizedBox(width: 12),
-              Text('Letzte Form',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const Spacer(),
+              Text(
+                'Letzte Form',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               if (form.isEmpty)
                 const Text('Noch keine beendeten Spiele')
               else
                 for (final result in form)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 7),
-                    child: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: switch (result) {
-                        'WIN' => AppColors.teal,
-                        'LOSS' => Colors.deepOrange,
-                        _ => Colors.blueGrey,
-                      },
-                      child: Text(
-                        result == 'WIN'
-                            ? 'S'
-                            : result == 'LOSS'
-                                ? 'N'
-                                : 'U',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: switch (result) {
+                      'WIN' => AppColors.teal,
+                      'LOSS' => Colors.deepOrange,
+                      _ => Colors.blueGrey,
+                    },
+                    child: Text(
+                      result == 'WIN'
+                          ? 'S'
+                          : result == 'LOSS'
+                              ? 'N'
+                              : 'U',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),

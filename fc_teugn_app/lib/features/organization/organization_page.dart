@@ -282,32 +282,49 @@ class _OrganizationContent extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Mannschaftsstruktur',
-                      style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${data.ageGroups.length} Altersklassen · ${data.teams.where((team) => team.isActive).length} aktive Mannschaften',
-                  ),
-                ],
-              ),
-            ),
-            if (data.can('MANAGE_ORGANIZATION'))
-              FilledButton.icon(
-                onPressed: () => _openEditor(
-                  context,
-                  ref,
-                  initialAgeGroup: data.currentTeam.ageGroup,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 620;
+            final heading = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Mannschaftsstruktur',
+                    style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 4),
+                Text(
+                  '${data.ageGroups.length} Altersklassen · ${data.teams.where((team) => team.isActive).length} aktive Mannschaften',
                 ),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Mannschaft anlegen'),
-              ),
-          ],
+              ],
+            );
+            final action = data.can('MANAGE_ORGANIZATION')
+                ? FilledButton.icon(
+                    onPressed: () => _openEditor(
+                      context,
+                      ref,
+                      initialAgeGroup: data.currentTeam.ageGroup,
+                    ),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Mannschaft anlegen'),
+                  )
+                : null;
+            return compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      heading,
+                      if (action != null) ...[
+                        const SizedBox(height: 12),
+                        action,
+                      ],
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(child: heading),
+                      if (action != null) action,
+                    ],
+                  );
+          },
         ),
         const SizedBox(height: 16),
         for (final ageGroup in data.ageGroups)
@@ -343,9 +360,10 @@ class _ClubHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(compact ? 18 : 24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.black, Color(0xFF3A3400)],
@@ -359,7 +377,7 @@ class _ClubHero extends StatelessWidget {
         runSpacing: 18,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          const ClubLogo(size: 76),
+          ClubLogo(size: compact ? 58 : 76),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -543,13 +561,14 @@ class _TeamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            height: 140,
+            height: compact ? 96 : 140,
             width: double.infinity,
             child: team.photoUrl != null
                 ? Image.network(team.photoUrl!, fit: BoxFit.cover)
@@ -565,7 +584,7 @@ class _TeamCard extends StatelessWidget {
                   ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(compact ? 14 : 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

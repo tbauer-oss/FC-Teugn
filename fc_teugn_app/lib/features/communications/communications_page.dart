@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/models/communication.dart';
@@ -14,8 +15,7 @@ class CommunicationsPage extends ConsumerStatefulWidget {
   final bool staffView;
 
   @override
-  ConsumerState<CommunicationsPage> createState() =>
-      _CommunicationsPageState();
+  ConsumerState<CommunicationsPage> createState() => _CommunicationsPageState();
 }
 
 class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
@@ -26,7 +26,12 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final labels = ['Mitteilungen', 'Benachrichtigungen', 'Einstellungen'];
+    final labels = [
+      'Mitteilungen',
+      'Platzanfragen',
+      'Benachrichtigungen',
+      'Einstellungen',
+    ];
     return PageScaffold(
       title: 'Team-Nachrichten',
       subtitle:
@@ -49,8 +54,7 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
                   ButtonSegment(value: index, label: Text(labels[index])),
               ],
               selected: {_tab},
-              onSelectionChanged: (value) =>
-                  setState(() => _tab = value.first),
+              onSelectionChanged: (value) => setState(() => _tab = value.first),
             ),
           ),
           const SizedBox(height: 20),
@@ -61,6 +65,11 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
               onChanged: _reload,
             )
           else if (_tab == 1)
+            _PitchConflictRequestList(
+              key: ValueKey('pitch-conflicts-$_revision'),
+              onChanged: _reload,
+            )
+          else if (_tab == 2)
             _NotificationList(
               key: ValueKey('notifications-$_revision'),
               onChanged: _reload,
@@ -110,9 +119,263 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mitteilung konnte nicht gespeichert werden.')),
+        const SnackBar(
+            content: Text('Mitteilung konnte nicht gespeichert werden.')),
       );
     }
+  }
+}
+
+class _PitchConflictRequestList extends ConsumerWidget {
+  const _PitchConflictRequestList({
+    super.key,
+    required this.onChanged,
+  });
+
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<List<PitchConflictRequestModel>>(
+      future: ref.read(repositoryProvider).pitchConflictRequests(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) return _ErrorCard(onRetry: onChanged);
+        final items = snapshot.data ?? const [];
+        if (items.isEmpty) {
+          return const EmptyState(
+            icon: Icons.event_available_rounded,
+            title: 'Keine offenen Platzabstimmungen',
+            message:
+                'Anfragen wegen Überschneidungen mit Trainings erscheinen hier.',
+          );
+        }
+        return Column(
+          children: [
+            for (final item in items) ...[
+              _PitchConflictRequestCard(
+                request: item,
+                onRespond: item.canRespond
+                    ? (status) => _respond(context, ref, item, status)
+                    : null,
+              ),
+              const SizedBox(height: 12),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _respond(
+    BuildContext context,
+    WidgetRef ref,
+    PitchConflictRequestModel request,
+    PitchConflictRequestStatus status,
+  ) async {
+    final controller = TextEditingController();
+    final label = switch (status) {
+      PitchConflictRequestStatus.approved => 'Freigeben',
+      PitchConflictRequestStatus.declined => 'Ablehnen',
+      PitchConflictRequestStatus.callbackRequested => 'Rückruf anfordern',
+      _ => 'Bestätigen',
+    };
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(label),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${request.eventTitle} auf ${request.pitch}\n'
+              'Konflikt: ${request.trainingScheduleValue}',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Antwort (optional)',
+                hintText: 'Hinweis zur Abstimmung',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(label),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) {
+      controller.dispose();
+      return;
+    }
+    try {
+      await ref.read(repositoryProvider).respondToPitchConflictRequest(
+            requestId: request.id,
+            status: status,
+            responseMessage:
+                controller.text.trim().isEmpty ? null : controller.text.trim(),
+          );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Platzanfrage: $label wurde übermittelt.')),
+      );
+      onChanged();
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Die Antwort konnte nicht übermittelt werden.'),
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+}
+
+class _PitchConflictRequestCard extends StatelessWidget {
+  const _PitchConflictRequestCard({
+    required this.request,
+    required this.onRespond,
+  });
+
+  final PitchConflictRequestModel request;
+  final ValueChanged<PitchConflictRequestStatus>? onRespond;
+
+  @override
+  Widget build(BuildContext context) {
+    final incoming = request.direction == 'INCOMING';
+    final color = switch (request.status) {
+      PitchConflictRequestStatus.pending => AppColors.orange,
+      PitchConflictRequestStatus.approved => Colors.green,
+      PitchConflictRequestStatus.declined =>
+        Theme.of(context).colorScheme.error,
+      PitchConflictRequestStatus.callbackRequested => AppColors.blue,
+      PitchConflictRequestStatus.cancelled => AppColors.muted,
+    };
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  backgroundColor: color.withValues(alpha: .12),
+                  child: Icon(Icons.stadium_rounded, color: color),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          Text(
+                            request.eventTitle,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          Chip(
+                            label: Text(_pitchRequestStatus(request.status)),
+                            side: BorderSide(color: color),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '${_dateTime(request.eventStartAt)} · ${request.pitch}',
+                      ),
+                      Text(
+                        'Betroffen: ${request.trainingTeamName} · '
+                        '${request.trainingScheduleValue}',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              incoming
+                  ? 'Anfrage von ${request.requesterName}'
+                  : 'Anfrage an ${request.recipientName}',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            if (request.message?.isNotEmpty == true) ...[
+              const SizedBox(height: 6),
+              Text(request.message!),
+            ],
+            if (request.responseMessage?.isNotEmpty == true) ...[
+              const Divider(height: 24),
+              Text('Antwort: ${request.responseMessage!}'),
+            ],
+            if (request.status ==
+                    PitchConflictRequestStatus.callbackRequested &&
+                request.recipientPhone?.isNotEmpty == true) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => launchUrl(
+                  Uri(scheme: 'tel', path: request.recipientPhone),
+                ),
+                icon: const Icon(Icons.phone_rounded),
+                label: Text('${request.recipientName} zurückrufen'),
+              ),
+            ],
+            if (onRespond != null) ...[
+              const Divider(height: 28),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () =>
+                        onRespond!(PitchConflictRequestStatus.approved),
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('Freigeben'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        onRespond!(PitchConflictRequestStatus.declined),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Ablehnen'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: request.recipientPhone?.isNotEmpty == true
+                        ? () => onRespond!(
+                              PitchConflictRequestStatus.callbackRequested,
+                            )
+                        : null,
+                    icon: const Icon(Icons.phone_callback_rounded),
+                    label: Text(
+                      request.recipientPhone?.isNotEmpty == true
+                          ? 'Bitte um Rückruf'
+                          : 'Keine Telefonnummer hinterlegt',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -129,9 +392,8 @@ class _AnnouncementList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return FutureBuilder<List<AnnouncementModel>>(
-      future: ref
-          .read(repositoryProvider)
-          .announcements(includeDrafts: staffView),
+      future:
+          ref.read(repositoryProvider).announcements(includeDrafts: staffView),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
@@ -263,8 +525,7 @@ class _AnnouncementCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         if (!announcement.isRead &&
-                            announcement.status ==
-                                AnnouncementStatus.published)
+                            announcement.status == AnnouncementStatus.published)
                           const Badge(label: Text('Neu')),
                         if (staffView)
                           Chip(label: Text(_status(announcement.status))),
@@ -333,10 +594,9 @@ class _NotificationList extends ConsumerWidget {
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(14),
                   leading: CircleAvatar(
-                    backgroundColor: (item.isRead
-                            ? AppColors.muted
-                            : AppColors.blue)
-                        .withValues(alpha: .12),
+                    backgroundColor:
+                        (item.isRead ? AppColors.muted : AppColors.blue)
+                            .withValues(alpha: .12),
                     child: Icon(
                       Icons.notifications_rounded,
                       color: item.isRead ? AppColors.muted : AppColors.blue,
@@ -346,7 +606,8 @@ class _NotificationList extends ConsumerWidget {
                   subtitle: Text(item.body),
                   trailing: item.isRead
                       ? null
-                      : const Icon(Icons.circle, size: 10, color: AppColors.orange),
+                      : const Icon(Icons.circle,
+                          size: 10, color: AppColors.orange),
                   onTap: item.isRead
                       ? null
                       : () async {
@@ -372,8 +633,7 @@ class _NotificationSettings extends ConsumerStatefulWidget {
       _NotificationSettingsState();
 }
 
-class _NotificationSettingsState
-    extends ConsumerState<_NotificationSettings> {
+class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
   List<NotificationPreferenceModel>? _items;
   PushConfiguration? _configuration;
   bool _subscribing = false;
@@ -426,8 +686,7 @@ class _NotificationSettingsState
             for (var index = 0; index < items.length; index++)
               _PreferenceRow(
                 value: items[index],
-                onChanged: (value) =>
-                    setState(() => _items![index] = value),
+                onChanged: (value) => setState(() => _items![index] = value),
               ),
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -523,10 +782,9 @@ class _PushRegistrationCard extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           FilledButton(
-            onPressed:
-                configured && webPushSupported && !subscribing
-                    ? onSubscribe
-                    : null,
+            onPressed: configured && webPushSupported && !subscribing
+                ? onSubscribe
+                : null,
             child: Text(subscribing ? 'Aktiviere …' : 'Aktivieren'),
           ),
         ],
@@ -629,7 +887,8 @@ class _ComposeAnnouncementDialogState
                 decoration: const InputDecoration(labelText: 'Nachricht'),
               ),
               const SizedBox(height: 16),
-              Text('Mannschaften', style: Theme.of(context).textTheme.titleLarge),
+              Text('Mannschaften',
+                  style: Theme.of(context).textTheme.titleLarge),
               for (final team in widget.organization.teams)
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
@@ -691,8 +950,7 @@ class _ComposeAnnouncementDialogState
                     child: Text('Als Entwurf speichern'),
                   ),
                 ],
-                onChanged: (value) =>
-                    setState(() => _status = value!),
+                onChanged: (value) => setState(() => _status = value!),
               ),
               if (_status == AnnouncementStatus.scheduled) ...[
                 const SizedBox(height: 12),
@@ -717,8 +975,7 @@ class _ComposeAnnouncementDialogState
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Push-Benachrichtigung senden'),
                 value: _pushEnabled,
-                onChanged: (value) =>
-                    setState(() => _pushEnabled = value),
+                onChanged: (value) => setState(() => _pushEnabled = value),
               ),
             ],
           ),
@@ -856,6 +1113,14 @@ String _category(NotificationCategory value) => switch (value) {
       NotificationCategory.registration => 'Registrierung',
       NotificationCategory.urgent => 'Dringende Hinweise',
       NotificationCategory.system => 'System',
+    };
+
+String _pitchRequestStatus(PitchConflictRequestStatus value) => switch (value) {
+      PitchConflictRequestStatus.pending => 'Offen',
+      PitchConflictRequestStatus.approved => 'Freigegeben',
+      PitchConflictRequestStatus.declined => 'Abgelehnt',
+      PitchConflictRequestStatus.callbackRequested => 'Rückruf gewünscht',
+      PitchConflictRequestStatus.cancelled => 'Erledigt',
     };
 
 String _dateTime(DateTime value) =>

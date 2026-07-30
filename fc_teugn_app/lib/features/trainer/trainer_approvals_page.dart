@@ -20,6 +20,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
     final organization = ref.watch(organizationProvider).value;
     final players = ref.watch(playersProvider).value ?? const <PlayerModel>[];
     final currentUser = ref.watch(authProvider).user;
+    final mobile = MediaQuery.sizeOf(context).width < 600;
 
     return PageScaffold(
       title: 'Mitglieder & Freigaben',
@@ -48,8 +49,9 @@ class TrainerApprovalsPage extends ConsumerWidget {
                 dividerColor: Colors.transparent,
                 tabs: [
                   Tab(
-                    text:
-                        'Offene Anfragen (${pending.value?.length ?? '–'})',
+                    text: mobile
+                        ? 'Anfragen (${pending.value?.length ?? '–'})'
+                        : 'Offene Anfragen (${pending.value?.length ?? '–'})',
                   ),
                   Tab(text: 'Mitglieder (${members.value?.length ?? '–'})'),
                 ],
@@ -190,7 +192,8 @@ class TrainerApprovalsPage extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Freigabe konnte nicht gespeichert werden.')),
+          const SnackBar(
+              content: Text('Freigabe konnte nicht gespeichert werden.')),
         );
       }
     }
@@ -248,13 +251,11 @@ class TrainerApprovalsPage extends ConsumerWidget {
   Future<void> _reviewWithoutApproval(
     BuildContext context,
     WidgetRef ref,
-    AppUser user,
-    {
+    AppUser user, {
     required AccountStatus status,
     required RegistrationReviewStatus reviewStatus,
     required String title,
-    }
-  ) async {
+  }) async {
     final note = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -278,7 +279,8 @@ class TrainerApprovalsPage extends ConsumerWidget {
             child: const Text('Abbrechen'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, note.text.trim().isNotEmpty),
+            onPressed: () =>
+                Navigator.pop(context, note.text.trim().isNotEmpty),
             child: const Text('Speichern'),
           ),
         ],
@@ -291,8 +293,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
             status: status,
             adminNote:
                 status == AccountStatus.rejected ? note.text.trim() : null,
-            applicantMessage: reviewStatus ==
-                    RegistrationReviewStatus.needsInfo
+            applicantMessage: reviewStatus == RegistrationReviewStatus.needsInfo
                 ? note.text.trim()
                 : null,
             reviewStatus: reviewStatus,
@@ -317,7 +318,8 @@ class TrainerApprovalsPage extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _DetailRow(label: 'E-Mail', value: user.email),
-                _DetailRow(label: 'Telefon', value: user.phone ?? 'Nicht angegeben'),
+                _DetailRow(
+                    label: 'Telefon', value: user.phone ?? 'Nicht angegeben'),
                 _DetailRow(
                   label: 'Gewünschte Rolle',
                   value: request == null
@@ -339,7 +341,8 @@ class TrainerApprovalsPage extends ConsumerWidget {
                 ),
                 _DetailRow(
                   label: 'Push-Einwilligung',
-                  value: request?.pushOptIn == true ? 'Erteilt' : 'Nicht erteilt',
+                  value:
+                      request?.pushOptIn == true ? 'Erteilt' : 'Nicht erteilt',
                 ),
                 if (request?.adminNote?.isNotEmpty == true)
                   _DetailRow(label: 'Adminnotiz', value: request!.adminNote!),
@@ -355,7 +358,8 @@ class TrainerApprovalsPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 if (request == null || request.history.isEmpty)
-                  const Text('Für diesen Bestandsaccount liegt keine Registrierungshistorie vor.')
+                  const Text(
+                      'Für diesen Bestandsaccount liegt keine Registrierungshistorie vor.')
                 else
                   for (final item in request.history)
                     ListTile(
@@ -441,11 +445,12 @@ class _PendingListState extends State<_PendingList> {
               user.name.toLowerCase().contains(query) ||
               user.email.toLowerCase().contains(query) ||
               (request?.childName?.toLowerCase().contains(query) ?? false);
-          final matchesRole =
-              _role == null || request?.requestedRole == _role || user.role == _role;
+          final matchesRole = _role == null ||
+              request?.requestedRole == _role ||
+              user.role == _role;
           final requestedTeams = request?.requestedTeams ?? user.memberships;
-          final matchesTeam =
-              _teamId == null || requestedTeams.any((team) => team.teamId == _teamId);
+          final matchesTeam = _teamId == null ||
+              requestedTeams.any((team) => team.teamId == _teamId);
           return matchesQuery && matchesRole && matchesTeam;
         }).toList();
         return ListView.separated(
@@ -477,7 +482,8 @@ class _PendingListState extends State<_PendingList> {
                           initialValue: _role,
                           decoration: const InputDecoration(labelText: 'Rolle'),
                           items: const [
-                            DropdownMenuItem(value: null, child: Text('Alle Rollen')),
+                            DropdownMenuItem(
+                                value: null, child: Text('Alle Rollen')),
                             DropdownMenuItem(
                               value: UserRole.parent,
                               child: Text('Eltern'),
@@ -532,73 +538,107 @@ class _PendingListState extends State<_PendingList> {
             }
             final user = filtered[index - 1];
             return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppColors.orange.withValues(alpha: .18),
-                      child: Text(
-                        _initials(user.name),
-                        style: const TextStyle(
-                          color: AppColors.navy,
-                          fontWeight: FontWeight.w900,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 620;
+                  final identity = Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor:
+                            AppColors.orange.withValues(alpha: .18),
+                        child: Text(
+                          _initials(user.name),
+                          style: const TextStyle(
+                            color: AppColors.navy,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user.name,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 3),
-                          Text('${user.email} · ${user.roleLabel}'),
-                          if (user.createdAt != null)
+                      const SizedBox(width: 13),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              'Registriert am ${_date(user.createdAt!)}',
-                              style: Theme.of(context).textTheme.bodySmall,
+                              user.name,
+                              style: Theme.of(context).textTheme.titleLarge,
                             ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${user.email}\n${user.roleLabel}',
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (user.createdAt != null)
+                              Text(
+                                'Registriert am ${_date(user.createdAt!)}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                  final actions = Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      PopupMenuButton<String>(
+                        tooltip: 'Aktionen',
+                        onSelected: (value) {
+                          if (value == 'details') widget.onDetails(user);
+                          if (value == 'question') widget.onNeedsInfo(user);
+                          if (value == 'reject') widget.onReject(user);
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(
+                            value: 'details',
+                            child: Text('Details & Historie'),
+                          ),
+                          PopupMenuItem(
+                            value: 'question',
+                            child: Text('Rückfrage markieren'),
+                          ),
+                          PopupMenuItem(
+                            value: 'reject',
+                            child: Text('Ablehnen'),
+                          ),
                         ],
                       ),
-                    ),
-                    PopupMenuButton<String>(
-                      tooltip: 'Aktionen',
-                      onSelected: (value) {
-                        if (value == 'details') widget.onDetails(user);
-                        if (value == 'question') widget.onNeedsInfo(user);
-                        if (value == 'reject') widget.onReject(user);
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'details',
-                          child: Text('Details & Historie'),
-                        ),
-                        PopupMenuItem(
-                          value: 'question',
-                          child: Text('Rückfrage markieren'),
-                        ),
-                        PopupMenuItem(
-                          value: 'reject',
-                          child: Text('Ablehnen'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 6),
-                    FilledButton.icon(
-                      onPressed:
-                          widget.organization == null
-                              ? null
-                              : () => widget.onApprove(user),
-                      icon: const Icon(Icons.fact_check_outlined),
-                      label: const Text('Prüfen'),
-                    ),
-                  ],
-                ),
+                      FilledButton.icon(
+                        onPressed: widget.organization == null
+                            ? null
+                            : () => widget.onApprove(user),
+                        icon: const Icon(Icons.fact_check_outlined),
+                        label: const Text('Prüfen'),
+                      ),
+                    ],
+                  );
+                  return Padding(
+                    padding: EdgeInsets.all(compact ? 14 : 18),
+                    child: compact
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              identity,
+                              const SizedBox(height: 12),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: actions,
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(child: identity),
+                              const SizedBox(width: 12),
+                              actions,
+                            ],
+                          ),
+                  );
+                },
               ),
             );
           },
@@ -630,44 +670,105 @@ class _MemberList extends StatelessWidget {
           final user = users[index];
           final approved = user.status == AccountStatus.approved;
           return Card(
-            child: ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              leading: CircleAvatar(child: Text(_initials(user.name))),
-              title: Text(user.name),
-              subtitle: Text(
-                [
-                  user.roleLabel,
-                  if (user.memberships.isNotEmpty)
-                    user.memberships
-                        .map((item) =>
-                            '${item.ageGroupCode}-Jugend ${item.teamName}')
-                        .join(', '),
-                ].join(' · '),
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Chip(
-                    avatar: Icon(
-                      approved
-                          ? Icons.check_circle_rounded
-                          : Icons.block_rounded,
-                      size: 16,
-                      color: approved ? AppColors.teal : Colors.redAccent,
-                    ),
-                    label: Text(
-                      approved ? 'Freigegeben' : _status(user.status),
-                    ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 620;
+                final status = Chip(
+                  avatar: Icon(
+                    approved ? Icons.check_circle_rounded : Icons.block_rounded,
+                    size: 16,
+                    color: approved ? AppColors.teal : Colors.redAccent,
                   ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    tooltip: 'Rolle, Mannschaften und Rechte bearbeiten',
-                    onPressed: onEdit == null ? null : () => onEdit!(user),
-                    icon: const Icon(Icons.manage_accounts_outlined),
+                  label: Text(
+                    approved ? 'Freigegeben' : _status(user.status),
                   ),
-                ],
-              ),
+                );
+                final edit = IconButton.filledTonal(
+                  tooltip: 'Rolle, Mannschaften und Rechte bearbeiten',
+                  onPressed: onEdit == null ? null : () => onEdit!(user),
+                  icon: const Icon(Icons.manage_accounts_outlined),
+                );
+                return Padding(
+                  padding: EdgeInsets.all(compact ? 14 : 10),
+                  child: compact
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                CircleAvatar(
+                                  child: Text(_initials(user.name)),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        user.name,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge,
+                                      ),
+                                      Text(
+                                        [
+                                          user.roleLabel,
+                                          if (user.memberships.isNotEmpty)
+                                            user.memberships
+                                                .map(
+                                                  (item) =>
+                                                      '${item.ageGroupCode} · ${item.teamName}',
+                                                )
+                                                .join(', '),
+                                        ].join(' · '),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                edit,
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: status,
+                            ),
+                          ],
+                        )
+                      : ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          leading: CircleAvatar(
+                            child: Text(_initials(user.name)),
+                          ),
+                          title: Text(user.name),
+                          subtitle: Text(
+                            [
+                              user.roleLabel,
+                              if (user.memberships.isNotEmpty)
+                                user.memberships
+                                    .map(
+                                      (item) =>
+                                          '${item.ageGroupCode}-Jugend ${item.teamName}',
+                                    )
+                                    .join(', '),
+                            ].join(' · '),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              status,
+                              const SizedBox(width: 8),
+                              edit,
+                            ],
+                          ),
+                        ),
+                );
+              },
             ),
           );
         },
@@ -722,8 +823,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
     adminNote = TextEditingController(
       text: widget.user.registrationRequest?.adminNote,
     );
-    relationship =
-        widget.user.registrationRequest?.relationship ?? 'GUARDIAN';
+    relationship = widget.user.registrationRequest?.relationship ?? 'GUARDIAN';
   }
 
   @override
@@ -884,8 +984,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                       ),
                       DropdownMenuItem(value: 'OTHER', child: Text('Andere')),
                     ],
-                    onChanged: (value) =>
-                        setState(() => relationship = value!),
+                    onChanged: (value) => setState(() => relationship = value!),
                   ),
                 ],
               ],
@@ -1115,10 +1214,9 @@ class _CreateMemberDialogState extends State<_CreateMemberDialog> {
                     labelText: 'E-Mail-Adresse *',
                     prefixIcon: Icon(Icons.mail_outline_rounded),
                   ),
-                  validator: (value) =>
-                      value == null || !value.contains('@')
-                          ? 'Gültige E-Mail-Adresse angeben'
-                          : null,
+                  validator: (value) => value == null || !value.contains('@')
+                      ? 'Gültige E-Mail-Adresse angeben'
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -1135,7 +1233,8 @@ class _CreateMemberDialogState extends State<_CreateMemberDialog> {
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
                     labelText: 'Startpasswort *',
-                    helperText: 'Mindestens 10 Zeichen; sicher an das Mitglied übermitteln.',
+                    helperText:
+                        'Mindestens 10 Zeichen; sicher an das Mitglied übermitteln.',
                     prefixIcon: const Icon(Icons.lock_outline_rounded),
                     suffixIcon: IconButton(
                       onPressed: () => setState(
@@ -1199,9 +1298,10 @@ class _CreateMemberDialogState extends State<_CreateMemberDialog> {
                         ),
                     ],
                     onChanged: (value) => setState(() => _playerId = value),
-                    validator: (value) => _role == UserRole.player && value == null
-                        ? 'Spielerprofil auswählen'
-                        : null,
+                    validator: (value) =>
+                        _role == UserRole.player && value == null
+                            ? 'Spielerprofil auswählen'
+                            : null,
                   ),
                 ],
                 const SizedBox(height: 16),
