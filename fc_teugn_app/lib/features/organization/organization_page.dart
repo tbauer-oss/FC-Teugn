@@ -9,8 +9,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
 import '../../core/models/organization.dart';
+import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/team_game_format.dart';
+import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import 'organization_admin_tools.dart';
 
@@ -207,8 +209,71 @@ class _OrganizationContent extends ConsumerWidget {
     }
   }
 
+  Future<void> _deleteTeam(
+    BuildContext context,
+    WidgetRef ref,
+    TeamSummary team,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded, color: Colors.red),
+        title: Text('${team.displayName} löschen?'),
+        content: const Text(
+          'Die Mannschaft wird aus der aktiven Vereinsstruktur entfernt. '
+          'Alle zugeordneten Spieler erscheinen danach unter „Nicht zugeordnet“ '
+          'und können einer anderen Mannschaft zugewiesen werden. Historische '
+          'Spiele und Statistiken bleiben erhalten.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_forever_rounded),
+            label: const Text('Mannschaft löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final count = await ref.read(repositoryProvider).deleteTeam(team.id);
+      ref.invalidate(organizationProvider);
+      ref.invalidate(playersProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${team.displayName} wurde gelöscht. '
+              '$count ${count == 1 ? 'Spieler ist' : 'Spieler sind'} jetzt nicht zugeordnet.',
+            ),
+          ),
+        );
+      }
+    } on DioException catch (error) {
+      final response = error.response?.data;
+      final message = response is Map<String, dynamic>
+          ? response['message'] as String?
+          : null;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text(message ?? 'Mannschaft konnte nicht gelöscht werden.'),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final canDeleteTeams =
+        ref.watch(authProvider).user?.role == UserRole.superAdmin;
     final grouped = <String, List<TeamSummary>>{};
     for (final ageGroup in data.ageGroups) {
       grouped[ageGroup.id] =
@@ -255,6 +320,7 @@ class _OrganizationContent extends ConsumerWidget {
               canEdit: (team) =>
                   data.can('MANAGE_ORGANIZATION') ||
                   (data.can('MANAGE_TEAM') && team.id == data.currentTeam.id),
+              canDelete: canDeleteTeams,
               onEdit: (team) => _openEditor(
                 context,
                 ref,
@@ -263,6 +329,7 @@ class _OrganizationContent extends ConsumerWidget {
               ),
               onPhoto: (team) => _changePhoto(context, ref, team),
               onRemovePhoto: (team) => _removePhoto(context, ref, team),
+              onDelete: (team) => _deleteTeam(context, ref, team),
             ),
           ),
       ],
@@ -361,17 +428,21 @@ class _AgeGroupSection extends StatelessWidget {
     required this.teams,
     required this.currentTeamId,
     required this.canEdit,
+    required this.canDelete,
     required this.onEdit,
     required this.onPhoto,
     required this.onRemovePhoto,
+    required this.onDelete,
   });
   final AgeGroupSummary ageGroup;
   final List<TeamSummary> teams;
   final String currentTeamId;
   final bool Function(TeamSummary) canEdit;
+  final bool canDelete;
   final ValueChanged<TeamSummary> onEdit;
   final ValueChanged<TeamSummary> onPhoto;
   final ValueChanged<TeamSummary> onRemovePhoto;
+  final ValueChanged<TeamSummary> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -422,9 +493,11 @@ class _AgeGroupSection extends StatelessWidget {
                       team: team,
                       isCurrent: team.id == currentTeamId,
                       canEdit: canEdit(team),
+                      canDelete: canDelete,
                       onEdit: () => onEdit(team),
                       onPhoto: () => onPhoto(team),
                       onRemovePhoto: () => onRemovePhoto(team),
+                      onDelete: () => onDelete(team),
                     ),
                   ),
               ],
@@ -440,16 +513,20 @@ class _TeamCard extends StatelessWidget {
     required this.team,
     required this.isCurrent,
     required this.canEdit,
+    required this.canDelete,
     required this.onEdit,
     required this.onPhoto,
     required this.onRemovePhoto,
+    required this.onDelete,
   });
   final TeamSummary team;
   final bool isCurrent;
   final bool canEdit;
+  final bool canDelete;
   final VoidCallback onEdit;
   final VoidCallback onPhoto;
   final VoidCallback onRemovePhoto;
+  final VoidCallback onDelete;
 
   String _label(String value) => switch (value) {
         'DEVELOPMENT' => 'Förderteam',
@@ -570,6 +647,15 @@ class _TeamCard extends StatelessWidget {
                           tooltip: 'Foto entfernen',
                           onPressed: onRemovePhoto,
                           icon: const Icon(Icons.delete_outline),
+                        ),
+                      if (canDelete)
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          onPressed: onDelete,
+                          icon: const Icon(Icons.delete_forever_rounded),
+                          label: const Text('Löschen'),
                         ),
                     ],
                   ),

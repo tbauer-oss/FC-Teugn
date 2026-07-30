@@ -241,11 +241,15 @@ async function serializeEvent(
   const eventTargetIds = targetIdsForEvent(event);
   const roster = staff
     ? knownRoster
-      ? knownRoster.filter((player) => eventTargetIds.includes(player.teamId))
+      ? knownRoster.filter(
+          (player) =>
+            player.teamId !== null && eventTargetIds.includes(player.teamId),
+        )
       : await rosterForEvent(event, accessibleIds)
     : [];
   const visibleAttendance = staff
     ? event.attendance.filter((reply) =>
+        reply.player.teamId !== null &&
         accessibleIds.includes(reply.player.teamId),
       )
     : event.attendance.filter((reply) => personalPlayerIds.includes(reply.playerId));

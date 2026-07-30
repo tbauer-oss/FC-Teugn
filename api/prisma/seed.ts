@@ -139,6 +139,7 @@ async function main() {
     },
     create: {
       id: 'player-1',
+      clubId: club.id,
       teamId: team.id,
       firstName: 'Lena',
       lastName: 'Bauer',
@@ -157,6 +158,7 @@ async function main() {
     update: {},
     create: {
       id: 'player-2',
+      clubId: club.id,
       teamId: team.id,
       firstName: 'Finn',
       lastName: 'Stark',
@@ -168,6 +170,7 @@ async function main() {
     update: { teamId: secondTeam.id, status: 'ACTIVE' },
     create: {
       id: 'player-3',
+      clubId: club.id,
       teamId: secondTeam.id,
       firstName: 'Mia',
       lastName: 'Reserve',

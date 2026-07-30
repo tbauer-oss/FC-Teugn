@@ -1,9 +1,18 @@
 import { Request, Response } from 'express';
-import { DominantFoot, PlayerStatus, TickerEventType } from '@prisma/client';
+import {
+  DominantFoot,
+  PlayerStatus,
+  Prisma,
+  TickerEventType,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
-import { accessibleTeamIds } from '../services/team-access';
+import {
+  accessibleTeamIds,
+  clubIdForTeam,
+  TeamScopedUser,
+} from '../services/team-access';
 import { mediaAssetUrl } from '../services/media-access';
 
 const statisticGoalTypes: TickerEventType[] = [
@@ -13,6 +22,7 @@ const statisticGoalTypes: TickerEventType[] = [
 
 const publicPlayerSelect = {
   id: true,
+  clubId: true,
   teamId: true,
   firstName: true,
   lastName: true,
@@ -226,17 +236,44 @@ async function guardianLink(userId: string, playerId: string) {
   });
 }
 
+function canManageUnassignedPlayers(role: Role) {
+  const roles: Role[] = [
+    Role.SUPER_ADMIN,
+    Role.CLUB_ADMIN,
+    Role.YOUTH_DIRECTOR,
+  ];
+  return roles.includes(role);
+}
+
+async function playerAccessScope(
+  user: TeamScopedUser,
+): Promise<Prisma.PlayerWhereInput> {
+  if (String(user.role) === Role.SUPER_ADMIN) return {};
+  if (canManageUnassignedPlayers(user.role as Role)) {
+    const clubId = await clubIdForTeam(user.teamId);
+    return clubId ? { clubId } : { id: '__no_accessible_players__' };
+  }
+  const teamIds = await accessibleTeamIds(user);
+  return { teamId: { in: teamIds } };
+}
+
 export async function canAccessPlayer(req: Request, playerId: string) {
   const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
+  if (isGuardianRole(user.role)) {
+    return Boolean(await guardianLink(user.id, playerId));
+  }
+  if (isPlayerRole(user.role)) {
+    return Boolean(await prisma.player.findFirst({
+      where: { id: playerId, userId: user.id },
+      select: { id: true },
+    }));
+  }
+  const scope = await playerAccessScope(user);
   const player = await prisma.player.findFirst({
-    where: { id: playerId, teamId: { in: teamIds } },
-    select: { id: true, userId: true },
+    where: { id: playerId, ...scope },
+    select: { id: true },
   });
-  if (!player) return false;
-  if (isPlayerRole(user.role)) return player.userId === user.id;
-  if (!isGuardianRole(user.role)) return true;
-  return Boolean(await guardianLink(user.id, playerId));
+  return Boolean(player);
 }
 
 export async function listPlayers(req: Request, res: Response) {
@@ -260,9 +297,9 @@ export async function listPlayers(req: Request, res: Response) {
   }
 
   const status = parsePlayerStatus(req.query.status);
-  const teamIds = await accessibleTeamIds(req.user!);
+  const scope = await playerAccessScope(req.user!);
   const players = await prisma.player.findMany({
-    where: { teamId: { in: teamIds }, ...(status ? { status } : {}) },
+    where: { ...scope, ...(status ? { status } : {}) },
     orderBy: [{ status: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
     select: publicPlayerSelect,
   });
@@ -361,6 +398,21 @@ export async function createPlayer(req: Request, res: Response) {
   if (!requestedTeamId || !allowedTeamIds.includes(requestedTeamId)) {
     return res.status(403).json({ message: 'Diese Mannschaft darf nicht verwaltet werden.' });
   }
+  const targetTeam = await prisma.team.findFirst({
+    where: {
+      id: requestedTeamId,
+      isActive: true,
+      deletedAt: null,
+    },
+    select: {
+      ageGroup: {
+        select: { season: { select: { clubId: true } } },
+      },
+    },
+  });
+  if (!targetTeam) {
+    return res.status(404).json({ message: 'Zielmannschaft nicht gefunden.' });
+  }
   const data = playerData(req.body);
   if (!data.firstName || !data.lastName) {
     return res.status(400).json({ message: 'Vor- und Nachname sind erforderlich.' });
@@ -368,7 +420,11 @@ export async function createPlayer(req: Request, res: Response) {
 
   const player = await prisma.$transaction(async (tx) => {
     const created = await tx.player.create({
-      data: { ...data, teamId: requestedTeamId },
+      data: {
+        ...data,
+        clubId: targetTeam.ageGroup.season.clubId,
+        teamId: requestedTeamId,
+      },
       select: publicPlayerSelect,
     });
     await tx.auditLog.create({
@@ -390,15 +446,33 @@ export async function createPlayer(req: Request, res: Response) {
 export async function updatePlayer(req: Request, res: Response) {
   const { id: actorId } = req.user!;
   const { id } = req.params;
+  const scope = await playerAccessScope(req.user!);
   const teamIds = await accessibleTeamIds(req.user!);
   const player = await prisma.player.findFirst({
-    where: { id, teamId: { in: teamIds } },
+    where: { id, ...scope },
   });
   if (!player) return res.status(404).json({ message: 'Spielerprofil nicht gefunden.' });
   const requestedTeamId =
     typeof req.body?.teamId === 'string' ? req.body.teamId.trim() : player.teamId;
   if (!requestedTeamId || !teamIds.includes(requestedTeamId)) {
     return res.status(403).json({ message: 'Die Zielmannschaft darf nicht verwaltet werden.' });
+  }
+  const targetTeam = await prisma.team.findFirst({
+    where: {
+      id: requestedTeamId,
+      isActive: true,
+      deletedAt: null,
+    },
+    select: {
+      ageGroup: {
+        select: { season: { select: { clubId: true } } },
+      },
+    },
+  });
+  if (!targetTeam || targetTeam.ageGroup.season.clubId !== player.clubId) {
+    return res.status(403).json({
+      message: 'Der Spieler darf nur einer Mannschaft desselben Vereins zugeordnet werden.',
+    });
   }
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -603,9 +677,9 @@ export async function upsertConsent(req: Request, res: Response) {
 export async function deletePlayer(req: Request, res: Response) {
   const { id: actorId } = req.user!;
   const { id } = req.params;
-  const teamIds = await accessibleTeamIds(req.user!);
+  const scope = await playerAccessScope(req.user!);
   const player = await prisma.player.findFirst({
-    where: { id, teamId: { in: teamIds } },
+    where: { id, ...scope },
   });
   if (!player) return res.status(404).json({ message: 'Spielerprofil nicht gefunden.' });
 
@@ -613,7 +687,7 @@ export async function deletePlayer(req: Request, res: Response) {
     await tx.auditLog.create({
       data: {
         actorId,
-        teamId: player.teamId,
+        teamId: player.teamId ?? req.user!.teamId,
         action: 'PLAYER_DELETED',
         entityType: 'Player',
         entityId: id,

@@ -394,6 +394,7 @@ model Team {
   bfvTeamUrl              String?
   photoAssetId            String?                   @unique
   isActive                Boolean                   @default(true)
+  deletedAt               DateTime?
   createdAt               DateTime                  @default(now())
   updatedAt               DateTime                  @updatedAt
   ageGroup                AgeGroup                  @relation(fields: [ageGroupId], references: [id])
@@ -418,8 +419,7 @@ model Team {
   photoAsset              FileAsset?                @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
   ownedFileAssets         FileAsset[]               @relation("TeamFileOwner")
 
-  @@unique([ageGroupId, teamNumber])
-  @@index([ageGroupId, isActive])
+  @@index([ageGroupId, isActive, deletedAt])
 }
 
 model Club {
@@ -432,6 +432,7 @@ model Club {
   updatedAt         DateTime           @updatedAt
   seasons           Season[]
   seasonTransitions SeasonTransition[]
+  players           Player[]
 }
 
 model Season {
@@ -648,7 +649,8 @@ model TeamMembership {
 
 model Player {
   id                   String                   @id @default(cuid())
-  teamId               String
+  clubId               String
+  teamId               String?
   userId               String?                  @unique
   firstName            String
   lastName             String
@@ -665,7 +667,8 @@ model Player {
   photoAssetId         String?                  @unique
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
-  team                 Team                     @relation(fields: [teamId], references: [id])
+  club                 Club                     @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  team                 Team?                    @relation(fields: [teamId], references: [id], onDelete: SetNull)
   user                 User?                    @relation("PlayerAccount", fields: [userId], references: [id], onDelete: SetNull)
   parentLinks          ParentPlayerLink[]
   attendance           Attendance[]
@@ -685,7 +688,7 @@ model Player {
   documents            PlayerDocument[]
   ownedFileAssets      FileAsset[]              @relation("PlayerFileOwner")
 
-  @@index([teamId, status, lastName])
+  @@index([clubId, teamId, status, lastName])
 }
 
 model FileAsset {

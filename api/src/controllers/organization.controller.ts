@@ -160,7 +160,7 @@ export async function publicOrganization(_req: Request, res: Response) {
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
         include: {
           teams: {
-            where: { isActive: true },
+            where: { isActive: true, deletedAt: null },
             orderBy: { teamNumber: 'asc' },
             select: {
               id: true,
@@ -232,6 +232,7 @@ export async function organizationContext(req: Request, res: Response) {
     prisma.team.findMany({
       where: {
         ageGroup: { season: seasonScope },
+        deletedAt: null,
         ...(canViewAllTeams ? {} : {
           id: { in: membershipTeamIds.length > 0 ? membershipTeamIds : [user.teamId] },
         }),
@@ -243,7 +244,9 @@ export async function organizationContext(req: Request, res: Response) {
       ],
       include: hierarchyInclude,
     }),
-    prisma.player.count({ where: { teamId: { in: visibleTeamIds } } }),
+    prisma.player.count({
+      where: user.role === Role.SUPER_ADMIN ? {} : { clubId },
+    }),
     prisma.user.count({
       where: {
         status: AccountStatus.APPROVED,
@@ -280,7 +283,7 @@ export async function organizationContext(req: Request, res: Response) {
   ]);
   const groupedTeamCounts = await prisma.team.groupBy({
     by: ['ageGroupId'],
-    where: { ageGroup: { season: seasonScope } },
+    where: { ageGroup: { season: seasonScope }, deletedAt: null },
     _count: { _all: true },
   });
   const teamCountByAgeGroup = new Map(
@@ -346,7 +349,7 @@ export async function createTeam(req: Request, res: Response) {
   });
   if (!ageGroup) return res.status(404).json({ message: 'Altersklasse nicht gefunden.' });
   const existingNumbers = await prisma.team.findMany({
-    where: { ageGroupId: body.ageGroupId },
+    where: { ageGroupId: body.ageGroupId, deletedAt: null },
     select: { teamNumber: true },
   });
   const usedNumbers = new Set(existingNumbers.map((team) => team.teamNumber));
@@ -360,7 +363,7 @@ export async function createTeam(req: Request, res: Response) {
   }
   const teamName = compactTeamName(ageGroup.code, teamNumber);
   const duplicate = await prisma.team.findFirst({
-    where: { ageGroupId: body.ageGroupId, teamNumber },
+    where: { ageGroupId: body.ageGroupId, teamNumber, deletedAt: null },
   });
   if (duplicate) {
     return res.status(409).json({
@@ -420,7 +423,9 @@ export async function updateTeam(req: Request, res: Response) {
     return res.status(400).json({ message: 'Die BFV-Adresse ist ungültig.' });
   }
   const existing = await prisma.team.findUnique({ where: { id: teamId }, include: hierarchyInclude });
-  if (!existing) return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  if (!existing || existing.deletedAt) {
+    return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  }
   const teamNumber = data.teamNumber ?? existing.teamNumber;
   const teamName = compactTeamName(existing.ageGroup.code, teamNumber);
   const duplicate = await prisma.team.findFirst({
@@ -428,6 +433,7 @@ export async function updateTeam(req: Request, res: Response) {
       ageGroupId: existing.ageGroupId,
       id: { not: teamId },
       teamNumber,
+      deletedAt: null,
     },
   });
   if (duplicate) {
@@ -465,6 +471,90 @@ export async function updateTeam(req: Request, res: Response) {
     return updated;
   });
   return res.json(await serializeTeam(team, true));
+}
+
+export function canDeleteTeamRole(role: Role) {
+  return role === Role.SUPER_ADMIN;
+}
+
+export async function deleteTeam(req: Request, res: Response) {
+  const user = req.user!;
+  if (!canDeleteTeamRole(user.role)) {
+    return res.status(403).json({
+      message: 'Nur die Systemadministration darf Mannschaften löschen.',
+    });
+  }
+
+  const team = await prisma.team.findFirst({
+    where: { id: req.params.id, deletedAt: null },
+    include: {
+      ageGroup: {
+        include: { season: true },
+      },
+      _count: {
+        select: { players: true, users: true },
+      },
+    },
+  });
+  if (!team) {
+    return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  }
+
+  const fallbackTeam = await prisma.team.findFirst({
+    where: {
+      id: { not: team.id },
+      isActive: true,
+      deletedAt: null,
+      ageGroup: { season: { clubId: team.ageGroup.season.clubId } },
+    },
+    orderBy: [
+      { ageGroup: { sortOrder: 'asc' } },
+      { teamNumber: 'asc' },
+    ],
+    select: { id: true, name: true },
+  });
+  const deletedAt = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.player.updateMany({
+      where: { teamId: team.id },
+      data: { teamId: null },
+    });
+    if (fallbackTeam) {
+      await tx.user.updateMany({
+        where: { teamId: team.id },
+        data: { teamId: fallbackTeam.id },
+      });
+    }
+    await tx.team.update({
+      where: { id: team.id },
+      data: { isActive: false, deletedAt },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: team.id,
+        action: 'TEAM_DELETED',
+        entityType: 'Team',
+        entityId: team.id,
+        metadata: {
+          name: team.name,
+          ageGroupId: team.ageGroupId,
+          unassignedPlayerCount: team._count.players,
+          reassignedUserCount: fallbackTeam ? team._count.users : 0,
+          fallbackTeamId: fallbackTeam?.id ?? null,
+          deletedAt: deletedAt.toISOString(),
+        },
+      },
+    });
+  });
+
+  return res.json({
+    deleted: true,
+    unassignedPlayerCount: team._count.players,
+    reassignedUserCount: fallbackTeam ? team._count.users : 0,
+    fallbackTeam,
+  });
 }
 
 export async function updateTrainingSchedule(req: Request, res: Response) {
@@ -651,7 +741,7 @@ async function serializeTeam(team: {
   };
 }, includePrivate: boolean, ageGroupTeamCount?: number) {
   const teamCount = ageGroupTeamCount ?? await prisma.team.count({
-    where: { ageGroupId: team.ageGroupId },
+    where: { ageGroupId: team.ageGroupId, deletedAt: null },
   });
   return {
     id: team.id,

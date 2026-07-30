@@ -13,6 +13,8 @@ import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
+const _unassignedTeamFilter = '__unassigned__';
+
 class TrainerPlayersPage extends ConsumerStatefulWidget {
   const TrainerPlayersPage({super.key});
 
@@ -119,7 +121,10 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
               })
               .where(
                 (player) =>
-                    _selectedTeamId == null || player.teamId == _selectedTeamId,
+                    _selectedTeamId == null ||
+                    (_selectedTeamId == _unassignedTeamFilter
+                        ? player.teamId == null
+                        : player.teamId == _selectedTeamId),
               )
               .toList();
           return Column(
@@ -311,6 +316,10 @@ class _PlayerViewToolbar extends StatelessWidget {
                   value: null,
                   child: Text('Alle Jugenden'),
                 ),
+                const DropdownMenuItem<String?>(
+                  value: _unassignedTeamFilter,
+                  child: Text('Nicht zugeordnet'),
+                ),
                 for (final team in teams)
                   DropdownMenuItem<String?>(
                     value: team.id,
@@ -378,7 +387,7 @@ class _CategorizedPlayerCollection extends StatelessWidget {
       ].join(' · ');
       groups
           .putIfAbsent(
-            key.isEmpty ? 'Ohne Mannschaftsangabe' : key,
+            key.isEmpty ? 'Nicht zugeordnet' : key,
             () => [],
           )
           .add(player);

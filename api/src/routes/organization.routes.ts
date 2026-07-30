@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   createTeam,
+  deleteTeam,
   organizationContext,
   publicOrganization,
   removeTeamPhoto,
@@ -40,6 +41,12 @@ router.patch(
   requireApproved,
   requirePermission(Permission.MANAGE_TEAM),
   updateTeam,
+);
+router.delete(
+  '/teams/:id',
+  requireAuth,
+  requireApproved,
+  asyncHandler(deleteTeam),
 );
 router.patch(
   '/teams/:id/training-schedule',
