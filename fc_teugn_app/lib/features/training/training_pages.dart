@@ -383,12 +383,31 @@ class _TrainingScheduleDialog extends StatefulWidget {
 }
 
 class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
+  static const _trainingLocations = [
+    'Platz 1 unten',
+    'Platz 2 oben',
+    'Sportplatz Teugn · beide Plätze',
+    'Sportplatz Hausen',
+    'Sporthalle',
+  ];
+
   late String _teamId;
-  late final TextEditingController _location;
-  late final TextEditingController _times;
+  String? _location;
+  List<_TrainingTimeSelection> _times = [];
+  List<String> _legacyTimes = [];
+  String? _validationMessage;
 
   TeamSummary get _team =>
       widget.teams.firstWhere((team) => team.id == _teamId);
+
+  List<String> get _availableLocations {
+    final values = [..._trainingLocations];
+    final current = _location?.trim();
+    if (current != null && current.isNotEmpty && !values.contains(current)) {
+      values.add(current);
+    }
+    return values;
+  }
 
   @override
   void initState() {
@@ -396,21 +415,23 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
     _teamId = widget.teams.any((team) => team.id == widget.initialTeamId)
         ? widget.initialTeamId
         : widget.teams.first.id;
-    _location = TextEditingController();
-    _times = TextEditingController();
     _loadTeam();
   }
 
   void _loadTeam() {
-    _location.text = _team.trainingLocation ?? '';
-    _times.text = _team.trainingTimes.join('\n');
-  }
-
-  @override
-  void dispose() {
-    _location.dispose();
-    _times.dispose();
-    super.dispose();
+    _location = _team.trainingLocation?.trim();
+    if (_location?.isEmpty == true) _location = null;
+    _times = [];
+    _legacyTimes = [];
+    for (final value in _team.trainingTimes) {
+      final parsed = _TrainingTimeSelection.tryParse(value);
+      if (parsed == null) {
+        _legacyTimes.add(value);
+      } else {
+        _times.add(parsed);
+      }
+    }
+    _validationMessage = null;
   }
 
   @override
@@ -446,26 +467,105 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                   },
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
-                  controller: _location,
+                DropdownButtonFormField<String>(
+                  key: ValueKey('training_location_${_teamId}_$_location'),
+                  initialValue: _location,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Trainingsplatz / Bereich',
-                    hintText: 'z. B. Platz 1 unten',
+                    hintText: 'Trainingsplatz auswählen',
                     prefixIcon: Icon(Icons.location_on_outlined),
                   ),
+                  items: [
+                    for (final location in _availableLocations)
+                      DropdownMenuItem(
+                        value: location,
+                        child: Text(location),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() {
+                    _location = value;
+                    _validationMessage = null;
+                  }),
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
-                  controller: _times,
-                  minLines: 3,
-                  maxLines: 7,
-                  decoration: const InputDecoration(
-                    labelText: 'Regelmäßige Trainingszeiten',
-                    hintText: 'Eine Zeit pro Zeile, z. B. Dienstag 17:00–18:30',
-                    helperText: 'Maximal sieben Zeiten pro Mannschaft.',
-                    alignLabelWithHint: true,
-                  ),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Regelmäßige Trainingszeiten',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _times.length + _legacyTimes.length >= 7
+                          ? null
+                          : () => setState(() {
+                                _times.add(
+                                  const _TrainingTimeSelection(
+                                    weekday: 1,
+                                    start: TimeOfDay(hour: 17, minute: 0),
+                                    end: TimeOfDay(hour: 18, minute: 30),
+                                  ),
+                                );
+                                _validationMessage = null;
+                              }),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Zeit hinzufügen'),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 8),
+                if (_times.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.line),
+                    ),
+                    child: const Text(
+                      'Noch keine regelmäßige Trainingszeit ausgewählt.',
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else
+                  for (var index = 0; index < _times.length; index++) ...[
+                    _TrainingTimeRow(
+                      key: ValueKey(
+                        '${_teamId}_${index}_${_times[index].weekday}',
+                      ),
+                      value: _times[index],
+                      onChanged: (value) => setState(() {
+                        _times[index] = value;
+                        _validationMessage = null;
+                      }),
+                      onDelete: () => setState(() {
+                        _times.removeAt(index);
+                        _validationMessage = null;
+                      }),
+                    ),
+                    if (index < _times.length - 1)
+                      const SizedBox(height: 8),
+                  ],
+                if (_legacyTimes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${_legacyTimes.length} ältere Zeitangabe(n) werden '
+                    'unverändert beibehalten.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+                if (_validationMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _validationMessage!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -490,19 +590,26 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
           ),
           FilledButton(
             onPressed: () {
-              final times = _times.text
-                  .split('\n')
-                  .map((value) => value.trim())
-                  .where((value) => value.isNotEmpty)
-                  .take(7)
-                  .toList();
-              final location = _location.text.trim();
+              final invalidTime = _times.any(
+                (value) => value.endMinutes <= value.startMinutes,
+              );
+              if (invalidTime) {
+                setState(() {
+                  _validationMessage =
+                      'Die Endzeit muss nach der Startzeit liegen.';
+                });
+                return;
+              }
+              final times = [
+                ..._times.map((value) => value.storageValue),
+                ..._legacyTimes,
+              ].take(7).toList();
               Navigator.pop(
                 context,
                 _TrainingScheduleDraft(
                   teamId: _teamId,
                   trainingTimes: times,
-                  trainingLocation: location.isEmpty ? null : location,
+                  trainingLocation: _location,
                 ),
               );
             },
@@ -514,6 +621,223 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
   String _date(DateTime value) =>
       '${value.day.toString().padLeft(2, '0')}.'
       '${value.month.toString().padLeft(2, '0')}.${value.year}';
+}
+
+class _TrainingTimeRow extends StatelessWidget {
+  const _TrainingTimeRow({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    required this.onDelete,
+  });
+
+  final _TrainingTimeSelection value;
+  final ValueChanged<_TrainingTimeSelection> onChanged;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final day = DropdownButtonFormField<int>(
+              initialValue: value.weekday,
+              decoration: const InputDecoration(
+                labelText: 'Wochentag',
+                isDense: true,
+              ),
+              items: [
+                for (var index = 0;
+                    index < _TrainingTimeSelection.weekdays.length;
+                    index++)
+                  DropdownMenuItem(
+                    value: index + 1,
+                    child: Text(_TrainingTimeSelection.weekdays[index]),
+                  ),
+              ],
+              onChanged: (weekday) {
+                if (weekday != null) {
+                  onChanged(value.copyWith(weekday: weekday));
+                }
+              },
+            );
+            final times = Row(
+              children: [
+                Expanded(
+                  child: _TimePickerButton(
+                    label: 'Beginn',
+                    value: value.start,
+                    onSelected: (time) =>
+                        onChanged(value.copyWith(start: time)),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child: Icon(Icons.arrow_forward_rounded, size: 18),
+                ),
+                Expanded(
+                  child: _TimePickerButton(
+                    label: 'Ende',
+                    value: value.end,
+                    onSelected: (time) => onChanged(value.copyWith(end: time)),
+                  ),
+                ),
+              ],
+            );
+            final delete = IconButton(
+              tooltip: 'Trainingszeit entfernen',
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline_rounded),
+            );
+
+            if (constraints.maxWidth < 470) {
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: day),
+                      delete,
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  times,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                SizedBox(width: 154, child: day),
+                const SizedBox(width: 10),
+                Expanded(child: times),
+                delete,
+              ],
+            );
+          },
+        ),
+      );
+}
+
+class _TimePickerButton extends StatelessWidget {
+  const _TimePickerButton({
+    required this.label,
+    required this.value,
+    required this.onSelected,
+  });
+
+  final String label;
+  final TimeOfDay value;
+  final ValueChanged<TimeOfDay> onSelected;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(
+        onPressed: () async {
+          final selected = await showTimePicker(
+            context: context,
+            initialTime: value,
+            helpText: '$label auswählen',
+            confirmText: 'Übernehmen',
+            cancelText: 'Abbrechen',
+          );
+          if (selected != null) onSelected(selected);
+        },
+        icon: const Icon(Icons.schedule_rounded, size: 18),
+        label: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 10)),
+            Text(
+              _TrainingTimeSelection.formatTime(value),
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      );
+}
+
+class _TrainingTimeSelection {
+  const _TrainingTimeSelection({
+    required this.weekday,
+    required this.start,
+    required this.end,
+  });
+
+  static const weekdays = [
+    'Montag',
+    'Dienstag',
+    'Mittwoch',
+    'Donnerstag',
+    'Freitag',
+    'Samstag',
+    'Sonntag',
+  ];
+
+  final int weekday;
+  final TimeOfDay start;
+  final TimeOfDay end;
+
+  int get startMinutes => start.hour * 60 + start.minute;
+  int get endMinutes => end.hour * 60 + end.minute;
+
+  String get storageValue =>
+      '${weekdays[weekday - 1]} ${formatTime(start)}–${formatTime(end)}';
+
+  _TrainingTimeSelection copyWith({
+    int? weekday,
+    TimeOfDay? start,
+    TimeOfDay? end,
+  }) =>
+      _TrainingTimeSelection(
+        weekday: weekday ?? this.weekday,
+        start: start ?? this.start,
+        end: end ?? this.end,
+      );
+
+  static _TrainingTimeSelection? tryParse(String value) {
+    final dayMatch = RegExp(
+      r'(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)',
+      caseSensitive: false,
+    ).firstMatch(value);
+    final timeMatch = RegExp(
+      r'(\d{1,2}):(\d{2})\s*(?:-|–|—|bis)\s*(\d{1,2}):(\d{2})',
+      caseSensitive: false,
+    ).firstMatch(value);
+    if (dayMatch == null || timeMatch == null) return null;
+    final weekday = weekdays.indexWhere(
+          (day) =>
+              day.toLowerCase() == dayMatch.group(1)!.toLowerCase(),
+        ) +
+        1;
+    final startHour = int.tryParse(timeMatch.group(1)!) ?? -1;
+    final startMinute = int.tryParse(timeMatch.group(2)!) ?? -1;
+    final endHour = int.tryParse(timeMatch.group(3)!) ?? -1;
+    final endMinute = int.tryParse(timeMatch.group(4)!) ?? -1;
+    if (weekday < 1 ||
+        startHour < 0 ||
+        startHour > 23 ||
+        startMinute < 0 ||
+        startMinute > 59 ||
+        endHour < 0 ||
+        endHour > 23 ||
+        endMinute < 0 ||
+        endMinute > 59) {
+      return null;
+    }
+    return _TrainingTimeSelection(
+      weekday: weekday,
+      start: TimeOfDay(hour: startHour, minute: startMinute),
+      end: TimeOfDay(hour: endHour, minute: endMinute),
+    );
+  }
+
+  static String formatTime(TimeOfDay value) =>
+      '${value.hour.toString().padLeft(2, '0')}:'
+      '${value.minute.toString().padLeft(2, '0')}';
 }
 
 class _RegularTrainingTimes extends StatelessWidget {
