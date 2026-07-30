@@ -398,6 +398,13 @@ model Team {
   trainingTimes           String[]                  @default([])
   trainingPartnerIds      String[]                  @default([])
   matchdayTimes            String[]                  @default([])
+  seasonStartDate         DateTime?
+  seasonEndDate           DateTime?
+  indoorSeasonStartDate   DateTime?
+  indoorSeasonEndDate     DateTime?
+  indoorTrainingLocation  String?
+  indoorTrainingTimes     String[]                  @default([])
+  indoorTrainingPartnerIds String[]                 @default([])
   homeVenue               String?
   bfvTeamId               String?
   dfbnetTeamId            String?

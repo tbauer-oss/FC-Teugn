@@ -40,6 +40,12 @@ class DataRepository {
     String? description,
     String? trainingLocation,
     List<String> trainingTimes = const [],
+    DateTime? seasonStartDate,
+    DateTime? seasonEndDate,
+    DateTime? indoorSeasonStartDate,
+    DateTime? indoorSeasonEndDate,
+    String? indoorTrainingLocation,
+    List<String> indoorTrainingTimes = const [],
     String? homeVenue,
     String? bfvTeamId,
     String? dfbnetTeamId,
@@ -59,6 +65,12 @@ class DataRepository {
       'description': description,
       'trainingLocation': trainingLocation,
       'trainingTimes': trainingTimes,
+      'seasonStartDate': seasonStartDate?.toUtc().toIso8601String(),
+      'seasonEndDate': seasonEndDate?.toUtc().toIso8601String(),
+      'indoorSeasonStartDate': indoorSeasonStartDate?.toUtc().toIso8601String(),
+      'indoorSeasonEndDate': indoorSeasonEndDate?.toUtc().toIso8601String(),
+      'indoorTrainingLocation': indoorTrainingLocation,
+      'indoorTrainingTimes': indoorTrainingTimes,
       'homeVenue': homeVenue,
       'bfvTeamId': bfvTeamId,
       'dfbnetTeamId': dfbnetTeamId,
@@ -81,6 +93,12 @@ class DataRepository {
     String? description,
     String? trainingLocation,
     required List<String> trainingTimes,
+    DateTime? seasonStartDate,
+    DateTime? seasonEndDate,
+    DateTime? indoorSeasonStartDate,
+    DateTime? indoorSeasonEndDate,
+    String? indoorTrainingLocation,
+    required List<String> indoorTrainingTimes,
     String? homeVenue,
     String? bfvTeamId,
     String? dfbnetTeamId,
@@ -99,6 +117,12 @@ class DataRepository {
       'description': description,
       'trainingLocation': trainingLocation,
       'trainingTimes': trainingTimes,
+      'seasonStartDate': seasonStartDate?.toUtc().toIso8601String(),
+      'seasonEndDate': seasonEndDate?.toUtc().toIso8601String(),
+      'indoorSeasonStartDate': indoorSeasonStartDate?.toUtc().toIso8601String(),
+      'indoorSeasonEndDate': indoorSeasonEndDate?.toUtc().toIso8601String(),
+      'indoorTrainingLocation': indoorTrainingLocation,
+      'indoorTrainingTimes': indoorTrainingTimes,
       'homeVenue': homeVenue,
       'bfvTeamId': bfvTeamId,
       'dfbnetTeamId': dfbnetTeamId,
@@ -938,8 +962,11 @@ class DataRepository {
         .toList();
   }
 
-  Future<PitchOccupancyPlan> pitchOccupancy() async {
-    final res = await client.dio.get('/trainings/occupancy');
+  Future<PitchOccupancyPlan> pitchOccupancy({bool indoor = false}) async {
+    final res = await client.dio.get(
+      '/trainings/occupancy',
+      queryParameters: {'mode': indoor ? 'INDOOR' : 'OUTDOOR'},
+    );
     return PitchOccupancyPlan.fromJson(
       res.data as Map<String, dynamic>,
     );

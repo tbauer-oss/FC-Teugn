@@ -16,6 +16,12 @@ void main() {
       'description': 'Ballorientierte Ausbildung',
       'trainingLocation': 'Sportplatz Teugn',
       'trainingTimes': ['Dienstag 17:00–18:30'],
+      'seasonStartDate': '2026-08-15T00:00:00.000Z',
+      'seasonEndDate': '2027-05-31T00:00:00.000Z',
+      'indoorSeasonStartDate': '2026-11-01T00:00:00.000Z',
+      'indoorSeasonEndDate': '2027-03-15T00:00:00.000Z',
+      'indoorTrainingLocation': 'Mehrzweckhalle Teugn',
+      'indoorTrainingTimes': ['Freitag 17:00–18:30'],
       'homeVenue': 'Waldstadion',
       'bfvTeamId': 'bfv-1',
       'dfbnetTeamId': 'dfb-1',
@@ -39,6 +45,10 @@ void main() {
     expect(team.displayName, 'E1-Jugend');
     expect(team.birthYears, [2015, 2016]);
     expect(team.trainingTimes, ['Dienstag 17:00–18:30']);
+    expect(team.seasonStartDate?.year, 2026);
+    expect(team.seasonEndDate?.month, 5);
+    expect(team.indoorTrainingLocation, 'Mehrzweckhalle Teugn');
+    expect(team.indoorTrainingTimes, ['Freitag 17:00–18:30']);
     expect(team.staff.single.name, 'Max Trainer');
     expect(team.staff.single.role, 'COACH');
     expect(team.photoUrl, isNotNull);

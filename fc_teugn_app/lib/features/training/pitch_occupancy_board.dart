@@ -124,11 +124,18 @@ class PitchOccupancyBoard extends StatelessWidget {
           ),
         if (unparsedCount > 0) const SizedBox(height: 12),
         if (slots.isEmpty)
-          const EmptyState(
-            icon: Icons.stadium_outlined,
-            title: 'Noch keine Platzbelegung hinterlegt',
-            message:
-                'Sobald reguläre Trainingszeiten bei den Mannschaften gepflegt sind, erscheint hier automatisch der gemeinsame Wochenplan.',
+          EmptyState(
+            icon: plan.indoor
+                ? Icons.sports_handball_outlined
+                : Icons.stadium_outlined,
+            title: plan.indoor
+                ? 'Noch keine Hallenbelegung hinterlegt'
+                : 'Noch keine Platzbelegung hinterlegt',
+            message: plan.indoor
+                ? 'Sobald Hallenzeiten bei den Mannschaften gepflegt sind, '
+                    'erscheint hier der gemeinsame Winterplan.'
+                : 'Sobald reguläre Trainingszeiten bei den Mannschaften '
+                    'gepflegt sind, erscheint hier der gemeinsame Wochenplan.',
           )
         else
           LayoutBuilder(
@@ -197,8 +204,10 @@ class _PlanHeader extends StatelessWidget {
                   color: AppColors.yellow,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(
-                  Icons.stadium_rounded,
+                child: Icon(
+                  plan.indoor
+                      ? Icons.sports_handball_rounded
+                      : Icons.stadium_rounded,
                   color: AppColors.black,
                   size: 28,
                 ),
@@ -209,7 +218,8 @@ class _PlanHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'PLATZBELEGUNG · SAISON ${plan.seasonName}',
+                      '${plan.indoor ? 'HALLENBELEGUNG' : 'PLATZBELEGUNG'} '
+                      '· SAISON ${plan.seasonName}',
                       style: const TextStyle(
                         color: AppColors.yellow,
                         fontSize: 12,

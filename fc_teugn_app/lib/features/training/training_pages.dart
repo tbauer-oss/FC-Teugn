@@ -14,7 +14,7 @@ import '../calendar/calendar_page.dart';
 import '../shared/page_scaffold.dart';
 import 'pitch_occupancy_board.dart';
 
-enum _TrainingPageView { sessions, occupancy }
+enum _TrainingPageView { sessions, occupancy, indoorOccupancy }
 
 class TrainingsPage extends ConsumerStatefulWidget {
   const TrainingsPage({super.key});
@@ -27,6 +27,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
   List<TrainingModel>? _trainings;
   OrganizationContext? _organization;
   PitchOccupancyPlan? _occupancy;
+  PitchOccupancyPlan? _indoorOccupancy;
   String? _error;
   bool _creating = false;
   _TrainingPageView _view = _TrainingPageView.sessions;
@@ -52,12 +53,14 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
         repository.trainings(),
         repository.organizationContext(),
         repository.pitchOccupancy(),
+        repository.pitchOccupancy(indoor: true),
       ]);
       if (mounted) {
         setState(() {
           _trainings = values[0] as List<TrainingModel>;
           _organization = values[1] as OrganizationContext;
           _occupancy = values[2] as PitchOccupancyPlan;
+          _indoorOccupancy = values[3] as PitchOccupancyPlan;
           _error = null;
         });
       }
@@ -145,6 +148,11 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                   icon: Icon(Icons.stadium_rounded),
                   label: Text('Platzbelegung'),
                 ),
+                ButtonSegment(
+                  value: _TrainingPageView.indoorOccupancy,
+                  icon: Icon(Icons.sports_handball_rounded),
+                  label: Text('Hallenbelegung'),
+                ),
               ],
               selected: {_view},
               onSelectionChanged: (selection) =>
@@ -154,9 +162,14 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           const SizedBox(height: 18),
           if (_view == _TrainingPageView.sessions)
             _buildList(context)
-          else if (_occupancy != null)
+          else if (_view == _TrainingPageView.occupancy && _occupancy != null)
             PitchOccupancyBoard(
               plan: _occupancy!,
+              onConflictApproval: _setConflictApproval,
+            )
+          else if (_indoorOccupancy != null)
+            PitchOccupancyBoard(
+              plan: _indoorOccupancy!,
               onConflictApproval: _setConflictApproval,
             ),
         ],
@@ -299,7 +312,8 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
         teams: organization.teams,
         initialTeamId: organization.currentTeam.id,
         seasonName: organization.season.name,
-        seasonEnd: organization.season.endDate,
+        seasonEnd: organization.currentTeam.seasonEndDate ??
+            organization.season.endDate,
       ),
     );
     if (draft == null || !mounted) return;
@@ -397,7 +411,9 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
     PitchOccupancyConflict conflict,
     bool approved,
   ) async {
-    final plan = _occupancy;
+    final plan = _view == _TrainingPageView.indoorOccupancy
+        ? _indoorOccupancy
+        : _occupancy;
     if (plan == null || !_canManageOccupancy) return;
     try {
       await ref.read(repositoryProvider).setPitchOccupancyConflictApproval(
@@ -1541,185 +1557,186 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
               : constraints.maxWidth;
           return ListView(
             children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              SizedBox(
-                width: fieldWidth,
-                child: TextField(
-                  controller: _focus,
-                  decoration: const InputDecoration(
-                    labelText: 'Schwerpunkte',
-                    hintText: 'Passspiel, Ballkontrolle, Umschalten',
-                    prefixIcon: Icon(Icons.center_focus_strong_rounded),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: fieldWidth,
-                child: _CoachMultiSelectField(
-                  coaches: _availableCoaches,
-                  selectedIds: _selectedCoachIds,
-                  onTap: _availableCoaches.isEmpty ? null : _selectCoaches,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _goals,
-            minLines: 2,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: 'Lernziele',
-              prefixIcon: Icon(Icons.flag_outlined),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              SizedBox(
-                width: fieldWidth,
-                child: TextField(
-                  controller: _materials,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Material',
-                    prefixIcon: Icon(Icons.inventory_2_outlined),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: fieldWidth,
-                child: TextField(
-                  controller: _pitch,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Platzaufteilung / Aufbau',
-                    prefixIcon: Icon(Icons.grid_on_rounded),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          LayoutBuilder(
-            builder: (context, headerConstraints) {
-              final actions = Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: _addCustomItem,
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Freier Baustein'),
-                  ),
-                  FilledButton.icon(
-                    onPressed: _exercises.isEmpty ? null : _addFromLibrary,
-                    icon: const Icon(Icons.library_add_outlined),
-                    label: const Text('Aus Bibliothek'),
-                  ),
-                ],
-              );
-              if (headerConstraints.maxWidth < 620) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Ablauf',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 10),
-                    actions,
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Text(
-                    'Ablauf',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const Spacer(),
-                  actions,
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-          if (_items.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(28),
-                child: Center(
-                  child: Text('Noch keine Trainingsbausteine hinzugefügt.'),
-                ),
-              ),
-            )
-          else
-            ReorderableListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _items.length,
-              onReorderItem: (oldIndex, newIndex) {
-                setState(() {
-                  final item = _items.removeAt(oldIndex);
-                  _items.insert(newIndex, item);
-                });
-              },
-              itemBuilder: (context, index) {
-                final item = _items[index];
-                return Card(
-                  key: ValueKey('$index-${item.title}'),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor:
-                          _phaseColor(item.phase).withValues(alpha: .12),
-                      child: Text(
-                        '${item.durationMinutes}',
-                        style: TextStyle(
-                          color: _phaseColor(item.phase),
-                          fontWeight: FontWeight.w900,
-                        ),
+                  SizedBox(
+                    width: fieldWidth,
+                    child: TextField(
+                      controller: _focus,
+                      decoration: const InputDecoration(
+                        labelText: 'Schwerpunkte',
+                        hintText: 'Passspiel, Ballkontrolle, Umschalten',
+                        prefixIcon: Icon(Icons.center_focus_strong_rounded),
                       ),
                     ),
-                    title: Text(item.title),
-                    subtitle: Text(_phaseLabel(item.phase)),
-                    trailing: IconButton(
-                      onPressed: () => setState(() => _items.removeAt(index)),
-                      icon: const Icon(Icons.close_rounded),
+                  ),
+                  SizedBox(
+                    width: fieldWidth,
+                    child: _CoachMultiSelectField(
+                      coaches: _availableCoaches,
+                      selectedIds: _selectedCoachIds,
+                      onTap: _availableCoaches.isEmpty ? null : _selectCoaches,
                     ),
                   ),
-                );
-              },
-            ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _feedback,
-            minLines: 2,
-            maxLines: 5,
-            decoration: const InputDecoration(
-              labelText: 'Trainerfeedback nach der Einheit',
-              prefixIcon: Icon(Icons.rate_review_outlined),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: _saving ? null : _savePlan,
-              icon: const Icon(Icons.save_rounded),
-              label: Text(
-                _saving ? 'Wird gespeichert …' : 'Trainingsplan speichern',
+                ],
               ),
-            ),
-          ),
-          const SizedBox(height: 40),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _goals,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Lernziele',
+                  prefixIcon: Icon(Icons.flag_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  SizedBox(
+                    width: fieldWidth,
+                    child: TextField(
+                      controller: _materials,
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Material',
+                        prefixIcon: Icon(Icons.inventory_2_outlined),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: fieldWidth,
+                    child: TextField(
+                      controller: _pitch,
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Platzaufteilung / Aufbau',
+                        prefixIcon: Icon(Icons.grid_on_rounded),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              LayoutBuilder(
+                builder: (context, headerConstraints) {
+                  final actions = Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _addCustomItem,
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Freier Baustein'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _exercises.isEmpty ? null : _addFromLibrary,
+                        icon: const Icon(Icons.library_add_outlined),
+                        label: const Text('Aus Bibliothek'),
+                      ),
+                    ],
+                  );
+                  if (headerConstraints.maxWidth < 620) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Ablauf',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 10),
+                        actions,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Text(
+                        'Ablauf',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const Spacer(),
+                      actions,
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              if (_items.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(28),
+                    child: Center(
+                      child: Text('Noch keine Trainingsbausteine hinzugefügt.'),
+                    ),
+                  ),
+                )
+              else
+                ReorderableListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _items.length,
+                  onReorderItem: (oldIndex, newIndex) {
+                    setState(() {
+                      final item = _items.removeAt(oldIndex);
+                      _items.insert(newIndex, item);
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    final item = _items[index];
+                    return Card(
+                      key: ValueKey('$index-${item.title}'),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              _phaseColor(item.phase).withValues(alpha: .12),
+                          child: Text(
+                            '${item.durationMinutes}',
+                            style: TextStyle(
+                              color: _phaseColor(item.phase),
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        title: Text(item.title),
+                        subtitle: Text(_phaseLabel(item.phase)),
+                        trailing: IconButton(
+                          onPressed: () =>
+                              setState(() => _items.removeAt(index)),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _feedback,
+                minLines: 2,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: 'Trainerfeedback nach der Einheit',
+                  prefixIcon: Icon(Icons.rate_review_outlined),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : _savePlan,
+                  icon: const Icon(Icons.save_rounded),
+                  label: Text(
+                    _saving ? 'Wird gespeichert …' : 'Trainingsplan speichern',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
             ],
           );
         },
