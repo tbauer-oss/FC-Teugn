@@ -3,6 +3,8 @@ import {
   archiveExercise,
   getTraining,
   listExercises,
+  listPitchOccupancy,
+  listTrainingCoaches,
   listTrainings,
   recordTrainingAttendance,
   saveExercise,
@@ -14,6 +16,11 @@ import { Permission } from '../security/permissions';
 const router = Router();
 router.use(requireAuth);
 router.use(requireApproved);
+router.get(
+  '/occupancy',
+  requirePermission(Permission.MANAGE_TRAINING),
+  listPitchOccupancy,
+);
 router.get('/', requirePermission(Permission.MANAGE_TRAINING), listTrainings);
 router.get('/exercises', requirePermission(Permission.MANAGE_TRAINING), listExercises);
 router.post('/exercises', requirePermission(Permission.MANAGE_TRAINING), saveExercise);
@@ -26,6 +33,11 @@ router.delete(
   '/exercises/:exerciseId',
   requirePermission(Permission.MANAGE_TRAINING),
   archiveExercise,
+);
+router.get(
+  '/:id/coaches',
+  requirePermission(Permission.MANAGE_TRAINING),
+  listTrainingCoaches,
 );
 router.get('/:id', requirePermission(Permission.MANAGE_TRAINING), getTraining);
 router.put('/:id/plan', requirePermission(Permission.MANAGE_TRAINING), saveTrainingPlan);

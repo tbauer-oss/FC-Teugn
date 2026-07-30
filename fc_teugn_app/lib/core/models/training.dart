@@ -96,9 +96,10 @@ class TrainingPlanModel {
     required this.focusAreas,
     required this.durationMinutes,
     required this.items,
+    this.coaches = const [],
     this.learningGoals,
     this.participantNotes,
-    this.coaches,
+    this.legacyCoaches,
     this.materials,
     this.pitchSetup,
     this.feedback,
@@ -108,7 +109,8 @@ class TrainingPlanModel {
   final String? learningGoals;
   final int durationMinutes;
   final String? participantNotes;
-  final String? coaches;
+  final List<TrainingCoachModel> coaches;
+  final String? legacyCoaches;
   final String? materials;
   final String? pitchSetup;
   final String? feedback;
@@ -122,7 +124,15 @@ class TrainingPlanModel {
         learningGoals: json['learningGoals'] as String?,
         durationMinutes: json['durationMinutes'] as int? ?? 90,
         participantNotes: json['participantNotes'] as String?,
-        coaches: json['coaches'] as String?,
+        coaches: (json['coachAssignments'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => TrainingCoachModel.fromJson(
+                (item as Map<String, dynamic>)['user']
+                    as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+        legacyCoaches: json['coaches'] as String?,
         materials: json['materials'] as String?,
         pitchSetup: json['pitchSetup'] as String?,
         feedback: json['feedback'] as String?,
@@ -132,6 +142,30 @@ class TrainingPlanModel {
                 item as Map<String, dynamic>,
               ),
             )
+            .toList(),
+      );
+}
+
+class TrainingCoachModel {
+  const TrainingCoachModel({
+    required this.id,
+    required this.name,
+    required this.role,
+    this.teamIds = const [],
+  });
+
+  final String id;
+  final String name;
+  final String role;
+  final List<String> teamIds;
+
+  factory TrainingCoachModel.fromJson(Map<String, dynamic> json) =>
+      TrainingCoachModel(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? 'Trainer/in',
+        role: json['role'] as String? ?? 'COACH',
+        teamIds: (json['teamIds'] as List<dynamic>? ?? const [])
+            .whereType<String>()
             .toList(),
       );
 }

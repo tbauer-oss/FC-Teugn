@@ -496,6 +496,7 @@ model User {
   tickerDelegations            MatchTickerDelegate[]    @relation("TickerDelegate")
   grantedTickerDelegations     MatchTickerDelegate[]    @relation("TickerDelegateGranter")
   trainingPlans                TrainingPlan[]           @relation("TrainingPlanAuthor")
+  assignedTrainingPlans        TrainingPlanCoach[]
   exercises                    TrainingExercise[]       @relation("ExerciseAuthor")
   authoredAnnouncements        Announcement[]           @relation("AnnouncementAuthor")
   announcementRecipients       AnnouncementRecipient[]
@@ -1278,7 +1279,19 @@ model TrainingPlan {
   updatedAt        DateTime           @updatedAt
   event            Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
   createdBy        User               @relation("TrainingPlanAuthor", fields: [createdById], references: [id], onDelete: Restrict)
+  coachAssignments TrainingPlanCoach[]
   items            TrainingPlanItem[]
+}
+
+model TrainingPlanCoach {
+  trainingPlanId String
+  userId         String
+  createdAt      DateTime     @default(now())
+  trainingPlan   TrainingPlan @relation(fields: [trainingPlanId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([trainingPlanId, userId])
+  @@index([userId])
 }
 
 model TrainingExercise {
