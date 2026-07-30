@@ -1534,14 +1534,19 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
     );
   }
 
-  Widget _planTab() => ListView(
-        children: [
+  Widget _planTab() => LayoutBuilder(
+        builder: (context, constraints) {
+          final fieldWidth = constraints.maxWidth >= 804
+              ? (constraints.maxWidth - 12) / 2
+              : constraints.maxWidth;
+          return ListView(
+            children: [
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
               SizedBox(
-                width: 390,
+                width: fieldWidth,
                 child: TextField(
                   controller: _focus,
                   decoration: const InputDecoration(
@@ -1552,7 +1557,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                 ),
               ),
               SizedBox(
-                width: 390,
+                width: fieldWidth,
                 child: _CoachMultiSelectField(
                   coaches: _availableCoaches,
                   selectedIds: _selectedCoachIds,
@@ -1577,7 +1582,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
             runSpacing: 12,
             children: [
               SizedBox(
-                width: 390,
+                width: fieldWidth,
                 child: TextField(
                   controller: _materials,
                   minLines: 2,
@@ -1589,7 +1594,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                 ),
               ),
               SizedBox(
-                width: 390,
+                width: fieldWidth,
                 child: TextField(
                   controller: _pitch,
                   minLines: 2,
@@ -1603,22 +1608,48 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
             ],
           ),
           const SizedBox(height: 18),
-          Row(
-            children: [
-              Text('Ablauf', style: Theme.of(context).textTheme.titleLarge),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: _addCustomItem,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Freier Baustein'),
-              ),
-              const SizedBox(width: 8),
-              FilledButton.icon(
-                onPressed: _exercises.isEmpty ? null : _addFromLibrary,
-                icon: const Icon(Icons.library_add_outlined),
-                label: const Text('Aus Bibliothek'),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, headerConstraints) {
+              final actions = Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _addCustomItem,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Freier Baustein'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _exercises.isEmpty ? null : _addFromLibrary,
+                    icon: const Icon(Icons.library_add_outlined),
+                    label: const Text('Aus Bibliothek'),
+                  ),
+                ],
+              );
+              if (headerConstraints.maxWidth < 620) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Ablauf',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 10),
+                    actions,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Text(
+                    'Ablauf',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const Spacer(),
+                  actions,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 8),
           if (_items.isEmpty)
@@ -1689,7 +1720,9 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
             ),
           ),
           const SizedBox(height: 40),
-        ],
+            ],
+          );
+        },
       );
 
   Widget _exerciseTab() => Column(

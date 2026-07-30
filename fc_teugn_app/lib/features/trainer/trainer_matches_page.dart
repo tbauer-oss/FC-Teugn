@@ -228,20 +228,48 @@ class TrainerMatchesPage extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(
-                          value: true,
-                          label: Text('Heimspiel'),
-                          icon: Icon(Icons.home_rounded)),
-                      ButtonSegment(
-                          value: false,
-                          label: Text('Auswärts'),
-                          icon: Icon(Icons.directions_bus_rounded)),
-                    ],
-                    selected: {isHome},
-                    onSelectionChanged: (value) =>
-                        setState(() => isHome = value.first),
+                  LayoutBuilder(
+                    builder: (context, constraints) =>
+                        constraints.maxWidth < 390
+                            ? DropdownButtonFormField<bool>(
+                                initialValue: isHome,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Spielort',
+                                ),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: true,
+                                    child: Text('Heimspiel'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: false,
+                                    child: Text('Auswärtsspiel'),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() => isHome = value);
+                                  }
+                                },
+                              )
+                            : SegmentedButton<bool>(
+                                segments: const [
+                                  ButtonSegment(
+                                    value: true,
+                                    label: Text('Heimspiel'),
+                                    icon: Icon(Icons.home_rounded),
+                                  ),
+                                  ButtonSegment(
+                                    value: false,
+                                    label: Text('Auswärts'),
+                                    icon: Icon(Icons.directions_bus_rounded),
+                                  ),
+                                ],
+                                selected: {isHome},
+                                onSelectionChanged: (value) =>
+                                    setState(() => isHome = value.first),
+                              ),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -261,52 +289,41 @@ class TrainerMatchesPage extends ConsumerWidget {
                     onChanged: (value) => setState(() => competition = value),
                   ),
                   const SizedBox(height: 12),
-                  Row(
+                  _ResponsiveMatchFields(
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: ourGoals,
-                          keyboardType: TextInputType.number,
-                          decoration:
-                              const InputDecoration(labelText: 'Tore FC Teugn'),
-                        ),
+                      TextField(
+                        controller: ourGoals,
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'Tore FC Teugn'),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: theirGoals,
-                          keyboardType: TextInputType.number,
-                          decoration:
-                              const InputDecoration(labelText: 'Tore Gegner'),
-                        ),
+                      TextField(
+                        controller: theirGoals,
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'Tore Gegner'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  _ResponsiveMatchFields(
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: periodCount,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            labelText: 'Spielabschnitte',
-                            helperText: '2 Halbzeiten / 4 Viertel',
-                          ),
+                      TextField(
+                        controller: periodCount,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: 'Spielabschnitte',
+                          helperText: '2 Halbzeiten / 4 Viertel',
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: periodMinutes,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            labelText: 'Minuten je Abschnitt',
-                            helperText: 'z. B. 15',
-                          ),
+                      TextField(
+                        controller: periodMinutes,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: 'Minuten je Abschnitt',
+                          helperText: 'z. B. 15',
                         ),
                       ),
                     ],
@@ -400,6 +417,39 @@ class TrainerMatchesPage extends ConsumerWidget {
     periodCount.dispose();
     periodMinutes.dispose();
     return result;
+  }
+}
+
+class _ResponsiveMatchFields extends StatelessWidget {
+  const _ResponsiveMatchFields({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 430) {
+          return Column(
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                children[index],
+                if (index != children.length - 1) const SizedBox(height: 12),
+              ],
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              Expanded(child: children[index]),
+              if (index != children.length - 1) const SizedBox(width: 12),
+            ],
+          ],
+        );
+      },
+    );
   }
 }
 

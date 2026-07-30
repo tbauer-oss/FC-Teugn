@@ -98,6 +98,53 @@ class _ProfileContent extends ConsumerWidget {
         LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 860;
+            if (constraints.maxWidth < 600) {
+              return Column(
+                children: [
+                  _FactsCard(player: player),
+                  const SizedBox(height: 12),
+                  _SeasonStatisticsCard(player: player),
+                  const SizedBox(height: 12),
+                  _DevelopmentCard(
+                    notes: player.developmentNotes,
+                    onAdd: player.capabilities.canAddDevelopment
+                        ? () => _addDevelopment(context, ref)
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  _GuardiansCard(
+                    guardians: player.guardians,
+                    onAdd: player.capabilities.canEdit
+                        ? () => _addGuardian(context, ref)
+                        : null,
+                  ),
+                  if (player.capabilities.canViewSensitive) ...[
+                    const SizedBox(height: 12),
+                    _MedicalCard(
+                      player: player,
+                      onEdit: player.capabilities.canEditSensitive
+                          ? () => _editMedical(context, ref)
+                          : null,
+                      onAddContact: player.capabilities.canEditSensitive
+                          ? () => _addEmergencyContact(context, ref)
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                    _ConsentCard(
+                      consents: player.consents,
+                      editable: player.capabilities.canEditSensitive,
+                      onChange: (type, status) =>
+                          _changeConsent(context, ref, type, status),
+                    ),
+                    const SizedBox(height: 12),
+                    _DocumentsCard(
+                      playerId: player.id,
+                      canManage: player.capabilities.canManageDocuments,
+                    ),
+                  ],
+                ],
+              );
+            }
             final left = Column(
               children: [
                 _FactsCard(player: player),
@@ -483,145 +530,242 @@ class _ProfileHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.black, Color(0xFF3A3400)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Wrap(
-        spacing: 20,
-        runSpacing: 18,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              CircleAvatar(
-                radius: 42,
-                backgroundColor: AppColors.yellow,
-                backgroundImage: player.photoUrl == null
-                    ? null
-                    : NetworkImage(player.photoUrl!),
-                child: player.photoUrl == null
-                    ? Text(
-                        '${player.firstName[0]}${player.lastName[0]}'
-                            .toUpperCase(),
-                        style: const TextStyle(
-                          color: AppColors.navy,
-                          fontSize: 21,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      )
-                    : null,
-              ),
-              if (onPhoto != null)
-                Positioned(
-                  right: -8,
-                  bottom: -8,
-                  child: PopupMenuButton<ImageSource>(
-                    tooltip: 'Spielerfoto ändern',
-                    onSelected: onPhoto,
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(
-                        value: ImageSource.camera,
-                        child: ListTile(
-                          leading: Icon(Icons.photo_camera_outlined),
-                          title: Text('Kamera'),
-                        ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        final avatar = Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CircleAvatar(
+              radius: compact ? 36 : 42,
+              backgroundColor: AppColors.yellow,
+              backgroundImage: player.photoUrl == null
+                  ? null
+                  : NetworkImage(player.photoUrl!),
+              child: player.photoUrl == null
+                  ? Text(
+                      '${player.firstName[0]}${player.lastName[0]}'
+                          .toUpperCase(),
+                      style: TextStyle(
+                        color: AppColors.navy,
+                        fontSize: compact ? 18 : 21,
+                        fontWeight: FontWeight.w900,
                       ),
-                      PopupMenuItem(
-                        value: ImageSource.gallery,
-                        child: ListTile(
-                          leading: Icon(Icons.photo_library_outlined),
-                          title: Text('Galerie'),
-                        ),
-                      ),
-                    ],
-                    child: const CircleAvatar(
-                      radius: 17,
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.edit_rounded, size: 18),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          SizedBox(
-            width: 310,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  player.fullName,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: Colors.white,
-                      ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  [
-                    if (player.ageGroupCode != null)
-                      '${player.ageGroupCode}-Jugend',
-                    if (player.teamName != null) player.teamName!,
-                    if (player.shirtNumber != null) '#${player.shirtNumber}',
-                  ].join(' · '),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: .68),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+                    )
+                  : null,
             ),
-          ),
-          _StatusBadge(status: player.status),
+            if (onPhoto != null)
+              Positioned(
+                right: -7,
+                bottom: -7,
+                child: PopupMenuButton<ImageSource>(
+                  tooltip: 'Spielerfoto ändern',
+                  onSelected: onPhoto,
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: ImageSource.camera,
+                      child: ListTile(
+                        leading: Icon(Icons.photo_camera_outlined),
+                        title: Text('Kamera'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: ImageSource.gallery,
+                      child: ListTile(
+                        leading: Icon(Icons.photo_library_outlined),
+                        title: Text('Galerie'),
+                      ),
+                    ),
+                  ],
+                  child: const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.edit_rounded, size: 17),
+                  ),
+                ),
+              ),
+          ],
+        );
+        final identity = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              player.fullName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: (compact
+                      ? Theme.of(context).textTheme.headlineSmall
+                      : Theme.of(context).textTheme.headlineMedium)
+                  ?.copyWith(color: Colors.white),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              [
+                if (player.ageGroupCode != null)
+                  '${player.ageGroupCode}-Jugend',
+                if (player.teamName != null) player.teamName!,
+                if (player.shirtNumber != null) '#${player.shirtNumber}',
+              ].join(' · '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: .72),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        );
+        final statistics = [
           _CareerStatChip(
             icon: Icons.sports_soccer_rounded,
             label: '${player.goals} Tore',
+            expanded: compact,
           ),
           _CareerStatChip(
             icon: Icons.assistant_direction_rounded,
             label: '${player.assists} Assists',
+            expanded: compact,
           ),
           _CareerStatChip(
             icon: Icons.event_available_rounded,
             label: '${player.appearances} Einsätze',
+            expanded: compact,
           ),
           _CareerStatChip(
             icon: Icons.timer_outlined,
             label: '${player.minutes} Minuten',
+            expanded: compact,
           ),
-          if (onEdit != null)
-            OutlinedButton.icon(
-              onPressed: onEdit,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.white.withValues(alpha: .35)),
-              ),
-              icon: const Icon(Icons.edit_rounded),
-              label: const Text('Stammdaten bearbeiten'),
+        ];
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(compact ? 18 : 24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.black, Color(0xFF3A3400)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          if (onRemovePhoto != null)
-            TextButton.icon(
-              onPressed: onRemovePhoto,
-              style: TextButton.styleFrom(foregroundColor: Colors.white70),
-              icon: const Icon(Icons.delete_outline_rounded),
-              label: const Text('Foto entfernen'),
-            ),
-          if (onDelete != null)
-            TextButton.icon(
-              onPressed: onDelete,
-              style: TextButton.styleFrom(foregroundColor: Colors.red.shade200),
-              icon: const Icon(Icons.delete_forever_outlined),
-              label: const Text('Spieler löschen'),
-            ),
-        ],
-      ),
+            borderRadius: BorderRadius.circular(compact ? 20 : 24),
+          ),
+          child: compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        avatar,
+                        const SizedBox(width: 16),
+                        Expanded(child: identity),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _StatusBadge(status: player.status),
+                    ),
+                    const SizedBox(height: 12),
+                    GridView.count(
+                      crossAxisCount: constraints.maxWidth < 420 ? 1 : 2,
+                      childAspectRatio: constraints.maxWidth < 420 ? 6.5 : 3.25,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: statistics,
+                    ),
+                    if (onEdit != null) ...[
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(
+                        onPressed: onEdit,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: .4),
+                          ),
+                        ),
+                        icon: const Icon(Icons.edit_rounded),
+                        label: const Text('Stammdaten bearbeiten'),
+                      ),
+                    ],
+                    if (onRemovePhoto != null || onDelete != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: PopupMenuButton<String>(
+                          tooltip: 'Weitere Aktionen',
+                          iconColor: Colors.white70,
+                          onSelected: (value) {
+                            if (value == 'removePhoto') onRemovePhoto?.call();
+                            if (value == 'delete') onDelete?.call();
+                          },
+                          itemBuilder: (context) => [
+                            if (onRemovePhoto != null)
+                              const PopupMenuItem(
+                                value: 'removePhoto',
+                                child: ListTile(
+                                  leading: Icon(Icons.delete_outline_rounded),
+                                  title: Text('Foto entfernen'),
+                                ),
+                              ),
+                            if (onDelete != null)
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: ListTile(
+                                  leading: Icon(
+                                    Icons.delete_forever_outlined,
+                                    color: Colors.red.shade700,
+                                  ),
+                                  title: const Text('Spieler löschen'),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                )
+              : Wrap(
+                  spacing: 20,
+                  runSpacing: 18,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    avatar,
+                    SizedBox(width: 310, child: identity),
+                    _StatusBadge(status: player.status),
+                    ...statistics,
+                    if (onEdit != null)
+                      OutlinedButton.icon(
+                        onPressed: onEdit,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: .35),
+                          ),
+                        ),
+                        icon: const Icon(Icons.edit_rounded),
+                        label: const Text('Stammdaten bearbeiten'),
+                      ),
+                    if (onRemovePhoto != null)
+                      TextButton.icon(
+                        onPressed: onRemovePhoto,
+                        style: TextButton.styleFrom(
+                            foregroundColor: Colors.white70),
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text('Foto entfernen'),
+                      ),
+                    if (onDelete != null)
+                      TextButton.icon(
+                        onPressed: onDelete,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red.shade200,
+                        ),
+                        icon: const Icon(Icons.delete_forever_outlined),
+                        label: const Text('Spieler löschen'),
+                      ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -642,9 +786,11 @@ class _SeasonStatisticsCard extends StatelessWidget {
                 children: [
                   const Icon(Icons.query_stats_rounded, color: AppColors.blue),
                   const SizedBox(width: 10),
-                  Text(
-                    'Statistik nach Saison',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  Expanded(
+                    child: Text(
+                      'Statistik nach Saison',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                   ),
                 ],
               ),
@@ -751,13 +897,19 @@ class _PlayerStatisticRow extends StatelessWidget {
 }
 
 class _CareerStatChip extends StatelessWidget {
-  const _CareerStatChip({required this.icon, required this.label});
+  const _CareerStatChip({
+    required this.icon,
+    required this.label,
+    this.expanded = false,
+  });
 
   final IconData icon;
   final String label;
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) => Container(
+        width: expanded ? double.infinity : null,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: .12),
@@ -768,13 +920,26 @@ class _CareerStatChip extends StatelessWidget {
           children: [
             Icon(icon, size: 17, color: AppColors.yellow),
             const SizedBox(width: 7),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
+            if (expanded)
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              )
+            else
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
           ],
         ),
       );
@@ -838,43 +1003,88 @@ class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
           return Column(
             children: [
               for (final document in documents)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    child: Icon(
-                      document.file.contentType == 'application/pdf'
-                          ? Icons.picture_as_pdf_outlined
-                          : Icons.image_outlined,
-                    ),
-                  ),
-                  title: Text(document.title),
-                  subtitle: Text(
-                    '${_documentType(document.type)} · Version ${document.version}'
-                    ' · ${_fileSize(document.file.size)}',
-                  ),
-                  onTap: () => launchUrl(
-                    Uri.parse(document.file.downloadUrl),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                  trailing: Wrap(
-                    spacing: 2,
-                    children: [
-                      IconButton(
-                        tooltip: 'Öffnen',
-                        onPressed: () => launchUrl(
-                          Uri.parse(document.file.downloadUrl),
-                          mode: LaunchMode.externalApplication,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 430;
+                    final details = Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          child: Icon(
+                            document.file.contentType == 'application/pdf'
+                                ? Icons.picture_as_pdf_outlined
+                                : Icons.image_outlined,
+                          ),
                         ),
-                        icon: const Icon(Icons.open_in_new_rounded),
-                      ),
-                      if (widget.canManage)
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                document.title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              Text(
+                                '${_documentType(document.type)} · '
+                                'Version ${document.version} · '
+                                '${_fileSize(document.file.size)}',
+                                style: const TextStyle(color: AppColors.muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                    final actions = Wrap(
+                      spacing: 2,
+                      children: [
                         IconButton(
-                          tooltip: 'Entfernen',
-                          onPressed: () => _delete(document),
-                          icon: const Icon(Icons.delete_outline_rounded),
+                          tooltip: 'Öffnen',
+                          onPressed: () => launchUrl(
+                            Uri.parse(document.file.downloadUrl),
+                            mode: LaunchMode.externalApplication,
+                          ),
+                          icon: const Icon(Icons.open_in_new_rounded),
                         ),
-                    ],
-                  ),
+                        if (widget.canManage)
+                          IconButton(
+                            tooltip: 'Entfernen',
+                            onPressed: () => _delete(document),
+                            icon: const Icon(Icons.delete_outline_rounded),
+                          ),
+                      ],
+                    );
+                    return InkWell(
+                      onTap: () => launchUrl(
+                        Uri.parse(document.file.downloadUrl),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: compact
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  details,
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: actions,
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  Expanded(child: details),
+                                  actions,
+                                ],
+                              ),
+                      ),
+                    );
+                  },
                 ),
             ],
           );
@@ -1011,29 +1221,59 @@ class _FactsCard extends StatelessWidget {
     return _Section(
       title: 'Sportliches Profil',
       icon: Icons.sports_soccer_rounded,
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          _Fact(label: 'Rufname', value: player.displayName),
-          _Fact(
-            label: 'Geburtsdatum',
-            value: player.birthDate == null
-                ? 'Nicht hinterlegt'
-                : _date(player.birthDate!),
-          ),
-          _Fact(
-              label: 'Alter',
-              value: player.age == null ? '–' : '${player.age} Jahre'),
-          _Fact(label: 'Hauptposition', value: player.position ?? 'Noch offen'),
-          _Fact(label: 'Nebenposition', value: player.secondaryPosition ?? '–'),
-          _Fact(label: 'Starker Fuß', value: _foot(player.dominantFoot)),
-          _Fact(label: 'Nationalität', value: player.nationality ?? '–'),
-          _Fact(
-            label: 'Im Verein seit',
-            value: player.joinedAt == null ? '–' : _date(player.joinedAt!),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth < 300 ? 1 : 2;
+          final width = (constraints.maxWidth - (columns - 1) * 10) / columns;
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _Fact(
+                width: width,
+                label: 'Rufname',
+                value: player.displayName,
+              ),
+              _Fact(
+                width: width,
+                label: 'Geburtsdatum',
+                value: player.birthDate == null
+                    ? 'Nicht hinterlegt'
+                    : _date(player.birthDate!),
+              ),
+              _Fact(
+                width: width,
+                label: 'Alter',
+                value: player.age == null ? '–' : '${player.age} Jahre',
+              ),
+              _Fact(
+                width: width,
+                label: 'Hauptposition',
+                value: player.position ?? 'Noch offen',
+              ),
+              _Fact(
+                width: width,
+                label: 'Nebenposition',
+                value: player.secondaryPosition ?? '–',
+              ),
+              _Fact(
+                width: width,
+                label: 'Starker Fuß',
+                value: _foot(player.dominantFoot),
+              ),
+              _Fact(
+                width: width,
+                label: 'Nationalität',
+                value: player.nationality ?? '–',
+              ),
+              _Fact(
+                width: width,
+                label: 'Im Verein seit',
+                value: player.joinedAt == null ? '–' : _date(player.joinedAt!),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1047,15 +1287,20 @@ class _FactsCard extends StatelessWidget {
 }
 
 class _Fact extends StatelessWidget {
-  const _Fact({required this.label, required this.value});
+  const _Fact({
+    required this.width,
+    required this.label,
+    required this.value,
+  });
 
+  final double width;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 170,
+      width: width,
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: AppColors.background,
@@ -1202,18 +1447,39 @@ class _MedicalCard extends StatelessWidget {
             const Text('Noch kein Notfallkontakt hinterlegt.')
           else
             for (final contact in player.emergencyContacts)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.phone_in_talk_rounded),
-                title: Text(contact.name),
-                subtitle: Text(
-                  [contact.relationship, contact.phone]
-                      .whereType<String>()
-                      .join(' · '),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Icon(Icons.phone_in_talk_rounded),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            contact.name,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          Text(
+                            [contact.relationship, contact.phone]
+                                .whereType<String>()
+                                .join(' · '),
+                          ),
+                          if (contact.isAuthorizedPickup)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 5),
+                              child: Chip(label: Text('Abholberechtigt')),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                trailing: contact.isAuthorizedPickup
-                    ? const Chip(label: Text('Abholberechtigt'))
-                    : null,
               ),
         ],
       ),
@@ -1388,27 +1654,53 @@ class _ConsentCard extends StatelessWidget {
               builder: (context) {
                 final current = _consent(entry.key);
                 final granted = current?.status == 'GRANTED';
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    granted
-                        ? Icons.check_circle_rounded
-                        : Icons.pending_outlined,
-                    color: granted ? AppColors.teal : AppColors.orange,
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Icon(
+                          granted
+                              ? Icons.check_circle_rounded
+                              : Icons.pending_outlined,
+                          color: granted ? AppColors.teal : AppColors.orange,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.value,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            Text(
+                              granted
+                                  ? 'Erteilt'
+                                  : 'Ausstehend oder widerrufen',
+                              style: const TextStyle(color: AppColors.muted),
+                            ),
+                            if (editable)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () => onChange(
+                                    entry.key,
+                                    granted ? 'REVOKED' : 'GRANTED',
+                                  ),
+                                  child:
+                                      Text(granted ? 'Widerrufen' : 'Erteilen'),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  title: Text(entry.value),
-                  subtitle: Text(
-                    granted ? 'Erteilt' : 'Ausstehend oder widerrufen',
-                  ),
-                  trailing: editable
-                      ? TextButton(
-                          onPressed: () => onChange(
-                            entry.key,
-                            granted ? 'REVOKED' : 'GRANTED',
-                          ),
-                          child: Text(granted ? 'Widerrufen' : 'Erteilen'),
-                        )
-                      : null,
                 );
               },
             ),
@@ -1440,30 +1732,82 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(compact ? 16 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: AppColors.blue),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                if (trailing != null) trailing!,
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final stacked = trailing != null && constraints.maxWidth < 360;
+                final heading = Row(
+                  children: [
+                    Icon(icon, color: AppColors.blue),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    if (!stacked && trailing != null) trailing!,
+                  ],
+                );
+                return stacked
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          heading,
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: trailing!,
+                          ),
+                        ],
+                      )
+                    : heading;
+              },
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: compact ? 14 : 18),
             child,
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ResponsiveFields extends StatelessWidget {
+  const _ResponsiveFields({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 480) {
+          return Column(
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                children[index],
+                if (index != children.length - 1) const SizedBox(height: 12),
+              ],
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              Expanded(child: children[index]),
+              if (index != children.length - 1) const SizedBox(width: 12),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1553,117 +1897,96 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
                 },
               ),
               const SizedBox(height: 12),
-              Row(
+              _ResponsiveFields(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: firstName,
-                      decoration: const InputDecoration(labelText: 'Vorname'),
-                    ),
+                  TextField(
+                    controller: firstName,
+                    decoration: const InputDecoration(labelText: 'Vorname'),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: lastName,
-                      decoration: const InputDecoration(labelText: 'Nachname'),
-                    ),
+                  TextField(
+                    controller: lastName,
+                    decoration: const InputDecoration(labelText: 'Nachname'),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
+              _ResponsiveFields(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: preferredName,
-                      decoration: const InputDecoration(labelText: 'Rufname'),
-                    ),
+                  TextField(
+                    controller: preferredName,
+                    decoration: const InputDecoration(labelText: 'Rufname'),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: nationality,
-                      decoration:
-                          const InputDecoration(labelText: 'Nationalität'),
-                    ),
+                  TextField(
+                    controller: nationality,
+                    decoration:
+                        const InputDecoration(labelText: 'Nationalität'),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
+              _ResponsiveFields(
                 children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String?>(
-                      initialValue: position,
-                      isExpanded: true,
-                      decoration:
-                          const InputDecoration(labelText: 'Hauptposition'),
-                      items: footballOptionItems(
-                        options: footballPositions,
-                        emptyLabel: 'Noch offen',
-                        currentValue: position,
-                        showCode: true,
+                  DropdownButtonFormField<String?>(
+                    initialValue: position,
+                    isExpanded: true,
+                    decoration:
+                        const InputDecoration(labelText: 'Hauptposition'),
+                    items: footballOptionItems(
+                      options: footballPositions,
+                      emptyLabel: 'Noch offen',
+                      currentValue: position,
+                      showCode: true,
+                    ),
+                    onChanged: (value) => setState(() => position = value),
+                  ),
+                  DropdownButtonFormField<String?>(
+                    initialValue: secondaryPosition,
+                    isExpanded: true,
+                    decoration:
+                        const InputDecoration(labelText: 'Nebenposition'),
+                    items: footballOptionItems(
+                      options: footballPositions,
+                      emptyLabel: 'Keine Nebenposition',
+                      currentValue: secondaryPosition,
+                      showCode: true,
+                    ),
+                    onChanged: (value) =>
+                        setState(() => secondaryPosition = value),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _ResponsiveFields(
+                children: [
+                  DropdownButtonFormField<DominantFoot>(
+                    initialValue: dominantFoot,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Starker Fuß'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: DominantFoot.unknown,
+                        child: Text('Noch offen'),
                       ),
-                      onChanged: (value) => setState(() => position = value),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String?>(
-                      initialValue: secondaryPosition,
-                      isExpanded: true,
-                      decoration:
-                          const InputDecoration(labelText: 'Nebenposition'),
-                      items: footballOptionItems(
-                        options: footballPositions,
-                        emptyLabel: 'Keine Nebenposition',
-                        currentValue: secondaryPosition,
-                        showCode: true,
+                      DropdownMenuItem(
+                        value: DominantFoot.right,
+                        child: Text('Rechts'),
                       ),
-                      onChanged: (value) =>
-                          setState(() => secondaryPosition = value),
-                    ),
+                      DropdownMenuItem(
+                        value: DominantFoot.left,
+                        child: Text('Links'),
+                      ),
+                      DropdownMenuItem(
+                        value: DominantFoot.both,
+                        child: Text('Beidfüßig'),
+                      ),
+                    ],
+                    onChanged: (value) => setState(() => dominantFoot = value!),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<DominantFoot>(
-                      initialValue: dominantFoot,
-                      decoration:
-                          const InputDecoration(labelText: 'Starker Fuß'),
-                      items: const [
-                        DropdownMenuItem(
-                          value: DominantFoot.unknown,
-                          child: Text('Noch offen'),
-                        ),
-                        DropdownMenuItem(
-                          value: DominantFoot.right,
-                          child: Text('Rechts'),
-                        ),
-                        DropdownMenuItem(
-                          value: DominantFoot.left,
-                          child: Text('Links'),
-                        ),
-                        DropdownMenuItem(
-                          value: DominantFoot.both,
-                          child: Text('Beidfüßig'),
-                        ),
-                      ],
-                      onChanged: (value) =>
-                          setState(() => dominantFoot = value!),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: shirtNumber,
-                      keyboardType: TextInputType.number,
-                      decoration:
-                          const InputDecoration(labelText: 'Trikotnummer'),
-                    ),
+                  TextField(
+                    controller: shirtNumber,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        const InputDecoration(labelText: 'Trikotnummer'),
                   ),
                 ],
               ),
@@ -1814,22 +2137,16 @@ class _MedicalDialogState extends State<_MedicalDialog> {
                     const InputDecoration(labelText: 'Erkrankungen / Hinweise'),
               ),
               const SizedBox(height: 12),
-              Row(
+              _ResponsiveFields(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: physicianName,
-                      decoration:
-                          const InputDecoration(labelText: 'Kinderarzt'),
-                    ),
+                  TextField(
+                    controller: physicianName,
+                    decoration: const InputDecoration(labelText: 'Kinderarzt'),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: physicianPhone,
-                      decoration: const InputDecoration(
-                        labelText: 'Telefon Kinderarzt',
-                      ),
+                  TextField(
+                    controller: physicianPhone,
+                    decoration: const InputDecoration(
+                      labelText: 'Telefon Kinderarzt',
                     ),
                   ),
                 ],
@@ -1909,12 +2226,17 @@ class _GuardianDialogState extends State<_GuardianDialog> {
           children: [
             DropdownButtonFormField<String>(
               initialValue: parentId,
+              isExpanded: true,
               decoration: const InputDecoration(labelText: 'Elternkonto'),
               items: [
                 for (final parent in widget.parents)
                   DropdownMenuItem(
                     value: parent.id,
-                    child: Text('${parent.name} · ${parent.email}'),
+                    child: Text(
+                      '${parent.name} · ${parent.email}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
               ],
               onChanged: (value) => setState(() => parentId = value!),
@@ -2142,20 +2464,47 @@ class _DevelopmentDialogState extends State<_DevelopmentDialog> {
                 onChanged: (value) => setState(() => rating = value),
               ),
               const SizedBox(height: 12),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'STAFF_ONLY',
-                    label: Text('Nur Trainerteam'),
-                  ),
-                  ButtonSegment(
-                    value: 'GUARDIANS_AND_STAFF',
-                    label: Text('Mit Eltern teilen'),
-                  ),
-                ],
-                selected: {visibility},
-                onSelectionChanged: (value) =>
-                    setState(() => visibility = value.first),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 450) {
+                    return DropdownButtonFormField<String>(
+                      initialValue: visibility,
+                      isExpanded: true,
+                      decoration:
+                          const InputDecoration(labelText: 'Sichtbarkeit'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'STAFF_ONLY',
+                          child: Text('Nur Trainerteam'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'GUARDIANS_AND_STAFF',
+                          child: Text('Mit Eltern teilen'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => visibility = value);
+                        }
+                      },
+                    );
+                  }
+                  return SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'STAFF_ONLY',
+                        label: Text('Nur Trainerteam'),
+                      ),
+                      ButtonSegment(
+                        value: 'GUARDIANS_AND_STAFF',
+                        label: Text('Mit Eltern teilen'),
+                      ),
+                    ],
+                    selected: {visibility},
+                    onSelectionChanged: (value) =>
+                        setState(() => visibility = value.first),
+                  );
+                },
               ),
             ],
           ),

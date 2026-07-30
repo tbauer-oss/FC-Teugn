@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
@@ -17,13 +18,16 @@ class ParentMatchesPage extends ConsumerWidget {
       subtitle: 'Spielplan, Treffpunkt und Ergebnisse der Mannschaft.',
       child: events.when(
         data: (items) {
-          final matches = items.where((event) => event.type == EventType.match).toList()
+          final matches = items
+              .where((event) => event.type == EventType.match)
+              .toList()
             ..sort((a, b) => b.startAt.compareTo(a.startAt));
           if (matches.isEmpty) {
             return const EmptyState(
               icon: Icons.sports_soccer_rounded,
               title: 'Noch keine Spiele',
-              message: 'Sobald das Trainerteam einen Spieltag plant, erscheint er hier.',
+              message:
+                  'Sobald das Trainerteam einen Spieltag plant, erscheint er hier.',
             );
           }
           return Column(
@@ -52,6 +56,7 @@ class ParentMatchesPage extends ConsumerWidget {
 
 class _PublicMatchCard extends StatelessWidget {
   const _PublicMatchCard({required this.event, required this.onOpen});
+
   final EventModel event;
   final VoidCallback onOpen;
 
@@ -60,66 +65,125 @@ class _PublicMatchCard extends StatelessWidget {
     final details = event.matchDetails;
     final date = event.startAt.toLocal();
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Chip(label: Text(details?.competition ?? 'Spiel')),
-                const Spacer(),
-                Text('${date.day}.${date.month}.${date.year}'),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                const Expanded(
-                  child: Text('FC Teugn', textAlign: TextAlign.center, style: TextStyle(
-                    color: AppColors.navy,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  )),
-                ),
-                Text(
-                  details?.ourGoals != null && details?.theirGoals != null
-                      ? '${details!.ourGoals} : ${details.theirGoals}'
-                      : '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                Expanded(
-                  child: Text(
-                    details?.opponent ?? event.title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.navy,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+          final result =
+              details?.ourGoals != null && details?.theirGoals != null
+                  ? '${details!.ourGoals} : ${details.theirGoals}'
+                  : '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+          final opponent = details?.opponent ?? event.title;
+          final teams = compact
+              ? Column(
+                  children: [
+                    const Text(
+                      'FC Teugn',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.navy,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
                     ),
+                    const SizedBox(height: 5),
+                    Text(result, style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 5),
+                    Text(
+                      opponent,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.navy,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'FC Teugn',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.navy,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      result,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    Expanded(
+                      child: Text(
+                        opponent,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+          return Padding(
+            padding: EdgeInsets.all(compact ? 16 : 20),
+            child: Column(
+              children: [
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Chip(label: Text(details?.competition ?? 'Spiel')),
+                    Text('${date.day}.${date.month}.${date.year}'),
+                  ],
+                ),
+                SizedBox(height: compact ? 14 : 18),
+                teams,
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 18,
+                      color: AppColors.muted,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        event.location.trim().isEmpty
+                            ? 'Ort noch offen'
+                            : event.location,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: onOpen,
+                    icon: const Icon(Icons.stadium_rounded),
+                    label: const Text('Spieltag öffnen'),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.location_on_outlined, size: 18, color: AppColors.muted),
-                const SizedBox(width: 6),
-                Text(event.location),
-              ],
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.tonalIcon(
-                onPressed: onOpen,
-                icon: const Icon(Icons.stadium_rounded),
-                label: const Text('Spieltag öffnen'),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
