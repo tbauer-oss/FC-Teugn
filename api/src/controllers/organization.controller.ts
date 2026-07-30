@@ -355,6 +355,49 @@ export async function updateTeam(req: Request, res: Response) {
   return res.json(await serializeTeam(team, true));
 }
 
+export async function updateTrainingSchedule(req: Request, res: Response) {
+  const user = req.user!;
+  const teamId = req.params.id;
+  if (!(await canManageTeam(user, teamId))) {
+    return res.status(403).json({
+      message: 'Die Trainingszeiten dieser Mannschaft dürfen nicht bearbeitet werden.',
+    });
+  }
+  const trainingLocation = optionalText(req.body.trainingLocation, 200);
+  const trainingTimes = stringList(req.body.trainingTimes, 7, 100);
+  const team = await prisma.$transaction(async (tx) => {
+    const existing = await tx.team.findUnique({
+      where: { id: teamId },
+      include: hierarchyInclude,
+    });
+    if (!existing) return null;
+    const updated = await tx.team.update({
+      where: { id: teamId },
+      data: { trainingLocation, trainingTimes },
+      include: hierarchyInclude,
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId,
+        action: 'TEAM_TRAINING_SCHEDULE_UPDATED',
+        entityType: 'Team',
+        entityId: teamId,
+        metadata: {
+          before: {
+            trainingLocation: existing.trainingLocation,
+            trainingTimes: existing.trainingTimes,
+          },
+          after: { trainingLocation, trainingTimes },
+        },
+      },
+    });
+    return updated;
+  });
+  if (!team) return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  return res.json(await serializeTeam(team, true));
+}
+
 export async function uploadTeamPhoto(req: Request, res: Response) {
   const user = req.user!;
   const teamId = req.params.id;

@@ -65,22 +65,42 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
   Widget build(BuildContext context) => PageScaffold(
         title: 'Trainingsplanung',
         subtitle: 'Einheiten vorbereiten, Übungen kombinieren und Anwesenheit erfassen.',
-        action: _view == _TrainingPageView.occupancy
-            ? null
-            : FilledButton.icon(
-                onPressed: _organization == null || _creating
-                    ? null
-                    : _createTraining,
-                icon: _creating
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.add_rounded),
-                label: Text(
-                  _creating ? 'Wird angelegt …' : 'Trainingstermin anlegen',
-                ),
-              ),
+        action: _organization?.can('MANAGE_ORGANIZATION') == true
+            ? Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _creating ? null : _manageTrainingTimes,
+                    icon: const Icon(Icons.edit_calendar_rounded),
+                    label: const Text('Trainingszeiten verwalten'),
+                  ),
+                  if (_view == _TrainingPageView.sessions)
+                    FilledButton.icon(
+                      onPressed: _organization == null || _creating
+                          ? null
+                          : _createTraining,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Trainingstermin anlegen'),
+                    ),
+                ],
+              )
+            : _view == _TrainingPageView.occupancy
+                ? null
+                : FilledButton.icon(
+                    onPressed: _organization == null || _creating
+                        ? null
+                        : _createTraining,
+                    icon: _creating
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add_rounded),
+                    label: Text(
+                      _creating ? 'Wird angelegt …' : 'Trainingstermin anlegen',
+                    ),
+                  ),
         child: _error != null
             ? EmptyState(
                 icon: Icons.fitness_center_rounded,
@@ -260,6 +280,8 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
       builder: (context) => EventEditorDialog(
         teams: organization.teams,
         initialTeamId: organization.currentTeam.id,
+        seasonName: organization.season.name,
+        seasonEnd: organization.season.endDate,
       ),
     );
     if (draft == null || !mounted) return;
@@ -289,6 +311,209 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
       if (mounted) setState(() => _creating = false);
     }
   }
+
+  Future<void> _manageTrainingTimes() async {
+    final organization = _organization;
+    if (organization == null ||
+        !organization.can('MANAGE_ORGANIZATION')) {
+      return;
+    }
+    final draft = await showDialog<_TrainingScheduleDraft>(
+      context: context,
+      builder: (context) => _TrainingScheduleDialog(
+        teams: organization.teams.where((team) => team.isActive).toList(),
+        initialTeamId: organization.currentTeam.id,
+        season: organization.season,
+      ),
+    );
+    if (draft == null || !mounted) return;
+    setState(() => _creating = true);
+    try {
+      await ref.read(repositoryProvider).updateTrainingSchedule(
+            teamId: draft.teamId,
+            trainingTimes: draft.trainingTimes,
+            trainingLocation: draft.trainingLocation,
+          );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Trainingszeiten wurden gespeichert.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Trainingszeiten konnten nicht gespeichert werden.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
+}
+
+class _TrainingScheduleDraft {
+  const _TrainingScheduleDraft({
+    required this.teamId,
+    required this.trainingTimes,
+    this.trainingLocation,
+  });
+
+  final String teamId;
+  final List<String> trainingTimes;
+  final String? trainingLocation;
+}
+
+class _TrainingScheduleDialog extends StatefulWidget {
+  const _TrainingScheduleDialog({
+    required this.teams,
+    required this.initialTeamId,
+    required this.season,
+  });
+
+  final List<TeamSummary> teams;
+  final String initialTeamId;
+  final SeasonSummary season;
+
+  @override
+  State<_TrainingScheduleDialog> createState() =>
+      _TrainingScheduleDialogState();
+}
+
+class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
+  late String _teamId;
+  late final TextEditingController _location;
+  late final TextEditingController _times;
+
+  TeamSummary get _team =>
+      widget.teams.firstWhere((team) => team.id == _teamId);
+
+  @override
+  void initState() {
+    super.initState();
+    _teamId = widget.teams.any((team) => team.id == widget.initialTeamId)
+        ? widget.initialTeamId
+        : widget.teams.first.id;
+    _location = TextEditingController();
+    _times = TextEditingController();
+    _loadTeam();
+  }
+
+  void _loadTeam() {
+    _location.text = _team.trainingLocation ?? '';
+    _times.text = _team.trainingTimes.join('\n');
+  }
+
+  @override
+  void dispose() {
+    _location.dispose();
+    _times.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Trainingszeiten verwalten'),
+        content: SizedBox(
+          width: 580,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: _teamId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Jugend / Mannschaft',
+                    prefixIcon: Icon(Icons.groups_rounded),
+                  ),
+                  items: [
+                    for (final team in widget.teams)
+                      DropdownMenuItem(
+                        value: team.id,
+                        child: Text(team.displayName),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _teamId = value;
+                      _loadTeam();
+                    });
+                  },
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _location,
+                  decoration: const InputDecoration(
+                    labelText: 'Trainingsplatz / Bereich',
+                    hintText: 'z. B. Platz 1 unten',
+                    prefixIcon: Icon(Icons.location_on_outlined),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _times,
+                  minLines: 3,
+                  maxLines: 7,
+                  decoration: const InputDecoration(
+                    labelText: 'Regelmäßige Trainingszeiten',
+                    hintText: 'Eine Zeit pro Zeile, z. B. Dienstag 17:00–18:30',
+                    helperText: 'Maximal sieben Zeiten pro Mannschaft.',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.teal.withValues(alpha: .08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    'Die Angaben gelten für die Saison ${widget.season.name}. '
+                    'Kalender-Trainingsserien laufen automatisch bis zum '
+                    'Saisonende am ${_date(widget.season.endDate)}.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final times = _times.text
+                  .split('\n')
+                  .map((value) => value.trim())
+                  .where((value) => value.isNotEmpty)
+                  .take(7)
+                  .toList();
+              final location = _location.text.trim();
+              Navigator.pop(
+                context,
+                _TrainingScheduleDraft(
+                  teamId: _teamId,
+                  trainingTimes: times,
+                  trainingLocation: location.isEmpty ? null : location,
+                ),
+              );
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      );
+
+  String _date(DateTime value) =>
+      '${value.day.toString().padLeft(2, '0')}.'
+      '${value.month.toString().padLeft(2, '0')}.${value.year}';
 }
 
 class _RegularTrainingTimes extends StatelessWidget {

@@ -5,6 +5,7 @@ import {
   publicOrganization,
   removeTeamPhoto,
   updateTeam,
+  updateTrainingSchedule,
   uploadTeamPhoto,
 } from '../controllers/organization.controller';
 import {
@@ -39,6 +40,13 @@ router.patch(
   requireApproved,
   requirePermission(Permission.MANAGE_TEAM),
   updateTeam,
+);
+router.patch(
+  '/teams/:id/training-schedule',
+  requireAuth,
+  requireApproved,
+  requirePermission(Permission.MANAGE_ORGANIZATION),
+  updateTrainingSchedule,
 );
 router.post(
   '/teams/:id/photo',
