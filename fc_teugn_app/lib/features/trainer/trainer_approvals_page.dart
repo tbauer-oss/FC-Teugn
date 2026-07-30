@@ -178,6 +178,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
             status: decision.status,
             role: decision.role,
             teamIds: decision.teamIds,
+            teamRoles: decision.teamRoles,
             playerId: decision.playerId,
             relationship: decision.relationship,
             adminNote: decision.adminNote,
@@ -224,6 +225,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
             status: decision.status,
             role: decision.role,
             teamIds: decision.teamIds,
+            teamRoles: decision.teamRoles,
             playerId: decision.playerId,
             relationship: decision.relationship,
             adminNote: decision.adminNote,
@@ -719,7 +721,7 @@ class _MemberList extends StatelessWidget {
                                             user.memberships
                                                 .map(
                                                   (item) =>
-                                                      '${item.ageGroupCode} · ${item.teamName}',
+                                                      '${item.ageGroupCode} · ${item.teamName} (${_teamRoleLabel(item.role)})',
                                                 )
                                                 .join(', '),
                                         ].join(' · '),
@@ -753,7 +755,7 @@ class _MemberList extends StatelessWidget {
                                 user.memberships
                                     .map(
                                       (item) =>
-                                          '${item.ageGroupCode}-Jugend ${item.teamName}',
+                                          '${item.ageGroupCode}-Jugend ${item.teamName} (${_teamRoleLabel(item.role)})',
                                     )
                                     .join(', '),
                             ].join(' · '),
@@ -808,6 +810,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
   late UserRole role;
   late AccountStatus status;
   late Set<String> teamIds;
+  late Map<String, UserRole> teamRoles;
   String? playerId;
   late final TextEditingController adminNote;
   late String relationship;
@@ -820,6 +823,13 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
     teamIds = widget.user.memberships.isEmpty
         ? {widget.organization.currentTeam.id}
         : widget.user.memberships.map((item) => item.teamId).toSet();
+    teamRoles = {
+      for (final membership in widget.user.memberships)
+        membership.teamId: _teamFunction(membership.role),
+    };
+    for (final teamId in teamIds) {
+      teamRoles.putIfAbsent(teamId, () => _teamFunction(role));
+    }
     adminNote = TextEditingController(
       text: widget.user.registrationRequest?.adminNote,
     );
@@ -873,8 +883,11 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
               const SizedBox(height: 8),
               DropdownButtonFormField<UserRole>(
                 initialValue: role,
-                decoration:
-                    const InputDecoration(labelText: 'Freigegebene Rolle'),
+                decoration: const InputDecoration(
+                  labelText: 'Systemweite Hauptrolle',
+                  helperText:
+                      'Sie bestimmt die grundlegenden Rechte des Kontos.',
+                ),
                 items: [
                   for (final item in roles)
                     DropdownMenuItem(
@@ -941,13 +954,76 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                       onSelected: (selected) => setState(() {
                         if (selected) {
                           teamIds.add(team.id);
+                          teamRoles.putIfAbsent(
+                            team.id,
+                            () => _teamFunction(role),
+                          );
                         } else if (teamIds.length > 1) {
                           teamIds.remove(team.id);
+                          teamRoles.remove(team.id);
                         }
                       }),
                     ),
                 ],
               ),
+              if (canManageOrganization && teamIds.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text(
+                  'Funktion je Mannschaft',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  'Hier werden Haupttrainer, Co-Trainer oder '
+                  'Teamorganisation zugeordnet. Diese Funktion ergänzt die '
+                  'Hauptrolle und ersetzt niemals die Systemadministration.',
+                ),
+                const SizedBox(height: 10),
+                for (final team in widget.organization.teams.where(
+                  (team) => teamIds.contains(team.id),
+                ))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: DropdownButtonFormField<UserRole>(
+                      key: ValueKey('team-function-${team.id}'),
+                      initialValue: teamRoles[team.id] ?? _teamFunction(role),
+                      decoration: InputDecoration(
+                        labelText: team.displayName,
+                        prefixIcon: const Icon(Icons.sports_rounded),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: UserRole.coach,
+                          child: Text('Haupttrainer/in'),
+                        ),
+                        DropdownMenuItem(
+                          value: UserRole.assistantCoach,
+                          child: Text('Co-Trainer/in'),
+                        ),
+                        DropdownMenuItem(
+                          value: UserRole.teamManager,
+                          child: Text('Teamorganisation'),
+                        ),
+                        DropdownMenuItem(
+                          value: UserRole.parent,
+                          child: Text('Elternteil'),
+                        ),
+                        DropdownMenuItem(
+                          value: UserRole.player,
+                          child: Text('Spieler/in'),
+                        ),
+                        DropdownMenuItem(
+                          value: UserRole.readOnly,
+                          child: Text('Nur Mannschaft ansehen'),
+                        ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => teamRoles[team.id] = value!),
+                    ),
+                  ),
+              ],
               if (role == UserRole.player || role == UserRole.parent) ...[
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -1038,6 +1114,10 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                       status: status,
                       role: role,
                       teamIds: teamIds.toList(),
+                      teamRoles: {
+                        for (final teamId in teamIds)
+                          teamId: teamRoles[teamId] ?? _teamFunction(role),
+                      },
                       playerId: playerId,
                       relationship:
                           role == UserRole.parent ? relationship : null,
@@ -1062,6 +1142,18 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
         UserRole.parent => 'Elternteil',
         UserRole.player => 'Spieler/in',
         UserRole.readOnly => 'Lesender Zugriff',
+      };
+
+  UserRole _teamFunction(UserRole value) => switch (value) {
+        UserRole.coach ||
+        UserRole.trainer ||
+        UserRole.trainerAdmin =>
+          UserRole.coach,
+        UserRole.assistantCoach => UserRole.assistantCoach,
+        UserRole.teamManager => UserRole.teamManager,
+        UserRole.parent => UserRole.parent,
+        UserRole.player => UserRole.player,
+        _ => UserRole.readOnly,
       };
 }
 
@@ -1397,6 +1489,7 @@ class _ApprovalDecision {
     required this.status,
     required this.role,
     required this.teamIds,
+    required this.teamRoles,
     this.playerId,
     this.relationship,
     this.adminNote,
@@ -1405,6 +1498,7 @@ class _ApprovalDecision {
   final AccountStatus status;
   final UserRole role;
   final List<String> teamIds;
+  final Map<String, UserRole> teamRoles;
   final String? playerId;
   final String? relationship;
   final String? adminNote;
@@ -1454,10 +1548,22 @@ String _roleLabel(UserRole value) => switch (value) {
       UserRole.coach || UserRole.trainer => 'Trainer/in',
       UserRole.assistantCoach => 'Co-Trainer/in',
       UserRole.teamManager => 'Teamorganisation',
-      UserRole.trainerAdmin => 'Trainer-Administration',
       UserRole.parent => 'Elternteil',
       UserRole.player => 'Spieler/in',
+      UserRole.trainerAdmin => 'Trainer-Administration',
       UserRole.readOnly => 'Lesender Zugriff',
+    };
+
+String _teamRoleLabel(UserRole value) => switch (value) {
+      UserRole.coach ||
+      UserRole.trainer ||
+      UserRole.trainerAdmin =>
+        'Haupttrainer/in',
+      UserRole.assistantCoach => 'Co-Trainer/in',
+      UserRole.teamManager => 'Teamorganisation',
+      UserRole.parent => 'Elternteil',
+      UserRole.player => 'Spieler/in',
+      _ => 'Nur Ansicht',
     };
 
 String _relationshipLabel(String value) => switch (value) {

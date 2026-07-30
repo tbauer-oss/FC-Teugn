@@ -1136,6 +1136,7 @@ class DataRepository {
     required String password,
     required UserRole role,
     required List<String> teamIds,
+    Map<String, UserRole> teamRoles = const {},
     String? phone,
     String? playerId,
   }) async {
@@ -1146,6 +1147,10 @@ class DataRepository {
       'password': password,
       'role': userRoleApi(role),
       'teamIds': teamIds,
+      'teamRoles': [
+        for (final entry in teamRoles.entries)
+          {'teamId': entry.key, 'role': userRoleApi(entry.value)},
+      ],
       'playerId': playerId,
     });
     return AppUser.fromJson(res.data as Map<String, dynamic>);
@@ -1156,6 +1161,7 @@ class DataRepository {
     AccountStatus status = AccountStatus.approved,
     UserRole? role,
     List<String>? teamIds,
+    Map<String, UserRole>? teamRoles,
     String? playerId,
     String? relationship,
     String? adminNote,
@@ -1167,6 +1173,12 @@ class DataRepository {
       'status': accountStatusApi(status),
       'role': role == null ? null : userRoleApi(role),
       'teamIds': teamIds,
+      'teamRoles': teamRoles == null
+          ? null
+          : [
+              for (final entry in teamRoles.entries)
+                {'teamId': entry.key, 'role': userRoleApi(entry.value)},
+            ],
       'playerId': playerId,
       'relationship': relationship,
       'adminNote': adminNote,

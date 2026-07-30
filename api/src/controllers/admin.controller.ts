@@ -88,6 +88,48 @@ function isSuperAdmin(role: Role) {
   return role === Role.SUPER_ADMIN;
 }
 
+const assignableTeamFunctions: Role[] = [
+  Role.COACH,
+  Role.ASSISTANT_COACH,
+  Role.TEAM_MANAGER,
+  Role.PARENT,
+  Role.PLAYER,
+  Role.READ_ONLY,
+];
+
+function teamFunctionMap(
+  value: unknown,
+  teamIds: string[],
+  fallback: Role,
+  actorRole: Role,
+) {
+  const canAssignStaff =
+    isSuperAdmin(actorRole) ||
+    hasPermission(actorRole, Permission.MANAGE_ORGANIZATION);
+  const result = new Map<string, Role>();
+  if (canAssignStaff && Array.isArray(value)) {
+    for (const item of value) {
+      if (!item || typeof item !== 'object') continue;
+      const teamId = String((item as { teamId?: unknown }).teamId ?? '');
+      const role = (item as { role?: Role }).role;
+      if (
+        role &&
+        teamIds.includes(teamId) &&
+        assignableTeamFunctions.includes(role)
+      ) {
+        result.set(teamId, role);
+      }
+    }
+  }
+  return new Map(
+    teamIds.map((teamId) => [
+      teamId,
+      result.get(teamId) ??
+        (assignableTeamFunctions.includes(fallback) ? fallback : Role.READ_ONLY),
+    ]),
+  );
+}
+
 function userScope(
   actor: { teamId: string; role: Role },
   clubId: string | undefined,
@@ -166,6 +208,12 @@ export async function createMember(req: Request, res: Response) {
         ),
       )]
     : [];
+  const teamFunctions = teamFunctionMap(
+    req.body?.teamRoles,
+    requestedTeamIds,
+    requestedRole ?? Role.READ_ONLY,
+    actor.role,
+  );
   if (!name || !email || !email.includes('@')) {
     return res.status(400).json({ message: 'Name und gültige E-Mail-Adresse sind erforderlich.' });
   }
@@ -217,7 +265,7 @@ export async function createMember(req: Request, res: Response) {
         memberships: {
           create: requestedTeamIds.map((teamId) => ({
             teamId,
-            role: requestedRole,
+            role: teamFunctions.get(teamId)!,
             status: AccountStatus.APPROVED,
           })),
         },
@@ -252,6 +300,7 @@ export async function approveUser(req: Request, res: Response) {
     status,
     role,
     teamIds,
+    teamRoles,
     playerId,
     relationship,
     adminNote,
@@ -262,6 +311,7 @@ export async function approveUser(req: Request, res: Response) {
     status?: AccountStatus;
     role?: Role;
     teamIds?: string[];
+    teamRoles?: Array<{ teamId?: string; role?: Role }>;
     playerId?: string;
     relationship?: GuardianRelationship;
     adminNote?: string;
@@ -379,6 +429,12 @@ export async function approveUser(req: Request, res: Response) {
   }
 
   const primaryTeamId = allowedTeams[0].id;
+  const membershipFunctions = teamFunctionMap(
+    teamRoles,
+    allowedTeams.map((team) => team.id),
+    nextRole,
+    actor.role,
+  );
   const updated = await prisma.$transaction(async (tx) => {
     const member = await tx.user.update({
       where: { id: target.id },
@@ -395,7 +451,7 @@ export async function approveUser(req: Request, res: Response) {
       data: allowedTeams.map((team) => ({
         userId: target.id,
         teamId: team.id,
-        role: nextRole,
+        role: membershipFunctions.get(team.id)!,
         status: nextStatus,
       })),
       skipDuplicates: true,
@@ -461,6 +517,7 @@ export async function approveUser(req: Request, res: Response) {
           note: adminNote?.trim() || applicantMessage?.trim() || null,
           metadata: {
             role: nextRole,
+            teamRoles: Object.fromEntries(membershipFunctions),
             teamIds: allowedTeams.map((team) => team.id),
             playerId: linkedPlayer?.id,
           },
@@ -476,6 +533,7 @@ export async function approveUser(req: Request, res: Response) {
         entityId: target.id,
         metadata: {
           role: nextRole,
+          teamRoles: Object.fromEntries(membershipFunctions),
           teamIds: allowedTeams.map((team) => team.id),
           playerId: linkedPlayer?.id,
           reviewStatus: nextReviewStatus,
