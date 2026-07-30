@@ -137,7 +137,7 @@ class PitchOccupancyBoard extends StatelessWidget {
                 '$unparsedCount Einträge konnten nicht eingeordnet werden. Format: „Dienstag 17:00–18:30“.',
           ),
         if (unparsedCount > 0) const SizedBox(height: 12),
-        if (slots.isEmpty)
+        if (slots.isEmpty && plan.specialEntries.isEmpty)
           EmptyState(
             icon: plan.indoor
                 ? Icons.sports_handball_outlined
@@ -151,7 +151,7 @@ class PitchOccupancyBoard extends StatelessWidget {
                 : 'Sobald reguläre Trainingszeiten bei den Mannschaften '
                     'gepflegt sind, erscheint hier der gemeinsame Wochenplan.',
           )
-        else
+        else if (slots.isNotEmpty)
           LayoutBuilder(
             builder: (context, constraints) => constraints.maxWidth >= 820
                 ? _DesktopBoard(
@@ -257,7 +257,7 @@ class _PlanHeader extends StatelessWidget {
               _HeaderMetric(value: '$slotCount', label: 'Belegungen'),
               _HeaderMetric(
                 value: '${plan.indoor ? specialCount : matchdayCount}',
-                label: plan.indoor ? 'Sondertermine' : 'Spieltage',
+                label: plan.indoor ? 'Fremdbelegungen' : 'Spieltage',
               ),
               _HeaderMetric(
                 value: '$conflictCount',
@@ -317,6 +317,14 @@ class _SpecialOccupancySection extends StatelessWidget {
   String _time(DateTime value) => '${value.hour.toString().padLeft(2, '0')}:'
       '${value.minute.toString().padLeft(2, '0')}';
 
+  String _weekdays(List<int> values) {
+    const labels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    return values
+        .where((value) => value >= 1 && value <= 7)
+        .map((value) => labels[value - 1])
+        .join(', ');
+  }
+
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
@@ -346,8 +354,8 @@ class _SpecialOccupancySection extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Einmalige Nutzungen durch andere Abteilungen, Vereine oder '
-              'Veranstaltungen.',
+              'Regelmäßige oder einmalige Nutzungen der Sporthalle durch '
+              'andere Abteilungen, Vereine oder Veranstaltungen.',
               style: TextStyle(color: AppColors.muted),
             ),
             const SizedBox(height: 10),
@@ -389,13 +397,21 @@ class _SpecialOccupancySection extends StatelessWidget {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '${_date(entry.startAt)} · '
-                              '${_time(entry.startAt)}–${_time(entry.endAt)} Uhr',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w700),
+                              entry.isRecurring
+                                  ? '${entry.recurrenceIntervalWeeks == 1 ? 'Wöchentlich' : 'Alle ${entry.recurrenceIntervalWeeks} Wochen'} '
+                                      '${_weekdays(entry.recurrenceWeekdays)} · '
+                                      '${_time(entry.startAt)}–${_time(entry.endAt)} Uhr'
+                                  : '${_date(entry.startAt)} · '
+                                      '${_time(entry.startAt)}–${_time(entry.endAt)} Uhr',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             Text(
-                              entry.location,
+                              entry.isRecurring && entry.recurrenceUntil != null
+                                  ? 'Sporthalle · ${_date(entry.startAt)}–'
+                                      '${_date(entry.recurrenceUntil!)}'
+                                  : 'Sporthalle',
                               style: const TextStyle(color: AppColors.muted),
                             ),
                             if (entry.notes?.trim().isNotEmpty == true)

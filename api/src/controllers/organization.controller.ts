@@ -144,7 +144,12 @@ function normalizedTeamData(body: TeamInput) {
     seasonEndDate: optionalDate(body.seasonEndDate),
     indoorSeasonStartDate: optionalDate(body.indoorSeasonStartDate),
     indoorSeasonEndDate: optionalDate(body.indoorSeasonEndDate),
-    indoorTrainingLocation: optionalText(body.indoorTrainingLocation, 200),
+    indoorTrainingLocation:
+      body.indoorSeasonStartDate ||
+      (Array.isArray(body.indoorTrainingTimes) &&
+        body.indoorTrainingTimes.length > 0)
+        ? 'Sporthalle'
+        : null,
     indoorTrainingTimes: stringList(body.indoorTrainingTimes, 14, 100),
     homeVenue: optionalText(body.homeVenue, 200),
     bfvTeamId: optionalText(body.bfvTeamId, 120),

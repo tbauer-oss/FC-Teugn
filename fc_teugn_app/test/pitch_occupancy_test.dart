@@ -247,10 +247,14 @@ void main() {
         {
           'id': 'entry-1',
           'title': 'Faschingsverein',
-          'location': 'Gesamte Halle',
+          'location': 'Sporthalle',
           'startAt': '2027-02-06T17:00:00.000Z',
           'endAt': '2027-02-06T22:00:00.000Z',
           'notes': 'Aufbau und Veranstaltung',
+          'isRecurring': true,
+          'recurrenceWeekdays': [2, 4],
+          'recurrenceIntervalWeeks': 1,
+          'recurrenceUntil': '2027-03-31T21:59:59.000Z',
         },
       ],
     });
@@ -259,9 +263,15 @@ void main() {
     expect(plan.canManageOccupancy, isTrue);
     expect(plan.specialEntries, hasLength(1));
     expect(plan.specialEntries.single.title, 'Faschingsverein');
-    expect(plan.specialEntries.single.location, 'Gesamte Halle');
-    expect(plan.specialEntries.single.endAt.isAfter(
-      plan.specialEntries.single.startAt,
-    ), isTrue);
+    expect(plan.specialEntries.single.location, 'Sporthalle');
+    expect(plan.specialEntries.single.isRecurring, isTrue);
+    expect(plan.specialEntries.single.recurrenceWeekdays, [2, 4]);
+    expect(plan.specialEntries.single.recurrenceIntervalWeeks, 1);
+    expect(plan.specialEntries.single.recurrenceUntil, isNotNull);
+    expect(
+        plan.specialEntries.single.endAt.isAfter(
+          plan.specialEntries.single.startAt,
+        ),
+        isTrue);
   });
 }

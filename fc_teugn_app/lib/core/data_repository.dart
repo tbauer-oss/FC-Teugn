@@ -1022,9 +1022,12 @@ class DataRepository {
   Future<void> createIndoorOccupancyEntry({
     required String seasonId,
     required String title,
-    required String location,
     required DateTime startAt,
     required DateTime endAt,
+    required bool isRecurring,
+    required List<int> recurrenceWeekdays,
+    required int recurrenceIntervalWeeks,
+    DateTime? recurrenceUntil,
     String? notes,
   }) async {
     await client.dio.post(
@@ -1032,9 +1035,13 @@ class DataRepository {
       data: {
         'seasonId': seasonId,
         'title': title,
-        'location': location,
+        'location': 'Sporthalle',
         'startAt': startAt.toUtc().toIso8601String(),
         'endAt': endAt.toUtc().toIso8601String(),
+        'isRecurring': isRecurring,
+        'recurrenceWeekdays': recurrenceWeekdays,
+        'recurrenceIntervalWeeks': recurrenceIntervalWeeks,
+        'recurrenceUntil': recurrenceUntil?.toUtc().toIso8601String(),
         'notes': notes,
       },
     );
@@ -1043,18 +1050,25 @@ class DataRepository {
   Future<void> updateIndoorOccupancyEntry({
     required String entryId,
     required String title,
-    required String location,
     required DateTime startAt,
     required DateTime endAt,
+    required bool isRecurring,
+    required List<int> recurrenceWeekdays,
+    required int recurrenceIntervalWeeks,
+    DateTime? recurrenceUntil,
     String? notes,
   }) async {
     await client.dio.put(
       '/trainings/occupancy/indoor-entries/$entryId',
       data: {
         'title': title,
-        'location': location,
+        'location': 'Sporthalle',
         'startAt': startAt.toUtc().toIso8601String(),
         'endAt': endAt.toUtc().toIso8601String(),
+        'isRecurring': isRecurring,
+        'recurrenceWeekdays': recurrenceWeekdays,
+        'recurrenceIntervalWeeks': recurrenceIntervalWeeks,
+        'recurrenceUntil': recurrenceUntil?.toUtc().toIso8601String(),
         'notes': notes,
       },
     );
