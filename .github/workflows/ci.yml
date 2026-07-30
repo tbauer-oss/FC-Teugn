@@ -118,6 +118,7 @@ jobs:
             > android/key.properties
 
       - name: Build signed Android App Bundle
+        if: github.event_name == 'workflow_dispatch'
         env:
           FC_TEUGN_REQUIRE_RELEASE_SIGNING: 'true'
         run: flutter build appbundle --release

@@ -1,13 +1,15 @@
 name: fc_teugn_app
 description: FC Teugn E2/E3 Jugend Team App
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
   flutter_riverpod: ^2.4.0
   flutter_secure_storage: ^10.3.1
