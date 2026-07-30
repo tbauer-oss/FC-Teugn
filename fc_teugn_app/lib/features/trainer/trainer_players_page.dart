@@ -10,6 +10,7 @@ import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
 import '../../core/player_view_preferences.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/player_team_chip.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
@@ -380,14 +381,12 @@ class _CategorizedPlayerCollection extends StatelessWidget {
     }
     final groups = <String, List<PlayerModel>>{};
     for (final player in players) {
-      final key = [
-        if (player.ageGroupCode?.isNotEmpty == true)
-          '${player.ageGroupCode}-Jugend',
-        if (player.teamName?.isNotEmpty == true) player.teamName!,
-      ].join(' · ');
+      final key = player.teamId == null
+          ? 'Nicht zugeordnet'
+          : '${player.teamCode}-Jugend';
       groups
           .putIfAbsent(
-            key.isEmpty ? 'Nicht zugeordnet' : key,
+            key,
             () => [],
           )
           .add(player);
@@ -582,6 +581,8 @@ class _PlayerListRow extends StatelessWidget {
                         ),
                       ),
                     ),
+                  PlayerTeamChip(player: player, compact: !detailed),
+                  const SizedBox(width: 6),
                   _StatusBadge(status: status, compact: !detailed),
                   const SizedBox(width: 6),
                   const Icon(
@@ -639,7 +640,14 @@ class _CompactPlayerCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 5),
-                    _StatusBadge(status: status, compact: true),
+                    Wrap(
+                      spacing: 5,
+                      runSpacing: 4,
+                      children: [
+                        PlayerTeamChip(player: player, compact: true),
+                        _StatusBadge(status: status, compact: true),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -706,7 +714,14 @@ class _LargePlayerCard extends StatelessWidget {
                     const SizedBox(height: 5),
                     Text(_playerSummary(player)),
                     const SizedBox(height: 9),
-                    _StatusBadge(status: status),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 5,
+                      children: [
+                        PlayerTeamChip(player: player),
+                        _StatusBadge(status: status),
+                      ],
+                    ),
                   ],
                 ),
               ),

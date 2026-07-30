@@ -16,10 +16,19 @@ import { hasPermission, Permission } from '../security/permissions';
 import { Role } from '../types/enums';
 import { recalculateMatchStatistics } from '../services/statistics.service';
 import { rosterTeamIdsForMatch } from '../services/match-roster';
-import { accessibleTeamIds } from '../services/team-access';
+import {
+  accessibleTeamIds,
+  youthPlayerPoolTeamIdsForTeam,
+} from '../services/team-access';
 
 const matchInclude = {
-  team: { select: { id: true, gameFormat: true } },
+  team: {
+    select: {
+      id: true,
+      gameFormat: true,
+      ageGroup: { select: { code: true } },
+    },
+  },
   targetTeams: {
     include: {
       team: {
@@ -117,6 +126,14 @@ const eligiblePlayerSelect = {
   status: true,
   joinedAt: true,
   photoUrl: true,
+  team: {
+    select: {
+      id: true,
+      name: true,
+      teamNumber: true,
+      ageGroup: { select: { id: true, name: true, code: true } },
+    },
+  },
 } as const;
 
 function text(value: unknown, max = 300) {
@@ -199,6 +216,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
     ...match,
     teamGameFormat:
       match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat,
+    playerPoolAgeGroupCode: match.team.ageGroup.code,
     eligiblePlayers: staff ? eligiblePlayers : undefined,
     capabilities: {
       canManageTicker: tickerEditable,
@@ -265,8 +283,9 @@ export async function getMatch(req: Request, res: Response) {
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   const staff = isStaff(user.role);
   const tickerEditable = await canManageTicker(user, match.id);
-  const accessibleIds = await accessibleTeamIds(user);
-  const rosterTeamIds = rosterTeamIdsForMatch(accessibleIds);
+  const rosterTeamIds = rosterTeamIdsForMatch(
+    await youthPlayerPoolTeamIdsForTeam(match.teamId),
+  );
   const eligiblePlayers = staff
     ? await prisma.player.findMany({
         where: {
@@ -479,8 +498,9 @@ export async function updateSquad(req: Request, res: Response) {
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   const members = Array.isArray(req.body?.members) ? req.body.members : [];
   const ids = [...new Set(members.map((item: { playerId?: unknown }) => text(item.playerId, 100)).filter(Boolean))] as string[];
-  const accessibleIds = await accessibleTeamIds(user);
-  const rosterTeamIds = rosterTeamIdsForMatch(accessibleIds);
+  const rosterTeamIds = rosterTeamIdsForMatch(
+    await youthPlayerPoolTeamIdsForTeam(match.teamId),
+  );
   const validPlayers = await prisma.player.findMany({
     where: {
       id: { in: ids },

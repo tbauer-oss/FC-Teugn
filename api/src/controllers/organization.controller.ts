@@ -106,7 +106,7 @@ function normalizedTeamData(body: TeamInput) {
     teamNumber:
       Number.isInteger(parsedTeamNumber) &&
       parsedTeamNumber >= 1 &&
-      parsedTeamNumber <= 20
+      parsedTeamNumber <= 5
         ? parsedTeamNumber
         : null,
     name: optionalText(body.name, 120),
@@ -141,7 +141,7 @@ export function teamDisplayName(
   teamCount: number,
 ) {
   const code = ageGroupCode.trim().toUpperCase();
-  return teamCount <= 1
+  return teamCount <= 1 && teamNumber === 1
     ? `${code}-Jugend`
     : `${code}${teamNumber}-Jugend`;
 }
@@ -328,7 +328,7 @@ export async function createTeam(req: Request, res: Response) {
   }
   if (body.teamNumber !== undefined && data.teamNumber === null) {
     return res.status(400).json({
-      message: 'Die Mannschaftsnummer muss zwischen 1 und 20 liegen.',
+      message: 'Die Mannschaftsnummer muss zwischen 1 und 5 liegen.',
     });
   }
   if (body.bfvTeamUrl && !data.bfvTeamUrl) {
@@ -354,11 +354,11 @@ export async function createTeam(req: Request, res: Response) {
   });
   const usedNumbers = new Set(existingNumbers.map((team) => team.teamNumber));
   const teamNumber = data.teamNumber
-    ?? Array.from({ length: 20 }, (_, index) => index + 1)
+    ?? Array.from({ length: 5 }, (_, index) => index + 1)
       .find((number) => !usedNumbers.has(number));
   if (!teamNumber) {
     return res.status(409).json({
-      message: 'Für diese Jugend sind bereits 20 Mannschaften angelegt.',
+      message: 'Für diese Jugend sind bereits fünf Mannschaften angelegt.',
     });
   }
   const teamName = compactTeamName(ageGroup.code, teamNumber);
@@ -416,7 +416,7 @@ export async function updateTeam(req: Request, res: Response) {
   const data = normalizedTeamData(body);
   if (body.teamNumber !== undefined && data.teamNumber === null) {
     return res.status(400).json({
-      message: 'Die Mannschaftsnummer muss zwischen 1 und 20 liegen.',
+      message: 'Die Mannschaftsnummer muss zwischen 1 und 5 liegen.',
     });
   }
   if (body.bfvTeamUrl && !data.bfvTeamUrl) {

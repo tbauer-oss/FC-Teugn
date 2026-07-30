@@ -12,6 +12,7 @@ import {
   accessibleTeamIds,
   clubIdForTeam,
   TeamScopedUser,
+  youthPlayerPoolTeamIds,
 } from '../services/team-access';
 import { mediaAssetUrl } from '../services/media-access';
 
@@ -42,6 +43,7 @@ const publicPlayerSelect = {
       id: true,
       name: true,
       shortName: true,
+      teamNumber: true,
       ageGroup: { select: { id: true, name: true, code: true } },
     },
   },
@@ -253,7 +255,7 @@ async function playerAccessScope(
     const clubId = await clubIdForTeam(user.teamId);
     return clubId ? { clubId } : { id: '__no_accessible_players__' };
   }
-  const teamIds = await accessibleTeamIds(user);
+  const teamIds = await youthPlayerPoolTeamIds(user);
   return { teamId: { in: teamIds } };
 }
 

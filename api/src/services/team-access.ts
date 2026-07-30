@@ -57,6 +57,39 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
   ];
 }
 
+export async function youthPlayerPoolTeamIds(user: TeamScopedUser) {
+  const accessibleIds = await accessibleTeamIds(user);
+  if (!accessibleIds.length) return [];
+  const ageGroups = await prisma.team.findMany({
+    where: { id: { in: accessibleIds }, deletedAt: null },
+    distinct: ['ageGroupId'],
+    select: { ageGroupId: true },
+  });
+  if (!ageGroups.length) return [];
+  const teams = await prisma.team.findMany({
+    where: {
+      ageGroupId: { in: ageGroups.map((item) => item.ageGroupId) },
+      deletedAt: null,
+    },
+    select: { id: true },
+  });
+  return teams.map((team) => team.id);
+}
+
+export async function youthPlayerPoolTeamIdsForTeam(teamId: string) {
+  const team = await prisma.team.findFirst({
+    where: { id: teamId, deletedAt: null },
+    select: { ageGroupId: true },
+  });
+  if (!team) return [];
+  const teams = await prisma.team.findMany({
+    where: { ageGroupId: team.ageGroupId, deletedAt: null },
+    orderBy: { teamNumber: 'asc' },
+    select: { id: true },
+  });
+  return teams.map((item) => item.id);
+}
+
 export async function canManageTeam(user: TeamScopedUser, teamId: string) {
   if (String(user.role) === Role.SUPER_ADMIN) {
     return Boolean(await prisma.team.findUnique({

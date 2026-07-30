@@ -5,10 +5,10 @@ const {
   rosterTeamIdsForMatch,
 } = require('../dist/src/services/match-roster.js');
 
-test('uses every team that is accessible to the trainer', () => {
+test('uses every separate team from the selected youth player pool', () => {
   assert.deepEqual(
-    rosterTeamIdsForMatch(['team-e', 'team-d']),
-    ['team-e', 'team-d'],
+    rosterTeamIdsForMatch(['team-e1', 'team-e2', 'team-e3']),
+    ['team-e1', 'team-e2', 'team-e3'],
   );
 });
 

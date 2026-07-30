@@ -295,6 +295,7 @@ class PlayerModel {
     this.joinedAt,
     this.photoUrl,
     this.teamName,
+    this.teamNumber,
     this.ageGroupCode,
     this.goals = 0,
     this.assists = 0,
@@ -325,6 +326,7 @@ class PlayerModel {
   final DateTime? joinedAt;
   final String? photoUrl;
   final String? teamName;
+  final int? teamNumber;
   final String? ageGroupCode;
   final int goals;
   final int assists;
@@ -342,6 +344,18 @@ class PlayerModel {
   String get fullName => '$firstName $lastName';
   String get displayName =>
       preferredName?.isNotEmpty == true ? preferredName! : firstName;
+  String get teamCode {
+    if (teamId == null) return 'Nicht zugeordnet';
+    final code = ageGroupCode?.trim().toUpperCase();
+    final number = teamNumber ??
+        int.tryParse(
+          RegExp(r'(\d+)$').firstMatch(teamName?.trim() ?? '')?.group(1) ?? '',
+        );
+    if (code?.isNotEmpty == true && number != null) return '$code$number';
+    if (teamName?.trim().isNotEmpty == true) return teamName!.trim();
+    return code?.isNotEmpty == true ? code! : 'Mannschaft';
+  }
+
   int? get age {
     if (birthDate == null) return null;
     final now = DateTime.now();
@@ -377,6 +391,7 @@ class PlayerModel {
           : DateTime.parse(json['joinedAt'] as String),
       photoUrl: json['photoUrl'] as String?,
       teamName: team?['name'] as String?,
+      teamNumber: (team?['teamNumber'] as num?)?.toInt(),
       ageGroupCode: ageGroup?['code'] as String?,
       goals: statistics?['goals'] as int? ?? 0,
       assists: statistics?['assists'] as int? ?? 0,
