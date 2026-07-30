@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -38,6 +39,9 @@ class FCTeugnApp extends ConsumerWidget {
         title: 'FC Teugn Jugend',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
+        locale: _germanLocale,
+        supportedLocales: _supportedLocales,
+        localizationsDelegates: _localizationsDelegates,
         builder: _forceGerman24HourClock,
         home: const Scaffold(
           body: Center(child: CircularProgressIndicator()),
@@ -98,17 +102,55 @@ class FCTeugnApp extends ConsumerWidget {
           builder: (context, state, child) => AppShell(
             title: 'Trainer Bereich',
             destinations: const [
-              ShellDestination(label: 'Übersicht', icon: Icons.grid_view_rounded, route: '/trainer'),
-              ShellDestination(label: 'Mitglieder', icon: Icons.manage_accounts_rounded, route: '/trainer/approvals', showOnMobile: false),
-              ShellDestination(label: 'Team', icon: Icons.groups_rounded, route: '/trainer/players'),
-              ShellDestination(label: 'Termine', icon: Icons.calendar_month_rounded, route: '/trainer/events'),
-              ShellDestination(label: 'Spiele', icon: Icons.sports_soccer_rounded, route: '/trainer/matches'),
-              ShellDestination(label: 'Training', icon: Icons.fitness_center_rounded, route: '/trainer/training', showOnMobile: false),
-              ShellDestination(label: 'Statistik', icon: Icons.query_stats_rounded, route: '/trainer/statistics', showOnMobile: false),
-              ShellDestination(label: 'Nachrichten', icon: Icons.forum_rounded, route: '/trainer/messages'),
-              ShellDestination(label: 'Orga', icon: Icons.assignment_turned_in_rounded, route: '/trainer/operations'),
-              ShellDestination(label: 'Verein', icon: Icons.account_tree_rounded, route: '/trainer/organization', showOnMobile: false),
-              ShellDestination(label: 'Datenschutz', icon: Icons.shield_outlined, route: '/trainer/privacy', showOnMobile: false),
+              ShellDestination(
+                  label: 'Übersicht',
+                  icon: Icons.grid_view_rounded,
+                  route: '/trainer'),
+              ShellDestination(
+                  label: 'Mitglieder',
+                  icon: Icons.manage_accounts_rounded,
+                  route: '/trainer/approvals',
+                  showOnMobile: false),
+              ShellDestination(
+                  label: 'Team',
+                  icon: Icons.groups_rounded,
+                  route: '/trainer/players'),
+              ShellDestination(
+                  label: 'Termine',
+                  icon: Icons.calendar_month_rounded,
+                  route: '/trainer/events'),
+              ShellDestination(
+                  label: 'Spiele',
+                  icon: Icons.sports_soccer_rounded,
+                  route: '/trainer/matches'),
+              ShellDestination(
+                  label: 'Training',
+                  icon: Icons.fitness_center_rounded,
+                  route: '/trainer/training',
+                  showOnMobile: false),
+              ShellDestination(
+                  label: 'Statistik',
+                  icon: Icons.query_stats_rounded,
+                  route: '/trainer/statistics',
+                  showOnMobile: false),
+              ShellDestination(
+                  label: 'Nachrichten',
+                  icon: Icons.forum_rounded,
+                  route: '/trainer/messages'),
+              ShellDestination(
+                  label: 'Orga',
+                  icon: Icons.assignment_turned_in_rounded,
+                  route: '/trainer/operations'),
+              ShellDestination(
+                  label: 'Verein',
+                  icon: Icons.account_tree_rounded,
+                  route: '/trainer/organization',
+                  showOnMobile: false),
+              ShellDestination(
+                  label: 'Datenschutz',
+                  icon: Icons.shield_outlined,
+                  route: '/trainer/privacy',
+                  showOnMobile: false),
             ],
             child: child,
           ),
@@ -184,14 +226,40 @@ class FCTeugnApp extends ConsumerWidget {
           builder: (context, state, child) => AppShell(
             title: 'Eltern Bereich',
             destinations: const [
-              ShellDestination(label: 'Übersicht', icon: Icons.grid_view_rounded, route: '/parent'),
-              ShellDestination(label: 'Kinder', icon: Icons.groups_rounded, route: '/parent/players'),
-              ShellDestination(label: 'Termine', icon: Icons.calendar_month_rounded, route: '/parent/events'),
-              ShellDestination(label: 'Spiele', icon: Icons.sports_soccer_rounded, route: '/parent/matches'),
-              ShellDestination(label: 'Statistik', icon: Icons.query_stats_rounded, route: '/parent/statistics', showOnMobile: false),
-              ShellDestination(label: 'Nachrichten', icon: Icons.forum_rounded, route: '/parent/messages'),
-              ShellDestination(label: 'Orga', icon: Icons.assignment_turned_in_rounded, route: '/parent/operations'),
-              ShellDestination(label: 'Datenschutz', icon: Icons.shield_outlined, route: '/parent/privacy', showOnMobile: false),
+              ShellDestination(
+                  label: 'Übersicht',
+                  icon: Icons.grid_view_rounded,
+                  route: '/parent'),
+              ShellDestination(
+                  label: 'Kinder',
+                  icon: Icons.groups_rounded,
+                  route: '/parent/players'),
+              ShellDestination(
+                  label: 'Termine',
+                  icon: Icons.calendar_month_rounded,
+                  route: '/parent/events'),
+              ShellDestination(
+                  label: 'Spiele',
+                  icon: Icons.sports_soccer_rounded,
+                  route: '/parent/matches'),
+              ShellDestination(
+                  label: 'Statistik',
+                  icon: Icons.query_stats_rounded,
+                  route: '/parent/statistics',
+                  showOnMobile: false),
+              ShellDestination(
+                  label: 'Nachrichten',
+                  icon: Icons.forum_rounded,
+                  route: '/parent/messages'),
+              ShellDestination(
+                  label: 'Orga',
+                  icon: Icons.assignment_turned_in_rounded,
+                  route: '/parent/operations'),
+              ShellDestination(
+                  label: 'Datenschutz',
+                  icon: Icons.shield_outlined,
+                  route: '/parent/privacy',
+                  showOnMobile: false),
             ],
             child: child,
           ),
@@ -253,10 +321,21 @@ class FCTeugnApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: buildAppTheme(),
+      locale: _germanLocale,
+      supportedLocales: _supportedLocales,
+      localizationsDelegates: _localizationsDelegates,
       builder: _forceGerman24HourClock,
     );
   }
 }
+
+const _germanLocale = Locale('de', 'DE');
+const _supportedLocales = [_germanLocale];
+const _localizationsDelegates = [
+  GlobalMaterialLocalizations.delegate,
+  GlobalWidgetsLocalizations.delegate,
+  GlobalCupertinoLocalizations.delegate,
+];
 
 Widget _forceGerman24HourClock(BuildContext context, Widget? child) =>
     MediaQuery(
