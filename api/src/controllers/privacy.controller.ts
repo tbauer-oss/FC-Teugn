@@ -56,6 +56,32 @@ export async function exportPersonalData(req: Request, res: Response) {
           },
         },
       },
+      playerConsentEvidence: {
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          action: true,
+          templateVersion: true,
+          statement: true,
+          signatureData: true,
+          signerName: true,
+          signerRole: true,
+          guardianAuthorityConfirmed: true,
+          childAssentName: true,
+          documentHash: true,
+          clientSignedAt: true,
+          createdAt: true,
+          consent: {
+            select: {
+              playerId: true,
+              type: true,
+              status: true,
+              grantedAt: true,
+              revokedAt: true,
+            },
+          },
+        },
+      },
       registrationRequest: {
         include: {
           requestedTeams: {
@@ -338,6 +364,31 @@ export async function completeErasure(req: Request, res: Response) {
       where: { userId: request.userId, revokedAt: null },
       data: { granted: false, revokedAt: new Date() },
     });
+    const consentEvidence = await tx.playerConsentEvidence.findMany({
+      where: { signerId: request.userId },
+      select: {
+        id: true,
+        action: true,
+        templateVersion: true,
+        documentHash: true,
+      },
+    });
+    for (const evidence of consentEvidence) {
+      await tx.playerConsentEvidence.update({
+        where: { id: evidence.id },
+        data: {
+          signerName: 'Gelöschtes Konto',
+          childAssentName: null,
+          signatureData: Prisma.JsonNull,
+          statement: {
+            anonymized: true,
+            action: evidence.action,
+            templateVersion: evidence.templateVersion,
+            originalDocumentHash: evidence.documentHash,
+          },
+        },
+      });
+    }
     await tx.fileAsset.updateMany({
       where: { uploadedById: request.userId },
       data: { originalName: 'anonymisiert' },

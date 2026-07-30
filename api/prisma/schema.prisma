@@ -577,6 +577,7 @@ model User {
   completedChecklistItems      ChecklistRunItem[]       @relation("ChecklistRunItemCompleter")
   dataSubjectRequests          DataSubjectRequest[]     @relation("DataSubjectRequester")
   reviewedDataSubjectRequests  DataSubjectRequest[]     @relation("DataSubjectReviewer")
+  playerConsentEvidence        PlayerConsentEvidence[]  @relation("PlayerConsentSigner")
 }
 
 model RefreshToken {
@@ -875,21 +876,46 @@ model PlayerDevelopmentNote {
 }
 
 model PlayerConsent {
-  id        String        @id @default(cuid())
-  playerId  String
-  type      ConsentType
-  status    ConsentStatus @default(PENDING)
-  grantedBy String?
-  grantedAt DateTime?
-  expiresAt DateTime?
-  revokedAt DateTime?
-  note      String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  player    Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  id              String                  @id @default(cuid())
+  playerId        String
+  type            ConsentType
+  status          ConsentStatus           @default(PENDING)
+  grantedBy       String?
+  grantedAt       DateTime?
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  note            String?
+  templateVersion String?
+  currentHash     String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  player          Player                  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  evidence        PlayerConsentEvidence[]
 
   @@unique([playerId, type])
   @@index([playerId, status])
+}
+
+model PlayerConsentEvidence {
+  id                         String        @id @default(cuid())
+  consentId                  String
+  signerId                   String
+  action                     ConsentStatus
+  templateVersion            String
+  statement                  Json
+  signatureData              Json?
+  signerName                 String
+  signerRole                 String
+  guardianAuthorityConfirmed Boolean       @default(false)
+  childAssentName            String?
+  documentHash               String        @unique
+  clientSignedAt             DateTime?
+  createdAt                  DateTime      @default(now())
+  consent                    PlayerConsent @relation(fields: [consentId], references: [id], onDelete: Cascade)
+  signer                     User          @relation("PlayerConsentSigner", fields: [signerId], references: [id], onDelete: Restrict)
+
+  @@index([consentId, createdAt])
+  @@index([signerId, createdAt])
 }
 
 model Event {

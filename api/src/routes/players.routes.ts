@@ -21,6 +21,13 @@ import { requireApproved, requireAuth, requirePermission } from '../middleware/a
 import { Permission } from '../security/permissions';
 import { playerFileUpload } from '../middleware/player-files';
 import { asyncHandler } from '../middleware/async-handler';
+import {
+  downloadConsentEvidence,
+  downloadConsentTemplate,
+  listConsentTemplates,
+  revokePlayerConsent,
+  signPlayerConsent,
+} from '../controllers/player-consents.controller';
 
 const router = Router();
 
@@ -28,6 +35,11 @@ router.use(requireAuth);
 router.use(requireApproved);
 
 router.get('/', listPlayers);
+router.get('/consent-templates', asyncHandler(listConsentTemplates));
+router.get(
+  '/consent-templates/:type/pdf',
+  asyncHandler(downloadConsentTemplate),
+);
 router.post(
   '/:id/photo',
   playerFileUpload.single('file'),
@@ -55,6 +67,18 @@ router.post(
   addDevelopmentNote,
 );
 router.put('/:id/consents/:type', upsertConsent);
+router.post(
+  '/:id/consents/:type/sign',
+  asyncHandler(signPlayerConsent),
+);
+router.post(
+  '/:id/consents/:type/revoke',
+  asyncHandler(revokePlayerConsent),
+);
+router.get(
+  '/:id/consents/:type/evidence/:evidenceId/pdf',
+  asyncHandler(downloadConsentEvidence),
+);
 router.delete('/:id', requirePermission(Permission.MANAGE_PLAYERS), deletePlayer);
 
 export default router;

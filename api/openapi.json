@@ -151,6 +151,21 @@
       "get": {"tags": ["Spieler"], "summary": "Geschütztes Spielerprofil", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}], "responses": {"200": {"description": "Rollenabhängig gefiltertes Profil"}}},
       "put": {"tags": ["Spieler"], "summary": "Spieler aktualisieren", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}], "responses": {"200": {"description": "Spieler aktualisiert"}}}
     },
+    "/players/consent-templates": {
+      "get": {"tags": ["Spieler", "Datenschutz"], "summary": "Aktuelle Einwilligungsvorlagen auflisten", "security": [{"bearerAuth": []}], "responses": {"200": {"description": "Versionierte Vorlagen mit granularen Auswahlmöglichkeiten"}}}
+    },
+    "/players/consent-templates/{type}/pdf": {
+      "get": {"tags": ["Spieler", "Datenschutz"], "summary": "Leere Einwilligungsvorlage als PDF laden", "security": [{"bearerAuth": []}], "parameters": [{"name": "type", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "PDF-Vorlage"}}}
+    },
+    "/players/{id}/consents/{type}/sign": {
+      "post": {"tags": ["Spieler", "Datenschutz"], "summary": "Granulare Einwilligung digital unterschreiben", "description": "Nur eine zugeordnete sorgeberechtigte Person darf unterschreiben. Textversion, Umfang, Signatur und SHA-256-Nachweis werden protokolliert.", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}, {"name": "type", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"201": {"description": "Einwilligung und unveränderbarer Nachweis gespeichert"}, "403": {"$ref": "#/components/responses/Forbidden"}}}
+    },
+    "/players/{id}/consents/{type}/revoke": {
+      "post": {"tags": ["Spieler", "Datenschutz"], "summary": "Einwilligung mit Wirkung für die Zukunft widerrufen", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}, {"name": "type", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Widerruf protokolliert"}}}
+    },
+    "/players/{id}/consents/{type}/evidence/{evidenceId}/pdf": {
+      "get": {"tags": ["Spieler", "Datenschutz"], "summary": "Signierten Einwilligungsnachweis als PDF laden", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}, {"name": "type", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "evidenceId", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Privater PDF-Nachweis"}}}
+    },
     "/events": {
       "get": {"tags": ["Termine"], "summary": "Termine auflisten", "security": [{"bearerAuth": []}], "responses": {"200": {"description": "Gefilterte Termine"}}},
       "post": {"tags": ["Termine"], "summary": "Termin oder Serie anlegen", "security": [{"bearerAuth": []}], "responses": {"201": {"description": "Termin angelegt"}}}
