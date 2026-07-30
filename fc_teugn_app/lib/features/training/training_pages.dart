@@ -575,6 +575,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
         content: SizedBox(
           width: 580,
           child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(2, 10, 2, 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
