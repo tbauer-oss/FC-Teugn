@@ -312,25 +312,10 @@ export async function getTickerDelegation(req: Request, res: Response) {
   ];
   const candidates = await prisma.user.findMany({
     where: {
-      role: Role.PARENT,
       status: AccountStatus.APPROVED,
-      OR: [
-        { teamId: { in: teamIds } },
-        {
-          memberships: {
-            some: {
-              teamId: { in: teamIds },
-              role: Role.PARENT,
-              status: AccountStatus.APPROVED,
-            },
-          },
-        },
-        {
-          parentLinks: {
-            some: { player: { teamId: { in: teamIds } } },
-          },
-        },
-      ],
+      parentLinks: {
+        some: { player: { teamId: { in: teamIds } } },
+      },
     },
     select: { id: true, name: true, email: true },
     orderBy: { name: 'asc' },
@@ -370,13 +355,8 @@ export async function updateTickerDelegation(req: Request, res: Response) {
   const parent = await prisma.user.findFirst({
     where: {
       id: parentId,
-      role: Role.PARENT,
       status: AccountStatus.APPROVED,
-      OR: [
-        { teamId: { in: teamIds } },
-        { memberships: { some: { teamId: { in: teamIds }, status: AccountStatus.APPROVED } } },
-        { parentLinks: { some: { player: { teamId: { in: teamIds } } } } },
-      ],
+      parentLinks: { some: { player: { teamId: { in: teamIds } } } },
     },
     select: { id: true, name: true, email: true },
   });

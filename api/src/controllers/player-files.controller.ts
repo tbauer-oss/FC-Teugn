@@ -16,12 +16,9 @@ const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 async function fileCapabilities(req: Request, playerId: string) {
   if (!(await canAccessPlayer(req, playerId))) return null;
   const user = req.user!;
-  const guardian =
-    user.role === Role.PARENT
-      ? await prisma.parentPlayerLink.findUnique({
-          where: { parentId_playerId: { parentId: user.id, playerId } },
-        })
-      : null;
+  const guardian = await prisma.parentPlayerLink.findUnique({
+    where: { parentId_playerId: { parentId: user.id, playerId } },
+  });
   const canView =
     hasPermission(user.role, Permission.VIEW_SENSITIVE_PLAYER) ||
     guardian?.isLegalGuardian === true ||

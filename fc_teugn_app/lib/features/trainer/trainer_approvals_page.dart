@@ -847,6 +847,18 @@ class _MemberList extends StatelessWidget {
                             '${_teamRoleLabel(membership.role)}',
                           ),
                         ),
+                      for (final link in user.parentPlayers)
+                        Chip(
+                          visualDensity: VisualDensity.compact,
+                          avatar: const Icon(
+                            Icons.family_restroom_rounded,
+                            size: 15,
+                          ),
+                          label: Text(
+                            'Elternteil von ${link.playerName}'
+                            '${link.ageGroupCode.isEmpty ? '' : ' · ${link.ageGroupCode}'}',
+                          ),
+                        ),
                     ],
                   );
                   return Padding(
@@ -1188,14 +1200,12 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                     ),
                   ),
               ],
-              if (role == UserRole.player || role == UserRole.parent) ...[
+              if (role == UserRole.player) ...[
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: playerId,
-                  decoration: InputDecoration(
-                    labelText: role == UserRole.parent
-                        ? 'Kind / Spielerprofil (optional)'
-                        : 'Verknüpftes Spielerprofil *',
+                  decoration: const InputDecoration(
+                    labelText: 'Verknüpftes Spielerprofil *',
                   ),
                   items: [
                     for (final player in widget.players.where(
@@ -1208,7 +1218,62 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                   ],
                   onChanged: (value) => setState(() => playerId = value),
                 ),
-                if (role == UserRole.parent) ...[
+              ],
+              if (role != UserRole.player) ...[
+                const SizedBox(height: 20),
+                Text(
+                  'Eltern-Zuordnung',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  'Optional: Auch Systemadministration, Vereinsfunktionäre '
+                  'und Trainer können Eltern eines Spielers sein. Die '
+                  'Hauptrolle und sämtliche Rechte bleiben unverändert.',
+                ),
+                if (widget.user.parentPlayers.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final link in widget.user.parentPlayers)
+                        Chip(
+                          avatar: const Icon(
+                            Icons.family_restroom_rounded,
+                            size: 16,
+                          ),
+                          label: Text(
+                            '${link.playerName}'
+                            '${link.ageGroupCode.isEmpty ? '' : ' · ${link.ageGroupCode}'}',
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: playerId,
+                  decoration: const InputDecoration(
+                    labelText: 'Weiteres Kind / Spielerprofil (optional)',
+                  ),
+                  items: [
+                    for (final player in widget.players.where(
+                      (player) =>
+                          teamIds.contains(player.teamId) &&
+                          !widget.user.parentPlayers
+                              .any((link) => link.playerId == player.id),
+                    ))
+                      DropdownMenuItem(
+                        value: player.id,
+                        child: Text(player.fullName),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => playerId = value),
+                ),
+                if (playerId != null) ...[
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: relationship,
@@ -1283,8 +1348,9 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                           teamId: teamRoles[teamId] ?? _teamFunction(role),
                       },
                       playerId: playerId,
-                      relationship:
-                          role == UserRole.parent ? relationship : null,
+                      relationship: role != UserRole.player && playerId != null
+                          ? relationship
+                          : null,
                       adminNote: adminNote.text.trim(),
                     ),
                   ),

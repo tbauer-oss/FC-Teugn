@@ -327,15 +327,17 @@ class _ProfileContent extends ConsumerWidget {
     final members = await ref.read(membersProvider.future);
     final parents = members
         .where((member) =>
-            member.role == UserRole.parent &&
-            member.status == AccountStatus.approved)
+            member.status == AccountStatus.approved &&
+            member.role != UserRole.player &&
+            !player.guardians.any((guardian) => guardian.id == member.id))
         .toList();
     if (!context.mounted) return;
     if (parents.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Es gibt noch kein freigegebenes Elternkonto in dieser Mannschaft.',
+            'Es gibt kein weiteres freigegebenes Mitglied, das als '
+            'Elternteil zugeordnet werden kann.',
           ),
         ),
       );
@@ -2850,7 +2852,11 @@ class _GuardianDialogState extends State<_GuardianDialog> {
             DropdownButtonFormField<String>(
               initialValue: parentId,
               isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Elternkonto'),
+              decoration: const InputDecoration(
+                labelText: 'Mitglied / Elternteil',
+                helperText:
+                    'Die bestehende Hauptrolle und ihre Rechte bleiben erhalten.',
+              ),
               items: [
                 for (final parent in widget.parents)
                   DropdownMenuItem(

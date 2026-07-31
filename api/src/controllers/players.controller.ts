@@ -261,9 +261,7 @@ async function playerAccessScope(
 
 export async function canAccessPlayer(req: Request, playerId: string) {
   const user = req.user!;
-  if (isGuardianRole(user.role)) {
-    return Boolean(await guardianLink(user.id, playerId));
-  }
+  if (await guardianLink(user.id, playerId)) return true;
   if (isPlayerRole(user.role)) {
     return Boolean(await prisma.player.findFirst({
       where: { id: playerId, userId: user.id },
@@ -315,9 +313,7 @@ export async function getPlayer(req: Request, res: Response) {
     return res.status(404).json({ message: 'Spielerprofil nicht gefunden.' });
   }
 
-  const guardian = isGuardianRole(user.role)
-    ? await guardianLink(user.id, id)
-    : null;
+  const guardian = await guardianLink(user.id, id);
   const canViewSensitive =
     hasPermission(user.role, Permission.VIEW_SENSITIVE_PLAYER) ||
     guardian?.isLegalGuardian === true ||
@@ -535,9 +531,7 @@ export async function upsertMedicalProfile(req: Request, res: Response) {
   if (!(await canAccessPlayer(req, id))) {
     return res.status(404).json({ message: 'Spielerprofil nicht gefunden.' });
   }
-  const guardian = isGuardianRole(user.role)
-    ? await guardianLink(user.id, id)
-    : null;
+  const guardian = await guardianLink(user.id, id);
   if (
     !hasPermission(user.role, Permission.MANAGE_SENSITIVE_PLAYER) &&
     guardian?.isLegalGuardian !== true
@@ -582,9 +576,7 @@ export async function createEmergencyContact(req: Request, res: Response) {
   if (!(await canAccessPlayer(req, id))) {
     return res.status(404).json({ message: 'Spielerprofil nicht gefunden.' });
   }
-  const guardian = isGuardianRole(user.role)
-    ? await guardianLink(user.id, id)
-    : null;
+  const guardian = await guardianLink(user.id, id);
   if (
     !hasPermission(user.role, Permission.MANAGE_SENSITIVE_PLAYER) &&
     guardian?.isLegalGuardian !== true
@@ -643,9 +635,7 @@ export async function upsertConsent(req: Request, res: Response) {
   if (!(await canAccessPlayer(req, id))) {
     return res.status(404).json({ message: 'Spielerprofil nicht gefunden.' });
   }
-  const guardian = isGuardianRole(user.role)
-    ? await guardianLink(user.id, id)
-    : null;
+  const guardian = await guardianLink(user.id, id);
   if (
     !hasPermission(user.role, Permission.MANAGE_SENSITIVE_PLAYER) &&
     guardian?.isLegalGuardian !== true

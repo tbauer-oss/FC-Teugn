@@ -35,6 +35,31 @@ const memberSelect = {
       },
     },
   },
+  parentLinks: {
+    orderBy: { player: { lastName: 'asc' as const } },
+    select: {
+      id: true,
+      relationship: true,
+      isLegalGuardian: true,
+      canPickup: true,
+      receivesCommunication: true,
+      player: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          teamId: true,
+          team: {
+            select: {
+              id: true,
+              name: true,
+              ageGroup: { select: { code: true } },
+            },
+          },
+        },
+      },
+    },
+  },
   registrationRequest: {
     select: {
       id: true,
@@ -86,6 +111,10 @@ async function actorClubId(teamId: string) {
 
 function isSuperAdmin(role: Role) {
   return role === Role.SUPER_ADMIN;
+}
+
+export function canHaveParentPlayerLinks(role: Role) {
+  return role !== Role.PLAYER;
 }
 
 const assignableTeamFunctions: Role[] = [
@@ -397,7 +426,7 @@ export async function approveUser(req: Request, res: Response) {
     return res.status(400).json({ message: 'Mindestens eine Mannschaft ist nicht zulässig.' });
   }
   let linkedPlayer =
-    (nextRole === Role.PLAYER || nextRole === Role.PARENT) && playerId
+    playerId
       ? await prisma.player.findFirst({
           where: {
             id: playerId,
@@ -467,7 +496,7 @@ export async function approveUser(req: Request, res: Response) {
           data: { userId: target.id },
         });
       }
-      if (linkedPlayer && nextRole === Role.PARENT) {
+      if (linkedPlayer && canHaveParentPlayerLinks(nextRole)) {
         await tx.parentPlayerLink.upsert({
           where: {
             parentId_playerId: { parentId: target.id, playerId: linkedPlayer.id },
@@ -581,8 +610,12 @@ export async function assignParentPlayer(req: Request, res: Response) {
     }),
     prisma.player.findFirst({ where: { id: playerId, teamId: { in: teamIds } } }),
   ]);
-  if (!parent || parent.role !== Role.PARENT) {
-    return res.status(404).json({ message: 'Elternteil nicht gefunden.' });
+  if (
+    !parent ||
+    parent.status !== AccountStatus.APPROVED ||
+    !canHaveParentPlayerLinks(parent.role as Role)
+  ) {
+    return res.status(404).json({ message: 'Freigegebenes Mitglied nicht gefunden.' });
   }
   if (!player) {
     return res.status(404).json({ message: 'Spieler nicht gefunden.' });
