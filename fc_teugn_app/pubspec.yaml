@@ -1,7 +1,7 @@
 name: fc_teugn_app
 description: FC Teugn E2/E3 Jugend Team App
 publish_to: 'none'
-version: 1.0.2+3
+version: 1.0.3+4
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

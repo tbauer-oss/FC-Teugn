@@ -1,8 +1,21 @@
-import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from 'pdf-lib';
+import {
+  LineCapStyle,
+  PDFDocument,
+  PDFPage,
+  PDFFont,
+  StandardFonts,
+  rgb,
+} from 'pdf-lib';
 import { ConsentTemplateDefinition } from './consent-templates';
 
 type SignaturePoint = { x: number; y: number };
 type SignatureStroke = SignaturePoint[];
+
+type SignatureData = {
+  width: number;
+  height: number;
+  strokes: SignatureStroke[];
+};
 
 export type ConsentPdfData = {
   template: ConsentTemplateDefinition;
@@ -14,7 +27,7 @@ export type ConsentPdfData = {
   signedAt?: Date;
   childAssentName?: string | null;
   documentHash?: string;
-  signature?: { width: number; height: number; strokes: SignatureStroke[] } | null;
+  signature?: SignatureData | null;
   revokedAt?: Date | null;
 };
 
@@ -23,6 +36,72 @@ const BLACK = rgb(0.08, 0.09, 0.08);
 const GOLD = rgb(0.52, 0.45, 0);
 const MUTED = rgb(0.36, 0.36, 0.33);
 const LINE = rgb(0.83, 0.82, 0.76);
+
+const SIGNATURE_BOX = { width: 200, height: 55, padding: 4 };
+
+export function signatureLayout(signature: SignatureData) {
+  const points = signature.strokes.flat();
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const minY = Math.min(...points.map((point) => point.y));
+  const maxY = Math.max(...points.map((point) => point.y));
+  const contentWidth = Math.max(maxX - minX, 1);
+  const contentHeight = Math.max(maxY - minY, 1);
+  const availableWidth = SIGNATURE_BOX.width - SIGNATURE_BOX.padding * 2;
+  const availableHeight = SIGNATURE_BOX.height - SIGNATURE_BOX.padding * 2;
+  const scale = Math.min(
+    availableWidth / contentWidth,
+    availableHeight / contentHeight,
+  );
+  const width = contentWidth * scale;
+  const height = contentHeight * scale;
+  return {
+    minX,
+    minY,
+    scale,
+    width,
+    height,
+    offsetX: (SIGNATURE_BOX.width - width) / 2,
+    offsetY: (SIGNATURE_BOX.height - height) / 2,
+  };
+}
+
+function svgNumber(value: number) {
+  return Number(value.toFixed(3)).toString();
+}
+
+export function smoothSignaturePath(
+  stroke: SignatureStroke,
+  layout: ReturnType<typeof signatureLayout>,
+) {
+  const points = stroke.map((point) => ({
+    x: (point.x - layout.minX) * layout.scale,
+    y: (point.y - layout.minY) * layout.scale,
+  }));
+  if (points.length < 2) return '';
+
+  const commands = [`M ${svgNumber(points[0].x)} ${svgNumber(points[0].y)}`];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const previous = points[Math.max(index - 1, 0)];
+    const current = points[index];
+    const next = points[index + 1];
+    const following = points[Math.min(index + 2, points.length - 1)];
+    const control1 = {
+      x: current.x + (next.x - previous.x) / 6,
+      y: current.y + (next.y - previous.y) / 6,
+    };
+    const control2 = {
+      x: next.x - (following.x - current.x) / 6,
+      y: next.y - (following.y - current.y) / 6,
+    };
+    commands.push(
+      `C ${svgNumber(control1.x)} ${svgNumber(control1.y)} ` +
+        `${svgNumber(control2.x)} ${svgNumber(control2.y)} ` +
+        `${svgNumber(next.x)} ${svgNumber(next.y)}`,
+    );
+  }
+  return commands.join(' ');
+}
 
 function wrap(text: string, font: PDFFont, size: number, width: number) {
   const words = text.replace(/\s+/g, ' ').trim().split(' ');
@@ -211,7 +290,7 @@ export async function buildConsentPdf(data: ConsentPdfData) {
   );
 
   ensure(120);
-  y -= 8;
+  y -= SIGNATURE_BOX.height + 10;
   page.drawLine({
     start: { x: PAGE.margin, y },
     end: { x: PAGE.margin + 205, y },
@@ -227,7 +306,6 @@ export async function buildConsentPdf(data: ConsentPdfData) {
   });
 
   const signatureX = PAGE.margin + 250;
-  const signatureY = y - 2;
   page.drawLine({
     start: { x: signatureX, y },
     end: { x: PAGE.width - PAGE.margin, y },
@@ -235,25 +313,19 @@ export async function buildConsentPdf(data: ConsentPdfData) {
     color: LINE,
   });
   if (data.signature && data.signature.strokes.length > 0) {
-    const scaleX = 200 / Math.max(data.signature.width, 1);
-    const scaleY = 55 / Math.max(data.signature.height, 1);
+    const layout = signatureLayout(data.signature);
+    const pathX = signatureX + layout.offsetX;
+    const pathTop = y + 4 + layout.offsetY + layout.height;
     for (const stroke of data.signature.strokes) {
-      for (let index = 1; index < stroke.length; index += 1) {
-        const from = stroke[index - 1];
-        const to = stroke[index];
-        page.drawLine({
-          start: {
-            x: signatureX + from.x * scaleX,
-            y: signatureY + (data.signature.height - from.y) * scaleY,
-          },
-          end: {
-            x: signatureX + to.x * scaleX,
-            y: signatureY + (data.signature.height - to.y) * scaleY,
-          },
-          thickness: 1.4,
-          color: BLACK,
-        });
-      }
+      const path = smoothSignaturePath(stroke, layout);
+      if (!path) continue;
+      page.drawSvgPath(path, {
+        x: pathX,
+        y: pathTop,
+        borderColor: BLACK,
+        borderWidth: 1.05,
+        borderLineCap: LineCapStyle.Round,
+      });
     }
   }
   page.drawText(`Unterschrift: ${data.signerName ?? ''}`, {
