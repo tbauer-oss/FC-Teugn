@@ -102,6 +102,7 @@ class _DigitalSignatureDialogState extends State<_DigitalSignatureDialog> {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final compact = size.width < 600;
+    final stackActions = size.width < 900;
     return Dialog(
       insetPadding: EdgeInsets.symmetric(
         horizontal: compact ? 8 : 32,
@@ -206,7 +207,7 @@ class _DigitalSignatureDialogState extends State<_DigitalSignatureDialog> {
               const Divider(height: 1),
               Padding(
                 padding: EdgeInsets.all(compact ? 12 : 16),
-                child: compact
+                child: stackActions
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
