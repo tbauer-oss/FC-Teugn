@@ -142,9 +142,9 @@ class _DigitalSignatureDialogState extends State<_DigitalSignatureDialog> {
                             'Digital unterschreiben',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          Text(
+                          const Text(
                             'Mit Finger, Eingabestift oder Maus unterschreiben.',
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.muted,
                               fontSize: 12,
                             ),
