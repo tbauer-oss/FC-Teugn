@@ -20,6 +20,7 @@ import {
   accessibleTeamIds,
   youthPlayerPoolTeamIdsForTeam,
 } from '../services/team-access';
+import { syncSquadWithTeamDefaultLineup } from '../services/default-lineup.service';
 
 const matchInclude = {
   team: {
@@ -52,6 +53,7 @@ const matchInclude = {
           preferredName: true,
           shirtNumber: true,
           position: true,
+          secondaryPosition: true,
           status: true,
           photoUrl: true,
         },
@@ -70,6 +72,7 @@ const matchInclude = {
               preferredName: true,
               shirtNumber: true,
               position: true,
+              secondaryPosition: true,
               status: true,
               photoUrl: true,
             },
@@ -518,6 +521,15 @@ export async function updateSquad(req: Request, res: Response) {
         skipDuplicates: true,
       });
     }
+    await syncSquadWithTeamDefaultLineup(tx, {
+      teamId: match.targetTeams[0]?.team.id ?? match.team.id,
+      squadId: saved.id,
+      fieldSize: Number(
+        String(
+          match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat,
+        ).replace('FOOTBALL_', ''),
+      ),
+    });
     return tx.squad.findUnique({
       where: { id: saved.id },
       include: {
@@ -625,6 +637,8 @@ export async function updateLineup(req: Request, res: Response) {
         ...(String(req.body.status).toUpperCase() === LineupStatus.PUBLISHED
           ? { publishedAt: new Date() }
           : {}),
+        usesTeamDefault: false,
+        automaticReplacements: 0,
       },
       create: {
         squadId: squad.id,
@@ -637,6 +651,8 @@ export async function updateLineup(req: Request, res: Response) {
         ...(String(req.body.status).toUpperCase() === LineupStatus.PUBLISHED
           ? { publishedAt: new Date() }
           : {}),
+        usesTeamDefault: false,
+        automaticReplacements: 0,
       },
     });
     await tx.lineupPosition.deleteMany({ where: { lineupId: lineup.id } });

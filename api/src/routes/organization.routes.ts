@@ -6,6 +6,7 @@ import {
   publicOrganization,
   removeTeamPhoto,
   updateTeam,
+  updateTeamDefaultLineup,
   updateTrainingSchedule,
   uploadTeamPhoto,
 } from '../controllers/organization.controller';
@@ -41,6 +42,13 @@ router.patch(
   requireApproved,
   requirePermission(Permission.MANAGE_TEAM),
   updateTeam,
+);
+router.put(
+  '/teams/:id/default-lineup',
+  requireAuth,
+  requireApproved,
+  requirePermission(Permission.MANAGE_TEAM),
+  updateTeamDefaultLineup,
 );
 router.delete(
   '/teams/:id',

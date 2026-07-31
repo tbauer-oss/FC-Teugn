@@ -394,6 +394,7 @@ model Team {
   gameFormat              TeamGameFormat            @default(FOOTBALL_7)
   periodCount             Int                       @default(2)
   periodMinutes           Int                       @default(30)
+  defaultFormation        String?
   birthYears              Int[]                     @default([])
   description             String?
   trainingLocation        String?
@@ -438,6 +439,7 @@ model Team {
   photoAsset              FileAsset?                @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
   ownedFileAssets         FileAsset[]               @relation("TeamFileOwner")
   pitchConflictRequests   PitchConflictRequest[]
+  defaultLineupPositions  TeamDefaultLineupPosition[]
 
   @@index([ageGroupId, isActive, deletedAt])
 }
@@ -731,6 +733,7 @@ model Player {
   carpoolPassengers    CarpoolPassenger[]
   equipmentAssignments EquipmentAssignment[]
   lineupPositions      LineupPosition[]
+  teamDefaultLineupPositions TeamDefaultLineupPosition[]
   tickerGoals          LiveTickerEvent[]        @relation("TickerScorer")
   tickerAssists        LiveTickerEvent[]        @relation("TickerAssist")
   matchStatistics      PlayerMatchStatistic[]
@@ -1183,6 +1186,8 @@ model Lineup {
   status        LineupStatus          @default(DRAFT)
   publicNote    String?
   tacticalNote  String?
+  usesTeamDefault Boolean               @default(false)
+  automaticReplacements Int             @default(0)
   visibleAt     DateTime?
   publishedAt   DateTime?
   createdAt     DateTime              @default(now())
@@ -1190,6 +1195,26 @@ model Lineup {
   squad         Squad                 @relation(fields: [squadId], references: [id], onDelete: Cascade)
   positions     LineupPosition[]
   substitutions PlannedSubstitution[]
+}
+
+model TeamDefaultLineupPosition {
+  id             String   @id @default(cuid())
+  teamId         String
+  playerId       String
+  positionCode   String
+  x              Float
+  y              Float
+  isGoalkeeper   Boolean  @default(false)
+  isCaptain      Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, playerId])
+  @@index([teamId, sortOrder])
+  @@index([playerId])
 }
 
 model LineupPosition {

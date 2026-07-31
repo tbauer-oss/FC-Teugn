@@ -9,12 +9,14 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
 import '../../core/models/organization.dart';
+import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/team_game_format.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import 'organization_admin_tools.dart';
+import 'team_default_lineup_dialog.dart';
 
 class OrganizationPage extends ConsumerWidget {
   const OrganizationPage({super.key});
@@ -213,6 +215,79 @@ class _OrganizationContent extends ConsumerWidget {
     }
   }
 
+  Future<void> _openDefaultLineup(
+    BuildContext context,
+    WidgetRef ref,
+    TeamSummary team,
+  ) async {
+    try {
+      final allPlayers = await ref.read(playersProvider.future);
+      final players = allPlayers
+          .where(
+            (player) =>
+                player.teamId == team.id &&
+                (player.status == PlayerStatus.active ||
+                    player.status == PlayerStatus.injured),
+          )
+          .toList()
+        ..sort((a, b) {
+          final shirtComparison =
+              (a.shirtNumber ?? 999).compareTo(b.shirtNumber ?? 999);
+          return shirtComparison != 0
+              ? shirtComparison
+              : a.fullName.compareTo(b.fullName);
+        });
+      if (!context.mounted) return;
+      if (players.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Für diese Mannschaft sind noch keine aktiven Spieler angelegt.',
+            ),
+          ),
+        );
+        return;
+      }
+      final draft = await showDialog<TeamDefaultLineupDraft>(
+        context: context,
+        builder: (_) => TeamDefaultLineupDialog(
+          team: team,
+          players: players,
+        ),
+      );
+      if (draft == null) return;
+      await ref.read(repositoryProvider).saveTeamDefaultLineup(
+            teamId: team.id,
+            formation: draft.formation,
+            positions: draft.positions,
+          );
+      ref.invalidate(organizationProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Startformation ${draft.formation} wurde für ${team.displayName} gespeichert.',
+            ),
+          ),
+        );
+      }
+    } on DioException catch (error) {
+      final response = error.response?.data;
+      final message = response is Map<String, dynamic>
+          ? response['message'] as String?
+          : null;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              message ?? 'Startformation konnte nicht gespeichert werden.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _removePhoto(
     BuildContext context,
     WidgetRef ref,
@@ -362,6 +437,7 @@ class _OrganizationContent extends ConsumerWidget {
                 team: team,
                 initialAgeGroup: team.ageGroup,
               ),
+              onLineup: (team) => _openDefaultLineup(context, ref, team),
               onPhoto: (team) => _changePhoto(context, ref, team),
               onRemovePhoto: (team) => _removePhoto(context, ref, team),
               onDelete: (team) => _deleteTeam(context, ref, team),
@@ -466,6 +542,7 @@ class _AgeGroupSection extends StatelessWidget {
     required this.canEdit,
     required this.canDelete,
     required this.onEdit,
+    required this.onLineup,
     required this.onPhoto,
     required this.onRemovePhoto,
     required this.onDelete,
@@ -476,6 +553,7 @@ class _AgeGroupSection extends StatelessWidget {
   final bool Function(TeamSummary) canEdit;
   final bool canDelete;
   final ValueChanged<TeamSummary> onEdit;
+  final ValueChanged<TeamSummary> onLineup;
   final ValueChanged<TeamSummary> onPhoto;
   final ValueChanged<TeamSummary> onRemovePhoto;
   final ValueChanged<TeamSummary> onDelete;
@@ -531,6 +609,7 @@ class _AgeGroupSection extends StatelessWidget {
                       canEdit: canEdit(team),
                       canDelete: canDelete,
                       onEdit: () => onEdit(team),
+                      onLineup: () => onLineup(team),
                       onPhoto: () => onPhoto(team),
                       onRemovePhoto: () => onRemovePhoto(team),
                       onDelete: () => onDelete(team),
@@ -551,6 +630,7 @@ class _TeamCard extends StatelessWidget {
     required this.canEdit,
     required this.canDelete,
     required this.onEdit,
+    required this.onLineup,
     required this.onPhoto,
     required this.onRemovePhoto,
     required this.onDelete,
@@ -560,6 +640,7 @@ class _TeamCard extends StatelessWidget {
   final bool canEdit;
   final bool canDelete;
   final VoidCallback onEdit;
+  final VoidCallback onLineup;
   final VoidCallback onPhoto;
   final VoidCallback onRemovePhoto;
   final VoidCallback onDelete;
@@ -638,6 +719,14 @@ class _TeamCard extends StatelessWidget {
                   text:
                       '${team.periodCount} × ${team.periodMinutes} Minuten Spielzeit',
                 ),
+                if (team.defaultLineup != null) ...[
+                  const SizedBox(height: 7),
+                  _InfoLine(
+                    icon: Icons.schema_rounded,
+                    text: 'Startformation ${team.defaultLineup!.formation} · '
+                        '${team.defaultLineup!.positions.length} Spieler',
+                  ),
+                ],
                 if (team.birthYears.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   _InfoLine(
@@ -695,6 +784,15 @@ class _TeamCard extends StatelessWidget {
                     spacing: 6,
                     runSpacing: 6,
                     children: [
+                      FilledButton.tonalIcon(
+                        onPressed: onLineup,
+                        icon: const Icon(Icons.schema_rounded),
+                        label: Text(
+                          team.defaultLineup == null
+                              ? 'Startformation festlegen'
+                              : 'Startformation ändern',
+                        ),
+                      ),
                       OutlinedButton.icon(
                         onPressed: onEdit,
                         icon: const Icon(Icons.edit_outlined),

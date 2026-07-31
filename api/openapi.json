@@ -143,6 +143,20 @@
         }
       }
     },
+    "/organization/teams/{id}/default-lineup": {
+      "put": {
+        "tags": ["Organisation", "Spiele"],
+        "summary": "Mannschafts-Startformation dauerhaft speichern",
+        "description": "Speichert Spieler, Positionen und Formation. Zukünftige Spielkader übernehmen die Vorlage automatisch; fehlende Spieler werden positionsgetreu ersetzt.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"$ref": "#/components/parameters/Id"}],
+        "responses": {
+          "200": {"description": "Startformation gespeichert und zukünftige automatische Aufstellungen synchronisiert"},
+          "400": {"description": "Ungültige Formation oder Spielerzuordnung"},
+          "403": {"$ref": "#/components/responses/Forbidden"}
+        }
+      }
+    },
     "/players": {
       "get": {"tags": ["Spieler"], "summary": "Berechtigte Spieler auflisten", "security": [{"bearerAuth": []}], "responses": {"200": {"description": "Spielerliste"}}},
       "post": {"tags": ["Spieler"], "summary": "Spieler anlegen", "security": [{"bearerAuth": []}], "responses": {"201": {"description": "Spieler angelegt"}, "403": {"$ref": "#/components/responses/Forbidden"}}}

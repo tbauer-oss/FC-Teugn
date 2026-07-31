@@ -141,6 +141,22 @@ class DataRepository {
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<TeamDefaultLineup?> saveTeamDefaultLineup({
+    required String teamId,
+    required String formation,
+    required List<TeamDefaultLineupPositionInput> positions,
+  }) async {
+    final res = await client.dio.put(
+      '/organization/teams/$teamId/default-lineup',
+      data: {
+        'formation': formation,
+        'positions': positions.map((position) => position.toJson()).toList(),
+      },
+    );
+    if (res.data == null) return null;
+    return TeamDefaultLineup.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<int> deleteTeam(String teamId) async {
     final res = await client.dio.delete('/organization/teams/$teamId');
     final data = res.data as Map<String, dynamic>;

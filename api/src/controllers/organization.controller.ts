@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import {
   AccountStatus,
   EventType,
+  PlayerStatus,
   Role,
   TeamGameFormat,
   TeamGender,
@@ -13,6 +14,10 @@ import { Permission, permissionsForRole } from '../security/permissions';
 import { accessibleTeamIds, canManageTeam } from '../services/team-access';
 import { objectStorage } from '../services/object-storage';
 import { mediaAssetUrl } from '../services/media-access';
+import {
+  fieldSizeForGameFormat,
+  syncSquadWithTeamDefaultLineup,
+} from '../services/default-lineup.service';
 
 const staffRoles: Role[] = [
   Role.SUPER_ADMIN,
@@ -41,6 +46,23 @@ const hierarchyInclude = {
     select: {
       role: true,
       user: { select: { id: true, name: true, email: true } },
+    },
+  },
+  defaultLineupPositions: {
+    orderBy: { sortOrder: 'asc' as const },
+    include: {
+      player: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          position: true,
+          secondaryPosition: true,
+          shirtNumber: true,
+          status: true,
+        },
+      },
     },
   },
 } as const;
@@ -576,6 +598,154 @@ export async function updateTeam(req: Request, res: Response) {
   return res.json(await serializeTeam(team, true));
 }
 
+export async function updateTeamDefaultLineup(req: Request, res: Response) {
+  const user = req.user!;
+  const teamId = req.params.id;
+  if (!(await canManageTeam(user, teamId))) {
+    return res.status(403).json({
+      message: 'Die Startformation dieser Mannschaft darf nicht bearbeitet werden.',
+    });
+  }
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { id: true, gameFormat: true, deletedAt: true },
+  });
+  if (!team || team.deletedAt) {
+    return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  }
+
+  const formation = optionalText(req.body?.formation, 50);
+  const positions = Array.isArray(req.body?.positions)
+    ? req.body.positions as Record<string, unknown>[]
+    : [];
+  const fieldSize = fieldSizeForGameFormat(team.gameFormat);
+  if (positions.length > fieldSize) {
+    return res.status(400).json({
+      message: `Für diese Mannschaft sind höchstens ${fieldSize} Startspieler vorgesehen.`,
+    });
+  }
+  if (positions.length > 0 && !formation) {
+    return res.status(400).json({ message: 'Bitte eine Formation auswählen.' });
+  }
+  const playerIds = positions.map((position) => String(position.playerId ?? ''));
+  if (playerIds.some((id) => !id) || new Set(playerIds).size !== playerIds.length) {
+    return res.status(400).json({
+      message: 'Jeder Spieler darf nur einmal in der Startformation vorkommen.',
+    });
+  }
+  if (positions.filter((position) => position.isCaptain === true).length > 1) {
+    return res.status(400).json({ message: 'Es kann nur einen Kapitän geben.' });
+  }
+  for (const position of positions) {
+    const x = Number(position.x);
+    const y = Number(position.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) {
+      return res.status(400).json({ message: 'Ungültige Spielfeldposition.' });
+    }
+  }
+  const validPlayers = await prisma.player.findMany({
+    where: {
+      id: { in: playerIds },
+      teamId,
+      status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
+    },
+    select: { id: true },
+  });
+  if (validPlayers.length !== playerIds.length) {
+    return res.status(400).json({
+      message: 'Die Startformation darf nur Spieler dieser Mannschaft enthalten.',
+    });
+  }
+
+  const saved = await prisma.$transaction(async (tx) => {
+    await tx.team.update({
+      where: { id: teamId },
+      data: { defaultFormation: positions.length > 0 ? formation : null },
+    });
+    await tx.teamDefaultLineupPosition.deleteMany({ where: { teamId } });
+    if (positions.length > 0) {
+      await tx.teamDefaultLineupPosition.createMany({
+        data: positions.map((position, index) => ({
+          teamId,
+          playerId: String(position.playerId),
+          positionCode: optionalText(position.positionCode, 30) ?? 'FELD',
+          x: Number(position.x),
+          y: Number(position.y),
+          isGoalkeeper: position.isGoalkeeper === true,
+          isCaptain: position.isCaptain === true,
+          sortOrder: index,
+        })),
+      });
+    }
+
+    const futureSquads = await tx.squad.findMany({
+      where: {
+        event: {
+          type: EventType.MATCH,
+          startAt: { gte: new Date() },
+          OR: [
+            { teamId },
+            { targetTeams: { some: { teamId } } },
+          ],
+        },
+      },
+      select: { id: true },
+    });
+    for (const squad of futureSquads) {
+      await syncSquadWithTeamDefaultLineup(tx, {
+        teamId,
+        squadId: squad.id,
+        fieldSize,
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId,
+        action: 'TEAM_DEFAULT_LINEUP_UPDATED',
+        entityType: 'Team',
+        entityId: teamId,
+        metadata: {
+          formation,
+          playerCount: positions.length,
+          synchronizedMatches: futureSquads.length,
+        },
+      },
+    });
+    return tx.team.findUnique({
+      where: { id: teamId },
+      select: {
+        defaultFormation: true,
+        defaultLineupPositions: {
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            player: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                preferredName: true,
+                position: true,
+                secondaryPosition: true,
+                shirtNumber: true,
+                status: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  return res.json(saved && saved.defaultLineupPositions.length > 0
+    ? {
+        formation: saved.defaultFormation ?? 'Individuell',
+        positions: saved.defaultLineupPositions,
+      }
+    : null);
+}
+
 export function canDeleteTeamRole(role: Role) {
   return role === Role.SUPER_ADMIN;
 }
@@ -883,6 +1053,7 @@ async function serializeTeam(team: {
   gameFormat: TeamGameFormat;
   periodCount: number;
   periodMinutes: number;
+  defaultFormation: string | null;
   birthYears: number[];
   description: string | null;
   trainingLocation: string | null;
@@ -905,6 +1076,25 @@ async function serializeTeam(team: {
   memberships: Array<{
     role: Role;
     user: { id: string; name: string; email: string };
+  }>;
+  defaultLineupPositions: Array<{
+    playerId: string;
+    positionCode: string;
+    x: number;
+    y: number;
+    isGoalkeeper: boolean;
+    isCaptain: boolean;
+    sortOrder: number;
+    player: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      preferredName: string | null;
+      position: string | null;
+      secondaryPosition: string | null;
+      shirtNumber: number | null;
+      status: PlayerStatus;
+    };
   }>;
   ageGroup: {
     id: string;
@@ -932,6 +1122,12 @@ async function serializeTeam(team: {
     gameFormat: team.gameFormat,
     periodCount: team.periodCount,
     periodMinutes: team.periodMinutes,
+    defaultLineup: team.defaultLineupPositions.length > 0
+      ? {
+          formation: team.defaultFormation ?? 'Individuell',
+          positions: team.defaultLineupPositions,
+        }
+      : null,
     birthYears: team.birthYears,
     description: team.description,
     trainingLocation: team.trainingLocation,

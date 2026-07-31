@@ -86,6 +86,7 @@ class TeamSummary {
     this.gameFormat = TeamGameFormat.football7,
     this.periodCount = 2,
     this.periodMinutes = 30,
+    this.defaultLineup,
     this.birthYears = const [],
     this.description,
     this.trainingLocation,
@@ -119,6 +120,7 @@ class TeamSummary {
   final TeamGameFormat gameFormat;
   final int periodCount;
   final int periodMinutes;
+  final TeamDefaultLineup? defaultLineup;
   final List<int> birthYears;
   final String? description;
   final String? trainingLocation;
@@ -167,6 +169,11 @@ class TeamSummary {
         gameFormat: TeamGameFormat.fromApi(json['gameFormat']),
         periodCount: (json['periodCount'] as num?)?.toInt() ?? 2,
         periodMinutes: (json['periodMinutes'] as num?)?.toInt() ?? 30,
+        defaultLineup: json['defaultLineup'] == null
+            ? null
+            : TeamDefaultLineup.fromJson(
+                json['defaultLineup'] as Map<String, dynamic>,
+              ),
         birthYears: (json['birthYears'] as List<dynamic>? ?? [])
             .whereType<num>()
             .map((value) => value.toInt())
@@ -217,6 +224,126 @@ class TeamSummary {
         ),
         seasonName:
             (json['season'] as Map<String, dynamic>?)?['name'] as String? ?? '',
+      );
+}
+
+class TeamDefaultLineup {
+  const TeamDefaultLineup({
+    required this.formation,
+    required this.positions,
+  });
+
+  final String formation;
+  final List<TeamDefaultLineupPosition> positions;
+
+  factory TeamDefaultLineup.fromJson(Map<String, dynamic> json) =>
+      TeamDefaultLineup(
+        formation: json['formation'] as String? ?? 'Individuell',
+        positions: (json['positions'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => TeamDefaultLineupPosition.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
+}
+
+class TeamDefaultLineupPosition {
+  const TeamDefaultLineupPosition({
+    required this.player,
+    required this.positionCode,
+    required this.x,
+    required this.y,
+    required this.isGoalkeeper,
+    required this.isCaptain,
+    required this.sortOrder,
+  });
+
+  final TeamDefaultLineupPlayer player;
+  final String positionCode;
+  final double x;
+  final double y;
+  final bool isGoalkeeper;
+  final bool isCaptain;
+  final int sortOrder;
+
+  factory TeamDefaultLineupPosition.fromJson(Map<String, dynamic> json) =>
+      TeamDefaultLineupPosition(
+        player: TeamDefaultLineupPlayer.fromJson(
+          json['player'] as Map<String, dynamic>,
+        ),
+        positionCode: json['positionCode'] as String? ?? 'FELD',
+        x: (json['x'] as num?)?.toDouble() ?? .5,
+        y: (json['y'] as num?)?.toDouble() ?? .5,
+        isGoalkeeper: json['isGoalkeeper'] as bool? ?? false,
+        isCaptain: json['isCaptain'] as bool? ?? false,
+        sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class TeamDefaultLineupPositionInput {
+  const TeamDefaultLineupPositionInput({
+    required this.playerId,
+    required this.positionCode,
+    required this.x,
+    required this.y,
+    required this.isGoalkeeper,
+    required this.isCaptain,
+  });
+
+  final String playerId;
+  final String positionCode;
+  final double x;
+  final double y;
+  final bool isGoalkeeper;
+  final bool isCaptain;
+
+  Map<String, Object?> toJson() => {
+        'playerId': playerId,
+        'positionCode': positionCode,
+        'x': x,
+        'y': y,
+        'isGoalkeeper': isGoalkeeper,
+        'isCaptain': isCaptain,
+      };
+}
+
+class TeamDefaultLineupPlayer {
+  const TeamDefaultLineupPlayer({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.status,
+    this.preferredName,
+    this.position,
+    this.secondaryPosition,
+    this.shirtNumber,
+  });
+
+  final String id;
+  final String firstName;
+  final String lastName;
+  final String? preferredName;
+  final String? position;
+  final String? secondaryPosition;
+  final int? shirtNumber;
+  final String status;
+
+  String get name => preferredName?.trim().isNotEmpty == true
+      ? preferredName!.trim()
+      : '$firstName $lastName'.trim();
+
+  factory TeamDefaultLineupPlayer.fromJson(Map<String, dynamic> json) =>
+      TeamDefaultLineupPlayer(
+        id: json['id'] as String,
+        firstName: json['firstName'] as String? ?? '',
+        lastName: json['lastName'] as String? ?? '',
+        preferredName: json['preferredName'] as String?,
+        position: json['position'] as String?,
+        secondaryPosition: json['secondaryPosition'] as String?,
+        shirtNumber: (json['shirtNumber'] as num?)?.toInt(),
+        status: json['status'] as String? ?? 'ACTIVE',
       );
 }
 

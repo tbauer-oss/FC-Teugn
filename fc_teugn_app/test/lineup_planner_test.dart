@@ -43,6 +43,63 @@ void main() {
       hasLength(1),
     );
   });
+
+  test('builds the selected formation with the expected position rows', () {
+    final slots = lineupSlots(7, formation: '3-2-1');
+
+    expect(slots, hasLength(7));
+    expect(slots.map((slot) => slot.$3), [
+      'TW',
+      'LV',
+      'IV',
+      'RV',
+      'LM',
+      'RM',
+      'ST',
+    ]);
+  });
+
+  test('uses a matching secondary position before an unrelated player', () {
+    final players = [
+      _player('keeper', 'Torwart', 'TW'),
+      _player('defender', 'Verteidiger', 'IV'),
+      _player('midfielder', 'Mittelfeld', 'ZM'),
+      const MatchPlayer(
+        id: 'versatile',
+        name: 'Flexibel',
+        position: 'ZM',
+        secondaryPosition: 'ST',
+      ),
+      _player('unrelated', 'Weitere Option', 'RV'),
+    ];
+
+    final lineup = planInitialLineup(
+      players: players,
+      fieldSize: 4,
+      formation: '1-1-1',
+    );
+
+    expect(
+      lineup.singleWhere((position) => position.positionCode == 'ST').player.id,
+      'versatile',
+    );
+  });
+
+  test('reserves exact starters before filling earlier unmatched slots', () {
+    final lineup = planInitialLineup(
+      players: [
+        _player('striker', 'Stürmer', 'ST'),
+        _player('defender', 'Verteidiger', 'IV'),
+      ],
+      fieldSize: 4,
+      formation: '1-2',
+    );
+
+    expect(
+      lineup.singleWhere((position) => position.positionCode == 'ST').player.id,
+      'striker',
+    );
+  });
 }
 
 MatchPlayer _player(String id, String name, String position) => MatchPlayer(
