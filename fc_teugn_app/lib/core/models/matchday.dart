@@ -221,6 +221,7 @@ class MatchPlayer {
     required this.name,
     this.shirtNumber,
     this.position,
+    this.secondaryPosition,
     this.status,
   });
 
@@ -228,6 +229,7 @@ class MatchPlayer {
   final String name;
   final int? shirtNumber;
   final String? position;
+  final String? secondaryPosition;
   final PlayerStatus? status;
 
   factory MatchPlayer.fromJson(Map<String, dynamic> json) => MatchPlayer(
@@ -237,6 +239,7 @@ class MatchPlayer {
             : '${json['firstName'] ?? ''} ${json['lastName'] ?? ''}'.trim(),
         shirtNumber: json['shirtNumber'] as int?,
         position: json['position'] as String?,
+        secondaryPosition: json['secondaryPosition'] as String?,
         status: json['status'] == null
             ? null
             : _enum(PlayerStatus.values, json['status'], PlayerStatus.active),
@@ -312,6 +315,8 @@ class LineupModel {
     required this.fieldSize,
     required this.status,
     required this.positions,
+    this.usesTeamDefault = false,
+    this.automaticReplacements = 0,
     this.publicNote,
     this.tacticalNote,
   });
@@ -320,6 +325,8 @@ class LineupModel {
   final String formation;
   final int fieldSize;
   final LineupStatus status;
+  final bool usesTeamDefault;
+  final int automaticReplacements;
   final String? publicNote;
   final String? tacticalNote;
   final List<LineupPositionModel> positions;
@@ -333,6 +340,9 @@ class LineupModel {
           json['status'],
           LineupStatus.draft,
         ),
+        usesTeamDefault: json['usesTeamDefault'] as bool? ?? false,
+        automaticReplacements:
+            (json['automaticReplacements'] as num?)?.toInt() ?? 0,
         publicNote: json['publicNote'] as String?,
         tacticalNote: json['tacticalNote'] as String?,
         positions: (json['positions'] as List<dynamic>? ?? const [])

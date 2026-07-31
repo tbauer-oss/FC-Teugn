@@ -857,6 +857,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     return planInitialLineup(
       players: _nominatedPlayers,
       fieldSize: _fieldSize,
+      formation: _formation,
     );
   }
 
@@ -907,6 +908,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                             _positions = planInitialLineup(
                               players: _nominatedPlayers,
                               fieldSize: _fieldSize,
+                              formation: _formation,
                             );
                           }),
                   icon: const Icon(Icons.auto_awesome_rounded),
@@ -967,6 +969,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                                     _positions = planInitialLineup(
                                       players: _nominatedPlayers,
                                       fieldSize: _fieldSize,
+                                      formation: _formation,
                                     );
                                     _schedulePositionSave();
                                   }),
@@ -1029,6 +1032,12 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
             },
           ),
         const SizedBox(height: 12),
+        if (lineup?.usesTeamDefault == true) ...[
+          _AutomaticLineupNotice(
+            replacements: lineup!.automaticReplacements,
+          ),
+          const SizedBox(height: 12),
+        ],
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -1688,6 +1697,50 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
             '${position.isCaptain}',
     ].join('|');
   }
+}
+
+class _AutomaticLineupNotice extends StatelessWidget {
+  const _AutomaticLineupNotice({required this.replacements});
+
+  final int replacements;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: replacements > 0
+              ? AppColors.yellowSoft
+              : AppColors.teal.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: replacements > 0
+                ? AppColors.yellow.withValues(alpha: .55)
+                : AppColors.teal.withValues(alpha: .25),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              replacements > 0
+                  ? Icons.swap_horiz_rounded
+                  : Icons.auto_awesome_rounded,
+              color: replacements > 0 ? AppColors.blue : AppColors.teal,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                replacements > 0
+                    ? 'Startformation der Mannschaft übernommen · '
+                        '$replacements ${replacements == 1 ? 'Spieler wurde' : 'Spieler wurden'} '
+                        'positionsgetreu ersetzt.'
+                    : 'Startformation der Mannschaft wurde automatisch übernommen.',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _LineupEditResult {

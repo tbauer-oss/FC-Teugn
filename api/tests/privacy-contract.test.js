@@ -15,6 +15,7 @@ test('OpenAPI contract exposes security-critical production flows', () => {
     '/auth/privacy/erasure-requests',
     '/organization/context',
     '/organization/teams/{id}',
+    '/organization/teams/{id}/default-lineup',
     '/players/{id}',
     '/players/consent-templates',
     '/players/consent-templates/{type}/pdf',
