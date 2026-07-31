@@ -4,7 +4,11 @@ const assert = require('node:assert/strict');
 const {
   publicConsentTemplates,
 } = require('../dist/src/services/consent-templates');
-const { buildConsentPdf } = require('../dist/src/services/consent-pdf');
+const {
+  buildConsentPdf,
+  signatureLayout,
+  smoothSignaturePath,
+} = require('../dist/src/services/consent-pdf');
 
 test('consent templates are separate, versioned and granular', () => {
   const templates = publicConsentTemplates();
@@ -53,4 +57,28 @@ test('blank and signed consent PDFs are valid PDF documents', async () => {
   assert.equal(Buffer.from(blank).subarray(0, 4).toString(), '%PDF');
   assert.equal(Buffer.from(signed).subarray(0, 4).toString(), '%PDF');
   assert.ok(signed.length > blank.length);
+});
+
+test('signature PDF layout preserves proportions and uses smooth vector curves', () => {
+  const signature = {
+    width: 900,
+    height: 360,
+    strokes: [[
+      { x: 120, y: 220 },
+      { x: 250, y: 80 },
+      { x: 410, y: 240 },
+      { x: 680, y: 100 },
+      { x: 820, y: 190 },
+    ]],
+  };
+  const layout = signatureLayout(signature);
+  const sourceRatio = (820 - 120) / (240 - 80);
+  assert.ok(layout.width <= 200);
+  assert.ok(layout.height <= 55);
+  assert.ok(Math.abs(layout.width / layout.height - sourceRatio) < 0.0001);
+
+  const path = smoothSignaturePath(signature.strokes[0], layout);
+  assert.match(path, /^M /);
+  assert.match(path, / C /);
+  assert.equal(path.includes(' L '), false);
 });

@@ -267,8 +267,8 @@ class _DigitalSignatureDialogState extends State<_DigitalSignatureDialog> {
     final signature = signatureKey.currentState?.data;
     if (signature == null) {
       setState(
-        () => error =
-            'Bitte zuerst im großen Unterschriftsfeld unterschreiben.',
+        () =>
+            error = 'Bitte zuerst im großen Unterschriftsfeld unterschreiben.',
       );
       return;
     }
@@ -392,16 +392,23 @@ class _SignaturePainter extends CustomPainter {
       ..color = AppColors.black
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 2.8
+      ..strokeWidth = 2.2
       ..style = PaintingStyle.stroke;
     canvas.save();
     canvas.clipRRect(rect);
     for (final stroke in strokes) {
       if (stroke.length < 2) continue;
       final path = Path()..moveTo(stroke.first.dx, stroke.first.dy);
-      for (final point in stroke.skip(1)) {
-        path.lineTo(point.dx, point.dy);
+      for (var index = 1; index < stroke.length - 1; index++) {
+        final point = stroke[index];
+        final next = stroke[index + 1];
+        final midpoint = Offset(
+          (point.dx + next.dx) / 2,
+          (point.dy + next.dy) / 2,
+        );
+        path.quadraticBezierTo(point.dx, point.dy, midpoint.dx, midpoint.dy);
       }
+      path.lineTo(stroke.last.dx, stroke.last.dy);
       canvas.drawPath(path, ink);
     }
     canvas.restore();
