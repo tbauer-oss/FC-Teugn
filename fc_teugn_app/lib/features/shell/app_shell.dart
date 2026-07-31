@@ -7,18 +7,35 @@ import '../auth/auth_controller.dart';
 import '../../core/providers.dart';
 import '../shared/pwa_install_prompt.dart';
 
+enum ShellSection {
+  overview('Start'),
+  team('Mannschaft & Sport'),
+  communication('Kommunikation & Organisation'),
+  administration('Verwaltung & Konto');
+
+  const ShellSection(this.label);
+
+  final String label;
+}
+
 class ShellDestination {
   final String label;
+  final String mobileLabel;
   final IconData icon;
   final String route;
+  final ShellSection section;
+  final String hint;
   final bool showOnMobile;
 
   const ShellDestination({
     required this.label,
+    String? mobileLabel,
     required this.icon,
     required this.route,
+    required this.section,
+    required this.hint,
     this.showOnMobile = true,
-  });
+  }) : mobileLabel = mobileLabel ?? label;
 }
 
 class AppShell extends ConsumerWidget {
@@ -81,12 +98,12 @@ class AppShell extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
               children: [
                 Text(
-                  'Weitere Bereiche',
+                  'Navigation',
                   style: Theme.of(sheetContext).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Alle Funktionen, übersichtlich an einem Ort.',
+                  'Schnell zum richtigen Bereich.',
                   style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
                         color: AppColors.muted,
                       ),
@@ -109,45 +126,38 @@ class AppShell extends ConsumerWidget {
                   ),
                   const SizedBox(height: 10),
                 ],
-                for (final destination in destinations)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: ListTile(
-                      selected: location == destination.route ||
-                          location.startsWith('${destination.route}/'),
-                      selectedTileColor: AppColors.yellow.withValues(alpha: .2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                for (final section in ShellSection.values)
+                  if (destinations.any((item) => item.section == section)) ...[
+                    _MobileSectionHeader(label: section.label),
+                    for (final destination in destinations
+                        .where((item) => item.section == section))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: ListTile(
+                          selected: location == destination.route ||
+                              location.startsWith('${destination.route}/'),
+                          selectedTileColor:
+                              AppColors.yellow.withValues(alpha: .2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          leading: Icon(destination.icon),
+                          title: Text(destination.label),
+                          subtitle: Text(destination.hint),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            context.go(destination.route);
+                          },
+                        ),
                       ),
-                      leading: Icon(destination.icon),
-                      title: Text(destination.label),
-                      subtitle: Text(_destinationHint(destination.label)),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () {
-                        Navigator.of(sheetContext).pop();
-                        context.go(destination.route);
-                      },
-                    ),
-                  ),
+                  ],
               ],
             ),
           ),
         );
       },
     );
-  }
-
-  String _destinationHint(String label) {
-    return switch (label) {
-      'Mitglieder' => 'Freigaben, Rollen und Berechtigungen',
-      'Training' => 'Einheiten und Übungen vorbereiten',
-      'Statistik' => 'Leistungen und Saisonwerte',
-      'Nachrichten' => 'Im Team austauschen',
-      'Orga' => 'Aufgaben und Material',
-      'Verein' => 'Mannschaften und Verein verwalten',
-      'Datenschutz' => 'Meine Daten und Einwilligungen',
-      _ => 'Bereich öffnen',
-    };
   }
 
   @override
@@ -179,7 +189,7 @@ class AppShell extends ConsumerWidget {
           body: Row(
             children: [
               if (isWide)
-                _DesktopNavigation(
+                DesktopSidebar(
                   title: title,
                   destinations: destinations,
                   selectedIndex: selectedIndex,
@@ -240,7 +250,7 @@ class AppShell extends ConsumerWidget {
                         icon: Icon(destination.icon),
                         selectedIcon:
                             Icon(destination.icon, color: AppColors.blue),
-                        label: destination.label,
+                        label: destination.mobileLabel,
                       ),
                     const NavigationDestination(
                       icon: Icon(Icons.more_horiz_rounded),
@@ -258,8 +268,9 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-class _DesktopNavigation extends StatelessWidget {
-  const _DesktopNavigation({
+class DesktopSidebar extends StatelessWidget {
+  const DesktopSidebar({
+    super.key,
     required this.title,
     required this.destinations,
     required this.selectedIndex,
@@ -284,9 +295,15 @@ class _DesktopNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 262,
-      color: AppColors.navy,
-      padding: const EdgeInsets.fromLTRB(18, 24, 18, 18),
+      width: 280,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF171A18), Color(0xFF0B0D0C)],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 22, 16, 16),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,94 +312,99 @@ class _DesktopNavigation extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: 12),
               child: _ClubBrand(light: true),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             Container(
               width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 24),
-              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .07),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: .08)),
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.yellow.withValues(alpha: .16),
+                    Colors.white.withValues(alpha: .06),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: AppColors.yellow.withValues(alpha: .22),
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Text(
-                    contextLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.yellow,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.groups_rounded,
+                      color: AppColors.black,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    'Saison $seasonLabel',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: .5),
-                      fontSize: 11,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title.toUpperCase(),
+                          style: TextStyle(
+                            color: AppColors.yellow.withValues(alpha: .82),
+                            fontSize: 9,
+                            letterSpacing: 1.1,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          contextLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          'Saison $seasonLabel',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: .5),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                title.toUpperCase(),
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: .48),
-                  fontSize: 11,
-                  letterSpacing: 1.5,
-                  fontWeight: FontWeight.w800,
+            Expanded(
+              child: Scrollbar(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    for (final section in ShellSection.values)
+                      if (destinations
+                          .any((item) => item.section == section)) ...[
+                        _DesktopSectionHeader(label: section.label),
+                        for (var index = 0;
+                            index < destinations.length;
+                            index++)
+                          if (destinations[index].section == section)
+                            _DesktopNavigationItem(
+                              destination: destinations[index],
+                              selected: selectedIndex == index,
+                              onTap: () => onSelect(index),
+                            ),
+                        const SizedBox(height: 6),
+                      ],
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-            for (var index = 0; index < destinations.length; index++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 5),
-                child: Material(
-                  color: selectedIndex == index
-                      ? AppColors.yellow
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
-                  child: InkWell(
-                    onTap: () => onSelect(index),
-                    borderRadius: BorderRadius.circular(14),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
-                      child: Row(
-                        children: [
-                          Icon(
-                            destinations[index].icon,
-                            size: 21,
-                            color: selectedIndex == index
-                                ? AppColors.black
-                                : Colors.white.withValues(alpha: .62),
-                          ),
-                          const SizedBox(width: 13),
-                          Text(
-                            destinations[index].label,
-                            style: TextStyle(
-                              color: selectedIndex == index
-                                  ? AppColors.black
-                                  : Colors.white.withValues(alpha: .68),
-                              fontWeight: selectedIndex == index
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            const Spacer(),
             const Divider(color: Color(0xFF3A3D3B)),
             const SizedBox(height: 8),
             Row(
@@ -422,6 +444,122 @@ class _DesktopNavigation extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DesktopSectionHeader extends StatelessWidget {
+  const _DesktopSectionHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 7),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: .38),
+          fontSize: 10,
+          letterSpacing: 1.25,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopNavigationItem extends StatelessWidget {
+  const _DesktopNavigationItem({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ShellDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Material(
+        color: selected ? AppColors.yellow : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          hoverColor: Colors.white.withValues(alpha: .06),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+            child: Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? AppColors.black.withValues(alpha: .08)
+                        : Colors.white.withValues(alpha: .06),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(
+                    destination.icon,
+                    size: 18,
+                    color: selected
+                        ? AppColors.black
+                        : Colors.white.withValues(alpha: .7),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    destination.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected
+                          ? AppColors.black
+                          : Colors.white.withValues(alpha: .76),
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (selected)
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 17,
+                    color: AppColors.black,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileSectionHeader extends StatelessWidget {
+  const _MobileSectionHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 14, 6, 7),
+      child: Text(
+        label.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.muted,
+              letterSpacing: 1.05,
+              fontWeight: FontWeight.w800,
+            ),
       ),
     );
   }
