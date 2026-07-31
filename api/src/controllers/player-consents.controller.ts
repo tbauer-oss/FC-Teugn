@@ -76,7 +76,7 @@ async function access(req: Request, playerId: string) {
     }),
     prisma.parentPlayerLink.findUnique({
       where: { parentId_playerId: { parentId: user.id, playerId } },
-      select: { isLegalGuardian: true },
+      select: { isLegalGuardian: true, relationship: true },
     }),
     prisma.user.findUnique({
       where: { id: user.id },
@@ -96,6 +96,7 @@ async function access(req: Request, playerId: string) {
     player,
     currentUser,
     canSign: guardian?.isLegalGuardian === true,
+    guardianRelationship: guardian?.relationship ?? null,
     canManage: hasPermission(user.role, Permission.MANAGE_SENSITIVE_PLAYER),
   };
 }
@@ -197,6 +198,7 @@ export async function signPlayerConsent(req: Request, res: Response) {
     playerName: `${permission.player.firstName} ${permission.player.lastName}`,
     signerId: permission.currentUser.id,
     signerName: permission.currentUser.name,
+    signerRelationship: permission.guardianRelationship,
     serverSignedAt: now.toISOString(),
   };
   const documentHash = createHash('sha256')
@@ -347,13 +349,27 @@ export async function downloadConsentEvidence(req: Request, res: Response) {
   const statement = evidence.statement as {
     selections?: string[];
     note?: string | null;
+    signerRelationship?: string | null;
   };
   const signatureData = evidence.signatureData as SignatureData | null;
+  const signerLink = evidence.signerId
+    ? await prisma.parentPlayerLink.findUnique({
+        where: {
+          parentId_playerId: {
+            parentId: evidence.signerId,
+            playerId: permission.player.id,
+          },
+        },
+        select: { relationship: true },
+      })
+    : null;
   const bytes = await buildConsentPdf({
     template: consentTemplate(type),
     playerName: `${permission.player.firstName} ${permission.player.lastName}`,
     playerBirthDate: permission.player.birthDate,
     signerName: evidence.signerName,
+    signerRelationship:
+      statement.signerRelationship ?? signerLink?.relationship ?? null,
     selections: statement.selections ?? [],
     note: statement.note,
     signedAt: evidence.createdAt,

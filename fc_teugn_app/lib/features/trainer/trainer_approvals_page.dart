@@ -374,7 +374,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
                 if (request?.relationship != null)
                   _DetailRow(
                     label: 'Beziehung',
-                    value: _relationshipLabel(request!.relationship!),
+                    value: guardianRelationshipLabel(request!.relationship!),
                   ),
                 _DetailRow(
                   label: 'Mannschaften',
@@ -855,7 +855,8 @@ class _MemberList extends StatelessWidget {
                             size: 15,
                           ),
                           label: Text(
-                            'Elternteil von ${link.playerName}'
+                            '${guardianRelationshipLabel(link.relationship)} von '
+                            '${link.playerName}'
                             '${link.ageGroupCode.isEmpty ? '' : ' · ${link.ageGroupCode}'}',
                           ),
                         ),
@@ -1246,7 +1247,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                             size: 16,
                           ),
                           label: Text(
-                            '${link.playerName}'
+                            '${link.playerName} · '
+                            '${guardianRelationshipLabel(link.relationship)}'
                             '${link.ageGroupCode.isEmpty ? '' : ' · ${link.ageGroupCode}'}',
                           ),
                         ),
@@ -1287,7 +1289,6 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                         value: 'GUARDIAN',
                         child: Text('Sorgeberechtigte Person'),
                       ),
-                      DropdownMenuItem(value: 'OTHER', child: Text('Andere')),
                     ],
                     onChanged: (value) => setState(() => relationship = value!),
                   ),
@@ -1794,11 +1795,4 @@ String _teamRoleLabel(UserRole value) => switch (value) {
       UserRole.parent => 'Elternteil',
       UserRole.player => 'Spieler/in',
       _ => 'Nur Ansicht',
-    };
-
-String _relationshipLabel(String value) => switch (value) {
-      'MOTHER' => 'Mutter',
-      'FATHER' => 'Vater',
-      'GUARDIAN' => 'Sorgeberechtigte Person',
-      _ => 'Andere Beziehung',
     };

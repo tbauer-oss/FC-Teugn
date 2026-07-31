@@ -6,9 +6,26 @@ const {
 } = require('../dist/src/services/consent-templates');
 const {
   buildConsentPdf,
+  CLUB_FOOTER_LINES,
+  guardianRelationshipLabel,
   signatureLayout,
   smoothSignaturePath,
 } = require('../dist/src/services/consent-pdf');
+
+test('consent PDFs use the official club footer metadata', () => {
+  assert.deepEqual([...CLUB_FOOTER_LINES], [
+    'FC Teugn',
+    'Kreutweg 14 · 93356 Teugn',
+    '1. Vorsitzender: Florian Christl',
+  ]);
+});
+
+test('guardian relationships use the required German labels', () => {
+  assert.equal(guardianRelationshipLabel('MOTHER'), 'Mutter');
+  assert.equal(guardianRelationshipLabel('FATHER'), 'Vater');
+  assert.equal(guardianRelationshipLabel('GUARDIAN'), 'Sorgeberechtigt');
+  assert.equal(guardianRelationshipLabel('OTHER'), 'Sorgeberechtigt');
+});
 
 test('consent templates are separate, versioned and granular', () => {
   const templates = publicConsentTemplates();
@@ -39,6 +56,7 @@ test('blank and signed consent PDFs are valid PDF documents', async () => {
     playerName: 'Max Mustermann',
     playerBirthDate: new Date('2014-04-12T00:00:00Z'),
     signerName: 'Erika Mustermann',
+    signerRelationship: 'MOTHER',
     selections: ['APP_INTERNAL', 'CLUB_WEBSITE'],
     signedAt: new Date('2026-07-30T18:00:00Z'),
     documentHash: 'a'.repeat(64),
