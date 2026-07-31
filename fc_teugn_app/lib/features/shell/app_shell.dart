@@ -5,6 +5,7 @@ import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
 import '../auth/auth_controller.dart';
 import '../../core/providers.dart';
+import '../shared/pwa_install_prompt.dart';
 
 class ShellDestination {
   final String label;
@@ -91,6 +92,23 @@ class AppShell extends ConsumerWidget {
                       ),
                 ),
                 const SizedBox(height: 14),
+                if (shouldOfferPwaInstall) ...[
+                  ListTile(
+                    tileColor: AppColors.yellow.withValues(alpha: .2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    leading: const Icon(Icons.install_mobile_rounded),
+                    title: const Text('FC Teugn als App installieren'),
+                    subtitle: const Text('Kostenlos auf dem Home-Bildschirm'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      showPwaInstallPrompt(context);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 for (final destination in destinations)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 6),

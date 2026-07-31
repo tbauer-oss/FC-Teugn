@@ -1,32 +1,37 @@
 {
     "name": "FC Teugn Jugend",
     "short_name": "FC Teugn",
-    "start_url": ".",
+    "id": "/",
+    "start_url": "/",
+    "scope": "/",
     "display": "standalone",
+    "lang": "de-DE",
+    "dir": "ltr",
     "background_color": "#F4F7F9",
     "theme_color": "#171918",
     "description": "Die Jugendfußball-App des FC Teugn für Mannschaften, Termine, Spiele und Organisation.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "categories": ["sports", "productivity", "social"],
     "icons": [
         {
-            "src": "icons/Icon-192.png?v=fc-teugn-2",
+            "src": "icons/Icon-192.png?v=fc-teugn-3",
             "sizes": "192x192",
             "type": "image/png"
         },
         {
-            "src": "icons/Icon-512.png?v=fc-teugn-2",
+            "src": "icons/Icon-512.png?v=fc-teugn-3",
             "sizes": "512x512",
             "type": "image/png"
         },
         {
-            "src": "icons/Icon-maskable-192.png?v=fc-teugn-2",
+            "src": "icons/Icon-maskable-192.png?v=fc-teugn-3",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "maskable"
         },
         {
-            "src": "icons/Icon-maskable-512.png?v=fc-teugn-2",
+            "src": "icons/Icon-maskable-512.png?v=fc-teugn-3",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"

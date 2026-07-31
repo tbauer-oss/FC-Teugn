@@ -14,7 +14,17 @@
     if (permission !== 'granted') {
       throw new Error('Push-Benachrichtigungen wurden nicht freigegeben.');
     }
-    const registration = await navigator.serviceWorker.register('/push-sw.js');
+    // Push läuft absichtlich in einem eigenen Scope. So bleibt der von Flutter
+    // registrierte Root-Service-Worker für Offline-Cache und App-Updates aktiv.
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    let registration = registrations.find(
+      (item) => new URL(item.scope).pathname === '/fc-teugn-push/',
+    );
+    if (!registration) {
+      registration = await navigator.serviceWorker.register('/push-sw.js', {
+        scope: '/fc-teugn-push/',
+      });
+    }
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({

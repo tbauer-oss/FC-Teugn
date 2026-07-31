@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
+import '../shared/pwa_install_prompt.dart';
 import 'auth_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -55,7 +56,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           const _LoginBrand(logoSize: 92),
                           const Spacer(),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 7),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: .1),
                               borderRadius: BorderRadius.circular(30),
@@ -93,7 +95,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           const Spacer(),
                           Text(
                             'FC Teugn · Jugendabteilung',
-                            style: TextStyle(color: Colors.white.withValues(alpha: .45)),
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: .45)),
                           ),
                         ],
                       ),
@@ -119,9 +122,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   const _LoginBrand(dark: true, logoSize: 82),
                                   const SizedBox(height: 42),
                                 ],
-                                Text('Willkommen zurück', style: Theme.of(context).textTheme.displaySmall),
+                                Text('Willkommen zurück',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .displaySmall),
                                 const SizedBox(height: 8),
-                                const Text('Melde dich an, um dein Team zu organisieren.'),
+                                const Text(
+                                    'Melde dich an, um dein Team zu organisieren.'),
                                 const SizedBox(height: 30),
                                 TextFormField(
                                   controller: _emailController,
@@ -129,7 +136,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   autofillHints: const [AutofillHints.email],
                                   decoration: const InputDecoration(
                                     labelText: 'E-Mail-Adresse',
-                                    prefixIcon: Icon(Icons.mail_outline_rounded),
+                                    prefixIcon:
+                                        Icon(Icons.mail_outline_rounded),
                                   ),
                                   validator: (value) {
                                     final email = value?.trim() ?? '';
@@ -147,31 +155,40 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   onFieldSubmitted: (_) => _submit(),
                                   decoration: InputDecoration(
                                     labelText: 'Passwort',
-                                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                                    prefixIcon:
+                                        const Icon(Icons.lock_outline_rounded),
                                     suffixIcon: IconButton(
-                                      tooltip: _showPassword ? 'Passwort verbergen' : 'Passwort anzeigen',
-                                      onPressed: () => setState(() => _showPassword = !_showPassword),
+                                      tooltip: _showPassword
+                                          ? 'Passwort verbergen'
+                                          : 'Passwort anzeigen',
+                                      onPressed: () => setState(
+                                          () => _showPassword = !_showPassword),
                                       icon: Icon(_showPassword
                                           ? Icons.visibility_off_outlined
                                           : Icons.visibility_outlined),
                                     ),
                                   ),
-                                  validator: (value) =>
-                                      (value?.isEmpty ?? true) ? 'Bitte Passwort eingeben' : null,
+                                  validator: (value) => (value?.isEmpty ?? true)
+                                      ? 'Bitte Passwort eingeben'
+                                      : null,
                                 ),
                                 if (authState.error != null) ...[
                                   const SizedBox(height: 14),
                                   Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: Theme.of(context).colorScheme.errorContainer,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .errorContainer,
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Row(
                                       children: [
                                         Icon(
                                           Icons.error_outline_rounded,
-                                          color: Theme.of(context).colorScheme.error,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .error,
                                         ),
                                         const SizedBox(width: 10),
                                         Expanded(child: Text(authState.error!)),
@@ -198,17 +215,25 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   children: [
                                     const Expanded(child: Divider()),
                                     Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      child: Text('Noch nicht dabei?', style: Theme.of(context).textTheme.bodySmall),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12),
+                                      child: Text('Noch nicht dabei?',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall),
                                     ),
                                     const Expanded(child: Divider()),
                                   ],
                                 ),
                                 const SizedBox(height: 14),
                                 OutlinedButton(
-                                  onPressed: authState.loading ? null : () => context.go('/register'),
+                                  onPressed: authState.loading
+                                      ? null
+                                      : () => context.go('/register'),
                                   child: const Text('Account registrieren'),
                                 ),
+                                const SizedBox(height: 12),
+                                const PwaInstallButton(),
                               ],
                             ),
                           ),
