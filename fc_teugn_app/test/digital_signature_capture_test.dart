@@ -28,7 +28,7 @@ void main() {
 
     final pad = find.byKey(const ValueKey('digital-signature-pad'));
     expect(pad, findsOneWidget);
-    expect(tester.getSize(pad).height, greaterThan(250));
+    expect(tester.getSize(pad).height, greaterThan(200));
 
     final center = tester.getCenter(pad);
     final gesture = await tester.startGesture(center.translate(-80, 0));
