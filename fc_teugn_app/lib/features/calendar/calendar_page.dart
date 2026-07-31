@@ -120,11 +120,17 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                     cursor: cursor,
                     events: filtered,
                     onOpen: _openEvent,
+                    onDateSelected: canManage && organization != null
+                        ? (date) => _confirmCreateEvent(organization, date)
+                        : null,
                   ),
                 CalendarView.week => _WeekView(
                     cursor: cursor,
                     events: filtered,
                     onOpen: _openEvent,
+                    onDateSelected: canManage && organization != null
+                        ? (date) => _confirmCreateEvent(organization, date)
+                        : null,
                   ),
                 CalendarView.day => _PeriodAgenda(
                     dates: [_dateOnly(cursor)],
@@ -327,7 +333,43 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         CalendarView.year => DateTime(value.year + direction),
       };
 
-  Future<void> _createEvent(OrganizationContext organization) async {
+  Future<void> _confirmCreateEvent(
+    OrganizationContext organization,
+    DateTime date,
+  ) async {
+    if (savingEvent) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.event_available_rounded),
+        title: const Text('Neuen Termin anlegen?'),
+        content: Text(
+          'Möchtest du für ${_weekday(date)}, den '
+          '${date.day}. ${_month(date.month)} ${date.year} einen neuen Termin '
+          'anlegen?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Nein'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Termin anlegen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await _createEvent(organization, initialDate: date);
+    }
+  }
+
+  Future<void> _createEvent(
+    OrganizationContext organization, {
+    DateTime? initialDate,
+  }) async {
     final draft = await showDialog<EventWriteData>(
       context: context,
       builder: (context) => EventEditorDialog(
@@ -337,6 +379,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         seasonName: organization.season.name,
         seasonEnd: organization.currentTeam.seasonEndDate ??
             organization.season.endDate,
+        initialStartAt:
+            initialDate == null ? null : defaultCalendarStartForDate(initialDate),
       ),
     );
     if (draft == null) return;
@@ -706,11 +750,13 @@ class _MonthView extends StatelessWidget {
     required this.cursor,
     required this.events,
     required this.onOpen,
+    this.onDateSelected,
   });
 
   final DateTime cursor;
   final List<EventModel> events;
   final ValueChanged<EventModel> onOpen;
+  final ValueChanged<DateTime>? onDateSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -723,6 +769,7 @@ class _MonthView extends StatelessWidget {
         cursor: cursor,
         events: events,
         onOpen: onOpen,
+        onDateSelected: onDateSelected,
       );
     }
 
@@ -786,6 +833,7 @@ class _MonthView extends StatelessWidget {
                     date: date,
                     events: dayEvents,
                     onOpen: onOpen,
+                    onDateSelected: onDateSelected,
                   );
                 },
               ),
@@ -802,11 +850,13 @@ class _MobileMonthView extends StatelessWidget {
     required this.cursor,
     required this.events,
     required this.onOpen,
+    this.onDateSelected,
   });
 
   final DateTime cursor;
   final List<EventModel> events;
   final ValueChanged<EventModel> onOpen;
+  final ValueChanged<DateTime>? onDateSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -875,14 +925,16 @@ class _MobileMonthView extends StatelessWidget {
                     final today = _sameDay(date, DateTime.now());
                     return InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: dayEvents.isEmpty
-                          ? null
-                          : () => _showMobileDay(
-                                context,
-                                date,
-                                dayEvents,
-                                onOpen,
-                              ),
+                      onTap: onDateSelected != null
+                          ? () => onDateSelected!(date)
+                          : dayEvents.isEmpty
+                              ? null
+                              : () => _showMobileDay(
+                                    context,
+                                    date,
+                                    dayEvents,
+                                    onOpen,
+                                  ),
                       child: Padding(
                         padding: const EdgeInsets.all(3),
                         child: Column(
@@ -1034,24 +1086,28 @@ class _MonthDay extends StatelessWidget {
     required this.date,
     required this.events,
     required this.onOpen,
+    this.onDateSelected,
   });
 
   final DateTime date;
   final List<EventModel> events;
   final ValueChanged<EventModel> onOpen;
+  final ValueChanged<DateTime>? onDateSelected;
 
   @override
   Widget build(BuildContext context) {
     final today = _sameDay(date, DateTime.now());
-    return Container(
-      padding: const EdgeInsets.all(7),
-      decoration: const BoxDecoration(
-        border: Border(
-          right: BorderSide(color: AppColors.line),
-          bottom: BorderSide(color: AppColors.line),
+    return InkWell(
+      onTap: onDateSelected == null ? null : () => onDateSelected!(date),
+      child: Container(
+        padding: const EdgeInsets.all(7),
+        decoration: const BoxDecoration(
+          border: Border(
+            right: BorderSide(color: AppColors.line),
+            bottom: BorderSide(color: AppColors.line),
+          ),
         ),
-      ),
-      child: Column(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
@@ -1106,7 +1162,8 @@ class _MonthDay extends StatelessWidget {
               '+ ${events.length - 3} weitere',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1117,6 +1174,7 @@ class _WeekView extends StatelessWidget {
     required this.cursor,
     required this.events,
     required this.onOpen,
+    this.onDateSelected,
   });
 
   static const hourHeight = 52.0;
@@ -1126,6 +1184,7 @@ class _WeekView extends StatelessWidget {
   final DateTime cursor;
   final List<EventModel> events;
   final ValueChanged<EventModel> onOpen;
+  final ValueChanged<DateTime>? onDateSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -1152,7 +1211,12 @@ class _WeekView extends StatelessWidget {
                     SizedBox(
                       width: dayColumnWidth,
                       height: 68,
-                      child: _WeekDayHeader(date: date),
+                      child: _WeekDayHeader(
+                        date: date,
+                        onTap: onDateSelected == null
+                            ? null
+                            : () => onDateSelected!(date),
+                      ),
                     ),
                 ],
               ),
@@ -1191,18 +1255,21 @@ class _WeekView extends StatelessWidget {
 }
 
 class _WeekDayHeader extends StatelessWidget {
-  const _WeekDayHeader({required this.date});
+  const _WeekDayHeader({required this.date, this.onTap});
 
   final DateTime date;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final today = _sameDay(date, DateTime.now());
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        border: Border(left: BorderSide(color: AppColors.line)),
-      ),
-      child: Center(
+    return InkWell(
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          border: Border(left: BorderSide(color: AppColors.line)),
+        ),
+        child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1233,6 +1300,7 @@ class _WeekDayHeader extends StatelessWidget {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -3178,6 +3246,7 @@ class EventEditorDialog extends StatefulWidget {
     required this.initialTeamId,
     this.seasonName,
     this.seasonEnd,
+    this.initialStartAt,
     this.event,
   });
 
@@ -3186,6 +3255,7 @@ class EventEditorDialog extends StatefulWidget {
   final String initialTeamId;
   final String? seasonName;
   final DateTime? seasonEnd;
+  final DateTime? initialStartAt;
   final EventModel? event;
 
   @override
@@ -3288,8 +3358,9 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     if (event?.venue != null && pitchOptions.contains(event!.venue)) {
       selectedPitch = event.venue!;
     }
-    startAt =
-        event?.startAt ?? DateTime.now().add(const Duration(days: 1, hours: 1));
+    startAt = event?.startAt ??
+        widget.initialStartAt ??
+        DateTime.now().add(const Duration(days: 1, hours: 1));
     endAt = event?.endAt ?? startAt.add(const Duration(hours: 1, minutes: 30));
     meetingAt = event?.meetingAt;
     final savedMeetingOffset = standardMeetingOffset(startAt, meetingAt);
@@ -4849,6 +4920,24 @@ String _calendarViewLabel(CalendarView view) => switch (view) {
       CalendarView.year => 'Jahr',
       CalendarView.agenda => 'Agenda',
     };
+
+/// Liefert für einen im Kalender ausgewählten Tag eine gut editierbare
+/// Startzeit. Künftige Tage beginnen standardmäßig um 18:00 Uhr; für heute
+/// wird auf die nächste halbe Stunde aufgerundet.
+DateTime defaultCalendarStartForDate(DateTime date, {DateTime? now}) {
+  final current = now ?? DateTime.now();
+  final selected = DateTime(date.year, date.month, date.day);
+  final today = DateTime(current.year, current.month, current.day);
+  if (selected == today) {
+    final roundedMinute = current.minute < 30 ? 30 : 0;
+    final hour = current.minute < 30 ? current.hour : current.hour + 1;
+    if (hour >= 24) {
+      return DateTime(date.year, date.month, date.day, 23, 59);
+    }
+    return DateTime(date.year, date.month, date.day, hour, roundedMinute);
+  }
+  return DateTime(date.year, date.month, date.day, 18);
+}
 
 String _apiErrorMessage(DioException error, String fallback) {
   final data = error.response?.data;
