@@ -16,6 +16,7 @@ import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../shared/page_scaffold.dart';
+import 'widgets/digital_signature_capture.dart';
 
 class PlayerProfilePage extends ConsumerWidget {
   const PlayerProfilePage({
@@ -1985,7 +1986,7 @@ class _DigitalConsentDialogState extends State<_DigitalConsentDialog> {
   final selected = <String>{};
   final note = TextEditingController();
   final childAssent = TextEditingController();
-  final signatureKey = GlobalKey<_SignaturePadState>();
+  Map<String, dynamic>? signatureData;
   bool authorityConfirmed = false;
   bool informationConfirmed = false;
   bool explicitConfirmed = false;
@@ -2139,22 +2140,12 @@ class _DigitalConsentDialogState extends State<_DigitalConsentDialog> {
                         ),
                       ),
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Unterschrift',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: () => signatureKey.currentState?.clear(),
-                          icon: const Icon(Icons.delete_outline_rounded),
-                          label: const Text('Leeren'),
-                        ),
-                      ],
+                    DigitalSignatureCapture(
+                      signatureData: signatureData,
+                      onChanged: (value) => setState(
+                        () => signatureData = value,
+                      ),
                     ),
-                    _SignaturePad(key: signatureKey),
                     const SizedBox(height: 10),
                     Text(
                       'Vorlagenversion ${widget.template.version} · Der signierte Inhalt, Zeitpunkt und eine SHA-256-Nachweis-ID werden unveränderbar protokolliert.',
@@ -2208,7 +2199,6 @@ class _DigitalConsentDialogState extends State<_DigitalConsentDialog> {
   }
 
   void _submit() {
-    final signature = signatureKey.currentState?.data;
     if (selected.isEmpty) {
       _message('Bitte mindestens einen Umfang auswählen.');
       return;
@@ -2221,15 +2211,15 @@ class _DigitalConsentDialogState extends State<_DigitalConsentDialog> {
       _message('Bitte die ausdrückliche Einwilligung bestätigen.');
       return;
     }
-    if (signature == null) {
-      _message('Bitte im Unterschriftsfeld unterschreiben.');
+    if (signatureData == null) {
+      _message('Bitte eine Unterschrift hinzufügen und übernehmen.');
       return;
     }
     Navigator.pop(
       context,
       _DigitalConsentDraft(
         selections: selected.toList(),
-        signatureData: signature,
+        signatureData: signatureData!,
         note: note.text.trim().isEmpty ? null : note.text.trim(),
         childAssentName:
             childAssent.text.trim().isEmpty ? null : childAssent.text.trim(),
@@ -2240,106 +2230,6 @@ class _DigitalConsentDialogState extends State<_DigitalConsentDialog> {
   void _message(String value) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
-}
-
-class _SignaturePad extends StatefulWidget {
-  const _SignaturePad({super.key});
-
-  @override
-  State<_SignaturePad> createState() => _SignaturePadState();
-}
-
-class _SignaturePadState extends State<_SignaturePad> {
-  final strokes = <List<Offset>>[];
-  Size size = Size.zero;
-
-  Map<String, dynamic>? get data {
-    final points = strokes.expand((stroke) => stroke).length;
-    if (points < 8 || size.isEmpty) return null;
-    return {
-      'width': size.width,
-      'height': size.height,
-      'strokes': [
-        for (final stroke in strokes)
-          [
-            for (final point in stroke) {'x': point.dx, 'y': point.dy},
-          ],
-      ],
-    };
-  }
-
-  void clear() => setState(strokes.clear);
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        size = Size(constraints.maxWidth, 150);
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onPanStart: (details) =>
-              setState(() => strokes.add([details.localPosition])),
-          onPanUpdate: (details) => setState(() {
-            if (strokes.isEmpty) strokes.add([]);
-            strokes.last.add(details.localPosition);
-          }),
-          child: CustomPaint(
-            painter: _SignaturePainter(strokes),
-            size: size,
-            child: strokes.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Hier mit Finger oder Maus unterschreiben',
-                      style: TextStyle(color: AppColors.muted),
-                    ),
-                  )
-                : null,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SignaturePainter extends CustomPainter {
-  const _SignaturePainter(this.strokes);
-
-  final List<List<Offset>> strokes;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final background = Paint()..color = const Color(0xFFFFFEF8);
-    final border = Paint()
-      ..color = const Color(0xFFD8D5C8)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final rect = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      const Radius.circular(12),
-    );
-    canvas.drawRRect(rect, background);
-    canvas.drawRRect(rect, border);
-    final ink = Paint()
-      ..color = AppColors.black
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 2.2
-      ..style = PaintingStyle.stroke;
-    canvas.save();
-    canvas.clipRRect(rect);
-    for (final stroke in strokes) {
-      if (stroke.length < 2) continue;
-      final path = Path()..moveTo(stroke.first.dx, stroke.first.dy);
-      for (final point in stroke.skip(1)) {
-        path.lineTo(point.dx, point.dy);
-      }
-      canvas.drawPath(path, ink);
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _SignaturePainter oldDelegate) => true;
 }
 
 class _Section extends StatelessWidget {
