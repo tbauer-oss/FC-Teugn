@@ -26,6 +26,7 @@ class AppUser {
   final String teamId;
   final DateTime? createdAt;
   final List<UserTeamMembership> memberships;
+  final List<UserParentPlayerLink> parentPlayers;
   final RegistrationRequestInfo? registrationRequest;
 
   AppUser({
@@ -38,6 +39,7 @@ class AppUser {
     required this.teamId,
     this.createdAt,
     this.memberships = const [],
+    this.parentPlayers = const [],
     this.registrationRequest,
   });
 
@@ -83,6 +85,10 @@ class AppUser {
           .map((item) =>
               UserTeamMembership.fromJson(item as Map<String, dynamic>))
           .toList(),
+      parentPlayers: (json['parentLinks'] as List<dynamic>? ?? [])
+          .map((item) =>
+              UserParentPlayerLink.fromJson(item as Map<String, dynamic>))
+          .toList(),
       registrationRequest: json['registrationRequest'] == null
           ? null
           : RegistrationRequestInfo.fromJson(
@@ -102,6 +108,49 @@ class AppUser {
         _ => UserRole.parent,
       },
       status: accountStatusFromApi(status),
+    );
+  }
+}
+
+class UserParentPlayerLink {
+  const UserParentPlayerLink({
+    required this.playerId,
+    required this.playerName,
+    required this.teamId,
+    required this.teamName,
+    required this.ageGroupCode,
+    required this.relationship,
+    required this.isLegalGuardian,
+    required this.canPickup,
+    required this.receivesCommunication,
+  });
+
+  final String playerId;
+  final String playerName;
+  final String teamId;
+  final String teamName;
+  final String ageGroupCode;
+  final String relationship;
+  final bool isLegalGuardian;
+  final bool canPickup;
+  final bool receivesCommunication;
+
+  factory UserParentPlayerLink.fromJson(Map<String, dynamic> json) {
+    final player = json['player'] as Map<String, dynamic>? ?? const {};
+    final team = player['team'] as Map<String, dynamic>? ?? const {};
+    final ageGroup = team['ageGroup'] as Map<String, dynamic>? ?? const {};
+    final firstName = player['firstName'] as String? ?? '';
+    final lastName = player['lastName'] as String? ?? '';
+    return UserParentPlayerLink(
+      playerId: player['id'] as String? ?? '',
+      playerName: '$firstName $lastName'.trim(),
+      teamId: player['teamId'] as String? ?? team['id'] as String? ?? '',
+      teamName: team['name'] as String? ?? '',
+      ageGroupCode: ageGroup['code'] as String? ?? '',
+      relationship: json['relationship'] as String? ?? 'GUARDIAN',
+      isLegalGuardian: json['isLegalGuardian'] as bool? ?? true,
+      canPickup: json['canPickup'] as bool? ?? true,
+      receivesCommunication: json['receivesCommunication'] as bool? ?? true,
     );
   }
 }

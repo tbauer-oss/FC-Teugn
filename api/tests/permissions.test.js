@@ -54,6 +54,9 @@ const {
 const {
   selectPresentAttendance,
 } = require('../dist/src/controllers/emergency.controller');
+const {
+  canHaveParentPlayerLinks,
+} = require('../dist/src/controllers/admin.controller');
 
 test('access and refresh tokens use separate verifiable token classes', () => {
   const access = signAccessToken({ id: 'user-1' }, '5m');
@@ -130,6 +133,22 @@ test('system administrators always receive every defined permission', () => {
   for (const permission of Object.values(Permission)) {
     assert.equal(hasPermission(Role.SUPER_ADMIN, permission), true);
   }
+});
+
+test('administrative and club roles can additionally be linked as parents', () => {
+  for (const role of [
+    Role.SUPER_ADMIN,
+    Role.CLUB_ADMIN,
+    Role.YOUTH_DIRECTOR,
+    Role.COACH,
+    Role.ASSISTANT_COACH,
+    Role.TEAM_MANAGER,
+    Role.PARENT,
+    Role.READ_ONLY,
+  ]) {
+    assert.equal(canHaveParentPlayerLinks(role), true, role);
+  }
+  assert.equal(canHaveParentPlayerLinks(Role.PLAYER), false);
 });
 
 test('coaches can manage players and events but not the organization', () => {
