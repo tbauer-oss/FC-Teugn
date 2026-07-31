@@ -16,6 +16,12 @@ enum AccountStatus { pending, approved, rejected, blocked, archived }
 
 enum RegistrationReviewStatus { newRequest, inReview, needsInfo, completed }
 
+String guardianRelationshipLabel(String value) => switch (value) {
+      'MOTHER' => 'Mutter',
+      'FATHER' => 'Vater',
+      _ => 'Sorgeberechtigt',
+    };
+
 class AppUser {
   final String id;
   final String email;

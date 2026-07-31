@@ -1351,7 +1351,10 @@ class _GuardiansCard extends StatelessWidget {
                       backgroundColor: AppColors.background,
                       child: Icon(Icons.person_outline_rounded),
                     ),
-                    title: Text(guardian.name),
+                    title: Text(
+                      '${guardian.name} · '
+                      '${guardianRelationshipLabel(guardian.relationship)}',
+                    ),
                     subtitle: Text(
                       [
                         guardian.email,

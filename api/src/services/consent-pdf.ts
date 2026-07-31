@@ -6,6 +6,8 @@ import {
   StandardFonts,
   rgb,
 } from 'pdf-lib';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { ConsentTemplateDefinition } from './consent-templates';
 
 type SignaturePoint = { x: number; y: number };
@@ -22,6 +24,7 @@ export type ConsentPdfData = {
   playerName?: string;
   playerBirthDate?: Date | null;
   signerName?: string;
+  signerRelationship?: string | null;
   selections?: string[];
   note?: string | null;
   signedAt?: Date;
@@ -36,8 +39,29 @@ const BLACK = rgb(0.08, 0.09, 0.08);
 const GOLD = rgb(0.52, 0.45, 0);
 const MUTED = rgb(0.36, 0.36, 0.33);
 const LINE = rgb(0.83, 0.82, 0.76);
+const HEADER_CONTENT_Y = 728;
+const FOOTER_SEPARATOR_Y = 52;
+
+export const CLUB_FOOTER_LINES = [
+  'FC Teugn',
+  'Kreutweg 14 · 93356 Teugn',
+  '1. Vorsitzender: Florian Christl',
+] as const;
 
 const SIGNATURE_BOX = { width: 200, height: 55, padding: 4 };
+
+function clubLogoBytes() {
+  const candidates = [
+    resolve(process.cwd(), 'assets', 'fc_teugn_logo_hires.png'),
+    resolve(__dirname, '../../assets/fc_teugn_logo_hires.png'),
+    resolve(__dirname, '../../../assets/fc_teugn_logo_hires.png'),
+  ];
+  const logoPath = candidates.find((candidate) => existsSync(candidate));
+  if (!logoPath) {
+    throw new Error('FC-Teugn-Vereinslogo für PDF-Erzeugung nicht gefunden.');
+  }
+  return readFileSync(logoPath);
+}
 
 export function signatureLayout(signature: SignatureData) {
   const points = signature.strokes.flat();
@@ -130,21 +154,101 @@ function date(value?: Date | null) {
     : '____________________________';
 }
 
+export function guardianRelationshipLabel(value?: string | null) {
+  if (value === 'MOTHER') return 'Mutter';
+  if (value === 'FATHER') return 'Vater';
+  return 'Sorgeberechtigt';
+}
+
 export async function buildConsentPdf(data: ConsentPdfData) {
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const clubLogo = await pdf.embedPng(clubLogoBytes());
   let page = pdf.addPage([PAGE.width, PAGE.height]);
-  let y = PAGE.height - PAGE.margin;
+  let y = HEADER_CONTENT_Y;
   const contentWidth = PAGE.width - PAGE.margin * 2;
+
+  const header = (targetPage: PDFPage) => {
+    targetPage.drawRectangle({
+      x: 0,
+      y: PAGE.height - 14,
+      width: PAGE.width,
+      height: 14,
+      color: rgb(1, 0.9, 0),
+    });
+    targetPage.drawImage(clubLogo, {
+      x: PAGE.margin,
+      y: PAGE.height - 79,
+      width: 43,
+      height: 43,
+    });
+    targetPage.drawText('FC TEUGN', {
+      x: PAGE.margin + 56,
+      y: PAGE.height - 53,
+      size: 12,
+      font: bold,
+      color: BLACK,
+    });
+    targetPage.drawText('JUGENDFUSSBALL', {
+      x: PAGE.margin + 56,
+      y: PAGE.height - 68,
+      size: 7.5,
+      font: bold,
+      color: GOLD,
+    });
+    targetPage.drawLine({
+      start: { x: PAGE.margin, y: PAGE.height - 88 },
+      end: { x: PAGE.width - PAGE.margin, y: PAGE.height - 88 },
+      thickness: 0.7,
+      color: LINE,
+    });
+  };
+
+  const footer = (targetPage: PDFPage, pageNumber: number) => {
+    targetPage.drawLine({
+      start: { x: PAGE.margin, y: FOOTER_SEPARATOR_Y },
+      end: { x: PAGE.width - PAGE.margin, y: FOOTER_SEPARATOR_Y },
+      thickness: 0.7,
+      color: LINE,
+    });
+    targetPage.drawText(CLUB_FOOTER_LINES[0], {
+      x: PAGE.margin,
+      y: 38,
+      size: 7.5,
+      font: bold,
+      color: BLACK,
+    });
+    targetPage.drawText(CLUB_FOOTER_LINES[1], {
+      x: PAGE.margin,
+      y: 27,
+      size: 7,
+      font: regular,
+      color: MUTED,
+    });
+    targetPage.drawText(CLUB_FOOTER_LINES[2], {
+      x: PAGE.margin,
+      y: 16,
+      size: 7,
+      font: regular,
+      color: MUTED,
+    });
+    const pageLabel = `Vorlage ${data.template.version} · Seite ${pageNumber}`;
+    targetPage.drawText(pageLabel, {
+      x: PAGE.width - PAGE.margin - regular.widthOfTextAtSize(pageLabel, 7),
+      y: 16,
+      size: 7,
+      font: regular,
+      color: MUTED,
+    });
+  };
 
   const nextPage = () => {
     page = pdf.addPage([PAGE.width, PAGE.height]);
-    y = PAGE.height - PAGE.margin;
-    footer();
+    y = HEADER_CONTENT_Y;
   };
   const ensure = (height: number) => {
-    if (y - height < 58) nextPage();
+    if (y - height < FOOTER_SEPARATOR_Y + 12) nextPage();
   };
   const text = (
     value: string,
@@ -184,32 +288,6 @@ export async function buildConsentPdf(data: ConsentPdfData) {
     });
     y -= 16;
   };
-  const footer = () => {
-    page.drawText(`FC Teugn e.V. · Einwilligungsvorlage ${data.template.version}`, {
-      x: PAGE.margin,
-      y: 28,
-      size: 7,
-      font: regular,
-      color: MUTED,
-    });
-  };
-
-  footer();
-  page.drawRectangle({
-    x: 0,
-    y: PAGE.height - 14,
-    width: PAGE.width,
-    height: 14,
-    color: rgb(1, 0.9, 0),
-  });
-  page.drawText('FC TEUGN · JUGENDFUSSBALL', {
-    x: PAGE.margin,
-    y,
-    size: 10,
-    font: bold,
-    color: GOLD,
-  });
-  y -= 25;
   text(data.template.title, { size: 20, font: bold, gap: 5 });
   text(`Vorlagenversion ${data.template.version}`, {
     size: 8,
@@ -224,7 +302,12 @@ export async function buildConsentPdf(data: ConsentPdfData) {
       ? new Intl.DateTimeFormat('de-DE').format(data.playerBirthDate)
       : undefined,
   );
-  field('Sorgeberechtigte Person', data.signerName);
+  field(
+    'Sorgeberechtigte Person',
+    data.signerName
+      ? `${data.signerName} · ${guardianRelationshipLabel(data.signerRelationship)}`
+      : undefined,
+  );
 
   heading('Worum geht es?');
   text(data.template.purpose);
@@ -280,7 +363,7 @@ export async function buildConsentPdf(data: ConsentPdfData) {
     `${data.template.retention} Empfänger sind nur die jeweils ausgewählten Stellen und hierfür berechtigte Vereinsverantwortliche beziehungsweise eingesetzte Dienstleister. Es findet keine automatisierte Entscheidungsfindung statt.`,
   );
   text(
-    'Die Einwilligung ist freiwillig. Aus einer Ablehnung entstehen keine Nachteile für die sportliche Teilnahme. Sie kann jederzeit mit Wirkung für die Zukunft in der App oder gegenüber dem FC Teugn e.V., Triftweg 1a, 93356 Teugn, E-Mail: fcteugn@web.de, widerrufen werden. Die Rechtmäßigkeit der bis zum Widerruf erfolgten Verarbeitung bleibt unberührt. Es bestehen insbesondere die Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung und Beschwerde bei einer Datenschutzaufsichtsbehörde.',
+    'Die Einwilligung ist freiwillig. Aus einer Ablehnung entstehen keine Nachteile für die sportliche Teilnahme. Sie kann jederzeit mit Wirkung für die Zukunft in der App oder gegenüber dem FC Teugn e.V., Kreutweg 14, 93356 Teugn, E-Mail: fcteugn@web.de, widerrufen werden. Die Rechtmäßigkeit der bis zum Widerruf erfolgten Verarbeitung bleibt unberührt. Es bestehen insbesondere die Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung und Beschwerde bei einer Datenschutzaufsichtsbehörde.',
   );
 
   ensure(230);
@@ -359,6 +442,11 @@ export async function buildConsentPdf(data: ConsentPdfData) {
     'Hinweis: Diese vereinsbezogene Vorlage ersetzt keine individuelle Rechtsberatung. Der Verein muss Kontaktdaten, Datenschutzhinweise, Empfänger und eingesetzte Kommunikationsdienste aktuell halten.',
     { size: 7.5, color: MUTED },
   );
+
+  pdf.getPages().forEach((targetPage, index) => {
+    header(targetPage);
+    footer(targetPage, index + 1);
+  });
 
   pdf.setTitle(`${data.template.shortTitle} – FC Teugn`);
   pdf.setAuthor('FC Teugn e.V.');
