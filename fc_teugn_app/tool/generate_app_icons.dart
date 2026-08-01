@@ -3,25 +3,24 @@ import 'dart:io';
 import 'package:image/image.dart' as image;
 
 const _canvasSize = 1024;
+const _launcherArtworkSize = 860;
 
 void main() {
   final source = _readPng('assets/branding/fc_teugn_talents_icon.png');
 
   final standard = _flattenAndResize(source, _canvasSize);
-  final maskable = _composeMaskableIcon(source);
+  final launcher = _composePaddedIcon(source, _launcherArtworkSize);
+  final maskable = _composePaddedIcon(source, 820);
 
   _writePng('assets/branding/app_icon_master.png', standard);
   _writePng('assets/branding/app_icon_maskable_master.png', maskable);
 
-  _writeScaledIcons(standard, {
+  _writeScaledIcons(launcher, {
     'android/app/src/main/res/mipmap-mdpi/ic_launcher.png': 48,
     'android/app/src/main/res/mipmap-hdpi/ic_launcher.png': 72,
     'android/app/src/main/res/mipmap-xhdpi/ic_launcher.png': 96,
     'android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png': 144,
     'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png': 192,
-    'web/favicon.png': 32,
-    'web/icons/Icon-192.png': 192,
-    'web/icons/Icon-512.png': 512,
     'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@1x.png': 20,
     'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@2x.png': 40,
     'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@3x.png': 60,
@@ -48,6 +47,12 @@ void main() {
     'macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png': 1024,
   });
 
+  _writeScaledIcons(standard, {
+    'web/favicon.png': 32,
+    'web/icons/Icon-192.png': 192,
+    'web/icons/Icon-512.png': 512,
+  });
+
   _writeScaledIcons(maskable, {
     'web/icons/Icon-maskable-192.png': 192,
     'web/icons/Icon-maskable-512.png': 512,
@@ -67,13 +72,13 @@ image.Image _flattenAndResize(image.Image source, int size) {
   return canvas;
 }
 
-image.Image _composeMaskableIcon(image.Image source) {
+image.Image _composePaddedIcon(image.Image source, int artworkSize) {
   final canvas = image.Image(width: _canvasSize, height: _canvasSize)
     ..clear(image.ColorRgba8(8, 9, 8, 255));
   final safeIcon = image.copyResize(
     source,
-    width: 840,
-    height: 840,
+    width: artworkSize,
+    height: artworkSize,
     interpolation: image.Interpolation.cubic,
   );
   image.compositeImage(canvas, safeIcon, center: true);

@@ -98,23 +98,29 @@ jobs:
       - name: Build Flutter web
         run: flutter build web --release
 
-      - name: Create temporary Android release signing key
+      - name: Restore permanent Android release signing key
         shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          keytool -genkeypair -v \
-            -keystore android/app/ci-release.jks \
-            -storepass changeit \
-            -keypass changeit \
-            -alias fc-teugn-ci \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=FC Teugn CI, OU=Jugend, O=FC Teugn, C=DE"
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" || \
+                -z "$ANDROID_KEYSTORE_PASSWORD" || \
+                -z "$ANDROID_KEY_ALIAS" || \
+                -z "$ANDROID_KEY_PASSWORD" ]]; then
+            echo "::error::Die dauerhaften Android-Signatur-Secrets fehlen."
+            exit 1
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" \
+            | base64 --decode \
+            > android/app/fc-teugn-talents-release.jks
           printf '%s\n' \
-            'storePassword=changeit' \
-            'keyPassword=changeit' \
-            'keyAlias=fc-teugn-ci' \
-            'storeFile=ci-release.jks' \
+            "storePassword=$ANDROID_KEYSTORE_PASSWORD" \
+            "keyPassword=$ANDROID_KEY_PASSWORD" \
+            "keyAlias=$ANDROID_KEY_ALIAS" \
+            'storeFile=fc-teugn-talents-release.jks' \
             > android/key.properties
 
       - name: Build signed Android App Bundle
