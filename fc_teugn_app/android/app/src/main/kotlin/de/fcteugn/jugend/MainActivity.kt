@@ -1,5 +1,125 @@
 package de.fcteugn.jugend
 
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity()
+class MainActivity : FlutterActivity() {
+    companion object {
+        private const val CHANNEL = "de.fcteugn.jugend/notifications"
+        private const val NOTIFICATION_CHANNEL_ID = "fc_teugn_important"
+        private const val ACTION_URL_EXTRA = "fc_teugn_action_url"
+    }
+
+    private var notificationMethodChannel: MethodChannel? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        createNotificationChannel()
+        super.onCreate(savedInstanceState)
+    }
+
+    override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        notificationMethodChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            CHANNEL,
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "showNotification" -> {
+                        val title = call.argument<String>("title") ?: "FC Teugn Talents"
+                        val body = call.argument<String>("body") ?: ""
+                        val actionUrl = call.argument<String>("actionUrl")
+                        result.success(showNotification(title, body, actionUrl))
+                    }
+                    "getInitialPushAction" -> {
+                        result.success(consumePushAction(intent))
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumePushAction(intent)?.let { actionUrl ->
+            notificationMethodChannel?.invokeMethod("notificationOpened", actionUrl)
+        }
+    }
+
+    private fun consumePushAction(sourceIntent: Intent?): String? {
+        val actionUrl = sourceIntent?.getStringExtra(ACTION_URL_EXTRA)
+        sourceIntent?.removeExtra(ACTION_URL_EXTRA)
+        return actionUrl
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channel = NotificationChannel(
+            NOTIFICATION_CHANNEL_ID,
+            "Wichtige Vereinsnachrichten",
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = "Termine, Nominierungen, Spieländerungen und wichtige Hinweise"
+            enableVibration(true)
+        }
+        manager.createNotificationChannel(channel)
+    }
+
+    private fun showNotification(title: String, body: String, actionUrl: String?): Boolean {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
+        }
+
+        val notificationId = (System.currentTimeMillis() and 0x7fffffff).toInt()
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            actionUrl?.takeIf { it.isNotBlank() }?.let {
+                putExtra(ACTION_URL_EXTRA, it)
+            }
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            notificationId,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+        builder
+            .setSmallIcon(R.drawable.ic_stat_notification)
+            .setColor(0xffffe600.toInt())
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(Notification.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setPriority(Notification.PRIORITY_HIGH)
+
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(notificationId, builder.build())
+        return true
+    }
+}
