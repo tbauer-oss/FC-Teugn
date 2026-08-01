@@ -7,11 +7,15 @@ void main() {
     expect(
       ShellSection.values.map((section) => section.label),
       [
-        'Start',
-        'Mannschaft & Sport',
-        'Kommunikation & Organisation',
-        'Verwaltung & Konto',
+        'Übersicht',
+        'Sport & Mannschaft',
+        'Teamalltag & Kommunikation',
+        'Verein & Verwaltung',
       ],
+    );
+    expect(
+      ShellSection.values.every((section) => section.description.isNotEmpty),
+      isTrue,
     );
   });
 
@@ -141,7 +145,76 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('START'), findsOneWidget);
-    expect(find.text('MANNSCHAFT & SPORT'), findsOneWidget);
+    expect(find.text('ÜBERSICHT'), findsOneWidget);
+    expect(find.text('SPORT & MANNSCHAFT'), findsOneWidget);
+  });
+
+  testWidgets('Mobiles App-Menü ist kompakt und nach Bereichen gegliedert',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    const destinations = <ShellDestination>[
+      ShellDestination(
+        label: 'Startseite',
+        mobileLabel: 'Start',
+        icon: Icons.grid_view_rounded,
+        route: '/trainer',
+        section: ShellSection.overview,
+        hint: 'Das Wichtigste auf einen Blick',
+      ),
+      ShellDestination(
+        label: 'Spieler & Kader',
+        icon: Icons.groups_rounded,
+        route: '/trainer/players',
+        section: ShellSection.team,
+        hint: 'Spielerprofile und Zuordnungen',
+      ),
+      ShellDestination(
+        label: 'Nachrichten & Abstimmung',
+        icon: Icons.forum_rounded,
+        route: '/trainer/messages',
+        section: ShellSection.communication,
+        hint: 'Absprachen im Verein',
+      ),
+      ShellDestination(
+        label: 'Mitglieder & Berechtigungen',
+        icon: Icons.manage_accounts_rounded,
+        route: '/trainer/approvals',
+        section: ShellSection.administration,
+        hint: 'Zugänge, Rollen und Freigaben',
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MobileNavigationPanel(
+            destinations: destinations,
+            location: '/trainer/players',
+            contextLabel: 'E1-Jugend · FC Teugn',
+            seasonLabel: '2026/27',
+            userName: 'Tobias Bauer',
+            userRole: 'Systemadministration',
+            onSelect: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('APP-MENÜ'), findsOneWidget);
+    expect(find.text('Übersicht'), findsOneWidget);
+    expect(find.text('Sport & Mannschaft'), findsOneWidget);
+    expect(find.text('Teamalltag & Kommunikation'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Verein & Verwaltung'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Verein & Verwaltung'), findsOneWidget);
+    expect(find.text('Mitglieder & Berechtigungen'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
