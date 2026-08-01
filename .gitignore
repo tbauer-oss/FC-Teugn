@@ -11,6 +11,7 @@ fc_teugn_app/android/app/build/
 fc_teugn_app/android/key.properties
 fc_teugn_app/android/app/*.jks
 fc_teugn_app/android/app/*.keystore
+fc_teugn_app/android/app/*.dpapi.json
 fc_teugn_app/flutter/
 fc_teugn_app/flutter_windows_*.zip
 fc_teugn_app/.tool_state/

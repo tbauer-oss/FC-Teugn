@@ -9,8 +9,8 @@ void main() {
     PackageInfo.setMockInitialValues(
       appName: 'FC Teugn Talents',
       packageName: 'de.fcteugn.talents',
-      version: '1.1.1',
-      buildNumber: '7',
+      version: '1.1.2',
+      buildNumber: '8',
       buildSignature: '',
     );
 
@@ -32,7 +32,7 @@ void main() {
 
     expect(find.text('FC Teugn Talents'), findsOneWidget);
     expect(find.text('Dein Team. Dein Verein. Deine App.'), findsOneWidget);
-    expect(find.text('Version 1.1.1 · Build 7'), findsOneWidget);
+    expect(find.text('Version 1.1.2 · Build 8'), findsOneWidget);
     expect(find.text('© 2026 FC Teugn'), findsOneWidget);
     expect(find.text('Entwickelt von Tobias Bauer'), findsOneWidget);
     expect(tester.takeException(), isNull);
