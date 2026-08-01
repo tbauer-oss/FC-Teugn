@@ -31,6 +31,7 @@ Future<void> preloadBrandingAssets() async {
   await Future.wait([
     _preloadAsset(_clubLogoAsset),
     _preloadAsset(AppIdentity.splashAsset),
+    _preloadAsset(AppIdentity.webSplashAsset),
   ]);
 }
 

@@ -5,5 +5,7 @@ abstract final class AppIdentity {
   static const developer = 'Tobias Bauer';
 
   static const splashAsset = 'assets/branding/fc_teugn_talents_splash.png';
+  static const webSplashAsset =
+      'assets/branding/fc_teugn_talents_web_splash.png';
   static const appIconAsset = 'assets/branding/fc_teugn_talents_icon.png';
 }

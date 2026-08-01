@@ -10,12 +10,12 @@ void main() {
 
     await tester.pumpWidget(const ProviderScope(child: FCTeugnApp()));
     expect(
-      find.byKey(const ValueKey('fc-teugn-talents-splash-image')),
+      find.byKey(const ValueKey('fc-teugn-talents-web-splash-image')),
       findsOneWidget,
     );
     await tester.pump(const Duration(seconds: 2));
     expect(
-      find.byKey(const ValueKey('fc-teugn-talents-splash-image')),
+      find.byKey(const ValueKey('fc-teugn-talents-web-splash-image')),
       findsOneWidget,
     );
     expect(find.text('Willkommen zurück'), findsNothing);

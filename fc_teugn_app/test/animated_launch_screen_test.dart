@@ -42,7 +42,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Web-Start zeigt das vollständige Poster in eigener Bühne',
+  testWidgets('Web-Start zeigt das eigene Querformatmotiv mit Ladebalken',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1440, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -53,13 +53,13 @@ void main() {
 
     expect(find.byKey(const ValueKey('desktop-launch-stage')), findsOneWidget);
     expect(find.byKey(const ValueKey('mobile-launch-stage')), findsNothing);
-    expect(find.text('TALENTS'), findsOneWidget);
     expect(find.text('App wird vorbereitet …'), findsOneWidget);
 
     final image = tester.widget<Image>(
-      find.byKey(const ValueKey('fc-teugn-talents-splash-image')),
+      find.byKey(const ValueKey('fc-teugn-talents-web-splash-image')),
     );
     expect(image.fit, BoxFit.contain);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
