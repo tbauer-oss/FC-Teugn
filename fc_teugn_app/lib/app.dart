@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,17 +27,50 @@ import 'features/training/training_pages.dart';
 import 'features/communications/communications_page.dart';
 import 'features/operations/team_operations_page.dart';
 import 'features/privacy/privacy_page.dart';
+import 'features/launch/animated_launch_screen.dart';
 import 'core/models/user.dart';
 import 'core/app_theme.dart';
 
-class FCTeugnApp extends ConsumerWidget {
+class FCTeugnApp extends ConsumerStatefulWidget {
   const FCTeugnApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FCTeugnApp> createState() => _FCTeugnAppState();
+}
+
+class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
+  static const _minimumLaunchDuration = Duration(milliseconds: 1900);
+  Timer? _launchTimer;
+  bool _minimumLaunchComplete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _launchTimer = Timer(_minimumLaunchDuration, () {
+      if (mounted) setState(() => _minimumLaunchComplete = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _launchTimer?.cancel();
+    super.dispose();
+  }
+
+  Widget _withLaunchTransition(Widget child) => AnimatedSwitcher(
+        duration: const Duration(milliseconds: 420),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        child: child,
+      );
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
-    if (authState.loading && authState.user == null) {
-      return MaterialApp(
+    if (!_minimumLaunchComplete ||
+        (authState.loading && authState.user == null)) {
+      return _withLaunchTransition(MaterialApp(
+        key: const ValueKey('fc-teugn-launch'),
         title: 'FC Teugn Jugend',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
@@ -43,10 +78,8 @@ class FCTeugnApp extends ConsumerWidget {
         supportedLocales: _supportedLocales,
         localizationsDelegates: _localizationsDelegates,
         builder: _forceGerman24HourClock,
-        home: const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
-      );
+        home: const AnimatedLaunchScreen(),
+      ));
     }
 
     final router = GoRouter(
@@ -360,7 +393,8 @@ class FCTeugnApp extends ConsumerWidget {
       ],
     );
 
-    return MaterialApp.router(
+    return _withLaunchTransition(MaterialApp.router(
+      key: const ValueKey('fc-teugn-app'),
       title: 'FC Teugn Jugend',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
@@ -369,7 +403,7 @@ class FCTeugnApp extends ConsumerWidget {
       supportedLocales: _supportedLocales,
       localizationsDelegates: _localizationsDelegates,
       builder: _forceGerman24HourClock,
-    );
+    ));
   }
 }
 
