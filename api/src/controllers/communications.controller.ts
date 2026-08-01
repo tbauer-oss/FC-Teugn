@@ -81,6 +81,10 @@ export function audienceVisible(role: string, audience: AnnouncementAudience) {
   return staffRoles.has(role);
 }
 
+export function canPermanentlyDeleteAnnouncement(role: string) {
+  return role === PrismaRole.SUPER_ADMIN;
+}
+
 async function usersForAnnouncement(
   teamIds: string[],
   audience: AnnouncementAudience,
@@ -468,6 +472,43 @@ export async function archiveAnnouncement(req: Request, res: Response) {
     data: { status: AnnouncementStatus.ARCHIVED, archivedAt: new Date() },
   });
   if (!updated.count) return res.status(404).json({ message: 'Mitteilung nicht gefunden.' });
+  return res.status(204).send();
+}
+
+export async function permanentlyDeleteAnnouncement(req: Request, res: Response) {
+  const user = req.user!;
+  if (!canPermanentlyDeleteAnnouncement(user.role)) {
+    return res.status(403).json({
+      message: 'Nur die Systemadministration darf Mitteilungen endgültig löschen.',
+    });
+  }
+  const announcement = await prisma.announcement.findUnique({
+    where: { id: req.params.id },
+    select: {
+      id: true,
+      title: true,
+      targetTeams: { select: { teamId: true }, take: 1 },
+    },
+  });
+  if (!announcement) {
+    return res.status(404).json({ message: 'Mitteilung nicht gefunden.' });
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.notification.deleteMany({
+      where: { entityType: 'Announcement', entityId: announcement.id },
+    });
+    await tx.announcement.delete({ where: { id: announcement.id } });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: announcement.targetTeams[0]?.teamId ?? user.teamId,
+        action: 'ANNOUNCEMENT_DELETED',
+        entityType: 'Announcement',
+        entityId: announcement.id,
+        metadata: { title: announcement.title },
+      },
+    });
+  });
   return res.status(204).send();
 }
 

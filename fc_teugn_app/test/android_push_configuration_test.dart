@@ -24,6 +24,20 @@ void main() {
     ).readAsStringSync();
     expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
     expect(manifest, contains('fc_teugn_important'));
-    expect(manifest, contains('@drawable/ic_stat_notification'));
+    expect(manifest, contains('@drawable/ic_stat_fc_teugn'));
+  });
+
+  test('Android push uses the FC Teugn crest for every notification path', () {
+    final icon = File(
+      'android/app/src/main/res/drawable/ic_stat_fc_teugn.xml',
+    );
+    final activity = File(
+      'android/app/src/main/kotlin/de/fcteugn/jugend/MainActivity.kt',
+    ).readAsStringSync();
+
+    expect(icon.existsSync(), isTrue);
+    expect(icon.readAsStringSync(), contains('<vector'));
+    expect(activity, contains('R.drawable.ic_stat_fc_teugn'));
+    expect(activity, isNot(contains('R.drawable.ic_stat_notification')));
   });
 }

@@ -14,6 +14,7 @@ const {
 } = require('@prisma/client');
 const {
   audienceVisible,
+  canPermanentlyDeleteAnnouncement,
 } = require('../dist/src/controllers/communications.controller');
 const {
   summarizeMatchResults,
@@ -306,6 +307,13 @@ test('team communications can only be sent by staff roles', () => {
     hasPermission(Role.PLAYER, Permission.SEND_ANNOUNCEMENTS),
     false,
   );
+});
+
+test('only the system administration can permanently delete announcements', () => {
+  assert.equal(canPermanentlyDeleteAnnouncement(Role.SUPER_ADMIN), true);
+  assert.equal(canPermanentlyDeleteAnnouncement(Role.CLUB_ADMIN), false);
+  assert.equal(canPermanentlyDeleteAnnouncement(Role.YOUTH_DIRECTOR), false);
+  assert.equal(canPermanentlyDeleteAnnouncement(Role.COACH), false);
 });
 
 test('announcement audiences are separated by member role', () => {

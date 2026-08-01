@@ -5,9 +5,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_theme.dart';
 import '../../core/models/communication.dart';
 import '../../core/models/organization.dart';
+import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/push/native_push_service.dart';
 import '../../core/push/push_client.dart';
+import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
 class CommunicationsPage extends ConsumerStatefulWidget {
@@ -392,6 +394,7 @@ class _AnnouncementList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final canDelete = ref.watch(authProvider).user?.role == UserRole.superAdmin;
     return FutureBuilder<List<AnnouncementModel>>(
       future:
           ref.read(repositoryProvider).announcements(includeDrafts: staffView),
@@ -416,6 +419,9 @@ class _AnnouncementList extends ConsumerWidget {
               _AnnouncementCard(
                 announcement: item,
                 staffView: staffView,
+                onDelete: canDelete
+                    ? () => _deletePermanently(context, ref, item)
+                    : null,
                 onOpened: () async {
                   if (!item.isRead &&
                       item.status == AnnouncementStatus.published) {
@@ -433,6 +439,61 @@ class _AnnouncementList extends ConsumerWidget {
       },
     );
   }
+
+  Future<void> _deletePermanently(
+    BuildContext context,
+    WidgetRef ref,
+    AnnouncementModel announcement,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.warning_amber_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: const Text('Mitteilung endgültig löschen?'),
+        content: Text(
+          '„${announcement.title}“ wird für alle Empfänger gelöscht. '
+          'Auch die zugehörigen Benachrichtigungen und Lesebestätigungen '
+          'werden entfernt. Diese Aktion kann nicht rückgängig gemacht werden.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_forever_rounded),
+            label: const Text('Endgültig löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref
+          .read(repositoryProvider)
+          .deleteAnnouncementPermanently(announcement.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mitteilung wurde endgültig gelöscht.')),
+      );
+      onChanged();
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mitteilung konnte nicht gelöscht werden.'),
+        ),
+      );
+    }
+  }
 }
 
 class _AnnouncementCard extends StatelessWidget {
@@ -440,11 +501,13 @@ class _AnnouncementCard extends StatelessWidget {
     required this.announcement,
     required this.staffView,
     required this.onOpened,
+    this.onDelete,
   });
 
   final AnnouncementModel announcement;
   final bool staffView;
   final Future<void> Function() onOpened;
+  final Future<void> Function()? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -547,7 +610,15 @@ class _AnnouncementCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded),
+              if (onDelete != null)
+                IconButton(
+                  tooltip: 'Mitteilung endgültig löschen',
+                  onPressed: onDelete,
+                  color: Theme.of(context).colorScheme.error,
+                  icon: const Icon(Icons.delete_forever_rounded),
+                )
+              else
+                const Icon(Icons.chevron_right_rounded),
             ],
           ),
         ),
