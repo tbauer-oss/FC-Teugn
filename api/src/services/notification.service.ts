@@ -13,6 +13,9 @@ import {
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY?.trim() ?? '';
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim() ?? '';
 const vapidSubject = process.env.VAPID_SUBJECT?.trim() || 'mailto:admin@fc-teugn.de';
+const androidNotificationImageUrl =
+  process.env.PUSH_NOTIFICATION_IMAGE_URL?.trim() ||
+  'https://fc-teugn.vercel.app/assets/assets/branding/fc_teugn_logo.png';
 export const webPushConfigured = Boolean(vapidPublicKey && vapidPrivateKey);
 
 if (webPushConfigured) {
@@ -62,6 +65,8 @@ export function androidPushMessage(
         channelId: 'fc_teugn_important',
         sound: 'default',
         color: '#FFE600',
+        icon: 'ic_stat_fc_teugn',
+        imageUrl: androidNotificationImageUrl,
         clickAction: 'FLUTTER_NOTIFICATION_CLICK',
       },
     },

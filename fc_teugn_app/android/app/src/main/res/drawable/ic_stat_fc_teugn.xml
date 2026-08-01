@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Monochrome crest silhouette required by Android for status-bar icons. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M12,1.15C9.5,2.95 7.05,3.05 4.35,1.55L1.55,4.2C3.15,6.55 3.2,9.05 2.45,12.15C1.75,15.05 2.15,18.4 5.05,20.55L12,23L18.95,20.55C21.85,18.4 22.25,15.05 21.55,12.15C20.8,9.05 20.85,6.55 22.45,4.2L19.65,1.55C16.95,3.05 14.5,2.95 12,1.15ZM4.15,16.85L17.85,3.15L20.05,5.35L6.35,19.05Z" />
+</vector>

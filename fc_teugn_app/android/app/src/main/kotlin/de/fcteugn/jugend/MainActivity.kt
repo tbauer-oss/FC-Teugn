@@ -108,7 +108,7 @@ class MainActivity : FlutterActivity() {
             Notification.Builder(this)
         }
         builder
-            .setSmallIcon(R.drawable.ic_stat_notification)
+            .setSmallIcon(R.drawable.ic_stat_fc_teugn)
             .setColor(0xffffe600.toInt())
             .setContentTitle(title)
             .setContentText(body)

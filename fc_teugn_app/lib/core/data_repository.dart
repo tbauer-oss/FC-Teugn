@@ -1415,6 +1415,10 @@ class DataRepository {
     await client.dio.post('/communications/$announcementId/read');
   }
 
+  Future<void> deleteAnnouncementPermanently(String announcementId) async {
+    await client.dio.delete('/communications/$announcementId/permanent');
+  }
+
   Future<List<AppNotificationModel>> notifications() async {
     final res = await client.dio.get('/notifications');
     return (res.data as List<dynamic>)
