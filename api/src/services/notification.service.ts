@@ -1,4 +1,5 @@
 import {
+  AccountStatus,
   NotificationCategory,
   NotificationDeliveryStatus,
   PushPlatform,
@@ -32,6 +33,47 @@ export type NotificationInput = {
   expiresAt?: Date | null;
   pushEnabled?: boolean;
 };
+
+type PushDeliverySummaryInput = {
+  status: NotificationDeliveryStatus;
+  errorCode: string | null;
+  subscription: { platform: PushPlatform } | null;
+};
+
+export function summarizePushDeliveries(deliveries: PushDeliverySummaryInput[]) {
+  const errors = new Map<string, number>();
+  const byPlatform = {
+    WEB: { total: 0, sent: 0, failed: 0, pending: 0, skipped: 0 },
+    ANDROID: { total: 0, sent: 0, failed: 0, pending: 0, skipped: 0 },
+  };
+  const result = {
+    subscriptions: deliveries.length,
+    sent: 0,
+    failed: 0,
+    pending: 0,
+    skipped: 0,
+  };
+  for (const delivery of deliveries) {
+    const key = delivery.status.toLowerCase() as
+      | 'sent'
+      | 'failed'
+      | 'pending'
+      | 'skipped';
+    result[key]++;
+    if (delivery.subscription) {
+      byPlatform[delivery.subscription.platform].total++;
+      byPlatform[delivery.subscription.platform][key]++;
+    }
+    if (delivery.errorCode) {
+      errors.set(delivery.errorCode, (errors.get(delivery.errorCode) ?? 0) + 1);
+    }
+  }
+  return {
+    ...result,
+    byPlatform,
+    errors: [...errors.entries()].map(([code, count]) => ({ code, count })),
+  };
+}
 
 export function androidPushMessage(
   token: string,
@@ -123,6 +165,66 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
   return { notifications: notificationCount, deliveries: deliveryCount };
 }
 
+export async function sendAdminTestPush(actorName: string) {
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: {
+      isActive: true,
+      user: { status: AccountStatus.APPROVED },
+    },
+    select: { id: true, userId: true },
+  });
+  const userIds = [...new Set(subscriptions.map((item) => item.userId))];
+  if (!subscriptions.length) {
+    return {
+      recipients: 0,
+      ...summarizePushDeliveries([]),
+    };
+  }
+
+  const notificationByUser = new Map<string, string>();
+  for (const userId of userIds) {
+    const notification = await prisma.notification.create({
+      data: {
+        userId,
+        category: NotificationCategory.SYSTEM,
+        title: 'FC Teugn Talents · Push-Test',
+        body: `Testnachricht der Systemadministration (${actorName}). Der Push-Empfang funktioniert.`,
+        actionUrl: '/messages',
+        entityType: 'ADMIN_PUSH_TEST',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+      select: { id: true },
+    });
+    notificationByUser.set(userId, notification.id);
+  }
+
+  const deliveryIds: string[] = [];
+  for (const subscription of subscriptions) {
+    const delivery = await prisma.notificationDelivery.create({
+      data: {
+        notificationId: notificationByUser.get(subscription.userId)!,
+        subscriptionId: subscription.id,
+        userId: subscription.userId,
+      },
+      select: { id: true },
+    });
+    deliveryIds.push(delivery.id);
+  }
+  await Promise.all(deliveryIds.map((id) => deliverPush(id)));
+  const deliveries = await prisma.notificationDelivery.findMany({
+    where: { id: { in: deliveryIds } },
+    select: {
+      status: true,
+      errorCode: true,
+      subscription: { select: { platform: true } },
+    },
+  });
+  return {
+    recipients: userIds.length,
+    ...summarizePushDeliveries(deliveries),
+  };
+}
+
 export async function deliverPush(deliveryId: string) {
   const delivery = await prisma.notificationDelivery.findUnique({
     where: { id: deliveryId },
@@ -201,7 +303,7 @@ export async function deliverPush(deliveryId: string) {
         actionUrl: delivery.notification.actionUrl,
         notificationId: delivery.notification.id,
       }),
-      { TTL: 3600, urgency: 'normal' },
+      { TTL: 3600, urgency: 'high' },
     );
     await markDeliverySent(delivery.id, delivery.subscription.id);
   } catch (error) {

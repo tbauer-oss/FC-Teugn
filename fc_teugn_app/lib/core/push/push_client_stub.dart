@@ -4,7 +4,7 @@ Future<Map<String, dynamic>> subscribeToWebPush(String vapidPublicKey) {
   throw UnsupportedError('Web-Push ist auf diesem Gerät nicht verfügbar.');
 }
 
-Future<WebPushStatus> getWebPushStatus() async =>
+Future<WebPushStatus> getWebPushStatus([String? vapidPublicKey]) async =>
     const WebPushStatus.unavailable();
 
 Future<bool> shouldShowInitialWebPushPrompt() async => false;

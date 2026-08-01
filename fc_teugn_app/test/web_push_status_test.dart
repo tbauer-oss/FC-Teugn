@@ -41,4 +41,18 @@ void main() {
     expect(status.subscribed, isTrue);
     expect(status.permission, WebPushPermission.granted);
   });
+
+  test('subscription with an outdated VAPID key is offered for renewal', () {
+    final status = WebPushStatus.fromJson(const {
+      'supported': true,
+      'subscribed': false,
+      'keyMismatch': true,
+      'isIos': false,
+      'isStandalone': false,
+      'permission': 'granted',
+    });
+
+    expect(status.keyMismatch, isTrue);
+    expect(status.canSubscribe, isTrue);
+  });
 }

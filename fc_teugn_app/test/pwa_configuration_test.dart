@@ -56,6 +56,9 @@ void main() {
       expect(pushBridge, contains("matchMedia('(display-mode: standalone)')"));
       expect(pushBridge, contains('IOS_HOME_SCREEN_REQUIRED'));
       expect(pushBridge, contains('pushManager.getSubscription()'));
+      expect(pushBridge, contains('usesVapidKey'));
+      expect(pushBridge, contains('subscription.unsubscribe()'));
+      expect(pushBridge, contains('keyMismatch'));
       expect(pushBridge, contains('fcTeugnShouldShowInitialPushPrompt'));
     });
 

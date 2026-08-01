@@ -210,6 +210,54 @@ class PushConfiguration {
       );
 }
 
+class AdminPushTestResult {
+  const AdminPushTestResult({
+    required this.recipients,
+    required this.subscriptions,
+    required this.sent,
+    required this.failed,
+    required this.pending,
+    required this.skipped,
+    required this.webSubscriptions,
+    required this.androidSubscriptions,
+    required this.errors,
+  });
+
+  final int recipients;
+  final int subscriptions;
+  final int sent;
+  final int failed;
+  final int pending;
+  final int skipped;
+  final int webSubscriptions;
+  final int androidSubscriptions;
+  final Map<String, int> errors;
+
+  bool get allSent => subscriptions > 0 && sent == subscriptions;
+
+  factory AdminPushTestResult.fromJson(Map<String, dynamic> json) {
+    final platforms = json['byPlatform'] as Map<String, dynamic>? ?? const {};
+    final web = platforms['WEB'] as Map<String, dynamic>? ?? const {};
+    final android = platforms['ANDROID'] as Map<String, dynamic>? ?? const {};
+    final errorItems = json['errors'] as List<dynamic>? ?? const [];
+    return AdminPushTestResult(
+      recipients: (json['recipients'] as num?)?.toInt() ?? 0,
+      subscriptions: (json['subscriptions'] as num?)?.toInt() ?? 0,
+      sent: (json['sent'] as num?)?.toInt() ?? 0,
+      failed: (json['failed'] as num?)?.toInt() ?? 0,
+      pending: (json['pending'] as num?)?.toInt() ?? 0,
+      skipped: (json['skipped'] as num?)?.toInt() ?? 0,
+      webSubscriptions: (web['total'] as num?)?.toInt() ?? 0,
+      androidSubscriptions: (android['total'] as num?)?.toInt() ?? 0,
+      errors: {
+        for (final item in errorItems)
+          if (item is Map<String, dynamic>)
+            item['code'] as String: (item['count'] as num?)?.toInt() ?? 0,
+      },
+    );
+  }
+}
+
 enum PitchConflictRequestStatus {
   pending,
   approved,

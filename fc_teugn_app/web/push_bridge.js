@@ -25,6 +25,15 @@
       'PushManager' in window;
   }
 
+  function usesVapidKey(subscription, vapidPublicKey) {
+    const current = subscription?.options?.applicationServerKey;
+    if (!current) return false;
+    const expected = urlBase64ToUint8Array(vapidPublicKey);
+    const actual = new Uint8Array(current);
+    return actual.length === expected.length &&
+      actual.every((value, index) => value === expected[index]);
+  }
+
   async function findPushRegistration() {
     if (!('serviceWorker' in navigator)) return null;
     const registrations = await navigator.serviceWorker.getRegistrations();
@@ -33,15 +42,18 @@
     ) || null;
   }
 
-  window.fcTeugnWebPushStatus = async function () {
+  window.fcTeugnWebPushStatus = async function (vapidPublicKey) {
     const supported = supportsPush();
     const registration = supported ? await findPushRegistration() : null;
     const subscription = registration
       ? await registration.pushManager.getSubscription()
       : null;
+    const keyMismatch = subscription !== null && Boolean(vapidPublicKey) &&
+      !usesVapidKey(subscription, vapidPublicKey);
     return JSON.stringify({
       supported,
-      subscribed: subscription !== null,
+      subscribed: subscription !== null && !keyMismatch,
+      keyMismatch,
       isIos: isIosDevice(),
       isStandalone: isStandalone(),
       permission: supported ? Notification.permission : 'unavailable',
@@ -95,6 +107,10 @@
       });
     }
     let subscription = await registration.pushManager.getSubscription();
+    if (subscription && !usesVapidKey(subscription, vapidPublicKey)) {
+      await subscription.unsubscribe();
+      subscription = null;
+    }
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
