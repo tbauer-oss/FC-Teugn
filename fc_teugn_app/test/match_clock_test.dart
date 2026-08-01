@@ -63,15 +63,39 @@ void main() {
     final clock = StableElapsedClock(
       monotonicMilliseconds: () => nowMilliseconds,
     );
-    clock.synchronize(_ticker(currentPeriod: 1, elapsedSeconds: 100, events: []));
+    clock.synchronize(
+        _ticker(currentPeriod: 1, elapsedSeconds: 100, events: []));
 
     nowMilliseconds = 1900;
     expect(clock.elapsedSeconds, 101);
 
-    clock.synchronize(_ticker(currentPeriod: 1, elapsedSeconds: 100, events: []));
+    clock.synchronize(
+        _ticker(currentPeriod: 1, elapsedSeconds: 100, events: []));
     nowMilliseconds = 2100;
 
     expect(clock.elapsedSeconds, 102);
+  });
+
+  test('next UI tick remains aligned to the monotonic second boundary', () {
+    var nowMilliseconds = 0;
+    final clock = StableElapsedClock(
+      monotonicMilliseconds: () => nowMilliseconds,
+    );
+    clock.synchronize(
+        _ticker(currentPeriod: 1, elapsedSeconds: 100, events: []));
+
+    nowMilliseconds = 275;
+    expect(clock.millisecondsUntilNextSecond, 725);
+
+    nowMilliseconds = 1000;
+    expect(clock.elapsedSeconds, 101);
+    expect(clock.millisecondsUntilNextSecond, 1000);
+
+    // A delayed callback catches up and aligns the following callback again;
+    // it never accumulates the delay like a periodic timer would.
+    nowMilliseconds = 2340;
+    expect(clock.elapsedSeconds, 102);
+    expect(clock.millisecondsUntilNextSecond, 660);
   });
 
   test('pausing a clock never makes the displayed time jump backwards', () {
@@ -79,7 +103,8 @@ void main() {
     final clock = StableElapsedClock(
       monotonicMilliseconds: () => nowMilliseconds,
     );
-    clock.synchronize(_ticker(currentPeriod: 1, elapsedSeconds: 100, events: []));
+    clock.synchronize(
+        _ticker(currentPeriod: 1, elapsedSeconds: 100, events: []));
 
     nowMilliseconds = 2900;
     clock.synchronize(
@@ -100,10 +125,12 @@ void main() {
     final clock = StableElapsedClock(
       monotonicMilliseconds: () => nowMilliseconds,
     );
-    clock.synchronize(_ticker(currentPeriod: 1, elapsedSeconds: 895, events: []));
+    clock.synchronize(
+        _ticker(currentPeriod: 1, elapsedSeconds: 895, events: []));
 
     nowMilliseconds = 7000;
-    clock.synchronize(_ticker(currentPeriod: 2, elapsedSeconds: 900, events: []));
+    clock.synchronize(
+        _ticker(currentPeriod: 2, elapsedSeconds: 900, events: []));
 
     expect(clock.elapsedSeconds, 900);
   });

@@ -29,6 +29,18 @@ class StableElapsedClock {
     return _anchorElapsedSeconds + elapsedMilliseconds ~/ 1000;
   }
 
+  /// Remaining monotonic time until the displayed second changes.
+  ///
+  /// A one-shot timer can use this value after every callback. This keeps the
+  /// UI aligned with the actual clock instead of accumulating the scheduling
+  /// delay of a periodic timer.
+  int get millisecondsUntilNextSecond {
+    if (!_initialized || _status != TickerStatus.live) return 1000;
+    final elapsedMilliseconds =
+        max(0, _monotonicMilliseconds() - _anchorMilliseconds);
+    return 1000 - (elapsedMilliseconds % 1000);
+  }
+
   void synchronize(LiveTickerModel ticker) {
     final now = _monotonicMilliseconds();
     if (!_initialized) {

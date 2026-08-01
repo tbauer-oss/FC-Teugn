@@ -1907,17 +1907,32 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         if (mounted) unawaited(_synchronizePending());
       },
     );
-    _clockTimer = Timer.periodic(
-      const Duration(milliseconds: 250),
-      (_) => _tickClock(),
-    );
+    _scheduleNextClockTick(immediate: true);
   }
 
   @override
   void didUpdateWidget(covariant _TickerTab oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final ticker = _ticker;
+    final previousTicker = oldWidget.match.ticker;
+    final elapsedBeforeSync = _effectiveElapsedSeconds();
     _synchronizeClock(_ticker);
-    _lastRenderedElapsedSeconds = -1;
+    final timelineChanged =
+        (previousTicker?.status ?? TickerStatus.notStarted) != ticker.status ||
+            (previousTicker?.currentPeriod ?? 1) != ticker.currentPeriod ||
+            oldWidget.match.details?.periodMinutes !=
+                widget.match.details?.periodMinutes ||
+            ticker.elapsedSeconds > elapsedBeforeSync + 10;
+    if (timelineChanged) {
+      _lastRenderedElapsedSeconds = -1;
+      _scheduleNextClockTick(immediate: true);
+    } else {
+      // Score and event polls refresh the focus view, but deliberately leave
+      // the already aligned clock timer untouched.
+      Timer.run(() {
+        if (mounted) _tickClock(force: true);
+      });
+    }
     if (!oldWidget.online && widget.online) {
       unawaited(_synchronizePending());
     }
@@ -1984,10 +1999,27 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     );
   }
 
-  void _tickClock() {
+  void _scheduleNextClockTick({bool immediate = false}) {
+    _clockTimer?.cancel();
+    if (!mounted) return;
+    final delay = immediate
+        ? Duration.zero
+        : Duration(
+            milliseconds: _stableElapsedClock.millisecondsUntilNextSecond + 2,
+          );
+    _clockTimer = Timer(delay, () {
+      if (!mounted) return;
+      _tickClock(force: immediate);
+      if (_ticker.status == TickerStatus.live) {
+        _scheduleNextClockTick();
+      }
+    });
+  }
+
+  void _tickClock({bool force = false}) {
     if (!mounted) return;
     final elapsedSeconds = _effectiveElapsedSeconds();
-    if (elapsedSeconds == _lastRenderedElapsedSeconds) return;
+    if (!force && elapsedSeconds == _lastRenderedElapsedSeconds) return;
     _lastRenderedElapsedSeconds = elapsedSeconds;
     final ticker = _ticker;
     final clock = calculateMatchClock(
@@ -2002,14 +2034,30 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     if (shouldWarn) {
       unawaited(playTickerEndSignal());
     }
-    setState(() {});
     _focusData.value = _tickerFocusData(ticker);
   }
+
+  Widget _liveCountdownCard() => ValueListenableBuilder<_TickerFocusData>(
+        valueListenable: _focusData,
+        builder: (context, data, _) => _CountdownCard(
+          clock: data.clock,
+          periodLabel: data.periodLabel,
+          status: data.status,
+          onExpand: _showFocusMode,
+        ),
+      );
+
+  Widget _liveElapsedMetric() => ValueListenableBuilder<_TickerFocusData>(
+        valueListenable: _focusData,
+        builder: (context, data, _) => _TickerMetric(
+          label: 'GESPIELT',
+          value: _formatElapsed(data.clock.elapsedSeconds),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
     final ticker = _ticker;
-    final clock = _clockValue(ticker);
     final fcIsHome = widget.match.details?.isHome != false;
     final scores = _displayedScores(ticker);
     final connected = widget.online && !_queueOffline;
@@ -2041,12 +2089,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
             ),
           ],
           const SizedBox(height: 8),
-          _CountdownCard(
-            clock: clock,
-            periodLabel: matchPeriodLabel(ticker.currentPeriod, periodCount),
-            status: ticker.status,
-            onExpand: _showFocusMode,
-          ),
+          _liveCountdownCard(),
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
@@ -2057,10 +2100,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                 label: 'SPIELSTAND',
                 value: '${scores.ours}:${scores.theirs}',
               ),
-              _TickerMetric(
-                label: 'GESPIELT',
-                value: _formatElapsed(clock.elapsedSeconds),
-              ),
+              _liveElapsedMetric(),
               _TickerMetric(
                 label: 'ABSCHNITT',
                 value: '${ticker.currentPeriod}/$periodCount',
@@ -2128,12 +2168,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           ),
         ],
         const SizedBox(height: 10),
-        _CountdownCard(
-          clock: clock,
-          periodLabel: matchPeriodLabel(ticker.currentPeriod, periodCount),
-          status: ticker.status,
-          onExpand: _showFocusMode,
-        ),
+        _liveCountdownCard(),
         const SizedBox(height: 10),
         Wrap(
           spacing: 10,
@@ -2144,10 +2179,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
               label: 'SPIELSTAND',
               value: '${scores.ours}:${scores.theirs}',
             ),
-            _TickerMetric(
-              label: 'GESPIELT',
-              value: _formatElapsed(clock.elapsedSeconds),
-            ),
+            _liveElapsedMetric(),
             _TickerMetric(
               label: 'ABSCHNITT',
               value: '${ticker.currentPeriod}/$periodCount',
@@ -3066,10 +3098,9 @@ class _CountdownCard extends StatelessWidget {
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 7,
+            child: _SmoothClockProgress(
               value: clock.progress,
-              backgroundColor: Colors.white12,
+              minHeight: 7,
               color: accent,
             ),
           ),
@@ -3180,10 +3211,9 @@ class _TickerFocusView extends StatelessWidget {
                               constraints: const BoxConstraints(maxWidth: 720),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(999),
-                                child: LinearProgressIndicator(
+                                child: _SmoothClockProgress(
                                   value: data.clock.progress,
                                   minHeight: 10,
-                                  backgroundColor: Colors.white12,
                                   color: clockColor,
                                 ),
                               ),
@@ -3265,6 +3295,31 @@ class _TickerFocusView extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SmoothClockProgress extends StatelessWidget {
+  const _SmoothClockProgress({
+    required this.value,
+    required this.minHeight,
+    required this.color,
+  });
+
+  final double value;
+  final double minHeight;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: value, end: value),
+        duration: const Duration(milliseconds: 950),
+        curve: Curves.linear,
+        builder: (context, animatedValue, _) => LinearProgressIndicator(
+          value: animatedValue,
+          minHeight: minHeight,
+          backgroundColor: Colors.white12,
+          color: color,
+        ),
+      );
 }
 
 class _FocusTeamScore extends StatelessWidget {
