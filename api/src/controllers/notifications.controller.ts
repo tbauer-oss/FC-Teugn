@@ -9,6 +9,7 @@ import { prisma } from '../lib/prisma';
 import {
   deliverPush,
   pushConfiguration,
+  sendAdminTestPush,
 } from '../services/notification.service';
 
 function text(value: unknown, max = 1000) {
@@ -30,6 +31,15 @@ function enumValue<T extends Record<string, string>>(
 
 export async function notificationConfiguration(_req: Request, res: Response) {
   return res.json(pushConfiguration());
+}
+
+export async function testPushBroadcast(req: Request, res: Response) {
+  const actor = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { name: true },
+  });
+  const result = await sendAdminTestPush(actor?.name || 'Systemadministration');
+  return res.json(result);
 }
 
 export async function listNotifications(req: Request, res: Response) {

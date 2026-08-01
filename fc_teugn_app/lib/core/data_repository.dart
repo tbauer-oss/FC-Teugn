@@ -1513,6 +1513,11 @@ class DataRepository {
     await client.dio.post('/notifications/settings/push-consent');
   }
 
+  Future<AdminPushTestResult> sendAdminPushTest() async {
+    final res = await client.dio.post('/notifications/admin/test-push');
+    return AdminPushTestResult.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<CompetitionImportPreview> previewCompetitionImport({
     required String teamId,
     required CompetitionImportFormat format,

@@ -7,7 +7,7 @@ import 'web_push_status.dart';
 external JSPromise<JSString> _subscribe(JSString vapidPublicKey);
 
 @JS('fcTeugnWebPushStatus')
-external JSPromise<JSString> _status();
+external JSPromise<JSString> _status(JSString? vapidPublicKey);
 
 @JS('fcTeugnShouldShowInitialPushPrompt')
 external JSPromise<JSString> _shouldShowInitialPrompt();
@@ -22,9 +22,9 @@ Future<Map<String, dynamic>> subscribeToWebPush(
   return jsonDecode(raw) as Map<String, dynamic>;
 }
 
-Future<WebPushStatus> getWebPushStatus() async {
+Future<WebPushStatus> getWebPushStatus([String? vapidPublicKey]) async {
   try {
-    final raw = (await _status().toDart).toDart;
+    final raw = (await _status(vapidPublicKey?.toJS).toDart).toDart;
     return WebPushStatus.fromJson(
       jsonDecode(raw) as Map<String, dynamic>,
     );

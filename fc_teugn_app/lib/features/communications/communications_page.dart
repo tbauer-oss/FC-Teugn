@@ -711,6 +711,8 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
   WebPushStatus? _webPushStatus;
   bool _subscribing = false;
   bool _nativePushEnabled = false;
+  bool _testingPush = false;
+  AdminPushTestResult? _pushTestResult;
 
   @override
   void initState() {
@@ -724,14 +726,15 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
       repository.notificationPreferences(),
       repository.pushConfiguration(),
       nativePushService.currentTokenIfEnabled(),
-      getWebPushStatus(),
     ]);
+    final configuration = results[1] as PushConfiguration;
+    final webStatus = await getWebPushStatus(configuration.vapidPublicKey);
     if (mounted) {
       setState(() {
         _items = results[0] as List<NotificationPreferenceModel>;
         _configuration = results[1] as PushConfiguration;
         _nativePushEnabled = results[2] != null;
-        _webPushStatus = results[3] as WebPushStatus;
+        _webPushStatus = webStatus;
       });
     }
   }
@@ -739,6 +742,8 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
   @override
   Widget build(BuildContext context) {
     final items = _items;
+    final isSuperAdmin =
+        ref.watch(authProvider).user?.role == UserRole.superAdmin;
     if (items == null) return const Center(child: CircularProgressIndicator());
     return Card(
       child: Padding(
@@ -762,6 +767,14 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
               webStatus: _webPushStatus,
               onSubscribe: _subscribe,
             ),
+            if (isSuperAdmin) ...[
+              const SizedBox(height: 14),
+              _AdminPushTestCard(
+                testing: _testingPush,
+                result: _pushTestResult,
+                onTest: _testPushBroadcast,
+              ),
+            ],
             const Divider(height: 32),
             for (var index = 0; index < items.length; index++)
               _PreferenceRow(
@@ -789,6 +802,61 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
     );
   }
 
+  Future<void> _testPushBroadcast() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.campaign_rounded),
+        title: const Text('Test-Push an alle senden?'),
+        content: const Text(
+          'Alle freigegebenen Benutzer mit einem aktiv registrierten '
+          'Push-Gerät erhalten eine klar gekennzeichnete Testnachricht. '
+          'Danach wird das Zustellergebnis angezeigt.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.send_rounded),
+            label: const Text('Test senden'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _testingPush = true;
+      _pushTestResult = null;
+    });
+    try {
+      final result = await ref.read(repositoryProvider).sendAdminPushTest();
+      if (!mounted) return;
+      setState(() => _pushTestResult = result);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.subscriptions == 0
+                ? 'Es ist noch kein aktives Push-Gerät registriert.'
+                : '${result.sent} von ${result.subscriptions} Test-Pushnachrichten wurden vom Push-Dienst angenommen.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Der globale Push-Test konnte nicht ausgeführt werden.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _testingPush = false);
+    }
+  }
+
   Future<void> _subscribe() async {
     setState(() => _subscribing = true);
     try {
@@ -808,7 +876,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
         final subscription = await subscribeToWebPush(key);
         await repository.grantPushConsent();
         await repository.registerWebPushSubscription(subscription);
-        final status = await getWebPushStatus();
+        final status = await getWebPushStatus(key);
         if (mounted) setState(() => _webPushStatus = status);
       }
       if (!mounted) return;
@@ -848,6 +916,116 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
       return 'Dieser Browser unterstützt Web-Push auf diesem Gerät nicht.';
     }
     return 'Push konnte nicht aktiviert werden. Bitte Gerätefreigabe und Verbindung prüfen.';
+  }
+}
+
+class _AdminPushTestCard extends StatelessWidget {
+  const _AdminPushTestCard({
+    required this.testing,
+    required this.result,
+    required this.onTest,
+  });
+
+  final bool testing;
+  final AdminPushTestResult? result;
+  final VoidCallback onTest;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = result;
+    final color = value == null
+        ? AppColors.blue
+        : value.allSent
+            ? Colors.green
+            : value.subscriptions == 0
+                ? AppColors.orange
+                : Theme.of(context).colorScheme.error;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: .3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final title = Row(
+                children: [
+                  Icon(Icons.admin_panel_settings_rounded, color: color),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Systemweiter Push-Test',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              );
+              final button = FilledButton.icon(
+                onPressed: testing ? null : onTest,
+                icon: testing
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_rounded),
+                label: Text(testing ? 'Sende …' : 'An alle testen'),
+              );
+              if (constraints.maxWidth < 520) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    title,
+                    const SizedBox(height: 10),
+                    button,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: title),
+                  const SizedBox(width: 12),
+                  button,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Nur die Systemadministration kann eine Testnachricht an alle aktiv registrierten Geräte senden.',
+          ),
+          if (value != null) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(label: Text('${value.recipients} Empfänger')),
+                Chip(
+                    label:
+                        Text('${value.sent}/${value.subscriptions} versendet')),
+                Chip(label: Text('${value.webSubscriptions} Web')),
+                Chip(label: Text('${value.androidSubscriptions} Android')),
+                if (value.failed > 0)
+                  Chip(label: Text('${value.failed} fehlgeschlagen')),
+                if (value.pending > 0)
+                  Chip(label: Text('${value.pending} ausstehend')),
+              ],
+            ),
+            if (value.errors.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Diagnose: ${value.errors.entries.map((item) => '${item.key} (${item.value})').join(', ')}',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -988,6 +1166,9 @@ class _PushRegistrationCard extends StatelessWidget {
     }
     if (status.permission == WebPushPermission.denied) {
       return 'Benachrichtigungen sind in den Browser- oder Systemeinstellungen blockiert.';
+    }
+    if (status.keyMismatch) {
+      return 'Der Sicherheitsschlüssel wurde aktualisiert. Aktiviere Push auf diesem Gerät bitte erneut.';
     }
     if (enabled) {
       return 'Web-Push ist aktiv – Hinweise erscheinen auch bei geschlossener Web-App.';

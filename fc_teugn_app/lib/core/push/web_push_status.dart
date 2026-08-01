@@ -11,6 +11,7 @@ class WebPushStatus {
     required this.subscribed,
     required this.isIos,
     required this.isStandalone,
+    required this.keyMismatch,
     required this.permission,
   });
 
@@ -19,12 +20,14 @@ class WebPushStatus {
         subscribed = false,
         isIos = false,
         isStandalone = false,
+        keyMismatch = false,
         permission = WebPushPermission.unavailable;
 
   final bool supported;
   final bool subscribed;
   final bool isIos;
   final bool isStandalone;
+  final bool keyMismatch;
   final WebPushPermission permission;
 
   bool get requiresHomeScreen => isIos && !isStandalone;
@@ -39,6 +42,7 @@ class WebPushStatus {
         subscribed: json['subscribed'] as bool? ?? false,
         isIos: json['isIos'] as bool? ?? false,
         isStandalone: json['isStandalone'] as bool? ?? false,
+        keyMismatch: json['keyMismatch'] as bool? ?? false,
         permission: switch (json['permission']) {
           'granted' => WebPushPermission.granted,
           'denied' => WebPushPermission.denied,
