@@ -8,14 +8,32 @@ import '../../core/providers.dart';
 import '../shared/pwa_install_prompt.dart';
 
 enum ShellSection {
-  overview('Start'),
-  team('Mannschaft & Sport'),
-  communication('Kommunikation & Organisation'),
-  administration('Verwaltung & Konto');
+  overview(
+    'Übersicht',
+    'Dein schneller Einstieg',
+    Icons.home_rounded,
+  ),
+  team(
+    'Sport & Mannschaft',
+    'Spieler, Termine, Training und Spiele',
+    Icons.sports_soccer_rounded,
+  ),
+  communication(
+    'Teamalltag & Kommunikation',
+    'Absprachen, Aufgaben und Ausrüstung',
+    Icons.forum_rounded,
+  ),
+  administration(
+    'Verein & Verwaltung',
+    'Mitglieder, Strukturen und Einwilligungen',
+    Icons.admin_panel_settings_rounded,
+  );
 
-  const ShellSection(this.label);
+  const ShellSection(this.label, this.description, this.icon);
 
   final String label;
+  final String description;
+  final IconData icon;
 }
 
 class ShellDestination {
@@ -82,81 +100,37 @@ class AppShell extends ConsumerWidget {
     BuildContext context,
     List<ShellDestination> destinations,
     String location,
+    String contextLabel,
+    String seasonLabel,
+    String userName,
+    String userRole,
   ) {
     return showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(sheetContext).height * .78,
-            ),
-            child: ListView(
-              shrinkWrap: true,
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
-              children: [
-                Text(
-                  'Navigation',
-                  style: Theme.of(sheetContext).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Schnell zum richtigen Bereich.',
-                  style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.muted,
-                      ),
-                ),
-                const SizedBox(height: 14),
-                if (shouldOfferPwaInstall) ...[
-                  ListTile(
-                    tileColor: AppColors.yellow.withValues(alpha: .2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    leading: const Icon(Icons.install_mobile_rounded),
-                    title: const Text('FC Teugn als App installieren'),
-                    subtitle: const Text('Kostenlos auf dem Home-Bildschirm'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      showPwaInstallPrompt(context);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                for (final section in ShellSection.values)
-                  if (destinations.any((item) => item.section == section)) ...[
-                    _MobileSectionHeader(label: section.label),
-                    for (final destination in destinations
-                        .where((item) => item.section == section))
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: ListTile(
-                          selected: location == destination.route ||
-                              location.startsWith('${destination.route}/'),
-                          selectedTileColor:
-                              AppColors.yellow.withValues(alpha: .2),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          leading: Icon(destination.icon),
-                          title: Text(destination.label),
-                          subtitle: Text(destination.hint),
-                          trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: () {
-                            Navigator.of(sheetContext).pop();
-                            context.go(destination.route);
-                          },
-                        ),
-                      ),
-                  ],
-              ],
-            ),
-          ),
-        );
-      },
+      backgroundColor: AppColors.background,
+      constraints: const BoxConstraints(maxWidth: 680),
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: .9,
+        child: MobileNavigationPanel(
+          destinations: destinations,
+          location: location,
+          contextLabel: contextLabel,
+          seasonLabel: seasonLabel,
+          userName: userName,
+          userRole: userRole,
+          offerInstall: shouldOfferPwaInstall,
+          onInstall: () {
+            Navigator.of(sheetContext).pop();
+            showPwaInstallPrompt(context);
+          },
+          onSelect: (destination) {
+            Navigator.of(sheetContext).pop();
+            context.go(destination.route);
+          },
+        ),
+      ),
     );
   }
 
@@ -169,11 +143,6 @@ class AppShell extends ConsumerWidget {
     final mobileCandidates =
         destinations.where((destination) => destination.showOnMobile).toList();
     final mobileDestinations = mobileCandidates.take(4).toList();
-    final primaryRoutes =
-        mobileDestinations.map((destination) => destination.route).toSet();
-    final moreDestinations = destinations
-        .where((destination) => !primaryRoutes.contains(destination.route))
-        .toList();
     final primaryMobileIndex = _matchingIndex(location, mobileDestinations);
     final mobileSelectedIndex = primaryMobileIndex ?? mobileDestinations.length;
     final contextLabel = organization == null
@@ -234,33 +203,61 @@ class AppShell extends ConsumerWidget {
           ),
           bottomNavigationBar: isWide
               ? null
-              : NavigationBar(
-                  height: 72,
-                  selectedIndex: mobileSelectedIndex,
-                  onDestinationSelected: (index) {
-                    if (index < mobileDestinations.length) {
-                      context.go(mobileDestinations[index].route);
-                      return;
-                    }
-                    _showMoreMenu(context, moreDestinations, location);
-                  },
-                  destinations: [
-                    for (final destination in mobileDestinations)
-                      NavigationDestination(
-                        icon: Icon(destination.icon),
-                        selectedIcon:
-                            Icon(destination.icon, color: AppColors.blue),
-                        label: destination.mobileLabel,
-                      ),
-                    const NavigationDestination(
-                      icon: Icon(Icons.more_horiz_rounded),
-                      selectedIcon: Icon(
-                        Icons.more_horiz_rounded,
-                        color: AppColors.blue,
-                      ),
-                      label: 'Mehr',
+              : Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: const Border(
+                      top: BorderSide(color: AppColors.line),
                     ),
-                  ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.black.withValues(alpha: .05),
+                        blurRadius: 18,
+                        offset: const Offset(0, -5),
+                      ),
+                    ],
+                  ),
+                  child: NavigationBar(
+                    height: 72,
+                    backgroundColor: Colors.white,
+                    surfaceTintColor: Colors.transparent,
+                    indicatorColor: AppColors.yellowSoft,
+                    selectedIndex: mobileSelectedIndex,
+                    onDestinationSelected: (index) {
+                      if (index < mobileDestinations.length) {
+                        context.go(mobileDestinations[index].route);
+                        return;
+                      }
+                      _showMoreMenu(
+                        context,
+                        destinations,
+                        location,
+                        contextLabel,
+                        seasonLabel,
+                        authState.user?.name ?? '',
+                        authState.user?.roleLabel ?? '',
+                      );
+                    },
+                    destinations: [
+                      for (final destination in mobileDestinations)
+                        NavigationDestination(
+                          icon: Icon(destination.icon),
+                          selectedIcon: Icon(
+                            destination.icon,
+                            color: AppColors.black,
+                          ),
+                          label: destination.mobileLabel,
+                        ),
+                      const NavigationDestination(
+                        icon: Icon(Icons.apps_rounded),
+                        selectedIcon: Icon(
+                          Icons.apps_rounded,
+                          color: AppColors.black,
+                        ),
+                        label: 'Mehr',
+                      ),
+                    ],
+                  ),
                 ),
         );
       },
@@ -544,23 +541,353 @@ class _DesktopNavigationItem extends StatelessWidget {
   }
 }
 
-class _MobileSectionHeader extends StatelessWidget {
-  const _MobileSectionHeader({required this.label});
+class MobileNavigationPanel extends StatelessWidget {
+  const MobileNavigationPanel({
+    super.key,
+    required this.destinations,
+    required this.location,
+    required this.contextLabel,
+    required this.seasonLabel,
+    required this.userName,
+    required this.userRole,
+    required this.onSelect,
+    this.offerInstall = false,
+    this.onInstall,
+  });
 
-  final String label;
+  final List<ShellDestination> destinations;
+  final String location;
+  final String contextLabel;
+  final String seasonLabel;
+  final String userName;
+  final String userRole;
+  final ValueChanged<ShellDestination> onSelect;
+  final bool offerInstall;
+  final VoidCallback? onInstall;
+
+  bool _isSelected(ShellDestination destination) =>
+      location == destination.route ||
+      location.startsWith('${destination.route}/');
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF171A18), Color(0xFF383400)],
+              ),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const ClubLogo(size: 42),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'APP-MENÜ',
+                        style: TextStyle(
+                          color: AppColors.yellow.withValues(alpha: .9),
+                          fontSize: 10,
+                          letterSpacing: 1.2,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        contextLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'Saison $seasonLabel',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: .62),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (offerInstall && onInstall != null) ...[
+            const SizedBox(height: 12),
+            Material(
+              color: AppColors.yellowSoft,
+              borderRadius: BorderRadius.circular(18),
+              child: InkWell(
+                onTap: onInstall,
+                borderRadius: BorderRadius.circular(18),
+                child: const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      _MenuIcon(
+                        icon: Icons.install_mobile_rounded,
+                        selected: true,
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'FC Teugn als App installieren',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            Text(
+                              'Direkt auf dem Startbildschirm öffnen',
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          for (final section in ShellSection.values)
+            if (destinations.any((item) => item.section == section)) ...[
+              _MobileMenuSection(
+                section: section,
+                destinations: destinations
+                    .where((item) => item.section == section)
+                    .toList(),
+                isSelected: _isSelected,
+                onSelect: onSelect,
+              ),
+              const SizedBox(height: 10),
+            ],
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: Row(
+              children: [
+                _Avatar(name: userName),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        userName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      Text(
+                        userRole,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.verified_user_outlined, color: AppColors.gold),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileMenuSection extends StatelessWidget {
+  const _MobileMenuSection({
+    required this.section,
+    required this.destinations,
+    required this.isSelected,
+    required this.onSelect,
+  });
+
+  final ShellSection section;
+  final List<ShellDestination> destinations;
+  final bool Function(ShellDestination destination) isSelected;
+  final ValueChanged<ShellDestination> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              children: [
+                _MenuIcon(icon: section.icon),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        section.label,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        section.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 9),
+          for (final destination in destinations)
+            _MobileMenuDestination(
+              destination: destination,
+              selected: isSelected(destination),
+              onTap: () => onSelect(destination),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileMenuDestination extends StatelessWidget {
+  const _MobileMenuDestination({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ShellDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 14, 6, 7),
-      child: Text(
-        label.toUpperCase(),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.muted,
-              letterSpacing: 1.05,
-              fontWeight: FontWeight.w800,
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Material(
+        color: selected ? AppColors.yellowSoft : Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            child: Row(
+              children: [
+                _MenuIcon(icon: destination.icon, selected: selected),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        destination.label,
+                        style: TextStyle(
+                          fontWeight:
+                              selected ? FontWeight.w900 : FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        destination.hint,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  selected
+                      ? Icons.check_circle_rounded
+                      : Icons.chevron_right_rounded,
+                  size: 20,
+                  color: selected ? AppColors.gold : AppColors.muted,
+                ),
+              ],
             ),
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _MenuIcon extends StatelessWidget {
+  const _MenuIcon({required this.icon, this.selected = false});
+
+  final IconData icon;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: selected ? AppColors.yellow : AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selected ? AppColors.yellow : AppColors.line,
+        ),
+      ),
+      child: Icon(icon, size: 19, color: AppColors.black),
     );
   }
 }
@@ -584,42 +911,86 @@ class _MobileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final narrow = constraints.maxWidth < 430;
         return Container(
-          color: Colors.white,
-          padding: EdgeInsets.fromLTRB(narrow ? 12 : 18, 8, 6, 8),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(bottom: BorderSide(color: AppColors.line)),
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
           child: SafeArea(
             bottom: false,
             child: Row(
               children: [
-                if (narrow)
-                  const ClubLogo(size: 38)
-                else
-                  const _ClubBrand(light: false, compact: true),
-                SizedBox(width: narrow ? 10 : 14),
+                Container(
+                  width: 42,
+                  height: 42,
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: const ClubLogo(size: 36),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    contextLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.navy,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 9,
+                          letterSpacing: .8,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        contextLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 _Avatar(name: userName, small: true),
-                IconButton(
-                  visualDensity: narrow ? VisualDensity.compact : null,
-                  tooltip: 'Datenschutz & meine Daten',
-                  onPressed: onPrivacy,
-                  icon: const Icon(Icons.shield_outlined),
-                ),
-                IconButton(
-                  visualDensity: narrow ? VisualDensity.compact : null,
-                  tooltip: 'Abmelden',
-                  onPressed: onLogout,
-                  icon: const Icon(Icons.logout_rounded),
+                const SizedBox(width: 2),
+                PopupMenuButton<_MobileAccountAction>(
+                  tooltip: 'Konto und Einstellungen',
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onSelected: (action) {
+                    switch (action) {
+                      case _MobileAccountAction.privacy:
+                        onPrivacy();
+                      case _MobileAccountAction.logout:
+                        onLogout();
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: _MobileAccountAction.privacy,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.shield_outlined),
+                        title: Text('Datenschutz & meine Daten'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _MobileAccountAction.logout,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.logout_rounded),
+                        title: Text('Abmelden'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -630,11 +1001,12 @@ class _MobileHeader extends StatelessWidget {
   }
 }
 
+enum _MobileAccountAction { privacy, logout }
+
 class _ClubBrand extends StatelessWidget {
-  const _ClubBrand({required this.light, this.compact = false});
+  const _ClubBrand({required this.light});
 
   final bool light;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -642,7 +1014,7 @@ class _ClubBrand extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ClubLogo(size: compact ? 40 : 48),
+        const ClubLogo(size: 48),
         const SizedBox(width: 11),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
