@@ -4,7 +4,9 @@ import '../../core/app_theme.dart';
 import '../../core/models/pitch_occupancy.dart';
 import '../shared/page_scaffold.dart';
 
-class PitchOccupancyBoard extends StatelessWidget {
+enum _OccupancyViewMode { list, timeline, table }
+
+class PitchOccupancyBoard extends StatefulWidget {
   const PitchOccupancyBoard({
     required this.plan,
     this.onConflictApproval,
@@ -20,7 +22,15 @@ class PitchOccupancyBoard extends StatelessWidget {
   final void Function(IndoorOccupancyEntry entry)? onDeleteSpecialEntry;
 
   @override
+  State<PitchOccupancyBoard> createState() => _PitchOccupancyBoardState();
+}
+
+class _PitchOccupancyBoardState extends State<PitchOccupancyBoard> {
+  _OccupancyViewMode _viewMode = _OccupancyViewMode.list;
+
+  @override
   Widget build(BuildContext context) {
+    final plan = widget.plan;
     final slots = plan.slots;
     final conflicts = plan.conflicts;
     final openConflicts =
@@ -73,8 +83,8 @@ class PitchOccupancyBoard extends StatelessWidget {
           _SpecialOccupancySection(
             entries: plan.specialEntries,
             canManage: plan.canManageOccupancy,
-            onEdit: onEditSpecialEntry,
-            onDelete: onDeleteSpecialEntry,
+            onEdit: widget.onEditSpecialEntry,
+            onDelete: widget.onDeleteSpecialEntry,
           ),
         ],
         const SizedBox(height: 10),
@@ -94,7 +104,7 @@ class PitchOccupancyBoard extends StatelessWidget {
               child: _ConflictRow(
                 conflict: conflict,
                 canManage: plan.canManageOccupancy,
-                onChanged: onConflictApproval,
+                onChanged: widget.onConflictApproval,
               ),
             ),
         ],
@@ -115,7 +125,7 @@ class PitchOccupancyBoard extends StatelessWidget {
                 child: _ConflictRow(
                   conflict: conflict,
                   canManage: true,
-                  onChanged: onConflictApproval,
+                  onChanged: widget.onConflictApproval,
                 ),
               ),
         ],
@@ -151,20 +161,31 @@ class PitchOccupancyBoard extends StatelessWidget {
                 : 'Sobald reguläre Trainingszeiten bei den Mannschaften '
                     'gepflegt sind, erscheint hier der gemeinsame Wochenplan.',
           )
-        else if (slots.isNotEmpty)
-          LayoutBuilder(
-            builder: (context, constraints) => constraints.maxWidth >= 820
-                ? _DesktopBoard(
-                    plan: plan,
-                    conflictSlots: conflictSlots,
-                    approvedSlots: approvedSlots,
-                  )
-                : _MobileBoard(
-                    slots: slots,
-                    conflictSlots: conflictSlots,
-                    approvedSlots: approvedSlots,
-                  ),
+        else if (slots.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          _OccupancyViewSelector(
+            value: _viewMode,
+            onChanged: (value) => setState(() => _viewMode = value),
           ),
+          const SizedBox(height: 10),
+          switch (_viewMode) {
+            _OccupancyViewMode.list => _MobileBoard(
+                slots: slots,
+                conflictSlots: conflictSlots,
+                approvedSlots: approvedSlots,
+              ),
+            _OccupancyViewMode.timeline => _TimelineBoard(
+                slots: slots,
+                conflictSlots: conflictSlots,
+                approvedSlots: approvedSlots,
+              ),
+            _OccupancyViewMode.table => _DesktopBoard(
+                plan: plan,
+                conflictSlots: conflictSlots,
+                approvedSlots: approvedSlots,
+              ),
+          },
+        ],
         const SizedBox(height: 14),
         const _Notice(
           icon: Icons.handshake_outlined,
@@ -197,105 +218,149 @@ class _PlanHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final locations = plan.slots.map((slot) => slot.location).toSet().toList()
       ..sort();
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.black, Color(0xFF343000)],
-        ),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 16,
-            runSpacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: AppColors.yellow,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  plan.indoor
-                      ? Icons.sports_handball_rounded
-                      : Icons.stadium_rounded,
-                  color: AppColors.black,
-                  size: 28,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        final heading = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${plan.indoor ? 'HALLENBELEGUNG' : 'PLATZBELEGUNG'} '
+              '· ${plan.seasonName}',
+              style: TextStyle(
+                color: AppColors.yellow,
+                fontSize: compact ? 10 : 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: compact ? .45 : .8,
               ),
-              SizedBox(
-                width: 430,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${plan.indoor ? 'HALLENBELEGUNG' : 'PLATZBELEGUNG'} '
-                      '· SAISON ${plan.seasonName}',
-                      style: const TextStyle(
-                        color: AppColors.yellow,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${plan.clubName} · gemeinsamer Wochenplan',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                          ),
-                    ),
-                  ],
-                ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${plan.clubName} · Wochenplan',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: (compact
+                      ? Theme.of(context).textTheme.titleMedium
+                      : Theme.of(context).textTheme.titleLarge)
+                  ?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
               ),
-              _HeaderMetric(value: '$slotCount', label: 'Belegungen'),
-              _HeaderMetric(
-                value: '${plan.indoor ? specialCount : matchdayCount}',
-                label: plan.indoor ? 'Fremdbelegungen' : 'Spieltage',
-              ),
-              _HeaderMetric(
-                value: '$conflictCount',
-                label: 'Konflikte',
-                alert: conflictCount > 0,
-              ),
-            ],
-          ),
-          if (locations.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final location in locations)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: _locationColor(location),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      location,
-                      style: const TextStyle(
-                        color: AppColors.black,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-              ],
             ),
           ],
-        ],
-      ),
+        );
+        return Container(
+          padding: EdgeInsets.all(compact ? 13 : 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.black, Color(0xFF343000)],
+            ),
+            borderRadius: BorderRadius.circular(compact ? 18 : 22),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (compact)
+                Row(
+                  children: [
+                    _PlanIcon(indoor: plan.indoor, compact: true),
+                    const SizedBox(width: 11),
+                    Expanded(child: heading),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    _PlanIcon(indoor: plan.indoor),
+                    const SizedBox(width: 16),
+                    Expanded(child: heading),
+                  ],
+                ),
+              SizedBox(height: compact ? 12 : 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _HeaderMetric(
+                      value: '$slotCount',
+                      label: 'Belegungen',
+                      compact: compact,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: _HeaderMetric(
+                      value: '${plan.indoor ? specialCount : matchdayCount}',
+                      label: plan.indoor ? 'Extern' : 'Spieltage',
+                      compact: compact,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: _HeaderMetric(
+                      value: '$conflictCount',
+                      label: 'Konflikte',
+                      alert: conflictCount > 0,
+                      compact: compact,
+                    ),
+                  ),
+                ],
+              ),
+              if (locations.isNotEmpty) ...[
+                SizedBox(height: compact ? 9 : 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final location in locations)
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 8 : 9,
+                          vertical: compact ? 4 : 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _locationColor(location),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          location,
+                          style: TextStyle(
+                            color: AppColors.black,
+                            fontWeight: FontWeight.w800,
+                            fontSize: compact ? 10 : 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
+}
+
+class _PlanIcon extends StatelessWidget {
+  const _PlanIcon({required this.indoor, this.compact = false});
+
+  final bool indoor;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: compact ? 42 : 52,
+        height: compact ? 42 : 52,
+        decoration: BoxDecoration(
+          color: AppColors.yellow,
+          borderRadius: BorderRadius.circular(compact ? 12 : 16),
+        ),
+        child: Icon(
+          indoor ? Icons.sports_handball_rounded : Icons.stadium_rounded,
+          color: AppColors.black,
+          size: compact ? 23 : 28,
+        ),
+      );
 }
 
 class _SpecialOccupancySection extends StatelessWidget {
@@ -468,20 +533,25 @@ class _HeaderMetric extends StatelessWidget {
     required this.value,
     required this.label,
     this.alert = false,
+    this.compact = false,
   });
 
   final String value;
   final String label;
   final bool alert;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 5 : 15,
+          vertical: compact ? 7 : 10,
+        ),
         decoration: BoxDecoration(
           color: alert
               ? Colors.deepOrange.withValues(alpha: .22)
               : Colors.white.withValues(alpha: .08),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(compact ? 11 : 14),
           border: Border.all(
             color: alert
                 ? Colors.deepOrangeAccent
@@ -494,14 +564,360 @@ class _HeaderMetric extends StatelessWidget {
               value,
               style: TextStyle(
                 color: alert ? Colors.deepOrangeAccent : Colors.white,
-                fontSize: 20,
+                fontSize: compact ? 17 : 20,
                 fontWeight: FontWeight.w900,
               ),
             ),
             Text(
               label,
-              style: const TextStyle(color: Colors.white60, fontSize: 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white60,
+                fontSize: compact ? 9 : 11,
+              ),
             ),
+          ],
+        ),
+      );
+}
+
+class _OccupancyViewSelector extends StatelessWidget {
+  const _OccupancyViewSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final _OccupancyViewMode value;
+  final ValueChanged<_OccupancyViewMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: 'Darstellung der Belegung wählen',
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0EEE4),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Row(
+            children: [
+              _OccupancyViewButton(
+                label: 'Liste',
+                icon: Icons.view_agenda_outlined,
+                selected: value == _OccupancyViewMode.list,
+                onTap: () => onChanged(_OccupancyViewMode.list),
+              ),
+              _OccupancyViewButton(
+                label: 'Zeitplan',
+                icon: Icons.timeline_rounded,
+                selected: value == _OccupancyViewMode.timeline,
+                onTap: () => onChanged(_OccupancyViewMode.timeline),
+              ),
+              _OccupancyViewButton(
+                label: 'Tabelle',
+                icon: Icons.table_chart_outlined,
+                selected: value == _OccupancyViewMode.table,
+                onTap: () => onChanged(_OccupancyViewMode.table),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _OccupancyViewButton extends StatelessWidget {
+  const _OccupancyViewButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Material(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(11),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(11),
+                boxShadow: selected
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x17000000),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 17,
+                    color: selected ? AppColors.gold : AppColors.muted,
+                  ),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.fade,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight:
+                            selected ? FontWeight.w900 : FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _TimelineBoard extends StatelessWidget {
+  const _TimelineBoard({
+    required this.slots,
+    required this.conflictSlots,
+    required this.approvedSlots,
+  });
+
+  final List<PitchOccupancySlot> slots;
+  final Set<PitchOccupancySlot> conflictSlots;
+  final Set<PitchOccupancySlot> approvedSlots;
+
+  String _clock(int minute) => '${(minute ~/ 60).toString().padLeft(2, '0')}:'
+      '${(minute % 60).toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final earliest = slots.map((slot) => slot.startMinute).reduce(
+          (a, b) => a < b ? a : b,
+        );
+    final latest = slots.map((slot) => slot.endMinute).reduce(
+          (a, b) => a > b ? a : b,
+        );
+    final rangeStart = (earliest ~/ 60) * 60;
+    final roundedEnd = ((latest + 59) ~/ 60) * 60;
+    final rangeEnd = roundedEnd <= rangeStart ? rangeStart + 60 : roundedEnd;
+    final range = rangeEnd - rangeStart;
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.blue.withValues(alpha: .09),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline_rounded,
+                  size: 17, color: AppColors.blue),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  'Grafische Wochenansicht · ${_clock(rangeStart)}–${_clock(rangeEnd)} Uhr',
+                  style: const TextStyle(
+                    color: AppColors.navy,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (var weekday = 1; weekday <= 7; weekday++)
+          if (slots.any((slot) => slot.weekday == weekday))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: _TimelineDay(
+                weekday: weekday,
+                slots: slots.where((slot) => slot.weekday == weekday).toList()
+                  ..sort((a, b) => a.startMinute.compareTo(b.startMinute)),
+                rangeStart: rangeStart,
+                range: range,
+                conflictSlots: conflictSlots,
+                approvedSlots: approvedSlots,
+              ),
+            ),
+      ],
+    );
+  }
+}
+
+class _TimelineDay extends StatelessWidget {
+  const _TimelineDay({
+    required this.weekday,
+    required this.slots,
+    required this.rangeStart,
+    required this.range,
+    required this.conflictSlots,
+    required this.approvedSlots,
+  });
+
+  final int weekday;
+  final List<PitchOccupancySlot> slots;
+  final int rangeStart;
+  final int range;
+  final Set<PitchOccupancySlot> conflictSlots;
+  final Set<PitchOccupancySlot> approvedSlots;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(10, 9, 10, 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Text(
+                  PitchOccupancySlot.weekdays[weekday - 1],
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const Spacer(),
+                Text(
+                  '${slots.length} ${slots.length == 1 ? 'Zeit' : 'Zeiten'}',
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            for (final slot in slots)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    const timeWidth = 52.0;
+                    final trackWidth = constraints.maxWidth - timeWidth - 7;
+                    final left = ((slot.startMinute - rangeStart) / range)
+                            .clamp(0.0, 1.0) *
+                        trackWidth;
+                    final rawWidth = (slot.endMinute - slot.startMinute) /
+                        range *
+                        trackWidth;
+                    final remainingWidth = trackWidth - left;
+                    final minimumWidth =
+                        remainingWidth < 54 ? remainingWidth : 54.0;
+                    final width = rawWidth.clamp(minimumWidth, remainingWidth);
+                    final conflict = conflictSlots.contains(slot);
+                    final approved = approvedSlots.contains(slot);
+                    return SizedBox(
+                      height: 42,
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: timeWidth,
+                            child: Text(
+                              slot.timeLabel.split('–').first,
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Stack(
+                              alignment: Alignment.centerLeft,
+                              children: [
+                                Container(
+                                  height: 3,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.line,
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                ),
+                                Positioned(
+                                  left: left,
+                                  width: width,
+                                  top: 2,
+                                  bottom: 2,
+                                  child: Tooltip(
+                                    message:
+                                        '${slot.teamLabel}\n${slot.timeLabel}\n${slot.location}',
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _locationColor(slot.location),
+                                        borderRadius: BorderRadius.circular(9),
+                                        border: Border.all(
+                                          color: conflict
+                                              ? Colors.deepOrange
+                                              : approved
+                                                  ? AppColors.teal
+                                                  : Colors.transparent,
+                                          width: conflict ? 2 : 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              slot.teamLabel,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: AppColors.black,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                          if (slot.kind ==
+                                              PitchOccupancySlotKind.matchday)
+                                            const Icon(
+                                              Icons.sports_soccer_rounded,
+                                              size: 12,
+                                              color: AppColors.blue,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
           ],
         ),
       );
@@ -709,18 +1125,18 @@ class _MobileBoard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(9),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Row(
                           children: [
                             Container(
-                              width: 38,
-                              height: 38,
+                              width: 32,
+                              height: 32,
                               decoration: BoxDecoration(
                                 color: AppColors.yellow,
-                                borderRadius: BorderRadius.circular(11),
+                                borderRadius: BorderRadius.circular(9),
                               ),
                               child: Center(
                                 child: Text(
@@ -733,14 +1149,27 @@ class _MobileBoard extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                PitchOccupancySlot.weekdays[weekday - 1],
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                            ),
                             Text(
-                              PitchOccupancySlot.weekdays[weekday - 1],
-                              style: Theme.of(context).textTheme.titleLarge,
+                              '${slots.where((slot) => slot.weekday == weekday).length}',
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         for (final slot
                             in slots
                                 .where((slot) => slot.weekday == weekday)
@@ -750,7 +1179,7 @@ class _MobileBoard extends StatelessWidget {
                                     a.startMinute.compareTo(b.startMinute),
                               ))
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.only(bottom: 5),
                             child: _SlotPill(
                               slot: slot,
                               conflict: conflictSlots.contains(slot),
@@ -785,8 +1214,8 @@ class _SlotPill extends StatelessWidget {
         child: Container(
           width: double.infinity,
           padding: EdgeInsets.symmetric(
-            horizontal: compact ? 7 : 12,
-            vertical: compact ? 5 : 8,
+            horizontal: compact ? 7 : 9,
+            vertical: compact ? 5 : 7,
           ),
           decoration: BoxDecoration(
             color: _locationColor(slot.location),
@@ -813,7 +1242,7 @@ class _SlotPill extends StatelessWidget {
                       style: TextStyle(
                         color: AppColors.black,
                         fontWeight: FontWeight.w900,
-                        fontSize: compact ? 11 : 14,
+                        fontSize: compact ? 11 : 12,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -821,11 +1250,11 @@ class _SlotPill extends StatelessWidget {
                       compact
                           ? slot.location
                           : '${slot.teamLabel} · ${slot.location}',
-                      maxLines: compact ? 2 : 1,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: AppColors.black,
-                        fontSize: compact ? 9 : 12,
+                        fontSize: compact ? 9 : 10,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
