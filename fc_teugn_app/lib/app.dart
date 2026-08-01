@@ -39,7 +39,7 @@ class FCTeugnApp extends ConsumerStatefulWidget {
 }
 
 class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
-  static const _minimumLaunchDuration = Duration(milliseconds: 1900);
+  static const _minimumLaunchDuration = Duration(milliseconds: 2800);
   Timer? _launchTimer;
   bool _minimumLaunchComplete = false;
 

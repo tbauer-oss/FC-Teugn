@@ -11,6 +11,9 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: FCTeugnApp()));
     expect(find.text('FC TEUGN'), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
+    expect(find.text('FC TEUGN'), findsOneWidget);
+    expect(find.text('Willkommen zurück'), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
 
     expect(find.text('Willkommen zurück'), findsOneWidget);

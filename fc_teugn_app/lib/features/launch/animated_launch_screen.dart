@@ -8,7 +8,7 @@ import '../../core/club_logo.dart';
 class AnimatedLaunchScreen extends StatefulWidget {
   const AnimatedLaunchScreen({
     super.key,
-    this.duration = const Duration(milliseconds: 1750),
+    this.duration = const Duration(milliseconds: 2550),
   });
 
   final Duration duration;
