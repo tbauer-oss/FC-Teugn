@@ -29,16 +29,32 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final labels = [
-      'Mitteilungen',
-      'Platzanfragen',
-      'Benachrichtigungen',
-      'Einstellungen',
+    const destinations = [
+      _CommunicationDestination(
+        label: 'Mitteilungen',
+        description: 'Team-Infos verfassen und verwalten',
+        icon: Icons.campaign_rounded,
+      ),
+      _CommunicationDestination(
+        label: 'Platzanfragen',
+        description: 'Überschneidungen gemeinsam klären',
+        icon: Icons.stadium_rounded,
+      ),
+      _CommunicationDestination(
+        label: 'Benachrichtigungen',
+        description: 'Persönliche Hinweise im Blick behalten',
+        icon: Icons.notifications_rounded,
+      ),
+      _CommunicationDestination(
+        label: 'Einstellungen',
+        description: 'Push-Nachrichten und Geräte verwalten',
+        icon: Icons.tune_rounded,
+      ),
     ];
     return PageScaffold(
-      title: 'Team-Nachrichten',
+      title: 'Mitteilungscenter',
       subtitle:
-          'Mitteilungen, wichtige Hinweise und persönliche Benachrichtigungen an einem Ort.',
+          'Alle Informationen, Abstimmungen und Benachrichtigungen zentral organisiert.',
       action: widget.staffView && _tab == 0
           ? FilledButton.icon(
               onPressed: _compose,
@@ -49,18 +65,12 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SegmentedButton<int>(
-              segments: [
-                for (var index = 0; index < labels.length; index++)
-                  ButtonSegment(value: index, label: Text(labels[index])),
-              ],
-              selected: {_tab},
-              onSelectionChanged: (value) => setState(() => _tab = value.first),
-            ),
+          _CommunicationNavigation(
+            destinations: destinations,
+            selectedIndex: _tab,
+            onSelected: (value) => setState(() => _tab = value),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           if (_tab == 0)
             _AnnouncementList(
               key: ValueKey('announcements-$_revision'),
@@ -126,6 +136,151 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
             content: Text('Mitteilung konnte nicht gespeichert werden.')),
       );
     }
+  }
+}
+
+class _CommunicationDestination {
+  const _CommunicationDestination({
+    required this.label,
+    required this.description,
+    required this.icon,
+  });
+
+  final String label;
+  final String description;
+  final IconData icon;
+}
+
+class _CommunicationNavigation extends StatelessWidget {
+  const _CommunicationNavigation({
+    required this.destinations,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final List<_CommunicationDestination> destinations;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 760;
+        if (compact) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var index = 0; index < destinations.length; index++) ...[
+                  ChoiceChip(
+                    avatar: Icon(destinations[index].icon, size: 18),
+                    label: Text(destinations[index].label),
+                    selected: selectedIndex == index,
+                    onSelected: (_) => onSelected(index),
+                  ),
+                  if (index != destinations.length - 1)
+                    const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          );
+        }
+        return Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.line),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 18,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              for (var index = 0; index < destinations.length; index++)
+                Expanded(
+                  child: _CommunicationNavigationItem(
+                    destination: destinations[index],
+                    selected: selectedIndex == index,
+                    onTap: () => onSelected(index),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CommunicationNavigationItem extends StatelessWidget {
+  const _CommunicationNavigationItem({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _CommunicationDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? AppColors.yellow.withValues(alpha: .2)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(15),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.yellow : AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(destination.icon, size: 21, color: AppColors.navy),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      destination.label,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.navy,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      destination.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.muted,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -382,7 +537,7 @@ class _PitchConflictRequestCard extends StatelessWidget {
   }
 }
 
-class _AnnouncementList extends ConsumerWidget {
+class _AnnouncementList extends ConsumerStatefulWidget {
   const _AnnouncementList({
     super.key,
     required this.staffView,
@@ -393,17 +548,26 @@ class _AnnouncementList extends ConsumerWidget {
   final VoidCallback onChanged;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AnnouncementList> createState() => _AnnouncementListState();
+}
+
+class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
+  String _query = '';
+  AnnouncementStatus? _statusFilter;
+
+  @override
+  Widget build(BuildContext context) {
     final canDelete = ref.watch(authProvider).user?.role == UserRole.superAdmin;
     return FutureBuilder<List<AnnouncementModel>>(
-      future:
-          ref.read(repositoryProvider).announcements(includeDrafts: staffView),
+      future: ref
+          .read(repositoryProvider)
+          .announcements(includeDrafts: widget.staffView),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _ErrorCard(onRetry: onChanged);
+          return _ErrorCard(onRetry: widget.onChanged);
         }
         final items = snapshot.data ?? const [];
         if (items.isEmpty) {
@@ -413,27 +577,62 @@ class _AnnouncementList extends ConsumerWidget {
             message: 'Neue Team-Nachrichten erscheinen automatisch hier.',
           );
         }
+        final normalizedQuery = _query.trim().toLowerCase();
+        final filtered = items.where((item) {
+          final matchesText = normalizedQuery.isEmpty ||
+              item.title.toLowerCase().contains(normalizedQuery) ||
+              item.body.toLowerCase().contains(normalizedQuery) ||
+              item.teamNames.any(
+                (name) => name.toLowerCase().contains(normalizedQuery),
+              );
+          return matchesText &&
+              (_statusFilter == null || item.status == _statusFilter);
+        }).toList();
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final item in items) ...[
-              _AnnouncementCard(
-                announcement: item,
-                staffView: staffView,
-                onDelete: canDelete
-                    ? () => _deletePermanently(context, ref, item)
-                    : null,
-                onOpened: () async {
-                  if (!item.isRead &&
-                      item.status == AnnouncementStatus.published) {
-                    await ref
-                        .read(repositoryProvider)
-                        .markAnnouncementRead(item.id);
-                    onChanged();
-                  }
-                },
-              ),
-              const SizedBox(height: 12),
-            ],
+            _AnnouncementToolbar(
+              itemCount: items.length,
+              staffView: widget.staffView,
+              statusFilter: _statusFilter,
+              onSearchChanged: (value) => setState(() => _query = value),
+              onStatusChanged: (value) => setState(() => _statusFilter = value),
+            ),
+            const SizedBox(height: 16),
+            if (filtered.isEmpty)
+              EmptyState(
+                icon: Icons.search_off_rounded,
+                title: 'Keine passenden Mitteilungen',
+                message: 'Passe die Suche oder den Statusfilter an.',
+                action: TextButton.icon(
+                  onPressed: () => setState(() {
+                    _query = '';
+                    _statusFilter = null;
+                  }),
+                  icon: const Icon(Icons.filter_alt_off_rounded),
+                  label: const Text('Filter zurücksetzen'),
+                ),
+              )
+            else
+              for (final item in filtered) ...[
+                _AnnouncementCard(
+                  announcement: item,
+                  staffView: widget.staffView,
+                  onDelete: canDelete
+                      ? () => _deletePermanently(context, ref, item)
+                      : null,
+                  onOpened: () async {
+                    if (!item.isRead &&
+                        item.status == AnnouncementStatus.published) {
+                      await ref
+                          .read(repositoryProvider)
+                          .markAnnouncementRead(item.id);
+                      widget.onChanged();
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
           ],
         );
       },
@@ -484,7 +683,7 @@ class _AnnouncementList extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Mitteilung wurde endgültig gelöscht.')),
       );
-      onChanged();
+      widget.onChanged();
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -493,6 +692,106 @@ class _AnnouncementList extends ConsumerWidget {
         ),
       );
     }
+  }
+}
+
+class _AnnouncementToolbar extends StatelessWidget {
+  const _AnnouncementToolbar({
+    required this.itemCount,
+    required this.staffView,
+    required this.statusFilter,
+    required this.onSearchChanged,
+    required this.onStatusChanged,
+  });
+
+  final int itemCount;
+  final bool staffView;
+  final AnnouncementStatus? statusFilter;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<AnnouncementStatus?> onStatusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+          final search = TextField(
+            onChanged: onSearchChanged,
+            decoration: const InputDecoration(
+              hintText: 'Mitteilungen durchsuchen',
+              prefixIcon: Icon(Icons.search_rounded),
+              isDense: true,
+            ),
+          );
+          final status = DropdownButtonFormField<AnnouncementStatus?>(
+            initialValue: statusFilter,
+            decoration: const InputDecoration(
+              labelText: 'Status',
+              prefixIcon: Icon(Icons.filter_list_rounded),
+              isDense: true,
+            ),
+            items: [
+              const DropdownMenuItem<AnnouncementStatus?>(
+                value: null,
+                child: Text('Alle Status'),
+              ),
+              ...AnnouncementStatus.values.map(
+                (value) => DropdownMenuItem<AnnouncementStatus?>(
+                  value: value,
+                  child: Text(_status(value)),
+                ),
+              ),
+            ],
+            onChanged: onStatusChanged,
+          );
+          final count = Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$itemCount ${itemCount == 1 ? 'Mitteilung' : 'Mitteilungen'}',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                search,
+                if (staffView) ...[
+                  const SizedBox(height: 10),
+                  status,
+                ],
+                const SizedBox(height: 10),
+                Align(alignment: Alignment.centerLeft, child: count),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(flex: 3, child: search),
+              if (staffView) ...[
+                const SizedBox(width: 12),
+                SizedBox(width: 220, child: status),
+              ],
+              const SizedBox(width: 12),
+              count,
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -1230,6 +1529,7 @@ class _ComposeAnnouncementDialogState
     extends State<_ComposeAnnouncementDialog> {
   final _title = TextEditingController();
   final _body = TextEditingController();
+  final _teamSearch = TextEditingController();
   late final Set<String> _teamIds = {widget.organization.currentTeam.id};
   AnnouncementAudience _audience = AnnouncementAudience.allMembers;
   AnnouncementPriority _priority = AnnouncementPriority.normal;
@@ -1242,84 +1542,177 @@ class _ComposeAnnouncementDialogState
   void dispose() {
     _title.dispose();
     _body.dispose();
+    _teamSearch.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Neue Mitteilung'),
-      content: SizedBox(
-        width: 620,
-        child: SingleChildScrollView(
+    final screen = MediaQuery.sizeOf(context);
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: screen.width < 700 ? 12 : 32,
+        vertical: screen.height < 700 ? 12 : 28,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 980, maxHeight: 840),
+        child: SizedBox(
+          width: 980,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
-                controller: _title,
-                onChanged: (_) => setState(() {}),
-                maxLength: 160,
-                decoration: const InputDecoration(labelText: 'Titel'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _body,
-                onChanged: (_) => setState(() {}),
-                minLines: 5,
-                maxLines: 10,
-                decoration: const InputDecoration(labelText: 'Nachricht'),
-              ),
-              const SizedBox(height: 16),
-              Text('Mannschaften',
-                  style: Theme.of(context).textTheme.titleLarge),
-              for (final team in widget.organization.teams)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(team.displayName),
-                  value: _teamIds.contains(team.id),
-                  onChanged: (selected) => setState(() {
-                    if (selected == true) {
-                      _teamIds.add(team.id);
-                    } else if (_teamIds.length > 1) {
-                      _teamIds.remove(team.id);
+              _buildHeader(context),
+              const Divider(height: 1),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 760;
+                    if (compact) {
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildMessageEditor(context),
+                            const SizedBox(height: 24),
+                            _buildRecipientPanel(context, compact: true),
+                          ],
+                        ),
+                      );
                     }
-                  }),
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
+                            child: _buildMessageEditor(context),
+                          ),
+                        ),
+                        const VerticalDivider(width: 1),
+                        Expanded(
+                          flex: 2,
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: _buildRecipientPanel(context),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<AnnouncementAudience>(
-                initialValue: _audience,
-                decoration: const InputDecoration(labelText: 'Zielgruppe'),
-                items: AnnouncementAudience.values
-                    .where((item) => item != AnnouncementAudience.individuals)
-                    .map(
-                      (item) => DropdownMenuItem(
-                        value: item,
-                        child: Text(_audienceLabel(item)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => _audience = value!),
               ),
-              const SizedBox(height: 12),
+              const Divider(height: 1),
+              _buildFooter(context),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 16, 18),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppColors.yellow,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.edit_notifications_rounded),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Neue Mitteilung',
+                    style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  'Nachricht verfassen, Empfänger wählen und Versand planen',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Schließen',
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageEditor(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeading(
+          step: '1',
+          title: 'Mitteilung verfassen',
+          subtitle: 'Formuliere die Information kurz und eindeutig.',
+        ),
+        const SizedBox(height: 18),
+        TextField(
+          controller: _title,
+          onChanged: (_) => setState(() {}),
+          maxLength: 160,
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(
+            labelText: 'Titel',
+            hintText: 'Worum geht es?',
+            prefixIcon: Icon(Icons.title_rounded),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _body,
+          onChanged: (_) => setState(() {}),
+          minLines: 7,
+          maxLines: 12,
+          decoration: const InputDecoration(
+            labelText: 'Nachricht',
+            hintText: 'Alle wichtigen Informationen für die Empfänger …',
+            alignLabelWithHint: true,
+          ),
+        ),
+        const SizedBox(height: 22),
+        Text('Versandoptionen', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final stack = constraints.maxWidth < 520;
+            final fields = [
               DropdownButtonFormField<AnnouncementPriority>(
                 initialValue: _priority,
-                decoration: const InputDecoration(labelText: 'Priorität'),
+                decoration: const InputDecoration(
+                  labelText: 'Priorität',
+                  prefixIcon: Icon(Icons.flag_rounded),
+                ),
                 items: AnnouncementPriority.values
-                    .map(
-                      (item) => DropdownMenuItem(
-                        value: item,
-                        child: Text(_priorityLabel(item)),
-                      ),
-                    )
+                    .map((item) => DropdownMenuItem(
+                          value: item,
+                          child: Text(_priorityLabel(item)),
+                        ))
                     .toList(),
                 onChanged: (value) => setState(() => _priority = value!),
               ),
-              const SizedBox(height: 12),
               DropdownButtonFormField<AnnouncementStatus>(
                 initialValue: _status,
-                decoration:
-                    const InputDecoration(labelText: 'Veröffentlichung'),
+                decoration: const InputDecoration(
+                  labelText: 'Veröffentlichung',
+                  prefixIcon: Icon(Icons.schedule_send_rounded),
+                ),
                 items: const [
                   DropdownMenuItem(
                     value: AnnouncementStatus.published,
@@ -1327,71 +1720,251 @@ class _ComposeAnnouncementDialogState
                   ),
                   DropdownMenuItem(
                     value: AnnouncementStatus.scheduled,
-                    child: Text('Zeitgesteuert veröffentlichen'),
+                    child: Text('Zeitgesteuert'),
                   ),
                   DropdownMenuItem(
                     value: AnnouncementStatus.draft,
-                    child: Text('Als Entwurf speichern'),
+                    child: Text('Als Entwurf'),
                   ),
                 ],
                 onChanged: (value) => setState(() => _status = value!),
               ),
-              if (_status == AnnouncementStatus.scheduled) ...[
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _pickPublishTime,
-                  icon: const Icon(Icons.schedule_rounded),
-                  label: Text(
-                    _publishAt == null
-                        ? 'Zeitpunkt auswählen'
-                        : _dateTime(_publishAt!),
-                  ),
-                ),
-              ],
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Lesebestätigung erfassen'),
-                value: _requireReadReceipt,
-                onChanged: (value) =>
-                    setState(() => _requireReadReceipt = value),
+            ];
+            return stack
+                ? Column(children: [
+                    fields[0],
+                    const SizedBox(height: 12),
+                    fields[1]
+                  ])
+                : Row(children: [
+                    Expanded(child: fields[0]),
+                    const SizedBox(width: 12),
+                    Expanded(child: fields[1])
+                  ]);
+          },
+        ),
+        if (_status == AnnouncementStatus.scheduled) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _pickPublishTime,
+              icon: const Icon(Icons.calendar_month_rounded),
+              label: Text(
+                _publishAt == null
+                    ? 'Veröffentlichungszeit wählen'
+                    : 'Geplant für ${_dateTime(_publishAt!)}',
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Push-Benachrichtigung senden'),
-                value: _pushEnabled,
-                onChanged: (value) => setState(() => _pushEnabled = value),
-              ),
-            ],
+            ),
           ),
+        ],
+        const SizedBox(height: 12),
+        _OptionSwitch(
+          icon: Icons.mark_email_read_rounded,
+          title: 'Lesebestätigung erfassen',
+          subtitle: 'Zeigt, wie viele Empfänger die Mitteilung geöffnet haben.',
+          value: _requireReadReceipt,
+          onChanged: (value) => setState(() => _requireReadReceipt = value),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
-        ),
-        FilledButton(
-          onPressed: _canSubmit
-              ? () => Navigator.pop(
-                    context,
-                    _AnnouncementDraft(
-                      title: _title.text.trim(),
-                      body: _body.text.trim(),
-                      teamIds: _teamIds.toList(),
-                      audience: _audience,
-                      priority: _priority,
-                      status: _status,
-                      publishAt: _publishAt,
-                      requireReadReceipt: _requireReadReceipt,
-                      pushEnabled: _pushEnabled,
-                    ),
-                  )
-              : null,
-          child: const Text('Speichern'),
+        const SizedBox(height: 8),
+        _OptionSwitch(
+          icon: Icons.notifications_active_rounded,
+          title: 'Push-Benachrichtigung senden',
+          subtitle:
+              'Informiert die ausgewählten Empfänger direkt auf ihren Geräten.',
+          value: _pushEnabled,
+          onChanged: (value) => setState(() => _pushEnabled = value),
         ),
       ],
     );
   }
+
+  Widget _buildRecipientPanel(BuildContext context, {bool compact = false}) {
+    final query = _teamSearch.text.trim().toLowerCase();
+    final teams = widget.organization.teams
+        .where((team) => team.displayName.toLowerCase().contains(query))
+        .toList();
+    final list = Column(
+      children: [
+        for (final team in teams)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: _TeamSelectionTile(
+              name: team.displayName,
+              selected: _teamIds.contains(team.id),
+              onChanged: (selected) => setState(() {
+                if (selected) {
+                  _teamIds.add(team.id);
+                } else {
+                  _teamIds.remove(team.id);
+                }
+              }),
+            ),
+          ),
+      ],
+    );
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeading(
+          step: '2',
+          title: 'Empfänger auswählen',
+          subtitle: 'Bestimme Mannschaften und Zielgruppe.',
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _teamSearch,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'Mannschaft suchen',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: query.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Suche löschen',
+                    onPressed: () => setState(_teamSearch.clear),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: () => setState(() {
+                _teamIds
+                    .addAll(widget.organization.teams.map((team) => team.id));
+              }),
+              icon: const Icon(Icons.done_all_rounded, size: 18),
+              label: const Text('Alle'),
+            ),
+            TextButton.icon(
+              onPressed:
+                  _teamIds.isEmpty ? null : () => setState(_teamIds.clear),
+              icon: const Icon(Icons.remove_done_rounded, size: 18),
+              label: const Text('Keine'),
+            ),
+            const Spacer(),
+            Text(
+              '${_teamIds.length} gewählt',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: AppColors.gold,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        if (teams.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: Text('Keine Mannschaft gefunden.')),
+          )
+        else if (compact)
+          list
+        else
+          Expanded(child: SingleChildScrollView(child: list)),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<AnnouncementAudience>(
+          initialValue: _audience,
+          decoration: const InputDecoration(
+            labelText: 'Zielgruppe',
+            prefixIcon: Icon(Icons.groups_rounded),
+          ),
+          items: AnnouncementAudience.values
+              .where((item) => item != AnnouncementAudience.individuals)
+              .map((item) => DropdownMenuItem(
+                    value: item,
+                    child: Text(_audienceLabel(item)),
+                  ))
+              .toList(),
+          onChanged: (value) => setState(() => _audience = value!),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.yellow.withValues(alpha: .14),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.yellow.withValues(alpha: .55)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.outgoing_mail, color: AppColors.gold),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _teamIds.isEmpty
+                      ? 'Wähle mindestens eine Mannschaft aus.'
+                      : '${_teamIds.length} ${_teamIds.length == 1 ? 'Mannschaft' : 'Mannschaften'} · ${_audienceLabel(_audience)}${_pushEnabled ? ' · mit Push' : ''}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    return compact ? content : SizedBox.expand(child: content);
+  }
+
+  Widget _buildFooter(BuildContext context) {
+    final actionLabel = switch (_status) {
+      AnnouncementStatus.draft => 'Entwurf speichern',
+      AnnouncementStatus.scheduled => 'Mitteilung einplanen',
+      _ => 'Jetzt veröffentlichen',
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Row(
+        children: [
+          if (MediaQuery.sizeOf(context).width >= 700)
+            Expanded(
+              child: Text(
+                'Pflichtfelder: Titel, Nachricht und mindestens eine Mannschaft',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppColors.muted),
+              ),
+            )
+          else
+            const Spacer(),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            onPressed: _canSubmit ? _submit : null,
+            icon: Icon(_status == AnnouncementStatus.draft
+                ? Icons.save_outlined
+                : Icons.send_rounded),
+            label: Text(actionLabel),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submit() => Navigator.pop(
+        context,
+        _AnnouncementDraft(
+          title: _title.text.trim(),
+          body: _body.text.trim(),
+          teamIds: _teamIds.toList(),
+          audience: _audience,
+          priority: _priority,
+          status: _status,
+          publishAt: _publishAt,
+          requireReadReceipt: _requireReadReceipt,
+          pushEnabled: _pushEnabled,
+        ),
+      );
 
   bool get _canSubmit =>
       _title.text.trim().isNotEmpty &&
@@ -1420,6 +1993,151 @@ class _ComposeAnnouncementDialogState
         time.minute,
       );
     });
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({
+    required this.step,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String step;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: AppColors.navy,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            step,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppColors.muted),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OptionSwitch extends StatelessWidget {
+  const _OptionSwitch({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: SwitchListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+        secondary: Icon(icon, color: AppColors.gold),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        value: value,
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+class _TeamSelectionTile extends StatelessWidget {
+  const _TeamSelectionTile({
+    required this.name,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final String name;
+  final bool selected;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? AppColors.yellow.withValues(alpha: .16)
+          : AppColors.background,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => onChanged(!selected),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.yellow : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.groups_rounded, size: 19),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  name,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              Checkbox(
+                value: selected,
+                onChanged: (value) => onChanged(value ?? false),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
