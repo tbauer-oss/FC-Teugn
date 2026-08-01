@@ -552,8 +552,15 @@ class _AnnouncementList extends ConsumerStatefulWidget {
 }
 
 class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
+  final _searchController = TextEditingController();
   String _query = '';
   AnnouncementStatus? _statusFilter;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -594,6 +601,7 @@ class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
             _AnnouncementToolbar(
               itemCount: items.length,
               staffView: widget.staffView,
+              searchController: _searchController,
               statusFilter: _statusFilter,
               onSearchChanged: (value) => setState(() => _query = value),
               onStatusChanged: (value) => setState(() => _statusFilter = value),
@@ -606,6 +614,7 @@ class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
                 message: 'Passe die Suche oder den Statusfilter an.',
                 action: TextButton.icon(
                   onPressed: () => setState(() {
+                    _searchController.clear();
                     _query = '';
                     _statusFilter = null;
                   }),
@@ -699,6 +708,7 @@ class _AnnouncementToolbar extends StatelessWidget {
   const _AnnouncementToolbar({
     required this.itemCount,
     required this.staffView,
+    required this.searchController,
     required this.statusFilter,
     required this.onSearchChanged,
     required this.onStatusChanged,
@@ -706,6 +716,7 @@ class _AnnouncementToolbar extends StatelessWidget {
 
   final int itemCount;
   final bool staffView;
+  final TextEditingController searchController;
   final AnnouncementStatus? statusFilter;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<AnnouncementStatus?> onStatusChanged;
@@ -723,6 +734,7 @@ class _AnnouncementToolbar extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 620;
           final search = TextField(
+            controller: searchController,
             onChanged: onSearchChanged,
             decoration: const InputDecoration(
               hintText: 'Mitteilungen durchsuchen',
@@ -731,6 +743,7 @@ class _AnnouncementToolbar extends StatelessWidget {
             ),
           );
           final status = DropdownButtonFormField<AnnouncementStatus?>(
+            key: ValueKey(statusFilter),
             initialValue: statusFilter,
             decoration: const InputDecoration(
               labelText: 'Status',
