@@ -113,20 +113,28 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.add_rounded),
-              label: Text(compact ? 'Training' : 'Trainingstermin anlegen'),
+              style: compact ? _compactFilledActionStyle() : null,
+              label: _actionLabel(
+                compact ? 'Training' : 'Trainingstermin anlegen',
+              ),
             ),
           _TrainingPageView.indoorOccupancy when _canManageOccupancy =>
             FilledButton.icon(
               onPressed: _creating ? null : () => _editIndoorOccupancyEntry(),
               icon: const Icon(Icons.add_business_rounded),
-              label:
-                  Text(compact ? 'Fremdbelegung' : 'Fremdbelegung eintragen'),
+              style: compact ? _compactFilledActionStyle() : null,
+              label: _actionLabel(
+                compact ? 'Fremdbelegung' : 'Fremdbelegung eintragen',
+              ),
             ),
           _TrainingPageView.indoorOccupancy => FilledButton.icon(
               onPressed:
                   _organization == null || _creating ? null : _createTraining,
               icon: const Icon(Icons.add_rounded),
-              label: Text(compact ? 'Training' : 'Trainingstermin anlegen'),
+              style: compact ? _compactFilledActionStyle() : null,
+              label: _actionLabel(
+                compact ? 'Training' : 'Trainingstermin anlegen',
+              ),
             ),
           _TrainingPageView.occupancy => null,
         };
@@ -134,7 +142,10 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             ? OutlinedButton.icon(
                 onPressed: _creating ? null : _manageTrainingTimes,
                 icon: const Icon(Icons.edit_calendar_rounded),
-                label: Text(compact ? 'Zeiten' : 'Trainingszeiten verwalten'),
+                style: compact ? _compactOutlinedActionStyle() : null,
+                label: _actionLabel(
+                  compact ? 'Zeiten' : 'Trainingszeiten verwalten',
+                ),
               )
             : null;
         if (!compact) {
@@ -148,7 +159,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           );
         }
         return SizedBox(
-          height: 44,
+          height: 54,
           child: Row(
             children: [
               if (manage != null) Expanded(child: manage),
@@ -160,6 +171,26 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
       },
     );
   }
+
+  Widget _actionLabel(String text) => Text(
+        text,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.fade,
+        style: const TextStyle(height: 1.15),
+      );
+
+  ButtonStyle _compactFilledActionStyle() => FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(54),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        tapTargetSize: MaterialTapTargetSize.padded,
+      );
+
+  ButtonStyle _compactOutlinedActionStyle() => OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(54),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        tapTargetSize: MaterialTapTargetSize.padded,
+      );
 
   Widget _buildContent(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

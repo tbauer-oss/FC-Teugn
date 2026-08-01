@@ -116,10 +116,17 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               final filtered = calendarItems.where(_matchesFilters).toList()
                 ..sort((a, b) => a.startAt.compareTo(b.startAt));
               return switch (view) {
-                CalendarView.month => _MonthView(
+                CalendarView.month => _SwipeableMonthView(
                     cursor: cursor,
-                    events: filtered,
-                    onOpen: _openEvent,
+                    onPrevious: () =>
+                        setState(() => cursor = _shift(cursor, -1)),
+                    onNext: () => setState(() => cursor = _shift(cursor, 1)),
+                    child: _MonthView(
+                      key: ValueKey('calendar-${cursor.year}-${cursor.month}'),
+                      cursor: cursor,
+                      events: filtered,
+                      onOpen: _openEvent,
+                    ),
                   ),
                 CalendarView.week => _WeekView(
                     cursor: cursor,
@@ -701,8 +708,83 @@ class _FilterButton<T> extends StatelessWidget {
   }
 }
 
+class _SwipeableMonthView extends StatefulWidget {
+  const _SwipeableMonthView({
+    required this.cursor,
+    required this.onPrevious,
+    required this.onNext,
+    required this.child,
+  });
+
+  final DateTime cursor;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final Widget child;
+
+  @override
+  State<_SwipeableMonthView> createState() => _SwipeableMonthViewState();
+}
+
+class _SwipeableMonthViewState extends State<_SwipeableMonthView> {
+  double _horizontalDistance = 0;
+  double _verticalDistance = 0;
+
+  void _finishSwipe() {
+    final distance = _horizontalDistance;
+    final verticalDistance = _verticalDistance;
+    _horizontalDistance = 0;
+    _verticalDistance = 0;
+    final isHorizontalSwipe =
+        distance.abs() >= 44 && distance.abs() > verticalDistance.abs() * 1.25;
+    final direction = isHorizontalSwipe ? distance.sign : 0;
+    if (direction < 0) {
+      widget.onNext();
+    } else if (direction > 0) {
+      widget.onPrevious();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width >= 600) return widget.child;
+    return Semantics(
+      label:
+          'Monatskalender ${_periodLabel(CalendarView.month, widget.cursor)}. '
+          'Nach links oder rechts wischen, um den Monat zu wechseln.',
+      child: Listener(
+        key: const ValueKey('calendar-month-swipe-surface'),
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) {
+          _horizontalDistance = 0;
+          _verticalDistance = 0;
+        },
+        onPointerMove: (event) {
+          _horizontalDistance += event.delta.dx;
+          _verticalDistance += event.delta.dy;
+        },
+        onPointerUp: (_) => _finishSwipe(),
+        onPointerCancel: (_) {
+          _horizontalDistance = 0;
+          _verticalDistance = 0;
+        },
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: child,
+          ),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
 class _MonthView extends StatelessWidget {
   const _MonthView({
+    super.key,
     required this.cursor,
     required this.events,
     required this.onOpen,
