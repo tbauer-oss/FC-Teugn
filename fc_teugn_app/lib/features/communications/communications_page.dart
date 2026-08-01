@@ -708,6 +708,7 @@ class _NotificationSettings extends ConsumerStatefulWidget {
 class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
   List<NotificationPreferenceModel>? _items;
   PushConfiguration? _configuration;
+  WebPushStatus? _webPushStatus;
   bool _subscribing = false;
   bool _nativePushEnabled = false;
 
@@ -723,12 +724,14 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
       repository.notificationPreferences(),
       repository.pushConfiguration(),
       nativePushService.currentTokenIfEnabled(),
+      getWebPushStatus(),
     ]);
     if (mounted) {
       setState(() {
         _items = results[0] as List<NotificationPreferenceModel>;
         _configuration = results[1] as PushConfiguration;
         _nativePushEnabled = results[2] != null;
+        _webPushStatus = results[3] as WebPushStatus;
       });
     }
   }
@@ -755,7 +758,8 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
             _PushRegistrationCard(
               configuration: _configuration,
               subscribing: _subscribing,
-              enabled: _nativePushEnabled,
+              nativeEnabled: _nativePushEnabled,
+              webStatus: _webPushStatus,
               onSubscribe: _subscribe,
             ),
             const Divider(height: 32),
@@ -802,7 +806,10 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
         final key = _configuration?.vapidPublicKey;
         if (key == null || !webPushSupported) return;
         final subscription = await subscribeToWebPush(key);
+        await repository.grantPushConsent();
         await repository.registerWebPushSubscription(subscription);
+        final status = await getWebPushStatus();
+        if (mounted) setState(() => _webPushStatus = status);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -815,9 +822,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            error.toString().contains('NOTIFICATION_PERMISSION_DENIED')
-                ? 'Bitte erlaube Benachrichtigungen in den Android-Einstellungen.'
-                : 'Push konnte nicht aktiviert werden. Bitte Gerätefreigabe und Verbindung prüfen.',
+            _pushErrorMessage(error),
           ),
         ),
       );
@@ -825,19 +830,40 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
       if (mounted) setState(() => _subscribing = false);
     }
   }
+
+  String _pushErrorMessage(Object error) {
+    final value = error.toString();
+    if (value.contains('IOS_HOME_SCREEN_REQUIRED')) {
+      return 'Öffne die Seite in Safari, wähle „Teilen“ und „Zum Home-Bildschirm“. '
+          'Starte danach FC Teugn Talents über das neue App-Symbol.';
+    }
+    if (value.contains('PUSH_PERMISSION_DENIED')) {
+      return 'Benachrichtigungen wurden abgelehnt. Bitte erlaube sie in den '
+          'Browser- beziehungsweise Systemeinstellungen.';
+    }
+    if (value.contains('NOTIFICATION_PERMISSION_DENIED')) {
+      return 'Bitte erlaube Benachrichtigungen in den Android-Einstellungen.';
+    }
+    if (value.contains('WEB_PUSH_UNSUPPORTED')) {
+      return 'Dieser Browser unterstützt Web-Push auf diesem Gerät nicht.';
+    }
+    return 'Push konnte nicht aktiviert werden. Bitte Gerätefreigabe und Verbindung prüfen.';
+  }
 }
 
 class _PushRegistrationCard extends StatelessWidget {
   const _PushRegistrationCard({
     required this.configuration,
     required this.subscribing,
-    required this.enabled,
+    required this.nativeEnabled,
+    required this.webStatus,
     required this.onSubscribe,
   });
 
   final PushConfiguration? configuration;
   final bool subscribing;
-  final bool enabled;
+  final bool nativeEnabled;
+  final WebPushStatus? webStatus;
   final VoidCallback onSubscribe;
 
   @override
@@ -846,7 +872,10 @@ class _PushRegistrationCard extends StatelessWidget {
     final configured = native
         ? configuration?.androidConfigured == true
         : configuration?.webPushConfigured == true;
-    final supported = native || webPushSupported;
+    final status = webStatus ?? const WebPushStatus.unavailable();
+    final enabled = native ? nativeEnabled : status.subscribed;
+    final supported = native || status.supported;
+    final canSubscribe = native || status.canSubscribe;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -856,13 +885,12 @@ class _PushRegistrationCard extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final description = configured && supported
-              ? enabled
-                  ? 'Wichtige Hinweise werden auf diesem Android-Gerät zugestellt.'
-                  : 'Erhalte wichtige Hinweise auch bei geschlossener App.'
-              : native
-                  ? 'Android-Push muss für diese Umgebung noch eingerichtet werden.'
-                  : 'Web-Push muss für diese Umgebung noch eingerichtet werden.';
+          final description = _pushDescription(
+            native: native,
+            configured: configured,
+            enabled: enabled,
+            status: status,
+          );
           final information = Row(
             children: [
               const Icon(
@@ -874,9 +902,20 @@ class _PushRegistrationCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Push auf diesem Gerät',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Push auf diesem Gerät',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        if (!native && status.isIos)
+                          const Chip(
+                            visualDensity: VisualDensity.compact,
+                            label: Text('iOS Web-App'),
+                          ),
+                      ],
                     ),
                     Text(description),
                   ],
@@ -885,7 +924,11 @@ class _PushRegistrationCard extends StatelessWidget {
             ],
           );
           final button = FilledButton.icon(
-            onPressed: configured && supported && !subscribing && !enabled
+            onPressed: configured &&
+                    supported &&
+                    canSubscribe &&
+                    !subscribing &&
+                    !enabled
                 ? onSubscribe
                 : null,
             icon: Icon(
@@ -918,6 +961,38 @@ class _PushRegistrationCard extends StatelessWidget {
         },
       ),
     );
+  }
+
+  String _pushDescription({
+    required bool native,
+    required bool configured,
+    required bool enabled,
+    required WebPushStatus status,
+  }) {
+    if (!configured) {
+      return native
+          ? 'Android-Push muss für diese Umgebung noch eingerichtet werden.'
+          : 'Web-Push muss für diese Umgebung noch eingerichtet werden.';
+    }
+    if (native) {
+      return enabled
+          ? 'Wichtige Hinweise werden auf diesem Android-Gerät zugestellt.'
+          : 'Erhalte wichtige Hinweise auch bei geschlossener App.';
+    }
+    if (status.requiresHomeScreen) {
+      return 'iPhone/iPad: Öffne „Teilen“ und wähle „Zum Home-Bildschirm“. '
+          'Starte anschließend die installierte FC-Teugn-Web-App und aktiviere Push hier.';
+    }
+    if (!status.supported) {
+      return 'Dieser Browser unterstützt Web-Push auf diesem Gerät nicht.';
+    }
+    if (status.permission == WebPushPermission.denied) {
+      return 'Benachrichtigungen sind in den Browser- oder Systemeinstellungen blockiert.';
+    }
+    if (enabled) {
+      return 'Web-Push ist aktiv – Hinweise erscheinen auch bei geschlossener Web-App.';
+    }
+    return 'Erhalte wichtige Hinweise auch bei geschlossener Web-App.';
   }
 }
 

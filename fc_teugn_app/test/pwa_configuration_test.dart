@@ -41,11 +41,32 @@ void main() {
     test('Push verdrängt nicht den Offline-Service-Worker der PWA', () {
       final pushBridge = File('web/push_bridge.js').readAsStringSync();
 
-      expect(pushBridge, contains("scope: '/fc-teugn-push/'"));
+      expect(pushBridge, contains("pushScopePath = '/fc-teugn-push/'"));
+      expect(pushBridge, contains('scope: pushScopePath'));
       expect(
         pushBridge,
         isNot(contains("register('/push-sw.js');")),
       );
+    });
+
+    test('Web-Push erkennt iOS-Installation und bestehenden Gerätestatus', () {
+      final pushBridge = File('web/push_bridge.js').readAsStringSync();
+
+      expect(pushBridge, contains('fcTeugnWebPushStatus'));
+      expect(pushBridge, contains("matchMedia('(display-mode: standalone)')"));
+      expect(pushBridge, contains('IOS_HOME_SCREEN_REQUIRED'));
+      expect(pushBridge, contains('pushManager.getSubscription()'));
+      expect(pushBridge, contains('fcTeugnShouldShowInitialPushPrompt'));
+    });
+
+    test('Push-Klick fokussiert eine offene App oder öffnet sie neu', () {
+      final serviceWorker = File('web/push-sw.js').readAsStringSync();
+
+      expect(serviceWorker, contains("clients.matchAll({ type: 'window'"));
+      expect(serviceWorker, contains('client.navigate(url)'));
+      expect(serviceWorker, contains('client.focus()'));
+      expect(serviceWorker, contains('clients.openWindow(url)'));
+      expect(serviceWorker, contains('/icons/Icon-192.png?v=talents-2'));
     });
   });
 }

@@ -2,8 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
 
-class InitialPushPromptDialog extends StatelessWidget {
-  const InitialPushPromptDialog({super.key});
+class InitialPushPromptDialog extends StatefulWidget {
+  const InitialPushPromptDialog({
+    super.key,
+    this.onActivate,
+  });
+
+  final Future<void> Function()? onActivate;
+
+  @override
+  State<InitialPushPromptDialog> createState() =>
+      _InitialPushPromptDialogState();
+}
+
+class _InitialPushPromptDialogState extends State<InitialPushPromptDialog> {
+  bool _activating = false;
+  String? _error;
 
   @override
   Widget build(BuildContext context) {
@@ -25,44 +39,82 @@ class InitialPushPromptDialog extends StatelessWidget {
         'Pushnachrichten aktivieren?',
         textAlign: TextAlign.center,
       ),
-      content: const Column(
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Bleibe bei wichtigen Vereinsinformationen auf dem Laufenden – auch wenn die App geschlossen ist.',
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 18),
-          _PushBenefit(
+          const SizedBox(height: 18),
+          const _PushBenefit(
             icon: Icons.event_available_rounded,
             text: 'Termin- und Trainingsänderungen',
           ),
-          SizedBox(height: 10),
-          _PushBenefit(
+          const SizedBox(height: 10),
+          const _PushBenefit(
             icon: Icons.sports_soccer_rounded,
             text: 'Kader, Spiele und wichtige Hinweise',
           ),
-          SizedBox(height: 10),
-          _PushBenefit(
+          const SizedBox(height: 10),
+          const _PushBenefit(
             icon: Icons.forum_rounded,
             text: 'Nachrichten deiner Mannschaft',
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
         ],
       ),
       actionsAlignment: MainAxisAlignment.center,
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed:
+              _activating ? null : () => Navigator.of(context).pop(false),
           child: const Text('Jetzt nicht'),
         ),
         FilledButton.icon(
-          onPressed: () => Navigator.of(context).pop(true),
-          icon: const Icon(Icons.notifications_rounded),
-          label: const Text('Aktivieren'),
+          onPressed: _activating ? null : _activate,
+          icon: _activating
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.notifications_rounded),
+          label: Text(_activating ? 'Aktiviere …' : 'Aktivieren'),
         ),
       ],
     );
+  }
+
+  Future<void> _activate() async {
+    final activate = widget.onActivate;
+    if (activate == null) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    setState(() {
+      _activating = true;
+      _error = null;
+    });
+    try {
+      // Der Web-Aufruf erfolgt direkt im Tap-Handler. Das ist insbesondere
+      // für die von iOS verlangte unmittelbare Nutzerinteraktion notwendig.
+      await activate();
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _activating = false;
+        _error = 'Die Gerätefreigabe war nicht möglich. Bitte prüfe die '
+            'Benachrichtigungseinstellungen oder versuche es später erneut.';
+      });
+    }
   }
 }
 

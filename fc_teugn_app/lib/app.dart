@@ -28,12 +28,14 @@ import 'features/communications/communications_page.dart';
 import 'features/operations/team_operations_page.dart';
 import 'features/privacy/privacy_page.dart';
 import 'features/launch/animated_launch_screen.dart';
+import 'core/models/communication.dart';
 import 'core/models/user.dart';
 import 'core/app_identity.dart';
 import 'core/app_theme.dart';
 import 'core/providers.dart';
 import 'core/push/initial_push_prompt.dart';
 import 'core/push/native_push_service.dart';
+import 'core/push/push_client.dart';
 
 class FCTeugnApp extends ConsumerStatefulWidget {
   const FCTeugnApp({super.key});
@@ -91,43 +93,86 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   }
 
   void _scheduleInitialPushPrompt() {
-    if (_initialPushPromptScheduled || !nativePushService.supported) return;
+    if (_initialPushPromptScheduled ||
+        (!nativePushService.supported && !webPushSupported)) {
+      return;
+    }
     _initialPushPromptScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || !await nativePushService.shouldShowInitialPrompt()) {
-        return;
+      final native = nativePushService.supported;
+      PushConfiguration? webConfiguration;
+      if (native) {
+        if (!mounted || !await nativePushService.shouldShowInitialPrompt()) {
+          return;
+        }
+      } else {
+        final repository = ref.read(repositoryProvider);
+        webConfiguration = await repository.pushConfiguration();
+        if (!mounted ||
+            !webConfiguration.webPushConfigured ||
+            !await shouldShowInitialWebPushPrompt()) {
+          return;
+        }
       }
       final promptContext = _rootNavigatorKey.currentContext;
       if (promptContext == null || !promptContext.mounted || !mounted) {
         _initialPushPromptScheduled = false;
         return;
       }
+      Map<String, dynamic>? webSubscription;
       final activate = await showDialog<bool>(
         context: promptContext,
         barrierDismissible: false,
-        builder: (_) => const InitialPushPromptDialog(),
+        builder: (_) => InitialPushPromptDialog(
+          onActivate: native
+              ? null
+              : () async {
+                  webSubscription = await subscribeToWebPush(
+                    webConfiguration!.vapidPublicKey!,
+                  );
+                },
+        ),
       );
-      await nativePushService.markInitialPromptHandled();
-      if (!mounted || activate != true) return;
-      final token = await nativePushService.enable();
-      if (!mounted) return;
-      if (token != null) {
-        ref.invalidate(nativePushRegistrationProvider);
-        _scaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(
-            content: Text('Pushnachrichten sind jetzt aktiviert.'),
-          ),
-        );
+      if (native) {
+        await nativePushService.markInitialPromptHandled();
       } else {
-        _scaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Die Android-Benachrichtigungsfreigabe wurde nicht erteilt.',
-            ),
-          ),
+        markInitialWebPushPromptHandled();
+      }
+      if (!mounted || activate != true) return;
+      if (native) {
+        final token = await nativePushService.enable();
+        if (!mounted) return;
+        if (token != null) {
+          ref.invalidate(nativePushRegistrationProvider);
+          _showPushMessage('Pushnachrichten sind jetzt aktiviert.');
+        } else {
+          _showPushMessage(
+            'Die Android-Benachrichtigungsfreigabe wurde nicht erteilt.',
+          );
+        }
+        return;
+      }
+      try {
+        final repository = ref.read(repositoryProvider);
+        await repository.grantPushConsent();
+        await repository.registerWebPushSubscription(webSubscription!);
+        if (!mounted) return;
+        _showPushMessage('Web-Pushnachrichten sind jetzt aktiviert.');
+      } catch (_) {
+        if (!mounted) return;
+        _showPushMessage(
+          'Web-Push konnte nicht aktiviert werden. Du kannst es später unter Nachrichten · Einstellungen erneut versuchen.',
         );
       }
     });
+  }
+
+  void _showPushMessage(String message) {
+    _scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
   }
 
   Widget _withLaunchTransition(Widget child) => AnimatedSwitcher(

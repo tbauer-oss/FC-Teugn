@@ -1486,7 +1486,7 @@ class DataRepository {
       'endpoint': subscription['endpoint'],
       'p256dh': subscription['p256dh'],
       'auth': subscription['auth'],
-      'deviceName': 'FC Teugn Talents Web-App',
+      'deviceName': subscription['deviceName'] ?? 'FC Teugn Talents Web-App',
     });
   }
 
