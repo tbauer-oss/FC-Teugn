@@ -33,6 +33,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   CalendarView view = CalendarView.month;
   DateTime cursor = DateTime.now();
   bool savingEvent = false;
+  int _navigationDirection = 1;
   final selectedCategories = <EventCategory>{};
   final selectedTeams = <String>{};
 
@@ -82,8 +83,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             selectedCategories: selectedCategories,
             selectedTeams: selectedTeams,
             onViewChanged: (value) => setState(() => view = value),
-            onPrevious: () => setState(() => cursor = _shift(cursor, -1)),
-            onNext: () => setState(() => cursor = _shift(cursor, 1)),
+            onPrevious: () => _navigate(-1),
+            onNext: () => _navigate(1),
             onToday: () => setState(() => cursor = DateTime.now()),
             onCategoriesChanged: (values) => setState(() => selectedCategories
               ..clear()
@@ -118,9 +119,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               return switch (view) {
                 CalendarView.month => _SwipeableMonthView(
                     cursor: cursor,
-                    onPrevious: () =>
-                        setState(() => cursor = _shift(cursor, -1)),
-                    onNext: () => setState(() => cursor = _shift(cursor, 1)),
+                    navigationDirection: _navigationDirection,
+                    onPrevious: () => _navigate(-1),
+                    onNext: () => _navigate(1),
                     child: _MonthView(
                       key: ValueKey('calendar-${cursor.year}-${cursor.month}'),
                       cursor: cursor,
@@ -333,6 +334,11 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           DateTime(value.year, value.month + direction, 1),
         CalendarView.year => DateTime(value.year + direction),
       };
+
+  void _navigate(int direction) => setState(() {
+        _navigationDirection = direction;
+        cursor = _shift(cursor, direction);
+      });
 
   Future<void> _createEvent(OrganizationContext organization) async {
     final draft = await showDialog<EventWriteData>(
@@ -711,12 +717,14 @@ class _FilterButton<T> extends StatelessWidget {
 class _SwipeableMonthView extends StatefulWidget {
   const _SwipeableMonthView({
     required this.cursor,
+    required this.navigationDirection,
     required this.onPrevious,
     required this.onNext,
     required this.child,
   });
 
   final DateTime cursor;
+  final int navigationDirection;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final Widget child;
@@ -725,9 +733,50 @@ class _SwipeableMonthView extends StatefulWidget {
   State<_SwipeableMonthView> createState() => _SwipeableMonthViewState();
 }
 
-class _SwipeableMonthViewState extends State<_SwipeableMonthView> {
+class _SwipeableMonthViewState extends State<_SwipeableMonthView>
+    with SingleTickerProviderStateMixin {
   double _horizontalDistance = 0;
   double _verticalDistance = 0;
+  late final AnimationController _pageController;
+  late Widget _currentPage;
+  Widget? _outgoingPage;
+  int _slideDirection = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentPage = widget.child;
+    _pageController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 340),
+      value: 1,
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed &&
+            _outgoingPage != null &&
+            mounted) {
+          setState(() => _outgoingPage = null);
+        }
+      });
+  }
+
+  @override
+  void didUpdateWidget(covariant _SwipeableMonthView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.child.key != widget.child.key) {
+      _outgoingPage = _currentPage;
+      _currentPage = widget.child;
+      _slideDirection = widget.navigationDirection >= 0 ? 1 : -1;
+      _pageController.forward(from: 0);
+    } else {
+      _currentPage = widget.child;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   void _finishSwipe() {
     final distance = _horizontalDistance;
@@ -767,15 +816,54 @@ class _SwipeableMonthViewState extends State<_SwipeableMonthView> {
           _horizontalDistance = 0;
           _verticalDistance = 0;
         },
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: child,
+        child: ClipRect(
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeInOutCubic,
+            alignment: Alignment.topCenter,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final travel = constraints.maxWidth * .22;
+                return AnimatedBuilder(
+                  key: const ValueKey('calendar-month-page-transition'),
+                  animation: _pageController,
+                  builder: (context, _) {
+                    final progress = Curves.easeInOutCubicEmphasized.transform(
+                      _pageController.value,
+                    );
+                    return Stack(
+                      alignment: Alignment.topCenter,
+                      children: [
+                        if (_outgoingPage != null)
+                          IgnorePointer(
+                            child: Opacity(
+                              opacity: 1 - progress * .55,
+                              child: Transform.translate(
+                                offset: Offset(
+                                  -_slideDirection * progress * travel,
+                                  0,
+                                ),
+                                child: _outgoingPage,
+                              ),
+                            ),
+                          ),
+                        Opacity(
+                          opacity: .55 + progress * .45,
+                          child: Transform.translate(
+                            offset: Offset(
+                              _slideDirection * (1 - progress) * travel,
+                              0,
+                            ),
+                            child: _currentPage,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
           ),
-          child: widget.child,
         ),
       ),
     );
