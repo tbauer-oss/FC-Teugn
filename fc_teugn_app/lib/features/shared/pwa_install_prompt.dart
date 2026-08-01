@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_identity.dart';
 import '../../core/app_theme.dart';
 import '../../core/pwa_install.dart';
 
@@ -9,7 +10,7 @@ Future<void> showPwaInstallPrompt(BuildContext context) async {
   if (pwaRunningStandalone) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-          content: Text('Die FC-Teugn-App ist bereits installiert.')),
+          content: Text('${AppIdentity.name} ist bereits installiert.')),
     );
     return;
   }
@@ -73,8 +74,9 @@ Future<void> showPwaInstallPrompt(BuildContext context) async {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
-                'Die Installation ist kostenlos. Danach startet FC Teugn über '
-                'das Vereinswappen auf dem Home-Bildschirm im App-Modus.',
+                'Die Installation ist kostenlos. Danach startet '
+                '${AppIdentity.name} über das neue Talents-Icon auf dem '
+                'Home-Bildschirm im App-Modus.',
               ),
             ),
           ],

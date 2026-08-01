@@ -203,7 +203,7 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('APP-MENÜ'), findsOneWidget);
+    expect(find.text('FC TEUGN TALENTS · APP-MENÜ'), findsOneWidget);
     expect(find.text('Übersicht'), findsOneWidget);
     expect(find.text('Sport & Mannschaft'), findsOneWidget);
     expect(find.text('Teamalltag & Kommunikation'), findsOneWidget);

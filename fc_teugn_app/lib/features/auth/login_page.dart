@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/app_identity.dart';
 import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
 import '../shared/pwa_install_prompt.dart';
@@ -74,7 +75,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           ),
                           const SizedBox(height: 20),
                           const Text(
-                            'Ein Team.\nEine App.',
+                            'Dein Team.\nDein Verein.\nDeine App.',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 52,
@@ -94,7 +95,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           ),
                           const Spacer(),
                           Text(
-                            'FC Teugn · Jugendabteilung',
+                            AppIdentity.name,
                             style: TextStyle(
                                 color: Colors.white.withValues(alpha: .45)),
                           ),
@@ -283,7 +284,7 @@ class _LoginBrand extends StatelessWidget {
               ),
             ),
             Text(
-              'JUGENDFUSSBALL',
+              'TALENTS',
               style: TextStyle(
                 color: dark ? AppColors.muted : Colors.white60,
                 fontSize: 11,
