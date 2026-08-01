@@ -20,6 +20,8 @@ final nativePushService = NativePushService();
 
 class NativePushService {
   static const _enabledKey = 'fc_teugn_android_push_enabled';
+  static const _initialPromptHandledKey =
+      'fc_teugn_android_push_initial_prompt_handled';
   static const _storage = FlutterSecureStorage();
 
   final _actions = StreamController<String>.broadcast();
@@ -64,12 +66,38 @@ class NativePushService {
 
   Future<bool> shouldAutomaticallyRegister({required bool accountOptIn}) async {
     if (!supported) return false;
-    if (accountOptIn) return true;
     try {
-      return await _storage.read(key: _enabledKey) == 'true';
+      final locallyEnabled = await _storage.read(key: _enabledKey) == 'true';
+      if (locallyEnabled) return true;
+      // An account-level opt-in is not enough to bypass the explicit decision
+      // on this particular Android device.
+      return false;
     } catch (_) {
       return false;
     }
+  }
+
+  Future<bool> shouldShowInitialPrompt() async {
+    if (!supported) return false;
+    try {
+      if (await _storage.read(key: _initialPromptHandledKey) == 'true') {
+        return false;
+      }
+      if (await _storage.read(key: _enabledKey) == 'true') {
+        await _storage.write(key: _initialPromptHandledKey, value: 'true');
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<void> markInitialPromptHandled() async {
+    if (!supported) return;
+    try {
+      await _storage.write(key: _initialPromptHandledKey, value: 'true');
+    } catch (_) {}
   }
 
   Future<String?> enable() async {
@@ -104,14 +132,16 @@ class NativePushService {
     return FirebaseMessaging.instance.getToken();
   }
 
-  Future<void> disable() async {
+  Future<void> disable({bool forgetPreference = true}) async {
     if (!supported) return;
     try {
       await FirebaseMessaging.instance.deleteToken();
     } catch (_) {}
-    try {
-      await _storage.delete(key: _enabledKey);
-    } catch (_) {}
+    if (forgetPreference) {
+      try {
+        await _storage.delete(key: _enabledKey);
+      } catch (_) {}
+    }
   }
 
   String? takePendingAction() {
