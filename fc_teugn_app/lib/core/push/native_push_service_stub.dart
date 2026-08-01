@@ -15,11 +15,15 @@ class NativePushService {
     return false;
   }
 
+  Future<bool> shouldShowInitialPrompt() async => false;
+
+  Future<void> markInitialPromptHandled() async {}
+
   Future<String?> enable() async => null;
 
   Future<String?> currentTokenIfEnabled() async => null;
 
-  Future<void> disable() async {}
+  Future<void> disable({bool forgetPreference = true}) async {}
 
   String? takePendingAction() => null;
 }

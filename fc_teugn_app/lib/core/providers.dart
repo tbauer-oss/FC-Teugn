@@ -44,6 +44,7 @@ final nativePushRegistrationProvider = FutureProvider<void>((ref) async {
   final token = await nativePushService.enable();
   if (token == null) return;
   final repository = ref.read(repositoryProvider);
+  if (!accountOptIn) await repository.grantPushConsent();
   await repository.registerAndroidPushSubscription(token);
 
   final refreshSubscription = nativePushService.tokenRefreshes.listen(

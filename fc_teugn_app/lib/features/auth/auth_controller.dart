@@ -131,7 +131,7 @@ class AuthController extends StateNotifier<AuthState> {
         );
       } catch (_) {}
     }
-    await nativePushService.disable();
+    await nativePushService.disable(forgetPreference: false);
 
     String? refreshToken;
     try {
@@ -151,7 +151,7 @@ class AuthController extends StateNotifier<AuthState> {
 
   void clearSession() {
     unawaited(_deleteStoredToken());
-    unawaited(nativePushService.disable());
+    unawaited(nativePushService.disable(forgetPreference: false));
     state = AuthState();
   }
 

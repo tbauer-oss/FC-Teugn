@@ -32,6 +32,7 @@ import 'core/models/user.dart';
 import 'core/app_identity.dart';
 import 'core/app_theme.dart';
 import 'core/providers.dart';
+import 'core/push/initial_push_prompt.dart';
 import 'core/push/native_push_service.dart';
 
 class FCTeugnApp extends ConsumerStatefulWidget {
@@ -45,9 +46,14 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   static const _minimumLaunchDuration = Duration(milliseconds: 2800);
   Timer? _launchTimer;
   StreamSubscription<String>? _pushActionSubscription;
+  final GlobalKey<NavigatorState> _rootNavigatorKey =
+      GlobalKey<NavigatorState>();
+  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
   GoRouter? _activeRouter;
   String? _pendingPushAction;
   bool _minimumLaunchComplete = false;
+  bool _initialPushPromptScheduled = false;
 
   @override
   void initState() {
@@ -81,6 +87,46 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) router.go(route);
+    });
+  }
+
+  void _scheduleInitialPushPrompt() {
+    if (_initialPushPromptScheduled || !nativePushService.supported) return;
+    _initialPushPromptScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !await nativePushService.shouldShowInitialPrompt()) {
+        return;
+      }
+      final promptContext = _rootNavigatorKey.currentContext;
+      if (promptContext == null || !promptContext.mounted || !mounted) {
+        _initialPushPromptScheduled = false;
+        return;
+      }
+      final activate = await showDialog<bool>(
+        context: promptContext,
+        barrierDismissible: false,
+        builder: (_) => const InitialPushPromptDialog(),
+      );
+      await nativePushService.markInitialPromptHandled();
+      if (!mounted || activate != true) return;
+      final token = await nativePushService.enable();
+      if (!mounted) return;
+      if (token != null) {
+        ref.invalidate(nativePushRegistrationProvider);
+        _scaffoldMessengerKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text('Pushnachrichten sind jetzt aktiviert.'),
+          ),
+        );
+      } else {
+        _scaffoldMessengerKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Die Android-Benachrichtigungsfreigabe wurde nicht erteilt.',
+            ),
+          ),
+        );
+      }
     });
   }
 
@@ -125,6 +171,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
     }
 
     final router = GoRouter(
+      navigatorKey: _rootNavigatorKey,
       initialLocation: '/login',
       redirect: (context, state) {
         final user = authState.user;
@@ -436,12 +483,14 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
     );
     _activeRouter = router;
     _openPendingPushAction();
+    _scheduleInitialPushPrompt();
 
     return _withLaunchTransition(MaterialApp.router(
       key: const ValueKey('fc-teugn-app'),
       title: AppIdentity.name,
       debugShowCheckedModeBanner: false,
       routerConfig: router,
+      scaffoldMessengerKey: _scaffoldMessengerKey,
       theme: buildAppTheme(),
       locale: _germanLocale,
       supportedLocales: _supportedLocales,
