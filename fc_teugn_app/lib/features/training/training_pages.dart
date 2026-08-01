@@ -79,49 +79,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
         title: 'Trainingsplanung',
         subtitle:
             'Einheiten vorbereiten, Übungen kombinieren und Anwesenheit erfassen.',
-        action: _canManageOccupancy
-            ? Wrap(
-                spacing: 10,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _creating ? null : _manageTrainingTimes,
-                    icon: const Icon(Icons.edit_calendar_rounded),
-                    label: const Text('Trainingszeiten verwalten'),
-                  ),
-                  if (_view == _TrainingPageView.indoorOccupancy)
-                    FilledButton.icon(
-                      onPressed:
-                          _creating ? null : () => _editIndoorOccupancyEntry(),
-                      icon: const Icon(Icons.add_business_rounded),
-                      label: const Text('Fremdbelegung eintragen'),
-                    ),
-                  if (_view == _TrainingPageView.sessions)
-                    FilledButton.icon(
-                      onPressed: _organization == null || _creating
-                          ? null
-                          : _createTraining,
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('Trainingstermin anlegen'),
-                    ),
-                ],
-              )
-            : _view == _TrainingPageView.occupancy
-                ? null
-                : FilledButton.icon(
-                    onPressed: _organization == null || _creating
-                        ? null
-                        : _createTraining,
-                    icon: _creating
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.add_rounded),
-                    label: Text(
-                      _creating ? 'Wird angelegt …' : 'Trainingstermin anlegen',
-                    ),
-                  ),
+        action: _buildPageActions(),
         child: _error != null
             ? EmptyState(
                 icon: Icons.fitness_center_rounded,
@@ -138,35 +96,123 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                 : _buildContent(context),
       );
 
+  Widget? _buildPageActions() {
+    if (!_canManageOccupancy && _view == _TrainingPageView.occupancy) {
+      return null;
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        final primary = switch (_view) {
+          _TrainingPageView.sessions => FilledButton.icon(
+              onPressed:
+                  _organization == null || _creating ? null : _createTraining,
+              icon: _creating
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_rounded),
+              label: Text(compact ? 'Training' : 'Trainingstermin anlegen'),
+            ),
+          _TrainingPageView.indoorOccupancy when _canManageOccupancy =>
+            FilledButton.icon(
+              onPressed: _creating ? null : () => _editIndoorOccupancyEntry(),
+              icon: const Icon(Icons.add_business_rounded),
+              label:
+                  Text(compact ? 'Fremdbelegung' : 'Fremdbelegung eintragen'),
+            ),
+          _TrainingPageView.indoorOccupancy => FilledButton.icon(
+              onPressed:
+                  _organization == null || _creating ? null : _createTraining,
+              icon: const Icon(Icons.add_rounded),
+              label: Text(compact ? 'Training' : 'Trainingstermin anlegen'),
+            ),
+          _TrainingPageView.occupancy => null,
+        };
+        final manage = _canManageOccupancy
+            ? OutlinedButton.icon(
+                onPressed: _creating ? null : _manageTrainingTimes,
+                icon: const Icon(Icons.edit_calendar_rounded),
+                label: Text(compact ? 'Zeiten' : 'Trainingszeiten verwalten'),
+              )
+            : null;
+        if (!compact) {
+          return Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              if (manage != null) manage,
+              if (primary != null) primary
+            ],
+          );
+        }
+        return SizedBox(
+          height: 44,
+          child: Row(
+            children: [
+              if (manage != null) Expanded(child: manage),
+              if (manage != null && primary != null) const SizedBox(width: 8),
+              if (primary != null) Expanded(flex: 2, child: primary),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildContent(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedButton<_TrainingPageView>(
-              segments: const [
-                ButtonSegment(
-                  value: _TrainingPageView.sessions,
-                  icon: Icon(Icons.fitness_center_rounded),
-                  label: Text('Meine Trainings'),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 600;
+              return SizedBox(
+                width: compact ? double.infinity : null,
+                child: SegmentedButton<_TrainingPageView>(
+                  showSelectedIcon: false,
+                  style: ButtonStyle(
+                    visualDensity: compact
+                        ? const VisualDensity(horizontal: -3, vertical: -2)
+                        : VisualDensity.standard,
+                    padding: WidgetStatePropertyAll(
+                      EdgeInsets.symmetric(
+                        horizontal: compact ? 7 : 13,
+                        vertical: compact ? 8 : 10,
+                      ),
+                    ),
+                    textStyle: WidgetStatePropertyAll(
+                      TextStyle(
+                        fontSize: compact ? 11 : 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  segments: [
+                    ButtonSegment(
+                      value: _TrainingPageView.sessions,
+                      icon: const Icon(Icons.fitness_center_rounded, size: 17),
+                      label: Text(compact ? 'Training' : 'Meine Trainings'),
+                    ),
+                    ButtonSegment(
+                      value: _TrainingPageView.occupancy,
+                      icon: const Icon(Icons.stadium_rounded, size: 17),
+                      label: Text(compact ? 'Plätze' : 'Platzbelegung'),
+                    ),
+                    ButtonSegment(
+                      value: _TrainingPageView.indoorOccupancy,
+                      icon: const Icon(Icons.sports_handball_rounded, size: 17),
+                      label: Text(compact ? 'Halle' : 'Hallenbelegung'),
+                    ),
+                  ],
+                  selected: {_view},
+                  onSelectionChanged: (selection) =>
+                      setState(() => _view = selection.first),
                 ),
-                ButtonSegment(
-                  value: _TrainingPageView.occupancy,
-                  icon: Icon(Icons.stadium_rounded),
-                  label: Text('Platzbelegung'),
-                ),
-                ButtonSegment(
-                  value: _TrainingPageView.indoorOccupancy,
-                  icon: Icon(Icons.sports_handball_rounded),
-                  label: Text('Hallenbelegung'),
-                ),
-              ],
-              selected: {_view},
-              onSelectionChanged: (selection) =>
-                  setState(() => _view = selection.first),
-            ),
+              );
+            },
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           if (_view == _TrainingPageView.sessions)
             _buildList(context)
           else if (_view == _TrainingPageView.occupancy && _occupancy != null)
@@ -185,6 +231,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
       );
 
   Widget _buildList(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final upcoming = _trainings!
         .where((item) => item.startAt
             .isAfter(DateTime.now().subtract(const Duration(days: 1))))
@@ -215,13 +262,18 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
       children: [
         if (_organization != null) ...[
           _RegularTrainingTimes(team: _organization!.currentTeam),
-          const SizedBox(height: 18),
+          SizedBox(height: compact ? 13 : 18),
         ],
         Row(
           children: [
             Text(
               'Kommende Einheiten',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: compact
+                  ? Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w900)
+                  : Theme.of(context).textTheme.titleLarge,
             ),
             const Spacer(),
             Text(
@@ -236,31 +288,38 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
         const SizedBox(height: 10),
         for (final training in upcoming)
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: EdgeInsets.only(bottom: compact ? 7 : 12),
             child: Card(
               child: InkWell(
                 borderRadius: BorderRadius.circular(18),
                 onTap: () => context.push('/trainer/training/${training.id}'),
                 child: Padding(
-                  padding: const EdgeInsets.all(18),
+                  padding: EdgeInsets.all(compact ? 11 : 18),
                   child: Row(
                     children: [
                       _DateTile(date: training.startAt.toLocal()),
-                      const SizedBox(width: 16),
+                      SizedBox(width: compact ? 10 : 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               training.title,
-                              style: Theme.of(context).textTheme.titleLarge,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: compact
+                                  ? Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w900)
+                                  : Theme.of(context).textTheme.titleLarge,
                             ),
                             const SizedBox(height: 4),
                             Text(
                               training.location,
                               style: const TextStyle(color: AppColors.muted),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: compact ? 5 : 8),
                             Wrap(
                               spacing: 7,
                               runSpacing: 7,
@@ -278,7 +337,8 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                                         : '${training.plan!.items.length} Bausteine · ${training.plan!.durationMinutes} Min.',
                                   ),
                                 ),
-                                if (training.plan?.coaches.isNotEmpty == true)
+                                if (!compact &&
+                                    training.plan?.coaches.isNotEmpty == true)
                                   Chip(
                                     avatar: const Icon(
                                       Icons.groups_2_outlined,
@@ -290,8 +350,9 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                                           .join(', '),
                                     ),
                                   ),
-                                if (training.plan?.focusAreas.isNotEmpty ==
-                                    true)
+                                if (!compact &&
+                                    training.plan?.focusAreas.isNotEmpty ==
+                                        true)
                                   for (final focus
                                       in training.plan!.focusAreas.take(3))
                                     Chip(label: Text(focus)),
@@ -1808,94 +1869,131 @@ class _RegularTrainingTimes extends StatelessWidget {
   final TeamSummary team;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppColors.black,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Wrap(
-          spacing: 18,
-          runSpacing: 14,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.yellow,
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: const Icon(
-                Icons.calendar_month_rounded,
-                color: AppColors.black,
-              ),
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 600;
+          return Container(
+            padding: EdgeInsets.all(compact ? 13 : 18),
+            decoration: BoxDecoration(
+              color: AppColors.black,
+              borderRadius: BorderRadius.circular(compact ? 17 : 20),
             ),
-            SizedBox(
-              width: 230,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: compact ? 38 : 44,
+                      height: compact ? 38 : 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.yellow,
+                        borderRadius: BorderRadius.circular(compact ? 11 : 13),
+                      ),
+                      child: const Icon(
+                        Icons.calendar_month_rounded,
+                        color: AppColors.black,
+                        size: 21,
+                      ),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'REGULÄRE TRAININGSZEITEN',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.yellow,
+                              fontSize: compact ? 10 : 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: compact ? .4 : .7,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            team.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '${team.trainingTimes.length}× / Woche',
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: compact ? 9 : 13),
+                if (team.trainingTimes.isEmpty)
                   const Text(
-                    'REGULÄRE TRAININGSZEITEN',
-                    style: TextStyle(
-                      color: AppColors.yellow,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: .7,
+                    'Noch keine regelmäßigen Zeiten hinterlegt',
+                    style: TextStyle(color: Colors.white70),
+                  )
+                else
+                  for (final value in team.trainingTimes)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 5),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 9 : 11,
+                          vertical: compact ? 7 : 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.schedule_rounded,
+                              size: 17,
+                              color: AppColors.gold,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                value,
+                                maxLines: compact ? 2 : 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.black,
+                                  fontSize: compact ? 11 : 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                if (team.trainingTimes.isEmpty &&
+                    team.trainingLocation?.isNotEmpty == true)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 7),
+                    child: Text(
+                      team.trainingLocation!,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    team.displayName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-            if (team.trainingTimes.isEmpty)
-              const Text(
-                'Noch keine regelmäßigen Zeiten hinterlegt',
-                style: TextStyle(color: Colors.white70),
-              )
-            else
-              for (final value in team.trainingTimes)
-                Chip(
-                  backgroundColor: Colors.white,
-                  avatar: const Icon(
-                    Icons.schedule_rounded,
-                    size: 17,
-                    color: AppColors.gold,
-                  ),
-                  label: Text(
-                    value,
-                    style: const TextStyle(
-                      color: AppColors.black,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-            if (team.trainingLocation?.isNotEmpty == true)
-              Chip(
-                backgroundColor: Colors.white,
-                avatar: const Icon(
-                  Icons.location_on_outlined,
-                  size: 17,
-                  color: AppColors.gold,
-                ),
-                label: Text(
-                  team.trainingLocation!,
-                  style: const TextStyle(
-                    color: AppColors.black,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-          ],
-        ),
+          );
+        },
       );
 }
 
@@ -1904,8 +2002,8 @@ class _DateTile extends StatelessWidget {
   final DateTime date;
   @override
   Widget build(BuildContext context) => Container(
-        width: 66,
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        width: 58,
+        padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: AppColors.teal.withValues(alpha: .1),
           borderRadius: BorderRadius.circular(16),
@@ -1917,7 +2015,7 @@ class _DateTile extends StatelessWidget {
               style: const TextStyle(
                 color: AppColors.teal,
                 fontWeight: FontWeight.w900,
-                fontSize: 17,
+                fontSize: 15,
               ),
             ),
             Text(
