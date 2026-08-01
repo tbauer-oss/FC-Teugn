@@ -59,9 +59,23 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   }
 
   Widget _withLaunchTransition(Widget child) => AnimatedSwitcher(
-        duration: const Duration(milliseconds: 420),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
+        duration: const Duration(milliseconds: 900),
+        reverseDuration: const Duration(milliseconds: 800),
+        switchInCurve: Curves.easeInOutCubic,
+        switchOutCurve: Curves.easeInOutCubic,
+        transitionBuilder: (child, animation) {
+          final softened = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOutCubic,
+          );
+          return FadeTransition(
+            opacity: softened,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: .992, end: 1).animate(softened),
+              child: child,
+            ),
+          );
+        },
         child: child,
       );
 
