@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "586946400840",
+    "project_id": "fc-teugn",
+    "storage_bucket": "fc-teugn.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:586946400840:android:a17fc075f9a95a6871fe7d",
+        "android_client_info": {
+          "package_name": "de.fcteugn.jugend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYW9jybxxRFzvhQQcRK0-JEHhNxXYMpGE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

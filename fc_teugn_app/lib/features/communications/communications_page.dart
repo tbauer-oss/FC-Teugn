@@ -6,6 +6,7 @@ import '../../core/app_theme.dart';
 import '../../core/models/communication.dart';
 import '../../core/models/organization.dart';
 import '../../core/providers.dart';
+import '../../core/push/native_push_service.dart';
 import '../../core/push/push_client.dart';
 import '../shared/page_scaffold.dart';
 
@@ -637,6 +638,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
   List<NotificationPreferenceModel>? _items;
   PushConfiguration? _configuration;
   bool _subscribing = false;
+  bool _nativePushEnabled = false;
 
   @override
   void initState() {
@@ -646,14 +648,16 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
 
   Future<void> _load() async {
     final repository = ref.read(repositoryProvider);
-    final results = await Future.wait<Object>([
+    final results = await Future.wait<Object?>([
       repository.notificationPreferences(),
       repository.pushConfiguration(),
+      nativePushService.currentTokenIfEnabled(),
     ]);
     if (mounted) {
       setState(() {
         _items = results[0] as List<NotificationPreferenceModel>;
         _configuration = results[1] as PushConfiguration;
+        _nativePushEnabled = results[2] != null;
       });
     }
   }
@@ -680,6 +684,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
             _PushRegistrationCard(
               configuration: _configuration,
               subscribing: _subscribing,
+              enabled: _nativePushEnabled,
               onSubscribe: _subscribe,
             ),
             const Divider(height: 32),
@@ -710,26 +715,38 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
   }
 
   Future<void> _subscribe() async {
-    final key = _configuration?.vapidPublicKey;
-    if (key == null || !webPushSupported) return;
     setState(() => _subscribing = true);
     try {
-      final subscription = await subscribeToWebPush(key);
-      await ref
-          .read(repositoryProvider)
-          .registerWebPushSubscription(subscription);
+      final repository = ref.read(repositoryProvider);
+      if (nativePushService.supported) {
+        if (_configuration?.androidConfigured != true) return;
+        await repository.grantPushConsent();
+        final token = await nativePushService.enable();
+        if (token == null) {
+          throw StateError('NOTIFICATION_PERMISSION_DENIED');
+        }
+        await repository.registerAndroidPushSubscription(token);
+        if (mounted) setState(() => _nativePushEnabled = true);
+      } else {
+        final key = _configuration?.vapidPublicKey;
+        if (key == null || !webPushSupported) return;
+        final subscription = await subscribeToWebPush(key);
+        await repository.registerWebPushSubscription(subscription);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Push-Benachrichtigungen sind jetzt aktiviert.'),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Push konnte nicht aktiviert werden. Bitte Browserfreigabe prüfen.',
+            error.toString().contains('NOTIFICATION_PERMISSION_DENIED')
+                ? 'Bitte erlaube Benachrichtigungen in den Android-Einstellungen.'
+                : 'Push konnte nicht aktiviert werden. Bitte Gerätefreigabe und Verbindung prüfen.',
           ),
         ),
       );
@@ -743,16 +760,22 @@ class _PushRegistrationCard extends StatelessWidget {
   const _PushRegistrationCard({
     required this.configuration,
     required this.subscribing,
+    required this.enabled,
     required this.onSubscribe,
   });
 
   final PushConfiguration? configuration;
   final bool subscribing;
+  final bool enabled;
   final VoidCallback onSubscribe;
 
   @override
   Widget build(BuildContext context) {
-    final configured = configuration?.webPushConfigured == true;
+    final native = nativePushService.supported;
+    final configured = native
+        ? configuration?.androidConfigured == true
+        : configuration?.webPushConfigured == true;
+    final supported = native || webPushSupported;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -760,34 +783,68 @@ class _PushRegistrationCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.line),
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.notifications_active_rounded, color: AppColors.blue),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Push auf diesem Gerät',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final description = configured && supported
+              ? enabled
+                  ? 'Wichtige Hinweise werden auf diesem Android-Gerät zugestellt.'
+                  : 'Erhalte wichtige Hinweise auch bei geschlossener App.'
+              : native
+                  ? 'Android-Push muss für diese Umgebung noch eingerichtet werden.'
+                  : 'Web-Push muss für diese Umgebung noch eingerichtet werden.';
+          final information = Row(
+            children: [
+              const Icon(
+                Icons.notifications_active_rounded,
+                color: AppColors.blue,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Push auf diesem Gerät',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    Text(description),
+                  ],
                 ),
-                Text(
-                  configured && webPushSupported
-                      ? 'Erhalte wichtige Hinweise auch bei geschlossener App.'
-                      : 'Web-Push muss für diese Umgebung noch eingerichtet werden.',
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          FilledButton(
-            onPressed: configured && webPushSupported && !subscribing
+              ),
+            ],
+          );
+          final button = FilledButton.icon(
+            onPressed: configured && supported && !subscribing && !enabled
                 ? onSubscribe
                 : null,
-            child: Text(subscribing ? 'Aktiviere …' : 'Aktivieren'),
-          ),
-        ],
+            icon: Icon(
+                enabled ? Icons.check_rounded : Icons.notifications_rounded),
+            label: Text(
+              enabled
+                  ? 'Aktiv'
+                  : subscribing
+                      ? 'Aktiviere …'
+                      : 'Aktivieren',
+            ),
+          );
+          if (constraints.maxWidth < 560) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                information,
+                const SizedBox(height: 14),
+                button,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: information),
+              const SizedBox(width: 12),
+              button,
+            ],
+          );
+        },
       ),
     );
   }

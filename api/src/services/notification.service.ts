@@ -5,6 +5,10 @@ import {
 } from '@prisma/client';
 import webPush from 'web-push';
 import { prisma } from '../lib/prisma';
+import {
+  firebaseMessaging,
+  firebaseMessagingConfigured,
+} from '../lib/firebase-admin';
 
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY?.trim() ?? '';
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim() ?? '';
@@ -25,6 +29,44 @@ export type NotificationInput = {
   expiresAt?: Date | null;
   pushEnabled?: boolean;
 };
+
+export function androidPushMessage(
+  token: string,
+  notification: {
+    id: string;
+    title: string;
+    body: string;
+    actionUrl?: string | null;
+    entityType?: string | null;
+    entityId?: string | null;
+  },
+) {
+  return {
+    token,
+    notification: {
+      title: notification.title,
+      body: notification.body,
+    },
+    data: {
+      title: notification.title,
+      body: notification.body,
+      actionUrl: notification.actionUrl ?? '',
+      notificationId: notification.id,
+      entityType: notification.entityType ?? '',
+      entityId: notification.entityId ?? '',
+    },
+    android: {
+      priority: 'high' as const,
+      ttl: 60 * 60 * 1000,
+      notification: {
+        channelId: 'fc_teugn_important',
+        sound: 'default',
+        color: '#FFE600',
+        clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+      },
+    },
+  };
+}
 
 export async function notifyUsers(userIds: string[], input: NotificationInput) {
   const uniqueIds = [...new Set(userIds)];
@@ -82,6 +124,41 @@ export async function deliverPush(deliveryId: string) {
     include: { notification: true, subscription: true },
   });
   if (!delivery?.subscription || !delivery.subscription.isActive) return;
+  if (delivery.subscription.platform === PushPlatform.ANDROID) {
+    const messaging = firebaseMessaging();
+    if (!messaging) {
+      await prisma.notificationDelivery.update({
+        where: { id: delivery.id },
+        data: {
+          status: NotificationDeliveryStatus.PENDING,
+          errorCode: 'ANDROID_PUSH_NOT_CONFIGURED',
+        },
+      });
+      return;
+    }
+    try {
+      await messaging.send(
+        androidPushMessage(
+          delivery.subscription.endpoint,
+          delivery.notification,
+        ),
+      );
+      await markDeliverySent(delivery.id, delivery.subscription.id);
+    } catch (error) {
+      const errorCode = firebaseErrorCode(error);
+      if (
+        errorCode === 'messaging/registration-token-not-registered' ||
+        errorCode === 'messaging/invalid-registration-token'
+      ) {
+        await prisma.pushSubscription.update({
+          where: { id: delivery.subscription.id },
+          data: { isActive: false },
+        });
+      }
+      await markDeliveryFailed(delivery.id, errorCode ?? 'ANDROID_DELIVERY_FAILED');
+    }
+    return;
+  }
   if (delivery.subscription.platform !== PushPlatform.WEB) {
     await prisma.notificationDelivery.update({
       where: { id: delivery.id },
@@ -89,7 +166,7 @@ export async function deliverPush(deliveryId: string) {
         status: NotificationDeliveryStatus.SKIPPED,
         attemptCount: { increment: 1 },
         lastAttemptAt: new Date(),
-        errorCode: 'ANDROID_PROVIDER_NOT_CONFIGURED',
+        errorCode: 'UNSUPPORTED_PUSH_PLATFORM',
       },
     });
     return;
@@ -121,20 +198,7 @@ export async function deliverPush(deliveryId: string) {
       }),
       { TTL: 3600, urgency: 'normal' },
     );
-    await prisma.notificationDelivery.update({
-      where: { id: delivery.id },
-      data: {
-        status: NotificationDeliveryStatus.SENT,
-        attemptCount: { increment: 1 },
-        lastAttemptAt: new Date(),
-        sentAt: new Date(),
-        errorCode: null,
-      },
-    });
-    await prisma.pushSubscription.update({
-      where: { id: delivery.subscription.id },
-      data: { lastUsedAt: new Date() },
-    });
+    await markDeliverySent(delivery.id, delivery.subscription.id);
   } catch (error) {
     const statusCode =
       typeof error === 'object' && error && 'statusCode' in error
@@ -146,22 +210,55 @@ export async function deliverPush(deliveryId: string) {
         data: { isActive: false },
       });
     }
-    await prisma.notificationDelivery.update({
-      where: { id: delivery.id },
-      data: {
-        status: NotificationDeliveryStatus.FAILED,
-        attemptCount: { increment: 1 },
-        lastAttemptAt: new Date(),
-        errorCode: statusCode ? `HTTP_${statusCode}` : 'DELIVERY_FAILED',
-      },
-    });
+    await markDeliveryFailed(
+      delivery.id,
+      statusCode ? `HTTP_${statusCode}` : 'DELIVERY_FAILED',
+    );
   }
+}
+
+async function markDeliverySent(deliveryId: string, subscriptionId: string) {
+  const now = new Date();
+  await Promise.all([
+    prisma.notificationDelivery.update({
+      where: { id: deliveryId },
+      data: {
+        status: NotificationDeliveryStatus.SENT,
+        attemptCount: { increment: 1 },
+        lastAttemptAt: now,
+        sentAt: now,
+        errorCode: null,
+      },
+    }),
+    prisma.pushSubscription.update({
+      where: { id: subscriptionId },
+      data: { lastUsedAt: now },
+    }),
+  ]);
+}
+
+async function markDeliveryFailed(deliveryId: string, errorCode: string) {
+  await prisma.notificationDelivery.update({
+    where: { id: deliveryId },
+    data: {
+      status: NotificationDeliveryStatus.FAILED,
+      attemptCount: { increment: 1 },
+      lastAttemptAt: new Date(),
+      errorCode: errorCode.slice(0, 160),
+    },
+  });
+}
+
+function firebaseErrorCode(error: unknown) {
+  if (typeof error !== 'object' || !error || !('code' in error)) return null;
+  const code = String(error.code ?? '').trim();
+  return code || null;
 }
 
 export function pushConfiguration() {
   return {
     webPushConfigured,
     vapidPublicKey: webPushConfigured ? vapidPublicKey : null,
-    androidConfigured: false,
+    androidConfigured: firebaseMessagingConfigured(),
   };
 }

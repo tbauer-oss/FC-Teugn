@@ -1,4 +1,5 @@
 import {
+  ConsentDocumentType,
   NotificationCategory,
   NotificationDeliveryStatus,
   PushPlatform,
@@ -121,13 +122,10 @@ export async function saveNotificationPreferences(req: Request, res: Response) {
 export async function registerPushSubscription(req: Request, res: Response) {
   const endpoint = text(req.body?.endpoint, 2000);
   if (!endpoint) return res.status(400).json({ message: 'Push-Endpunkt fehlt.' });
-  try {
-    const parsed = new URL(endpoint);
-    if (parsed.protocol !== 'https:') throw new Error();
-  } catch {
+  const platform = enumValue(PushPlatform, req.body?.platform, PushPlatform.WEB);
+  if (!validPushEndpoint(platform, endpoint)) {
     return res.status(400).json({ message: 'Push-Endpunkt ist ungültig.' });
   }
-  const platform = enumValue(PushPlatform, req.body?.platform, PushPlatform.WEB);
   const p256dh = text(req.body?.p256dh, 1000);
   const auth = text(req.body?.auth, 1000);
   if (platform === PushPlatform.WEB && (!p256dh || !auth)) {
@@ -154,6 +152,69 @@ export async function registerPushSubscription(req: Request, res: Response) {
     },
   });
   return res.status(201).json({ id: subscription.id, platform: subscription.platform });
+}
+
+export function validPushEndpoint(platform: PushPlatform, endpoint: string) {
+  if (platform === PushPlatform.ANDROID) {
+    return endpoint.length >= 20 && /^[A-Za-z0-9_:\-]+$/.test(endpoint);
+  }
+  try {
+    return new URL(endpoint).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export async function grantPushConsent(req: Request, res: Response) {
+  const version = await prisma.consentTextVersion.findFirst({
+    where: {
+      type: ConsentDocumentType.PUSH_NOTIFICATIONS,
+      isActive: true,
+    },
+    orderBy: { version: 'desc' },
+  });
+  if (!version) {
+    return res.status(503).json({
+      message: 'Der Einwilligungstext für Push-Benachrichtigungen fehlt.',
+    });
+  }
+  await prisma.$transaction([
+    prisma.userConsent.upsert({
+      where: {
+        userId_consentTextVersionId: {
+          userId: req.user!.id,
+          consentTextVersionId: version.id,
+        },
+      },
+      update: {
+        granted: true,
+        grantedAt: new Date(),
+        revokedAt: null,
+        source: 'NOTIFICATION_SETTINGS',
+      },
+      create: {
+        userId: req.user!.id,
+        consentTextVersionId: version.id,
+        granted: true,
+        source: 'NOTIFICATION_SETTINGS',
+      },
+    }),
+    prisma.registrationRequest.updateMany({
+      where: { userId: req.user!.id },
+      data: { pushOptIn: true },
+    }),
+  ]);
+  return res.json({ granted: true, consentTextVersionId: version.id });
+}
+
+export async function removeCurrentPushSubscription(req: Request, res: Response) {
+  const endpoint = text(req.body?.endpoint, 2000);
+  if (!endpoint) return res.status(400).json({ message: 'Push-Endpunkt fehlt.' });
+  await prisma.pushSubscription.updateMany({
+    where: { endpoint, userId: req.user!.id },
+    data: { isActive: false },
+  });
+  return res.status(204).send();
 }
 
 export async function removePushSubscription(req: Request, res: Response) {

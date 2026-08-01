@@ -31,6 +31,8 @@ import 'features/launch/animated_launch_screen.dart';
 import 'core/models/user.dart';
 import 'core/app_identity.dart';
 import 'core/app_theme.dart';
+import 'core/providers.dart';
+import 'core/push/native_push_service.dart';
 
 class FCTeugnApp extends ConsumerStatefulWidget {
   const FCTeugnApp({super.key});
@@ -42,11 +44,19 @@ class FCTeugnApp extends ConsumerStatefulWidget {
 class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   static const _minimumLaunchDuration = Duration(milliseconds: 2800);
   Timer? _launchTimer;
+  StreamSubscription<String>? _pushActionSubscription;
+  GoRouter? _activeRouter;
+  String? _pendingPushAction;
   bool _minimumLaunchComplete = false;
 
   @override
   void initState() {
     super.initState();
+    _pendingPushAction = nativePushService.takePendingAction();
+    _pushActionSubscription = nativePushService.actions.listen((action) {
+      _pendingPushAction = action;
+      _openPendingPushAction();
+    });
     _launchTimer = Timer(_minimumLaunchDuration, () {
       if (mounted) setState(() => _minimumLaunchComplete = true);
     });
@@ -55,7 +65,23 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   @override
   void dispose() {
     _launchTimer?.cancel();
+    unawaited(_pushActionSubscription?.cancel());
     super.dispose();
+  }
+
+  void _openPendingPushAction() {
+    final action = _pendingPushAction;
+    final router = _activeRouter;
+    final user = ref.read(authProvider).user;
+    if (action == null || router == null || user == null) return;
+    _pendingPushAction = null;
+    final route = normalizePushActionRoute(
+      action,
+      isTrainer: user.isTrainer,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) router.go(route);
+    });
   }
 
   Widget _withLaunchTransition(Widget child) => AnimatedSwitcher(
@@ -82,6 +108,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    ref.watch(nativePushRegistrationProvider);
     if (!_minimumLaunchComplete ||
         (authState.loading && authState.user == null)) {
       return _withLaunchTransition(MaterialApp(
@@ -407,6 +434,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         ),
       ],
     );
+    _activeRouter = router;
+    _openPendingPushAction();
 
     return _withLaunchTransition(MaterialApp.router(
       key: const ValueKey('fc-teugn-app'),
@@ -420,6 +449,24 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
       builder: _forceGerman24HourClock,
     ));
   }
+}
+
+String normalizePushActionRoute(
+  String action, {
+  required bool isTrainer,
+}) {
+  final parsed = Uri.tryParse(action.trim());
+  final path = parsed?.path ?? '';
+  if (path == '/messages' || path.startsWith('/messages/')) {
+    return isTrainer ? '/trainer/messages' : '/parent/messages';
+  }
+  if (path == '/trainer/messages' || path == '/parent/messages') {
+    return isTrainer ? '/trainer/messages' : '/parent/messages';
+  }
+  if (path.startsWith('/trainer/') && !isTrainer) return '/parent';
+  if (path.startsWith('/parent/') && isTrainer) return '/trainer';
+  if (path.startsWith('/')) return path;
+  return isTrainer ? '/trainer' : '/parent';
 }
 
 const _germanLocale = Locale('de', 'DE');

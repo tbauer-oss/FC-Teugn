@@ -1486,6 +1486,29 @@ class DataRepository {
     });
   }
 
+  Future<String> registerAndroidPushSubscription(String token) async {
+    final res = await client.dio.post(
+      '/notifications/settings/subscriptions',
+      data: {
+        'platform': 'ANDROID',
+        'endpoint': token,
+        'deviceName': 'FC Teugn Talents · Android',
+      },
+    );
+    return (res.data as Map<String, dynamic>)['id'] as String;
+  }
+
+  Future<void> removePushSubscriptionByEndpoint(String endpoint) async {
+    await client.dio.delete(
+      '/notifications/settings/subscriptions',
+      data: {'endpoint': endpoint},
+    );
+  }
+
+  Future<void> grantPushConsent() async {
+    await client.dio.post('/notifications/settings/push-consent');
+  }
+
   Future<CompetitionImportPreview> previewCompetitionImport({
     required String teamId,
     required CompetitionImportFormat format,

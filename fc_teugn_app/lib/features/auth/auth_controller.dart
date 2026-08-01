@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/api_client.dart';
 import '../../core/models/user.dart';
+import '../../core/push/native_push_service.dart';
 
 class AuthState {
   final AppUser? user;
@@ -120,6 +121,18 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    final accessToken = state.accessToken;
+    final nativeToken = await nativePushService.currentTokenIfEnabled();
+    if (accessToken != null && nativeToken != null) {
+      try {
+        await ApiClient(accessToken: accessToken).dio.delete(
+          '/notifications/settings/subscriptions',
+          data: {'endpoint': nativeToken},
+        );
+      } catch (_) {}
+    }
+    await nativePushService.disable();
+
     String? refreshToken;
     try {
       refreshToken = await _storage.read(key: _refreshTokenKey);
@@ -138,13 +151,14 @@ class AuthController extends StateNotifier<AuthState> {
 
   void clearSession() {
     unawaited(_deleteStoredToken());
+    unawaited(nativePushService.disable());
     state = AuthState();
   }
 
   Future<String?> refreshAccessToken() {
     return _refreshing ??= _refreshAccessToken().whenComplete(
-          () => _refreshing = null,
-        );
+      () => _refreshing = null,
+    );
   }
 
   Future<String?> _refreshAccessToken() async {
