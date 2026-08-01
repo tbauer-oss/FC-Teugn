@@ -5,11 +5,10 @@ import 'package:image/image.dart' as image;
 const _canvasSize = 1024;
 
 void main() {
-  final background = _readPng('assets/branding/app_icon_background_v2.png');
-  final crest = _readPng('assets/branding/fc_teugn_logo_hires.png');
+  final source = _readPng('assets/branding/fc_teugn_talents_icon.png');
 
-  final standard = _composeIcon(background, crest, crestHeight: 760);
-  final maskable = _composeIcon(background, crest, crestHeight: 610);
+  final standard = _flattenAndResize(source, _canvasSize);
+  final maskable = _composeMaskableIcon(source);
 
   _writePng('assets/branding/app_icon_master.png', standard);
   _writePng('assets/branding/app_icon_maskable_master.png', maskable);
@@ -55,33 +54,29 @@ void main() {
   });
 }
 
-image.Image _composeIcon(
-  image.Image background,
-  image.Image crest, {
-  required int crestHeight,
-}) {
-  final canvas = image.copyResize(
-    background,
-    width: _canvasSize,
-    height: _canvasSize,
+image.Image _flattenAndResize(image.Image source, int size) {
+  final canvas = image.Image(width: size, height: size)
+    ..clear(image.ColorRgba8(8, 9, 8, 255));
+  final resized = image.copyResize(
+    source,
+    width: size,
+    height: size,
     interpolation: image.Interpolation.cubic,
   );
-  final resizedCrest = image.copyResize(
-    crest,
-    height: crestHeight,
+  image.compositeImage(canvas, resized);
+  return canvas;
+}
+
+image.Image _composeMaskableIcon(image.Image source) {
+  final canvas = image.Image(width: _canvasSize, height: _canvasSize)
+    ..clear(image.ColorRgba8(8, 9, 8, 255));
+  final safeIcon = image.copyResize(
+    source,
+    width: 840,
+    height: 840,
     interpolation: image.Interpolation.cubic,
   );
-
-  final glow = image.dropShadow(
-    resizedCrest,
-    0,
-    14,
-    12,
-    shadowColor: image.ColorRgba8(255, 218, 0, 105),
-  );
-  image.compositeImage(canvas, glow, center: true);
-  image.compositeImage(canvas, resizedCrest, center: true);
-
+  image.compositeImage(canvas, safeIcon, center: true);
   return canvas;
 }
 

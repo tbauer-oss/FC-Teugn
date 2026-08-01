@@ -1,4 +1,4 @@
-name: Validate FC Teugn App
+name: Validate FC Teugn Talents
 
 on:
   pull_request:
@@ -128,10 +128,21 @@ jobs:
           FC_TEUGN_REQUIRE_RELEASE_SIGNING: 'true'
         run: flutter build apk --release
 
+      - name: Prepare professionally named Android APK
+        shell: bash
+        run: |
+          app_version="$(awk '/^version:/ { print $2 }' pubspec.yaml)"
+          version_name="${app_version%%+*}"
+          build_number="${app_version##*+}"
+          apk_file_name="FC-Teugn-Talents-v${version_name}-build-${build_number}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "build/app/outputs/flutter-apk/${apk_file_name}"
+          echo "FC_TEUGN_APK_FILE_NAME=${apk_file_name}" >> "$GITHUB_ENV"
+
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: fc-teugn-jugend-android-apk
-          path: fc_teugn_app/build/app/outputs/flutter-apk/app-release.apk
+          name: fc-teugn-talents-android-apk
+          path: fc_teugn_app/build/app/outputs/flutter-apk/${{ env.FC_TEUGN_APK_FILE_NAME }}
           if-no-files-found: error
           retention-days: 30

@@ -9,9 +9,15 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
 
     await tester.pumpWidget(const ProviderScope(child: FCTeugnApp()));
-    expect(find.text('FC TEUGN'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('fc-teugn-talents-splash-image')),
+      findsOneWidget,
+    );
     await tester.pump(const Duration(seconds: 2));
-    expect(find.text('FC TEUGN'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('fc-teugn-talents-splash-image')),
+      findsOneWidget,
+    );
     expect(find.text('Willkommen zurück'), findsNothing);
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();

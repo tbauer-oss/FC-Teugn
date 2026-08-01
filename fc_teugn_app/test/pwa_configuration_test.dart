@@ -10,7 +10,12 @@ void main() {
       final manifest = jsonDecode(File('web/manifest.json').readAsStringSync())
           as Map<String, dynamic>;
 
-      expect(manifest['name'], 'FC Teugn Jugend');
+      expect(manifest['name'], 'FC Teugn Talents');
+      expect(manifest['short_name'], 'Talents');
+      expect(
+        manifest['description'],
+        'FC Teugn Talents – Dein Team. Dein Verein. Deine App.',
+      );
       expect(manifest['id'], '/');
       expect(manifest['start_url'], '/');
       expect(manifest['scope'], '/');

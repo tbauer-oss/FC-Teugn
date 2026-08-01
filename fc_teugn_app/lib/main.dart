@@ -5,6 +5,6 @@ import 'core/club_logo.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await preloadClubLogo();
+  await preloadBrandingAssets();
   runApp(const ProviderScope(child: FCTeugnApp()));
 }

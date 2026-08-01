@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/app_identity.dart';
 import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
 import '../auth/auth_controller.dart';
 import '../../core/providers.dart';
 import '../shared/pwa_install_prompt.dart';
+import '../shared/app_about_sheet.dart';
+
+void _noOp() {}
 
 enum ShellSection {
   overview(
@@ -125,6 +129,10 @@ class AppShell extends ConsumerWidget {
             Navigator.of(sheetContext).pop();
             showPwaInstallPrompt(context);
           },
+          onAbout: () {
+            Navigator.of(sheetContext).pop();
+            showAppAboutSheet(context);
+          },
           onSelect: (destination) {
             Navigator.of(sheetContext).pop();
             context.go(destination.route);
@@ -146,7 +154,7 @@ class AppShell extends ConsumerWidget {
     final primaryMobileIndex = _matchingIndex(location, mobileDestinations);
     final mobileSelectedIndex = primaryMobileIndex ?? mobileDestinations.length;
     final contextLabel = organization == null
-        ? 'FC Teugn Jugend'
+        ? AppIdentity.name
         : organization.currentTeam.displayName;
     final seasonLabel = organization?.season.name ?? '2026/27';
 
@@ -168,6 +176,7 @@ class AppShell extends ConsumerWidget {
                   seasonLabel: seasonLabel,
                   onSelect: (index) => context.go(destinations[index].route),
                   onLogout: () => ref.read(authProvider.notifier).logout(),
+                  onAbout: () => showAppAboutSheet(context),
                 ),
               Expanded(
                 child: Column(
@@ -189,6 +198,7 @@ class AppShell extends ConsumerWidget {
                           }
                           if (privacy != null) context.go(privacy.route);
                         },
+                        onAbout: () => showAppAboutSheet(context),
                       ),
                     Expanded(
                       child: RefreshIndicator.adaptive(
@@ -277,6 +287,7 @@ class DesktopSidebar extends StatelessWidget {
     required this.seasonLabel,
     required this.onSelect,
     required this.onLogout,
+    this.onAbout = _noOp,
   });
 
   final String title;
@@ -288,6 +299,7 @@ class DesktopSidebar extends StatelessWidget {
   final String seasonLabel;
   final ValueChanged<int> onSelect;
   final VoidCallback onLogout;
+  final VoidCallback onAbout;
 
   @override
   Widget build(BuildContext context) {
@@ -432,6 +444,12 @@ class DesktopSidebar extends StatelessWidget {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Über ${AppIdentity.name}',
+                  onPressed: onAbout,
+                  color: Colors.white70,
+                  icon: const Icon(Icons.info_outline_rounded, size: 20),
+                ),
+                IconButton(
                   tooltip: 'Abmelden',
                   onPressed: onLogout,
                   color: Colors.white70,
@@ -553,6 +571,7 @@ class MobileNavigationPanel extends StatelessWidget {
     required this.onSelect,
     this.offerInstall = false,
     this.onInstall,
+    this.onAbout = _noOp,
   });
 
   final List<ShellDestination> destinations;
@@ -564,6 +583,7 @@ class MobileNavigationPanel extends StatelessWidget {
   final ValueChanged<ShellDestination> onSelect;
   final bool offerInstall;
   final VoidCallback? onInstall;
+  final VoidCallback onAbout;
 
   bool _isSelected(ShellDestination destination) =>
       location == destination.route ||
@@ -604,7 +624,7 @@ class MobileNavigationPanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'APP-MENÜ',
+                        'FC TEUGN TALENTS · APP-MENÜ',
                         style: TextStyle(
                           color: AppColors.yellow.withValues(alpha: .9),
                           fontSize: 10,
@@ -658,7 +678,7 @@ class MobileNavigationPanel extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'FC Teugn als App installieren',
+                              '${AppIdentity.name} installieren',
                               style: TextStyle(fontWeight: FontWeight.w800),
                             ),
                             Text(
@@ -691,6 +711,19 @@ class MobileNavigationPanel extends StatelessWidget {
               ),
               const SizedBox(height: 10),
             ],
+          TextButton.icon(
+            onPressed: onAbout,
+            icon: const Icon(Icons.info_outline_rounded, size: 18),
+            label: const Text('Über ${AppIdentity.name}'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.muted,
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -899,6 +932,7 @@ class _MobileHeader extends StatelessWidget {
     required this.contextLabel,
     required this.onLogout,
     required this.onPrivacy,
+    required this.onAbout,
   });
 
   final String title;
@@ -906,6 +940,7 @@ class _MobileHeader extends StatelessWidget {
   final String contextLabel;
   final VoidCallback onLogout;
   final VoidCallback onPrivacy;
+  final VoidCallback onAbout;
 
   @override
   Widget build(BuildContext context) {
@@ -969,6 +1004,8 @@ class _MobileHeader extends StatelessWidget {
                     switch (action) {
                       case _MobileAccountAction.privacy:
                         onPrivacy();
+                      case _MobileAccountAction.about:
+                        onAbout();
                       case _MobileAccountAction.logout:
                         onLogout();
                     }
@@ -980,6 +1017,14 @@ class _MobileHeader extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(Icons.shield_outlined),
                         title: Text('Datenschutz & meine Daten'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _MobileAccountAction.about,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.info_outline_rounded),
+                        title: Text('Über FC Teugn Talents'),
                       ),
                     ),
                     PopupMenuItem(
@@ -1001,7 +1046,7 @@ class _MobileHeader extends StatelessWidget {
   }
 }
 
-enum _MobileAccountAction { privacy, logout }
+enum _MobileAccountAction { privacy, about, logout }
 
 class _ClubBrand extends StatelessWidget {
   const _ClubBrand({required this.light});
@@ -1028,7 +1073,7 @@ class _ClubBrand extends StatelessWidget {
               ),
             ),
             Text(
-              'JUGENDFUSSBALL',
+              'TALENTS',
               style: TextStyle(
                 color: foreground.withValues(alpha: .56),
                 fontSize: 9,

@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'app_identity.dart';
+
 const _clubLogoAsset = 'assets/branding/fc_teugn_logo_hires.png';
 
-Future<void> preloadClubLogo() async {
+Future<void> _preloadAsset(String asset) async {
   final completer = Completer<void>();
-  final stream = const AssetImage(
-    _clubLogoAsset,
-  ).resolve(ImageConfiguration.empty);
+  final stream = AssetImage(asset).resolve(ImageConfiguration.empty);
   late final ImageStreamListener listener;
   listener = ImageStreamListener(
     (image, synchronousCall) {
@@ -25,6 +25,13 @@ Future<void> preloadClubLogo() async {
     const Duration(seconds: 2),
     onTimeout: () => stream.removeListener(listener),
   );
+}
+
+Future<void> preloadBrandingAssets() async {
+  await Future.wait([
+    _preloadAsset(_clubLogoAsset),
+    _preloadAsset(AppIdentity.splashAsset),
+  ]);
 }
 
 class ClubLogo extends StatelessWidget {

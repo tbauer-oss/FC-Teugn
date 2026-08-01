@@ -29,6 +29,7 @@ import 'features/operations/team_operations_page.dart';
 import 'features/privacy/privacy_page.dart';
 import 'features/launch/animated_launch_screen.dart';
 import 'core/models/user.dart';
+import 'core/app_identity.dart';
 import 'core/app_theme.dart';
 
 class FCTeugnApp extends ConsumerStatefulWidget {
@@ -71,7 +72,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         (authState.loading && authState.user == null)) {
       return _withLaunchTransition(MaterialApp(
         key: const ValueKey('fc-teugn-launch'),
-        title: 'FC Teugn Jugend',
+        title: AppIdentity.name,
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
         locale: _germanLocale,
@@ -395,7 +396,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
 
     return _withLaunchTransition(MaterialApp.router(
       key: const ValueKey('fc-teugn-app'),
-      title: 'FC Teugn Jugend',
+      title: AppIdentity.name,
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: buildAppTheme(),

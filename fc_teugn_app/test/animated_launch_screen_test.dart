@@ -12,9 +12,11 @@ void main() {
       const MaterialApp(home: AnimatedLaunchScreen()),
     );
 
-    expect(find.text('FC TEUGN'), findsOneWidget);
-    expect(find.text('JUGENDFUSSBALL'), findsOneWidget);
-    expect(find.text('EIN VEREIN. EIN TEAM.'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('fc-teugn-talents-splash-image')),
+      findsOneWidget,
+    );
+    expect(find.text('Dein Team. Dein Verein. Deine App.'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 900));
