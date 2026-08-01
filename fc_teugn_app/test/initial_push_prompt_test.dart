@@ -35,4 +35,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(result, isTrue);
   });
+
+  testWidgets('web activation runs directly from the confirmation tap',
+      (tester) async {
+    var activated = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: FilledButton(
+              onPressed: () => showDialog<bool>(
+                context: context,
+                builder: (_) => InitialPushPromptDialog(
+                  onActivate: () async => activated = true,
+                ),
+              ),
+              child: const Text('Web-Push öffnen'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Web-Push öffnen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aktivieren'));
+    await tester.pumpAndSettle();
+
+    expect(activated, isTrue);
+    expect(find.text('Pushnachrichten aktivieren?'), findsNothing);
+  });
 }
