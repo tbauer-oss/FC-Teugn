@@ -315,6 +315,7 @@ class LineupModel {
     required this.fieldSize,
     required this.status,
     required this.positions,
+    this.substitutions = const [],
     this.usesTeamDefault = false,
     this.automaticReplacements = 0,
     this.publicNote,
@@ -330,6 +331,7 @@ class LineupModel {
   final String? publicNote;
   final String? tacticalNote;
   final List<LineupPositionModel> positions;
+  final List<PlannedSubstitutionModel> substitutions;
 
   factory LineupModel.fromJson(Map<String, dynamic> json) => LineupModel(
         id: json['id'] as String,
@@ -351,6 +353,41 @@ class LineupModel {
                   LineupPositionModel.fromJson(item as Map<String, dynamic>),
             )
             .toList(),
+        substitutions: (json['substitutions'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => PlannedSubstitutionModel.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
+}
+
+class PlannedSubstitutionModel {
+  const PlannedSubstitutionModel({
+    required this.period,
+    required this.playerInId,
+    required this.playerOutId,
+    this.id,
+    this.minute,
+    this.note,
+  });
+
+  final String? id;
+  final int period;
+  final int? minute;
+  final String playerInId;
+  final String playerOutId;
+  final String? note;
+
+  factory PlannedSubstitutionModel.fromJson(Map<String, dynamic> json) =>
+      PlannedSubstitutionModel(
+        id: json['id'] as String?,
+        period: (json['period'] as num?)?.toInt() ?? 1,
+        minute: (json['minute'] as num?)?.toInt(),
+        playerInId: json['playerInId'] as String? ?? '',
+        playerOutId: json['playerOutId'] as String? ?? '',
+        note: json['note'] as String?,
       );
 }
 

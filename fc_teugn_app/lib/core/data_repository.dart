@@ -892,7 +892,9 @@ class DataRepository {
 
   Future<MatchSquadModel> saveMatchSquad({
     required String eventId,
-    required List<({String playerId, NominationStatus status})> members,
+    required List<
+            ({String playerId, NominationStatus status, int? plannedMinutes})>
+        members,
     String? formation,
   }) async {
     final response = await client.dio.put('/matches/$eventId/squad', data: {
@@ -902,6 +904,7 @@ class DataRepository {
             (member) => {
               'playerId': member.playerId,
               'status': apiEnum(member.status),
+              'plannedMinutes': member.plannedMinutes,
             },
           )
           .toList(),
@@ -921,6 +924,7 @@ class DataRepository {
     required int fieldSize,
     required LineupStatus status,
     required List<LineupPositionModel> positions,
+    List<PlannedSubstitutionModel> plannedSubstitutions = const [],
     String? publicNote,
     String? tacticalNote,
   }) async {
@@ -942,6 +946,17 @@ class DataRepository {
               'isGoalkeeper': position.isGoalkeeper,
               'isCaptain': position.isCaptain,
               'shirtNumber': position.player.shirtNumber,
+            },
+          )
+          .toList(),
+      'substitutions': plannedSubstitutions
+          .map(
+            (substitution) => {
+              'period': substitution.period,
+              'minute': substitution.minute,
+              'playerInId': substitution.playerInId,
+              'playerOutId': substitution.playerOutId,
+              'note': substitution.note,
             },
           )
           .toList(),

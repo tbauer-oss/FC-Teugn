@@ -18,6 +18,7 @@ import '../../core/widgets/captain_badge.dart';
 import '../../core/widgets/player_team_chip.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
+import 'matchday_autopilot_tab.dart';
 
 class MatchdayPage extends ConsumerStatefulWidget {
   const MatchdayPage({
@@ -276,7 +277,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     final match = _match!;
     final opponent = match.details?.opponent ?? 'Gegner';
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: PageScaffold(
         title: 'FC Teugn · $opponent',
         subtitle: _dateLine(match),
@@ -296,6 +297,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                 Tab(
                     icon: Icon(Icons.dashboard_customize_rounded),
                     text: 'Aufstellung'),
+                Tab(icon: Icon(Icons.auto_awesome_rounded), text: 'Autopilot'),
                 Tab(icon: Icon(Icons.bolt_rounded), text: 'Liveticker'),
               ],
             ),
@@ -316,6 +318,13 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                     match: match,
                     editable: widget.staffView,
                     onSaved: _applySavedLineup,
+                  ),
+                  MatchdayAutopilotTab(
+                    match: match,
+                    allPlayers: _players,
+                    editable: widget.staffView,
+                    onSquadSaved: _applySavedSquad,
+                    onLineupSaved: _applySavedLineup,
                   ),
                   _TickerTab(
                     match: match,
@@ -728,7 +737,13 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
       final savedSquad = await repository.saveMatchSquad(
         eventId: widget.match.id,
         members: _selected.entries
-            .map((item) => (playerId: item.key, status: item.value))
+            .map(
+              (item) => (
+                playerId: item.key,
+                status: item.value,
+                plannedMinutes: null,
+              ),
+            )
             .toList(),
       );
       final requestedIds = _selected.keys.toSet();
@@ -1630,6 +1645,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         fieldSize: _fieldSize,
         status: status,
         positions: _positions,
+        plannedSubstitutions:
+            widget.match.squad?.lineup?.substitutions ?? const [],
       );
       if (!_samePositions(_positions, savedLineup.positions)) {
         throw StateError(
