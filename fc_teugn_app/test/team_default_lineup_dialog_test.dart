@@ -75,7 +75,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('E1-Jugend · Startformation'), findsOneWidget);
+    expect(find.text('E1-Jugend · Kapitän & Startelf'), findsOneWidget);
     expect(find.text('5 von 5 besetzt'), findsOneWidget);
     expect(find.text('Positionsgetreu besetzen'), findsOneWidget);
     expect(tester.takeException(), isNull);

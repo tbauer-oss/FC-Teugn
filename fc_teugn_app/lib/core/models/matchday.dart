@@ -1,4 +1,5 @@
 import 'player.dart';
+import 'event.dart';
 import '../team_game_format.dart';
 
 enum MatchStatus {
@@ -58,6 +59,7 @@ class MatchdayModel {
     this.squad,
     this.ticker,
     this.eligiblePlayers = const [],
+    this.attendance = const [],
     this.playerPoolAgeGroupCode,
     this.gameFormat = TeamGameFormat.football7,
     this.canManageTicker = false,
@@ -74,6 +76,7 @@ class MatchdayModel {
   final MatchSquadModel? squad;
   final LiveTickerModel? ticker;
   final List<PlayerModel> eligiblePlayers;
+  final List<EventAttendance> attendance;
   final String? playerPoolAgeGroupCode;
   final TeamGameFormat gameFormat;
   final bool canManageTicker;
@@ -107,6 +110,11 @@ class MatchdayModel {
       eligiblePlayers: (json['eligiblePlayers'] as List<dynamic>? ?? const [])
           .map(
             (item) => PlayerModel.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
+      attendance: (json['attendance'] as List<dynamic>? ?? const [])
+          .map(
+            (item) => EventAttendance.fromJson(item as Map<String, dynamic>),
           )
           .toList(),
       playerPoolAgeGroupCode: json['playerPoolAgeGroupCode'] as String?,

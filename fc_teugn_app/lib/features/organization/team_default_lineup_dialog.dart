@@ -171,7 +171,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
     return Dialog.fullscreen(
       child: Scaffold(
         appBar: AppBar(
-          title: Text('${widget.team.displayName} · Startformation'),
+          title: Text('${widget.team.displayName} · Kapitän & Startelf'),
           leading: IconButton(
             tooltip: 'Schließen',
             onPressed: () => Navigator.of(context).pop(),

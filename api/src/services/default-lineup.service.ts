@@ -1,4 +1,5 @@
 import {
+  AttendanceStatus,
   LineupStatus,
   NominationStatus,
   Prisma,
@@ -113,6 +114,14 @@ export function planTeamDefaultLineup(
   return { positions, automaticReplacements };
 }
 
+export function confirmedLineupCandidates<T extends { id: string }>(
+  candidates: T[],
+  confirmedPlayerIds: Iterable<string>,
+) {
+  const confirmed = new Set(confirmedPlayerIds);
+  return candidates.filter((candidate) => confirmed.has(candidate.id));
+}
+
 export function fieldSizeForGameFormat(format: TeamGameFormat) {
   return Number(String(format).replace('FOOTBALL_', '')) || 7;
 }
@@ -150,6 +159,14 @@ export async function syncSquadWithTeamDefaultLineup(
         lineup: {
           select: { id: true, usesTeamDefault: true },
         },
+        event: {
+          select: {
+            attendance: {
+              where: { status: AttendanceStatus.YES },
+              select: { playerId: true },
+            },
+          },
+        },
         members: {
           where: { status: NominationStatus.NOMINATED },
           select: {
@@ -172,7 +189,10 @@ export async function syncSquadWithTeamDefaultLineup(
 
   const planned = planTeamDefaultLineup(
     team.defaultLineupPositions.slice(0, fieldSize),
-    squad.members.map((member) => member.player),
+    confirmedLineupCandidates(
+      squad.members.map((member) => member.player),
+      squad.event.attendance.map((reply) => reply.playerId),
+    ),
   );
   const lineup = await tx.lineup.upsert({
     where: { squadId },

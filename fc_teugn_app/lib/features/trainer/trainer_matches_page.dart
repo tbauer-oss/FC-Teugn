@@ -6,6 +6,7 @@ import '../../core/football_options.dart';
 import '../../core/models/event.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/responsive_form_dialog.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import '../imports/competition_import_dialog.dart';
@@ -220,13 +221,57 @@ class TrainerMatchesPage extends ConsumerWidget {
     final result = await showDialog<_MatchDraft>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Spieldaten bearbeiten'),
-          content: SizedBox(
-            width: 480,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+        builder: (context, setState) {
+          void save() {
+            if (opponent.text.trim().isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Bitte einen Gegner eintragen.')),
+              );
+              return;
+            }
+            final count = int.tryParse(periodCount.text.trim());
+            final minutes = int.tryParse(periodMinutes.text.trim());
+            if (count == null ||
+                count < 1 ||
+                count > 8 ||
+                minutes == null ||
+                minutes < 1 ||
+                minutes > 90 ||
+                count * minutes > 180) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Bitte 1–8 Abschnitte und 1–90 Minuten je Abschnitt '
+                    '(maximal 180 Minuten insgesamt) eingeben.',
+                  ),
+                ),
+              );
+              return;
+            }
+            Navigator.pop(
+              context,
+              _MatchDraft(
+                opponent: opponent.text.trim(),
+                isHome: isHome,
+                competition: competition ?? '',
+                notes: notes.text.trim(),
+                ourGoals: int.tryParse(ourGoals.text),
+                theirGoals: int.tryParse(theirGoals.text),
+                periodCount: count,
+                periodMinutes: minutes,
+              ),
+            );
+          }
+
+          return ResponsiveFormDialog(
+            title: 'Spieldaten bearbeiten',
+            subtitle: 'Begegnung, Ergebnis und Spielzeit kompakt verwalten.',
+            maxWidth: 620,
+            onSave: save,
+            children: [
+              ResponsiveFormSection(
+                title: 'Begegnung',
+                icon: Icons.sports_soccer_rounded,
                 children: [
                   LayoutBuilder(
                     builder: (context, constraints) =>
@@ -288,8 +333,15 @@ class TrainerMatchesPage extends ConsumerWidget {
                     ),
                     onChanged: (value) => setState(() => competition = value),
                   ),
-                  const SizedBox(height: 12),
-                  _ResponsiveMatchFields(
+                ],
+              ),
+              const SizedBox(height: 14),
+              ResponsiveFormSection(
+                title: 'Ergebnis',
+                subtitle: 'Optional – kann auch später ergänzt werden.',
+                icon: Icons.scoreboard_outlined,
+                children: [
+                  ResponsiveFormRow(
                     children: [
                       TextField(
                         controller: ourGoals,
@@ -305,8 +357,14 @@ class TrainerMatchesPage extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  _ResponsiveMatchFields(
+                ],
+              ),
+              const SizedBox(height: 14),
+              ResponsiveFormSection(
+                title: 'Spielzeit',
+                icon: Icons.timer_outlined,
+                children: [
+                  ResponsiveFormRow(
                     children: [
                       TextField(
                         controller: periodCount,
@@ -346,7 +404,13 @@ class TrainerMatchesPage extends ConsumerWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 12),
+                ],
+              ),
+              const SizedBox(height: 14),
+              ResponsiveFormSection(
+                title: 'Notizen',
+                icon: Icons.notes_rounded,
+                children: [
                   TextField(
                     controller: notes,
                     minLines: 2,
@@ -355,59 +419,9 @@ class TrainerMatchesPage extends ConsumerWidget {
                   ),
                 ],
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (opponent.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Bitte einen Gegner eintragen.')),
-                  );
-                  return;
-                }
-                final count = int.tryParse(periodCount.text.trim());
-                final minutes = int.tryParse(periodMinutes.text.trim());
-                if (count == null ||
-                    count < 1 ||
-                    count > 8 ||
-                    minutes == null ||
-                    minutes < 1 ||
-                    minutes > 90 ||
-                    count * minutes > 180) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Bitte 1–8 Abschnitte und 1–90 Minuten je Abschnitt '
-                        '(maximal 180 Minuten insgesamt) eingeben.',
-                      ),
-                    ),
-                  );
-                  return;
-                }
-                Navigator.pop(
-                  context,
-                  _MatchDraft(
-                    opponent: opponent.text.trim(),
-                    isHome: isHome,
-                    competition: competition ?? '',
-                    notes: notes.text.trim(),
-                    ourGoals: int.tryParse(ourGoals.text),
-                    theirGoals: int.tryParse(theirGoals.text),
-                    periodCount: count,
-                    periodMinutes: minutes,
-                  ),
-                );
-              },
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
     opponent.dispose();
@@ -417,39 +431,6 @@ class TrainerMatchesPage extends ConsumerWidget {
     periodCount.dispose();
     periodMinutes.dispose();
     return result;
-  }
-}
-
-class _ResponsiveMatchFields extends StatelessWidget {
-  const _ResponsiveMatchFields({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 430) {
-          return Column(
-            children: [
-              for (var index = 0; index < children.length; index++) ...[
-                children[index],
-                if (index != children.length - 1) const SizedBox(height: 12),
-              ],
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var index = 0; index < children.length; index++) ...[
-              Expanded(child: children[index]),
-              if (index != children.length - 1) const SizedBox(width: 12),
-            ],
-          ],
-        );
-      },
-    );
   }
 }
 

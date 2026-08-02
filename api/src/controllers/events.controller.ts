@@ -16,8 +16,16 @@ import {
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
-import { accessibleTeamIds } from '../services/team-access';
+import {
+  accessibleTeamIds,
+  youthPlayerPoolTeamIdsForTeam,
+} from '../services/team-access';
+import { rosterTeamIdsForMatch } from '../services/match-roster';
 import { createPitchConflictRequestsForEvent } from './pitch-conflicts.controller';
+import {
+  fieldSizeForGameFormat,
+  syncSquadWithTeamDefaultLineup,
+} from '../services/default-lineup.service';
 
 const eventInclude = {
   series: true,
@@ -1038,8 +1046,11 @@ export async function setAttendance(req: Request, res: Response) {
   const eventTeamIds = event.targetTeams.length
     ? event.targetTeams.map((target) => target.teamId)
     : [event.teamId];
+  const attendanceTeamIds = event.type === EventType.MATCH
+    ? rosterTeamIdsForMatch(await youthPlayerPoolTeamIdsForTeam(event.teamId))
+    : eventTeamIds;
   const player = await prisma.player.findFirst({
-    where: { id: playerId, teamId: { in: eventTeamIds } },
+    where: { id: playerId, teamId: { in: attendanceTeamIds } },
   });
   if (!player) return res.status(404).json({ message: 'Spieler nicht gefunden.' });
   if (!isStaff(user.role)) {
@@ -1061,30 +1072,48 @@ export async function setAttendance(req: Request, res: Response) {
       return res.status(409).json({ message: 'Die maximale Teilnehmerzahl ist erreicht.' });
     }
   }
-  const attendance = await prisma.attendance.upsert({
-    where: { eventId_playerId: { eventId: event.id, playerId } },
-    update: {
-      status,
-      reason: status === AttendanceStatus.NO ? clean(req.body.reason) : null,
-      goalkeeperAvailable:
-        typeof req.body.goalkeeperAvailable === 'boolean'
-          ? req.body.goalkeeperAvailable
-          : null,
-      respondedById: user.id,
-      respondedAt: new Date(),
-    },
-    create: {
-      eventId: event.id,
-      playerId,
-      status,
-      reason: status === AttendanceStatus.NO ? clean(req.body.reason) : null,
-      goalkeeperAvailable:
-        typeof req.body.goalkeeperAvailable === 'boolean'
-          ? req.body.goalkeeperAvailable
-          : null,
-      respondedById: user.id,
-      respondedAt: new Date(),
-    },
+  const attendance = await prisma.$transaction(async (tx) => {
+    const reply = await tx.attendance.upsert({
+      where: { eventId_playerId: { eventId: event.id, playerId } },
+      update: {
+        status,
+        reason: status === AttendanceStatus.NO ? clean(req.body.reason) : null,
+        goalkeeperAvailable:
+          typeof req.body.goalkeeperAvailable === 'boolean'
+            ? req.body.goalkeeperAvailable
+            : null,
+        respondedById: user.id,
+        respondedAt: new Date(),
+      },
+      create: {
+        eventId: event.id,
+        playerId,
+        status,
+        reason: status === AttendanceStatus.NO ? clean(req.body.reason) : null,
+        goalkeeperAvailable:
+          typeof req.body.goalkeeperAvailable === 'boolean'
+            ? req.body.goalkeeperAvailable
+            : null,
+        respondedById: user.id,
+        respondedAt: new Date(),
+      },
+    });
+    if (event.type === EventType.MATCH) {
+      const squad = await tx.squad.findUnique({ where: { eventId: event.id } });
+      const teamId = event.targetTeams[0]?.teamId ?? event.teamId;
+      const team = await tx.team.findUnique({
+        where: { id: teamId },
+        select: { gameFormat: true },
+      });
+      if (squad && team) {
+        await syncSquadWithTeamDefaultLineup(tx, {
+          teamId,
+          squadId: squad.id,
+          fieldSize: fieldSizeForGameFormat(team.gameFormat),
+        });
+      }
+    }
+    return reply;
   });
   return res.json(attendance);
 }

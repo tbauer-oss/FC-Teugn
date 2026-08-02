@@ -723,8 +723,7 @@ class _TeamCard extends StatelessWidget {
                   const SizedBox(height: 7),
                   _InfoLine(
                     icon: Icons.schema_rounded,
-                    text: 'Startformation ${team.defaultLineup!.formation} · '
-                        '${team.defaultLineup!.positions.length} Spieler',
+                    text: _defaultLineupSummary(team.defaultLineup!),
                   ),
                 ],
                 if (team.birthYears.isNotEmpty) ...[
@@ -789,8 +788,8 @@ class _TeamCard extends StatelessWidget {
                         icon: const Icon(Icons.schema_rounded),
                         label: Text(
                           team.defaultLineup == null
-                              ? 'Startformation festlegen'
-                              : 'Startformation ändern',
+                              ? 'Kapitän & Startelf festlegen'
+                              : 'Kapitän & Startelf ändern',
                         ),
                       ),
                       OutlinedButton.icon(
@@ -1726,6 +1725,18 @@ class _BirthYearMultiSelectField extends StatelessWidget {
       ),
     );
   }
+}
+
+String _defaultLineupSummary(TeamDefaultLineup lineup) {
+  final captain = lineup.positions
+      .where((position) => position.isCaptain)
+      .map((position) => position.player.name)
+      .firstOrNull;
+  return [
+    'Startelf ${lineup.formation}',
+    '${lineup.positions.length} Spieler',
+    if (captain != null) 'Kapitän $captain',
+  ].join(' · ');
 }
 
 class _TeamDraft {
