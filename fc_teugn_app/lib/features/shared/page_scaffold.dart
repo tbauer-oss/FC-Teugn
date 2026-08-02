@@ -8,12 +8,14 @@ class PageScaffold extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.action,
+    this.denseMobileHeader = false,
   });
 
   final String title;
   final String subtitle;
   final Widget child;
   final Widget? action;
+  final bool denseMobileHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -27,15 +29,25 @@ class PageScaffold extends StatelessWidget {
           children: [
             Text(
               title,
+              maxLines: denseMobileHeader && mobile ? 1 : null,
+              overflow:
+                  denseMobileHeader && mobile ? TextOverflow.ellipsis : null,
               style: mobile
-                  ? Theme.of(context).textTheme.headlineSmall
+                  ? denseMobileHeader
+                      ? Theme.of(context).textTheme.titleLarge
+                      : Theme.of(context).textTheme.headlineSmall
                   : Theme.of(context).textTheme.headlineMedium,
             ),
-            SizedBox(height: mobile ? 4 : 6),
+            SizedBox(height: mobile ? (denseMobileHeader ? 2 : 4) : 6),
             Text(
               subtitle,
+              maxLines: denseMobileHeader && mobile ? 1 : null,
+              overflow:
+                  denseMobileHeader && mobile ? TextOverflow.ellipsis : null,
               style: (mobile
-                      ? Theme.of(context).textTheme.bodyMedium
+                      ? denseMobileHeader
+                          ? Theme.of(context).textTheme.bodySmall
+                          : Theme.of(context).textTheme.bodyMedium
                       : Theme.of(context).textTheme.bodyLarge)
                   ?.copyWith(
                 color: AppColors.muted,
@@ -51,9 +63,9 @@ class PageScaffold extends StatelessWidget {
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 horizontal,
-                mobile ? 18 : 28,
+                mobile ? (denseMobileHeader ? 10 : 18) : 28,
                 horizontal,
-                mobile ? 14 : 18,
+                mobile ? (denseMobileHeader ? 10 : 14) : 18,
               ),
               sliver: SliverToBoxAdapter(
                 child: ConstrainedBox(

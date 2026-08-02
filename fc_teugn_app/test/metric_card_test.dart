@@ -72,4 +72,44 @@ void main() {
     expect(find.text('Mitglied anlegen'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('page scaffold supports a dense mobile match header',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: const MediaQuery(
+          data: MediaQueryData(
+            size: Size(390, 844),
+            textScaler: TextScaler.linear(1.25),
+          ),
+          child: Scaffold(
+            body: PageScaffold(
+              title: 'FC Teugn · Besonders langer Gegnername',
+              subtitle: '15.8.2026 · 17:00 Uhr · Sportplatz Teugn',
+              denseMobileHeader: true,
+              child: Text('Spielinhalt'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final title = tester.widget<Text>(
+      find.text('FC Teugn · Besonders langer Gegnername'),
+    );
+    final subtitle = tester.widget<Text>(
+      find.text('15.8.2026 · 17:00 Uhr · Sportplatz Teugn'),
+    );
+
+    expect(title.maxLines, 1);
+    expect(title.overflow, TextOverflow.ellipsis);
+    expect(subtitle.maxLines, 1);
+    expect(subtitle.overflow, TextOverflow.ellipsis);
+    expect(find.text('Spielinhalt'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
