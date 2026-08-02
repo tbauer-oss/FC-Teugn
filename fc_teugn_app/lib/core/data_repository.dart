@@ -1533,6 +1533,29 @@ class DataRepository {
     return AdminPushTestResult.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<List<AdminPushDevice>> adminPushDevices() async {
+    final res = await client.dio.get('/notifications/admin/devices');
+    return (res.data as List<dynamic>)
+        .map(
+          (item) => AdminPushDevice.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<void> setAdminPushDeviceState(
+    String deviceId, {
+    required bool isActive,
+  }) async {
+    await client.dio.patch(
+      '/notifications/admin/devices/$deviceId',
+      data: {'isActive': isActive},
+    );
+  }
+
+  Future<void> deleteAdminPushDevice(String deviceId) async {
+    await client.dio.delete('/notifications/admin/devices/$deviceId');
+  }
+
   Future<CompetitionImportPreview> previewCompetitionImport({
     required String teamId,
     required CompetitionImportFormat format,

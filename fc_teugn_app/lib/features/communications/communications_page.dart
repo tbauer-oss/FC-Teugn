@@ -1019,12 +1019,16 @@ class _NotificationSettings extends ConsumerStatefulWidget {
 
 class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
   List<NotificationPreferenceModel>? _items;
+  List<AdminPushDevice>? _devices;
   PushConfiguration? _configuration;
   WebPushStatus? _webPushStatus;
   bool _subscribing = false;
   bool _nativePushEnabled = false;
   bool _testingPush = false;
+  bool _changingDevice = false;
   AdminPushTestResult? _pushTestResult;
+  final _deviceSearch = TextEditingController();
+  String _deviceFilter = 'ALL';
 
   @override
   void initState() {
@@ -1032,12 +1036,21 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _deviceSearch.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     final repository = ref.read(repositoryProvider);
+    final isSuperAdmin =
+        ref.read(authProvider).user?.role == UserRole.superAdmin;
     final results = await Future.wait<Object?>([
       repository.notificationPreferences(),
       repository.pushConfiguration(),
       nativePushService.currentTokenIfEnabled(),
+      if (isSuperAdmin) repository.adminPushDevices(),
     ]);
     final configuration = results[1] as PushConfiguration;
     final webStatus = await getWebPushStatus(configuration.vapidPublicKey);
@@ -1047,6 +1060,9 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
         _configuration = results[1] as PushConfiguration;
         _nativePushEnabled = results[2] != null;
         _webPushStatus = webStatus;
+        _devices = isSuperAdmin
+            ? results[3] as List<AdminPushDevice>
+            : const <AdminPushDevice>[];
       });
     }
   }
@@ -1085,6 +1101,19 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                 testing: _testingPush,
                 result: _pushTestResult,
                 onTest: _testPushBroadcast,
+              ),
+              const SizedBox(height: 14),
+              _AdminPushDeviceCard(
+                devices: _devices,
+                searchController: _deviceSearch,
+                filter: _deviceFilter,
+                changing: _changingDevice,
+                onSearchChanged: (_) => setState(() {}),
+                onFilterChanged: (value) =>
+                    setState(() => _deviceFilter = value),
+                onRefresh: _loadAdminDevices,
+                onToggle: _toggleAdminDevice,
+                onDelete: _deleteAdminDevice,
               ),
             ],
             const Divider(height: 32),
@@ -1166,6 +1195,130 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
       );
     } finally {
       if (mounted) setState(() => _testingPush = false);
+    }
+  }
+
+  Future<void> _loadAdminDevices() async {
+    setState(() => _devices = null);
+    try {
+      final devices = await ref.read(repositoryProvider).adminPushDevices();
+      if (mounted) setState(() => _devices = devices);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _devices = const []);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Geräteliste konnte nicht geladen werden.')),
+      );
+    }
+  }
+
+  Future<void> _toggleAdminDevice(AdminPushDevice device) async {
+    final activate = !device.isActive;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          activate
+              ? Icons.notifications_active_rounded
+              : Icons.notifications_off_rounded,
+        ),
+        title: Text(
+            activate ? 'Gerät wieder aktivieren?' : 'Push-Gerät deaktivieren?'),
+        content: Text(
+          activate
+              ? '${device.deviceName} von ${device.userName} darf danach wieder Pushnachrichten erhalten.'
+              : '${device.deviceName} von ${device.userName} erhält danach keine Pushnachrichten mehr. Die Sperre bleibt auch nach einem App-Neustart bestehen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(activate ? 'Aktivieren' : 'Deaktivieren'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _changingDevice = true);
+    try {
+      await ref.read(repositoryProvider).setAdminPushDeviceState(
+            device.id,
+            isActive: activate,
+          );
+      await _loadAdminDevices();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            activate
+                ? 'Push-Gerät wurde aktiviert.'
+                : 'Push-Gerät wurde dauerhaft deaktiviert.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Der Gerätestatus konnte nicht geändert werden.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _changingDevice = false);
+    }
+  }
+
+  Future<void> _deleteAdminDevice(AdminPushDevice device) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.delete_forever_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: const Text('Gerät endgültig löschen?'),
+        content: Text(
+          '${device.deviceName} von ${device.userName} wird aus der Geräteverwaltung entfernt. '
+          'Wird die App auf diesem Gerät später erneut verwendet, kann es sich neu registrieren. '
+          'Für eine dauerhafte Push-Sperre verwende stattdessen „Deaktivieren“.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_forever_rounded),
+            label: const Text('Endgültig löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _changingDevice = true);
+    try {
+      await ref.read(repositoryProvider).deleteAdminPushDevice(device.id);
+      await _loadAdminDevices();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Push-Gerät wurde gelöscht.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Push-Gerät konnte nicht gelöscht werden.')),
+      );
+    } finally {
+      if (mounted) setState(() => _changingDevice = false);
     }
   }
 
@@ -1339,6 +1492,404 @@ class _AdminPushTestCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AdminPushDeviceCard extends StatelessWidget {
+  const _AdminPushDeviceCard({
+    required this.devices,
+    required this.searchController,
+    required this.filter,
+    required this.changing,
+    required this.onSearchChanged,
+    required this.onFilterChanged,
+    required this.onRefresh,
+    required this.onToggle,
+    required this.onDelete,
+  });
+
+  final List<AdminPushDevice>? devices;
+  final TextEditingController searchController;
+  final String filter;
+  final bool changing;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String> onFilterChanged;
+  final VoidCallback onRefresh;
+  final ValueChanged<AdminPushDevice> onToggle;
+  final ValueChanged<AdminPushDevice> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = devices;
+    final query = searchController.text.trim().toLowerCase();
+    final filtered =
+        values?.where((device) => _matches(device, query, filter)).toList() ??
+            const <AdminPushDevice>[];
+    final active = values?.where((item) => item.isActive).length ?? 0;
+    final stale = values?.where((item) => item.isStale).length ?? 0;
+    final disabled = values?.where((item) => !item.isActive).length ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.devices_other_rounded, color: AppColors.blue),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Push-Geräte verwalten',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                    ),
+                    Text(
+                      'Systemweite Kontrolle über registrierte App- und Browsergeräte.',
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Geräte neu laden',
+                onPressed: changing ? null : onRefresh,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _DeviceMetric(label: 'Gesamt', value: values?.length ?? 0),
+              _DeviceMetric(label: 'Aktiv', value: active, color: Colors.green),
+              _DeviceMetric(
+                  label: 'Länger inaktiv',
+                  value: stale,
+                  color: AppColors.orange),
+              _DeviceMetric(
+                label: 'Deaktiviert',
+                value: disabled,
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final search = TextField(
+                controller: searchController,
+                onChanged: onSearchChanged,
+                decoration: InputDecoration(
+                  labelText: 'Gerät oder Mitglied suchen',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Suche löschen',
+                          onPressed: () {
+                            searchController.clear();
+                            onSearchChanged('');
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                ),
+              );
+              final selection = DropdownButtonFormField<String>(
+                initialValue: filter,
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  prefixIcon: Icon(Icons.filter_alt_rounded),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'ALL', child: Text('Alle Geräte')),
+                  DropdownMenuItem(value: 'ACTIVE', child: Text('Aktiv')),
+                  DropdownMenuItem(
+                      value: 'STALE', child: Text('Länger inaktiv')),
+                  DropdownMenuItem(
+                      value: 'DISABLED', child: Text('Deaktiviert')),
+                ],
+                onChanged: changing
+                    ? null
+                    : (value) {
+                        if (value != null) onFilterChanged(value);
+                      },
+              );
+              if (constraints.maxWidth < 620) {
+                return Column(
+                  children: [
+                    search,
+                    const SizedBox(height: 10),
+                    selection,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(flex: 2, child: search),
+                  const SizedBox(width: 10),
+                  Expanded(child: selection),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+          if (values == null)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (filtered.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text('Keine Geräte für diesen Filter gefunden.'),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumns = constraints.maxWidth >= 900;
+                final width = twoColumns
+                    ? (constraints.maxWidth - 12) / 2
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  children: [
+                    for (final device in filtered)
+                      SizedBox(
+                        width: width,
+                        child: _PushDeviceTile(
+                          device: device,
+                          changing: changing,
+                          onToggle: () => onToggle(device),
+                          onDelete: () => onDelete(device),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          const SizedBox(height: 10),
+          Text(
+            'Als „länger inaktiv“ gelten Geräte ohne erfolgreichen Kontakt seit mindestens 60 Tagen. '
+            'Eine administrative Deaktivierung kann durch einen App-Neustart nicht aufgehoben werden.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _matches(AdminPushDevice device, String query, String filter) {
+    final statusMatches = switch (filter) {
+      'ACTIVE' => device.isActive && !device.isStale,
+      'STALE' => device.isStale,
+      'DISABLED' => !device.isActive,
+      _ => true,
+    };
+    if (!statusMatches || query.isEmpty) return statusMatches;
+    return [
+      device.deviceName,
+      device.userName,
+      device.userEmail,
+      device.teamName,
+      device.roleLabel,
+      device.platform,
+    ].any((value) => value.toLowerCase().contains(query));
+  }
+}
+
+class _DeviceMetric extends StatelessWidget {
+  const _DeviceMetric({required this.label, required this.value, this.color});
+
+  final String label;
+  final int value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor = color ?? AppColors.blue;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: effectiveColor.withValues(alpha: .09),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: effectiveColor.withValues(alpha: .2)),
+      ),
+      child: Text(
+        '$value $label',
+        style: TextStyle(color: effectiveColor, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _PushDeviceTile extends StatelessWidget {
+  const _PushDeviceTile({
+    required this.device,
+    required this.changing,
+    required this.onToggle,
+    required this.onDelete,
+  });
+
+  final AdminPushDevice device;
+  final bool changing;
+  final VoidCallback onToggle;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (device.health) {
+      PushDeviceHealth.active => Colors.green,
+      PushDeviceHealth.stale => AppColors.orange,
+      PushDeviceHealth.disabled => Theme.of(context).colorScheme.error,
+    };
+    final statusLabel = switch (device.health) {
+      PushDeviceHealth.active => 'Aktiv',
+      PushDeviceHealth.stale => 'Länger inaktiv',
+      PushDeviceHealth.disabled =>
+        device.isAdministrativelyDisabled ? 'Vom Admin deaktiviert' : 'Inaktiv',
+    };
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: color.withValues(alpha: .12),
+                foregroundColor: color,
+                child: Icon(
+                  device.isAndroid
+                      ? Icons.phone_android_rounded
+                      : Icons.language_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      device.deviceName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      '${device.userName} · ${device.teamName}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${device.roleLabel} · ${device.userEmail}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                enabled: !changing,
+                tooltip: 'Geräteaktionen',
+                onSelected: (value) {
+                  if (value == 'TOGGLE') onToggle();
+                  if (value == 'DELETE') onDelete();
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'TOGGLE',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        device.isActive
+                            ? Icons.notifications_off_rounded
+                            : Icons.notifications_active_rounded,
+                      ),
+                      title:
+                          Text(device.isActive ? 'Deaktivieren' : 'Aktivieren'),
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'DELETE',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.delete_forever_rounded),
+                      title: Text('Endgültig löschen'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              Chip(
+                avatar: Icon(Icons.circle, size: 10, color: color),
+                label: Text(statusLabel),
+                visualDensity: VisualDensity.compact,
+              ),
+              Chip(
+                label: Text(device.isAndroid ? 'Android' : 'Web'),
+                visualDensity: VisualDensity.compact,
+              ),
+              Chip(
+                label: Text('${device.deliveryCount} Zustellungen'),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Letzter Kontakt: ${_deviceDate(device.lastUsedAt)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          if (device.lastDeliveryError != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              'Letzter Push-Fehler: ${device.lastDeliveryError}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+String _deviceDate(DateTime value) {
+  final local = value.toLocal();
+  String two(int number) => number.toString().padLeft(2, '0');
+  return '${two(local.day)}.${two(local.month)}.${local.year} · '
+      '${two(local.hour)}:${two(local.minute)} Uhr';
 }
 
 class _PushRegistrationCard extends StatelessWidget {

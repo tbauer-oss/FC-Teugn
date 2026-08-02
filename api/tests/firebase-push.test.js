@@ -9,6 +9,8 @@ const {
   summarizePushDeliveries,
 } = require('../dist/src/services/notification.service');
 const {
+  pushDeviceHealth,
+  pushDeviceMayAutoReactivate,
   validPushEndpoint,
 } = require('../dist/src/controllers/notifications.controller');
 
@@ -91,5 +93,45 @@ test('global push test route remains restricted to the system administrator', ()
   assert.match(
     routes,
     /router\.post\('\/admin\/test-push', requireRoles\(\[Role\.SUPER_ADMIN\]\)/,
+  );
+});
+
+test('administratively disabled devices cannot reactivate on app startup', () => {
+  assert.equal(pushDeviceMayAutoReactivate(null), true);
+  assert.equal(pushDeviceMayAutoReactivate(new Date('2026-08-01T10:00:00Z')), false);
+});
+
+test('device health highlights stale and disabled registrations', () => {
+  const now = new Date('2026-08-02T10:00:00Z');
+  assert.equal(
+    pushDeviceHealth(true, new Date('2026-08-01T10:00:00Z'), now),
+    'ACTIVE',
+  );
+  assert.equal(
+    pushDeviceHealth(true, new Date('2026-05-01T10:00:00Z'), now),
+    'STALE',
+  );
+  assert.equal(
+    pushDeviceHealth(false, new Date('2026-08-01T10:00:00Z'), now),
+    'DISABLED',
+  );
+});
+
+test('system-wide device management remains restricted to the system administrator', () => {
+  const routes = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '../src/routes/notifications.routes.ts'),
+    'utf8',
+  );
+  assert.match(
+    routes,
+    /router\.get\('\/admin\/devices', requireRoles\(\[Role\.SUPER_ADMIN\]\)/,
+  );
+  assert.match(
+    routes,
+    /'\/admin\/devices\/:id',[\s\S]*requireRoles\(\[Role\.SUPER_ADMIN\]\),[\s\S]*setAdminPushDeviceState/,
+  );
+  assert.match(
+    routes,
+    /'\/admin\/devices\/:id',[\s\S]*requireRoles\(\[Role\.SUPER_ADMIN\]\),[\s\S]*deleteAdminPushDevice/,
   );
 });
