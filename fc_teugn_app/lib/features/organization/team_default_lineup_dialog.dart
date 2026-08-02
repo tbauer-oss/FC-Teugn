@@ -285,7 +285,11 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final compact = constraints.maxWidth < 850;
+              final compact = constraints.maxWidth < 1000;
+              final captain = _slots
+                  .where((slot) => slot.isCaptain && slot.player != null)
+                  .map((slot) => slot.player!)
+                  .firstOrNull;
               final controls = _LineupControls(
                 formation: _formation,
                 formations: widget.team.gameFormat.formations,
@@ -330,27 +334,66 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                 );
               }
               return Padding(
+                key: const ValueKey('desktop-team-management'),
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-                child: Column(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    controls,
-                    const SizedBox(height: 16),
                     Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(flex: 6, child: Center(child: pitch)),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            flex: 5,
-                            child: Card(
+                      flex: 7,
+                      child: Container(
+                        decoration: _desktopPanelDecoration(),
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          children: [
+                            _DesktopTacticsHeader(
+                              teamName: widget.team.displayName,
+                              selectedCount: selectedCount,
+                              targetCount: targetCount,
+                              captainName: captain?.displayName,
+                            ),
+                            const SizedBox(height: 12),
+                            controls,
+                            const SizedBox(height: 14),
+                            Expanded(
+                              child: Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE9EBE4),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: AppColors.line),
+                                ),
+                                padding: const EdgeInsets.all(14),
+                                child: Center(child: pitch),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const _DesktopPitchHint(),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      flex: 4,
+                      child: Container(
+                        decoration: _desktopPanelDecoration(),
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(
+                          children: [
+                            _DesktopManagerHeader(
+                              selectedSlot: _selectedSlotIndex == null
+                                  ? null
+                                  : _slots[_selectedSlotIndex!],
+                            ),
+                            Expanded(
                               child: SingleChildScrollView(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.all(18),
                                 child: manager,
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -362,6 +405,205 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
       ),
     );
   }
+}
+
+BoxDecoration _desktopPanelDecoration() => BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: AppColors.line),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x12000000),
+          blurRadius: 24,
+          offset: Offset(0, 10),
+        ),
+      ],
+    );
+
+class _DesktopTacticsHeader extends StatelessWidget {
+  const _DesktopTacticsHeader({
+    required this.teamName,
+    required this.selectedCount,
+    required this.targetCount,
+    required this.captainName,
+  });
+
+  final String teamName;
+  final int selectedCount;
+  final int targetCount;
+  final String? captainName;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.yellow,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child:
+                const Icon(Icons.sports_soccer_rounded, color: AppColors.black),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'TAKTIKBOARD · STANDARD-AUFSTELLUNG',
+                  style: TextStyle(
+                    color: AppColors.gold,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                    letterSpacing: .8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  teamName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ],
+            ),
+          ),
+          _DesktopStatusBadge(
+            icon: Icons.groups_rounded,
+            label: '$selectedCount/$targetCount',
+            hint: 'Startelf',
+          ),
+          const SizedBox(width: 8),
+          _DesktopStatusBadge(
+            icon: Icons.workspace_premium_rounded,
+            label: captainName ?? 'Offen',
+            hint: 'Kapitän',
+          ),
+        ],
+      );
+}
+
+class _DesktopStatusBadge extends StatelessWidget {
+  const _DesktopStatusBadge({
+    required this.icon,
+    required this.label,
+    required this.hint,
+  });
+
+  final IconData icon;
+  final String label;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minWidth: 90, maxWidth: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: AppColors.gold),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  Text(
+                    hint,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _DesktopManagerHeader extends StatelessWidget {
+  const _DesktopManagerHeader({required this.selectedSlot});
+
+  final _EditableSlot? selectedSlot;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(20, 17, 20, 16),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.black, Color(0xFF35321B)],
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.manage_accounts_rounded,
+                color: AppColors.yellow, size: 28),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'SPIELER & ROLLEN',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    selectedSlot == null
+                        ? 'Position auf dem Feld auswählen'
+                        : '${selectedSlot!.positionCode} · ${selectedSlot!.player?.displayName ?? 'noch offen'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _DesktopPitchHint extends StatelessWidget {
+  const _DesktopPitchHint();
+
+  @override
+  Widget build(BuildContext context) => const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.touch_app_rounded, size: 17, color: AppColors.gold),
+          SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              'Spieler auswählen, direkt tauschen oder frei auf dem Feld verschieben.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.muted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      );
 }
 
 class _LineupControls extends StatelessWidget {
