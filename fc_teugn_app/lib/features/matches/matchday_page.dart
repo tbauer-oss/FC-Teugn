@@ -280,11 +280,13 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     }
     final match = _match!;
     final opponent = match.details?.opponent ?? 'Gegner';
+    final mobile = MediaQuery.sizeOf(context).width < 600;
     return DefaultTabController(
       length: 5,
       child: PageScaffold(
         title: 'FC Teugn · $opponent',
         subtitle: _dateLine(match),
+        denseMobileHeader: true,
         child: Column(
           children: [
             if (!_online || _usingOfflineSnapshot) ...[
@@ -292,22 +294,13 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
               const SizedBox(height: 12),
             ],
             _ScoreHero(match: match),
-            const SizedBox(height: 18),
-            const TabBar(
-              isScrollable: true,
-              tabs: [
-                Tab(icon: Icon(Icons.info_outline_rounded), text: 'Übersicht'),
-                Tab(icon: Icon(Icons.groups_rounded), text: 'Kader'),
-                Tab(
-                    icon: Icon(Icons.dashboard_customize_rounded),
-                    text: 'Aufstellung'),
-                Tab(icon: Icon(Icons.auto_awesome_rounded), text: 'Autopilot'),
-                Tab(icon: Icon(Icons.bolt_rounded), text: 'Liveticker'),
-              ],
-            ),
-            const SizedBox(height: 14),
+            SizedBox(height: mobile ? 8 : 18),
+            _MatchdayTabBar(compact: mobile),
+            SizedBox(height: mobile ? 6 : 14),
             SizedBox(
-              height: max(520.0, MediaQuery.sizeOf(context).height - 350),
+              height: mobile
+                  ? max(480.0, MediaQuery.sizeOf(context).height - 250)
+                  : max(520.0, MediaQuery.sizeOf(context).height - 350),
               child: TabBarView(
                 children: [
                   _Overview(match: match),
@@ -394,6 +387,7 @@ class _ScoreHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final details = match.details;
     final ticker = match.ticker;
     final home =
@@ -406,38 +400,106 @@ class _ScoreHero extends StatelessWidget {
     final awayGoals = details?.isHome != false ? their : our;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 20,
+        vertical: compact ? 12 : 22,
+      ),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.navy, AppColors.blue],
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(compact ? 18 : 24),
       ),
       child: Row(
         children: [
-          Expanded(child: _TeamName(name: home)),
+          Expanded(child: _TeamName(name: home, compact: compact)),
           Text(
             homeGoals == null ? '–' : '$homeGoals',
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
-              fontSize: 38,
+              fontSize: compact ? 30 : 38,
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 14),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 14),
             child: Text(':',
-                style: TextStyle(color: Colors.white54, fontSize: 32)),
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: compact ? 25 : 32,
+                )),
           ),
           Text(
             awayGoals == null ? '–' : '$awayGoals',
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
-              fontSize: 38,
+              fontSize: compact ? 30 : 38,
             ),
           ),
-          Expanded(child: _TeamName(name: away)),
+          Expanded(child: _TeamName(name: away, compact: compact)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MatchdayTabBar extends StatelessWidget {
+  const _MatchdayTabBar({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!compact) {
+      return const TabBar(
+        isScrollable: true,
+        tabs: [
+          Tab(icon: Icon(Icons.info_outline_rounded), text: 'Übersicht'),
+          Tab(icon: Icon(Icons.groups_rounded), text: 'Kader'),
+          Tab(
+            icon: Icon(Icons.dashboard_customize_rounded),
+            text: 'Aufstellung',
+          ),
+          Tab(icon: Icon(Icons.auto_awesome_rounded), text: 'Autopilot'),
+          Tab(icon: Icon(Icons.bolt_rounded), text: 'Liveticker'),
+        ],
+      );
+    }
+
+    return const TabBar(
+      isScrollable: true,
+      labelPadding: EdgeInsets.symmetric(horizontal: 7),
+      tabs: [
+        _CompactMatchTab(icon: Icons.info_outline_rounded, label: 'Info'),
+        _CompactMatchTab(icon: Icons.groups_rounded, label: 'Kader'),
+        _CompactMatchTab(
+          icon: Icons.dashboard_customize_rounded,
+          label: 'Elf',
+        ),
+        _CompactMatchTab(icon: Icons.auto_awesome_rounded, label: 'Auto'),
+        _CompactMatchTab(icon: Icons.bolt_rounded, label: 'Live'),
+      ],
+    );
+  }
+}
+
+class _CompactMatchTab extends StatelessWidget {
+  const _CompactMatchTab({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tab(
+      height: 42,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 4),
+          Text(label),
         ],
       ),
     );
@@ -445,12 +507,13 @@ class _ScoreHero extends StatelessWidget {
 }
 
 class _TeamName extends StatelessWidget {
-  const _TeamName({required this.name});
+  const _TeamName({required this.name, required this.compact});
   final String name;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 14),
         child: Text(
           name,
           textAlign: TextAlign.center,
@@ -458,9 +521,8 @@ class _TeamName extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 18,
             fontWeight: FontWeight.w800,
-          ),
+          ).copyWith(fontSize: compact ? 15 : 18),
         ),
       );
 }
