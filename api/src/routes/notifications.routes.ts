@@ -2,6 +2,8 @@ import { Router } from 'express';
 import {
   getNotificationPreferences,
   grantPushConsent,
+  deleteAdminPushDevice,
+  listAdminPushDevices,
   listNotifications,
   listPushSubscriptions,
   markAllNotificationsRead,
@@ -11,6 +13,7 @@ import {
   removeCurrentPushSubscription,
   removePushSubscription,
   saveNotificationPreferences,
+  setAdminPushDeviceState,
   testPushBroadcast,
 } from '../controllers/notifications.controller';
 import { requireApproved, requireAuth, requireRoles } from '../middleware/auth';
@@ -21,6 +24,17 @@ router.use(requireAuth);
 router.use(requireApproved);
 router.get('/', listNotifications);
 router.post('/admin/test-push', requireRoles([Role.SUPER_ADMIN]), testPushBroadcast);
+router.get('/admin/devices', requireRoles([Role.SUPER_ADMIN]), listAdminPushDevices);
+router.patch(
+  '/admin/devices/:id',
+  requireRoles([Role.SUPER_ADMIN]),
+  setAdminPushDeviceState,
+);
+router.delete(
+  '/admin/devices/:id',
+  requireRoles([Role.SUPER_ADMIN]),
+  deleteAdminPushDevice,
+);
 router.post('/read-all', markAllNotificationsRead);
 router.post('/:id/read', markNotificationRead);
 router.get('/settings/configuration', notificationConfiguration);

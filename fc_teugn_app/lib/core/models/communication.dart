@@ -258,6 +258,108 @@ class AdminPushTestResult {
   }
 }
 
+enum PushDeviceHealth { active, stale, disabled }
+
+class AdminPushDevice {
+  const AdminPushDevice({
+    required this.id,
+    required this.platform,
+    required this.deviceName,
+    required this.isActive,
+    required this.health,
+    required this.lastUsedAt,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.userId,
+    required this.userName,
+    required this.userEmail,
+    required this.userRole,
+    required this.userStatus,
+    required this.teamName,
+    required this.deliveryCount,
+    this.administrativelyDisabledAt,
+    this.lastDeliveryStatus,
+    this.lastDeliveryError,
+    this.lastDeliveryAt,
+  });
+
+  final String id;
+  final String platform;
+  final String deviceName;
+  final bool isActive;
+  final PushDeviceHealth health;
+  final DateTime lastUsedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? administrativelyDisabledAt;
+  final String userId;
+  final String userName;
+  final String userEmail;
+  final String userRole;
+  final String userStatus;
+  final String teamName;
+  final int deliveryCount;
+  final String? lastDeliveryStatus;
+  final String? lastDeliveryError;
+  final DateTime? lastDeliveryAt;
+
+  bool get isAndroid => platform == 'ANDROID';
+  bool get isStale => health == PushDeviceHealth.stale;
+  bool get isAdministrativelyDisabled => administrativelyDisabledAt != null;
+
+  String get roleLabel => switch (userRole) {
+        'SUPER_ADMIN' => 'Systemadministration',
+        'CLUB_ADMIN' => 'Vereinsadministration',
+        'YOUTH_DIRECTOR' => 'Jugendleitung',
+        'COACH' || 'TRAINER' => 'Trainerteam',
+        'ASSISTANT_COACH' => 'Co-Trainerteam',
+        'TEAM_MANAGER' => 'Teamorganisation',
+        'TRAINER_ADMIN' => 'Trainer-Administration',
+        'PLAYER' => 'Spieler',
+        'READ_ONLY' => 'Lesender Zugriff',
+        _ => 'Elternteil',
+      };
+
+  factory AdminPushDevice.fromJson(Map<String, dynamic> json) {
+    final user = json['user'] as Map<String, dynamic>? ?? const {};
+    final team = user['team'] as Map<String, dynamic>? ?? const {};
+    final lastDelivery = json['lastDelivery'] as Map<String, dynamic>?;
+    return AdminPushDevice(
+      id: json['id'] as String,
+      platform: json['platform'] as String? ?? 'WEB',
+      deviceName: (json['deviceName'] as String?)?.trim().isNotEmpty == true
+          ? json['deviceName'] as String
+          : 'Unbenanntes Gerät',
+      isActive: json['isActive'] as bool? ?? false,
+      health: switch (json['health']) {
+        'ACTIVE' => PushDeviceHealth.active,
+        'STALE' => PushDeviceHealth.stale,
+        _ => PushDeviceHealth.disabled,
+      },
+      lastUsedAt: DateTime.parse(json['lastUsedAt'] as String),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      administrativelyDisabledAt: json['administrativelyDisabledAt'] == null
+          ? null
+          : DateTime.parse(json['administrativelyDisabledAt'] as String),
+      userId: user['id'] as String? ?? '',
+      userName: user['name'] as String? ?? 'Unbekanntes Mitglied',
+      userEmail: user['email'] as String? ?? '',
+      userRole: user['role'] as String? ?? 'PARENT',
+      userStatus: user['status'] as String? ?? 'PENDING',
+      teamName: team['name'] as String? ?? 'Nicht zugeordnet',
+      deliveryCount: (json['deliveryCount'] as num?)?.toInt() ?? 0,
+      lastDeliveryStatus: lastDelivery?['status'] as String?,
+      lastDeliveryError: lastDelivery?['errorCode'] as String?,
+      lastDeliveryAt: lastDelivery?['sentAt'] != null
+          ? DateTime.parse(lastDelivery!['sentAt'] as String)
+          : lastDelivery?['createdAt'] != null
+              ? DateTime.parse(lastDelivery!['createdAt'] as String)
+              : null,
+    );
+  }
+}
+
 enum PitchConflictRequestStatus {
   pending,
   approved,

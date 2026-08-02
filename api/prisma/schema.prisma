@@ -1567,21 +1567,24 @@ model Notification {
 }
 
 model PushSubscription {
-  id         String                 @id @default(cuid())
-  userId     String
-  platform   PushPlatform
-  endpoint   String                 @unique
-  p256dh     String?
-  auth       String?
-  deviceName String?
-  isActive   Boolean                @default(true)
-  lastUsedAt DateTime               @default(now())
-  createdAt  DateTime               @default(now())
-  updatedAt  DateTime               @updatedAt
-  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deliveries NotificationDelivery[]
+  id                               String                 @id @default(cuid())
+  userId                           String
+  platform                         PushPlatform
+  endpoint                         String                 @unique
+  p256dh                           String?
+  auth                             String?
+  deviceName                       String?
+  isActive                         Boolean                @default(true)
+  administrativelyDisabledAt       DateTime?
+  administrativelyDisabledByUserId String?
+  lastUsedAt                       DateTime               @default(now())
+  createdAt                        DateTime               @default(now())
+  updatedAt                        DateTime               @updatedAt
+  user                             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries                       NotificationDelivery[]
 
   @@index([userId, isActive])
+  @@index([isActive, lastUsedAt])
 }
 
 model NotificationPreference {

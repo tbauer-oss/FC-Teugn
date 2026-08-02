@@ -141,6 +141,10 @@ export async function registerPushSubscription(req: Request, res: Response) {
   if (platform === PushPlatform.WEB && (!p256dh || !auth)) {
     return res.status(400).json({ message: 'Web-Push-Schlüssel fehlen.' });
   }
+  const existing = await prisma.pushSubscription.findUnique({
+    where: { endpoint },
+    select: { id: true, administrativelyDisabledAt: true },
+  });
   const subscription = await prisma.pushSubscription.upsert({
     where: { endpoint },
     update: {
@@ -149,7 +153,11 @@ export async function registerPushSubscription(req: Request, res: Response) {
       p256dh,
       auth,
       deviceName: text(req.body?.deviceName, 160),
-      isActive: true,
+      // An administrative block must not be undone by an automatic token
+      // refresh when the app starts again.
+      isActive: pushDeviceMayAutoReactivate(
+        existing?.administrativelyDisabledAt ?? null,
+      ),
       lastUsedAt: new Date(),
     },
     create: {
@@ -161,7 +169,12 @@ export async function registerPushSubscription(req: Request, res: Response) {
       deviceName: text(req.body?.deviceName, 160),
     },
   });
-  return res.status(201).json({ id: subscription.id, platform: subscription.platform });
+  return res.status(201).json({
+    id: subscription.id,
+    platform: subscription.platform,
+    isActive: subscription.isActive,
+    administrativelyDisabled: subscription.administrativelyDisabledAt != null,
+  });
 }
 
 export function validPushEndpoint(platform: PushPlatform, endpoint: string) {
@@ -249,4 +262,159 @@ export async function listPushSubscriptions(req: Request, res: Response) {
     orderBy: { createdAt: 'desc' },
   });
   return res.json(subscriptions);
+}
+
+export const PUSH_DEVICE_STALE_AFTER_DAYS = 60;
+
+export function pushDeviceMayAutoReactivate(
+  administrativelyDisabledAt: Date | null,
+) {
+  return administrativelyDisabledAt == null;
+}
+
+export function pushDeviceHealth(
+  isActive: boolean,
+  lastUsedAt: Date,
+  now = new Date(),
+) {
+  if (!isActive) return 'DISABLED' as const;
+  const staleAt = new Date(now);
+  staleAt.setUTCDate(staleAt.getUTCDate() - PUSH_DEVICE_STALE_AFTER_DAYS);
+  return lastUsedAt < staleAt ? ('STALE' as const) : ('ACTIVE' as const);
+}
+
+export async function listAdminPushDevices(_req: Request, res: Response) {
+  const devices = await prisma.pushSubscription.findMany({
+    select: {
+      id: true,
+      platform: true,
+      deviceName: true,
+      isActive: true,
+      administrativelyDisabledAt: true,
+      lastUsedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          status: true,
+          team: { select: { name: true } },
+        },
+      },
+      _count: { select: { deliveries: true } },
+      deliveries: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: {
+          status: true,
+          errorCode: true,
+          createdAt: true,
+          sentAt: true,
+        },
+      },
+    },
+    orderBy: [{ isActive: 'desc' }, { lastUsedAt: 'desc' }],
+  });
+  const now = new Date();
+  return res.json(
+    devices.map(({ _count, deliveries, ...device }) => ({
+      ...device,
+      health: pushDeviceHealth(device.isActive, device.lastUsedAt, now),
+      deliveryCount: _count.deliveries,
+      lastDelivery: deliveries[0] ?? null,
+    })),
+  );
+}
+
+export async function setAdminPushDeviceState(req: Request, res: Response) {
+  if (typeof req.body?.isActive !== 'boolean') {
+    return res.status(400).json({ message: 'Der gewünschte Gerätestatus fehlt.' });
+  }
+  const device = await prisma.pushSubscription.findUnique({
+    where: { id: req.params.id },
+    select: {
+      id: true,
+      userId: true,
+      deviceName: true,
+      platform: true,
+      user: { select: { teamId: true } },
+    },
+  });
+  if (!device) return res.status(404).json({ message: 'Push-Gerät nicht gefunden.' });
+
+  const isActive = req.body.isActive;
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.pushSubscription.update({
+      where: { id: device.id },
+      data: {
+        isActive,
+        administrativelyDisabledAt: isActive ? null : now,
+        administrativelyDisabledByUserId: isActive ? null : req.user!.id,
+      },
+    });
+    if (!isActive) {
+      await tx.notificationDelivery.updateMany({
+        where: {
+          subscriptionId: device.id,
+          status: NotificationDeliveryStatus.PENDING,
+        },
+        data: {
+          status: NotificationDeliveryStatus.SKIPPED,
+          lastAttemptAt: now,
+          errorCode: 'DEVICE_DISABLED_BY_ADMIN',
+        },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        actorId: req.user!.id,
+        teamId: device.user.teamId,
+        action: isActive ? 'PUSH_DEVICE_ENABLED' : 'PUSH_DEVICE_DISABLED',
+        entityType: 'PushSubscription',
+        entityId: device.id,
+        metadata: {
+          ownerUserId: device.userId,
+          deviceName: device.deviceName,
+          platform: device.platform,
+        },
+      },
+    });
+  });
+  return res.json({ id: device.id, isActive });
+}
+
+export async function deleteAdminPushDevice(req: Request, res: Response) {
+  const device = await prisma.pushSubscription.findUnique({
+    where: { id: req.params.id },
+    select: {
+      id: true,
+      userId: true,
+      deviceName: true,
+      platform: true,
+      user: { select: { teamId: true } },
+    },
+  });
+  if (!device) return res.status(404).json({ message: 'Push-Gerät nicht gefunden.' });
+  await prisma.$transaction(async (tx) => {
+    await tx.pushSubscription.delete({ where: { id: device.id } });
+    await tx.auditLog.create({
+      data: {
+        actorId: req.user!.id,
+        teamId: device.user.teamId,
+        action: 'PUSH_DEVICE_DELETED',
+        entityType: 'PushSubscription',
+        entityId: device.id,
+        metadata: {
+          ownerUserId: device.userId,
+          deviceName: device.deviceName,
+          platform: device.platform,
+        },
+      },
+    });
+  });
+  return res.status(204).send();
 }

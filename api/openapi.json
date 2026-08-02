@@ -223,6 +223,43 @@
       "get": {"tags": ["Kommunikation"], "summary": "Sichtbare Mitteilungen", "security": [{"bearerAuth": []}], "responses": {"200": {"description": "Mitteilungen"}}},
       "post": {"tags": ["Kommunikation"], "summary": "Mitteilung speichern", "security": [{"bearerAuth": []}], "responses": {"201": {"description": "Mitteilung"}}}
     },
+    "/notifications/admin/devices": {
+      "get": {
+        "tags": ["Administration", "Kommunikation"],
+        "summary": "Registrierte Push-Geräte systemweit verwalten",
+        "description": "Nur für die Systemadministration. Liefert aktive, länger inaktive und administrativ deaktivierte Android- und Web-Geräte ohne Push-Token offenzulegen.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "Push-Geräte mit Besitzer, letztem Kontakt und Zustellstatus"},
+          "403": {"$ref": "#/components/responses/Forbidden"}
+        }
+      }
+    },
+    "/notifications/admin/devices/{id}": {
+      "patch": {
+        "tags": ["Administration", "Kommunikation"],
+        "summary": "Push-Gerät dauerhaft aktivieren oder deaktivieren",
+        "description": "Eine administrative Deaktivierung bleibt auch bei automatischer Token-Aktualisierung bestehen.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"$ref": "#/components/parameters/Id"}],
+        "responses": {
+          "200": {"description": "Gerätestatus aktualisiert"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"description": "Push-Gerät nicht gefunden"}
+        }
+      },
+      "delete": {
+        "tags": ["Administration", "Kommunikation"],
+        "summary": "Push-Gerät endgültig löschen",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"$ref": "#/components/parameters/Id"}],
+        "responses": {
+          "204": {"description": "Gerät gelöscht"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"description": "Push-Gerät nicht gefunden"}
+        }
+      }
+    },
     "/imports/competition/preview": {
       "post": {"tags": ["Import"], "summary": "CSV-/ICS-Import validieren und vorschauen", "security": [{"bearerAuth": []}], "responses": {"201": {"description": "Importvorschau"}}}
     },
