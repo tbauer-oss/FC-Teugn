@@ -588,6 +588,7 @@ export async function updateLineup(req: Request, res: Response) {
   });
   if (!squad) return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
   const positions = Array.isArray(req.body?.positions) ? req.body.positions : [];
+  const substitutions = Array.isArray(req.body?.substitutions) ? req.body.substitutions : [];
   const fieldSize = Number(
     String(
       match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat,
@@ -624,6 +625,30 @@ export async function updateLineup(req: Request, res: Response) {
     }
     positionKeys.add(key);
   }
+  const periodCount = match.matchDetails?.periodCount ?? 2;
+  const periodMinutes = match.matchDetails?.periodMinutes ?? 30;
+  for (const substitution of substitutions as Record<string, unknown>[]) {
+    const playerInId = String(substitution.playerInId ?? '');
+    const playerOutId = String(substitution.playerOutId ?? '');
+    if (!memberIds.has(playerInId) || !memberIds.has(playerOutId)) {
+      return res.status(400).json({
+        message: 'Der Wechselplan enthält einen nicht nominierten Spieler.',
+      });
+    }
+    if (!playerInId || playerInId === playerOutId) {
+      return res.status(400).json({ message: 'Ungültiger geplanter Wechsel.' });
+    }
+    const period = integer(substitution.period, 1, periodCount, 1);
+    if (Number(substitution.period ?? 1) !== period) {
+      return res.status(400).json({ message: 'Ungültiger Spielabschnitt im Wechselplan.' });
+    }
+    if (substitution.minute != null) {
+      const minute = integer(substitution.minute, 0, periodMinutes, 0);
+      if (Number(substitution.minute) !== minute) {
+        return res.status(400).json({ message: 'Ungültige Minute im Wechselplan.' });
+      }
+    }
+  }
   const saved = await prisma.$transaction(async (tx) => {
     const lineup = await tx.lineup.upsert({
       where: { squadId: squad.id },
@@ -656,6 +681,7 @@ export async function updateLineup(req: Request, res: Response) {
       },
     });
     await tx.lineupPosition.deleteMany({ where: { lineupId: lineup.id } });
+    await tx.plannedSubstitution.deleteMany({ where: { lineupId: lineup.id } });
     if (positions.length) {
       await tx.lineupPosition.createMany({
         data: (positions as Record<string, unknown>[]).map((position) => ({
@@ -673,6 +699,21 @@ export async function updateLineup(req: Request, res: Response) {
         })),
       });
     }
+    if (substitutions.length) {
+      await tx.plannedSubstitution.createMany({
+        data: (substitutions as Record<string, unknown>[]).map((substitution) => ({
+          lineupId: lineup.id,
+          period: integer(substitution.period, 1, periodCount, 1),
+          minute:
+            substitution.minute == null
+              ? null
+              : integer(substitution.minute, 0, periodMinutes, 0),
+          playerInId: String(substitution.playerInId),
+          playerOutId: String(substitution.playerOutId),
+          note: text(substitution.note, 500),
+        })),
+      });
+    }
     return tx.lineup.findUnique({
       where: { id: lineup.id },
       include: { positions: { include: { player: true } }, substitutions: true },
@@ -686,7 +727,11 @@ export async function updateLineup(req: Request, res: Response) {
         saved?.status === LineupStatus.PUBLISHED ? 'MATCH_LINEUP_PUBLISHED' : 'MATCH_LINEUP_UPDATED',
       entityType: 'Lineup',
       entityId: saved?.id,
-      metadata: { status: saved?.status, positions: positions.length },
+      metadata: {
+        status: saved?.status,
+        positions: positions.length,
+        substitutions: substitutions.length,
+      },
     },
   });
   return res.json(saved);

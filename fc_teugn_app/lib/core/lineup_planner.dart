@@ -21,6 +21,7 @@ List<LineupPositionModel> planInitialLineup({
   required List<MatchPlayer> players,
   required int fieldSize,
   String? formation,
+  Map<String, int> playerPriority = const {},
 }) {
   final available = players.toList();
   final slots = lineupSlots(fieldSize, formation: formation);
@@ -54,7 +55,9 @@ List<LineupPositionModel> planInitialLineup({
           final opportunity = alternateOpportunity(a).compareTo(
             alternateOpportunity(b),
           );
-          return opportunity != 0 ? opportunity : _stablePlayerOrder(a, b);
+          return opportunity != 0
+              ? opportunity
+              : _stablePlayerOrder(a, b, playerPriority);
         });
       if (candidates.isEmpty) continue;
       assigned[index] = candidates.first;
@@ -79,7 +82,7 @@ List<LineupPositionModel> planInitialLineup({
           b.secondaryPosition,
           slot.$3,
         ).compareTo(_fitScore(a.position, a.secondaryPosition, slot.$3));
-        return fit != 0 ? fit : _stablePlayerOrder(a, b);
+        return fit != 0 ? fit : _stablePlayerOrder(a, b, playerPriority);
       });
       player = available.removeAt(0);
     }
@@ -99,7 +102,15 @@ List<LineupPositionModel> planInitialLineup({
   return planned;
 }
 
-int _stablePlayerOrder(MatchPlayer a, MatchPlayer b) {
+int _stablePlayerOrder(
+  MatchPlayer a,
+  MatchPlayer b,
+  Map<String, int> playerPriority,
+) {
+  final priorityOrder = (playerPriority[a.id] ?? 0).compareTo(
+    playerPriority[b.id] ?? 0,
+  );
+  if (priorityOrder != 0) return priorityOrder;
   final shirtOrder = (a.shirtNumber ?? 999).compareTo(b.shirtNumber ?? 999);
   return shirtOrder != 0 ? shirtOrder : a.name.compareTo(b.name);
 }
