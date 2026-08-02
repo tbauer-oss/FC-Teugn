@@ -123,4 +123,30 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('web layout presents formation as a tactical desk',
+      (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TeamDefaultLineupDialog(team: team, players: players),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('desktop-team-management')),
+      findsOneWidget,
+    );
+    expect(find.text('TAKTIKBOARD · STANDARD-AUFSTELLUNG'), findsOneWidget);
+    expect(find.text('SPIELER & ROLLEN'), findsOneWidget);
+    expect(find.text('Startelf'), findsOneWidget);
+    expect(find.text('Kapitän'), findsOneWidget);
+    expect(find.byKey(const ValueKey('team-manager-scroll')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
