@@ -100,6 +100,13 @@ void main() {
       'striker',
     );
   });
+
+  test('rates exact, secondary and incompatible formation roles distinctly',
+      () {
+    expect(lineupFitScore('ST', null, 'ST'), 1000);
+    expect(lineupFitScore('ZM', 'ST', 'ST'), 850);
+    expect(lineupFitScore('TW', null, 'ST'), -1000);
+  });
 }
 
 MatchPlayer _player(String id, String name, String position) => MatchPlayer(

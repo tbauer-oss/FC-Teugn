@@ -59,6 +59,15 @@ void main() {
       status: PlayerStatus.active,
       dominantFoot: DominantFoot.right,
     ),
+    PlayerModel(
+      id: 'p6',
+      firstName: 'Elias',
+      lastName: 'Sturm',
+      position: 'ST',
+      shirtNumber: 11,
+      status: PlayerStatus.active,
+      dominantFoot: DominantFoot.right,
+    ),
   ];
 
   testWidgets('formation editor remains usable on a phone-sized screen',
@@ -75,17 +84,43 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('E1-Jugend · Kapitän & Startelf'), findsOneWidget);
-    expect(find.text('5 von 5 besetzt'), findsOneWidget);
-    expect(find.text('Positionsgetreu besetzen'), findsOneWidget);
+    expect(find.text('E1-Jugend · Team-Management'), findsOneWidget);
+    expect(find.text('FORMATION'), findsOneWidget);
+    expect(find.text('5/5 Spieler'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
+    await tester.tap(find.byKey(const ValueKey('formation-2-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('slot-marker-1-LV')), findsOneWidget);
+    expect(find.byKey(const ValueKey('slot-marker-2-RV')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('slot-marker-4-ST')));
+    await tester.pumpAndSettle();
+
     await tester.scrollUntilVisible(
-      find.text('Startspieler & Positionen'),
+      find.text('Spielerpool'),
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Startspieler & Positionen'), findsOneWidget);
+    expect(find.text('Spielerpool'), findsOneWidget);
+    expect(find.text('1 verfügbar'), findsOneWidget);
+
+    await tester.drag(
+      find.byKey(const ValueKey('team-manager-scroll')),
+      const Offset(0, -280),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Elias'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('slot-marker-4-ST')),
+        matching: find.text('Elias'),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }
