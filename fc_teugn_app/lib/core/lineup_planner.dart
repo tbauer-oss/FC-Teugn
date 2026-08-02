@@ -77,11 +77,13 @@ List<LineupPositionModel> planInitialLineup({
     if (player == null) {
       if (available.isEmpty) continue;
       available.sort((a, b) {
-        final fit = _fitScore(
+        final fit = lineupFitScore(
           b.position,
           b.secondaryPosition,
           slot.$3,
-        ).compareTo(_fitScore(a.position, a.secondaryPosition, slot.$3));
+        ).compareTo(
+          lineupFitScore(a.position, a.secondaryPosition, slot.$3),
+        );
         return fit != 0 ? fit : _stablePlayerOrder(a, b, playerPriority);
       });
       player = available.removeAt(0);
@@ -115,7 +117,7 @@ int _stablePlayerOrder(
   return shirtOrder != 0 ? shirtOrder : a.name.compareTo(b.name);
 }
 
-int _fitScore(
+int lineupFitScore(
   String? rawPlayerPosition,
   String? rawSecondaryPosition,
   String slot,

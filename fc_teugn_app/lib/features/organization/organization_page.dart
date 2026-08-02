@@ -785,12 +785,8 @@ class _TeamCard extends StatelessWidget {
                     children: [
                       FilledButton.tonalIcon(
                         onPressed: onLineup,
-                        icon: const Icon(Icons.schema_rounded),
-                        label: Text(
-                          team.defaultLineup == null
-                              ? 'Kapitän & Startelf festlegen'
-                              : 'Kapitän & Startelf ändern',
-                        ),
+                        icon: const Icon(Icons.sports_soccer_rounded),
+                        label: const Text('Team-Management'),
                       ),
                       OutlinedButton.icon(
                         onPressed: onEdit,
