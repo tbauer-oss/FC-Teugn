@@ -10,6 +10,7 @@ import '../../core/club_logo.dart';
 import '../../core/lineup_planner.dart';
 import '../../core/match_clock.dart';
 import '../../core/models/matchday.dart';
+import '../../core/models/event.dart';
 import '../../core/models/player.dart';
 import '../../core/offline_ticker.dart';
 import '../../core/providers.dart';
@@ -172,6 +173,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           squad: current.squad,
           ticker: ticker,
           eligiblePlayers: current.eligiblePlayers,
+          attendance: current.attendance,
           playerPoolAgeGroupCode: current.playerPoolAgeGroupCode,
           gameFormat: current.gameFormat,
           canManageTicker: current.canManageTicker,
@@ -215,6 +217,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         squad: squad,
         ticker: current.ticker,
         eligiblePlayers: current.eligiblePlayers,
+        attendance: current.attendance,
         playerPoolAgeGroupCode: current.playerPoolAgeGroupCode,
         gameFormat: current.gameFormat,
         canManageTicker: current.canManageTicker,
@@ -246,6 +249,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         ),
         ticker: current.ticker,
         eligiblePlayers: current.eligiblePlayers,
+        attendance: current.attendance,
         playerPoolAgeGroupCode: current.playerPoolAgeGroupCode,
         gameFormat: current.gameFormat,
         canManageTicker: current.canManageTicker,
@@ -546,6 +550,7 @@ class _SquadTab extends ConsumerStatefulWidget {
 
 class _SquadTabState extends ConsumerState<_SquadTab> {
   late Map<String, NominationStatus> _selected;
+  final Set<String> _attendanceSaving = {};
   bool _saving = false;
 
   @override
@@ -664,6 +669,17 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
               ),
           ],
         ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Die automatische Startelf berücksichtigt nur zugesagte Spieler. '
+            'Trainer können Rückmeldungen hier direkt korrigieren.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.muted,
+                ),
+          ),
+        ),
         SizedBox(height: compact ? 6 : 12),
         Expanded(
           child: widget.allPlayers.isEmpty
@@ -685,7 +701,7 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
                     for (final player in widget.allPlayers)
                       Card(
                         margin: EdgeInsets.only(bottom: compact ? 3 : 8),
-                        child: CheckboxListTile(
+                        child: ListTile(
                           dense: compact,
                           visualDensity: compact
                               ? const VisualDensity(vertical: -4)
@@ -694,19 +710,21 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
                             horizontal: compact ? 10 : 16,
                             vertical: compact ? 0 : 4,
                           ),
-                          value: _selected.containsKey(player.id),
-                          onChanged: (value) => setState(() {
-                            if (value == true) {
-                              _selected[player.id] = NominationStatus.nominated;
-                            } else {
-                              _selected.remove(player.id);
-                            }
-                          }),
-                          secondary: CircleAvatar(
+                          leading: CircleAvatar(
                             radius: compact ? 17 : null,
                             child: Text(player.shirtNumber?.toString() ?? 'FC'),
                           ),
-                          title: Text(player.displayName),
+                          title: Row(
+                            children: [
+                              Expanded(child: Text(player.displayName)),
+                              _AttendanceMenu(
+                                status: _attendanceStatus(player.id),
+                                saving: _attendanceSaving.contains(player.id),
+                                onSelected: (status) =>
+                                    _setAttendance(player, status),
+                              ),
+                            ],
+                          ),
                           subtitle: Wrap(
                             spacing: 7,
                             runSpacing: compact ? 1 : 4,
@@ -720,7 +738,24 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
                               ),
                             ],
                           ),
-                          controlAffinity: ListTileControlAffinity.trailing,
+                          trailing: Checkbox(
+                            value: _selected.containsKey(player.id),
+                            onChanged: (value) => setState(() {
+                              if (value == true) {
+                                _selected[player.id] =
+                                    NominationStatus.nominated;
+                              } else {
+                                _selected.remove(player.id);
+                              }
+                            }),
+                          ),
+                          onTap: () => setState(() {
+                            if (_selected.containsKey(player.id)) {
+                              _selected.remove(player.id);
+                            } else {
+                              _selected[player.id] = NominationStatus.nominated;
+                            }
+                          }),
                         ),
                       ),
                   ],
@@ -794,6 +829,33 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
 
   void _deselectAll() => setState(_selected.clear);
 
+  AttendanceStatus _attendanceStatus(String playerId) =>
+      widget.match.attendance
+          .where((reply) => reply.playerId == playerId)
+          .map((reply) => reply.status)
+          .firstOrNull ??
+      AttendanceStatus.unknown;
+
+  Future<void> _setAttendance(
+    PlayerModel player,
+    AttendanceStatus status,
+  ) async {
+    setState(() => _attendanceSaving.add(player.id));
+    try {
+      await ref.read(repositoryProvider).setAttendance(
+            eventId: widget.match.id,
+            playerId: player.id,
+            status: status,
+          );
+      await widget.onReload();
+      if (mounted) _message('Zusage für ${player.displayName} gespeichert.');
+    } catch (_) {
+      if (mounted) _message('Rückmeldung konnte nicht gespeichert werden.');
+    } finally {
+      if (mounted) setState(() => _attendanceSaving.remove(player.id));
+    }
+  }
+
   Map<String, NominationStatus> _selectionFrom(MatchdayModel match) => {
         for (final member in match.squad?.members ?? const <SquadMemberModel>[])
           member.player.id: member.status,
@@ -804,6 +866,109 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
     return members
         .map((member) => '${member.player.id}:${member.status.name}')
         .join('|');
+  }
+}
+
+class _AttendanceMenu extends StatelessWidget {
+  const _AttendanceMenu({
+    required this.status,
+    required this.saving,
+    required this.onSelected,
+  });
+
+  final AttendanceStatus status;
+  final bool saving;
+  final ValueChanged<AttendanceStatus> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color, icon) = switch (status) {
+      AttendanceStatus.yes => (
+          'Zusage',
+          AppColors.success,
+          Icons.check_rounded
+        ),
+      AttendanceStatus.no => ('Absage', Colors.red, Icons.close_rounded),
+      AttendanceStatus.maybe => (
+          'Vielleicht',
+          Colors.orange,
+          Icons.help_outline_rounded
+        ),
+      AttendanceStatus.unknown => (
+          'Offen',
+          AppColors.muted,
+          Icons.schedule_rounded
+        ),
+    };
+    if (saving) {
+      return const Padding(
+        padding: EdgeInsets.all(8),
+        child: SizedBox.square(
+          dimension: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return PopupMenuButton<AttendanceStatus>(
+      tooltip: 'Zusage bearbeiten',
+      onSelected: onSelected,
+      itemBuilder: (_) => const [
+        PopupMenuItem(
+          value: AttendanceStatus.yes,
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.check_circle_outline_rounded),
+            title: Text('Zusage'),
+          ),
+        ),
+        PopupMenuItem(
+          value: AttendanceStatus.maybe,
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.help_outline_rounded),
+            title: Text('Vielleicht'),
+          ),
+        ),
+        PopupMenuItem(
+          value: AttendanceStatus.no,
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.cancel_outlined),
+            title: Text('Absage'),
+          ),
+        ),
+        PopupMenuItem(
+          value: AttendanceStatus.unknown,
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.schedule_rounded),
+            title: Text('Offen'),
+          ),
+        ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -15,6 +15,7 @@ import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/responsive_form_dialog.dart';
 import '../shared/page_scaffold.dart';
 import 'widgets/digital_signature_capture.dart';
 
@@ -2386,203 +2387,198 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Stammdaten bearbeiten'),
-      content: SizedBox(
-        width: 580,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: teamId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Jugend / Mannschaft',
-                  prefixIcon: Icon(Icons.groups_rounded),
-                  helperText:
-                      'Administratoren können Spieler hier verschieben.',
+    void save() {
+      if (firstName.text.trim().isEmpty || lastName.text.trim().isEmpty) return;
+      final original = widget.player;
+      Navigator.pop(
+        context,
+        PlayerModel(
+          id: original.id,
+          teamId: teamId,
+          firstName: firstName.text.trim(),
+          lastName: lastName.text.trim(),
+          preferredName: _optional(preferredName),
+          birthDate: original.birthDate,
+          nationality: _optional(nationality),
+          position: position,
+          secondaryPosition: secondaryPosition,
+          dominantFoot: dominantFoot,
+          shirtNumber: int.tryParse(shirtNumber.text),
+          status: status,
+          joinedAt: original.joinedAt,
+          photoUrl: original.photoUrl,
+          teamName:
+              widget.teams.where((team) => team.id == teamId).firstOrNull?.name,
+          ageGroupCode: widget.teams
+              .where((team) => team.id == teamId)
+              .firstOrNull
+              ?.ageGroup
+              .code,
+          guardians: original.guardians,
+          medicalProfile: original.medicalProfile,
+          emergencyContacts: original.emergencyContacts,
+          developmentNotes: original.developmentNotes,
+          consents: original.consents,
+          capabilities: original.capabilities,
+        ),
+      );
+    }
+
+    return ResponsiveFormDialog(
+      title: 'Stammdaten bearbeiten',
+      subtitle: 'Persönliche Angaben und Fußballprofil übersichtlich pflegen.',
+      onSave: save,
+      children: [
+        ResponsiveFormSection(
+          title: 'Zuordnung',
+          icon: Icons.groups_rounded,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: teamId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Jugend / Mannschaft',
+                prefixIcon: Icon(Icons.groups_rounded),
+                helperText: 'Administratoren können Spieler hier verschieben.',
+              ),
+              items: [
+                for (final team in widget.teams)
+                  DropdownMenuItem(
+                    value: team.id,
+                    child: Text(team.displayName),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => teamId = value);
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        ResponsiveFormSection(
+          title: 'Persönliche Daten',
+          icon: Icons.badge_outlined,
+          children: [
+            ResponsiveFormRow(
+              children: [
+                TextField(
+                  controller: firstName,
+                  decoration: const InputDecoration(labelText: 'Vorname'),
                 ),
-                items: [
-                  for (final team in widget.teams)
+                TextField(
+                  controller: lastName,
+                  decoration: const InputDecoration(labelText: 'Nachname'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ResponsiveFormRow(
+              children: [
+                TextField(
+                  controller: preferredName,
+                  decoration: const InputDecoration(labelText: 'Rufname'),
+                ),
+                TextField(
+                  controller: nationality,
+                  decoration: const InputDecoration(labelText: 'Nationalität'),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        ResponsiveFormSection(
+          title: 'Fußballprofil',
+          icon: Icons.sports_soccer_rounded,
+          children: [
+            ResponsiveFormRow(
+              children: [
+                DropdownButtonFormField<String?>(
+                  initialValue: position,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Hauptposition'),
+                  items: footballOptionItems(
+                    options: footballPositions,
+                    emptyLabel: 'Noch offen',
+                    currentValue: position,
+                    showCode: true,
+                  ),
+                  onChanged: (value) => setState(() => position = value),
+                ),
+                DropdownButtonFormField<String?>(
+                  initialValue: secondaryPosition,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Nebenposition'),
+                  items: footballOptionItems(
+                    options: footballPositions,
+                    emptyLabel: 'Keine Nebenposition',
+                    currentValue: secondaryPosition,
+                    showCode: true,
+                  ),
+                  onChanged: (value) =>
+                      setState(() => secondaryPosition = value),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ResponsiveFormRow(
+              children: [
+                DropdownButtonFormField<DominantFoot>(
+                  initialValue: dominantFoot,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Starker Fuß'),
+                  items: const [
                     DropdownMenuItem(
-                      value: team.id,
-                      child: Text(team.displayName),
+                      value: DominantFoot.unknown,
+                      child: Text('Noch offen'),
                     ),
-                ],
-                onChanged: (value) {
-                  if (value != null) setState(() => teamId = value);
-                },
-              ),
-              const SizedBox(height: 12),
-              _ResponsiveFields(
-                children: [
-                  TextField(
-                    controller: firstName,
-                    decoration: const InputDecoration(labelText: 'Vorname'),
-                  ),
-                  TextField(
-                    controller: lastName,
-                    decoration: const InputDecoration(labelText: 'Nachname'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _ResponsiveFields(
-                children: [
-                  TextField(
-                    controller: preferredName,
-                    decoration: const InputDecoration(labelText: 'Rufname'),
-                  ),
-                  TextField(
-                    controller: nationality,
-                    decoration:
-                        const InputDecoration(labelText: 'Nationalität'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _ResponsiveFields(
-                children: [
-                  DropdownButtonFormField<String?>(
-                    initialValue: position,
-                    isExpanded: true,
-                    decoration:
-                        const InputDecoration(labelText: 'Hauptposition'),
-                    items: footballOptionItems(
-                      options: footballPositions,
-                      emptyLabel: 'Noch offen',
-                      currentValue: position,
-                      showCode: true,
+                    DropdownMenuItem(
+                      value: DominantFoot.right,
+                      child: Text('Rechts'),
                     ),
-                    onChanged: (value) => setState(() => position = value),
-                  ),
-                  DropdownButtonFormField<String?>(
-                    initialValue: secondaryPosition,
-                    isExpanded: true,
-                    decoration:
-                        const InputDecoration(labelText: 'Nebenposition'),
-                    items: footballOptionItems(
-                      options: footballPositions,
-                      emptyLabel: 'Keine Nebenposition',
-                      currentValue: secondaryPosition,
-                      showCode: true,
+                    DropdownMenuItem(
+                      value: DominantFoot.left,
+                      child: Text('Links'),
                     ),
-                    onChanged: (value) =>
-                        setState(() => secondaryPosition = value),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _ResponsiveFields(
-                children: [
-                  DropdownButtonFormField<DominantFoot>(
-                    initialValue: dominantFoot,
-                    isExpanded: true,
-                    decoration: const InputDecoration(labelText: 'Starker Fuß'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: DominantFoot.unknown,
-                        child: Text('Noch offen'),
-                      ),
-                      DropdownMenuItem(
-                        value: DominantFoot.right,
-                        child: Text('Rechts'),
-                      ),
-                      DropdownMenuItem(
-                        value: DominantFoot.left,
-                        child: Text('Links'),
-                      ),
-                      DropdownMenuItem(
-                        value: DominantFoot.both,
-                        child: Text('Beidfüßig'),
-                      ),
-                    ],
-                    onChanged: (value) => setState(() => dominantFoot = value!),
-                  ),
-                  TextField(
-                    controller: shirtNumber,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        const InputDecoration(labelText: 'Trikotnummer'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<PlayerStatus>(
-                initialValue: status,
-                decoration: const InputDecoration(labelText: 'Status'),
-                items: const [
-                  DropdownMenuItem(
-                    value: PlayerStatus.active,
-                    child: Text('Aktiv'),
-                  ),
-                  DropdownMenuItem(
-                    value: PlayerStatus.injured,
-                    child: Text('Verletzt'),
-                  ),
-                  DropdownMenuItem(
-                    value: PlayerStatus.paused,
-                    child: Text('Pausiert'),
-                  ),
-                  DropdownMenuItem(
-                    value: PlayerStatus.left,
-                    child: Text('Ausgetreten'),
-                  ),
-                ],
-                onChanged: (value) => setState(() => status = value!),
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (firstName.text.trim().isEmpty || lastName.text.trim().isEmpty) {
-              return;
-            }
-            final original = widget.player;
-            Navigator.pop(
-              context,
-              PlayerModel(
-                id: original.id,
-                teamId: teamId,
-                firstName: firstName.text.trim(),
-                lastName: lastName.text.trim(),
-                preferredName: _optional(preferredName),
-                birthDate: original.birthDate,
-                nationality: _optional(nationality),
-                position: position,
-                secondaryPosition: secondaryPosition,
-                dominantFoot: dominantFoot,
-                shirtNumber: int.tryParse(shirtNumber.text),
-                status: status,
-                joinedAt: original.joinedAt,
-                photoUrl: original.photoUrl,
-                teamName: widget.teams
-                    .where((team) => team.id == teamId)
-                    .firstOrNull
-                    ?.name,
-                ageGroupCode: widget.teams
-                    .where((team) => team.id == teamId)
-                    .firstOrNull
-                    ?.ageGroup
-                    .code,
-                guardians: original.guardians,
-                medicalProfile: original.medicalProfile,
-                emergencyContacts: original.emergencyContacts,
-                developmentNotes: original.developmentNotes,
-                consents: original.consents,
-                capabilities: original.capabilities,
-              ),
-            );
-          },
-          child: const Text('Speichern'),
+                    DropdownMenuItem(
+                      value: DominantFoot.both,
+                      child: Text('Beidfüßig'),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => dominantFoot = value!),
+                ),
+                TextField(
+                  controller: shirtNumber,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Trikotnummer'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<PlayerStatus>(
+              initialValue: status,
+              decoration: const InputDecoration(labelText: 'Status'),
+              items: const [
+                DropdownMenuItem(
+                  value: PlayerStatus.active,
+                  child: Text('Aktiv'),
+                ),
+                DropdownMenuItem(
+                  value: PlayerStatus.injured,
+                  child: Text('Verletzt'),
+                ),
+                DropdownMenuItem(
+                  value: PlayerStatus.paused,
+                  child: Text('Pausiert'),
+                ),
+                DropdownMenuItem(
+                  value: PlayerStatus.left,
+                  child: Text('Ausgetreten'),
+                ),
+              ],
+              onChanged: (value) => setState(() => status = value!),
+            ),
+          ],
         ),
       ],
     );

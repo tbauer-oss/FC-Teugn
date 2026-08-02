@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  confirmedLineupCandidates,
   planTeamDefaultLineup,
 } = require('../dist/src/services/default-lineup.service.js');
 
@@ -72,4 +73,23 @@ test('reserves available default starters before filling an earlier missing slot
   assert.equal(result.positions[0].playerId, 'field-replacement');
   assert.equal(result.positions[1].playerId, 'striker-default');
   assert.equal(result.automaticReplacements, 1);
+});
+
+test('uses only confirmed players before applying positional replacements', () => {
+  const allNominated = [
+    { id: 'keeper-default', position: 'TW', secondaryPosition: null, shirtNumber: 1 },
+    { id: 'striker-default', position: 'ST', secondaryPosition: null, shirtNumber: 9 },
+    { id: 'striker-replacement', position: 'OM', secondaryPosition: 'ST', shirtNumber: 11 },
+  ];
+  const confirmed = confirmedLineupCandidates(allNominated, [
+    'keeper-default',
+    'striker-replacement',
+  ]);
+  const result = planTeamDefaultLineup(slots, confirmed);
+
+  assert.deepEqual(result.positions.map((item) => item.playerId), [
+    'keeper-default',
+    'striker-replacement',
+  ]);
+  assert.equal(result.positions[1].replacedPlayerId, 'striker-default');
 });
