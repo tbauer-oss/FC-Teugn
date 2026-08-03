@@ -231,9 +231,13 @@ class _NextEventHero extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => context.go(
-          current == null ? '/trainer/events' : _eventRoute(current),
-        ),
+        onTap: () {
+          if (current == null) {
+            context.go('/trainer/events');
+          } else {
+            context.push(_eventRoute(current));
+          }
+        },
         borderRadius: BorderRadius.circular(22),
         child: Ink(
           width: double.infinity,
@@ -501,7 +505,7 @@ class _StatusGrid extends StatelessWidget {
               color: AppColors.success,
               onTap: nextEvent == null
                   ? () => context.go('/trainer/events')
-                  : () => context.go(_eventRoute(nextEvent!)),
+                  : () => context.push(_eventRoute(nextEvent!)),
             ),
             _StatusItem(
               label: 'Jetzt offen',
@@ -766,7 +770,7 @@ class _AgendaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: () => context.go(_eventRoute(event)),
+        onTap: () => context.push(_eventRoute(event)),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),

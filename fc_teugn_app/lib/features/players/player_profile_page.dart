@@ -36,12 +36,21 @@ class PlayerProfilePage extends ConsumerWidget {
       title: 'Spielerprofil',
       subtitle:
           'Stammdaten, Entwicklung und wichtige Informationen an einem Ort.',
-      action: OutlinedButton.icon(
-        onPressed: () =>
-            context.go(staffView ? '/trainer/players' : '/parent/players'),
-        icon: const Icon(Icons.arrow_back_rounded),
-        label: const Text('Zur Mannschaft'),
-      ),
+      action: MediaQuery.sizeOf(context).width < 600
+          ? null
+          : OutlinedButton.icon(
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go(
+                    staffView ? '/trainer/players' : '/parent/players',
+                  );
+                }
+              },
+              icon: const Icon(Icons.arrow_back_rounded),
+              label: const Text('Zur Mannschaft'),
+            ),
       child: player.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => EmptyState(

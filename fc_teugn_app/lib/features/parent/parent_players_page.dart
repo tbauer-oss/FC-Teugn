@@ -15,13 +15,15 @@ class ParentPlayersPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Meine Spieler', style: Theme.of(context).textTheme.headlineSmall),
+          Text('Meine Spieler',
+              style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 12),
           Expanded(
             child: players.when(
               data: (items) {
                 if (items.isEmpty) {
-                  return const Center(child: Text('Noch keine Spieler zugewiesen.'));
+                  return const Center(
+                      child: Text('Noch keine Spieler zugewiesen.'));
                 }
                 return ListView.separated(
                   itemCount: items.length,
@@ -29,8 +31,7 @@ class ParentPlayersPage extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final player = items[index];
                     return ListTile(
-                      onTap: () =>
-                          context.go('/parent/players/${player.id}'),
+                      onTap: () => context.push('/parent/players/${player.id}'),
                       leading: CircleAvatar(
                         child: Text(
                           player.initials,

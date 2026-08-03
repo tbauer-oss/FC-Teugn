@@ -176,7 +176,9 @@ class _ParentEventRow extends StatelessWidget {
       if (event.location.trim().isNotEmpty) event.location,
     ].join(' · ');
     return InkWell(
-      onTap: () => context.go(route),
+      onTap: () => event.type == EventType.match
+          ? context.push(route)
+          : context.go(route),
       borderRadius: BorderRadius.circular(14),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),

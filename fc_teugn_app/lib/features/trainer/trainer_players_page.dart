@@ -157,7 +157,7 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
                   mode: _viewMode,
                   groupByTeam: _selectedTeamId == null,
                   onOpen: (player) =>
-                      context.go('/trainer/players/${player.id}'),
+                      context.push('/trainer/players/${player.id}'),
                 ),
             ],
           );
@@ -195,7 +195,7 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
           );
       ref.invalidate(playersProvider);
       if (context.mounted) {
-        context.go('/trainer/players/${player.id}');
+        context.push('/trainer/players/${player.id}');
       }
     } catch (_) {
       if (context.mounted) {
