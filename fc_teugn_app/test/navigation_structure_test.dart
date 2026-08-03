@@ -1,6 +1,8 @@
 import 'package:fc_teugn_app/features/shell/app_shell.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
   test('Navigation verwendet verständliche Aufgabenbereiche', () {
@@ -233,6 +235,91 @@ void main() {
     );
     expect(find.text('Verein & Verwaltung'), findsOneWidget);
     expect(find.text('Mitglieder & Berechtigungen'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Mobiler Kalenderwechsel öffnet die Kalenderroute zuverlässig',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final router = GoRouter(
+      initialLocation: '/trainer',
+      routes: [
+        ShellRoute(
+          builder: (context, state, child) => AppShell(
+            title: 'Trainer & Verwaltung',
+            destinations: const [
+              ShellDestination(
+                label: 'Startseite',
+                mobileLabel: 'Start',
+                icon: Icons.grid_view_rounded,
+                route: '/trainer',
+                section: ShellSection.overview,
+                hint: 'Das Wichtigste auf einen Blick',
+              ),
+              ShellDestination(
+                label: 'Team-Zentrale',
+                mobileLabel: 'Team',
+                icon: Icons.groups_rounded,
+                route: '/trainer/team',
+                section: ShellSection.team,
+                hint: 'Mannschaft zentral verwalten',
+              ),
+              ShellDestination(
+                label: 'Kalender',
+                icon: Icons.calendar_month_rounded,
+                route: '/trainer/events',
+                section: ShellSection.schedule,
+                hint: 'Termine, Serien und Rückmeldungen',
+              ),
+              ShellDestination(
+                label: 'Spielbetrieb',
+                mobileLabel: 'Spiele',
+                icon: Icons.sports_soccer_rounded,
+                route: '/trainer/matches',
+                section: ShellSection.schedule,
+                hint: 'Spieltage, Kader und Liveticker',
+              ),
+            ],
+            child: child,
+          ),
+          routes: [
+            GoRoute(
+              path: '/trainer',
+              builder: (context, state) => const Text('Startinhalt'),
+            ),
+            GoRoute(
+              path: '/trainer/team',
+              builder: (context, state) => const Text('Teaminhalt'),
+            ),
+            GoRoute(
+              path: '/trainer/events',
+              builder: (context, state) => const Text('Kalenderinhalt'),
+            ),
+            GoRoute(
+              path: '/trainer/matches',
+              builder: (context, state) => const Text('Spielinhalt'),
+            ),
+          ],
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Startinhalt'), findsOneWidget);
+    await tester.tap(find.text('Kalender'));
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/trainer/events');
+    expect(find.text('Kalenderinhalt'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
