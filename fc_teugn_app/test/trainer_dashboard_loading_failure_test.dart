@@ -38,10 +38,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Laden fehlgeschlagen'), findsOneWidget);
+    expect(find.text('Spieler konnten nicht geladen werden.'), findsOneWidget);
     expect(find.text('Erneut laden'), findsOneWidget);
-    expect(find.textContaining('vollständig bedienbar'), findsOneWidget);
     expect(find.text('Nächste Termine'), findsOneWidget);
+    expect(find.text('Schnellzugriff'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
