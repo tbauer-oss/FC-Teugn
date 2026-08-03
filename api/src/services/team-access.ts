@@ -17,6 +17,46 @@ export async function clubIdForTeam(teamId: string) {
   return team?.ageGroup.season.clubId ?? null;
 }
 
+/**
+ * Resolves a usable team for pages that need season and club context.
+ *
+ * A user's historic primary team can disappear when teams are reorganised.
+ * That must not lock a system administrator (or a user with another approved
+ * membership) out of otherwise global pages such as organisation and pitch
+ * occupancy.
+ */
+export async function resolveContextTeamId(user: TeamScopedUser) {
+  const currentTeam = await prisma.team.findFirst({
+    where: { id: user.teamId, deletedAt: null, isActive: true },
+    select: { id: true },
+  });
+  if (currentTeam) return currentTeam.id;
+
+  const membership = await prisma.teamMembership.findFirst({
+    where: {
+      userId: user.id,
+      status: AccountStatus.APPROVED,
+      team: { deletedAt: null, isActive: true },
+    },
+    orderBy: { createdAt: 'asc' },
+    select: { teamId: true },
+  });
+  if (membership) return membership.teamId;
+
+  if (String(user.role) !== Role.SUPER_ADMIN) return null;
+
+  const fallback = await prisma.team.findFirst({
+    where: {
+      deletedAt: null,
+      isActive: true,
+      ageGroup: { season: { isActive: true } },
+    },
+    orderBy: { name: 'asc' },
+    select: { id: true },
+  });
+  return fallback?.id ?? null;
+}
+
 export async function accessibleTeamIds(user: TeamScopedUser) {
   if (String(user.role) === Role.SUPER_ADMIN) {
     const teams = await prisma.team.findMany({

@@ -41,9 +41,11 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
       if (user == null || user.teamId.isEmpty) {
         throw StateError('Keine Mannschaft zugeordnet.');
       }
-      final teamId = canSelectStatisticsTeam(user.role)
-          ? (_selectedTeamId ?? user.teamId)
-          : user.teamId;
+      var teamId = user.teamId;
+      if (canSelectStatisticsTeam(user.role)) {
+        final organization = await ref.read(organizationProvider.future);
+        teamId = _selectedTeamId ?? organization.currentTeam.id;
+      }
       final overview = await ref.read(repositoryProvider).statistics(
         teamIds: [teamId],
         seasonId: _seasonId,

@@ -28,7 +28,10 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
   OrganizationContext? _organization;
   PitchOccupancyPlan? _occupancy;
   PitchOccupancyPlan? _indoorOccupancy;
-  String? _error;
+  String? _trainingsError;
+  String? _organizationError;
+  String? _occupancyError;
+  String? _indoorOccupancyError;
   bool _creating = false;
   _TrainingPageView _view = _TrainingPageView.sessions;
 
@@ -47,29 +50,92 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
   }
 
   Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _trainings = null;
+        _organization = null;
+        _occupancy = null;
+        _indoorOccupancy = null;
+        _trainingsError = null;
+        _organizationError = null;
+        _occupancyError = null;
+        _indoorOccupancyError = null;
+      });
+    }
+    await Future.wait([
+      _loadTrainings(),
+      _loadOrganization(),
+      _loadOccupancy(),
+      _loadIndoorOccupancy(),
+    ]);
+  }
+
+  Future<void> _loadTrainings() async {
     try {
-      final repository = ref.read(repositoryProvider);
-      final values = await Future.wait([
-        repository.trainings(),
-        repository.organizationContext(),
-        repository.pitchOccupancy(),
-        repository.pitchOccupancy(indoor: true),
-      ]);
+      final trainings = await ref.read(repositoryProvider).trainings();
       if (mounted) {
         setState(() {
-          _trainings = values[0] as List<TrainingModel>;
-          _organization = values[1] as OrganizationContext;
-          _occupancy = values[2] as PitchOccupancyPlan;
-          _indoorOccupancy = values[3] as PitchOccupancyPlan;
-          _error = null;
+          _trainings = trainings;
+          _trainingsError = null;
         });
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error =
-              'Trainings konnten nicht geladen werden. Bitte versuche es erneut.',
-        );
+            () => _trainingsError = 'Trainings konnten nicht geladen werden.');
+      }
+    }
+  }
+
+  Future<void> _loadOrganization() async {
+    try {
+      final organization =
+          await ref.read(repositoryProvider).organizationContext();
+      if (mounted) {
+        setState(() {
+          _organization = organization;
+          _organizationError = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _organizationError =
+            'Mannschaftsdaten konnten nicht geladen werden.');
+      }
+    }
+  }
+
+  Future<void> _loadOccupancy() async {
+    try {
+      final occupancy = await ref.read(repositoryProvider).pitchOccupancy();
+      if (mounted) {
+        setState(() {
+          _occupancy = occupancy;
+          _occupancyError = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() =>
+            _occupancyError = 'Die Platzbelegung konnte nicht geladen werden.');
+      }
+    }
+  }
+
+  Future<void> _loadIndoorOccupancy() async {
+    try {
+      final occupancy =
+          await ref.read(repositoryProvider).pitchOccupancy(indoor: true);
+      if (mounted) {
+        setState(() {
+          _indoorOccupancy = occupancy;
+          _indoorOccupancyError = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _indoorOccupancyError =
+            'Die Hallenbelegung konnte nicht geladen werden.');
       }
     }
   }
@@ -80,20 +146,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
         subtitle:
             'Einheiten vorbereiten, Übungen kombinieren und Anwesenheit erfassen.',
         action: _buildPageActions(),
-        child: _error != null
-            ? EmptyState(
-                icon: Icons.fitness_center_rounded,
-                title: 'Trainingsplanung nicht erreichbar',
-                message: _error!,
-                action: FilledButton.icon(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Erneut laden'),
-                ),
-              )
-            : _trainings == null
-                ? const Center(child: CircularProgressIndicator())
-                : _buildContent(context),
+        child: _buildContent(context),
       );
 
   Widget? _buildPageActions() {
@@ -244,21 +297,111 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             },
           ),
           const SizedBox(height: 12),
-          if (_view == _TrainingPageView.sessions)
-            _buildList(context)
-          else if (_view == _TrainingPageView.occupancy && _occupancy != null)
-            PitchOccupancyBoard(
-              plan: _occupancy!,
-              onConflictApproval: _setConflictApproval,
-            )
-          else if (_indoorOccupancy != null)
-            PitchOccupancyBoard(
-              plan: _indoorOccupancy!,
-              onConflictApproval: _setConflictApproval,
-              onEditSpecialEntry: _editIndoorOccupancyEntry,
-              onDeleteSpecialEntry: _deleteIndoorOccupancyEntry,
-            ),
+          _buildSelectedView(context),
         ],
+      );
+
+  Widget _buildSelectedView(BuildContext context) {
+    switch (_view) {
+      case _TrainingPageView.sessions:
+        if (_trainingsError != null) {
+          return _resourceFailure(
+            icon: Icons.fitness_center_rounded,
+            title: 'Trainingstermine nicht erreichbar',
+            message: _trainingsError!,
+            onRetry: _loadTrainings,
+          );
+        }
+        if (_trainings == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_organizationError != null) ...[
+              _contextWarning(),
+              const SizedBox(height: 12),
+            ],
+            _buildList(context),
+          ],
+        );
+      case _TrainingPageView.occupancy:
+        if (_occupancyError != null) {
+          return _resourceFailure(
+            icon: Icons.stadium_rounded,
+            title: 'Platzbelegung nicht erreichbar',
+            message: _occupancyError!,
+            onRetry: _loadOccupancy,
+          );
+        }
+        if (_occupancy == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return PitchOccupancyBoard(
+          plan: _occupancy!,
+          onConflictApproval: _setConflictApproval,
+        );
+      case _TrainingPageView.indoorOccupancy:
+        if (_indoorOccupancyError != null) {
+          return _resourceFailure(
+            icon: Icons.sports_handball_rounded,
+            title: 'Hallenbelegung nicht erreichbar',
+            message: _indoorOccupancyError!,
+            onRetry: _loadIndoorOccupancy,
+          );
+        }
+        if (_indoorOccupancy == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return PitchOccupancyBoard(
+          plan: _indoorOccupancy!,
+          onConflictApproval: _setConflictApproval,
+          onEditSpecialEntry: _editIndoorOccupancyEntry,
+          onDeleteSpecialEntry: _deleteIndoorOccupancyEntry,
+        );
+    }
+  }
+
+  Widget _resourceFailure({
+    required IconData icon,
+    required String title,
+    required String message,
+    required Future<void> Function() onRetry,
+  }) =>
+      EmptyState(
+        icon: icon,
+        title: title,
+        message: '$message Bitte versuche es erneut.',
+        action: FilledButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Erneut laden'),
+        ),
+      );
+
+  Widget _contextWarning() => Material(
+        color: Theme.of(context).colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline_rounded),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Die Termine sind verfügbar. Mannschaftsdaten und Bearbeitungsfunktionen werden noch neu geladen.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Mannschaftsdaten neu laden',
+                onPressed: _loadOrganization,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
+        ),
       );
 
   Widget _buildList(BuildContext context) {
@@ -280,7 +423,8 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             message:
                 'Reguläre Trainingszeiten beschreiben den Wochenrhythmus. Lege daraus jetzt einen einzelnen Termin oder direkt eine Terminserie an.',
             action: FilledButton.icon(
-              onPressed: _creating ? null : _createTraining,
+              onPressed:
+                  _organization == null || _creating ? null : _createTraining,
               icon: const Icon(Icons.add_rounded),
               label: const Text('Training oder Serie anlegen'),
             ),
@@ -2102,17 +2246,26 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
   Future<void> _load() async {
     try {
       final repository = ref.read(repositoryProvider);
-      final values = await Future.wait([
-        repository.training(widget.trainingId),
-        repository.trainingExercises(),
-        repository.trainingCoaches(widget.trainingId),
+      final training = await repository.training(widget.trainingId);
+      var exercises = const <TrainingExerciseModel>[];
+      var availableCoaches = const <TrainingCoachModel>[];
+      await Future.wait([
+        repository
+            .trainingExercises()
+            .then((value) => exercises = value)
+            .catchError(
+              (_) => exercises,
+            ),
+        repository
+            .trainingCoaches(widget.trainingId)
+            .then((value) => availableCoaches = value)
+            .catchError((_) => availableCoaches),
       ]);
-      final training = values.first as TrainingModel;
       if (!mounted) return;
       setState(() {
         _training = training;
-        _exercises = values[1] as List<TrainingExerciseModel>;
-        _availableCoaches = values[2] as List<TrainingCoachModel>;
+        _exercises = exercises;
+        _availableCoaches = availableCoaches;
         _selectedCoachIds =
             training.plan?.coaches.map((coach) => coach.id).toSet() ?? {};
         _items = training.plan?.items.toList() ?? [];
