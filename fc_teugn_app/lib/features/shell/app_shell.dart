@@ -104,17 +104,6 @@ class AppShell extends ConsumerWidget {
     return _matchingIndex(location, items) ?? 0;
   }
 
-  String? _fallbackRoute(
-    String location,
-    List<ShellDestination> items,
-  ) {
-    final parents = items
-        .where((item) => location.startsWith('${item.route}/'))
-        .toList()
-      ..sort((a, b) => b.route.length.compareTo(a.route.length));
-    return parents.isEmpty ? null : parents.first.route;
-  }
-
   Future<void> _refreshApp(WidgetRef ref) async {
     ref.invalidate(repositoryProvider);
     ref.invalidate(organizationProvider);
@@ -173,7 +162,6 @@ class AppShell extends ConsumerWidget {
     final organization = ref.watch(organizationProvider).valueOrNull;
     final location = GoRouterState.of(context).matchedLocation;
     final selectedIndex = _selectedIndex(location, destinations);
-    final fallbackRoute = _fallbackRoute(location, destinations);
     final mobileCandidates =
         destinations.where((destination) => destination.showOnMobile).toList();
     final mobileDestinations = mobileCandidates.take(4).toList();
@@ -212,14 +200,6 @@ class AppShell extends ConsumerWidget {
                         title: title,
                         userName: authState.user?.name ?? '',
                         contextLabel: contextLabel,
-                        showBack: context.canPop() || fallbackRoute != null,
-                        onBack: () {
-                          if (context.canPop()) {
-                            context.pop();
-                          } else if (fallbackRoute != null) {
-                            context.go(fallbackRoute);
-                          }
-                        },
                         onLogout: () =>
                             ref.read(authProvider.notifier).logout(),
                         onPrivacy: () {
@@ -963,8 +943,6 @@ class _MobileHeader extends StatelessWidget {
     required this.title,
     required this.userName,
     required this.contextLabel,
-    required this.showBack,
-    required this.onBack,
     required this.onLogout,
     required this.onPrivacy,
     required this.onAbout,
@@ -973,8 +951,6 @@ class _MobileHeader extends StatelessWidget {
   final String title;
   final String userName;
   final String contextLabel;
-  final bool showBack;
-  final VoidCallback onBack;
   final VoidCallback onLogout;
   final VoidCallback onPrivacy;
   final VoidCallback onAbout;
@@ -993,29 +969,17 @@ class _MobileHeader extends StatelessWidget {
             bottom: false,
             child: Row(
               children: [
-                if (showBack)
-                  IconButton.filledTonal(
-                    onPressed: onBack,
-                    tooltip: 'Zurück zum letzten Fenster',
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.background,
-                      foregroundColor: AppColors.black,
-                      side: const BorderSide(color: AppColors.line),
-                    ),
-                  )
-                else
-                  Container(
-                    width: 42,
-                    height: 42,
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(13),
-                      border: Border.all(color: AppColors.line),
-                    ),
-                    child: const ClubLogo(size: 36),
+                Container(
+                  width: 42,
+                  height: 42,
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(color: AppColors.line),
                   ),
+                  child: const ClubLogo(size: 36),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
