@@ -456,9 +456,33 @@ class PlayerModel {
   final List<PlayerConsent> consents;
   final PlayerCapabilities capabilities;
 
-  String get fullName => '$firstName $lastName';
-  String get displayName =>
-      preferredName?.isNotEmpty == true ? preferredName! : firstName;
+  String get fullName {
+    final name = [firstName.trim(), lastName.trim()]
+        .where((part) => part.isNotEmpty)
+        .join(' ');
+    if (name.isNotEmpty) return name;
+
+    final preferred = preferredName?.trim();
+    return preferred?.isNotEmpty == true ? preferred! : 'Unbenannter Spieler';
+  }
+
+  String get displayName {
+    final preferred = preferredName?.trim();
+    if (preferred?.isNotEmpty == true) return preferred!;
+
+    final first = firstName.trim();
+    return first.isNotEmpty ? first : fullName;
+  }
+
+  String get initials {
+    final value = [firstName.trim(), lastName.trim()]
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
+    return value.isEmpty ? '?' : value;
+  }
+
   String get teamCode {
     if (teamId == null) return 'Nicht zugeordnet';
     final code = ageGroupCode?.trim().toUpperCase();

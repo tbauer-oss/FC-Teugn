@@ -531,8 +531,7 @@ class _ProfileHero extends StatelessWidget {
                   : NetworkImage(player.photoUrl!),
               child: player.photoUrl == null
                   ? Text(
-                      '${player.firstName[0]}${player.lastName[0]}'
-                          .toUpperCase(),
+                      player.initials,
                       style: TextStyle(
                         color: AppColors.navy,
                         fontSize: compact ? 18 : 21,

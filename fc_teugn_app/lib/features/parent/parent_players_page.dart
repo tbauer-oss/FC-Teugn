@@ -33,7 +33,7 @@ class ParentPlayersPage extends ConsumerWidget {
                           context.go('/parent/players/${player.id}'),
                       leading: CircleAvatar(
                         child: Text(
-                          '${player.firstName[0]}${player.lastName[0]}',
+                          player.initials,
                         ),
                       ),
                       title: Text(player.fullName),

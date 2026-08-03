@@ -1342,10 +1342,7 @@ class _PlayerAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initials = player == null
-        ? '?'
-        : '${player!.firstName.isEmpty ? '' : player!.firstName[0]}'
-            '${player!.lastName.isEmpty ? '' : player!.lastName[0]}';
+    final initials = player?.initials ?? '?';
     return CircleAvatar(
       radius: small ? 20 : 23,
       backgroundColor: AppColors.yellow.withValues(alpha: .25),

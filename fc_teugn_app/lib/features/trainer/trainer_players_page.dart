@@ -560,7 +560,7 @@ class _PlayerCollection extends StatelessWidget {
             crossAxisSpacing: compact ? 10 : 14,
             mainAxisSpacing: compact ? 10 : 14,
             childAspectRatio: compact
-                ? (columns == 1 ? 3.5 : 2.15)
+                ? (columns == 1 ? 3.0 : 2.15)
                 : (columns == 1 ? 1.25 : 1.35),
           ),
           itemBuilder: (context, index) => compact
@@ -1017,7 +1017,7 @@ class _PlayerAvatar extends StatelessWidget {
       alignment: Alignment.center,
       color: AppColors.blue.withValues(alpha: .1),
       child: Text(
-        '${player.firstName[0]}${player.lastName[0]}'.toUpperCase(),
+        player.initials,
         style: const TextStyle(
           color: AppColors.blue,
           fontWeight: FontWeight.w900,

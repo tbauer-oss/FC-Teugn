@@ -1,3 +1,4 @@
+import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/models/organization.dart';
 import 'package:fc_teugn_app/core/models/player.dart';
 import 'package:fc_teugn_app/core/team_game_format.dart';
@@ -175,6 +176,90 @@ void main() {
 
     expect(find.byKey(const ValueKey('formation-3-1')), findsOneWidget);
     expect(find.text('3-1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saved seven-a-side lineup opens safely on a phone',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 780);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const savedTeam = TeamSummary(
+      id: 'team-e1',
+      name: 'E1',
+      ageGroup: AgeGroupSummary(id: 'age-e', name: 'E-Jugend', code: 'E'),
+      seasonName: '2026/27',
+      gameFormat: TeamGameFormat.football7,
+      defaultLineup: TeamDefaultLineup(
+        formation: '2-3-1',
+        positions: [
+          TeamDefaultLineupPosition(
+            player: TeamDefaultLineupPlayer(
+              id: 'p1',
+              firstName: 'Levin',
+              lastName: 'Torwart',
+              status: 'ACTIVE',
+              position: 'TW',
+              shirtNumber: 1,
+            ),
+            positionCode: 'TW',
+            x: .5,
+            y: .92,
+            isGoalkeeper: true,
+            isCaptain: false,
+            sortOrder: 0,
+          ),
+          TeamDefaultLineupPosition(
+            player: TeamDefaultLineupPlayer(
+              id: 'p2',
+              firstName: 'Anna',
+              lastName: 'Abwehr',
+              status: 'ACTIVE',
+              position: 'LV',
+              shirtNumber: 2,
+            ),
+            positionCode: 'LV',
+            x: .25,
+            y: .72,
+            isGoalkeeper: false,
+            isCaptain: true,
+            sortOrder: 1,
+          ),
+          TeamDefaultLineupPosition(
+            player: TeamDefaultLineupPlayer(
+              id: 'retired-player',
+              firstName: 'Nicht mehr',
+              lastName: 'Im Kader',
+              status: 'LEFT',
+              position: 'RV',
+            ),
+            positionCode: 'RV',
+            x: .75,
+            y: .72,
+            isGoalkeeper: false,
+            isCaptain: false,
+            sortOrder: 2,
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: const TeamDefaultLineupDialog(
+          team: savedTeam,
+          players: players,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('E1-Jugend · Team-Management'), findsOneWidget);
+    expect(find.byKey(const ValueKey('formation-2-3-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('team-manager-scroll')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
