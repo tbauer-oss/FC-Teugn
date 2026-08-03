@@ -147,7 +147,7 @@
       "put": {
         "tags": ["Organisation", "Spiele"],
         "summary": "Mannschafts-Startformation dauerhaft speichern",
-        "description": "Speichert Spieler, Positionen und Formation. Zukünftige Spielkader übernehmen die Vorlage automatisch; fehlende Spieler werden positionsgetreu ersetzt.",
+        "description": "Speichert Spieler, Positionen, eigene Formationsvarianten und die Wunschformation. Zukünftige Spielkader übernehmen die Wunschformation als erste Vorlage automatisch; fehlende Spieler werden positionsgetreu ersetzt.",
         "security": [{"bearerAuth": []}],
         "parameters": [{"$ref": "#/components/parameters/Id"}],
         "responses": {

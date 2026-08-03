@@ -11,6 +11,8 @@ void main() {
       'meetingAt': '2026-08-12T15:00:00.000Z',
       'location': 'Waldstadion',
       'teamGameFormat': 'FOOTBALL_5',
+      'teamDefaultFormation': '1-2-1',
+      'teamFormationOptions': ['1-2-1', '3-1'],
       'matchDetails': {
         'opponent': 'SV Beispiel',
         'isHome': true,
@@ -103,6 +105,8 @@ void main() {
     });
 
     expect(match.details?.status, MatchStatus.live);
+    expect(match.teamDefaultFormation, '1-2-1');
+    expect(match.teamFormationOptions, ['1-2-1', '3-1']);
     expect(match.squad?.lineup?.status, LineupStatus.published);
     expect(match.squad?.lineup?.positions.single.player.name, 'Max Muster');
     expect(match.ticker?.events.single.type, TickerEventType.homeGoal);

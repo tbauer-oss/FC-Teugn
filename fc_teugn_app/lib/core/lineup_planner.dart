@@ -215,17 +215,8 @@ List<(double, double, String)>? _formationSlots(
   int fieldSize,
   String? formation,
 ) {
-  if (formation == null || formation.trim().isEmpty) return null;
-  final rows = formation
-      .split('-')
-      .map(int.tryParse)
-      .whereType<int>()
-      .where((count) => count > 0)
-      .toList();
-  if (rows.isEmpty ||
-      rows.fold<int>(0, (sum, count) => sum + count) != fieldSize - 1) {
-    return null;
-  }
+  final rows = formationRows(formation, fieldSize);
+  if (rows == null) return null;
   final result = <(double, double, String)>[(.5, .92, 'TW')];
   for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) {
     final count = rows[rowIndex];
@@ -239,6 +230,23 @@ List<(double, double, String)>? _formationSlots(
   }
   return result;
 }
+
+/// Parses a tactical formation such as `2-3-1` for the requested team size.
+/// Zero rows remain valid for the existing mini-football presets (`2-0`).
+List<int>? formationRows(String? formation, int fieldSize) {
+  final value = formation?.trim() ?? '';
+  if (!RegExp(r'^\d+(?:-\d+)+$').hasMatch(value)) return null;
+  final rawRows = value.split('-').map(int.parse).toList();
+  if (rawRows.every((count) => count == 0) ||
+      rawRows.any((count) => count < 0 || count > 6) ||
+      rawRows.fold<int>(0, (sum, count) => sum + count) != fieldSize - 1) {
+    return null;
+  }
+  return rawRows.where((count) => count > 0).toList();
+}
+
+bool isValidFormation(String? formation, int fieldSize) =>
+    formationRows(formation, fieldSize) != null;
 
 List<String> _positionCodesForRow(int count, int row, int rowCount) {
   final isDefence = row == 0;

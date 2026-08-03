@@ -1,0 +1,2 @@
+ALTER TABLE "Team"
+ADD COLUMN "customFormations" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

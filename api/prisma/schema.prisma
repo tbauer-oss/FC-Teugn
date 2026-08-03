@@ -395,6 +395,7 @@ model Team {
   periodCount             Int                       @default(2)
   periodMinutes           Int                       @default(30)
   defaultFormation        String?
+  customFormations        String[]                  @default([])
   birthYears              Int[]                     @default([])
   description             String?
   trainingLocation        String?

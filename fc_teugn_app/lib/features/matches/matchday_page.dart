@@ -176,6 +176,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           attendance: current.attendance,
           playerPoolAgeGroupCode: current.playerPoolAgeGroupCode,
           gameFormat: current.gameFormat,
+          teamDefaultFormation: current.teamDefaultFormation,
+          teamFormationOptions: current.teamFormationOptions,
           canManageTicker: current.canManageTicker,
           canDelegateTicker: current.canDelegateTicker,
         );
@@ -220,6 +222,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         attendance: current.attendance,
         playerPoolAgeGroupCode: current.playerPoolAgeGroupCode,
         gameFormat: current.gameFormat,
+        teamDefaultFormation: current.teamDefaultFormation,
+        teamFormationOptions: current.teamFormationOptions,
         canManageTicker: current.canManageTicker,
         canDelegateTicker: current.canDelegateTicker,
       );
@@ -252,6 +256,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         attendance: current.attendance,
         playerPoolAgeGroupCode: current.playerPoolAgeGroupCode,
         gameFormat: current.gameFormat,
+        teamDefaultFormation: current.teamDefaultFormation,
+        teamFormationOptions: current.teamFormationOptions,
         canManageTicker: current.canManageTicker,
         canDelegateTicker: current.canDelegateTicker,
       );
@@ -1055,6 +1061,13 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
   Timer? _positionSaveDebounce;
 
   int get _fieldSize => widget.match.gameFormat.playerCount;
+  List<String> get _formationOptions => <String>{
+        if (widget.match.teamDefaultFormation != null)
+          widget.match.teamDefaultFormation!,
+        ...widget.match.teamFormationOptions,
+        ...widget.match.gameFormat.formations,
+        _formation,
+      }.toList();
   List<MatchPlayer> get _nominatedPlayers =>
       widget.match.squad?.members
           .where((item) => item.status == NominationStatus.nominated)
@@ -1072,7 +1085,9 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
   void initState() {
     super.initState();
     final lineup = widget.match.squad?.lineup;
-    _formation = lineup?.formation ?? widget.match.gameFormat.defaultFormation;
+    _formation = lineup?.formation ??
+        widget.match.teamDefaultFormation ??
+        widget.match.gameFormat.defaultFormation;
     _positions = lineup?.positions.toList() ?? _initialPositions();
   }
 
@@ -1085,7 +1100,9 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
       return;
     }
     final lineup = widget.match.squad?.lineup;
-    _formation = lineup?.formation ?? widget.match.gameFormat.defaultFormation;
+    _formation = lineup?.formation ??
+        widget.match.teamDefaultFormation ??
+        widget.match.gameFormat.defaultFormation;
     _positions = lineup?.positions.toList() ?? _initialPositions();
   }
 
@@ -1102,6 +1119,24 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
       formation: _formation,
     );
   }
+
+  void _applyFormation(String formation) {
+    final starters = _positions.map((position) => position.player).toList();
+    setState(() {
+      _formation = formation;
+      _positions = planInitialLineup(
+        players: starters.isEmpty ? _nominatedPlayers : starters,
+        fieldSize: _fieldSize,
+        formation: formation,
+      );
+    });
+    _schedulePositionSave();
+  }
+
+  String _formationLabel(String formation) =>
+      formation == widget.match.teamDefaultFormation
+          ? 'Wunschformation · $formation'
+          : formation;
 
   @override
   Widget build(BuildContext context) {
@@ -1128,16 +1163,17 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
               final setup = <Widget>[
                 DropdownButton<String>(
                   value: _formation,
-                  items: {
-                    _formation,
-                    ...widget.match.gameFormat.formations,
-                  }
+                  items: _formationOptions
                       .map(
-                        (value) =>
-                            DropdownMenuItem(value: value, child: Text(value)),
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(_formationLabel(value)),
+                        ),
                       )
                       .toList(),
-                  onChanged: (value) => setState(() => _formation = value!),
+                  onChanged: (value) {
+                    if (value != null) _applyFormation(value);
+                  },
                 ),
                 Chip(
                   avatar: const Icon(Icons.groups_rounded, size: 18),
@@ -1182,25 +1218,24 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            key: ValueKey('lineup-formation-$_formation'),
                             initialValue: _formation,
                             isExpanded: true,
                             decoration: const InputDecoration(
                               labelText: 'Formation',
                               isDense: true,
                             ),
-                            items: {
-                              _formation,
-                              ...widget.match.gameFormat.formations,
-                            }
+                            items: _formationOptions
                                 .map(
                                   (value) => DropdownMenuItem(
                                     value: value,
-                                    child: Text(value),
+                                    child: Text(_formationLabel(value)),
                                   ),
                                 )
                                 .toList(),
-                            onChanged: (value) =>
-                                setState(() => _formation = value!),
+                            onChanged: (value) {
+                              if (value != null) _applyFormation(value);
+                            },
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -1311,7 +1346,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
               }
               final pitchWidth = min(constraints.maxWidth, 720.0).toDouble();
               final pitchHeight =
-                  min(constraints.maxHeight - 170, pitchWidth * .72).toDouble();
+                  min(constraints.maxHeight - 146, pitchWidth * .88).toDouble();
               return ListView(
                 padding: EdgeInsets.zero,
                 children: [
@@ -1321,7 +1356,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
-                    height: 150,
+                    height: 128,
                     width: double.infinity,
                     child: _buildBench(vertical: false),
                   ),
@@ -1341,6 +1376,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     StateSetter? fullscreenSetState,
     bool showHint = true,
   }) {
+    final markerWidth = (_fieldSize >= 9 ? width * .105 : width * .17)
+        .clamp(58.0, 82.0)
+        .toDouble();
+    const markerHeight = 54.0;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1364,8 +1403,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
               const Positioned.fill(child: _PitchLines()),
               for (var index = 0; index < _positions.length; index++)
                 Positioned(
-                  left: _positions[index].x * (width - 76),
-                  top: _positions[index].y * (height - 62),
+                  left: _positions[index].x * (width - markerWidth),
+                  top: _positions[index].y * (height - markerHeight),
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: widget.editable
@@ -1383,11 +1422,13 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                               _positions[index] = _copyPosition(
                                 item,
                                 x: (item.x +
-                                        details.delta.dx / max(1, width - 76))
+                                        details.delta.dx /
+                                            max(1, width - markerWidth))
                                     .clamp(0, 1)
                                     .toDouble(),
                                 y: (item.y +
-                                        details.delta.dy / max(1, height - 62))
+                                        details.delta.dy /
+                                            max(1, height - markerHeight))
                                     .clamp(0, 1)
                                     .toDouble(),
                               );
@@ -1397,7 +1438,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                         : null,
                     onPanEnd:
                         widget.editable ? (_) => _schedulePositionSave() : null,
-                    child: _PlayerMarker(position: _positions[index]),
+                    child: _PlayerMarker(
+                      position: _positions[index],
+                      width: markerWidth,
+                    ),
                   ),
                 ),
             ],
@@ -1412,24 +1456,29 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     StateSetter? fullscreenSetState,
   }) {
     final players = _benchPlayers;
+    final compact = !vertical;
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(compact ? 10 : 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.event_seat_rounded),
-                const SizedBox(width: 8),
+                Icon(Icons.event_seat_rounded, size: compact ? 20 : 24),
+                SizedBox(width: compact ? 6 : 8),
                 Text(
                   'Ersatzbank · ${players.length}',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: compact
+                      ? Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          )
+                      : Theme.of(context).textTheme.titleMedium,
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 6 : 8),
             Expanded(
               child: players.isEmpty
                   ? const Center(child: Text('Keine Ersatzspieler'))
@@ -1448,10 +1497,14 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                           itemCount: players.length,
                           separatorBuilder: (_, __) => const SizedBox(width: 8),
                           itemBuilder: (_, index) => SizedBox(
-                            width: 210,
-                            child: _benchPlayerTile(
-                              players[index],
-                              fullscreenSetState: fullscreenSetState,
+                            width: 176,
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: _benchPlayerTile(
+                                players[index],
+                                compact: true,
+                                fullscreenSetState: fullscreenSetState,
+                              ),
                             ),
                           ),
                         ),
@@ -1464,8 +1517,75 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
 
   Widget _benchPlayerTile(
     MatchPlayer player, {
+    bool compact = false,
     StateSetter? fullscreenSetState,
   }) {
+    final onTap = widget.editable
+        ? () async {
+            await _bringOntoField(player);
+            fullscreenSetState?.call(() {});
+            _schedulePositionSave();
+          }
+        : null;
+    if (compact) {
+      return Material(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Container(
+            height: 58,
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: AppColors.yellowSoft,
+                  foregroundColor: AppColors.black,
+                  child: Text(
+                    player.shirtNumber?.toString() ?? 'FC',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        player.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        player.position ?? 'FLEX',
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (widget.editable)
+                  const Icon(Icons.swap_horiz_rounded, size: 18),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return Card(
       color: AppColors.background,
       child: ListTile(
@@ -1476,13 +1596,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         title: Text(player.name),
         subtitle: Text('Position: ${player.position ?? 'FLEX'}'),
         trailing: widget.editable ? const Icon(Icons.swap_horiz_rounded) : null,
-        onTap: widget.editable
-            ? () async {
-                await _bringOntoField(player);
-                fullscreenSetState?.call(() {});
-                _schedulePositionSave();
-              }
-            : null,
+        onTap: onTap,
       ),
     );
   }
@@ -1562,27 +1676,30 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                   final pitchWidth =
                       min(constraints.maxWidth - 20, 720.0).toDouble();
                   final pitchHeight = min(
-                    constraints.maxHeight * .58,
-                    pitchWidth * .82,
+                    max(220, constraints.maxHeight - 154),
+                    pitchWidth * 1.16,
                   ).toDouble();
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
                     child: Column(
                       children: [
-                        _buildPitch(
-                          pitchWidth,
-                          max(280, pitchHeight).toDouble(),
-                          fullscreenSetState: setFullscreenState,
-                          showHint: false,
+                        Expanded(
+                          child: Center(
+                            child: _buildPitch(
+                              pitchWidth,
+                              pitchHeight,
+                              fullscreenSetState: setFullscreenState,
+                              showHint: false,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 8),
-                        Expanded(
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: _buildBench(
-                              vertical: false,
-                              fullscreenSetState: setFullscreenState,
-                            ),
+                        SizedBox(
+                          height: 122,
+                          width: double.infinity,
+                          child: _buildBench(
+                            vertical: false,
+                            fullscreenSetState: setFullscreenState,
                           ),
                         ),
                       ],
@@ -1770,7 +1887,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
   Future<void> _bringOntoField(MatchPlayer player) async {
     if (_positions.any((position) => position.player.id == player.id)) return;
     if (_positions.length < _fieldSize) {
-      final slots = lineupSlots(_fieldSize);
+      final slots = lineupSlots(_fieldSize, formation: _formation);
       final freeSlot = slots.firstWhere(
         (slot) => !_positions.any(
           (position) =>
@@ -2057,8 +2174,9 @@ class _PitchPainter extends CustomPainter {
 }
 
 class _PlayerMarker extends StatelessWidget {
-  const _PlayerMarker({required this.position});
+  const _PlayerMarker({required this.position, required this.width});
   final LineupPositionModel position;
+  final double width;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -2069,7 +2187,7 @@ class _PlayerMarker extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             Container(
-              width: 76,
+              width: width,
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 7),
               decoration: BoxDecoration(
                 color: position.isGoalkeeper ? AppColors.yellow : Colors.white,
@@ -2086,14 +2204,14 @@ class _PlayerMarker extends StatelessWidget {
                     '${position.positionCode}',
                     style: const TextStyle(
                       fontWeight: FontWeight.w800,
-                      fontSize: 11,
+                      fontSize: 10.5,
                     ),
                   ),
                   Text(
                     position.player.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 10),
+                    style: const TextStyle(fontSize: 9.5),
                   ),
                 ],
               ),

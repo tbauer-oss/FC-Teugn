@@ -62,6 +62,8 @@ class MatchdayModel {
     this.attendance = const [],
     this.playerPoolAgeGroupCode,
     this.gameFormat = TeamGameFormat.football7,
+    this.teamDefaultFormation,
+    this.teamFormationOptions = const [],
     this.canManageTicker = false,
     this.canDelegateTicker = false,
   });
@@ -79,6 +81,8 @@ class MatchdayModel {
   final List<EventAttendance> attendance;
   final String? playerPoolAgeGroupCode;
   final TeamGameFormat gameFormat;
+  final String? teamDefaultFormation;
+  final List<String> teamFormationOptions;
   final bool canManageTicker;
   final bool canDelegateTicker;
 
@@ -119,6 +123,11 @@ class MatchdayModel {
           .toList(),
       playerPoolAgeGroupCode: json['playerPoolAgeGroupCode'] as String?,
       gameFormat: TeamGameFormat.fromApi(json['teamGameFormat']),
+      teamDefaultFormation: json['teamDefaultFormation'] as String?,
+      teamFormationOptions:
+          (json['teamFormationOptions'] as List<dynamic>? ?? const [])
+              .whereType<String>()
+              .toList(),
       canManageTicker: capabilities?['canManageTicker'] as bool? ?? false,
       canDelegateTicker: capabilities?['canDelegateTicker'] as bool? ?? false,
     );

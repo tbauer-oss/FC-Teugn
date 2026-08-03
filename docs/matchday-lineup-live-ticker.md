@@ -11,7 +11,11 @@ Spieltage zusätzliche fachliche Daten bekommen.
 - konfigurierbare Spielabschnitte und Spielzeiten
 - Kadernominierung mit `NOMINATED`, `ON_CALL` und `DECLINED`
 - getrennte Veröffentlichung von Kader und Aufstellung
+- teambezogene eigene Formationsvarianten mit validierter Spielerzahl
+- Wunschformation aus dem Team-Menü als erste Spieltagsvorlage; individuelle
+  Änderungen am einzelnen Spiel bleiben davon unberührt
 - grafischer, verschiebbarer Aufstellungseditor für 3 bis 11 Spieler
+- responsive Vollansicht mit vergrößertem Spielfeld und kompakter Ersatzbank
 - interne taktische Notizen werden Eltern und Spielern nicht ausgeliefert
 - mobile Liveticker-Steuerung mit serverbasierter Uhr
 - Tore, Spielstart, Halbzeit, Fortsetzung, Unterbrechung und Abpfiff

@@ -12,6 +12,8 @@ void main() {
       'level': 'Gruppe',
       'teamType': 'DEVELOPMENT',
       'gender': 'MIXED',
+      'gameFormat': 'FOOTBALL_5',
+      'customFormations': ['3-1'],
       'birthYears': [2015, 2016],
       'description': 'Ballorientierte Ausbildung',
       'trainingLocation': 'Sportplatz Teugn',
@@ -52,6 +54,8 @@ void main() {
     expect(team.staff.single.name, 'Max Trainer');
     expect(team.staff.single.role, 'COACH');
     expect(team.photoUrl, isNotNull);
+    expect(team.customFormations, ['3-1']);
+    expect(team.formationOptions.first, '3-1');
   });
 
   test('legacy team responses retain safe defaults', () {

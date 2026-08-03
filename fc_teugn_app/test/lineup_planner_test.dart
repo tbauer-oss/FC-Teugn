@@ -107,6 +107,15 @@ void main() {
     expect(lineupFitScore('ZM', 'ST', 'ST'), 850);
     expect(lineupFitScore('TW', null, 'ST'), -1000);
   });
+
+  test('validates and builds a custom team formation', () {
+    expect(isValidFormation('3-1', 5), isTrue);
+    expect(isValidFormation('2-1', 5), isFalse);
+    expect(isValidFormation('vier-eins', 5), isFalse);
+
+    final slots = lineupSlots(5, formation: '3-1');
+    expect(slots.map((slot) => slot.$3), ['TW', 'LV', 'IV', 'RV', 'ST']);
+  });
 }
 
 MatchPlayer _player(String id, String name, String position) => MatchPlayer(

@@ -260,6 +260,7 @@ class _OrganizationContent extends ConsumerWidget {
             teamId: team.id,
             formation: draft.formation,
             positions: draft.positions,
+            customFormations: draft.customFormations,
           );
       ref.invalidate(organizationProvider);
       if (context.mounted) {

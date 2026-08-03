@@ -145,11 +145,13 @@ class DataRepository {
     required String teamId,
     required String formation,
     required List<TeamDefaultLineupPositionInput> positions,
+    List<String> customFormations = const [],
   }) async {
     final res = await client.dio.put(
       '/organization/teams/$teamId/default-lineup',
       data: {
         'formation': formation,
+        'customFormations': customFormations,
         'positions': positions.map((position) => position.toJson()).toList(),
       },
     );

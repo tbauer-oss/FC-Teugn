@@ -1,5 +1,4 @@
 import {
-  AttendanceStatus,
   LineupStatus,
   NominationStatus,
   Prisma,
@@ -159,14 +158,6 @@ export async function syncSquadWithTeamDefaultLineup(
         lineup: {
           select: { id: true, usesTeamDefault: true },
         },
-        event: {
-          select: {
-            attendance: {
-              where: { status: AttendanceStatus.YES },
-              select: { playerId: true },
-            },
-          },
-        },
         members: {
           where: { status: NominationStatus.NOMINATED },
           select: {
@@ -187,12 +178,11 @@ export async function syncSquadWithTeamDefaultLineup(
   if (!team || !squad || team.defaultLineupPositions.length === 0) return null;
   if (squad.lineup && !squad.lineup.usesTeamDefault) return null;
 
+  // The matchday draft follows the nominated squad immediately. Attendance
+  // replies can arrive much later and must not hide the saved team lineup.
   const planned = planTeamDefaultLineup(
     team.defaultLineupPositions.slice(0, fieldSize),
-    confirmedLineupCandidates(
-      squad.members.map((member) => member.player),
-      squad.event.attendance.map((reply) => reply.playerId),
-    ),
+    squad.members.map((member) => member.player),
   );
   const lineup = await tx.lineup.upsert({
     where: { squadId },

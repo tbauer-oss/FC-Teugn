@@ -87,6 +87,7 @@ class TeamSummary {
     this.periodCount = 2,
     this.periodMinutes = 30,
     this.defaultLineup,
+    this.customFormations = const [],
     this.birthYears = const [],
     this.description,
     this.trainingLocation,
@@ -121,6 +122,7 @@ class TeamSummary {
   final int periodCount;
   final int periodMinutes;
   final TeamDefaultLineup? defaultLineup;
+  final List<String> customFormations;
   final List<int> birthYears;
   final String? description;
   final String? trainingLocation;
@@ -156,6 +158,12 @@ class TeamSummary {
     return '${ageGroup.code}-Jugend · $compactName';
   }
 
+  List<String> get formationOptions => <String>{
+        if (defaultLineup != null) defaultLineup!.formation,
+        ...customFormations,
+        ...gameFormat.formations,
+      }.toList();
+
   factory TeamSummary.fromJson(Map<String, dynamic> json) => TeamSummary(
         id: json['id'] as String,
         name: json['name'] as String,
@@ -174,6 +182,10 @@ class TeamSummary {
             : TeamDefaultLineup.fromJson(
                 json['defaultLineup'] as Map<String, dynamic>,
               ),
+        customFormations:
+            (json['customFormations'] as List<dynamic>? ?? const [])
+                .whereType<String>()
+                .toList(),
         birthYears: (json['birthYears'] as List<dynamic>? ?? [])
             .whereType<num>()
             .map((value) => value.toInt())

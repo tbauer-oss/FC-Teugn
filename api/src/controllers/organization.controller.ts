@@ -101,6 +101,31 @@ function optionalText(value: unknown, maxLength: number) {
   return text ? text.slice(0, maxLength) : null;
 }
 
+function validFormation(value: string, fieldSize: number) {
+  if (!/^\d+(?:-\d+)+$/.test(value)) return false;
+  const rows = value.split('-').map(Number);
+  return rows.some((count) => count > 0) &&
+    rows.every((count) => Number.isInteger(count) && count >= 0 && count <= 6) &&
+    rows.reduce((sum, count) => sum + count, 0) === fieldSize - 1;
+}
+
+function builtInFormations(gameFormat: TeamGameFormat) {
+  switch (gameFormat) {
+    case TeamGameFormat.FOOTBALL_3:
+      return ['1-1', '2-0', '1-1-0'];
+    case TeamGameFormat.FOOTBALL_4:
+      return ['1-2', '2-1', '1-1-1'];
+    case TeamGameFormat.FOOTBALL_5:
+      return ['1-2-1', '2-2', '1-1-2'];
+    case TeamGameFormat.FOOTBALL_7:
+      return ['2-3-1', '3-2-1', '3-3'];
+    case TeamGameFormat.FOOTBALL_9:
+      return ['3-3-2', '3-4-1', '4-3-1'];
+    case TeamGameFormat.FOOTBALL_11:
+      return ['4-4-2', '4-3-3', '3-5-2'];
+  }
+}
+
 function stringList(value: unknown, maxItems: number, maxLength: number) {
   if (!Array.isArray(value)) return [];
   return [...new Set(
@@ -608,7 +633,12 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
   }
   const team = await prisma.team.findUnique({
     where: { id: teamId },
-    select: { id: true, gameFormat: true, deletedAt: true },
+    select: {
+      id: true,
+      gameFormat: true,
+      customFormations: true,
+      deletedAt: true,
+    },
   });
   if (!team || team.deletedAt) {
     return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
@@ -626,6 +656,31 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
   }
   if (positions.length > 0 && !formation) {
     return res.status(400).json({ message: 'Bitte eine Formation auswählen.' });
+  }
+  if (formation && !validFormation(formation, fieldSize)) {
+    return res.status(400).json({
+      message: `Die Formation muss ${fieldSize - 1} Feldspieler enthalten.`,
+    });
+  }
+  const standardFormations = new Set(builtInFormations(team.gameFormat));
+  const requestedCustomFormations: string[] = Array.isArray(
+    req.body?.customFormations,
+  )
+    ? req.body.customFormations
+      .map((value: unknown) => optionalText(value, 30))
+      .filter((value: string | null): value is string => value !== null)
+    : team.customFormations;
+  const customFormations = [...new Set([
+    ...requestedCustomFormations.filter(
+      (value) => !standardFormations.has(value),
+    ),
+    ...(formation && !standardFormations.has(formation) ? [formation] : []),
+  ])];
+  if (customFormations.length > 12 ||
+      customFormations.some((value) => !validFormation(value, fieldSize))) {
+    return res.status(400).json({
+      message: 'Bitte höchstens 12 gültige eigene Formationen speichern.',
+    });
   }
   const playerIds = positions.map((position) => String(position.playerId ?? ''));
   if (playerIds.some((id) => !id) || new Set(playerIds).size !== playerIds.length) {
@@ -660,7 +715,10 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
   const saved = await prisma.$transaction(async (tx) => {
     await tx.team.update({
       where: { id: teamId },
-      data: { defaultFormation: positions.length > 0 ? formation : null },
+      data: {
+        defaultFormation: positions.length > 0 ? formation : null,
+        customFormations,
+      },
     });
     await tx.teamDefaultLineupPosition.deleteMany({ where: { teamId } });
     if (positions.length > 0) {
@@ -717,6 +775,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
       where: { id: teamId },
       select: {
         defaultFormation: true,
+        customFormations: true,
         defaultLineupPositions: {
           orderBy: { sortOrder: 'asc' },
           include: {
@@ -741,6 +800,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
   return res.json(saved && saved.defaultLineupPositions.length > 0
     ? {
         formation: saved.defaultFormation ?? 'Individuell',
+        customFormations: saved.customFormations,
         positions: saved.defaultLineupPositions,
       }
     : null);
@@ -1054,6 +1114,7 @@ async function serializeTeam(team: {
   periodCount: number;
   periodMinutes: number;
   defaultFormation: string | null;
+  customFormations: string[];
   birthYears: number[];
   description: string | null;
   trainingLocation: string | null;
@@ -1128,6 +1189,7 @@ async function serializeTeam(team: {
           positions: team.defaultLineupPositions,
         }
       : null,
+    customFormations: team.customFormations,
     birthYears: team.birthYears,
     description: team.description,
     trainingLocation: team.trainingLocation,

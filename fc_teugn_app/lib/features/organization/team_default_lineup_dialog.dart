@@ -10,10 +10,12 @@ class TeamDefaultLineupDraft {
   const TeamDefaultLineupDraft({
     required this.formation,
     required this.positions,
+    required this.customFormations,
   });
 
   final String formation;
   final List<TeamDefaultLineupPositionInput> positions;
+  final List<String> customFormations;
 }
 
 class TeamDefaultLineupDialog extends StatefulWidget {
@@ -33,6 +35,7 @@ class TeamDefaultLineupDialog extends StatefulWidget {
 
 class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
   late String _formation;
+  late List<String> _customFormations;
   late List<_EditableSlot> _slots;
   int? _selectedSlotIndex;
 
@@ -41,8 +44,19 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
     super.initState();
     _formation = widget.team.defaultLineup?.formation ??
         widget.team.gameFormat.defaultFormation;
+    _customFormations = widget.team.customFormations.toList();
+    if (!widget.team.gameFormat.formations.contains(_formation) &&
+        !_customFormations.contains(_formation)) {
+      _customFormations.insert(0, _formation);
+    }
     _slots = _initialSlots();
   }
+
+  List<String> get _availableFormations => <String>{
+        _formation,
+        ..._customFormations,
+        ...widget.team.gameFormat.formations,
+      }.toList();
 
   List<_EditableSlot> _initialSlots() {
     final saved = widget.team.defaultLineup?.positions ?? const [];
@@ -146,6 +160,102 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
     });
   }
 
+  Future<void> _addCustomFormation() async {
+    var draftValue = '';
+    final formation = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        String? errorText;
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Eigene Formation anlegen'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Gib die Reihen vom eigenen Tor bis zum gegnerischen Tor '
+                    'ein. Bei ${widget.team.gameFormat.strength} werden '
+                    '${widget.team.gameFormat.playerCount - 1} Feldspieler verteilt.',
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    key: const ValueKey('custom-formation-field'),
+                    autofocus: true,
+                    keyboardType: TextInputType.text,
+                    decoration: InputDecoration(
+                      labelText: 'Formation',
+                      hintText: 'z. B. 1-2-1',
+                      errorText: errorText,
+                      prefixIcon: const Icon(Icons.schema_rounded),
+                    ),
+                    onChanged: (value) {
+                      draftValue = value.trim();
+                      if (errorText != null) {
+                        setDialogState(() => errorText = null);
+                      }
+                    },
+                    onFieldSubmitted: (submitted) {
+                      final value = submitted.trim();
+                      if (isValidFormation(
+                        value,
+                        widget.team.gameFormat.playerCount,
+                      )) {
+                        Navigator.pop(dialogContext, value);
+                      } else {
+                        setDialogState(() => errorText =
+                            'Die Summe muss ${widget.team.gameFormat.playerCount - 1} ergeben.');
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  final value = draftValue;
+                  if (!isValidFormation(
+                    value,
+                    widget.team.gameFormat.playerCount,
+                  )) {
+                    setDialogState(() => errorText =
+                        'Die Summe muss ${widget.team.gameFormat.playerCount - 1} ergeben.');
+                    return;
+                  }
+                  Navigator.pop(dialogContext, value);
+                },
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Anlegen'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (formation == null || !mounted) return;
+    setState(() {
+      if (!widget.team.gameFormat.formations.contains(formation) &&
+          !_customFormations.contains(formation)) {
+        _customFormations.add(formation);
+      }
+    });
+    _applyFormation(formation);
+  }
+
+  void _removeCustomFormation(String formation) {
+    setState(() => _customFormations.remove(formation));
+    if (_formation == formation) {
+      _applyFormation(widget.team.gameFormat.defaultFormation);
+    }
+  }
+
   void _autoAssign() {
     final captainId = _captainId;
     final starters =
@@ -242,6 +352,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
     Navigator.of(context).pop(
       TeamDefaultLineupDraft(
         formation: _formation,
+        customFormations: _customFormations,
         positions: selected
             .map(
               (slot) => TeamDefaultLineupPositionInput(
@@ -292,10 +403,13 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                   .firstOrNull;
               final controls = _LineupControls(
                 formation: _formation,
-                formations: widget.team.gameFormat.formations,
+                formations: _availableFormations,
+                customFormations: _customFormations,
                 selectedCount: selectedCount,
                 targetCount: targetCount,
                 onFormationChanged: _applyFormation,
+                onAddFormation: _addCustomFormation,
+                onRemoveFormation: _removeCustomFormation,
                 onAutoAssign: _autoAssign,
               );
               final pitch = _FormationPitch(
@@ -610,17 +724,23 @@ class _LineupControls extends StatelessWidget {
   const _LineupControls({
     required this.formation,
     required this.formations,
+    required this.customFormations,
     required this.selectedCount,
     required this.targetCount,
     required this.onFormationChanged,
+    required this.onAddFormation,
+    required this.onRemoveFormation,
     required this.onAutoAssign,
   });
 
   final String formation;
   final List<String> formations;
+  final List<String> customFormations;
   final int selectedCount;
   final int targetCount;
   final ValueChanged<String> onFormationChanged;
+  final VoidCallback onAddFormation;
+  final ValueChanged<String> onRemoveFormation;
   final VoidCallback onAutoAssign;
 
   @override
@@ -666,25 +786,53 @@ class _LineupControls extends StatelessWidget {
                     child: Row(
                       children: [
                         for (final value in formations) ...[
-                          ChoiceChip(
-                            key: ValueKey('formation-$value'),
-                            label: Text(value),
-                            selected: value == formation,
-                            onSelected: (_) => onFormationChanged(value),
-                            selectedColor: AppColors.yellow,
-                            backgroundColor: Colors.white12,
-                            side: BorderSide(
-                              color: value == formation
-                                  ? AppColors.yellow
-                                  : Colors.white24,
+                          if (customFormations.contains(value))
+                            InputChip(
+                              key: ValueKey('formation-$value'),
+                              avatar:
+                                  const Icon(Icons.bookmark_rounded, size: 16),
+                              label: Text(value),
+                              selected: value == formation,
+                              onSelected: (_) => onFormationChanged(value),
+                              onDeleted: () => onRemoveFormation(value),
+                              deleteIcon:
+                                  const Icon(Icons.close_rounded, size: 17),
+                              deleteButtonTooltipMessage:
+                                  'Eigene Formation entfernen',
+                              selectedColor: AppColors.yellow,
+                              backgroundColor: Colors.white12,
+                              side: BorderSide(
+                                color: value == formation
+                                    ? AppColors.yellow
+                                    : Colors.white24,
+                              ),
+                              labelStyle: TextStyle(
+                                color: value == formation
+                                    ? AppColors.black
+                                    : Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            )
+                          else
+                            ChoiceChip(
+                              key: ValueKey('formation-$value'),
+                              label: Text(value),
+                              selected: value == formation,
+                              onSelected: (_) => onFormationChanged(value),
+                              selectedColor: AppColors.yellow,
+                              backgroundColor: Colors.white12,
+                              side: BorderSide(
+                                color: value == formation
+                                    ? AppColors.yellow
+                                    : Colors.white24,
+                              ),
+                              labelStyle: TextStyle(
+                                color: value == formation
+                                    ? AppColors.black
+                                    : Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
-                            labelStyle: TextStyle(
-                              color: value == formation
-                                  ? AppColors.black
-                                  : Colors.white,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
                           const SizedBox(width: 8),
                         ],
                       ],
@@ -692,6 +840,17 @@ class _LineupControls extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  key: const ValueKey('add-custom-formation'),
+                  tooltip: 'Eigene Formation anlegen',
+                  onPressed: onAddFormation,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.black,
+                  ),
+                  icon: const Icon(Icons.add_rounded),
+                ),
+                const SizedBox(width: 6),
                 IconButton.filled(
                   tooltip: 'Aktuelle Startelf positionsgerecht sortieren',
                   onPressed: onAutoAssign,

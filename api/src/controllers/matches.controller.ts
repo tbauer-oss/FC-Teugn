@@ -27,6 +27,8 @@ const matchInclude = {
     select: {
       id: true,
       gameFormat: true,
+      defaultFormation: true,
+      customFormations: true,
       ageGroup: { select: { code: true } },
     },
   },
@@ -38,6 +40,8 @@ const matchInclude = {
           name: true,
           shortName: true,
           gameFormat: true,
+          defaultFormation: true,
+          customFormations: true,
         },
       },
     },
@@ -211,6 +215,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
 ) {
   const squad = match.squads[0] ?? null;
   const lineup = squad?.lineup;
+  const lineupTeam = match.targetTeams[0]?.team ?? match.team;
   const canSeeLineup =
     staff ||
     (lineup?.status === LineupStatus.PUBLISHED &&
@@ -218,7 +223,12 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   return {
     ...match,
     teamGameFormat:
-      match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat,
+      lineupTeam.gameFormat,
+    teamDefaultFormation: lineupTeam.defaultFormation,
+    teamFormationOptions: [...new Set([
+      ...(lineupTeam.defaultFormation ? [lineupTeam.defaultFormation] : []),
+      ...lineupTeam.customFormations,
+    ])],
     playerPoolAgeGroupCode: match.team.ageGroup.code,
     eligiblePlayers: staff ? eligiblePlayers : undefined,
     capabilities: {

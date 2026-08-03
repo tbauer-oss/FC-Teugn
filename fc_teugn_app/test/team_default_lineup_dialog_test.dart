@@ -149,4 +149,32 @@ void main() {
     expect(find.byKey(const ValueKey('team-manager-scroll')), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('coach can add and select a custom team formation',
+      (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TeamDefaultLineupDialog(team: team, players: players),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('add-custom-formation')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('custom-formation-field')),
+      '3-1',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Anlegen'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('formation-3-1')), findsOneWidget);
+    expect(find.text('3-1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
