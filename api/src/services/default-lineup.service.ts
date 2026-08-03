@@ -125,13 +125,26 @@ export function fieldSizeForGameFormat(format: TeamGameFormat) {
   return Number(String(format).replace('FOOTBALL_', '')) || 7;
 }
 
+export function shouldSyncTeamDefaultLineup(
+  lineup: { usesTeamDefault: boolean } | null,
+  force = false,
+) {
+  return force || lineup === null || lineup.usesTeamDefault;
+}
+
 export async function syncSquadWithTeamDefaultLineup(
   tx: Prisma.TransactionClient,
   {
     teamId,
     squadId,
     fieldSize,
-  }: { teamId: string; squadId: string; fieldSize: number },
+    force = false,
+  }: {
+    teamId: string;
+    squadId: string;
+    fieldSize: number;
+    force?: boolean;
+  },
 ) {
   const [team, squad] = await Promise.all([
     tx.team.findUnique({
@@ -176,7 +189,7 @@ export async function syncSquadWithTeamDefaultLineup(
   ]);
 
   if (!team || !squad || team.defaultLineupPositions.length === 0) return null;
-  if (squad.lineup && !squad.lineup.usesTeamDefault) return null;
+  if (!shouldSyncTeamDefaultLineup(squad.lineup, force)) return null;
 
   // The matchday draft follows the nominated squad immediately. Attendance
   // replies can arrive much later and must not hide the saved team lineup.

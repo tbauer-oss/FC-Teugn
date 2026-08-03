@@ -267,7 +267,7 @@ class _OrganizationContent extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Startformation ${draft.formation} wurde für ${team.displayName} gespeichert.',
+              'Stammformation ${draft.formation} wurde für ${team.displayName} gespeichert.',
             ),
           ),
         );
@@ -281,7 +281,7 @@ class _OrganizationContent extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              message ?? 'Startformation konnte nicht gespeichert werden.',
+              message ?? 'Stammformation konnte nicht gespeichert werden.',
             ),
           ),
         );
@@ -1730,7 +1730,7 @@ String _defaultLineupSummary(TeamDefaultLineup lineup) {
       .map((position) => position.player.name)
       .firstOrNull;
   return [
-    'Startelf ${lineup.formation}',
+    'Stammformation ${lineup.formation}',
     '${lineup.positions.length} Spieler',
     if (captain != null) 'Kapitän $captain',
   ].join(' · ');

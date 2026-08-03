@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
   confirmedLineupCandidates,
   planTeamDefaultLineup,
+  shouldSyncTeamDefaultLineup,
 } = require('../dist/src/services/default-lineup.service.js');
 
 const slots = [
@@ -92,4 +93,32 @@ test('uses only confirmed players before applying positional replacements', () =
     'striker-replacement',
   ]);
   assert.equal(result.positions[1].replacedPlayerId, 'striker-default');
+});
+
+test('explicit team save refreshes customized future match lineups', () => {
+  const customizedMatchLineup = { usesTeamDefault: false };
+
+  assert.equal(
+    shouldSyncTeamDefaultLineup(customizedMatchLineup),
+    false,
+  );
+  assert.equal(
+    shouldSyncTeamDefaultLineup(customizedMatchLineup, true),
+    true,
+  );
+});
+
+test('preserves a manually changed slot code when planning the match lineup', () => {
+  const editedSlots = [
+    {
+      ...slots[1],
+      positionCode: 'IV',
+    },
+  ];
+  const result = planTeamDefaultLineup(editedSlots, [
+    { id: 'striker-default', position: 'ST', secondaryPosition: null, shirtNumber: 9 },
+  ]);
+
+  assert.equal(result.positions[0].playerId, 'striker-default');
+  assert.equal(result.positions[0].positionCode, 'IV');
 });

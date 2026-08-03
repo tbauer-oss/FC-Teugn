@@ -566,7 +566,7 @@ class _DesktopTacticsHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'TAKTIKBOARD · STANDARD-AUFSTELLUNG',
+                  'TAKTIKBOARD · STAMMFORMATION',
                   style: TextStyle(
                     color: AppColors.gold,
                     fontWeight: FontWeight.w900,
@@ -789,8 +789,13 @@ class _LineupControls extends StatelessWidget {
                           if (customFormations.contains(value))
                             InputChip(
                               key: ValueKey('formation-$value'),
-                              avatar:
-                                  const Icon(Icons.bookmark_rounded, size: 16),
+                              avatar: Icon(
+                                Icons.bookmark_rounded,
+                                size: 16,
+                                color: value == formation
+                                    ? AppColors.black
+                                    : Colors.white,
+                              ),
                               label: Text(value),
                               selected: value == formation,
                               onSelected: (_) => onFormationChanged(value),
@@ -800,7 +805,13 @@ class _LineupControls extends StatelessWidget {
                               deleteButtonTooltipMessage:
                                   'Eigene Formation entfernen',
                               selectedColor: AppColors.yellow,
-                              backgroundColor: Colors.white12,
+                              backgroundColor: AppColors.charcoal,
+                              color: WidgetStateProperty.resolveWith(
+                                (states) =>
+                                    states.contains(WidgetState.selected)
+                                        ? AppColors.yellow
+                                        : AppColors.charcoal,
+                              ),
                               side: BorderSide(
                                 color: value == formation
                                     ? AppColors.yellow
@@ -812,6 +823,9 @@ class _LineupControls extends StatelessWidget {
                                     : Colors.white,
                                 fontWeight: FontWeight.w900,
                               ),
+                              deleteIconColor: value == formation
+                                  ? AppColors.black
+                                  : Colors.white70,
                             )
                           else
                             ChoiceChip(
@@ -820,7 +834,14 @@ class _LineupControls extends StatelessWidget {
                               selected: value == formation,
                               onSelected: (_) => onFormationChanged(value),
                               selectedColor: AppColors.yellow,
-                              backgroundColor: Colors.white12,
+                              backgroundColor: AppColors.charcoal,
+                              color: WidgetStateProperty.resolveWith(
+                                (states) =>
+                                    states.contains(WidgetState.selected)
+                                        ? AppColors.yellow
+                                        : AppColors.charcoal,
+                              ),
+                              checkmarkColor: AppColors.black,
                               side: BorderSide(
                                 color: value == formation
                                     ? AppColors.yellow

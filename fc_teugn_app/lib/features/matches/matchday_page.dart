@@ -1135,7 +1135,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
 
   String _formationLabel(String formation) =>
       formation == widget.match.teamDefaultFormation
-          ? 'Wunschformation · $formation'
+          ? 'Stammformation · $formation'
           : formation;
 
   @override
@@ -2092,10 +2092,10 @@ class _AutomaticLineupNotice extends StatelessWidget {
             Expanded(
               child: Text(
                 replacements > 0
-                    ? 'Startformation der Mannschaft übernommen · '
+                    ? 'Stammformation der Mannschaft übernommen · '
                         '$replacements ${replacements == 1 ? 'Spieler wurde' : 'Spieler wurden'} '
                         'positionsgetreu ersetzt.'
-                    : 'Startformation der Mannschaft wurde automatisch übernommen.',
+                    : 'Stammformation der Mannschaft wurde automatisch übernommen.',
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ),

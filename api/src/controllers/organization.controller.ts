@@ -628,7 +628,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
   const teamId = req.params.id;
   if (!(await canManageTeam(user, teamId))) {
     return res.status(403).json({
-      message: 'Die Startformation dieser Mannschaft darf nicht bearbeitet werden.',
+      message: 'Die Stammformation dieser Mannschaft darf nicht bearbeitet werden.',
     });
   }
   const team = await prisma.team.findUnique({
@@ -685,7 +685,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
   const playerIds = positions.map((position) => String(position.playerId ?? ''));
   if (playerIds.some((id) => !id) || new Set(playerIds).size !== playerIds.length) {
     return res.status(400).json({
-      message: 'Jeder Spieler darf nur einmal in der Startformation vorkommen.',
+      message: 'Jeder Spieler darf nur einmal in der Stammformation vorkommen.',
     });
   }
   if (positions.filter((position) => position.isCaptain === true).length > 1) {
@@ -708,7 +708,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
   });
   if (validPlayers.length !== playerIds.length) {
     return res.status(400).json({
-      message: 'Die Startformation darf nur Spieler dieser Mannschaft enthalten.',
+      message: 'Die Stammformation darf nur Spieler dieser Mannschaft enthalten.',
     });
   }
 
@@ -754,6 +754,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
         teamId,
         squadId: squad.id,
         fieldSize,
+        force: true,
       });
     }
 
