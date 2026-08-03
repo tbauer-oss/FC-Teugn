@@ -30,9 +30,11 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
   Future<void> _load() async {
     try {
       final requests = await ref.read(repositoryProvider).privacyRequests();
-      final canAdmin =
-          ref.read(organizationProvider).value?.can('MANAGE_ORGANIZATION') ??
-              false;
+      final canAdmin = ref
+              .read(organizationProvider)
+              .valueOrNull
+              ?.can('MANAGE_ORGANIZATION') ??
+          false;
       final adminRequests = canAdmin
           ? await ref.read(repositoryProvider).adminPrivacyRequests()
           : const <Map<String, dynamic>>[];
@@ -115,7 +117,8 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
       await _load();
       _message('Datenschutzantrag wurde aktualisiert.');
     } on DioException catch (error) {
-      _message(_apiMessage(error) ?? 'Antrag konnte nicht aktualisiert werden.');
+      _message(
+          _apiMessage(error) ?? 'Antrag konnte nicht aktualisiert werden.');
     } finally {
       controller.dispose();
     }
@@ -168,7 +171,8 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
         ),
       );
     } on DioException catch (error) {
-      _message(_apiMessage(error) ?? 'Datenexport konnte nicht erstellt werden.');
+      _message(
+          _apiMessage(error) ?? 'Datenexport konnte nicht erstellt werden.');
     }
   }
 
@@ -186,7 +190,8 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
       await _load();
       _message('Ihr Löschantrag wurde sicher erfasst.');
     } on DioException catch (error) {
-      _message(_apiMessage(error) ?? 'Löschantrag konnte nicht erfasst werden.');
+      _message(
+          _apiMessage(error) ?? 'Löschantrag konnte nicht erfasst werden.');
     }
   }
 
@@ -293,8 +298,8 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
                           _reviewAdminRequest(_adminRequests[index], 'review'),
                       onReject: () =>
                           _reviewAdminRequest(_adminRequests[index], 'reject'),
-                      onComplete: () =>
-                          _reviewAdminRequest(_adminRequests[index], 'complete'),
+                      onComplete: () => _reviewAdminRequest(
+                          _adminRequests[index], 'complete'),
                     ),
                     if (index < _adminRequests.length - 1)
                       const Divider(height: 1),
@@ -495,8 +500,8 @@ class _ErasureDialogState extends State<_ErasureDialog> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _confirmation,
-                  decoration:
-                      const InputDecoration(labelText: 'Sicherheitsbestätigung'),
+                  decoration: const InputDecoration(
+                      labelText: 'Sicherheitsbestätigung'),
                   validator: (value) => value == 'KONTO LÖSCHEN'
                       ? null
                       : 'Bitte exakt KONTO LÖSCHEN eingeben.',

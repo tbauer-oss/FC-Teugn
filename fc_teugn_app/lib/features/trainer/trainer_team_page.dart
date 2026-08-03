@@ -35,7 +35,7 @@ class TrainerTeamPage extends ConsumerWidget {
         ),
         data: (organization) {
           final team = organization.currentTeam;
-          final teamPlayers = (allPlayers.value ?? const <PlayerModel>[])
+          final teamPlayers = (allPlayers.valueOrNull ?? const <PlayerModel>[])
               .where((player) => player.teamId == team.id)
               .toList();
           final activePlayers = teamPlayers
@@ -51,8 +51,16 @@ class TrainerTeamPage extends ConsumerWidget {
             children: [
               _TeamHero(
                 team: team,
-                playerCount: allPlayers.isLoading ? null : activePlayers,
+                playerCount: allPlayers.isLoading || allPlayers.hasError
+                    ? null
+                    : activePlayers,
               ),
+              if (allPlayers.hasError) ...[
+                const SizedBox(height: 12),
+                _TeamPlayerLoadFailure(
+                  onRetry: () => ref.invalidate(playersProvider),
+                ),
+              ],
               const SizedBox(height: 18),
               const _SectionTitle(
                 title: 'Mannschaft verwalten',
@@ -186,6 +194,40 @@ class TrainerTeamPage extends ConsumerWidget {
       }
     }
   }
+}
+
+class _TeamPlayerLoadFailure extends StatelessWidget {
+  const _TeamPlayerLoadFailure({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.yellowSoft.withValues(alpha: .55),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.yellow),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.cloud_off_rounded, color: AppColors.gold),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Spielerdaten momentan nicht erreichbar. Mannschaftsverwaltung und Navigation bleiben verfügbar.',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Spieler erneut laden',
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ],
+        ),
+      );
 }
 
 class _TeamHero extends StatelessWidget {

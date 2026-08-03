@@ -329,10 +329,44 @@ class DataRepository {
   }
 
   Future<List<PlayerModel>> players() async {
-    final res = await client.dio.get('/players');
-    return (res.data as List<dynamic>)
-        .map((e) => PlayerModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _playersWithRetry(0);
+  }
+
+  Future<List<PlayerModel>> _playersWithRetry(int attempt) async {
+    try {
+      final res = await client.dio.get('/players');
+      final data = res.data;
+      final rawPlayers = switch (data) {
+        List<dynamic> values => values,
+        Map<dynamic, dynamic> values when values['players'] is List<dynamic> =>
+          values['players'] as List<dynamic>,
+        _ => throw const FormatException(
+            'Die Spielerantwort besitzt ein unerwartetes Format.',
+          ),
+      };
+      return rawPlayers
+          .whereType<Map<dynamic, dynamic>>()
+          .map(
+            (item) => PlayerModel.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList();
+    } on DioException catch (error) {
+      if (attempt >= 2 || !_isTransientPlayerLoadError(error)) rethrow;
+      await Future<void>.delayed(Duration(milliseconds: 350 * (attempt + 1)));
+      return _playersWithRetry(attempt + 1);
+    }
+  }
+
+  bool _isTransientPlayerLoadError(DioException error) {
+    final status = error.response?.statusCode;
+    return status != null && status >= 500 ||
+        error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.unknown;
   }
 
   Future<PlayerModel> player(String id) async {

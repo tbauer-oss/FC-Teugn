@@ -16,7 +16,8 @@ class TrainerDashboardPage extends ConsumerWidget {
     final players = ref.watch(playersProvider);
     final events = ref.watch(eventsProvider);
     final approvals = ref.watch(pendingUsersProvider);
-    final upcoming = [...(events.value ?? <EventModel>[])]
+    final playerItems = players.valueOrNull;
+    final upcoming = [...(events.valueOrNull ?? <EventModel>[])]
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
     final nextEvents = upcoming
         .where((event) => event.startAt.isAfter(DateTime.now()))
@@ -45,12 +46,18 @@ class TrainerDashboardPage extends ConsumerWidget {
               final cards = [
                 MetricCard(
                   label: 'Spieler im Team',
-                  value: '${players.value?.length ?? '–'}',
+                  value:
+                      players.hasError ? '!' : '${playerItems?.length ?? '–'}',
                   icon: Icons.groups_rounded,
                   color: AppColors.blue,
-                  caption:
-                      players.isLoading ? 'Wird geladen …' : 'Kader öffnen',
-                  onTap: () => context.go('/trainer/players'),
+                  caption: players.hasError
+                      ? 'Laden fehlgeschlagen'
+                      : players.isLoading
+                          ? 'Wird geladen …'
+                          : 'Kader öffnen',
+                  onTap: players.hasError
+                      ? () => ref.invalidate(playersProvider)
+                      : () => context.go('/trainer/players'),
                 ),
                 MetricCard(
                   label: 'Nächste Termine',
@@ -62,7 +69,7 @@ class TrainerDashboardPage extends ConsumerWidget {
                 ),
                 MetricCard(
                   label: 'Offene Freigaben',
-                  value: '${approvals.value?.length ?? '–'}',
+                  value: '${approvals.valueOrNull?.length ?? '–'}',
                   icon: Icons.person_add_alt_1_rounded,
                   color: AppColors.orange,
                   caption: 'Anfragen prüfen',
@@ -79,6 +86,12 @@ class TrainerDashboardPage extends ConsumerWidget {
               );
             },
           ),
+          if (players.hasError) ...[
+            const SizedBox(height: 12),
+            _PlayerLoadFailure(
+              onRetry: () => ref.invalidate(playersProvider),
+            ),
+          ],
           const SizedBox(height: 18),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -86,7 +99,11 @@ class TrainerDashboardPage extends ConsumerWidget {
               final schedule = _ScheduleCard(events: nextEvents);
               const shortcuts = _ShortcutCard();
               if (!wide) {
-                return Column(children: [schedule, const SizedBox(height: 18), shortcuts]);
+                return Column(children: [
+                  schedule,
+                  const SizedBox(height: 18),
+                  shortcuts
+                ]);
               }
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,6 +126,53 @@ class TrainerDashboardPage extends ConsumerWidget {
   }
 }
 
+class _PlayerLoadFailure extends StatelessWidget {
+  const _PlayerLoadFailure({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          const message = Row(
+            children: [
+              Icon(Icons.sync_problem_rounded, color: AppColors.gold),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Die Spieler konnten gerade nicht geladen werden. Die App bleibt vollständig bedienbar.',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          );
+          final retry = TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Erneut laden'),
+          );
+
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.yellowSoft.withValues(alpha: .55),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.yellow),
+            ),
+            child: constraints.maxWidth < 520
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [message, const SizedBox(height: 4), retry],
+                  )
+                : Row(
+                    children: [const Expanded(child: message), retry],
+                  ),
+          );
+        },
+      );
+}
+
 class _ScheduleCard extends StatelessWidget {
   const _ScheduleCard({required this.events});
 
@@ -124,8 +188,15 @@ class _ScheduleCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text('Als Nächstes', style: Theme.of(context).textTheme.titleLarge),
-                const Spacer(),
+                Expanded(
+                  child: Text(
+                    'Als Nächstes',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 TextButton(
                   onPressed: () => context.go('/trainer/events'),
                   child: const Text('Alle Termine'),
@@ -203,10 +274,11 @@ class _EventRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(event.title, style: const TextStyle(
-                    color: AppColors.navy,
-                    fontWeight: FontWeight.w700,
-                  )),
+                  Text(event.title,
+                      style: const TextStyle(
+                        color: AppColors.navy,
+                        fontWeight: FontWeight.w700,
+                      )),
                   const SizedBox(height: 3),
                   Text(details),
                 ],
@@ -235,9 +307,19 @@ class _EventRow extends StatelessWidget {
       '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 
   String _month(int value) => const [
-    'JAN', 'FEB', 'MÄR', 'APR', 'MAI', 'JUN',
-    'JUL', 'AUG', 'SEP', 'OKT', 'NOV', 'DEZ',
-  ][value - 1];
+        'JAN',
+        'FEB',
+        'MÄR',
+        'APR',
+        'MAI',
+        'JUN',
+        'JUL',
+        'AUG',
+        'SEP',
+        'OKT',
+        'NOV',
+        'DEZ',
+      ][value - 1];
 }
 
 class _ShortcutCard extends StatelessWidget {
@@ -257,7 +339,8 @@ class _ShortcutCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Direkt erledigen', style: Theme.of(context).textTheme.titleLarge),
+            Text('Direkt erledigen',
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 14),
             for (final action in actions)
               Padding(
@@ -275,10 +358,12 @@ class _ShortcutCard extends StatelessWidget {
                       children: [
                         Icon(action.$2, color: AppColors.blue, size: 20),
                         const SizedBox(width: 12),
-                        Expanded(child: Text(action.$1, style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.navy,
-                        ))),
+                        Expanded(
+                            child: Text(action.$1,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.navy,
+                                ))),
                         const Icon(Icons.arrow_forward_ios_rounded, size: 14),
                       ],
                     ),

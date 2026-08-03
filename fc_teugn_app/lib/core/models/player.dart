@@ -2,6 +2,29 @@ enum PlayerStatus { active, injured, paused, left }
 
 enum DominantFoot { right, left, both, unknown }
 
+Map<String, dynamic>? _jsonMap(Object? value) =>
+    value is Map<dynamic, dynamic> ? Map<String, dynamic>.from(value) : null;
+
+List<Map<String, dynamic>> _jsonMapList(Object? value) => value is List
+    ? value
+        .whereType<Map<dynamic, dynamic>>()
+        .map(Map<String, dynamic>.from)
+        .toList()
+    : const [];
+
+String? _jsonString(Object? value) => value?.toString();
+
+int _jsonInt(Object? value, [int fallback = 0]) => switch (value) {
+      num number => number.toInt(),
+      String text => int.tryParse(text) ?? fallback,
+      _ => fallback,
+    };
+
+DateTime? _jsonDate(Object? value) {
+  final text = _jsonString(value);
+  return text == null ? null : DateTime.tryParse(text);
+}
+
 class PlayerCapabilities {
   const PlayerCapabilities({
     this.canEdit = false,
@@ -507,65 +530,57 @@ class PlayerModel {
   }
 
   factory PlayerModel.fromJson(Map<String, dynamic> json) {
-    final team = json['team'] as Map<String, dynamic>?;
-    final ageGroup = team?['ageGroup'] as Map<String, dynamic>?;
-    final statistics = json['statistics'] as Map<String, dynamic>?;
+    final team = _jsonMap(json['team']);
+    final ageGroup = _jsonMap(team?['ageGroup']);
+    final statistics = _jsonMap(json['statistics']);
+    final medicalProfile = _jsonMap(json['medicalProfile']);
+    final id = _jsonString(json['id']);
+    if (id == null || id.isEmpty) {
+      throw const FormatException('Spieler-ID fehlt in der Serverantwort.');
+    }
     return PlayerModel(
-      id: json['id'] as String,
-      teamId: json['teamId'] as String?,
-      firstName: json['firstName'] as String,
-      lastName: json['lastName'] as String,
-      preferredName: json['preferredName'] as String?,
-      birthDate: json['birthDate'] == null
+      id: id,
+      teamId: _jsonString(json['teamId']),
+      firstName: _jsonString(json['firstName']) ?? '',
+      lastName: _jsonString(json['lastName']) ?? '',
+      preferredName: _jsonString(json['preferredName']),
+      birthDate: _jsonDate(json['birthDate']),
+      nationality: _jsonString(json['nationality']),
+      position: _jsonString(json['position']),
+      secondaryPosition: _jsonString(json['secondaryPosition']),
+      dominantFoot: _foot(_jsonString(json['dominantFoot'])),
+      shirtNumber:
+          json['shirtNumber'] == null ? null : _jsonInt(json['shirtNumber']),
+      status: _status(_jsonString(json['status'])),
+      joinedAt: _jsonDate(json['joinedAt']),
+      photoUrl: _jsonString(json['photoUrl']),
+      teamName: _jsonString(team?['name']),
+      teamNumber:
+          team?['teamNumber'] == null ? null : _jsonInt(team?['teamNumber']),
+      ageGroupCode: _jsonString(ageGroup?['code']),
+      goals: _jsonInt(statistics?['goals']),
+      assists: _jsonInt(statistics?['assists']),
+      appearances: _jsonInt(statistics?['appearances']),
+      starts: _jsonInt(statistics?['starts']),
+      minutes: _jsonInt(statistics?['minutes']),
+      statisticsBySeason: _jsonMapList(json['statisticsBySeason'])
+          .map(PlayerSeasonStatistics.fromJson)
+          .toList(),
+      guardians: _jsonMapList(json['parentLinks'])
+          .map(GuardianModel.fromJson)
+          .toList(),
+      medicalProfile: medicalProfile == null
           ? null
-          : DateTime.parse(json['birthDate'] as String),
-      nationality: json['nationality'] as String?,
-      position: json['position'] as String?,
-      secondaryPosition: json['secondaryPosition'] as String?,
-      dominantFoot: _foot(json['dominantFoot'] as String?),
-      shirtNumber: json['shirtNumber'] as int?,
-      status: _status(json['status'] as String?),
-      joinedAt: json['joinedAt'] == null
-          ? null
-          : DateTime.parse(json['joinedAt'] as String),
-      photoUrl: json['photoUrl'] as String?,
-      teamName: team?['name'] as String?,
-      teamNumber: (team?['teamNumber'] as num?)?.toInt(),
-      ageGroupCode: ageGroup?['code'] as String?,
-      goals: statistics?['goals'] as int? ?? 0,
-      assists: statistics?['assists'] as int? ?? 0,
-      appearances: statistics?['appearances'] as int? ?? 0,
-      starts: statistics?['starts'] as int? ?? 0,
-      minutes: statistics?['minutes'] as int? ?? 0,
-      statisticsBySeason:
-          (json['statisticsBySeason'] as List<dynamic>? ?? const [])
-              .map(
-                (item) => PlayerSeasonStatistics.fromJson(
-                  item as Map<String, dynamic>,
-                ),
-              )
-              .toList(),
-      guardians: (json['parentLinks'] as List<dynamic>? ?? [])
-          .map((item) => GuardianModel.fromJson(item as Map<String, dynamic>))
+          : MedicalProfile.fromJson(medicalProfile),
+      emergencyContacts: _jsonMapList(json['emergencyContacts'])
+          .map(EmergencyContact.fromJson)
           .toList(),
-      medicalProfile: json['medicalProfile'] == null
-          ? null
-          : MedicalProfile.fromJson(
-              json['medicalProfile'] as Map<String, dynamic>,
-            ),
-      emergencyContacts: (json['emergencyContacts'] as List<dynamic>? ?? [])
-          .map(
-              (item) => EmergencyContact.fromJson(item as Map<String, dynamic>))
+      developmentNotes: _jsonMapList(json['developmentNotes'])
+          .map(DevelopmentNote.fromJson)
           .toList(),
-      developmentNotes: (json['developmentNotes'] as List<dynamic>? ?? [])
-          .map((item) => DevelopmentNote.fromJson(item as Map<String, dynamic>))
-          .toList(),
-      consents: (json['consents'] as List<dynamic>? ?? [])
-          .map((item) => PlayerConsent.fromJson(item as Map<String, dynamic>))
-          .toList(),
-      capabilities: PlayerCapabilities.fromJson(
-        json['capabilities'] as Map<String, dynamic>?,
-      ),
+      consents:
+          _jsonMapList(json['consents']).map(PlayerConsent.fromJson).toList(),
+      capabilities: PlayerCapabilities.fromJson(_jsonMap(json['capabilities'])),
     );
   }
 }
@@ -591,13 +606,13 @@ class PlayerSeasonStatistics {
 
   factory PlayerSeasonStatistics.fromJson(Map<String, dynamic> json) =>
       PlayerSeasonStatistics(
-        seasonId: json['seasonId'] as String,
-        seasonName: json['seasonName'] as String? ?? 'Saison',
-        goals: json['goals'] as int? ?? 0,
-        assists: json['assists'] as int? ?? 0,
-        appearances: json['appearances'] as int? ?? 0,
-        starts: json['starts'] as int? ?? 0,
-        minutes: json['minutes'] as int? ?? 0,
+        seasonId: _jsonString(json['seasonId']) ?? '',
+        seasonName: _jsonString(json['seasonName']) ?? 'Saison',
+        goals: _jsonInt(json['goals']),
+        assists: _jsonInt(json['assists']),
+        appearances: _jsonInt(json['appearances']),
+        starts: _jsonInt(json['starts']),
+        minutes: _jsonInt(json['minutes']),
       );
 }
 

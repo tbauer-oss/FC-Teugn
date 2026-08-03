@@ -14,8 +14,10 @@ class ParentDashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).user;
-    final players = ref.watch(playersProvider).value ?? [];
-    final events = [...(ref.watch(eventsProvider).value ?? <EventModel>[])];
+    final players = ref.watch(playersProvider).valueOrNull ?? [];
+    final events = [
+      ...(ref.watch(eventsProvider).valueOrNull ?? <EventModel>[]),
+    ];
     events.sort((a, b) => a.startAt.compareTo(b.startAt));
     final nextEvents = events
         .where((event) => event.startAt.isAfter(DateTime.now()))
@@ -152,10 +154,9 @@ class ParentDashboardPage extends ConsumerWidget {
     );
   }
 
-  String _firstName(String? name) =>
-      name == null || name.trim().isEmpty
-          ? 'Fußballfamilie'
-          : name.trim().split(' ').first;
+  String _firstName(String? name) => name == null || name.trim().isEmpty
+      ? 'Fußballfamilie'
+      : name.trim().split(' ').first;
 }
 
 class _ParentEventRow extends StatelessWidget {
