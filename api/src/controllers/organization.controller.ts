@@ -11,7 +11,11 @@ import {
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { Permission, permissionsForRole } from '../security/permissions';
-import { accessibleTeamIds, canManageTeam } from '../services/team-access';
+import {
+  accessibleTeamIds,
+  canManageTeam,
+  resolveContextTeamId,
+} from '../services/team-access';
 import { objectStorage } from '../services/object-storage';
 import { mediaAssetUrl } from '../services/media-access';
 import {
@@ -327,8 +331,12 @@ export async function publicOrganization(_req: Request, res: Response) {
 
 export async function organizationContext(req: Request, res: Response) {
   const user = req.user!;
+  const contextTeamId = await resolveContextTeamId(user);
+  if (!contextTeamId) {
+    return res.status(404).json({ message: 'Keine aktive Mannschaft gefunden.' });
+  }
   const currentTeam = await prisma.team.findUnique({
-    where: { id: user.teamId },
+    where: { id: contextTeamId },
     include: hierarchyInclude,
   });
   if (!currentTeam) return res.status(404).json({ message: 'Aktive Mannschaft nicht gefunden.' });
@@ -357,7 +365,7 @@ export async function organizationContext(req: Request, res: Response) {
         ageGroup: { season: seasonScope },
         deletedAt: null,
         ...(canViewAllTeams ? {} : {
-          id: { in: membershipTeamIds.length > 0 ? membershipTeamIds : [user.teamId] },
+          id: { in: membershipTeamIds.length > 0 ? membershipTeamIds : [contextTeamId] },
         }),
       },
       orderBy: [
@@ -415,7 +423,7 @@ export async function organizationContext(req: Request, res: Response) {
   const serializedTeams = await Promise.all(
     teams.map((team) => serializeTeam(
       team,
-      canViewAllTeams || team.id === user.teamId,
+      canViewAllTeams || team.id === contextTeamId,
       teamCountByAgeGroup.get(team.ageGroupId),
     )),
   );
@@ -461,8 +469,12 @@ export async function createTeam(req: Request, res: Response) {
   if (body.bfvTeamUrl && !data.bfvTeamUrl) {
     return res.status(400).json({ message: 'Die BFV-Adresse ist ungültig.' });
   }
+  const contextTeamId = await resolveContextTeamId(user);
+  if (!contextTeamId) {
+    return res.status(404).json({ message: 'Keine aktive Mannschaft gefunden.' });
+  }
   const currentTeam = await prisma.team.findUnique({
-    where: { id: user.teamId },
+    where: { id: contextTeamId },
     include: hierarchyInclude,
   });
   if (!currentTeam) return res.status(404).json({ message: 'Aktive Mannschaft nicht gefunden.' });

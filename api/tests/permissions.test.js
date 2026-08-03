@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 
 const { Permission, hasPermission } = require('../dist/src/security/permissions');
 const { AccountStatus, Role } = require('../dist/src/types/enums');
@@ -31,6 +32,20 @@ const {
   buildTransitionTeamPlans,
   nextAgeGroupCode,
 } = require('../dist/src/services/season-transition');
+
+test('team-independent pages resolve a valid context team', () => {
+  const organization = fs.readFileSync(
+    'src/controllers/organization.controller.ts',
+    'utf8',
+  );
+  const trainings = fs.readFileSync(
+    'src/controllers/trainings.controller.ts',
+    'utf8',
+  );
+  assert.match(organization, /organizationContext[\s\S]*resolveContextTeamId\(user\)/);
+  assert.match(organization, /createTeam[\s\S]*resolveContextTeamId\(user\)/);
+  assert.match(trainings, /listPitchOccupancy[\s\S]*resolveContextTeamId\(req\.user!\)/);
+});
 const {
   signAccessToken,
   signRefreshToken,

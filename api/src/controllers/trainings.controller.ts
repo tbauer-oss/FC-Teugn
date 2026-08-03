@@ -12,6 +12,7 @@ import {
   accessibleTeamIds,
   clubIdForTeam,
   eventTeamScope,
+  resolveContextTeamId,
 } from '../services/team-access';
 
 const occupancyAdminRoles: Role[] = [
@@ -164,8 +165,12 @@ async function eligibleTrainingCoaches(teamIds: string[]) {
 
 export async function listPitchOccupancy(req: Request, res: Response) {
   const indoor = String(req.query.mode ?? '').toUpperCase() === 'INDOOR';
+  const contextTeamId = await resolveContextTeamId(req.user!);
+  if (!contextTeamId) {
+    return res.status(404).json({ message: 'Keine aktive Mannschaft gefunden.' });
+  }
   const currentTeam = await prisma.team.findUnique({
-    where: { id: req.user!.teamId },
+    where: { id: contextTeamId },
     select: {
       ageGroup: {
         select: {

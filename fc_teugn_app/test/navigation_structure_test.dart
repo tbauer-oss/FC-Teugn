@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:fc_teugn_app/features/shell/app_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 void main() {
+  test('jede Hauptnavigation besitzt weiterhin eine passende App-Route', () {
+    final source = File('lib/app.dart').readAsStringSync();
+    final destinations = RegExp(r"route:\s*'([^']+)'")
+        .allMatches(source)
+        .map((match) => match.group(1)!)
+        .toSet();
+    final routes = RegExp(r"path:\s*'([^']+)'")
+        .allMatches(source)
+        .map((match) => match.group(1)!)
+        .toSet();
+
+    expect(destinations, isNotEmpty);
+    expect(destinations.difference(routes), isEmpty);
+  });
+
   test('Navigation verwendet verständliche Aufgabenbereiche', () {
     expect(
       ShellSection.values.map((section) => section.label),
