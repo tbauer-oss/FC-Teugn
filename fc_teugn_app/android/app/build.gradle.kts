@@ -17,12 +17,16 @@ if (hasReleaseSigning) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
-if (
-    providers.environmentVariable("FC_TEUGN_REQUIRE_RELEASE_SIGNING").orNull == "true" &&
-    !hasReleaseSigning
-) {
+val releaseSigningRequired =
+    providers.environmentVariable("FC_TEUGN_REQUIRE_RELEASE_SIGNING").orNull == "true" ||
+        gradle.startParameter.taskNames.any { taskName ->
+            taskName.contains("release", ignoreCase = true)
+        }
+
+if (releaseSigningRequired && !hasReleaseSigning) {
     throw GradleException(
-        "Release-Signierung erforderlich: android/key.properties fehlt.",
+        "Release-Signierung erforderlich: android/key.properties fehlt. " +
+            "Nutze fuer eine installierbare APK das signierte GitHub-Actions-Artefakt.",
     )
 }
 
