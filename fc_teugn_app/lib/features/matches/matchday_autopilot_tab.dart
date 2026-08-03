@@ -135,44 +135,43 @@ class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 980;
+        final wide = constraints.maxWidth >= 920;
         final content = [
           _AutopilotHero(
-              plan: _plan,
-              onRecalculate: () {
-                setState(_recalculate);
-              }),
-          const SizedBox(height: 16),
+            plan: _plan,
+            onRecalculate: () => setState(_recalculate),
+          ),
+          const SizedBox(height: 10),
           if (wide)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: _ReadinessCard(plan: _plan)),
-                const SizedBox(width: 16),
-                Expanded(child: _PlanSummaryCard(plan: _plan)),
+                Expanded(flex: 6, child: _PlanSummaryCard(plan: _plan)),
+                const SizedBox(width: 10),
+                Expanded(flex: 5, child: _ReadinessCard(plan: _plan)),
               ],
             )
           else ...[
-            _ReadinessCard(plan: _plan),
-            const SizedBox(height: 16),
             _PlanSummaryCard(plan: _plan),
+            const SizedBox(height: 10),
+            _ReadinessCard(plan: _plan),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (wide)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(flex: 3, child: _StartingLineupCard(plan: _plan)),
-                const SizedBox(width: 16),
+                const SizedBox(width: 10),
                 Expanded(flex: 2, child: _RotationCard(plan: _plan)),
               ],
             )
           else ...[
             _StartingLineupCard(plan: _plan),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             _RotationCard(plan: _plan),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           _ApprovalCard(
             plan: _plan,
             editable: widget.editable,
@@ -180,10 +179,10 @@ class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
             onDraft: () => _apply(LineupStatus.draft),
             onPublish: () => _apply(LineupStatus.published),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
         ];
         return SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.only(bottom: 12),
           child: Column(children: content),
         );
       },
@@ -199,10 +198,14 @@ class _AutopilotHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final ready = plan.readyChecks;
+    final total = plan.readiness.length;
+    final progress = total == 0 ? 0.0 : ready / total;
+    final missing = total - ready;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(compact ? 14 : 18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF151713), Color(0xFF3C3600)],
@@ -211,52 +214,119 @@ class _AutopilotHero extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(24),
       ),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        runSpacing: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+          Row(
+            children: [
+              Container(
+                width: compact ? 38 : 44,
+                height: compact ? 38 : 44,
+                decoration: BoxDecoration(
+                  color: AppColors.yellow,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: AppColors.black,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: scheme.primary,
-                        borderRadius: BorderRadius.circular(14),
+                    Text(
+                      'Spieltags-Autopilot',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: compact ? 19 : 22,
+                        fontWeight: FontWeight.w900,
                       ),
-                      child: const Icon(Icons.auto_awesome_rounded),
                     ),
-                    const SizedBox(width: 12),
-                    const Flexible(
-                      child: Text(
-                        'FC Teugn Spieltags-Autopilot',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                        ),
+                    Text(
+                      plan.canApply
+                          ? 'Dein Spielplan ist vorbereitet'
+                          : 'Noch nicht einsatzbereit',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: .68),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  'Bereitet Kader, positionsgerechte Startformation, faire Einsatzzeiten und Wechselplan in einem Schritt vor.',
-                  style: TextStyle(color: Colors.white.withValues(alpha: .75)),
+              ),
+              IconButton(
+                onPressed: onRecalculate,
+                tooltip: 'Neu berechnen',
+                style: IconButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: Colors.white.withValues(alpha: .1),
                 ),
-              ],
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const Text(
+                'BEREITSCHAFT',
+                style: TextStyle(
+                  color: AppColors.yellow,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .8,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$ready/$total',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: Colors.white.withValues(alpha: .12),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                missing == 0 ? AppColors.success : AppColors.yellow,
+              ),
             ),
           ),
-          FilledButton.tonalIcon(
-            onPressed: onRecalculate,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Neu berechnen'),
+          const SizedBox(height: 11),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              _HeroChip(
+                icon: Icons.account_tree_rounded,
+                label: plan.formation,
+              ),
+              _HeroChip(
+                icon: Icons.groups_rounded,
+                label: '${plan.fieldSize} gegen ${plan.fieldSize}',
+              ),
+              _HeroChip(
+                icon: missing == 0
+                    ? Icons.check_circle_rounded
+                    : Icons.warning_amber_rounded,
+                label: missing == 0 ? 'Bereit' : '$missing Punkte offen',
+                highlighted: missing > 0,
+              ),
+            ],
           ),
         ],
       ),
@@ -264,34 +334,173 @@ class _AutopilotHero extends StatelessWidget {
   }
 }
 
-class _ReadinessCard extends StatelessWidget {
+class _HeroChip extends StatelessWidget {
+  const _HeroChip({
+    required this.icon,
+    required this.label,
+    this.highlighted = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: highlighted
+              ? AppColors.yellow.withValues(alpha: .2)
+              : Colors.white.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: highlighted ? AppColors.yellow : Colors.white,
+              size: 14,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: highlighted ? AppColors.yellow : Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _ReadinessCard extends StatefulWidget {
   const _ReadinessCard({required this.plan});
   final MatchdayAutopilotPlan plan;
 
   @override
-  Widget build(BuildContext context) => _SectionCard(
-        title: 'Vorbereitungscheck',
-        subtitle:
-            '${plan.readyChecks} von ${plan.readiness.length} Punkten bereit',
-        icon: Icons.fact_check_outlined,
-        child: Column(
-          children: [
-            for (final item in plan.readiness)
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  item.ready
-                      ? Icons.check_circle_rounded
-                      : Icons.warning_amber_rounded,
-                  color: item.ready
-                      ? const Color(0xFF16845B)
-                      : const Color(0xFF9A7300),
+  State<_ReadinessCard> createState() => _ReadinessCardState();
+}
+
+class _ReadinessCardState extends State<_ReadinessCard> {
+  bool _showAll = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final plan = widget.plan;
+    final missing = plan.readiness.where((item) => !item.ready).toList();
+    final visible = _showAll ? plan.readiness : missing;
+    return _SectionCard(
+      title: 'Vorbereitungscheck',
+      subtitle: missing.isEmpty
+          ? 'Alle Angaben sind vollständig'
+          : '${missing.length} Punkte brauchen Aufmerksamkeit',
+      icon: missing.isEmpty
+          ? Icons.verified_rounded
+          : Icons.warning_amber_rounded,
+      trailing: _StatusPill(
+        label: '${plan.readyChecks}/${plan.readiness.length}',
+        ready: missing.isEmpty,
+      ),
+      child: Column(
+        children: [
+          if (visible.isEmpty)
+            const _ReadyState()
+          else
+            for (var index = 0; index < visible.length; index++) ...[
+              _ReadinessRow(item: visible[index]),
+              if (index < visible.length - 1)
+                const Divider(height: 1, indent: 37),
+            ],
+          if (missing.length != plan.readiness.length) ...[
+            const SizedBox(height: 5),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _showAll = !_showAll),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
                 ),
-                title: Text(item.label,
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: Text(item.detail),
+                icon: Icon(
+                  _showAll
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  size: 18,
+                ),
+                label: Text(
+                  _showAll ? 'Nur offene Punkte' : 'Alle Checks anzeigen',
+                ),
               ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReadinessRow extends StatelessWidget {
+  const _ReadinessRow({required this.item});
+
+  final AutopilotReadinessItem item;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          children: [
+            Icon(
+              item.ready
+                  ? Icons.check_circle_rounded
+                  : Icons.warning_amber_rounded,
+              color: item.ready ? AppColors.success : AppColors.gold,
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.label,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    item.detail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _ReadyState extends StatelessWidget {
+  const _ReadyState();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: AppColors.success),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Bereit für die Trainerfreigabe',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
           ],
         ),
       );
@@ -307,17 +516,19 @@ class _PlanSummaryCard extends StatelessWidget {
         subtitle:
             '${plan.formation} · ${plan.fieldSize} gegen ${plan.fieldSize}',
         icon: Icons.insights_rounded,
-        child: Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _Metric(value: '${plan.players.length}', label: 'Spieler'),
-            _Metric(value: '${plan.benchCount}', label: 'Bank'),
-            _Metric(value: '${plan.substitutions.length}', label: 'Wechsel'),
-            _Metric(value: '±${plan.minuteSpread}', label: 'Minuten'),
-            _Metric(
-              value: '${plan.positionMatches}/${plan.positions.length}',
-              label: 'Positionsfit',
+        trailing: _StatusPill(
+          label: plan.canApply ? 'Plan bereit' : 'Unvollständig',
+          ready: plan.canApply,
+        ),
+        child: _MetricGrid(
+          metrics: [
+            ('${plan.players.length}', 'Spieler'),
+            ('${plan.benchCount}', 'Bank'),
+            ('${plan.substitutions.length}', 'Wechsel'),
+            ('±${plan.minuteSpread}', 'Minuten'),
+            (
+              '${plan.positionMatches}/${plan.positions.length}',
+              'Positionsfit'
             ),
           ],
         ),
@@ -330,102 +541,281 @@ class _StartingLineupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _SectionCard(
-        title: 'Vorgeschlagene Startformation',
-        subtitle:
-            'Positionsdaten und bisherige Einsatzzeit werden berücksichtigt.',
+        title: 'Startformation',
+        subtitle: 'Positionsgerecht und nach bisheriger Einsatzzeit',
         icon: Icons.dashboard_customize_rounded,
+        trailing: _StatusPill(
+          label: plan.formation,
+          ready: plan.positions.isNotEmpty,
+        ),
         child: plan.positions.isEmpty
             ? const Text(
                 'Für eine Aufstellung sind noch nicht genügend Spieler vorhanden.')
-            : Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  for (final position in plan.positions)
-                    Container(
-                      width: 210,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            child: Text(
-                                position.player.shirtNumber?.toString() ??
-                                    'FC'),
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 700
+                      ? 4
+                      : constraints.maxWidth >= 460
+                          ? 3
+                          : 2;
+                  const gap = 8.0;
+                  final width =
+                      (constraints.maxWidth - gap * (columns - 1)) / columns;
+                  return Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
+                    children: [
+                      for (final position in plan.positions)
+                        SizedBox(
+                          width: width,
+                          child: _LineupPlayerTile(
+                            position: position,
+                            minutes:
+                                plan.plannedMinutes[position.player.id] ?? 0,
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        position.player.name,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w700),
-                                      ),
-                                    ),
-                                    if (position.isCaptain) ...[
-                                      const SizedBox(width: 5),
-                                      const CaptainBadge(),
-                                    ],
-                                  ],
-                                ),
-                                Text(
-                                    '${position.positionCode} · ${plan.plannedMinutes[position.player.id] ?? 0} Min.'),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
+                        ),
+                    ],
+                  );
+                },
               ),
       );
 }
 
-class _RotationCard extends StatelessWidget {
+class _LineupPlayerTile extends StatelessWidget {
+  const _LineupPlayerTile({
+    required this.position,
+    required this.minutes,
+  });
+
+  final LineupPositionModel position;
+  final int minutes;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 62,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(
+            color: position.isCaptain ? AppColors.gold : AppColors.line,
+          ),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: position.isGoalkeeper
+                  ? AppColors.yellow
+                  : AppColors.yellowSoft,
+              foregroundColor: AppColors.black,
+              child: Text(
+                position.player.shirtNumber?.toString() ?? 'FC',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          position.player.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      if (position.isCaptain) ...[
+                        const SizedBox(width: 3),
+                        const CaptainBadge(),
+                      ],
+                    ],
+                  ),
+                  Text(
+                    '${position.positionCode} · $minutes Min.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontSize: 10,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _RotationCard extends StatefulWidget {
   const _RotationCard({required this.plan});
   final MatchdayAutopilotPlan plan;
 
   @override
+  State<_RotationCard> createState() => _RotationCardState();
+}
+
+class _RotationCardState extends State<_RotationCard> {
+  bool _showAll = false;
+
+  @override
   Widget build(BuildContext context) {
+    final plan = widget.plan;
     final names = {for (final player in plan.players) player.id: player.name};
+    final visible = _showAll
+        ? plan.substitutions
+        : plan.substitutions.take(4).toList(growable: false);
     return _SectionCard(
       title: 'Fairer Wechselplan',
       subtitle: plan.substitutions.isEmpty
-          ? 'Keine Ersatzspieler – aktuell sind keine Wechsel nötig.'
-          : 'Vorschlag je Spielabschnitt, jederzeit manuell änderbar.',
+          ? 'Keine Wechsel erforderlich'
+          : 'Positionsnah und fair verteilt',
       icon: Icons.sync_alt_rounded,
+      trailing: _StatusPill(
+        label: '${plan.substitutions.length} Wechsel',
+        ready: true,
+      ),
       child: plan.substitutions.isEmpty
-          ? const SizedBox.shrink()
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 7),
+              child: Row(
+                children: [
+                  Icon(Icons.event_available_rounded, color: AppColors.success),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Alle nominierten Spieler starten auf dem Feld.',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            )
           : Column(
               children: [
-                for (final substitution in plan.substitutions)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      child:
-                          Text('${substitution.period}.${substitution.minute}'),
-                    ),
-                    title: Text(
-                      '${names[substitution.playerInId] ?? 'Spieler'} rein',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                        '${names[substitution.playerOutId] ?? 'Spieler'} raus · ${substitution.note ?? ''}'),
+                for (var index = 0; index < visible.length; index++) ...[
+                  _SubstitutionRow(
+                    substitution: visible[index],
+                    playerIn: names[visible[index].playerInId] ?? 'Spieler',
+                    playerOut: names[visible[index].playerOutId] ?? 'Spieler',
                   ),
+                  if (index < visible.length - 1)
+                    const Divider(height: 1, indent: 41),
+                ],
+                if (plan.substitutions.length > 4) ...[
+                  const SizedBox(height: 5),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => setState(() => _showAll = !_showAll),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                      ),
+                      icon: Icon(
+                        _showAll
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                        size: 18,
+                      ),
+                      label: Text(
+                        _showAll
+                            ? 'Weniger anzeigen'
+                            : 'Alle ${plan.substitutions.length} Wechsel',
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
     );
   }
+}
+
+class _SubstitutionRow extends StatelessWidget {
+  const _SubstitutionRow({
+    required this.substitution,
+    required this.playerIn,
+    required this.playerOut,
+  });
+
+  final PlannedSubstitutionModel substitution;
+  final String playerIn;
+  final String playerOut;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          children: [
+            Container(
+              width: 33,
+              height: 33,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.yellowSoft,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '${substitution.period}.${substitution.minute}',
+                style: const TextStyle(
+                  color: AppColors.gold,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      playerIn,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.success,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 5),
+                    child: Icon(Icons.swap_horiz_rounded,
+                        color: AppColors.muted, size: 17),
+                  ),
+                  Expanded(
+                    child: Text(
+                      playerOut,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _ApprovalCard extends StatelessWidget {
@@ -443,62 +833,162 @@ class _ApprovalCard extends StatelessWidget {
   final VoidCallback onPublish;
 
   @override
-  Widget build(BuildContext context) => _SectionCard(
-        title: 'Trainerentscheidung',
-        subtitle:
-            'Der Autopilot macht einen Vorschlag. Die sportliche Entscheidung bleibt immer beim Trainerteam.',
-        icon: Icons.verified_user_outlined,
-        child: Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.end,
-          children: [
-            if (!plan.canApply)
-              const Text(
-                  'Bitte zuerst genügend aktive Spieler im Kader bereitstellen.'),
-            if (editable) ...[
-              OutlinedButton.icon(
-                onPressed: saving || !plan.canApply ? null : onDraft,
-                icon: const Icon(Icons.save_outlined),
-                label: const Text('Als Entwurf übernehmen'),
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 560;
+    return _SectionCard(
+      title: 'Trainerfreigabe',
+      subtitle: plan.canApply
+          ? 'Vorschlag prüfen und übernehmen'
+          : 'Noch nicht freigabebereit',
+      icon: Icons.verified_user_outlined,
+      trailing: _StatusPill(
+        label: plan.canApply ? 'Bereit' : 'Gesperrt',
+        ready: plan.canApply,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!plan.canApply)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Bitte zuerst genügend aktive Spieler bereitstellen und offene Angaben ergänzen.',
               ),
-              FilledButton.icon(
-                onPressed: saving || !plan.canApply ? null : onPublish,
-                icon: saving
-                    ? const SizedBox.square(
-                        dimension: 17,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.publish_rounded),
-                label: const Text('Übernehmen & veröffentlichen'),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Die sportliche Entscheidung bleibt beim Trainerteam. Der Vorschlag kann anschließend in der Aufstellung geändert werden.',
+                maxLines: compact ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
+            ),
+          if (editable)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final stacked = constraints.maxWidth < 520;
+                final draft = OutlinedButton.icon(
+                  onPressed: saving || !plan.canApply ? null : onDraft,
+                  icon: const Icon(Icons.save_outlined, size: 18),
+                  label: const Text('Entwurf speichern'),
+                );
+                final publish = FilledButton.icon(
+                  onPressed: saving || !plan.canApply ? null : onPublish,
+                  icon: saving
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.publish_rounded, size: 18),
+                  label: const Text('Übernehmen & veröffentlichen'),
+                );
+                if (stacked) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(height: 44, child: publish),
+                      const SizedBox(height: 7),
+                      SizedBox(height: 42, child: draft),
+                    ],
+                  );
+                }
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    draft,
+                    const SizedBox(width: 9),
+                    publish,
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricGrid extends StatelessWidget {
+  const _MetricGrid({required this.metrics});
+
+  final List<(String, String)> metrics;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 620 ? 5 : 3;
+          const gap = 7.0;
+          final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final metric in metrics)
+                Container(
+                  width: width,
+                  height: 57,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        metric.$1,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          height: 1,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        metric.$2,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
-          ],
-        ),
+          );
+        },
       );
 }
 
-class _Metric extends StatelessWidget {
-  const _Metric({required this.value, required this.label});
-  final String value;
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label, required this.ready});
+
   final String label;
+  final bool ready;
 
   @override
   Widget build(BuildContext context) => Container(
-        width: 105,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(14),
+          color: (ready ? AppColors.success : AppColors.gold)
+              .withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(20),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value,
-                style:
-                    const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ],
+        child: Text(
+          label,
+          maxLines: 1,
+          style: TextStyle(
+            color: ready ? AppColors.success : AppColors.gold,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+          ),
         ),
       );
 }
@@ -509,19 +999,21 @@ class _SectionCard extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     required this.child,
+    this.trailing,
   });
   final String title;
   final String subtitle;
   final IconData icon;
   final Widget child;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(17),
           border: Border.all(color: AppColors.line),
         ),
         child: Column(
@@ -530,24 +1022,47 @@ class _SectionCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, color: AppColors.gold),
-                const SizedBox(width: 10),
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.yellowSoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: AppColors.gold, size: 19),
+                ),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title,
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      Text(subtitle,
-                          style: Theme.of(context).textTheme.bodySmall),
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontSize: 11,
+                            ),
+                      ),
                     ],
                   ),
                 ),
+                if (trailing != null) ...[
+                  const SizedBox(width: 7),
+                  trailing!,
+                ],
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             child,
           ],
         ),
