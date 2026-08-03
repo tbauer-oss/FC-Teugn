@@ -82,7 +82,7 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
     final team = overview.team;
     final selectedLabel = overview.selectedSeason?.name ?? 'Gesamt';
     final user = ref.watch(authProvider).user;
-    final organization = ref.watch(organizationProvider).value;
+    final organization = ref.watch(organizationProvider).valueOrNull;
     final canSelectTeam = user != null && canSelectStatisticsTeam(user.role);
     final statisticsTeams = _teamOptions(organization);
     final registeredTeamId = user?.teamId;

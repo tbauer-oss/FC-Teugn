@@ -40,7 +40,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   @override
   Widget build(BuildContext context) {
     final events = ref.watch(eventsProvider);
-    final organization = ref.watch(organizationProvider).value;
+    final organization = ref.watch(organizationProvider).valueOrNull;
     final canManage = widget.canManage &&
         (organization?.can('MANAGE_EVENTS') ?? widget.canManage);
 
@@ -1969,8 +1969,9 @@ class EventDetailsDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final players = ref.watch(playersProvider).value ?? const <PlayerModel>[];
-    final organization = ref.watch(organizationProvider).value;
+    final players =
+        ref.watch(playersProvider).valueOrNull ?? const <PlayerModel>[];
+    final organization = ref.watch(organizationProvider).valueOrNull;
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: ConstrainedBox(

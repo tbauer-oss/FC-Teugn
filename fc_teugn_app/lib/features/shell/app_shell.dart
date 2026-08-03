@@ -159,7 +159,7 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
-    final organization = ref.watch(organizationProvider).value;
+    final organization = ref.watch(organizationProvider).valueOrNull;
     final location = GoRouterState.of(context).matchedLocation;
     final selectedIndex = _selectedIndex(location, destinations);
     final mobileCandidates =

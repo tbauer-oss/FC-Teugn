@@ -17,8 +17,9 @@ class TrainerApprovalsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pending = ref.watch(pendingUsersProvider);
     final members = ref.watch(membersProvider);
-    final organization = ref.watch(organizationProvider).value;
-    final players = ref.watch(playersProvider).value ?? const <PlayerModel>[];
+    final organization = ref.watch(organizationProvider).valueOrNull;
+    final players =
+        ref.watch(playersProvider).valueOrNull ?? const <PlayerModel>[];
     final currentUser = ref.watch(authProvider).user;
     final mobile = MediaQuery.sizeOf(context).width < 600;
 
@@ -85,10 +86,11 @@ class TrainerApprovalsPage extends ConsumerWidget {
                       tabs: [
                         Tab(
                           text:
-                              'Offene Anfragen (${pending.value?.length ?? '–'})',
+                              'Offene Anfragen (${pending.valueOrNull?.length ?? '–'})',
                         ),
                         Tab(
-                          text: 'Mitglieder (${members.value?.length ?? '–'})',
+                          text:
+                              'Mitglieder (${members.valueOrNull?.length ?? '–'})',
                         ),
                       ],
                     ),
@@ -477,12 +479,15 @@ class _MobileMemberTabsState extends State<_MobileMemberTabs> {
           segments: [
             ButtonSegment(
               value: 0,
-              label: Text('Anfragen (${widget.pending.value?.length ?? '–'})'),
+              label: Text(
+                'Anfragen (${widget.pending.valueOrNull?.length ?? '–'})',
+              ),
             ),
             ButtonSegment(
               value: 1,
-              label:
-                  Text('Mitglieder (${widget.members.value?.length ?? '–'})'),
+              label: Text(
+                'Mitglieder (${widget.members.valueOrNull?.length ?? '–'})',
+              ),
             ),
           ],
           selected: {_selectedIndex},
