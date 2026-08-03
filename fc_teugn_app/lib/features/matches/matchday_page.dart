@@ -293,6 +293,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         title: 'FC Teugn · $opponent',
         subtitle: _dateLine(match),
         denseMobileHeader: true,
+        hideMobileHeader: true,
         child: Column(
           children: [
             if (!_online || _usingOfflineSnapshot) ...[
@@ -300,9 +301,9 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
               const SizedBox(height: 12),
             ],
             _ScoreHero(match: match),
-            SizedBox(height: mobile ? 8 : 18),
+            SizedBox(height: mobile ? 5 : 18),
             _MatchdayTabBar(compact: mobile),
-            SizedBox(height: mobile ? 6 : 14),
+            SizedBox(height: mobile ? 4 : 14),
             SizedBox(
               height: mobile
                   ? max(480.0, MediaQuery.sizeOf(context).height - 250)
@@ -404,11 +405,45 @@ class _ScoreHero extends StatelessWidget {
     final their = ticker?.theirGoals ?? details?.theirGoals;
     final homeGoals = details?.isHome != false ? our : their;
     final awayGoals = details?.isHome != false ? their : our;
+    final date = match.startAt.toLocal();
+    final dateLine = '${date.day}.${date.month}.${date.year} · '
+        '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')} Uhr · ${match.location}';
+    final score = Row(
+      children: [
+        Expanded(child: _TeamName(name: home, compact: compact)),
+        Text(
+          homeGoals == null ? '–' : '$homeGoals',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: compact ? 27 : 38,
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 14),
+          child: Text(':',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: compact ? 22 : 32,
+              )),
+        ),
+        Text(
+          awayGoals == null ? '–' : '$awayGoals',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: compact ? 27 : 38,
+          ),
+        ),
+        Expanded(child: _TeamName(name: away, compact: compact)),
+      ],
+    );
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 10 : 20,
-        vertical: compact ? 12 : 22,
+        vertical: compact ? 9 : 22,
       ),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -416,36 +451,24 @@ class _ScoreHero extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(compact ? 18 : 24),
       ),
-      child: Row(
-        children: [
-          Expanded(child: _TeamName(name: home, compact: compact)),
-          Text(
-            homeGoals == null ? '–' : '$homeGoals',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: compact ? 30 : 38,
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 14),
-            child: Text(':',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: compact ? 25 : 32,
-                )),
-          ),
-          Text(
-            awayGoals == null ? '–' : '$awayGoals',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: compact ? 30 : 38,
-            ),
-          ),
-          Expanded(child: _TeamName(name: away, compact: compact)),
-        ],
-      ),
+      child: compact
+          ? Column(
+              children: [
+                score,
+                const SizedBox(height: 2),
+                Text(
+                  dateLine,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: .64),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            )
+          : score,
     );
   }
 }
@@ -474,8 +497,8 @@ class _MatchdayTabBar extends StatelessWidget {
     }
 
     return const TabBar(
-      isScrollable: true,
-      labelPadding: EdgeInsets.symmetric(horizontal: 7),
+      isScrollable: false,
+      labelPadding: EdgeInsets.zero,
       tabs: [
         _CompactMatchTab(icon: Icons.info_outline_rounded, label: 'Info'),
         _CompactMatchTab(icon: Icons.groups_rounded, label: 'Kader'),
@@ -499,13 +522,14 @@ class _CompactMatchTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tab(
-      height: 42,
-      child: Row(
+      height: 40,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 4),
-          Text(label),
+          Icon(icon, size: 17),
+          const SizedBox(height: 1),
+          Text(label, style: const TextStyle(fontSize: 10.5)),
         ],
       ),
     );
@@ -1212,33 +1236,53 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                 ),
               ];
               if (constraints.maxWidth < 700) {
+                final compact = constraints.maxWidth < 600;
                 return Column(
                   children: [
                     Row(
                       children: [
                         Expanded(
-                          child: DropdownButtonFormField<String>(
-                            key: ValueKey('lineup-formation-$_formation'),
-                            initialValue: _formation,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Formation',
-                              isDense: true,
+                          child: Container(
+                            height: compact ? 42 : 48,
+                            padding: const EdgeInsets.only(left: 12, right: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(13),
+                              border: Border.all(color: AppColors.line),
                             ),
-                            items: _formationOptions
-                                .map(
-                                  (value) => DropdownMenuItem(
-                                    value: value,
-                                    child: Text(_formationLabel(value)),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value != null) _applyFormation(value);
-                            },
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                key: ValueKey('lineup-formation-$_formation'),
+                                value: _formation,
+                                isExpanded: true,
+                                icon: const Icon(
+                                  Icons.expand_more_rounded,
+                                  size: 20,
+                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                                items: _formationOptions
+                                    .map(
+                                      (value) => DropdownMenuItem(
+                                        value: value,
+                                        child: Text(
+                                          _formationLabel(value),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  if (value != null) _applyFormation(value);
+                                },
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 4),
                         IconButton(
                           onPressed: _saving
                               ? null
@@ -1251,16 +1295,18 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                                     _schedulePositionSave();
                                   }),
                           tooltip: 'Nach Positionen aufstellen',
+                          visualDensity: VisualDensity.compact,
                           icon: const Icon(Icons.auto_awesome_rounded),
                         ),
-                        IconButton.filledTonal(
+                        IconButton(
                           onPressed: _showLineupFullscreen,
                           tooltip: 'Aufstellung im Vollbild',
+                          visualDensity: VisualDensity.compact,
                           icon: const Icon(Icons.open_in_full_rounded),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: compact ? 4 : 6),
                     Row(
                       children: [
                         Expanded(
@@ -1270,6 +1316,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                                 : () => _save(LineupStatus.draft),
                             icon: const Icon(Icons.save_outlined),
                             label: const Text('Speichern'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: Size(0, compact ? 40 : 44),
+                              visualDensity: VisualDensity.compact,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -1280,6 +1330,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                                 : () => _save(LineupStatus.published),
                             icon: const Icon(Icons.publish_rounded),
                             label: const Text('Freigeben'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: Size(0, compact ? 40 : 44),
+                              visualDensity: VisualDensity.compact,
+                            ),
                           ),
                         ),
                       ],
@@ -1308,12 +1362,13 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
               );
             },
           ),
-        const SizedBox(height: 12),
+        SizedBox(height: MediaQuery.sizeOf(context).width < 600 ? 6 : 12),
         if (lineup?.usesTeamDefault == true) ...[
           _AutomaticLineupNotice(
             replacements: lineup!.automaticReplacements,
+            compact: MediaQuery.sizeOf(context).width < 600,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: MediaQuery.sizeOf(context).width < 600 ? 6 : 12),
         ],
         Expanded(
           child: LayoutBuilder(
@@ -1345,18 +1400,25 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                 );
               }
               final pitchWidth = min(constraints.maxWidth, 720.0).toDouble();
-              final pitchHeight =
-                  min(constraints.maxHeight - 146, pitchWidth * .88).toDouble();
+              final compact = constraints.maxWidth < 600;
+              final benchHeight = compact ? 94.0 : 128.0;
+              final pitchHeight = min(
+                constraints.maxHeight - benchHeight - 18,
+                pitchWidth * (compact ? .96 : .88),
+              ).toDouble();
               return ListView(
                 padding: EdgeInsets.zero,
                 children: [
                   Center(
                     child: _buildPitch(
-                        pitchWidth, max(260, pitchHeight).toDouble()),
+                      pitchWidth,
+                      max(280, pitchHeight).toDouble(),
+                      showHint: !compact,
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: compact ? 8 : 12),
                   SizedBox(
-                    height: 128,
+                    height: benchHeight,
                     width: double.infinity,
                     child: _buildBench(vertical: false),
                   ),
@@ -1460,14 +1522,14 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: EdgeInsets.all(compact ? 10 : 12),
+        padding: EdgeInsets.all(compact ? 7 : 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.event_seat_rounded, size: compact ? 20 : 24),
-                SizedBox(width: compact ? 6 : 8),
+                Icon(Icons.event_seat_rounded, size: compact ? 17 : 24),
+                SizedBox(width: compact ? 5 : 8),
                 Text(
                   'Ersatzbank · ${players.length}',
                   style: compact
@@ -1478,7 +1540,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                 ),
               ],
             ),
-            SizedBox(height: compact ? 6 : 8),
+            SizedBox(height: compact ? 3 : 8),
             Expanded(
               child: players.isEmpty
                   ? const Center(child: Text('Keine Ersatzspieler'))
@@ -1497,7 +1559,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                           itemCount: players.length,
                           separatorBuilder: (_, __) => const SizedBox(width: 8),
                           itemBuilder: (_, index) => SizedBox(
-                            width: 176,
+                            width: 148,
                             child: Align(
                               alignment: Alignment.topCenter,
                               child: _benchPlayerTile(
@@ -1535,8 +1597,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
           borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Container(
-            height: 58,
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+            height: 46,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.line),
@@ -1544,7 +1606,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 18,
+                  radius: 15,
                   backgroundColor: AppColors.yellowSoft,
                   foregroundColor: AppColors.black,
                   child: Text(
@@ -2061,14 +2123,21 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
 }
 
 class _AutomaticLineupNotice extends StatelessWidget {
-  const _AutomaticLineupNotice({required this.replacements});
+  const _AutomaticLineupNotice({
+    required this.replacements,
+    this.compact = false,
+  });
 
   final int replacements;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 10 : 14,
+          vertical: compact ? 7 : 11,
+        ),
         decoration: BoxDecoration(
           color: replacements > 0
               ? AppColors.yellowSoft
@@ -2087,16 +2156,26 @@ class _AutomaticLineupNotice extends StatelessWidget {
                   ? Icons.swap_horiz_rounded
                   : Icons.auto_awesome_rounded,
               color: replacements > 0 ? AppColors.blue : AppColors.teal,
+              size: compact ? 18 : 24,
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: compact ? 7 : 10),
             Expanded(
               child: Text(
-                replacements > 0
-                    ? 'Stammformation der Mannschaft übernommen · '
-                        '$replacements ${replacements == 1 ? 'Spieler wurde' : 'Spieler wurden'} '
-                        'positionsgetreu ersetzt.'
-                    : 'Stammformation der Mannschaft wurde automatisch übernommen.',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                compact
+                    ? replacements > 0
+                        ? 'Stammformation aktiv · $replacements Ersatz'
+                        : 'Stammformation automatisch übernommen'
+                    : replacements > 0
+                        ? 'Stammformation der Mannschaft übernommen · '
+                            '$replacements ${replacements == 1 ? 'Spieler wurde' : 'Spieler wurden'} '
+                            'positionsgetreu ersetzt.'
+                        : 'Stammformation der Mannschaft wurde automatisch übernommen.',
+                maxLines: compact ? 1 : null,
+                overflow: compact ? TextOverflow.ellipsis : null,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: compact ? 12 : null,
+                ),
               ),
             ),
           ],

@@ -9,6 +9,7 @@ class PageScaffold extends StatelessWidget {
     required this.child,
     this.action,
     this.denseMobileHeader = false,
+    this.hideMobileHeader = false,
   });
 
   final String title;
@@ -16,6 +17,7 @@ class PageScaffold extends StatelessWidget {
   final Widget child;
   final Widget? action;
   final bool denseMobileHeader;
+  final bool hideMobileHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -60,44 +62,48 @@ class PageScaffold extends StatelessWidget {
             parent: ClampingScrollPhysics(),
           ),
           slivers: [
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                horizontal,
-                mobile ? (denseMobileHeader ? 10 : 18) : 28,
-                horizontal,
-                mobile ? (denseMobileHeader ? 10 : 14) : 18,
-              ),
-              sliver: SliverToBoxAdapter(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1180),
-                  child: compactHeader
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            titleBlock,
-                            if (action != null) ...[
-                              const SizedBox(height: 16),
-                              SizedBox(width: double.infinity, child: action!),
+            if (!(mobile && hideMobileHeader))
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontal,
+                  mobile ? (denseMobileHeader ? 10 : 18) : 28,
+                  horizontal,
+                  mobile ? (denseMobileHeader ? 10 : 14) : 18,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1180),
+                    child: compactHeader
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              titleBlock,
+                              if (action != null) ...[
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: action!,
+                                ),
+                              ],
                             ],
-                          ],
-                        )
-                      : Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: titleBlock),
-                            if (action != null) ...[
-                              const SizedBox(width: 16),
-                              action!,
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: titleBlock),
+                              if (action != null) ...[
+                                const SizedBox(width: 16),
+                                action!,
+                              ],
                             ],
-                          ],
-                        ),
+                          ),
+                  ),
                 ),
               ),
-            ),
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 horizontal,
-                0,
+                mobile && hideMobileHeader ? 6 : 0,
                 horizontal,
                 mobile ? 20 : 32,
               ),

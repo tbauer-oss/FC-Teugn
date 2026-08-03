@@ -8,8 +8,9 @@ void main() {
       ShellSection.values.map((section) => section.label),
       [
         'Übersicht',
-        'Sport & Mannschaft',
-        'Teamalltag & Kommunikation',
+        'Meine Mannschaft',
+        'Training & Spieltag',
+        'Organisation & Kommunikation',
         'Verein & Verwaltung',
       ],
     );
@@ -17,6 +18,22 @@ void main() {
       ShellSection.values.every((section) => section.description.isNotEmpty),
       isTrue,
     );
+  });
+
+  test('Team-Zentrale erkennt untergeordnete Mannschaftsseiten', () {
+    const destination = ShellDestination(
+      label: 'Team-Zentrale',
+      mobileLabel: 'Team',
+      icon: Icons.groups_rounded,
+      route: '/trainer/team',
+      section: ShellSection.team,
+      hint: 'Mannschaft zentral verwalten',
+      relatedRoutes: ['/trainer/players'],
+    );
+
+    expect(destination.matches('/trainer/team'), isTrue);
+    expect(destination.matches('/trainer/players/spieler-1'), isTrue);
+    expect(destination.matches('/trainer/matches'), isFalse);
   });
 
   test('Kurze mobile Bezeichnung kann vom Seitentitel abweichen', () {
@@ -60,28 +77,28 @@ void main() {
         label: 'Kalender',
         icon: Icons.calendar_month_rounded,
         route: '/trainer/events',
-        section: ShellSection.team,
+        section: ShellSection.schedule,
         hint: 'Termine, Serien und Rückmeldungen',
       ),
       const ShellDestination(
         label: 'Spielbetrieb',
         icon: Icons.sports_soccer_rounded,
         route: '/trainer/matches',
-        section: ShellSection.team,
+        section: ShellSection.schedule,
         hint: 'Spieltage, Kader und Liveticker',
       ),
       const ShellDestination(
         label: 'Training & Planung',
         icon: Icons.fitness_center_rounded,
         route: '/trainer/training',
-        section: ShellSection.team,
+        section: ShellSection.schedule,
         hint: 'Einheiten, Übungen und Belegung',
       ),
       const ShellDestination(
         label: 'Auswertungen',
         icon: Icons.query_stats_rounded,
         route: '/trainer/statistics',
-        section: ShellSection.team,
+        section: ShellSection.schedule,
         hint: 'Leistung und Saisonstatistik',
       ),
       const ShellDestination(
@@ -146,7 +163,8 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('ÜBERSICHT'), findsOneWidget);
-    expect(find.text('SPORT & MANNSCHAFT'), findsOneWidget);
+    expect(find.text('MEINE MANNSCHAFT'), findsOneWidget);
+    expect(find.text('TRAINING & SPIELTAG'), findsOneWidget);
   });
 
   testWidgets('Mobiles App-Menü ist kompakt und nach Bereichen gegliedert',
@@ -205,8 +223,8 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('FC TEUGN TALENTS · APP-MENÜ'), findsOneWidget);
     expect(find.text('Übersicht'), findsOneWidget);
-    expect(find.text('Sport & Mannschaft'), findsOneWidget);
-    expect(find.text('Teamalltag & Kommunikation'), findsOneWidget);
+    expect(find.text('Meine Mannschaft'), findsOneWidget);
+    expect(find.text('Organisation & Kommunikation'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('Verein & Verwaltung'),

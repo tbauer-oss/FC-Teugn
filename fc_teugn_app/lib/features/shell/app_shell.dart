@@ -18,12 +18,17 @@ enum ShellSection {
     Icons.home_rounded,
   ),
   team(
-    'Sport & Mannschaft',
-    'Spieler, Termine, Training und Spiele',
+    'Meine Mannschaft',
+    'Spieler, Kader, Stammformation und Teamdaten',
+    Icons.groups_rounded,
+  ),
+  schedule(
+    'Training & Spieltag',
+    'Kalender, Training, Spiele und Auswertungen',
     Icons.sports_soccer_rounded,
   ),
   communication(
-    'Teamalltag & Kommunikation',
+    'Organisation & Kommunikation',
     'Absprachen, Aufgaben und Ausrüstung',
     Icons.forum_rounded,
   ),
@@ -48,6 +53,7 @@ class ShellDestination {
   final ShellSection section;
   final String hint;
   final bool showOnMobile;
+  final List<String> relatedRoutes;
 
   const ShellDestination({
     required this.label,
@@ -57,7 +63,15 @@ class ShellDestination {
     required this.section,
     required this.hint,
     this.showOnMobile = true,
+    this.relatedRoutes = const [],
   }) : mobileLabel = mobileLabel ?? label;
+
+  bool matches(String location) {
+    final routes = [route, ...relatedRoutes];
+    return routes.any(
+      (item) => location == item || location.startsWith('$item/'),
+    );
+  }
 }
 
 class AppShell extends ConsumerWidget {
@@ -79,7 +93,7 @@ class AppShell extends ConsumerWidget {
       }
     }
     for (var i = items.length - 1; i >= 0; i--) {
-      if (location.startsWith('${items[i].route}/')) {
+      if (items[i].matches(location)) {
         return i;
       }
     }
@@ -586,8 +600,7 @@ class MobileNavigationPanel extends StatelessWidget {
   final VoidCallback onAbout;
 
   bool _isSelected(ShellDestination destination) =>
-      location == destination.route ||
-      location.startsWith('${destination.route}/');
+      destination.matches(location);
 
   @override
   Widget build(BuildContext context) {

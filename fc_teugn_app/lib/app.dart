@@ -11,6 +11,7 @@ import 'features/auth/register_page.dart';
 import 'features/auth/pending_page.dart';
 import 'features/shell/app_shell.dart';
 import 'features/trainer/trainer_dashboard_page.dart';
+import 'features/trainer/trainer_team_page.dart';
 import 'features/trainer/trainer_approvals_page.dart';
 import 'features/trainer/trainer_players_page.dart';
 import 'features/trainer/trainer_events_page.dart';
@@ -284,37 +285,45 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   hint: 'Zugänge, Rollen und Freigaben',
                   showOnMobile: false),
               ShellDestination(
-                  label: 'Spieler & Kader',
+                  label: 'Team-Zentrale',
                   mobileLabel: 'Team',
                   icon: Icons.groups_rounded,
+                  route: '/trainer/team',
+                  section: ShellSection.team,
+                  hint: 'Mannschaft zentral verwalten',
+                  relatedRoutes: ['/trainer/players']),
+              ShellDestination(
+                  label: 'Spieler & Kader',
+                  icon: Icons.badge_rounded,
                   route: '/trainer/players',
                   section: ShellSection.team,
-                  hint: 'Spielerprofile und Zuordnungen'),
+                  hint: 'Profile, Nummern und Positionen',
+                  showOnMobile: false),
               ShellDestination(
                   label: 'Kalender',
                   icon: Icons.calendar_month_rounded,
                   route: '/trainer/events',
-                  section: ShellSection.team,
+                  section: ShellSection.schedule,
                   hint: 'Termine, Serien und Rückmeldungen'),
               ShellDestination(
                   label: 'Spielbetrieb',
                   mobileLabel: 'Spiele',
                   icon: Icons.sports_soccer_rounded,
                   route: '/trainer/matches',
-                  section: ShellSection.team,
+                  section: ShellSection.schedule,
                   hint: 'Spieltage, Kader und Liveticker'),
               ShellDestination(
                   label: 'Training & Platzplanung',
                   icon: Icons.fitness_center_rounded,
                   route: '/trainer/training',
-                  section: ShellSection.team,
+                  section: ShellSection.schedule,
                   hint: 'Einheiten, Übungen und Belegung',
                   showOnMobile: false),
               ShellDestination(
                   label: 'Statistiken & Auswertungen',
                   icon: Icons.query_stats_rounded,
                   route: '/trainer/statistics',
-                  section: ShellSection.team,
+                  section: ShellSection.schedule,
                   hint: 'Leistung und Saisonstatistik',
                   showOnMobile: false),
               ShellDestination(
@@ -354,6 +363,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
             GoRoute(
               path: '/trainer/approvals',
               builder: (context, state) => const TrainerApprovalsPage(),
+            ),
+            GoRoute(
+              path: '/trainer/team',
+              builder: (context, state) => const TrainerTeamPage(),
             ),
             GoRoute(
               path: '/trainer/players',
@@ -436,20 +449,20 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   label: 'Termine & Kalender',
                   icon: Icons.calendar_month_rounded,
                   route: '/parent/events',
-                  section: ShellSection.team,
+                  section: ShellSection.schedule,
                   hint: 'Training, Spiele und Vereinsleben'),
               ShellDestination(
                   label: 'Spiele & Liveticker',
                   mobileLabel: 'Spiele',
                   icon: Icons.sports_soccer_rounded,
                   route: '/parent/matches',
-                  section: ShellSection.team,
+                  section: ShellSection.schedule,
                   hint: 'Kader, Ergebnisse und Liveticker'),
               ShellDestination(
                   label: 'Statistiken & Auswertungen',
                   icon: Icons.query_stats_rounded,
                   route: '/parent/statistics',
-                  section: ShellSection.team,
+                  section: ShellSection.schedule,
                   hint: 'Leistung und Saisonstatistik',
                   showOnMobile: false),
               ShellDestination(
