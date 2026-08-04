@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/auth_controller.dart';
@@ -79,12 +80,42 @@ final eventsProvider = FutureProvider<List<EventModel>>((ref) async {
 });
 
 final pendingUsersProvider = FutureProvider<List<AppUser>>((ref) async {
-  return ref.watch(repositoryProvider).pendingUsers();
+  final repository = ref.watch(repositoryProvider);
+  return loadWithTransientRetry(repository.pendingUsers);
 });
 
 final membersProvider = FutureProvider<List<AppUser>>((ref) async {
-  return ref.watch(repositoryProvider).members();
+  final repository = ref.watch(repositoryProvider);
+  return loadWithTransientRetry(repository.members);
 });
+
+/// Wiederholt kurzzeitige API-Ausfälle beim ersten Seitenaufruf automatisch.
+/// So bleibt ein Vercel-Kaltstart oder ein kurzer Netzwechsel im Ladezustand,
+/// statt sofort eine Fehlerkarte zu zeigen, die erst per Pull-to-refresh
+/// verschwindet.
+Future<T> loadWithTransientRetry<T>(
+  Future<T> Function() load, {
+  int maxAttempts = 4,
+  Duration initialDelay = const Duration(milliseconds: 250),
+}) async {
+  assert(maxAttempts > 0);
+  for (var attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await load();
+    } catch (error) {
+      final isLastAttempt = attempt == maxAttempts - 1;
+      if (isLastAttempt || !_isTransientRequestFailure(error)) rethrow;
+      await Future<void>.delayed(initialDelay * (1 << attempt));
+    }
+  }
+  throw StateError('Unreachable retry state');
+}
+
+bool _isTransientRequestFailure(Object error) {
+  if (error is! DioException) return false;
+  final status = error.response?.statusCode;
+  return status == null || status == 408 || status == 429 || status >= 500;
+}
 
 final organizationProvider = FutureProvider<OrganizationContext>((ref) async {
   return ref.watch(repositoryProvider).organizationContext();

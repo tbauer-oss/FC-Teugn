@@ -923,17 +923,13 @@ class _SwipeableMonthViewState extends State<_SwipeableMonthView>
           'Monatskalender ${_periodLabel(CalendarView.month, widget.cursor)}. '
           'Nach links oder rechts wischen, um den Monat zu wechseln.',
       child: GestureDetector(
-        // These recognizers deliberately own drags that start on the calendar.
-        // This keeps the surrounding page from scrolling vertically while a
-        // user is trying to change the month. Taps on individual days continue
-        // to pass through because no drag recognizer wins before touch slop.
+        // Nur horizontale Monatsgesten werden übernommen. Reine vertikale
+        // Bewegungen bleiben beim umgebenden Seiten-Scroll, damit auch die
+        // Terminliste unter dem Kalender jederzeit hoch- und runterscrollt.
         behavior: HitTestBehavior.translucent,
         onHorizontalDragStart: (_) {},
         onHorizontalDragUpdate: (_) {},
         onHorizontalDragEnd: (_) {},
-        onVerticalDragStart: (_) {},
-        onVerticalDragUpdate: (_) {},
-        onVerticalDragEnd: (_) {},
         child: Listener(
           key: const ValueKey('calendar-month-swipe-surface'),
           behavior: HitTestBehavior.translucent,

@@ -64,6 +64,8 @@ class TrainerApprovalsPage extends ConsumerWidget {
                 title: 'Registrierung ablehnen',
               ),
               onDetails: (user) => _showDetails(context, user),
+              onRetryPending: () => ref.invalidate(pendingUsersProvider),
+              onRetryMembers: () => ref.invalidate(membersProvider),
               onEdit: organization == null
                   ? null
                   : (user) => _editMember(
@@ -127,9 +129,11 @@ class TrainerApprovalsPage extends ConsumerWidget {
                             title: 'Registrierung ablehnen',
                           ),
                           onDetails: (user) => _showDetails(context, user),
+                          onRetry: () => ref.invalidate(pendingUsersProvider),
                         ),
                         _MemberList(
                           value: members,
+                          onRetry: () => ref.invalidate(membersProvider),
                           onEdit: organization == null
                               ? null
                               : (user) => _editMember(
@@ -449,6 +453,8 @@ class _MobileMemberTabs extends StatefulWidget {
     required this.onNeedsInfo,
     required this.onReject,
     required this.onDetails,
+    required this.onRetryPending,
+    required this.onRetryMembers,
     required this.onEdit,
   });
 
@@ -459,6 +465,8 @@ class _MobileMemberTabs extends StatefulWidget {
   final ValueChanged<AppUser> onNeedsInfo;
   final ValueChanged<AppUser> onReject;
   final ValueChanged<AppUser> onDetails;
+  final VoidCallback onRetryPending;
+  final VoidCallback onRetryMembers;
   final ValueChanged<AppUser>? onEdit;
 
   @override
@@ -504,11 +512,13 @@ class _MobileMemberTabsState extends State<_MobileMemberTabs> {
             onNeedsInfo: widget.onNeedsInfo,
             onReject: widget.onReject,
             onDetails: widget.onDetails,
+            onRetry: widget.onRetryPending,
             embedded: true,
           )
         else
           _MemberList(
             value: widget.members,
+            onRetry: widget.onRetryMembers,
             onEdit: widget.onEdit,
             embedded: true,
           ),
@@ -525,6 +535,7 @@ class _PendingList extends StatefulWidget {
     required this.onNeedsInfo,
     required this.onReject,
     required this.onDetails,
+    required this.onRetry,
     this.embedded = false,
   });
 
@@ -534,6 +545,7 @@ class _PendingList extends StatefulWidget {
   final ValueChanged<AppUser> onNeedsInfo;
   final ValueChanged<AppUser> onReject;
   final ValueChanged<AppUser> onDetails;
+  final VoidCallback onRetry;
   final bool embedded;
 
   @override
@@ -549,10 +561,15 @@ class _PendingListState extends State<_PendingList> {
   Widget build(BuildContext context) {
     return widget.value.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, __) => const EmptyState(
+      error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         title: 'Freigaben nicht erreichbar',
         message: 'Die offenen Anfragen konnten nicht geladen werden.',
+        action: FilledButton.icon(
+          onPressed: widget.onRetry,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Erneut laden'),
+        ),
       ),
       data: (users) {
         final mobile = MediaQuery.sizeOf(context).width < 600;
@@ -779,11 +796,13 @@ class _PendingListState extends State<_PendingList> {
 class _MemberList extends StatelessWidget {
   const _MemberList({
     required this.value,
+    required this.onRetry,
     required this.onEdit,
     this.embedded = false,
   });
 
   final AsyncValue<List<AppUser>> value;
+  final VoidCallback onRetry;
   final ValueChanged<AppUser>? onEdit;
   final bool embedded;
 
@@ -791,10 +810,15 @@ class _MemberList extends StatelessWidget {
   Widget build(BuildContext context) {
     return value.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, __) => const EmptyState(
+      error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         title: 'Mitglieder nicht erreichbar',
         message: 'Die Mitgliederliste konnte nicht geladen werden.',
+        action: FilledButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Erneut laden'),
+        ),
       ),
       data: (users) {
         if (users.isEmpty) {
