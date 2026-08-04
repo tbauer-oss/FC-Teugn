@@ -4,6 +4,7 @@ import {
   AccountStatus,
   EventType,
   PlayerStatus,
+  Prisma,
   Role,
   TeamGameFormat,
   TeamGender,
@@ -13,6 +14,7 @@ import { prisma } from '../lib/prisma';
 import { Permission, permissionsForRole } from '../security/permissions';
 import {
   accessibleTeamIds,
+  canManageFormation,
   canManageTeam,
   resolveContextTeamId,
 } from '../services/team-access';
@@ -105,12 +107,79 @@ function optionalText(value: unknown, maxLength: number) {
   return text ? text.slice(0, maxLength) : null;
 }
 
-function validFormation(value: string, fieldSize: number) {
-  if (!/^\d+(?:-\d+)+$/.test(value)) return false;
-  const rows = value.split('-').map(Number);
+export function baseFormationOf(value: string) {
+  const match = /^(\d+(?:-\d+)+)(?:\s*·\s*([^·\r\n]{1,24}))?$/.exec(
+    value.trim(),
+  );
+  return match?.[1] ?? null;
+}
+
+export function validFormation(value: string, fieldSize: number) {
+  const baseFormation = baseFormationOf(value);
+  if (!baseFormation) return false;
+  const rows = baseFormation.split('-').map(Number);
   return rows.some((count) => count > 0) &&
     rows.every((count) => Number.isInteger(count) && count >= 0 && count <= 6) &&
     rows.reduce((sum, count) => sum + count, 0) === fieldSize - 1;
+}
+
+type FormationTemplate = {
+  name: string;
+  baseFormation: string;
+  positions: Array<{
+    positionCode: string;
+    x: number;
+    y: number;
+    isGoalkeeper: boolean;
+    sortOrder: number;
+  }>;
+};
+
+function formationTemplates(
+  value: unknown,
+  fieldSize: number,
+): FormationTemplate[] | null {
+  if (!Array.isArray(value) || value.length > 20) return null;
+  const result: FormationTemplate[] = [];
+  const names = new Set<string>();
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    const input = item as Record<string, unknown>;
+    const name = optionalText(input.name, 50);
+    const baseFormation = optionalText(input.baseFormation, 30);
+    const positions = Array.isArray(input.positions) ? input.positions : [];
+    if (!name || !baseFormation || names.has(name) ||
+        baseFormationOf(name) !== baseFormation ||
+        !validFormation(baseFormation, fieldSize) ||
+        positions.length !== fieldSize) {
+      return null;
+    }
+    const normalizedPositions: FormationTemplate['positions'] = [];
+    for (var index = 0; index < positions.length; index += 1) {
+      const position = positions[index];
+      if (!position || typeof position !== 'object' || Array.isArray(position)) {
+        return null;
+      }
+      const raw = position as Record<string, unknown>;
+      const positionCode = optionalText(raw.positionCode, 30);
+      const x = Number(raw.x);
+      const y = Number(raw.y);
+      if (!positionCode || !Number.isFinite(x) || !Number.isFinite(y) ||
+          x < 0 || x > 1 || y < 0 || y > 1) {
+        return null;
+      }
+      normalizedPositions.push({
+        positionCode,
+        x,
+        y,
+        isGoalkeeper: raw.isGoalkeeper === true,
+        sortOrder: index,
+      });
+    }
+    names.add(name);
+    result.push({ name, baseFormation, positions: normalizedPositions });
+  }
+  return result;
 }
 
 function builtInFormations(gameFormat: TeamGameFormat) {
@@ -638,7 +707,7 @@ export async function updateTeam(req: Request, res: Response) {
 export async function updateTeamDefaultLineup(req: Request, res: Response) {
   const user = req.user!;
   const teamId = req.params.id;
-  if (!(await canManageTeam(user, teamId))) {
+  if (!(await canManageFormation(user, teamId))) {
     return res.status(403).json({
       message: 'Die Stammformation dieser Mannschaft darf nicht bearbeitet werden.',
     });
@@ -649,6 +718,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
       id: true,
       gameFormat: true,
       customFormations: true,
+      formationTemplates: true,
       deletedAt: true,
     },
   });
@@ -694,6 +764,24 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
       message: 'Bitte höchstens 12 gültige eigene Formationen speichern.',
     });
   }
+  const normalizedFormationTemplates = formationTemplates(
+    req.body?.formationTemplates === undefined
+      ? team.formationTemplates
+      : req.body.formationTemplates,
+    fieldSize,
+  );
+  const allowedFormationNames = new Set([
+    ...standardFormations,
+    ...customFormations,
+  ]);
+  if (!normalizedFormationTemplates ||
+      normalizedFormationTemplates.some(
+        (template) => !allowedFormationNames.has(template.name),
+      )) {
+    return res.status(400).json({
+      message: 'Die dauerhaft gespeicherten Formationsvarianten sind ungültig.',
+    });
+  }
   const playerIds = positions.map((position) => String(position.playerId ?? ''));
   if (playerIds.some((id) => !id) || new Set(playerIds).size !== playerIds.length) {
     return res.status(400).json({
@@ -730,6 +818,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
       data: {
         defaultFormation: positions.length > 0 ? formation : null,
         customFormations,
+        formationTemplates: normalizedFormationTemplates,
       },
     });
     await tx.teamDefaultLineupPosition.deleteMany({ where: { teamId } });
@@ -789,6 +878,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
       select: {
         defaultFormation: true,
         customFormations: true,
+        formationTemplates: true,
         defaultLineupPositions: {
           orderBy: { sortOrder: 'asc' },
           include: {
@@ -814,6 +904,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
     ? {
         formation: saved.defaultFormation ?? 'Individuell',
         customFormations: saved.customFormations,
+        formationTemplates: saved.formationTemplates,
         positions: saved.defaultLineupPositions,
       }
     : null);
@@ -1128,6 +1219,7 @@ async function serializeTeam(team: {
   periodMinutes: number;
   defaultFormation: string | null;
   customFormations: string[];
+  formationTemplates: Prisma.JsonValue;
   birthYears: number[];
   description: string | null;
   trainingLocation: string | null;
@@ -1203,6 +1295,7 @@ async function serializeTeam(team: {
         }
       : null,
     customFormations: team.customFormations,
+    formationTemplates: team.formationTemplates,
     birthYears: team.birthYears,
     description: team.description,
     trainingLocation: team.trainingLocation,

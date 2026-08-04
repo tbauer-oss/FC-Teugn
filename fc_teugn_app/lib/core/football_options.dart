@@ -8,7 +8,9 @@ const footballPositions = <FootballOption>[
   (value: 'AV', label: 'Außenverteidigung'),
   (value: 'AB', label: 'Abwehr'),
   (value: 'DM', label: 'Defensives Mittelfeld'),
+  (value: 'LM', label: 'Linkes Mittelfeld'),
   (value: 'ZM', label: 'Zentrales Mittelfeld'),
+  (value: 'RM', label: 'Rechtes Mittelfeld'),
   (value: 'OM', label: 'Offensives Mittelfeld'),
   (value: 'MF', label: 'Mittelfeld'),
   (value: 'LA', label: 'Linksaußen'),
@@ -49,9 +51,7 @@ List<DropdownMenuItem<String?>> footballOptionItems({
       DropdownMenuItem<String?>(
         value: option.value,
         child: Text(
-          showCode
-              ? '${option.value} · ${option.label}'
-              : option.label,
+          showCode ? '${option.value} · ${option.label}' : option.label,
         ),
       ),
   ];

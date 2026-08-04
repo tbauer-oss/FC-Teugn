@@ -263,6 +263,12 @@ enum PlayerStatus {
   LEFT
 }
 
+enum PlayerGender {
+  MALE
+  FEMALE
+  DIVERSE
+}
+
 enum SeasonTransitionStatus {
   PREVIEWED
   APPLIED
@@ -396,6 +402,7 @@ model Team {
   periodMinutes           Int                       @default(30)
   defaultFormation        String?
   customFormations        String[]                  @default([])
+  formationTemplates      Json                      @default("[]")
   birthYears              Int[]                     @default([])
   description             String?
   trainingLocation        String?
@@ -711,6 +718,7 @@ model Player {
   preferredName        String?
   birthDate            DateTime?
   nationality          String?
+  gender               PlayerGender?
   position             String?
   secondaryPosition    String?
   dominantFoot         DominantFoot             @default(UNKNOWN)

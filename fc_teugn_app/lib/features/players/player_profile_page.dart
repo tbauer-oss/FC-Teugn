@@ -1243,6 +1243,11 @@ class _FactsCard extends StatelessWidget {
               ),
               _Fact(
                 width: width,
+                label: 'Geschlecht',
+                value: playerGenderLabel(player.gender),
+              ),
+              _Fact(
+                width: width,
                 label: 'Hauptposition',
                 value: player.position ?? 'Noch offen',
               ),
@@ -2368,6 +2373,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
   late final TextEditingController passNumber;
   DateTime? birthDate;
   DateTime? joinedAt;
+  PlayerGender? gender;
   String? position;
   String? secondaryPosition;
   late PlayerStatus status;
@@ -2384,6 +2390,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
     nationality = TextEditingController(text: player.nationality);
     birthDate = player.birthDate;
     joinedAt = player.joinedAt;
+    gender = player.gender;
     position = player.position;
     secondaryPosition = player.secondaryPosition;
     shirtNumber =
@@ -2422,6 +2429,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
           preferredName: _optional(preferredName),
           birthDate: birthDate,
           nationality: _optional(nationality),
+          gender: gender,
           position: position,
           secondaryPosition: secondaryPosition,
           dominantFoot: dominantFoot,
@@ -2518,6 +2526,39 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
                   lastDate: DateTime.now(),
                   onChanged: (value) => setState(() => birthDate = value),
                 ),
+                DropdownButtonFormField<PlayerGender?>(
+                  key: const ValueKey('player-edit-gender'),
+                  initialValue: gender,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Geschlecht (m/w/d)',
+                    prefixIcon: Icon(Icons.wc_rounded),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: null,
+                      child: Text('Noch offen'),
+                    ),
+                    DropdownMenuItem(
+                      value: PlayerGender.male,
+                      child: Text('m · männlich'),
+                    ),
+                    DropdownMenuItem(
+                      value: PlayerGender.female,
+                      child: Text('w · weiblich'),
+                    ),
+                    DropdownMenuItem(
+                      value: PlayerGender.diverse,
+                      child: Text('d · divers'),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => gender = value),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ResponsiveFormRow(
+              children: [
                 _ProfileDateField(
                   key: const ValueKey('player-edit-joined-at'),
                   label: 'Im Verein seit',

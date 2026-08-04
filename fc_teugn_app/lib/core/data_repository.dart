@@ -146,12 +146,15 @@ class DataRepository {
     required String formation,
     required List<TeamDefaultLineupPositionInput> positions,
     List<String> customFormations = const [],
+    List<TeamFormationTemplate> formationTemplates = const [],
   }) async {
     final res = await client.dio.put(
       '/organization/teams/$teamId/default-lineup',
       data: {
         'formation': formation,
         'customFormations': customFormations,
+        'formationTemplates':
+            formationTemplates.map((template) => template.toJson()).toList(),
         'positions': positions.map((position) => position.toJson()).toList(),
       },
     );
@@ -427,6 +430,7 @@ class DataRepository {
     DateTime? birthDate,
     String? preferredName,
     String? nationality,
+    PlayerGender? gender,
     String? position,
     String? secondaryPosition,
     DominantFoot dominantFoot = DominantFoot.unknown,
@@ -442,6 +446,7 @@ class DataRepository {
       'birthDate': birthDate?.toIso8601String(),
       'preferredName': preferredName,
       'nationality': nationality,
+      'gender': playerGenderApi(gender),
       'position': position,
       'secondaryPosition': secondaryPosition,
       'dominantFoot': dominantFootApi(dominantFoot),
@@ -461,6 +466,7 @@ class DataRepository {
       'preferredName': player.preferredName,
       'birthDate': player.birthDate?.toIso8601String(),
       'nationality': player.nationality,
+      'gender': playerGenderApi(player.gender),
       'position': player.position,
       'secondaryPosition': player.secondaryPosition,
       'dominantFoot': dominantFootApi(player.dominantFoot),

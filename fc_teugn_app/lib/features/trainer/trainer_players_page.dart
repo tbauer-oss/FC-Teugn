@@ -187,6 +187,7 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
             preferredName: draft.preferredName,
             birthDate: draft.birthDate,
             nationality: draft.nationality,
+            gender: draft.gender,
             position: draft.position,
             secondaryPosition: draft.secondaryPosition,
             dominantFoot: draft.dominantFoot,
@@ -1139,6 +1140,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
   final _passNumber = TextEditingController();
   DateTime? _birthDate;
   DateTime? _joinedAt;
+  PlayerGender? _gender;
   String? _position;
   String? _secondaryPosition;
   DominantFoot _dominantFoot = DominantFoot.unknown;
@@ -1175,6 +1177,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
           lastName: _lastName.text.trim(),
           preferredName: _optional(_preferredName),
           nationality: _optional(_nationality),
+          gender: _gender,
           position: _position,
           secondaryPosition: _secondaryPosition,
           dominantFoot: _dominantFoot,
@@ -1267,6 +1270,39 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                         firstDate: DateTime(2000),
                         lastDate: DateTime.now(),
                       ),
+                      DropdownButtonFormField<PlayerGender?>(
+                        key: const ValueKey('player-create-gender'),
+                        initialValue: _gender,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Geschlecht (m/w/d)',
+                          prefixIcon: Icon(Icons.wc_rounded),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: null,
+                            child: Text('Noch offen'),
+                          ),
+                          DropdownMenuItem(
+                            value: PlayerGender.male,
+                            child: Text('m · männlich'),
+                          ),
+                          DropdownMenuItem(
+                            value: PlayerGender.female,
+                            child: Text('w · weiblich'),
+                          ),
+                          DropdownMenuItem(
+                            value: PlayerGender.diverse,
+                            child: Text('d · divers'),
+                          ),
+                        ],
+                        onChanged: (value) => setState(() => _gender = value),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ResponsiveFormRow(
+                    children: [
                       _DateField(
                         label: 'Im Verein seit',
                         value: _joinedAt,
@@ -1431,6 +1467,7 @@ class _PlayerDraft {
     this.preferredName,
     this.nationality,
     this.birthDate,
+    this.gender,
     this.position,
     this.secondaryPosition,
     this.shirtNumber,
@@ -1444,6 +1481,7 @@ class _PlayerDraft {
   final String? preferredName;
   final String? nationality;
   final DateTime? birthDate;
+  final PlayerGender? gender;
   final String? position;
   final String? secondaryPosition;
   final DominantFoot dominantFoot;

@@ -110,11 +110,14 @@ void main() {
 
   test('validates and builds a custom team formation', () {
     expect(isValidFormation('3-1', 5), isTrue);
+    expect(isValidFormation('3-1 · offensiv', 5), isTrue);
     expect(isValidFormation('2-1', 5), isFalse);
     expect(isValidFormation('vier-eins', 5), isFalse);
 
     final slots = lineupSlots(5, formation: '3-1');
     expect(slots.map((slot) => slot.$3), ['TW', 'LV', 'IV', 'RV', 'ST']);
+    expect(baseFormationOf('3-1 · offensiv'), '3-1');
+    expect(formationName('3-1', 'offensiv'), '3-1 · offensiv');
   });
 }
 

@@ -2,6 +2,29 @@ enum PlayerStatus { active, injured, paused, left }
 
 enum DominantFoot { right, left, both, unknown }
 
+enum PlayerGender { male, female, diverse }
+
+String? playerGenderApi(PlayerGender? gender) => switch (gender) {
+      PlayerGender.male => 'MALE',
+      PlayerGender.female => 'FEMALE',
+      PlayerGender.diverse => 'DIVERSE',
+      null => null,
+    };
+
+String playerGenderLabel(PlayerGender? gender) => switch (gender) {
+      PlayerGender.male => 'm · männlich',
+      PlayerGender.female => 'w · weiblich',
+      PlayerGender.diverse => 'd · divers',
+      null => 'Noch offen',
+    };
+
+PlayerGender? _playerGender(String? value) => switch (value) {
+      'MALE' => PlayerGender.male,
+      'FEMALE' => PlayerGender.female,
+      'DIVERSE' => PlayerGender.diverse,
+      _ => null,
+    };
+
 Map<String, dynamic>? _jsonMap(Object? value) =>
     value is Map<dynamic, dynamic> ? Map<String, dynamic>.from(value) : null;
 
@@ -427,6 +450,7 @@ class PlayerModel {
     this.preferredName,
     this.birthDate,
     this.nationality,
+    this.gender,
     this.position,
     this.secondaryPosition,
     this.shirtNumber,
@@ -457,6 +481,7 @@ class PlayerModel {
   final String? preferredName;
   final DateTime? birthDate;
   final String? nationality;
+  final PlayerGender? gender;
   final String? position;
   final String? secondaryPosition;
   final DominantFoot dominantFoot;
@@ -548,6 +573,7 @@ class PlayerModel {
       preferredName: _jsonString(json['preferredName']),
       birthDate: _jsonDate(json['birthDate']),
       nationality: _jsonString(json['nationality']),
+      gender: _playerGender(_jsonString(json['gender'])),
       position: _jsonString(json['position']),
       secondaryPosition: _jsonString(json['secondaryPosition']),
       dominantFoot: _foot(_jsonString(json['dominantFoot'])),

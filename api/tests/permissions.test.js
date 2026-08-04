@@ -79,9 +79,14 @@ const {
   canManageRecreationalOccupancy,
 } = require('../dist/src/controllers/trainings.controller');
 const {
+  baseFormationOf,
   canDeleteTeamRole,
   teamDisplayName,
+  validFormation,
 } = require('../dist/src/controllers/organization.controller');
+const {
+  canManageFormationRole,
+} = require('../dist/src/services/team-access');
 const {
   selectPresentAttendance,
 } = require('../dist/src/controllers/emergency.controller');
@@ -147,6 +152,32 @@ test('club administrators can manage the organization', () => {
     hasPermission(Role.CLUB_ADMIN, Permission.MANAGE_ORGANIZATION),
     true,
   );
+});
+
+test('formation variants accept a suffix and retain the numeric base', () => {
+  assert.equal(baseFormationOf('2-3-1 · offensiv'), '2-3-1');
+  assert.equal(validFormation('2-3-1 · mit LM/RM', 7), true);
+  assert.equal(validFormation('2-2-1 · falsch', 7), false);
+});
+
+test('formation templates are editable only by the requested staff roles', () => {
+  for (const role of [
+    Role.SUPER_ADMIN,
+    Role.CLUB_ADMIN,
+    Role.COACH,
+    Role.TRAINER,
+    Role.ASSISTANT_COACH,
+  ]) {
+    assert.equal(canManageFormationRole(role), true, role);
+  }
+  for (const role of [
+    Role.YOUTH_DIRECTOR,
+    Role.TRAINER_ADMIN,
+    Role.TEAM_MANAGER,
+    Role.PARENT,
+  ]) {
+    assert.equal(canManageFormationRole(role), false, role);
+  }
 });
 
 test('youth directors can manage club-wide training schedules', () => {

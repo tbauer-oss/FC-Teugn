@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import {
   DominantFoot,
+  PlayerGender,
   PlayerStatus,
   Prisma,
   TickerEventType,
@@ -30,6 +31,7 @@ const publicPlayerSelect = {
   preferredName: true,
   birthDate: true,
   nationality: true,
+  gender: true,
   position: true,
   secondaryPosition: true,
   dominantFoot: true,
@@ -735,6 +737,7 @@ export function playerData(body: Record<string, unknown>) {
     preferredName: cleanOptionalString(body.preferredName),
     birthDate: validDate(body.birthDate),
     nationality: cleanOptionalString(body.nationality),
+    gender: parsePlayerGender(body.gender),
     position: cleanOptionalString(body.position),
     secondaryPosition: cleanOptionalString(body.secondaryPosition),
     dominantFoot: parseDominantFoot(body.dominantFoot) ?? DominantFoot.UNKNOWN,
@@ -774,6 +777,14 @@ function parseDominantFoot(value: unknown) {
   return typeof value === 'string' &&
     Object.values(DominantFoot).includes(value as DominantFoot)
     ? (value as DominantFoot)
+    : null;
+}
+
+function parsePlayerGender(value: unknown) {
+  if (value === null || value === '') return null;
+  return typeof value === 'string' &&
+    Object.values(PlayerGender).includes(value as PlayerGender)
+    ? (value as PlayerGender)
     : null;
 }
 
