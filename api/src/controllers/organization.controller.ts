@@ -331,20 +331,41 @@ export async function publicOrganization(_req: Request, res: Response) {
 
 export async function organizationContext(req: Request, res: Response) {
   const user = req.user!;
-  const contextTeamId = await resolveContextTeamId(user);
-  if (!contextTeamId) {
+  const contextSelect = {
+    id: true,
+    ageGroup: {
+      select: {
+        season: { include: { club: true } },
+      },
+    },
+  } as const;
+  let currentContext = await prisma.team.findFirst({
+    where: { id: user.teamId, deletedAt: null, isActive: true },
+    select: contextSelect,
+  });
+  let contextTeamId = currentContext?.id ?? null;
+  if (!currentContext) {
+    contextTeamId = await resolveContextTeamId(user);
+    if (contextTeamId) {
+      currentContext = await prisma.team.findUnique({
+        where: { id: contextTeamId },
+        select: contextSelect,
+      });
+    }
+  }
+  if (!contextTeamId || !currentContext) {
     return res.status(404).json({ message: 'Keine aktive Mannschaft gefunden.' });
   }
-  const currentTeam = await prisma.team.findUnique({
-    where: { id: contextTeamId },
-    include: hierarchyInclude,
-  });
-  if (!currentTeam) return res.status(404).json({ message: 'Aktive Mannschaft nicht gefunden.' });
 
-  const clubId = currentTeam.ageGroup.season.clubId;
+  const clubId = currentContext.ageGroup.season.clubId;
   const permissions = permissionsForRole(user.role);
   const canViewAllTeams = permissions.includes(Permission.MANAGE_ORGANIZATION);
-  const visibleTeamIds = await accessibleTeamIds(user);
+  // Super administrators already have a global scope. Loading every team ID
+  // only to feed it back into count queries adds a needless database roundtrip
+  // and creates very large IN clauses as the club grows.
+  const visibleTeamIds = user.role === Role.SUPER_ADMIN
+    ? []
+    : await accessibleTeamIds(user);
   const seasonScope =
     user.role === Role.SUPER_ADMIN
       ? { isActive: true }
@@ -354,7 +375,16 @@ export async function organizationContext(req: Request, res: Response) {
     select: { teamId: true },
   });
   const membershipTeamIds = memberships.map((membership) => membership.teamId);
-  const [ageGroups, teams, players, members, upcomingEvents, pendingApprovals] = await Promise.all([
+  const scopedTeamIds = [...new Set([...membershipTeamIds, contextTeamId])];
+  const [
+    ageGroups,
+    teams,
+    players,
+    members,
+    upcomingEvents,
+    pendingApprovals,
+    groupedTeamCounts,
+  ] = await Promise.all([
     prisma.ageGroup.findMany({
       where: { season: seasonScope },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -365,7 +395,7 @@ export async function organizationContext(req: Request, res: Response) {
         ageGroup: { season: seasonScope },
         deletedAt: null,
         ...(canViewAllTeams ? {} : {
-          id: { in: membershipTeamIds.length > 0 ? membershipTeamIds : [contextTeamId] },
+          id: { in: scopedTeamIds },
         }),
       },
       orderBy: [
@@ -392,10 +422,12 @@ export async function organizationContext(req: Request, res: Response) {
     prisma.event.count({
       where: {
         startAt: { gte: new Date() },
-        OR: [
-          { teamId: { in: visibleTeamIds } },
-          { targetTeams: { some: { teamId: { in: visibleTeamIds } } } },
-        ],
+        ...(user.role === Role.SUPER_ADMIN ? {} : {
+          OR: [
+            { teamId: { in: visibleTeamIds } },
+            { targetTeams: { some: { teamId: { in: visibleTeamIds } } } },
+          ],
+        }),
       },
     }),
     permissions.includes(Permission.MANAGE_MEMBERS)
@@ -411,12 +443,12 @@ export async function organizationContext(req: Request, res: Response) {
           },
         })
       : Promise.resolve(0),
+    prisma.team.groupBy({
+      by: ['ageGroupId'],
+      where: { ageGroup: { season: seasonScope }, deletedAt: null },
+      _count: { _all: true },
+    }),
   ]);
-  const groupedTeamCounts = await prisma.team.groupBy({
-    by: ['ageGroupId'],
-    where: { ageGroup: { season: seasonScope }, deletedAt: null },
-    _count: { _all: true },
-  });
   const teamCountByAgeGroup = new Map(
     groupedTeamCounts.map((item) => [item.ageGroupId, item._count._all]),
   );
@@ -427,20 +459,18 @@ export async function organizationContext(req: Request, res: Response) {
       teamCountByAgeGroup.get(team.ageGroupId),
     )),
   );
-  const serializedCurrent = serializedTeams.find((team) => team.id === currentTeam.id)
-    ?? await serializeTeam(
-      currentTeam,
-      true,
-      teamCountByAgeGroup.get(currentTeam.ageGroupId),
-    );
+  const serializedCurrent = serializedTeams.find((team) => team.id === contextTeamId);
+  if (!serializedCurrent) {
+    return res.status(404).json({ message: 'Aktive Mannschaft nicht gefunden.' });
+  }
   return res.json({
-    club: currentTeam.ageGroup.season.club,
+    club: currentContext.ageGroup.season.club,
     season: {
-      id: currentTeam.ageGroup.season.id,
-      name: currentTeam.ageGroup.season.name,
-      startDate: currentTeam.ageGroup.season.startDate,
-      endDate: currentTeam.ageGroup.season.endDate,
-      isActive: currentTeam.ageGroup.season.isActive,
+      id: currentContext.ageGroup.season.id,
+      name: currentContext.ageGroup.season.name,
+      startDate: currentContext.ageGroup.season.startDate,
+      endDate: currentContext.ageGroup.season.endDate,
+      isActive: currentContext.ageGroup.season.isActive,
     },
     currentTeam: serializedCurrent,
     ageGroups,
