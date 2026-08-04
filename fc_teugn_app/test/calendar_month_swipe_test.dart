@@ -79,7 +79,15 @@ void main() {
     await tester.pumpAndSettle();
 
     var swipeStart = tester.getTopLeft(swipeSurface) + const Offset(280, 120);
-    await tester.flingFrom(swipeStart, const Offset(-180, 0), 800);
+    final gesture = await tester.startGesture(swipeStart);
+    await gesture.moveBy(const Offset(-90, 0));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('calendar-month-dragging-page')),
+      findsOneWidget,
+    );
+    await gesture.moveBy(const Offset(-90, 0));
+    await gesture.up();
     await tester.pump(const Duration(milliseconds: 80));
     expect(
       find.byKey(const ValueKey('calendar-month-page-transition')),

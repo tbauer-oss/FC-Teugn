@@ -38,6 +38,10 @@ const publicPlayerSelect = {
   joinedAt: true,
   createdAt: true,
   updatedAt: true,
+  photoAsset: {
+    select: { id: true, deletedAt: true },
+  },
+  photoUrl: true,
   team: {
     select: {
       id: true,
@@ -165,8 +169,17 @@ function withCareerStatistics<T extends {
   matchStatistics: PlayerMatchStatisticForCareer[];
   tickerGoals: PlayerTickerStatisticForCareer[];
   tickerAssists: PlayerTickerStatisticForCareer[];
+  photoAsset?: { id: string; deletedAt: Date | null } | null;
+  photoUrl?: string | null;
 }>(player: T) {
-  const { matchStatistics, tickerGoals, tickerAssists, ...data } = player;
+  const {
+    matchStatistics,
+    tickerGoals,
+    tickerAssists,
+    photoAsset,
+    photoUrl,
+    ...data
+  } = player;
   const bySeason = new Map<
     string,
     {
@@ -208,6 +221,10 @@ function withCareerStatistics<T extends {
   }
   return {
     ...data,
+    photoUrl:
+      photoAsset && photoAsset.deletedAt === null
+        ? mediaAssetUrl(photoAsset.id, '12h')
+        : photoUrl ?? null,
     statistics: {
       goals: tickerGoals.length,
       assists: tickerAssists.length,

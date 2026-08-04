@@ -46,6 +46,21 @@ test('team-independent pages resolve a valid context team', () => {
   assert.match(organization, /createTeam[\s\S]*resolveContextTeamId\(user\)/);
   assert.match(trainings, /listPitchOccupancy[\s\S]*resolveContextTeamId\(req\.user!\)/);
 });
+
+test('player lists expose stored photos through protected media URLs', () => {
+  const players = fs.readFileSync(
+    'src/controllers/players.controller.ts',
+    'utf8',
+  );
+  assert.match(
+    players,
+    /publicPlayerSelect[\s\S]*photoAsset:\s*\{[\s\S]*deletedAt:\s*true[\s\S]*photoUrl:\s*true/,
+  );
+  assert.match(
+    players,
+    /withCareerStatistics[\s\S]*mediaAssetUrl\(photoAsset\.id,\s*'12h'\)/,
+  );
+});
 const {
   signAccessToken,
   signRefreshToken,
