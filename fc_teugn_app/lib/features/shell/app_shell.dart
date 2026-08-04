@@ -122,8 +122,8 @@ class AppShell extends ConsumerWidget {
     String seasonLabel,
     String userName,
     String userRole,
-  ) {
-    return showModalBottomSheet<void>(
+  ) async {
+    final destination = await showModalBottomSheet<ShellDestination>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -147,13 +147,17 @@ class AppShell extends ConsumerWidget {
             Navigator.of(sheetContext).pop();
             showAppAboutSheet(context);
           },
-          onSelect: (destination) {
-            Navigator.of(sheetContext).pop();
-            context.go(destination.route);
-          },
+          onSelect: (destination) =>
+              Navigator.of(sheetContext).pop(destination),
         ),
       ),
     );
+
+    // Erst navigieren, wenn das Bottom Sheet vollständig geschlossen wurde.
+    // Gleichzeitiges Schließen und Wechseln der GoRouter-Route konnte auf
+    // Mobilgeräten die neue Seite direkt wieder durch die alte ersetzen.
+    if (destination == null || !context.mounted) return;
+    context.go(destination.route);
   }
 
   @override
