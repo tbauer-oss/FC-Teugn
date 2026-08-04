@@ -21,10 +21,11 @@ List<LineupPositionModel> planInitialLineup({
   required List<MatchPlayer> players,
   required int fieldSize,
   String? formation,
+  List<(double, double, String)>? slotLayout,
   Map<String, int> playerPriority = const {},
 }) {
   final available = players.toList();
-  final slots = lineupSlots(fieldSize, formation: formation);
+  final slots = slotLayout ?? lineupSlots(fieldSize, formation: formation);
   final assigned = List<MatchPlayer?>.filled(slots.length, null);
   final planned = <LineupPositionModel>[];
 
@@ -231,11 +232,26 @@ List<(double, double, String)>? _formationSlots(
   return result;
 }
 
+/// Returns the numeric base of a formation name such as
+/// `2-3-1 · offensiv`. The suffix is deliberately display-only.
+String? baseFormationOf(String? formation) {
+  final value = formation?.trim() ?? '';
+  final match = RegExp(r'^(\d+(?:-\d+)+)(?:\s*·\s*.+)?$').firstMatch(value);
+  return match?.group(1);
+}
+
+String formationName(String baseFormation, String? suffix) {
+  final normalizedSuffix = suffix?.trim() ?? '';
+  return normalizedSuffix.isEmpty
+      ? baseFormation.trim()
+      : '${baseFormation.trim()} · $normalizedSuffix';
+}
+
 /// Parses a tactical formation such as `2-3-1` for the requested team size.
 /// Zero rows remain valid for the existing mini-football presets (`2-0`).
 List<int>? formationRows(String? formation, int fieldSize) {
-  final value = formation?.trim() ?? '';
-  if (!RegExp(r'^\d+(?:-\d+)+$').hasMatch(value)) return null;
+  final value = baseFormationOf(formation);
+  if (value == null) return null;
   final rawRows = value.split('-').map(int.parse).toList();
   if (rawRows.every((count) => count == 0) ||
       rawRows.any((count) => count < 0 || count > 6) ||

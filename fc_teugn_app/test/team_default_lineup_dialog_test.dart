@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/models/organization.dart';
 import 'package:fc_teugn_app/core/models/player.dart';
@@ -20,6 +22,7 @@ void main() {
       firstName: 'Levin',
       lastName: 'Torwart',
       position: 'TW',
+      photoUrl: 'https://example.test/levin.jpg',
       shirtNumber: 1,
       status: PlayerStatus.active,
       dominantFoot: DominantFoot.right,
@@ -151,6 +154,61 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('player view keeps standard and offers photo and hover modes',
+      (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TeamDefaultLineupDialog(team: team, players: players),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final selector = tester.widget<SegmentedButton<dynamic>>(
+      find.byKey(const ValueKey('player-marker-view-selector')),
+    );
+    expect(selector.selected.single.toString(), contains('standard'));
+    expect(
+      find.byKey(const ValueKey('formation-player-photo-p1')),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('Mit Foto'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('formation-player-photo-p1')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Hover'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('formation-player-photo-p1')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('hover-player-photo-p1')),
+      findsOneWidget,
+    );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer();
+    await mouse.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('slot-marker-0-TW'))),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.byKey(const ValueKey('hover-player-preview-p1')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('coach can add and select a custom team formation',
       (tester) async {
     tester.view.physicalSize = const Size(430, 900);
@@ -171,11 +229,18 @@ void main() {
       find.byKey(const ValueKey('custom-formation-field')),
       '3-1',
     );
+    await tester.enterText(
+      find.byKey(const ValueKey('custom-formation-suffix-field')),
+      'offensiv',
+    );
     await tester.tap(find.widgetWithText(FilledButton, 'Anlegen'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('formation-3-1')), findsOneWidget);
-    expect(find.text('3-1'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('formation-3-1 · offensiv')),
+      findsOneWidget,
+    );
+    expect(find.text('3-1 · offensiv'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -318,6 +383,10 @@ void main() {
     expect(changed.positionCode, 'IV');
     expect(changed.x, .72);
     expect(changed.y, .68);
+    final savedTemplate = result!.formationTemplates.singleWhere(
+      (template) => template.name == '2-2',
+    );
+    expect(savedTemplate.positions[2].positionCode, 'IV');
     expect(tester.takeException(), isNull);
   });
 

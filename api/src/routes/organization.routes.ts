@@ -47,7 +47,6 @@ router.put(
   '/teams/:id/default-lineup',
   requireAuth,
   requireApproved,
-  requirePermission(Permission.MANAGE_TEAM),
   updateTeamDefaultLineup,
 );
 router.delete(

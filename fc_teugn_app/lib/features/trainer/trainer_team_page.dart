@@ -175,6 +175,7 @@ class TrainerTeamPage extends ConsumerWidget {
             formation: draft.formation,
             positions: draft.positions,
             customFormations: draft.customFormations,
+            formationTemplates: draft.formationTemplates,
           );
       ref.invalidate(organizationProvider);
       if (context.mounted) {

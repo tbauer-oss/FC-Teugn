@@ -154,6 +154,47 @@ export async function canManageTeam(user: TeamScopedUser, teamId: string) {
   return teamId === user.teamId && hasPermission(user.role as Role, Permission.MANAGE_TEAM);
 }
 
+const formationManagerRoles = new Set<string>([
+  Role.SUPER_ADMIN,
+  Role.CLUB_ADMIN,
+  Role.COACH,
+  Role.TRAINER,
+  Role.ASSISTANT_COACH,
+]);
+
+export function canManageFormationRole(role: Role | PrismaRole) {
+  return formationManagerRoles.has(String(role));
+}
+
+export async function canManageFormation(
+  user: TeamScopedUser,
+  teamId: string,
+) {
+  const role = String(user.role);
+  if (!canManageFormationRole(user.role)) return false;
+  if (role === Role.SUPER_ADMIN) {
+    return Boolean(await prisma.team.findFirst({
+      where: { id: teamId, deletedAt: null },
+      select: { id: true },
+    }));
+  }
+  if (role === Role.CLUB_ADMIN) {
+    const [currentClubId, targetClubId] = await Promise.all([
+      clubIdForTeam(user.teamId),
+      clubIdForTeam(teamId),
+    ]);
+    return currentClubId !== null && currentClubId === targetClubId;
+  }
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId_teamId: { userId: user.id, teamId } },
+    select: { role: true, status: true },
+  });
+  if (membership?.status === AccountStatus.APPROVED) {
+    return canManageFormationRole(membership.role);
+  }
+  return teamId === user.teamId;
+}
+
 export function eventTeamScope(teamIds: string[]): Prisma.EventWhereInput {
   return {
     OR: [{ teamId: { in: teamIds } }, { targetTeams: { some: { teamId: { in: teamIds } } } }],

@@ -6,16 +6,20 @@ import '../../core/models/matchday.dart';
 import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
 
+enum _PlayerMarkerView { standard, photo, hoverPreview }
+
 class TeamDefaultLineupDraft {
   const TeamDefaultLineupDraft({
     required this.formation,
     required this.positions,
     required this.customFormations,
+    required this.formationTemplates,
   });
 
   final String formation;
   final List<TeamDefaultLineupPositionInput> positions;
   final List<String> customFormations;
+  final List<TeamFormationTemplate> formationTemplates;
 }
 
 class TeamDefaultLineupDialog extends StatefulWidget {
@@ -36,8 +40,10 @@ class TeamDefaultLineupDialog extends StatefulWidget {
 class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
   late String _formation;
   late List<String> _customFormations;
+  late Map<String, TeamFormationTemplate> _formationTemplates;
   late List<_EditableSlot> _slots;
   int? _selectedSlotIndex;
+  _PlayerMarkerView _playerMarkerView = _PlayerMarkerView.standard;
 
   @override
   void initState() {
@@ -45,11 +51,18 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
     _formation = widget.team.defaultLineup?.formation ??
         widget.team.gameFormat.defaultFormation;
     _customFormations = widget.team.customFormations.toList();
+    _formationTemplates = {
+      for (final template in widget.team.formationTemplates)
+        template.name: template,
+    };
     if (!widget.team.gameFormat.formations.contains(_formation) &&
         !_customFormations.contains(_formation)) {
       _customFormations.insert(0, _formation);
     }
     _slots = _initialSlots();
+    if (widget.team.defaultLineup?.positions.isNotEmpty == true) {
+      _rememberCurrentTemplate();
+    }
   }
 
   List<String> get _availableFormations => <String>{
@@ -64,7 +77,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
       final playersById = {
         for (final player in widget.players) player.id: player
       };
-      final slots = _baseSlots();
+      final slots = _baseSlots(_formation);
       for (var index = 0;
           index < saved.length && index < slots.length;
           index++) {
@@ -83,21 +96,57 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
     return _plannedSlots();
   }
 
-  List<_EditableSlot> _baseSlots() => lineupSlots(
-        widget.team.gameFormat.playerCount,
-        formation: _formation,
-      )
-          .map(
-            (slot) => _EditableSlot(
-              player: null,
-              positionCode: slot.$3,
-              x: slot.$1,
-              y: slot.$2,
-              isGoalkeeper: slot.$3 == 'TW',
-              isCaptain: false,
-            ),
-          )
+  List<(double, double, String)> _slotLayout(String formation) {
+    final template = _formationTemplates[formation];
+    if (template != null &&
+        template.positions.length == widget.team.gameFormat.playerCount) {
+      final positions = template.positions.toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      return positions
+          .map((position) => (
+                position.x,
+                position.y,
+                position.positionCode,
+              ))
           .toList();
+    }
+    return lineupSlots(
+      widget.team.gameFormat.playerCount,
+      formation: template?.baseFormation ?? formation,
+    );
+  }
+
+  List<_EditableSlot> _baseSlots(String formation) => _slotLayout(formation)
+      .map(
+        (slot) => _EditableSlot(
+          player: null,
+          positionCode: slot.$3,
+          x: slot.$1,
+          y: slot.$2,
+          isGoalkeeper: slot.$3 == 'TW',
+          isCaptain: false,
+        ),
+      )
+      .toList();
+
+  void _rememberCurrentTemplate() {
+    final baseFormation = baseFormationOf(_formation);
+    if (baseFormation == null || _slots.isEmpty) return;
+    _formationTemplates[_formation] = TeamFormationTemplate(
+      name: _formation,
+      baseFormation: baseFormation,
+      positions: [
+        for (var index = 0; index < _slots.length; index++)
+          TeamFormationTemplatePosition(
+            positionCode: _slots[index].positionCode,
+            x: _slots[index].x,
+            y: _slots[index].y,
+            isGoalkeeper: _slots[index].isGoalkeeper,
+            sortOrder: index,
+          ),
+      ],
+    );
+  }
 
   MatchPlayer _matchPlayer(PlayerModel player) => MatchPlayer(
         id: player.id,
@@ -118,18 +167,22 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
   List<_EditableSlot> _plannedSlots({
     Iterable<PlayerModel>? players,
     String? captainId,
+    String? formation,
   }) {
+    final targetFormation = formation ?? _formation;
+    final slotLayout = _slotLayout(targetFormation);
     final candidates = (players ?? widget.players).toList();
     final planned = planInitialLineup(
       players: candidates.map(_matchPlayer).toList(),
       fieldSize: widget.team.gameFormat.playerCount,
-      formation: _formation,
+      formation: targetFormation,
+      slotLayout: slotLayout,
       playerPriority: captainId == null ? const {} : {captainId: -10000},
     );
     final playersById = {
       for (final player in widget.players) player.id: player
     };
-    final slots = _baseSlots();
+    final slots = _baseSlots(targetFormation);
     for (var index = 0;
         index < planned.length && index < slots.length;
         index++) {
@@ -151,17 +204,20 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
         _slots.map((slot) => slot.player).whereType<PlayerModel>().toList();
     final captainId = _captainId;
     setState(() {
+      _rememberCurrentTemplate();
       _formation = formation;
       _slots = _plannedSlots(
         players: starters.isEmpty ? widget.players : starters,
         captainId: captainId,
+        formation: formation,
       );
       _selectedSlotIndex = null;
     });
   }
 
   Future<void> _addCustomFormation() async {
-    var draftValue = '';
+    var draftBaseFormation = '';
+    var draftSuffix = '';
     final formation = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
@@ -192,7 +248,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                       prefixIcon: const Icon(Icons.schema_rounded),
                     ),
                     onChanged: (value) {
-                      draftValue = value.trim();
+                      draftBaseFormation = value.trim();
                       if (errorText != null) {
                         setDialogState(() => errorText = null);
                       }
@@ -203,12 +259,28 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                         value,
                         widget.team.gameFormat.playerCount,
                       )) {
-                        Navigator.pop(dialogContext, value);
+                        Navigator.pop(
+                          dialogContext,
+                          formationName(value, draftSuffix),
+                        );
                       } else {
                         setDialogState(() => errorText =
                             'Die Summe muss ${widget.team.gameFormat.playerCount - 1} ergeben.');
                       }
                     },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    key: const ValueKey('custom-formation-suffix-field'),
+                    maxLength: 24,
+                    decoration: const InputDecoration(
+                      labelText: 'Suffix (optional)',
+                      hintText: 'z. B. offensiv oder mit LM/RM',
+                      helperText:
+                          'Unterscheidet Varianten derselben Grundformation.',
+                      prefixIcon: Icon(Icons.label_outline_rounded),
+                    ),
+                    onChanged: (value) => draftSuffix = value.trim(),
                   ),
                 ],
               ),
@@ -220,7 +292,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
               ),
               FilledButton.icon(
                 onPressed: () {
-                  final value = draftValue;
+                  final value = draftBaseFormation;
                   if (!isValidFormation(
                     value,
                     widget.team.gameFormat.playerCount,
@@ -229,7 +301,10 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                         'Die Summe muss ${widget.team.gameFormat.playerCount - 1} ergeben.');
                     return;
                   }
-                  Navigator.pop(dialogContext, value);
+                  Navigator.pop(
+                    dialogContext,
+                    formationName(value, draftSuffix),
+                  );
                 },
                 icon: const Icon(Icons.add_rounded),
                 label: const Text('Anlegen'),
@@ -250,9 +325,27 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
   }
 
   void _removeCustomFormation(String formation) {
-    setState(() => _customFormations.remove(formation));
     if (_formation == formation) {
-      _applyFormation(widget.team.gameFormat.defaultFormation);
+      final starters =
+          _slots.map((slot) => slot.player).whereType<PlayerModel>().toList();
+      final captainId = _captainId;
+      final fallback = widget.team.gameFormat.defaultFormation;
+      setState(() {
+        _customFormations.remove(formation);
+        _formationTemplates.remove(formation);
+        _formation = fallback;
+        _slots = _plannedSlots(
+          players: starters.isEmpty ? widget.players : starters,
+          captainId: captainId,
+          formation: fallback,
+        );
+        _selectedSlotIndex = null;
+      });
+    } else {
+      setState(() {
+        _customFormations.remove(formation);
+        _formationTemplates.remove(formation);
+      });
     }
   }
 
@@ -260,6 +353,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
     final captainId = _captainId;
     final starters =
         _slots.map((slot) => slot.player).whereType<PlayerModel>().toList();
+    _rememberCurrentTemplate();
     setState(() {
       _slots = _plannedSlots(
         players: starters.isEmpty ? widget.players : starters,
@@ -341,6 +435,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
   }
 
   void _submit() {
+    _rememberCurrentTemplate();
     final selected = _slots.where((slot) => slot.player != null).toList();
     if (selected.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -353,6 +448,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
       TeamDefaultLineupDraft(
         formation: _formation,
         customFormations: _customFormations,
+        formationTemplates: _formationTemplates.values.toList(),
         positions: selected
             .map(
               (slot) => TeamDefaultLineupPositionInput(
@@ -411,10 +507,14 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                 onAddFormation: _addCustomFormation,
                 onRemoveFormation: _removeCustomFormation,
                 onAutoAssign: _autoAssign,
+                playerView: _playerMarkerView,
+                onPlayerViewChanged: (view) =>
+                    setState(() => _playerMarkerView = view),
               );
               final pitch = _FormationPitch(
                 slots: _slots,
                 selectedIndex: _selectedSlotIndex,
+                playerView: _playerMarkerView,
                 onSelected: _selectOrSwapSlot,
                 onMoved: (index, x, y) => setState(
                   () => _slots[index] = _slots[index].copyWith(x: x, y: y),
@@ -731,6 +831,8 @@ class _LineupControls extends StatelessWidget {
     required this.onAddFormation,
     required this.onRemoveFormation,
     required this.onAutoAssign,
+    required this.playerView,
+    required this.onPlayerViewChanged,
   });
 
   final String formation;
@@ -742,6 +844,8 @@ class _LineupControls extends StatelessWidget {
   final VoidCallback onAddFormation;
   final ValueChanged<String> onRemoveFormation;
   final VoidCallback onAutoAssign;
+  final _PlayerMarkerView playerView;
+  final ValueChanged<_PlayerMarkerView> onPlayerViewChanged;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -883,6 +987,76 @@ class _LineupControls extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            Container(height: 1, color: Colors.white12),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(
+                  Icons.visibility_outlined,
+                  color: Colors.white70,
+                  size: 18,
+                ),
+                const SizedBox(width: 7),
+                const Text(
+                  'SPIELERANSICHT',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .7,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SegmentedButton<_PlayerMarkerView>(
+                      key: const ValueKey('player-marker-view-selector'),
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment(
+                          value: _PlayerMarkerView.standard,
+                          icon: Icon(Icons.view_compact_outlined, size: 17),
+                          label: Text('Standard'),
+                        ),
+                        ButtonSegment(
+                          value: _PlayerMarkerView.photo,
+                          icon: Icon(Icons.account_circle_outlined, size: 17),
+                          label: Text('Mit Foto'),
+                        ),
+                        ButtonSegment(
+                          value: _PlayerMarkerView.hoverPreview,
+                          icon: Icon(Icons.zoom_in_rounded, size: 17),
+                          label: Text('Hover'),
+                          tooltip:
+                              'Foto beim Darüberfahren oder langen Drücken vergrößern',
+                        ),
+                      ],
+                      selected: {playerView},
+                      onSelectionChanged: (selection) =>
+                          onPlayerViewChanged(selection.first),
+                      style: ButtonStyle(
+                        foregroundColor: WidgetStateProperty.resolveWith(
+                          (states) => states.contains(WidgetState.selected)
+                              ? AppColors.black
+                              : Colors.white,
+                        ),
+                        backgroundColor: WidgetStateProperty.resolveWith(
+                          (states) => states.contains(WidgetState.selected)
+                              ? AppColors.yellow
+                              : AppColors.charcoal,
+                        ),
+                        side: WidgetStateProperty.all(
+                          const BorderSide(color: Colors.white24),
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       );
@@ -892,12 +1066,14 @@ class _FormationPitch extends StatelessWidget {
   const _FormationPitch({
     required this.slots,
     required this.selectedIndex,
+    required this.playerView,
     required this.onSelected,
     required this.onMoved,
   });
 
   final List<_EditableSlot> slots;
   final int? selectedIndex;
+  final _PlayerMarkerView playerView;
   final ValueChanged<int> onSelected;
   final void Function(int index, double x, double y) onMoved;
 
@@ -942,9 +1118,9 @@ class _FormationPitch extends StatelessWidget {
                 for (var index = 0; index < slots.length; index++)
                   Positioned(
                     left: slots[index].x * constraints.maxWidth -
-                        (compact ? 34 : 42),
+                        _pitchMarkerWidth(compact, playerView) / 2,
                     top: slots[index].y * constraints.maxHeight -
-                        (compact ? 25 : 27),
+                        _pitchMarkerHeight(compact, playerView) / 2,
                     child: GestureDetector(
                       onTap: () => onSelected(index),
                       onPanUpdate: (details) {
@@ -963,6 +1139,7 @@ class _FormationPitch extends StatelessWidget {
                         slot: slots[index],
                         selected: selectedIndex == index,
                         compact: compact,
+                        playerView: playerView,
                       ),
                     ),
                   ),
@@ -974,6 +1151,14 @@ class _FormationPitch extends StatelessWidget {
     );
   }
 }
+
+double _pitchMarkerWidth(bool compact, _PlayerMarkerView view) =>
+    view == _PlayerMarkerView.photo
+        ? (compact ? 86 : 104)
+        : (compact ? 68 : 84);
+
+double _pitchMarkerHeight(bool compact, _PlayerMarkerView view) =>
+    view == _PlayerMarkerView.photo ? (compact ? 54 : 62) : (compact ? 50 : 54);
 
 class _PenaltyArea extends StatelessWidget {
   const _PenaltyArea({this.top, this.bottom, required this.width});
@@ -1003,11 +1188,13 @@ class _PitchMarker extends StatelessWidget {
     required this.slot,
     required this.selected,
     required this.compact,
+    required this.playerView,
   });
 
   final _EditableSlot slot;
   final bool selected;
   final bool compact;
+  final _PlayerMarkerView playerView;
 
   @override
   Widget build(BuildContext context) {
@@ -1019,9 +1206,9 @@ class _PitchMarker extends StatelessWidget {
             slot.positionCode,
           );
     final outOfPosition = slot.player != null && fit <= 0;
-    return AnimatedContainer(
+    final marker = AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      width: compact ? 68 : 84,
+      width: _pitchMarkerWidth(compact, playerView),
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 4 : 6,
         vertical: compact ? 5 : 7,
@@ -1065,16 +1252,164 @@ class _PitchMarker extends StatelessWidget {
               ),
             ],
           ),
-          Text(
-            slot.player?.displayName ?? 'Offen',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: compact ? 9 : 11),
-          ),
+          if (playerView == _PlayerMarkerView.photo && slot.player != null)
+            Row(
+              children: [
+                _FormationPlayerPhoto(
+                  player: slot.player!,
+                  size: compact ? 24 : 30,
+                  keyPrefix: 'formation-player-photo',
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    slot.player!.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: compact ? 9 : 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            Text(
+              slot.player?.displayName ?? 'Offen',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: compact ? 9 : 11),
+            ),
         ],
       ),
     );
+    final player = slot.player;
+    if (playerView != _PlayerMarkerView.hoverPreview || player == null) {
+      return marker;
+    }
+    return Tooltip(
+      key: ValueKey('hover-player-photo-${player.id}'),
+      waitDuration: const Duration(milliseconds: 250),
+      showDuration: const Duration(seconds: 4),
+      preferBelow: false,
+      verticalOffset: 18,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.navy,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.yellow, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black38,
+            blurRadius: 14,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      richMessage: WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: _PlayerHoverPreview(player: player),
+      ),
+      child: marker,
+    );
   }
+}
+
+class _FormationPlayerPhoto extends StatelessWidget {
+  const _FormationPlayerPhoto({
+    required this.player,
+    required this.size,
+    required this.keyPrefix,
+  });
+
+  final PlayerModel player;
+  final double size;
+  final String keyPrefix;
+
+  @override
+  Widget build(BuildContext context) {
+    final photoUrl = player.photoUrl?.trim();
+    final fallback = ColoredBox(
+      color: AppColors.yellowSoft,
+      child: Center(
+        child: Text(
+          player.initials,
+          style: TextStyle(
+            color: AppColors.black,
+            fontSize: size * .32,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+    return Semantics(
+      key: ValueKey('$keyPrefix-${player.id}'),
+      image: photoUrl?.isNotEmpty == true,
+      label: photoUrl?.isNotEmpty == true
+          ? 'Spielerfoto von ${player.fullName}'
+          : 'Kein Spielerfoto für ${player.fullName}',
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: photoUrl?.isNotEmpty != true
+            ? fallback
+            : Image.network(
+                photoUrl!,
+                fit: BoxFit.cover,
+                filterQuality:
+                    size >= 60 ? FilterQuality.high : FilterQuality.medium,
+                errorBuilder: (_, __, ___) => fallback,
+              ),
+      ),
+    );
+  }
+}
+
+class _PlayerHoverPreview extends StatelessWidget {
+  const _PlayerHoverPreview({required this.player});
+
+  final PlayerModel player;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        key: ValueKey('hover-player-preview-${player.id}'),
+        width: 126,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _FormationPlayerPhoto(
+              player: player,
+              size: 76,
+              keyPrefix: 'hover-player-photo-preview',
+            ),
+            const SizedBox(height: 7),
+            Text(
+              player.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              '#${player.shirtNumber ?? '–'} · ${player.position ?? 'FLEX'}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+          ],
+        ),
+      );
 }
 
 class _TeamManagerPanel extends StatelessWidget {
@@ -1409,7 +1744,8 @@ class _ManagerHint extends StatelessWidget {
             child: Text(
               'Formationswechsel sortieren die aktuelle Startelf automatisch '
               'positionsgerecht neu. Orange markierte Spieler stehen auf einer '
-              'unpassenden Position. Verschieben bleibt jederzeit möglich.',
+              'unpassenden Position. Positionsnamen und Verschiebungen werden '
+              'für jede Formation dauerhaft gespeichert.',
               style: TextStyle(color: AppColors.muted),
             ),
           ),

@@ -14,6 +14,21 @@ void main() {
       'gender': 'MIXED',
       'gameFormat': 'FOOTBALL_5',
       'customFormations': ['3-1'],
+      'formationTemplates': [
+        {
+          'name': '3-1 · offensiv',
+          'baseFormation': '3-1',
+          'positions': [
+            {
+              'positionCode': 'TW',
+              'x': .5,
+              'y': .92,
+              'isGoalkeeper': true,
+              'sortOrder': 0,
+            },
+          ],
+        },
+      ],
       'birthYears': [2015, 2016],
       'description': 'Ballorientierte Ausbildung',
       'trainingLocation': 'Sportplatz Teugn',
@@ -55,6 +70,11 @@ void main() {
     expect(team.staff.single.role, 'COACH');
     expect(team.photoUrl, isNotNull);
     expect(team.customFormations, ['3-1']);
+    expect(team.formationTemplates.single.name, '3-1 · offensiv');
+    expect(
+      team.formationTemplates.single.positions.single.positionCode,
+      'TW',
+    );
     expect(team.formationOptions.first, '3-1');
   });
 

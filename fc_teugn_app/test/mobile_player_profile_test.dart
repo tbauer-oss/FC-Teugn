@@ -123,6 +123,7 @@ void main() {
         birthDate: DateTime(2015, 4, 8),
         joinedAt: DateTime(2022, 7, 1),
         passNumber: 'BFV-001234',
+        gender: PlayerGender.diverse,
         dominantFoot: DominantFoot.right,
         status: PlayerStatus.active,
         teamName: 'E1-Jugend',
@@ -163,6 +164,8 @@ void main() {
           find.byKey(const ValueKey('player-edit-birth-date')), findsOneWidget);
       expect(
           find.byKey(const ValueKey('player-edit-joined-at')), findsOneWidget);
+      expect(find.byKey(const ValueKey('player-edit-gender')), findsOneWidget);
+      expect(find.text('d · divers'), findsWidgets);
       expect(find.byKey(const ValueKey('player-edit-pass-number')),
           findsOneWidget);
       expect(find.text('BFV-001234'), findsWidgets);

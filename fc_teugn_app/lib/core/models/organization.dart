@@ -88,6 +88,7 @@ class TeamSummary {
     this.periodMinutes = 30,
     this.defaultLineup,
     this.customFormations = const [],
+    this.formationTemplates = const [],
     this.birthYears = const [],
     this.description,
     this.trainingLocation,
@@ -123,6 +124,7 @@ class TeamSummary {
   final int periodMinutes;
   final TeamDefaultLineup? defaultLineup;
   final List<String> customFormations;
+  final List<TeamFormationTemplate> formationTemplates;
   final List<int> birthYears;
   final String? description;
   final String? trainingLocation;
@@ -185,6 +187,15 @@ class TeamSummary {
         customFormations:
             (json['customFormations'] as List<dynamic>? ?? const [])
                 .whereType<String>()
+                .toList(),
+        formationTemplates:
+            (json['formationTemplates'] as List<dynamic>? ?? const [])
+                .whereType<Map<dynamic, dynamic>>()
+                .map(
+                  (item) => TeamFormationTemplate.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
                 .toList(),
         birthYears: (json['birthYears'] as List<dynamic>? ?? [])
             .whereType<num>()
@@ -259,6 +270,71 @@ class TeamDefaultLineup {
             )
             .toList(),
       );
+}
+
+class TeamFormationTemplate {
+  const TeamFormationTemplate({
+    required this.name,
+    required this.baseFormation,
+    required this.positions,
+  });
+
+  final String name;
+  final String baseFormation;
+  final List<TeamFormationTemplatePosition> positions;
+
+  factory TeamFormationTemplate.fromJson(Map<String, dynamic> json) =>
+      TeamFormationTemplate(
+        name: json['name'] as String? ?? '',
+        baseFormation: json['baseFormation'] as String? ?? '',
+        positions: (json['positions'] as List<dynamic>? ?? const [])
+            .whereType<Map<dynamic, dynamic>>()
+            .map(
+              (item) => TeamFormationTemplatePosition.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList(),
+      );
+
+  Map<String, Object?> toJson() => {
+        'name': name,
+        'baseFormation': baseFormation,
+        'positions': positions.map((position) => position.toJson()).toList(),
+      };
+}
+
+class TeamFormationTemplatePosition {
+  const TeamFormationTemplatePosition({
+    required this.positionCode,
+    required this.x,
+    required this.y,
+    required this.isGoalkeeper,
+    required this.sortOrder,
+  });
+
+  final String positionCode;
+  final double x;
+  final double y;
+  final bool isGoalkeeper;
+  final int sortOrder;
+
+  factory TeamFormationTemplatePosition.fromJson(Map<String, dynamic> json) =>
+      TeamFormationTemplatePosition(
+        positionCode: json['positionCode'] as String? ?? 'FLEX',
+        x: (json['x'] as num?)?.toDouble() ?? .5,
+        y: (json['y'] as num?)?.toDouble() ?? .5,
+        isGoalkeeper: json['isGoalkeeper'] as bool? ?? false,
+        sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+      );
+
+  Map<String, Object?> toJson() => {
+        'positionCode': positionCode,
+        'x': x,
+        'y': y,
+        'isGoalkeeper': isGoalkeeper,
+        'sortOrder': sortOrder,
+      };
 }
 
 class TeamDefaultLineupPosition {
