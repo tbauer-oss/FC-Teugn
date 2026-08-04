@@ -339,4 +339,108 @@ void main() {
     expect(find.text('Kalenderinhalt'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      'Mitteilungscenter aus Mehr-Menü bleibt nach dem Schließen geöffnet',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    const destinations = <ShellDestination>[
+      ShellDestination(
+        label: 'Startseite',
+        mobileLabel: 'Start',
+        icon: Icons.grid_view_rounded,
+        route: '/trainer',
+        section: ShellSection.overview,
+        hint: 'Das Wichtigste auf einen Blick',
+      ),
+      ShellDestination(
+        label: 'Team-Zentrale',
+        mobileLabel: 'Team',
+        icon: Icons.groups_rounded,
+        route: '/trainer/team',
+        section: ShellSection.team,
+        hint: 'Mannschaft zentral verwalten',
+      ),
+      ShellDestination(
+        label: 'Kalender',
+        icon: Icons.calendar_month_rounded,
+        route: '/trainer/events',
+        section: ShellSection.schedule,
+        hint: 'Termine, Serien und Rückmeldungen',
+      ),
+      ShellDestination(
+        label: 'Spielbetrieb',
+        mobileLabel: 'Spiele',
+        icon: Icons.sports_soccer_rounded,
+        route: '/trainer/matches',
+        section: ShellSection.schedule,
+        hint: 'Spieltage, Kader und Liveticker',
+      ),
+      ShellDestination(
+        label: 'Nachrichten & Abstimmung',
+        icon: Icons.forum_rounded,
+        route: '/trainer/messages',
+        section: ShellSection.communication,
+        hint: 'Mitteilungen und persönliche Absprachen',
+      ),
+    ];
+
+    final router = GoRouter(
+      initialLocation: '/trainer',
+      routes: [
+        ShellRoute(
+          builder: (context, state, child) => AppShell(
+            title: 'Trainer & Verwaltung',
+            destinations: destinations,
+            child: child,
+          ),
+          routes: [
+            GoRoute(
+              path: '/trainer',
+              builder: (context, state) => const Text('Startinhalt'),
+            ),
+            GoRoute(
+              path: '/trainer/team',
+              builder: (context, state) => const Text('Teaminhalt'),
+            ),
+            GoRoute(
+              path: '/trainer/events',
+              builder: (context, state) => const Text('Kalenderinhalt'),
+            ),
+            GoRoute(
+              path: '/trainer/matches',
+              builder: (context, state) => const Text('Spielinhalt'),
+            ),
+            GoRoute(
+              path: '/trainer/messages',
+              builder: (context, state) => const Text('Mitteilungsinhalt'),
+            ),
+          ],
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Mehr'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Nachrichten & Abstimmung'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nachrichten & Abstimmung'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 800));
+
+    expect(router.routeInformationProvider.value.uri.path, '/trainer/messages');
+    expect(find.text('Mitteilungsinhalt'), findsOneWidget);
+    expect(find.text('Startinhalt'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
