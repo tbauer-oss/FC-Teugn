@@ -75,6 +75,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   void dispose() {
     _launchTimer?.cancel();
     unawaited(_pushActionSubscription?.cancel());
+    _activeRouter?.dispose();
     super.dispose();
   }
 
@@ -200,6 +201,16 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      final sessionChanged = previous?.user?.id != next.user?.id ||
+          previous?.user?.status != next.user?.status ||
+          previous?.user?.role != next.user?.role;
+      final router = _activeRouter;
+      if (!sessionChanged || router == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && identical(router, _activeRouter)) router.refresh();
+      });
+    });
     ref.watch(nativePushRegistrationProvider);
     if (!_minimumLaunchComplete ||
         (authState.loading && authState.user == null)) {
@@ -216,11 +227,14 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
       ));
     }
 
-    final router = GoRouter(
+    // Keep one router for the complete signed-in app lifetime. Recreating it
+    // after a provider refresh resets the navigation stack to its initial
+    // location and causes the dashboard to visibly enter a second time.
+    final router = _activeRouter ??= GoRouter(
       navigatorKey: _rootNavigatorKey,
-      initialLocation: '/login',
+      initialLocation: _initialRouteFor(authState.user),
       redirect: (context, state) {
-        final user = authState.user;
+        final user = ref.read(authProvider).user;
         final location = state.matchedLocation;
         final loggedIn = user != null;
 
@@ -539,7 +553,6 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         ),
       ],
     );
-    _activeRouter = router;
     _openPendingPushAction();
     _scheduleInitialPushPrompt();
 
@@ -556,6 +569,12 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
       builder: _forceGerman24HourClock,
     ));
   }
+}
+
+String _initialRouteFor(AppUser? user) {
+  if (user == null) return '/login';
+  if (user.status != AccountStatus.approved) return '/pending';
+  return user.isTrainer ? '/trainer' : '/parent';
 }
 
 String normalizePushActionRoute(
