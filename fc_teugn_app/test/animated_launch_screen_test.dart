@@ -62,4 +62,58 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Startsequenz wartet sichtbar auf vorgeladene Vereinsdaten',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: AnimatedLaunchScreen(
+          duration: Duration(milliseconds: 10),
+          waitingForData: true,
+          statusMessage: 'Vereinsdaten werden sicher vorbereitet …',
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 20));
+
+    expect(
+      find.text('Vereinsdaten werden sicher vorbereitet …'),
+      findsOneWidget,
+    );
+    final progress = tester.widget<LinearProgressIndicator>(
+      find.byType(LinearProgressIndicator),
+    );
+    expect(progress.value, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Startsequenz bietet nach Ladefehler eine Wiederverbindung an',
+      (tester) async {
+    var retries = 0;
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AnimatedLaunchScreen(
+          errorMessage: 'Platzbelegung konnte nicht geladen werden.',
+          onRetry: () => retries++,
+        ),
+      ),
+    );
+
+    expect(
+      find.text('Platzbelegung konnte nicht geladen werden.'),
+      findsOneWidget,
+    );
+    expect(find.text('Erneut verbinden'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.tap(find.text('Erneut verbinden'));
+    expect(retries, 1);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -75,7 +75,62 @@ class ApiClient {
         ),
       );
     }
+    dio.interceptors.add(_TransientGetRetryInterceptor(dio));
 
     return ApiClient._internal(dio);
+  }
+}
+
+/// Wiederholt ausschließlich fehlgeschlagene Lesezugriffe. GET-Aufrufe sind
+/// idempotent und können deshalb nach einem kurzen Netzwechsel oder Vercel-
+/// Kaltstart sicher erneut gesendet werden. Schreibzugriffe bleiben bewusst
+/// unangetastet, damit keine Termine oder anderen Datensätze doppelt entstehen.
+class _TransientGetRetryInterceptor extends Interceptor {
+  _TransientGetRetryInterceptor(this._dio);
+
+  static const _attemptKey = 'transientGetRetryAttempt';
+  static const _maximumRetries = 3;
+
+  final Dio _dio;
+
+  @override
+  Future<void> onError(
+    DioException error,
+    ErrorInterceptorHandler handler,
+  ) async {
+    final request = error.requestOptions;
+    final attempt = request.extra[_attemptKey] as int? ?? 0;
+    if (request.method.toUpperCase() != 'GET' ||
+        attempt >= _maximumRetries ||
+        !_isTransient(error)) {
+      handler.next(error);
+      return;
+    }
+
+    request.extra[_attemptKey] = attempt + 1;
+    await Future<void>.delayed(
+      Duration(milliseconds: 300 * (1 << attempt)),
+    );
+    try {
+      handler.resolve(await _dio.fetch<dynamic>(request));
+    } on DioException catch (retryError) {
+      handler.next(retryError);
+    }
+  }
+
+  bool _isTransient(DioException error) {
+    final status = error.response?.statusCode;
+    if (status != null) {
+      return status == 408 || status == 429 || status >= 500;
+    }
+    return switch (error.type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout ||
+      DioExceptionType.connectionError ||
+      DioExceptionType.unknown =>
+        true,
+      _ => false,
+    };
   }
 }
