@@ -48,31 +48,14 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       title: 'Vereinskalender',
       subtitle:
           'Termine, Rückmeldungen und Fahrgemeinschaften an einem verlässlichen Ort.',
-      action: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        alignment: WrapAlignment.end,
-        children: [
-          OutlinedButton.icon(
-            onPressed: _createSubscription,
-            icon: const Icon(Icons.edit_calendar_rounded),
-            label: const Text('Kalender-Abo'),
-          ),
-          if (canManage)
-            FilledButton.icon(
-              onPressed: organization == null || savingEvent
-                  ? null
-                  : () => _createEvent(organization),
-              icon: savingEvent
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.add_rounded),
-              label: Text(savingEvent ? 'Wird gespeichert…' : 'Termin'),
-            ),
-        ],
+      denseMobileHeader: true,
+      action: _CalendarPageActions(
+        canManage: canManage,
+        saving: savingEvent,
+        canCreate: organization != null,
+        onSubscribe: _createSubscription,
+        onCreate:
+            organization == null ? null : () => _createEvent(organization),
       ),
       child: Column(
         children: [
@@ -496,6 +479,62 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   }
 }
 
+class _CalendarPageActions extends StatelessWidget {
+  const _CalendarPageActions({
+    required this.canManage,
+    required this.saving,
+    required this.canCreate,
+    required this.onSubscribe,
+    required this.onCreate,
+  });
+
+  final bool canManage;
+  final bool saving;
+  final bool canCreate;
+  final VoidCallback onSubscribe;
+  final VoidCallback? onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 640;
+    final subscribe = OutlinedButton.icon(
+      onPressed: onSubscribe,
+      icon: const Icon(Icons.event_repeat_rounded, size: 19),
+      label: Text(mobile ? 'Abo' : 'Kalender-Abo'),
+    );
+    final create = FilledButton.icon(
+      onPressed: canCreate && !saving ? onCreate : null,
+      icon: saving
+          ? const SizedBox.square(
+              dimension: 17,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.add_rounded, size: 20),
+      label: Text(saving ? 'Speichert…' : 'Termin anlegen'),
+    );
+    if (!mobile) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.end,
+        children: [subscribe, if (canManage) create],
+      );
+    }
+    return SizedBox(
+      height: 46,
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: subscribe),
+          if (canManage) ...[
+            const SizedBox(width: 8),
+            Expanded(flex: 3, child: create),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _CalendarToolbar extends StatelessWidget {
   const _CalendarToolbar({
     required this.view,
@@ -734,10 +773,17 @@ class _SwipeableMonthView extends StatefulWidget {
 }
 
 class _SwipeableMonthViewState extends State<_SwipeableMonthView>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   double _horizontalDistance = 0;
   double _verticalDistance = 0;
+  double _dragOffset = 0;
+  double _viewportWidth = 1;
+  double _pendingSwipeProgress = 0;
+  bool _axisDecided = false;
+  bool _horizontalGesture = false;
   late final AnimationController _pageController;
+  late final AnimationController _snapController;
+  Animation<double>? _snapAnimation;
   late Widget _currentPage;
   Widget? _outgoingPage;
   int _slideDirection = 1;
@@ -748,13 +794,22 @@ class _SwipeableMonthViewState extends State<_SwipeableMonthView>
     _currentPage = widget.child;
     _pageController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 340),
+      duration: const Duration(milliseconds: 380),
       value: 1,
     )..addStatusListener((status) {
         if (status == AnimationStatus.completed &&
             _outgoingPage != null &&
             mounted) {
           setState(() => _outgoingPage = null);
+        }
+      });
+    _snapController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    )..addListener(() {
+        final animation = _snapAnimation;
+        if (animation != null && mounted) {
+          setState(() => _dragOffset = animation.value);
         }
       });
   }
@@ -766,7 +821,10 @@ class _SwipeableMonthViewState extends State<_SwipeableMonthView>
       _outgoingPage = _currentPage;
       _currentPage = widget.child;
       _slideDirection = widget.navigationDirection >= 0 ? 1 : -1;
-      _pageController.forward(from: 0);
+      final progress = _pendingSwipeProgress.clamp(0.0, .82);
+      _pendingSwipeProgress = 0;
+      _dragOffset = 0;
+      _pageController.forward(from: progress);
     } else {
       _currentPage = widget.child;
     }
@@ -775,7 +833,42 @@ class _SwipeableMonthViewState extends State<_SwipeableMonthView>
   @override
   void dispose() {
     _pageController.dispose();
+    _snapController.dispose();
     super.dispose();
+  }
+
+  void _beginSwipe() {
+    _snapController.stop();
+    _snapAnimation = null;
+    _horizontalDistance = 0;
+    _verticalDistance = 0;
+    _axisDecided = false;
+    _horizontalGesture = false;
+    if (_dragOffset != 0) setState(() => _dragOffset = 0);
+  }
+
+  void _updateSwipe(PointerMoveEvent event) {
+    _horizontalDistance += event.delta.dx;
+    _verticalDistance += event.delta.dy;
+    if (!_axisDecided &&
+        (_horizontalDistance.abs() > 8 || _verticalDistance.abs() > 8)) {
+      _axisDecided = true;
+      _horizontalGesture =
+          _horizontalDistance.abs() > _verticalDistance.abs() * 1.15;
+    }
+    if (!_horizontalGesture) return;
+    final limit = _viewportWidth * .92;
+    setState(() {
+      _dragOffset = _horizontalDistance.clamp(-limit, limit).toDouble();
+    });
+  }
+
+  void _snapBack() {
+    if (_dragOffset == 0) return;
+    _snapAnimation = Tween<double>(begin: _dragOffset, end: 0).animate(
+      CurvedAnimation(parent: _snapController, curve: Curves.easeOutCubic),
+    );
+    _snapController.forward(from: 0);
   }
 
   void _finishSwipe() {
@@ -783,9 +876,18 @@ class _SwipeableMonthViewState extends State<_SwipeableMonthView>
     final verticalDistance = _verticalDistance;
     _horizontalDistance = 0;
     _verticalDistance = 0;
-    final isHorizontalSwipe =
-        distance.abs() >= 44 && distance.abs() > verticalDistance.abs() * 1.25;
+    _axisDecided = false;
+    final isHorizontalSwipe = _horizontalGesture &&
+        distance.abs() >= (_viewportWidth * .16).clamp(44, 72) &&
+        distance.abs() > verticalDistance.abs() * 1.15;
+    _horizontalGesture = false;
     final direction = isHorizontalSwipe ? distance.sign : 0;
+    if (direction == 0) {
+      _snapBack();
+      return;
+    }
+    _pendingSwipeProgress =
+        (_dragOffset.abs() / _viewportWidth).clamp(0.0, .82);
     if (direction < 0) {
       widget.onNext();
     } else if (direction > 0) {
@@ -803,18 +905,15 @@ class _SwipeableMonthViewState extends State<_SwipeableMonthView>
       child: Listener(
         key: const ValueKey('calendar-month-swipe-surface'),
         behavior: HitTestBehavior.translucent,
-        onPointerDown: (_) {
-          _horizontalDistance = 0;
-          _verticalDistance = 0;
-        },
-        onPointerMove: (event) {
-          _horizontalDistance += event.delta.dx;
-          _verticalDistance += event.delta.dy;
-        },
+        onPointerDown: (_) => _beginSwipe(),
+        onPointerMove: _updateSwipe,
         onPointerUp: (_) => _finishSwipe(),
         onPointerCancel: (_) {
           _horizontalDistance = 0;
           _verticalDistance = 0;
+          _horizontalGesture = false;
+          _axisDecided = false;
+          _snapBack();
         },
         child: ClipRect(
           child: AnimatedSize(
@@ -823,11 +922,36 @@ class _SwipeableMonthViewState extends State<_SwipeableMonthView>
             alignment: Alignment.topCenter,
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final travel = constraints.maxWidth * .22;
+                _viewportWidth = constraints.maxWidth;
+                final travel = constraints.maxWidth;
                 return AnimatedBuilder(
                   key: const ValueKey('calendar-month-page-transition'),
                   animation: _pageController,
                   builder: (context, _) {
+                    if (_outgoingPage == null && _dragOffset != 0) {
+                      final dragProgress =
+                          (_dragOffset.abs() / travel).clamp(0.0, 1.0);
+                      return Stack(
+                        alignment: Alignment.topCenter,
+                        children: [
+                          const Positioned.fill(
+                            child: ColoredBox(
+                              color: AppColors.background,
+                            ),
+                          ),
+                          Opacity(
+                            opacity: 1 - dragProgress * .16,
+                            child: Transform.translate(
+                              key: const ValueKey(
+                                'calendar-month-dragging-page',
+                              ),
+                              offset: Offset(_dragOffset, 0),
+                              child: _currentPage,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
                     final progress = Curves.easeInOutCubicEmphasized.transform(
                       _pageController.value,
                     );
@@ -3511,16 +3635,104 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     super.dispose();
   }
 
+  Widget _categoryInput() => DropdownButtonFormField<EventCategory>(
+        initialValue: category,
+        decoration: const InputDecoration(
+          labelText: 'Kategorie',
+          prefixIcon: Icon(Icons.category_outlined),
+        ),
+        items: [
+          for (final value in EventCategory.values)
+            DropdownMenuItem(value: value, child: Text(value.label)),
+        ],
+        onChanged: (value) {
+          setState(() {
+            category = value ?? category;
+            if (category.isMatch) homeAway ??= HomeAway.home;
+          });
+          _refreshPitchConflicts();
+        },
+      );
+
+  Widget _titleInput({required bool compact}) => LayoutBuilder(
+        builder: (context, constraints) => DropdownMenu<String>(
+          controller: title,
+          width: constraints.maxWidth,
+          label: const Text('Titel (optional)'),
+          hintText: category.label,
+          helperText: compact
+              ? null
+              : 'Vorschlag wählen oder eigenen Titel eingeben. '
+                  'Leer = ${category.label}.',
+          leadingIcon: const Icon(Icons.title_rounded),
+          enableFilter: true,
+          enableSearch: true,
+          requestFocusOnTap: true,
+          dropdownMenuEntries: [
+            for (final suggestion in category.titleSuggestions)
+              DropdownMenuEntry(value: suggestion, label: suggestion),
+          ],
+        ),
+      );
+
+  Widget _dateRange({required bool compact}) {
+    final begin = _DateTimeField(
+      label: 'Beginn',
+      value: startAt,
+      compact: compact,
+      onChanged: (value) {
+        setState(() => startAt = value ?? startAt);
+        _refreshPitchConflicts();
+      },
+    );
+    final end = _DateTimeField(
+      label: 'Ende',
+      value: endAt,
+      compact: compact,
+      allowClear: true,
+      onChanged: (value) {
+        setState(() => endAt = value);
+        _refreshPitchConflicts();
+      },
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: begin),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 10),
+          child: const SizedBox(
+            height: 54,
+            child: Center(child: Icon(Icons.arrow_forward_rounded, size: 18)),
+          ),
+        ),
+        Expanded(child: end),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 600;
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: mobile ? 8 : 14,
+        vertical: mobile ? 10 : 20,
+      ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760, maxHeight: 860),
+        constraints: BoxConstraints(
+          maxWidth: 760,
+          maxHeight: mobile ? MediaQuery.sizeOf(context).height - 20 : 860,
+        ),
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 22, 16, 12),
+              padding: EdgeInsets.fromLTRB(
+                mobile ? 16 : 24,
+                mobile ? 12 : 22,
+                mobile ? 8 : 16,
+                mobile ? 6 : 12,
+              ),
               child: Row(
                 children: [
                   Expanded(
@@ -3528,7 +3740,9 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       widget.event == null
                           ? 'Termin anlegen'
                           : 'Termin bearbeiten',
-                      style: Theme.of(context).textTheme.headlineSmall,
+                      style: mobile
+                          ? Theme.of(context).textTheme.titleLarge
+                          : Theme.of(context).textTheme.headlineSmall,
                     ),
                   ),
                   IconButton(
@@ -3542,73 +3756,31 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
               child: Form(
                 key: formKey,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  padding: EdgeInsets.fromLTRB(
+                    mobile ? 14 : 24,
+                    mobile ? 4 : 8,
+                    mobile ? 14 : 24,
+                    mobile ? 16 : 24,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DropdownButtonFormField<EventCategory>(
-                        initialValue: category,
-                        decoration:
-                            const InputDecoration(labelText: 'Kategorie'),
-                        items: [
-                          for (final value in EventCategory.values)
-                            DropdownMenuItem(
-                              value: value,
-                              child: Text(value.label),
-                            ),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            category = value ?? category;
-                            if (category.isMatch) {
-                              homeAway ??= HomeAway.home;
-                            }
-                          });
-                          _refreshPitchConflicts();
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      LayoutBuilder(
-                        builder: (context, constraints) => DropdownMenu<String>(
-                          controller: title,
-                          width: constraints.maxWidth,
-                          label: const Text('Titel (optional)'),
-                          hintText: category.label,
-                          helperText:
-                              'Vorschlag wählen oder eigenen Titel eingeben. '
-                              'Leer = ${category.label}.',
-                          enableFilter: true,
-                          enableSearch: true,
-                          requestFocusOnTap: true,
-                          dropdownMenuEntries: [
-                            for (final suggestion in category.titleSuggestions)
-                              DropdownMenuEntry(
-                                value: suggestion,
-                                label: suggestion,
-                              ),
+                      if (mobile) ...[
+                        _categoryInput(),
+                        const SizedBox(height: 9),
+                        _titleInput(compact: true),
+                      ] else
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(width: 230, child: _categoryInput()),
+                            const SizedBox(width: 12),
+                            Expanded(child: _titleInput(compact: false)),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      _DateTimeField(
-                        label: 'Beginn',
-                        value: startAt,
-                        onChanged: (value) {
-                          setState(() => startAt = value ?? startAt);
-                          _refreshPitchConflicts();
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      _DateTimeField(
-                        label: 'Ende',
-                        value: endAt,
-                        allowClear: true,
-                        onChanged: (value) {
-                          setState(() => endAt = value);
-                          _refreshPitchConflicts();
-                        },
-                      ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: mobile ? 9 : 12),
+                      _dateRange(compact: mobile),
+                      SizedBox(height: mobile ? 9 : 12),
                       if (category.isMatch)
                         _MatchMeetingTimeField(
                           mode: meetingTimeMode,
@@ -4002,22 +4174,38 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
               ),
             ),
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(
+                mobile ? 12 : 16,
+                mobile ? 9 : 16,
+                mobile ? 12 : 16,
+                mobile ? 10 : 16,
+              ),
               decoration: const BoxDecoration(
                 border: Border(top: BorderSide(color: AppColors.line)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Abbrechen'),
+                  Flexible(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Abbrechen'),
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _save,
-                    child: const Text('Speichern'),
-                  ),
+                  if (mobile)
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _save,
+                        icon: const Icon(Icons.check_rounded, size: 19),
+                        label: const Text('Termin speichern'),
+                      ),
+                    )
+                  else
+                    FilledButton(
+                      onPressed: _save,
+                      child: const Text('Speichern'),
+                    ),
                 ],
               ),
             ),
@@ -4522,6 +4710,7 @@ class _DateTimeField extends StatelessWidget {
     required this.onChanged,
     this.allowClear = false,
     this.dateOnly = false,
+    this.compact = false,
   });
 
   final String label;
@@ -4529,6 +4718,7 @@ class _DateTimeField extends StatelessWidget {
   final ValueChanged<DateTime?> onChanged;
   final bool allowClear;
   final bool dateOnly;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -4558,19 +4748,35 @@ class _DateTimeField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
+          isDense: compact,
+          contentPadding:
+              compact ? const EdgeInsets.fromLTRB(12, 12, 6, 9) : null,
           suffixIcon: allowClear && value != null
               ? IconButton(
                   onPressed: () => onChanged(null),
-                  icon: const Icon(Icons.clear_rounded),
+                  visualDensity: compact ? VisualDensity.compact : null,
+                  icon: Icon(Icons.clear_rounded, size: compact ? 18 : 24),
                 )
-              : const Icon(Icons.calendar_today_rounded),
+              : Icon(
+                  Icons.calendar_today_rounded,
+                  size: compact ? 17 : 24,
+                ),
         ),
         child: Text(
           value == null
               ? 'Auswählen'
               : dateOnly
                   ? _fullDate(value!)
-                  : '${_fullDate(value!)} · ${_time(value!)} Uhr',
+                  : compact
+                      ? '${value!.day}.${value!.month}.'
+                          '${value!.year.toString().substring(2)}\n'
+                          '${_time(value!)} Uhr'
+                      : '${_fullDate(value!)} · ${_time(value!)} Uhr',
+          maxLines: compact ? 2 : 1,
+          overflow: TextOverflow.ellipsis,
+          style: compact
+              ? const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)
+              : null,
         ),
       ),
     );

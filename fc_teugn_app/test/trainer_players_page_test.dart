@@ -58,6 +58,7 @@ void main() {
       position: 'ZM',
       dominantFoot: DominantFoot.right,
       shirtNumber: 8,
+      photoUrl: 'https://example.test/max.jpg',
       status: PlayerStatus.active,
       teamName: 'E1',
       teamNumber: 1,
@@ -103,6 +104,17 @@ void main() {
     expect(find.text('OhneVorname'), findsOneWidget);
     expect(find.text('O'), findsOneWidget);
     expect(find.text('Alle Jugenden'), findsOneWidget);
+    const photoKey = ValueKey('player-photo-player-1');
+    expect(find.byKey(photoKey), findsOneWidget);
+    for (final mode in ['Liste', 'Details', 'Groß', 'Klein']) {
+      await tester.tap(find.text(mode));
+      await tester.pump();
+      expect(
+        find.byKey(photoKey),
+        findsOneWidget,
+        reason: 'Spielerfoto fehlt in der Ansicht $mode',
+      );
+    }
     expect(tester.takeException(), isNull);
   });
 }

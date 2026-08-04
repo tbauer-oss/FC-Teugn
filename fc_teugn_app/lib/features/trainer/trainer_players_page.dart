@@ -1013,6 +1013,7 @@ class _PlayerAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasPhoto = player.photoUrl?.trim().isNotEmpty == true;
     final fallback = Container(
       alignment: Alignment.center,
       color: AppColors.blue.withValues(alpha: .1),
@@ -1024,16 +1025,23 @@ class _PlayerAvatar extends StatelessWidget {
         ),
       ),
     );
-    return ClipOval(
-      child: SizedBox.square(
-        dimension: size,
-        child: player.photoUrl == null
-            ? fallback
-            : Image.network(
-                player.photoUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => fallback,
-              ),
+    return Semantics(
+      key: ValueKey('player-photo-${player.id}'),
+      image: hasPhoto,
+      label: hasPhoto ? 'Spielerfoto von ${player.fullName}' : null,
+      child: ClipOval(
+        child: SizedBox.square(
+          dimension: size,
+          child: !hasPhoto
+              ? fallback
+              : Image.network(
+                  player.photoUrl!.trim(),
+                  fit: BoxFit.cover,
+                  filterQuality:
+                      size >= 80 ? FilterQuality.high : FilterQuality.medium,
+                  errorBuilder: (_, __, ___) => fallback,
+                ),
+        ),
       ),
     );
   }
