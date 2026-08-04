@@ -78,6 +78,19 @@ void main() {
     await tester.ensureVisible(swipeSurface);
     await tester.pumpAndSettle();
 
+    final pageScroll = tester.state<ScrollableState>(
+      find.byType(Scrollable).first,
+    );
+    final scrollBeforeCalendarDrag = pageScroll.position.pixels;
+    await tester.drag(swipeSurface, const Offset(0, -120));
+    await tester.pumpAndSettle();
+    expect(
+      pageScroll.position.pixels,
+      closeTo(scrollBeforeCalendarDrag, .1),
+      reason: 'Vertikale Gesten innerhalb des Kalenders dürfen nicht die '
+          'gesamte Seite verschieben.',
+    );
+
     var swipeStart = tester.getTopLeft(swipeSurface) + const Offset(280, 120);
     final gesture = await tester.startGesture(swipeStart);
     await gesture.moveBy(const Offset(-90, 0));
@@ -85,6 +98,18 @@ void main() {
     expect(
       find.byKey(const ValueKey('calendar-month-dragging-page')),
       findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('calendar-month-adjacent-page')),
+      findsOneWidget,
+    );
+    final adjacentTransform = tester.widget<Transform>(
+      find.byKey(const ValueKey('calendar-month-adjacent-page')),
+    );
+    expect(
+      adjacentTransform.transform.storage[12],
+      greaterThan(0),
+      reason: 'Der Folgemonat muss bereits unter dem Finger ins Bild kommen.',
     );
     await gesture.moveBy(const Offset(-90, 0));
     await gesture.up();

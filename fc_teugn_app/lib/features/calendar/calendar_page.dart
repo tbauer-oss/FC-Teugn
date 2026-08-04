@@ -105,6 +105,22 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                     navigationDirection: _navigationDirection,
                     onPrevious: () => _navigate(-1),
                     onNext: () => _navigate(1),
+                    previousChild: _MonthView(
+                      key: ValueKey(
+                        'calendar-${cursor.year}-${cursor.month - 1}',
+                      ),
+                      cursor: DateTime(cursor.year, cursor.month - 1, 1),
+                      events: filtered,
+                      onOpen: _openEvent,
+                    ),
+                    nextChild: _MonthView(
+                      key: ValueKey(
+                        'calendar-${cursor.year}-${cursor.month + 1}',
+                      ),
+                      cursor: DateTime(cursor.year, cursor.month + 1, 1),
+                      events: filtered,
+                      onOpen: _openEvent,
+                    ),
                     child: _MonthView(
                       key: ValueKey('calendar-${cursor.year}-${cursor.month}'),
                       cursor: cursor,
@@ -759,14 +775,18 @@ class _SwipeableMonthView extends StatefulWidget {
     required this.navigationDirection,
     required this.onPrevious,
     required this.onNext,
+    required this.previousChild,
     required this.child,
+    required this.nextChild,
   });
 
   final DateTime cursor;
   final int navigationDirection;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+  final Widget previousChild;
   final Widget child;
+  final Widget nextChild;
 
   @override
   State<_SwipeableMonthView> createState() => _SwipeableMonthViewState();
@@ -902,90 +922,119 @@ class _SwipeableMonthViewState extends State<_SwipeableMonthView>
       label:
           'Monatskalender ${_periodLabel(CalendarView.month, widget.cursor)}. '
           'Nach links oder rechts wischen, um den Monat zu wechseln.',
-      child: Listener(
-        key: const ValueKey('calendar-month-swipe-surface'),
+      child: GestureDetector(
+        // These recognizers deliberately own drags that start on the calendar.
+        // This keeps the surrounding page from scrolling vertically while a
+        // user is trying to change the month. Taps on individual days continue
+        // to pass through because no drag recognizer wins before touch slop.
         behavior: HitTestBehavior.translucent,
-        onPointerDown: (_) => _beginSwipe(),
-        onPointerMove: _updateSwipe,
-        onPointerUp: (_) => _finishSwipe(),
-        onPointerCancel: (_) {
-          _horizontalDistance = 0;
-          _verticalDistance = 0;
-          _horizontalGesture = false;
-          _axisDecided = false;
-          _snapBack();
-        },
-        child: ClipRect(
-          child: AnimatedSize(
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeInOutCubic,
-            alignment: Alignment.topCenter,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                _viewportWidth = constraints.maxWidth;
-                final travel = constraints.maxWidth;
-                return AnimatedBuilder(
-                  key: const ValueKey('calendar-month-page-transition'),
-                  animation: _pageController,
-                  builder: (context, _) {
-                    if (_outgoingPage == null && _dragOffset != 0) {
-                      final dragProgress =
-                          (_dragOffset.abs() / travel).clamp(0.0, 1.0);
+        onHorizontalDragStart: (_) {},
+        onHorizontalDragUpdate: (_) {},
+        onHorizontalDragEnd: (_) {},
+        onVerticalDragStart: (_) {},
+        onVerticalDragUpdate: (_) {},
+        onVerticalDragEnd: (_) {},
+        child: Listener(
+          key: const ValueKey('calendar-month-swipe-surface'),
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => _beginSwipe(),
+          onPointerMove: _updateSwipe,
+          onPointerUp: (_) => _finishSwipe(),
+          onPointerCancel: (_) {
+            _horizontalDistance = 0;
+            _verticalDistance = 0;
+            _horizontalGesture = false;
+            _axisDecided = false;
+            _snapBack();
+          },
+          child: ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOutCubic,
+              alignment: Alignment.topCenter,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  _viewportWidth = constraints.maxWidth;
+                  final travel = constraints.maxWidth;
+                  return AnimatedBuilder(
+                    key: const ValueKey('calendar-month-page-transition'),
+                    animation: _pageController,
+                    builder: (context, _) {
+                      if (_outgoingPage == null && _dragOffset != 0) {
+                        final dragProgress =
+                            (_dragOffset.abs() / travel).clamp(0.0, 1.0);
+                        final movingForward = _dragOffset < 0;
+                        final adjacentPage = movingForward
+                            ? widget.nextChild
+                            : widget.previousChild;
+                        final adjacentOffset =
+                            _dragOffset + (movingForward ? travel : -travel);
+                        return Stack(
+                          alignment: Alignment.topCenter,
+                          children: [
+                            const Positioned.fill(
+                              child: ColoredBox(
+                                color: AppColors.background,
+                              ),
+                            ),
+                            Opacity(
+                              opacity: 1 - dragProgress * .16,
+                              child: Transform.translate(
+                                key: const ValueKey(
+                                  'calendar-month-dragging-page',
+                                ),
+                                offset: Offset(_dragOffset, 0),
+                                child: _currentPage,
+                              ),
+                            ),
+                            IgnorePointer(
+                              child: Transform.translate(
+                                key: const ValueKey(
+                                  'calendar-month-adjacent-page',
+                                ),
+                                offset: Offset(adjacentOffset, 0),
+                                child: adjacentPage,
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                      final progress =
+                          Curves.easeInOutCubicEmphasized.transform(
+                        _pageController.value,
+                      );
                       return Stack(
                         alignment: Alignment.topCenter,
                         children: [
-                          const Positioned.fill(
-                            child: ColoredBox(
-                              color: AppColors.background,
-                            ),
-                          ),
-                          Opacity(
-                            opacity: 1 - dragProgress * .16,
-                            child: Transform.translate(
-                              key: const ValueKey(
-                                'calendar-month-dragging-page',
+                          if (_outgoingPage != null)
+                            IgnorePointer(
+                              child: Opacity(
+                                opacity: 1 - progress * .55,
+                                child: Transform.translate(
+                                  offset: Offset(
+                                    -_slideDirection * progress * travel,
+                                    0,
+                                  ),
+                                  child: _outgoingPage,
+                                ),
                               ),
-                              offset: Offset(_dragOffset, 0),
+                            ),
+                          Opacity(
+                            opacity: .55 + progress * .45,
+                            child: Transform.translate(
+                              offset: Offset(
+                                _slideDirection * (1 - progress) * travel,
+                                0,
+                              ),
                               child: _currentPage,
                             ),
                           ),
                         ],
                       );
-                    }
-                    final progress = Curves.easeInOutCubicEmphasized.transform(
-                      _pageController.value,
-                    );
-                    return Stack(
-                      alignment: Alignment.topCenter,
-                      children: [
-                        if (_outgoingPage != null)
-                          IgnorePointer(
-                            child: Opacity(
-                              opacity: 1 - progress * .55,
-                              child: Transform.translate(
-                                offset: Offset(
-                                  -_slideDirection * progress * travel,
-                                  0,
-                                ),
-                                child: _outgoingPage,
-                              ),
-                            ),
-                          ),
-                        Opacity(
-                          opacity: .55 + progress * .45,
-                          child: Transform.translate(
-                            offset: Offset(
-                              _slideDirection * (1 - progress) * travel,
-                              0,
-                            ),
-                            child: _currentPage,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
+                    },
+                  );
+                },
+              ),
             ),
           ),
         ),
