@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('mobile calendar changes months with horizontal swipes',
       (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
+    tester.view.physicalSize = const Size(390, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -82,19 +82,28 @@ void main() {
       find.byType(Scrollable).first,
     );
     final scrollBeforeCalendarDrag = pageScroll.position.pixels;
-    await tester.drag(swipeSurface, const Offset(0, -120));
+    await tester.drag(swipeSurface, const Offset(0, 120));
     await tester.pumpAndSettle();
     expect(
       pageScroll.position.pixels,
-      closeTo(scrollBeforeCalendarDrag, .1),
-      reason: 'Vertikale Gesten innerhalb des Kalenders dürfen nicht die '
-          'gesamte Seite verschieben.',
+      lessThan(scrollBeforeCalendarDrag - 20),
+      reason: 'Reine vertikale Gesten müssen auch über dem Kalender die '
+          'gesamte Seite wieder nach oben scrollen können.',
     );
+    await tester.ensureVisible(swipeSurface);
+    await tester.pumpAndSettle();
 
     var swipeStart = tester.getTopLeft(swipeSurface) + const Offset(280, 120);
+    final scrollBeforeHorizontalDrag = pageScroll.position.pixels;
     final gesture = await tester.startGesture(swipeStart);
     await gesture.moveBy(const Offset(-90, 0));
     await tester.pump();
+    expect(
+      pageScroll.position.pixels,
+      closeTo(scrollBeforeHorizontalDrag, .1),
+      reason: 'Während der horizontalen Monatsgeste darf die Seite nicht '
+          'vertikal wandern.',
+    );
     expect(
       find.byKey(const ValueKey('calendar-month-dragging-page')),
       findsOneWidget,
