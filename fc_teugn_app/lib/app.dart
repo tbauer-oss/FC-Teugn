@@ -177,6 +177,25 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
     );
   }
 
+  void _retryBootstrap(AppBootstrapSession session) {
+    ref.invalidate(organizationProvider);
+    ref.invalidate(playersProvider);
+    ref.invalidate(eventsProvider);
+    ref.invalidate(trainingsProvider);
+    ref.invalidate(outdoorPitchOccupancyProvider);
+    ref.invalidate(indoorPitchOccupancyProvider);
+    ref.invalidate(pendingUsersProvider);
+    ref.invalidate(membersProvider);
+    ref.invalidate(sessionBootstrapProvider(session));
+  }
+
+  String _bootstrapErrorMessage(Object? error) {
+    if (error is AppBootstrapException) {
+      return 'Beim Laden von „${error.resource}“ ist die Verbindung abgebrochen.';
+    }
+    return 'Die Vereinsdaten konnten nicht vollständig geladen werden.';
+  }
+
   Widget _withLaunchTransition(Widget child) => AnimatedSwitcher(
         duration: const Duration(milliseconds: 900),
         reverseDuration: const Duration(milliseconds: 800),
@@ -211,9 +230,21 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         if (mounted && identical(router, _activeRouter)) router.refresh();
       });
     });
-    ref.watch(nativePushRegistrationProvider);
+    final approvedUser = authState.user?.status == AccountStatus.approved
+        ? authState.user
+        : null;
+    final bootstrapSession = approvedUser == null
+        ? null
+        : (userId: approvedUser.id, role: approvedUser.role);
+    final bootstrap = bootstrapSession == null
+        ? null
+        : ref.watch(sessionBootstrapProvider(bootstrapSession));
+    final bootstrapLoading = bootstrap?.isLoading == true;
+    final bootstrapError = bootstrap?.error;
     if (!_minimumLaunchComplete ||
-        (authState.loading && authState.user == null)) {
+        (authState.loading && authState.user == null) ||
+        bootstrapLoading ||
+        bootstrapError != null) {
       return _withLaunchTransition(MaterialApp(
         key: const ValueKey('fc-teugn-launch'),
         title: AppIdentity.name,
@@ -223,9 +254,24 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         supportedLocales: _supportedLocales,
         localizationsDelegates: _localizationsDelegates,
         builder: _forceGerman24HourClock,
-        home: const AnimatedLaunchScreen(),
+        home: AnimatedLaunchScreen(
+          waitingForData: bootstrapLoading,
+          statusMessage: bootstrapLoading
+              ? 'Vereinsdaten werden sicher vorbereitet …'
+              : bootstrapError != null
+                  ? 'Start konnte noch nicht abgeschlossen werden'
+                  : 'App wird vorbereitet …',
+          errorMessage: bootstrapError == null
+              ? null
+              : _bootstrapErrorMessage(bootstrapError),
+          onRetry: bootstrapSession == null || bootstrapError == null
+              ? null
+              : () => _retryBootstrap(bootstrapSession),
+        ),
       ));
     }
+
+    ref.watch(nativePushRegistrationProvider);
 
     // Keep one router for the complete signed-in app lifetime. Recreating it
     // after a provider refresh resets the navigation stack to its initial

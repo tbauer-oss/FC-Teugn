@@ -7,9 +7,17 @@ class AnimatedLaunchScreen extends StatefulWidget {
   const AnimatedLaunchScreen({
     super.key,
     this.duration = const Duration(milliseconds: 2550),
+    this.waitingForData = false,
+    this.statusMessage,
+    this.errorMessage,
+    this.onRetry,
   });
 
   final Duration duration;
+  final bool waitingForData;
+  final String? statusMessage;
+  final String? errorMessage;
+  final VoidCallback? onRetry;
 
   @override
   State<AnimatedLaunchScreen> createState() => _AnimatedLaunchScreenState();
@@ -71,17 +79,29 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
                 constraints.maxHeight > constraints.maxWidth * 1.15;
             return AnimatedBuilder(
               animation: _controller,
-              builder: (context, child) => useMobileLayout
-                  ? _MobileLaunchStage(
-                      imageEntrance: _imageEntrance,
-                      claimEntrance: _claimEntrance,
-                      progress: _progress.value,
-                    )
-                  : _DesktopLaunchStage(
-                      imageEntrance: _imageEntrance,
-                      claimEntrance: _claimEntrance,
-                      progress: _progress.value,
-                    ),
+              builder: (context, child) {
+                final progress = widget.waitingForData &&
+                        _controller.status == AnimationStatus.completed
+                    ? null
+                    : _progress.value;
+                return useMobileLayout
+                    ? _MobileLaunchStage(
+                        imageEntrance: _imageEntrance,
+                        claimEntrance: _claimEntrance,
+                        progress: progress,
+                        statusMessage: widget.statusMessage,
+                        errorMessage: widget.errorMessage,
+                        onRetry: widget.onRetry,
+                      )
+                    : _DesktopLaunchStage(
+                        imageEntrance: _imageEntrance,
+                        claimEntrance: _claimEntrance,
+                        progress: progress,
+                        statusMessage: widget.statusMessage,
+                        errorMessage: widget.errorMessage,
+                        onRetry: widget.onRetry,
+                      );
+              },
             );
           },
         ),
@@ -95,11 +115,17 @@ class _MobileLaunchStage extends StatelessWidget {
     required this.imageEntrance,
     required this.claimEntrance,
     required this.progress,
+    required this.statusMessage,
+    required this.errorMessage,
+    required this.onRetry,
   });
 
   final Animation<double> imageEntrance;
   final Animation<double> claimEntrance;
-  final double progress;
+  final double? progress;
+  final String? statusMessage;
+  final String? errorMessage;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +169,9 @@ class _MobileLaunchStage extends StatelessWidget {
                 entrance: claimEntrance,
                 progress: progress,
                 compact: true,
+                statusMessage: statusMessage,
+                errorMessage: errorMessage,
+                onRetry: onRetry,
               ),
             ),
           ),
@@ -157,11 +186,17 @@ class _DesktopLaunchStage extends StatelessWidget {
     required this.imageEntrance,
     required this.claimEntrance,
     required this.progress,
+    required this.statusMessage,
+    required this.errorMessage,
+    required this.onRetry,
   });
 
   final Animation<double> imageEntrance;
   final Animation<double> claimEntrance;
-  final double progress;
+  final double? progress;
+  final String? statusMessage;
+  final String? errorMessage;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -224,6 +259,9 @@ class _DesktopLaunchStage extends StatelessWidget {
                     progress: progress,
                     compact: false,
                     centered: true,
+                    statusMessage: statusMessage,
+                    errorMessage: errorMessage,
+                    onRetry: onRetry,
                   ),
                 ),
               ),
@@ -241,12 +279,18 @@ class _LaunchProgress extends StatelessWidget {
     required this.progress,
     required this.compact,
     this.centered = false,
+    this.statusMessage,
+    this.errorMessage,
+    this.onRetry,
   });
 
   final Animation<double> entrance;
-  final double progress;
+  final double? progress;
   final bool compact;
   final bool centered;
+  final String? statusMessage;
+  final String? errorMessage;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -277,7 +321,8 @@ class _LaunchProgress extends StatelessWidget {
               )
             else
               Text(
-                'App wird vorbereitet …',
+                statusMessage ?? 'App wird vorbereitet …',
+                textAlign: centered ? TextAlign.center : TextAlign.start,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: .7),
                   fontSize: 12,
@@ -285,19 +330,50 @@ class _LaunchProgress extends StatelessWidget {
                   letterSpacing: .4,
                 ),
               ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: compact ? 112 : 220,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(99),
-                child: LinearProgressIndicator(
-                  minHeight: 3,
-                  value: progress,
-                  color: AppColors.yellow,
-                  backgroundColor: Colors.white.withValues(alpha: .22),
+            if (compact && statusMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                statusMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: .78),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
+            ],
+            if (errorMessage == null) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: compact ? 112 : 220,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    minHeight: 3,
+                    value: progress,
+                    color: AppColors.yellow,
+                    backgroundColor: Colors.white.withValues(alpha: .22),
+                  ),
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 10),
+              Text(
+                errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Erneut verbinden'),
+              ),
+            ],
           ],
         ),
       ),

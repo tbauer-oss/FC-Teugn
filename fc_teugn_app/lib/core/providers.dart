@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/auth_controller.dart';
@@ -8,7 +7,9 @@ import 'api_client.dart';
 import 'data_repository.dart';
 import 'models/event.dart';
 import 'models/organization.dart';
+import 'models/pitch_occupancy.dart';
 import 'models/player.dart';
+import 'models/training.dart';
 import 'models/user.dart';
 import 'models/team_operations.dart';
 import 'offline_ticker.dart';
@@ -79,47 +80,113 @@ final eventsProvider = FutureProvider<List<EventModel>>((ref) async {
   return ref.watch(repositoryProvider).events();
 });
 
+final trainingsProvider = FutureProvider<List<TrainingModel>>((ref) async {
+  return ref.watch(repositoryProvider).trainings();
+});
+
+final outdoorPitchOccupancyProvider =
+    FutureProvider<PitchOccupancyPlan>((ref) async {
+  return ref.watch(repositoryProvider).pitchOccupancy();
+});
+
+final indoorPitchOccupancyProvider =
+    FutureProvider<PitchOccupancyPlan>((ref) async {
+  return ref.watch(repositoryProvider).pitchOccupancy(indoor: true);
+});
+
 final pendingUsersProvider = FutureProvider<List<AppUser>>((ref) async {
-  final repository = ref.watch(repositoryProvider);
-  return loadWithTransientRetry(repository.pendingUsers);
+  return ref.watch(repositoryProvider).pendingUsers();
 });
 
 final membersProvider = FutureProvider<List<AppUser>>((ref) async {
-  final repository = ref.watch(repositoryProvider);
-  return loadWithTransientRetry(repository.members);
+  return ref.watch(repositoryProvider).members();
 });
-
-/// Wiederholt kurzzeitige API-Ausfälle beim ersten Seitenaufruf automatisch.
-/// So bleibt ein Vercel-Kaltstart oder ein kurzer Netzwechsel im Ladezustand,
-/// statt sofort eine Fehlerkarte zu zeigen, die erst per Pull-to-refresh
-/// verschwindet.
-Future<T> loadWithTransientRetry<T>(
-  Future<T> Function() load, {
-  int maxAttempts = 4,
-  Duration initialDelay = const Duration(milliseconds: 250),
-}) async {
-  assert(maxAttempts > 0);
-  for (var attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      return await load();
-    } catch (error) {
-      final isLastAttempt = attempt == maxAttempts - 1;
-      if (isLastAttempt || !_isTransientRequestFailure(error)) rethrow;
-      await Future<void>.delayed(initialDelay * (1 << attempt));
-    }
-  }
-  throw StateError('Unreachable retry state');
-}
-
-bool _isTransientRequestFailure(Object error) {
-  if (error is! DioException) return false;
-  final status = error.response?.statusCode;
-  return status == null || status == 408 || status == 429 || status >= 500;
-}
 
 final organizationProvider = FutureProvider<OrganizationContext>((ref) async {
   return ref.watch(repositoryProvider).organizationContext();
 });
+
+typedef AppBootstrapSession = ({String userId, UserRole role});
+
+class AppBootstrapException implements Exception {
+  const AppBootstrapException(this.resource, this.cause);
+
+  final String resource;
+  final Object cause;
+
+  @override
+  String toString() => '$resource konnte nicht geladen werden: $cause';
+}
+
+/// Lädt die Kerndaten einer angemeldeten Sitzung vollständig vor. Die
+/// aufgerufenen FutureProvider halten ihre Ergebnisse anschließend im Cache,
+/// sodass die erste sichtbare Seite nicht dieselben Requests erneut starten
+/// muss. autoDispose sorgt dafür, dass beim Abmelden keine Sitzung erhalten
+/// bleibt.
+final sessionBootstrapProvider =
+    FutureProvider.autoDispose.family<void, AppBootstrapSession>(
+  (ref, session) async {
+    Future<void> preload<T>(String resource, Future<T> future) async {
+      try {
+        await future;
+      } catch (error) {
+        throw AppBootstrapException(resource, error);
+      }
+    }
+
+    final tasks = <Future<void>>[
+      preload('Mannschaftsdaten', ref.read(organizationProvider.future)),
+      preload('Spielerdaten', ref.read(playersProvider.future)),
+      preload('Kalenderdaten', ref.read(eventsProvider.future)),
+    ];
+
+    final isStaff = switch (session.role) {
+      UserRole.superAdmin ||
+      UserRole.clubAdmin ||
+      UserRole.youthDirector ||
+      UserRole.coach ||
+      UserRole.assistantCoach ||
+      UserRole.teamManager ||
+      UserRole.trainerAdmin ||
+      UserRole.trainer =>
+        true,
+      _ => false,
+    };
+    if (isStaff) {
+      tasks.addAll([
+        preload('Trainingsdaten', ref.read(trainingsProvider.future)),
+        preload(
+          'Platzbelegung',
+          ref.read(outdoorPitchOccupancyProvider.future),
+        ),
+        preload(
+          'Hallenbelegung',
+          ref.read(indoorPitchOccupancyProvider.future),
+        ),
+      ]);
+    }
+
+    final canManageMembers = switch (session.role) {
+      UserRole.superAdmin ||
+      UserRole.clubAdmin ||
+      UserRole.youthDirector ||
+      UserRole.coach ||
+      UserRole.teamManager ||
+      UserRole.trainerAdmin ||
+      UserRole.trainer =>
+        true,
+      _ => false,
+    };
+    if (canManageMembers) {
+      tasks.addAll([
+        preload('Offene Freigaben', ref.read(pendingUsersProvider.future)),
+        preload('Mitgliederdaten', ref.read(membersProvider.future)),
+      ]);
+    }
+
+    await Future.wait(tasks);
+  },
+);
 
 final teamOperationsProvider =
     FutureProvider.family<TeamOperationsOverview, String>((ref, teamId) async {

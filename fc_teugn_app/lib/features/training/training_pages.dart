@@ -49,7 +49,13 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refresh = false}) async {
+    if (refresh) {
+      ref.invalidate(trainingsProvider);
+      ref.invalidate(organizationProvider);
+      ref.invalidate(outdoorPitchOccupancyProvider);
+      ref.invalidate(indoorPitchOccupancyProvider);
+    }
     if (mounted) {
       setState(() {
         _trainings = null;
@@ -72,7 +78,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
 
   Future<void> _loadTrainings() async {
     try {
-      final trainings = await ref.read(repositoryProvider).trainings();
+      final trainings = await ref.read(trainingsProvider.future);
       if (mounted) {
         setState(() {
           _trainings = trainings;
@@ -89,8 +95,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
 
   Future<void> _loadOrganization() async {
     try {
-      final organization =
-          await ref.read(repositoryProvider).organizationContext();
+      final organization = await ref.read(organizationProvider.future);
       if (mounted) {
         setState(() {
           _organization = organization;
@@ -107,7 +112,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
 
   Future<void> _loadOccupancy() async {
     try {
-      final occupancy = await ref.read(repositoryProvider).pitchOccupancy();
+      final occupancy = await ref.read(outdoorPitchOccupancyProvider.future);
       if (mounted) {
         setState(() {
           _occupancy = occupancy;
@@ -124,8 +129,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
 
   Future<void> _loadIndoorOccupancy() async {
     try {
-      final occupancy =
-          await ref.read(repositoryProvider).pitchOccupancy(indoor: true);
+      final occupancy = await ref.read(indoorPitchOccupancyProvider.future);
       if (mounted) {
         setState(() {
           _indoorOccupancy = occupancy;
@@ -309,7 +313,10 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             icon: Icons.fitness_center_rounded,
             title: 'Trainingstermine nicht erreichbar',
             message: _trainingsError!,
-            onRetry: _loadTrainings,
+            onRetry: () async {
+              ref.invalidate(trainingsProvider);
+              await _loadTrainings();
+            },
           );
         }
         if (_trainings == null) {
@@ -331,7 +338,10 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             icon: Icons.stadium_rounded,
             title: 'Platzbelegung nicht erreichbar',
             message: _occupancyError!,
-            onRetry: _loadOccupancy,
+            onRetry: () async {
+              ref.invalidate(outdoorPitchOccupancyProvider);
+              await _loadOccupancy();
+            },
           );
         }
         if (_occupancy == null) {
@@ -347,7 +357,10 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             icon: Icons.sports_handball_rounded,
             title: 'Hallenbelegung nicht erreichbar',
             message: _indoorOccupancyError!,
-            onRetry: _loadIndoorOccupancy,
+            onRetry: () async {
+              ref.invalidate(indoorPitchOccupancyProvider);
+              await _loadIndoorOccupancy();
+            },
           );
         }
         if (_indoorOccupancy == null) {
@@ -566,7 +579,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
     try {
       await ref.read(repositoryProvider).createEvent(draft);
       ref.invalidate(eventsProvider);
-      await _load();
+      await _load(refresh: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -633,7 +646,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           trainingLocation: draft.trainingLocation,
         );
       }
-      await _load();
+      await _load(refresh: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Trainingszeiten wurden gespeichert.')),
@@ -666,7 +679,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             conflictKey: conflict.key,
             approved: approved,
           );
-      await _load();
+      await _load(refresh: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -726,7 +739,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           notes: draft.notes,
         );
       }
-      await _load();
+      await _load(refresh: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -780,7 +793,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
     setState(() => _creating = true);
     try {
       await ref.read(repositoryProvider).deleteIndoorOccupancyEntry(entry.id);
-      await _load();
+      await _load(refresh: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Sonderbelegung wurde gelöscht.')),
