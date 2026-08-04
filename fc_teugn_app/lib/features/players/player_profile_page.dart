@@ -1266,6 +1266,13 @@ class _FactsCard extends StatelessWidget {
                 label: 'Im Verein seit',
                 value: player.joinedAt == null ? '–' : _date(player.joinedAt!),
               ),
+              _Fact(
+                width: width,
+                label: 'Passnummer',
+                value: player.passNumber?.trim().isNotEmpty == true
+                    ? player.passNumber!
+                    : '–',
+              ),
             ],
           );
         },
@@ -2358,6 +2365,9 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
   late final TextEditingController preferredName;
   late final TextEditingController nationality;
   late final TextEditingController shirtNumber;
+  late final TextEditingController passNumber;
+  DateTime? birthDate;
+  DateTime? joinedAt;
   String? position;
   String? secondaryPosition;
   late PlayerStatus status;
@@ -2372,10 +2382,13 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
     lastName = TextEditingController(text: player.lastName);
     preferredName = TextEditingController(text: player.preferredName);
     nationality = TextEditingController(text: player.nationality);
+    birthDate = player.birthDate;
+    joinedAt = player.joinedAt;
     position = player.position;
     secondaryPosition = player.secondaryPosition;
     shirtNumber =
         TextEditingController(text: player.shirtNumber?.toString() ?? '');
+    passNumber = TextEditingController(text: player.passNumber);
     status = player.status;
     dominantFoot = player.dominantFoot;
     teamId = widget.teams.any((team) => team.id == player.teamId)
@@ -2390,6 +2403,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
     preferredName.dispose();
     nationality.dispose();
     shirtNumber.dispose();
+    passNumber.dispose();
     super.dispose();
   }
 
@@ -2406,14 +2420,15 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
           firstName: firstName.text.trim(),
           lastName: lastName.text.trim(),
           preferredName: _optional(preferredName),
-          birthDate: original.birthDate,
+          birthDate: birthDate,
           nationality: _optional(nationality),
           position: position,
           secondaryPosition: secondaryPosition,
           dominantFoot: dominantFoot,
           shirtNumber: int.tryParse(shirtNumber.text),
+          passNumber: _optional(passNumber),
           status: status,
-          joinedAt: original.joinedAt,
+          joinedAt: joinedAt,
           photoUrl: original.photoUrl,
           teamName:
               widget.teams.where((team) => team.id == teamId).firstOrNull?.name,
@@ -2491,6 +2506,38 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
                   decoration: const InputDecoration(labelText: 'Nationalität'),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            ResponsiveFormRow(
+              children: [
+                _ProfileDateField(
+                  key: const ValueKey('player-edit-birth-date'),
+                  label: 'Geburtsdatum',
+                  value: birthDate,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime.now(),
+                  onChanged: (value) => setState(() => birthDate = value),
+                ),
+                _ProfileDateField(
+                  key: const ValueKey('player-edit-joined-at'),
+                  label: 'Im Verein seit',
+                  value: joinedAt,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime.now(),
+                  onChanged: (value) => setState(() => joinedAt = value),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const ValueKey('player-edit-pass-number'),
+              controller: passNumber,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Passnummer',
+                helperText: 'Nummer des Spielerpasses (optional)',
+                prefixIcon: Icon(Icons.verified_outlined),
+              ),
             ),
           ],
         ),
@@ -2589,6 +2636,52 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _ProfileDateField extends StatelessWidget {
+  const _ProfileDateField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.firstDate,
+    required this.lastDate,
+    required this.onChanged,
+  });
+
+  final String label;
+  final DateTime? value;
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final ValueChanged<DateTime?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () async {
+        final selected = await showDatePicker(
+          context: context,
+          firstDate: firstDate,
+          lastDate: lastDate,
+          initialDate: value ?? lastDate,
+        );
+        if (selected != null) onChanged(selected);
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: value == null
+              ? const Icon(Icons.calendar_today_rounded, size: 18)
+              : IconButton(
+                  tooltip: '$label entfernen',
+                  onPressed: () => onChanged(null),
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                ),
+        ),
+        child: Text(value == null ? 'Auswählen' : _date(value!)),
+      ),
     );
   }
 }

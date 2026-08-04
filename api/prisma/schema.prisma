@@ -715,6 +715,7 @@ model Player {
   secondaryPosition    String?
   dominantFoot         DominantFoot             @default(UNKNOWN)
   shirtNumber          Int?
+  passNumber           String?
   status               PlayerStatus             @default(ACTIVE)
   joinedAt             DateTime?
   photoUrl             String?
