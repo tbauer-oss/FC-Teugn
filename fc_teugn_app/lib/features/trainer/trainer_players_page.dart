@@ -191,6 +191,7 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
             secondaryPosition: draft.secondaryPosition,
             dominantFoot: draft.dominantFoot,
             shirtNumber: draft.shirtNumber,
+            passNumber: draft.passNumber,
             joinedAt: draft.joinedAt,
           );
       ref.invalidate(playersProvider);
@@ -1135,6 +1136,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
   final _preferredName = TextEditingController();
   final _nationality = TextEditingController();
   final _shirtNumber = TextEditingController();
+  final _passNumber = TextEditingController();
   DateTime? _birthDate;
   DateTime? _joinedAt;
   String? _position;
@@ -1157,6 +1159,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
     _preferredName.dispose();
     _nationality.dispose();
     _shirtNumber.dispose();
+    _passNumber.dispose();
     super.dispose();
   }
 
@@ -1176,6 +1179,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
           secondaryPosition: _secondaryPosition,
           dominantFoot: _dominantFoot,
           shirtNumber: int.tryParse(_shirtNumber.text),
+          passNumber: _optional(_passNumber),
           birthDate: _birthDate,
           joinedAt: _joinedAt,
         ),
@@ -1271,6 +1275,17 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                         lastDate: DateTime.now(),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    key: const ValueKey('player-create-pass-number'),
+                    controller: _passNumber,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'Passnummer',
+                      helperText: 'Nummer des Spielerpasses (optional)',
+                      prefixIcon: Icon(Icons.verified_outlined),
+                    ),
                   ),
                 ],
               ),
@@ -1419,6 +1434,7 @@ class _PlayerDraft {
     this.position,
     this.secondaryPosition,
     this.shirtNumber,
+    this.passNumber,
     this.joinedAt,
   });
 
@@ -1432,5 +1448,6 @@ class _PlayerDraft {
   final String? secondaryPosition;
   final DominantFoot dominantFoot;
   final int? shirtNumber;
+  final String? passNumber;
   final DateTime? joinedAt;
 }

@@ -431,6 +431,7 @@ class DataRepository {
     String? secondaryPosition,
     DominantFoot dominantFoot = DominantFoot.unknown,
     int? shirtNumber,
+    String? passNumber,
     PlayerStatus status = PlayerStatus.active,
     DateTime? joinedAt,
   }) async {
@@ -445,6 +446,7 @@ class DataRepository {
       'secondaryPosition': secondaryPosition,
       'dominantFoot': dominantFootApi(dominantFoot),
       'shirtNumber': shirtNumber,
+      'passNumber': passNumber,
       'status': playerStatusApi(status),
       'joinedAt': joinedAt?.toIso8601String(),
     });
@@ -463,6 +465,7 @@ class DataRepository {
       'secondaryPosition': player.secondaryPosition,
       'dominantFoot': dominantFootApi(player.dominantFoot),
       'shirtNumber': player.shirtNumber,
+      'passNumber': player.passNumber,
       'status': playerStatusApi(player.status),
       'joinedAt': player.joinedAt?.toIso8601String(),
       'photoUrl': player.photoUrl,

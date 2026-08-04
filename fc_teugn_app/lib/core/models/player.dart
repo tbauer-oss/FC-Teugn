@@ -430,6 +430,7 @@ class PlayerModel {
     this.position,
     this.secondaryPosition,
     this.shirtNumber,
+    this.passNumber,
     this.joinedAt,
     this.photoUrl,
     this.teamName,
@@ -460,6 +461,7 @@ class PlayerModel {
   final String? secondaryPosition;
   final DominantFoot dominantFoot;
   final int? shirtNumber;
+  final String? passNumber;
   final PlayerStatus status;
   final DateTime? joinedAt;
   final String? photoUrl;
@@ -551,6 +553,7 @@ class PlayerModel {
       dominantFoot: _foot(_jsonString(json['dominantFoot'])),
       shirtNumber:
           json['shirtNumber'] == null ? null : _jsonInt(json['shirtNumber']),
+      passNumber: _jsonString(json['passNumber']),
       status: _status(_jsonString(json['status'])),
       joinedAt: _jsonDate(json['joinedAt']),
       photoUrl: _jsonString(json['photoUrl']),

@@ -10,7 +10,9 @@ void main() {
       'firstName': 'Max',
       'lastName': 'Muster',
       'shirtNumber': 8.0,
-      'birthDate': 'kein-datum',
+      'passNumber': 'BFV-001234',
+      'birthDate': '2015-04-08T00:00:00.000Z',
+      'joinedAt': '2022-07-01T00:00:00.000Z',
       'team': {
         'name': 'E1-Jugend',
         'teamNumber': '1',
@@ -34,7 +36,9 @@ void main() {
 
     expect(player.fullName, 'Max Muster');
     expect(player.shirtNumber, 8);
-    expect(player.birthDate, isNull);
+    expect(player.passNumber, 'BFV-001234');
+    expect(player.birthDate, DateTime.utc(2015, 4, 8));
+    expect(player.joinedAt, DateTime.utc(2022, 7, 1));
     expect(player.teamCode, 'E1');
     expect(player.goals, 4);
     expect(player.assists, 3);

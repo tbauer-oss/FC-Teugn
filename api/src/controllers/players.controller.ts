@@ -34,6 +34,7 @@ const publicPlayerSelect = {
   secondaryPosition: true,
   dominantFoot: true,
   shirtNumber: true,
+  passNumber: true,
   status: true,
   joinedAt: true,
   createdAt: true,
@@ -727,7 +728,7 @@ export async function deletePlayer(req: Request, res: Response) {
   return res.status(204).send();
 }
 
-function playerData(body: Record<string, unknown>) {
+export function playerData(body: Record<string, unknown>) {
   return {
     firstName: cleanRequiredString(body.firstName),
     lastName: cleanRequiredString(body.lastName),
@@ -741,6 +742,7 @@ function playerData(body: Record<string, unknown>) {
       Number.isInteger(body.shirtNumber) && Number(body.shirtNumber) > 0
         ? Number(body.shirtNumber)
         : null,
+    passNumber: cleanOptionalString(body.passNumber),
     status: parsePlayerStatus(body.status) ?? PlayerStatus.ACTIVE,
     joinedAt: validDate(body.joinedAt),
   };
