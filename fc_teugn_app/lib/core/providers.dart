@@ -118,11 +118,11 @@ class AppBootstrapException implements Exception {
   String toString() => '$resource konnte nicht geladen werden: $cause';
 }
 
-/// Lädt die sichtbaren Kerndaten einer angemeldeten Sitzung vollständig vor
-/// und wärmt nachgelagerte Verwaltungsbereiche parallel im Hintergrund. Die
-/// FutureProvider halten ihre Ergebnisse anschließend im Cache, sodass Seiten
-/// dieselben Requests nicht erneut starten müssen. autoDispose sorgt dafür,
-/// dass beim Abmelden keine Sitzung erhalten bleibt.
+/// Lädt die Kerndaten einer angemeldeten Sitzung vollständig vor. Die
+/// aufgerufenen FutureProvider halten ihre Ergebnisse anschließend im Cache,
+/// sodass die erste sichtbare Seite nicht dieselben Requests erneut starten
+/// muss. autoDispose sorgt dafür, dass beim Abmelden keine Sitzung erhalten
+/// bleibt.
 final sessionBootstrapProvider =
     FutureProvider.autoDispose.family<void, AppBootstrapSession>(
   (ref, session) async {
@@ -134,26 +134,11 @@ final sessionBootstrapProvider =
       }
     }
 
-    final criticalTasks = <Future<void>>[
+    final tasks = <Future<void>>[
       preload('Mannschaftsdaten', ref.read(organizationProvider.future)),
       preload('Spielerdaten', ref.read(playersProvider.future)),
       preload('Kalenderdaten', ref.read(eventsProvider.future)),
     ];
-
-    // Start the remaining requests at the same time, but do not keep the
-    // launch screen open for administration data that is not needed on the
-    // first visible page. Their providers still retain the result, so the
-    // corresponding pages are normally warm by the time they are opened.
-    final backgroundTasks = <Future<void>>[];
-
-    Future<void> warmInBackground<T>(Future<T> future) async {
-      try {
-        await future;
-      } catch (_) {
-        // A secondary page renders its own retry state. A temporary failure
-        // here must not prevent the complete app from starting.
-      }
-    }
 
     final isStaff = switch (session.role) {
       UserRole.superAdmin ||
@@ -168,12 +153,14 @@ final sessionBootstrapProvider =
       _ => false,
     };
     if (isStaff) {
-      backgroundTasks.addAll([
-        warmInBackground(ref.read(trainingsProvider.future)),
-        warmInBackground(
+      tasks.addAll([
+        preload('Trainingsdaten', ref.read(trainingsProvider.future)),
+        preload(
+          'Platzbelegung',
           ref.read(outdoorPitchOccupancyProvider.future),
         ),
-        warmInBackground(
+        preload(
+          'Hallenbelegung',
           ref.read(indoorPitchOccupancyProvider.future),
         ),
       ]);
@@ -191,14 +178,13 @@ final sessionBootstrapProvider =
       _ => false,
     };
     if (canManageMembers) {
-      backgroundTasks.addAll([
-        warmInBackground(ref.read(pendingUsersProvider.future)),
-        warmInBackground(ref.read(membersProvider.future)),
+      tasks.addAll([
+        preload('Offene Freigaben', ref.read(pendingUsersProvider.future)),
+        preload('Mitgliederdaten', ref.read(membersProvider.future)),
       ]);
     }
 
-    unawaited(Future.wait(backgroundTasks));
-    await Future.wait(criticalTasks);
+    await Future.wait(tasks);
   },
 );
 
