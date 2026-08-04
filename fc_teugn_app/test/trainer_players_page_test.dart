@@ -50,19 +50,25 @@ void main() {
         pendingApprovals: 0,
       ),
     );
-    const player = PlayerModel(
+    final player = PlayerModel(
       id: 'player-1',
       teamId: 'team-e1',
       firstName: 'Max',
       lastName: 'Mustermann',
+      birthDate: DateTime(DateTime.now().year - 12, 1, 1),
+      nationality: 'Deutschland',
+      gender: PlayerGender.male,
       position: 'ZM',
       dominantFoot: DominantFoot.right,
       shirtNumber: 8,
+      joinedAt: DateTime(2021, 7, 1),
       photoUrl: 'https://example.test/max.jpg',
       status: PlayerStatus.active,
       teamName: 'E1',
       teamNumber: 1,
       ageGroupCode: 'E',
+      starts: 5,
+      minutes: 480,
     );
     const playerWithIncompleteName = PlayerModel(
       id: 'player-2',
@@ -81,7 +87,7 @@ void main() {
       ProviderScope(
         overrides: [
           playersProvider.overrideWith(
-            (ref) async => const [player, playerWithIncompleteName],
+            (ref) async => [player, playerWithIncompleteName],
           ),
           organizationProvider.overrideWith((ref) async => organization),
         ],
@@ -114,6 +120,16 @@ void main() {
         findsOneWidget,
         reason: 'Spielerfoto fehlt in der Ansicht $mode',
       );
+      if (mode == 'Groß') {
+        expect(find.text('12 Jahre'), findsOneWidget);
+        expect(find.text('Rechts'), findsOneWidget);
+        expect(find.text('m · männlich'), findsOneWidget);
+        expect(find.text('Seit 2021'), findsOneWidget);
+        expect(find.text('Deutschland'), findsOneWidget);
+        expect(find.text('Startelf'), findsNWidgets(2));
+        expect(find.text('Minuten'), findsNWidgets(2));
+        expect(find.text('480'), findsOneWidget);
+      }
     }
     expect(tester.takeException(), isNull);
   });

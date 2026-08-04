@@ -563,7 +563,7 @@ class _PlayerCollection extends StatelessWidget {
             mainAxisSpacing: compact ? 10 : 14,
             childAspectRatio: compact
                 ? (columns == 1 ? 3.0 : 2.15)
-                : (columns == 1 ? 1.25 : 1.35),
+                : (columns == 1 ? .8 : 1.35),
           ),
           itemBuilder: (context, index) => compact
               ? _CompactPlayerCard(
@@ -950,7 +950,44 @@ class _LargePlayerCard extends StatelessWidget {
                   style: const TextStyle(color: AppColors.muted),
                 ),
               ),
-              const SizedBox(height: 9),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _LargeCardFact(
+                      icon: Icons.cake_outlined,
+                      label: player.age == null
+                          ? 'Alter offen'
+                          : '${player.age} Jahre',
+                    ),
+                    _LargeCardFact(
+                      icon: Icons.directions_run_rounded,
+                      label: player.dominantFoot == DominantFoot.unknown
+                          ? 'Fuß offen'
+                          : _dominantFootLabel(player.dominantFoot),
+                    ),
+                    _LargeCardFact(
+                      icon: Icons.person_outline_rounded,
+                      label: _largeCardGenderLabel(player.gender),
+                    ),
+                    _LargeCardFact(
+                      icon: Icons.calendar_month_outlined,
+                      label: player.joinedAt == null
+                          ? 'Eintritt offen'
+                          : 'Seit ${player.joinedAt!.year}',
+                    ),
+                    if (player.nationality?.trim().isNotEmpty == true)
+                      _LargeCardFact(
+                        icon: Icons.flag_outlined,
+                        label: player.nationality!.trim(),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
@@ -971,11 +1008,28 @@ class _LargePlayerCard extends StatelessWidget {
               ),
               const Divider(height: 20),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _CardStatistic(value: player.goals, label: 'Tore'),
-                  _CardStatistic(value: player.assists, label: 'Assists'),
-                  _CardStatistic(value: player.appearances, label: 'Einsätze'),
+                  Expanded(
+                    child: _CardStatistic(value: player.goals, label: 'Tore'),
+                  ),
+                  Expanded(
+                    child:
+                        _CardStatistic(value: player.assists, label: 'Assists'),
+                  ),
+                  Expanded(
+                    child: _CardStatistic(
+                      value: player.appearances,
+                      label: 'Einsätze',
+                    ),
+                  ),
+                  Expanded(
+                    child:
+                        _CardStatistic(value: player.starts, label: 'Startelf'),
+                  ),
+                  Expanded(
+                    child:
+                        _CardStatistic(value: player.minutes, label: 'Minuten'),
+                  ),
                 ],
               ),
             ],
@@ -984,6 +1038,36 @@ class _LargePlayerCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LargeCardFact extends StatelessWidget {
+  const _LargeCardFact({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: AppColors.blue),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _CardStatistic extends StatelessWidget {
@@ -1108,6 +1192,13 @@ String _dominantFootLabel(DominantFoot foot) => switch (foot) {
       DominantFoot.left => 'Links',
       DominantFoot.both => 'Beidfüßig',
       DominantFoot.unknown => 'Noch offen',
+    };
+
+String _largeCardGenderLabel(PlayerGender? gender) => switch (gender) {
+      PlayerGender.male => 'm · männlich',
+      PlayerGender.female => 'w · weiblich',
+      PlayerGender.diverse => 'd · divers',
+      null => 'Geschlecht offen',
     };
 
 (String, Color) _statusStyle(PlayerStatus status) => switch (status) {
