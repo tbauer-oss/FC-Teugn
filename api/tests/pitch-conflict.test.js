@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const {
   parseTrainingSlot,
+  pitchConflictAction,
   pitchesOverlap,
   requestableEventPitch,
 } = require('../dist/src/services/pitch-conflict.service.js');
@@ -78,6 +79,33 @@ test('individual non-match events can request a pitch approval', () => {
   assert.equal(
     requestableEventPitch(null, 'Platz noch offen / unklar'),
     null,
+  );
+});
+
+test('youth always informs recreational players without requesting approval', () => {
+  assert.equal(
+    pitchConflictAction({
+      kind: 'RECREATIONAL',
+      requiresApproval: false,
+      headCoach: null,
+    }),
+    'INFORM_RECREATIONAL',
+  );
+  assert.equal(
+    pitchConflictAction({
+      kind: 'TEAM',
+      requiresApproval: true,
+      headCoach: { id: 'coach-1' },
+    }),
+    'REQUEST_APPROVAL',
+  );
+  assert.equal(
+    pitchConflictAction({
+      kind: 'SENIORS',
+      requiresApproval: false,
+      headCoach: null,
+    }),
+    'NONE',
   );
 });
 

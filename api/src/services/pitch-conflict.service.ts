@@ -35,6 +35,8 @@ type ParsedSlot = {
 };
 
 export type PitchConflict = {
+  kind: 'TEAM' | 'SENIORS' | 'RECREATIONAL';
+  requiresApproval: boolean;
   trainingTeamId: string;
   trainingTeamName: string;
   ageGroupCode: string;
@@ -252,6 +254,8 @@ export async function findPitchConflicts(input: {
         continue;
       }
       conflicts.push({
+        kind: 'TEAM',
+        requiresApproval: primary != null,
         trainingTeamId: team.id,
         trainingTeamName: team.shortName?.trim() || team.name,
         ageGroupCode: team.ageGroup.code,
@@ -277,12 +281,14 @@ export async function findPitchConflicts(input: {
   const sharedSchedules = [
     {
       id: `seniors:${season.id}`,
+      kind: 'SENIORS' as const,
       name: 'Herren',
       location: season.seniorTrainingLocation,
       values: season.seniorTrainingTimes,
     },
     {
       id: `recreational:${season.id}`,
+      kind: 'RECREATIONAL' as const,
       name: 'Freizeitkicker',
       location: season.recreationalTrainingLocation,
       values: season.recreationalTrainingTimes,
@@ -301,6 +307,8 @@ export async function findPitchConflicts(input: {
         continue;
       }
       conflicts.push({
+        kind: schedule.kind,
+        requiresApproval: false,
         trainingTeamId: schedule.id,
         trainingTeamName: schedule.name,
         ageGroupCode: '',
@@ -316,4 +324,16 @@ export async function findPitchConflicts(input: {
     }
   }
   return conflicts;
+}
+
+export function pitchConflictAction(
+  conflict: Pick<PitchConflict, 'kind' | 'requiresApproval' | 'headCoach'>,
+) {
+  if (conflict.kind === 'RECREATIONAL') {
+    return 'INFORM_RECREATIONAL' as const;
+  }
+  if (conflict.requiresApproval && conflict.headCoach) {
+    return 'REQUEST_APPROVAL' as const;
+  }
+  return 'NONE' as const;
 }

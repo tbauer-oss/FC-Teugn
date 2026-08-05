@@ -65,4 +65,24 @@ void main() {
     expect(configuration.webPushConfigured, true);
     expect(configuration.androidConfigured, false);
   });
+
+  test('parses recreational pitch priority as information-only conflict', () {
+    final conflict = PitchConflictPreview.fromJson({
+      'kind': 'RECREATIONAL',
+      'requiresApproval': false,
+      'trainingTeamId': 'recreational:season-1',
+      'trainingTeamName': 'Freizeitkicker',
+      'ageGroupCode': '',
+      'trainingScheduleValue': 'Dienstag 17:30–19:00 · Platz: Platz 1 unten',
+      'weekday': 'Dienstag',
+      'startLabel': '17:30',
+      'endLabel': '19:00',
+      'pitch': 'Platz 1 unten',
+      'headCoach': null,
+    });
+
+    expect(conflict.kind, 'RECREATIONAL');
+    expect(conflict.requiresApproval, isFalse);
+    expect(conflict.headCoach, isNull);
+  });
 }

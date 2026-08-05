@@ -12,6 +12,7 @@ import { notifyUsers } from '../services/notification.service';
 import {
   CLUB_MATCH_PITCHES,
   findPitchConflicts,
+  pitchConflictAction,
   requestableEventPitch,
 } from '../services/pitch-conflict.service';
 
@@ -87,6 +88,7 @@ export async function checkPitchConflicts(req: Request, res: Response) {
 export async function createPitchConflictRequestsForEvent(input: {
   eventId: string;
   requesterId: string;
+  requestApprovals?: boolean;
   message?: string | null;
 }) {
   const event = await prisma.event.findUnique({
@@ -94,9 +96,21 @@ export async function createPitchConflictRequestsForEvent(input: {
     include: {
       targetTeams: true,
       matchDetails: true,
+      team: {
+        select: {
+          teamType: true,
+          ageGroup: { select: { seasonId: true } },
+        },
+      },
     },
   });
   if (!event) return [];
+  await prisma.notification.deleteMany({
+    where: {
+      entityType: 'RecreationalPitchPriority',
+      entityId: event.id,
+    },
+  });
   const pitch = requestableEventPitch(
     event.homeAway,
     event.matchDetails?.pitch || event.venue,
@@ -117,9 +131,105 @@ export async function createPitchConflictRequestsForEvent(input: {
         ? event.targetTeams.map((item) => item.teamId)
         : [event.teamId],
   });
+  const recreationalConflicts = conflicts.filter(
+    (conflict) => pitchConflictAction(conflict) === 'INFORM_RECREATIONAL',
+  );
+  if (
+    recreationalConflicts.length > 0 &&
+    event.team.teamType !== 'RECREATIONAL'
+  ) {
+    const recipients = await prisma.user.findMany({
+      where: {
+        status: 'APPROVED',
+        OR: [
+          { role: Role.SUPER_ADMIN },
+          {
+            team: {
+              teamType: 'RECREATIONAL',
+              ageGroup: { seasonId: event.team.ageGroup.seasonId },
+            },
+          },
+          {
+            memberships: {
+              some: {
+                status: 'APPROVED',
+                team: {
+                  teamType: 'RECREATIONAL',
+                  ageGroup: { seasonId: event.team.ageGroup.seasonId },
+                },
+              },
+            },
+          },
+        ],
+      },
+      select: { id: true, role: true },
+    });
+    const first = recreationalConflicts[0];
+    if (recipients.length > 0) {
+      const familyRoles = new Set<Role>([
+        Role.PARENT,
+        Role.PLAYER,
+        Role.READ_ONLY,
+      ]);
+      const notification = {
+        category:
+          event.type === 'MATCH'
+            ? NotificationCategory.MATCH
+            : NotificationCategory.EVENT,
+        title: 'Freizeitkicker informiert · Jugend hat Vorrang',
+        body:
+          `${event.title} belegt ${first.pitch} am ${first.weekday} ` +
+          `${first.startLabel}–${first.endLabel} Uhr. ` +
+          'Die Jugendmannschaft hat Vorrang; es ist keine Freigabe erforderlich.',
+        entityType: 'RecreationalPitchPriority',
+        entityId: event.id,
+      };
+      const staffIds = recipients
+        .filter((recipient) => !familyRoles.has(recipient.role))
+        .map((recipient) => recipient.id);
+      const familyIds = recipients
+        .filter((recipient) => familyRoles.has(recipient.role))
+        .map((recipient) => recipient.id);
+      await Promise.all([
+        staffIds.length
+          ? notifyUsers(staffIds, {
+              ...notification,
+              actionUrl: '/trainer/messages',
+            })
+          : Promise.resolve(),
+        familyIds.length
+          ? notifyUsers(familyIds, {
+              ...notification,
+              actionUrl: '/parent/messages',
+            })
+          : Promise.resolve(),
+      ]);
+    }
+    await prisma.auditLog.create({
+      data: {
+        actorId: input.requesterId,
+        teamId: event.teamId,
+        action: 'RECREATIONAL_PITCH_PRIORITY_NOTIFIED',
+        entityType: 'Event',
+        entityId: event.id,
+        metadata: {
+          recipientCount: recipients.length,
+          pitch: first.pitch,
+          conflictCount: recreationalConflicts.length,
+        },
+      },
+    });
+  }
   const created = [];
   for (const conflict of conflicts) {
-    if (!conflict.headCoach || conflict.headCoach.id === input.requesterId) continue;
+    if (
+      input.requestApprovals === false ||
+      pitchConflictAction(conflict) !== 'REQUEST_APPROVAL' ||
+      !conflict.headCoach ||
+      conflict.headCoach.id === input.requesterId
+    ) {
+      continue;
+    }
     const request = await prisma.pitchConflictRequest.upsert({
       where: {
         eventId_trainingTeamId_trainingScheduleValue: {

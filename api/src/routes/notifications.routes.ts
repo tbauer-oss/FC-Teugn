@@ -3,6 +3,7 @@ import {
   getNotificationPreferences,
   grantPushConsent,
   deleteAdminPushDevice,
+  deleteNotification,
   listAdminPushDevices,
   listNotifications,
   listPushSubscriptions,
@@ -39,6 +40,20 @@ router.delete(
 );
 router.post('/read-all', markAllNotificationsRead);
 router.post('/:id/read', markNotificationRead);
+router.delete(
+  '/:id',
+  requireRoles([
+    Role.SUPER_ADMIN,
+    Role.CLUB_ADMIN,
+    Role.YOUTH_DIRECTOR,
+    Role.COACH,
+    Role.ASSISTANT_COACH,
+    Role.TEAM_MANAGER,
+    Role.TRAINER_ADMIN,
+    Role.TRAINER,
+  ]),
+  deleteNotification,
+);
 router.get('/settings/configuration', notificationConfiguration);
 router.get('/settings/preferences', getNotificationPreferences);
 router.put('/settings/preferences', saveNotificationPreferences);

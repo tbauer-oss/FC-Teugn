@@ -87,6 +87,33 @@ export async function markAllNotificationsRead(req: Request, res: Response) {
   return res.json({ updated: result.count });
 }
 
+export async function deleteNotification(req: Request, res: Response) {
+  const notification = await prisma.notification.findFirst({
+    where: { id: req.params.id, userId: req.user!.id },
+    select: { id: true, category: true, title: true },
+  });
+  if (!notification) {
+    return res.status(404).json({ message: 'Benachrichtigung nicht gefunden.' });
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.notification.delete({ where: { id: notification.id } });
+    await tx.auditLog.create({
+      data: {
+        actorId: req.user!.id,
+        teamId: req.user!.teamId,
+        action: 'NOTIFICATION_DELETED',
+        entityType: 'Notification',
+        entityId: notification.id,
+        metadata: {
+          category: notification.category,
+          title: notification.title,
+        },
+      },
+    });
+  });
+  return res.status(204).send();
+}
+
 export async function getNotificationPreferences(req: Request, res: Response) {
   const saved = await prisma.notificationPreference.findMany({
     where: { userId: req.user!.id },

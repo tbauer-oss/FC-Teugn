@@ -792,6 +792,34 @@ const helpArticles = <HelpArticle>[
   ),
   HelpArticle(
     category: HelpCategory.start,
+    title: 'Wie richte ich FC Teugn Talents auf dem iPhone als App ein?',
+    summary:
+        'Über Safari wird die Web-App mit eigenem Symbol installiert; danach kann sie auch Pushnachrichten empfangen.',
+    keywords: [
+      'iPhone',
+      'iOS',
+      'Safari',
+      'Home-Bildschirm',
+      'Web-App',
+      'installieren',
+      'Push'
+    ],
+    route: '/messages',
+    routeLabel: 'Push-Einstellungen öffnen',
+    steps: [
+      'Aktualisiere das iPhone mindestens auf iOS 16.4 und öffne https://fcteugnapp.vercel.app ausdrücklich in Safari.',
+      'Melde dich an, tippe in Safari auf „Teilen“ und anschließend auf „Zum Home-Bildschirm“. Fehlt der Eintrag, wähle unten „Aktionen bearbeiten“ und aktiviere ihn.',
+      'Lass „Als Web-App öffnen“ eingeschaltet, bestätige den Namen „FC Teugn Talents“ und tippe oben auf „Hinzufügen“.',
+      'Schließe den Safari-Tab und starte die App künftig ausschließlich über das neue FC-Teugn-Symbol auf dem Home-Bildschirm.',
+      'Öffne in der App „Mehr“ → „Nachrichten & Abstimmung“ → „Einstellungen“ und tippe dort auf „Push aktivieren“.',
+      'Bestätige die Einwilligung in der App und erlaube anschließend auch die iOS-Abfrage „Mitteilungen erlauben“.',
+      'Prüfe unter iPhone „Einstellungen“ → „Mitteilungen“ → „FC Teugn Talents“, ob Mitteilungen, Sperrbildschirm, Mitteilungszentrale, Banner, Töne und Kennzeichen aktiviert sind.',
+    ],
+    tip:
+        'Die Push-Freigabe funktioniert auf dem iPhone nur aus der installierten Home-Bildschirm-Web-App und muss durch deinen Tipp auf „Push aktivieren“ ausgelöst werden. Beim Antippen einer Meldung öffnet sich direkt die App beziehungsweise der passende Bereich.',
+  ),
+  HelpArticle(
+    category: HelpCategory.start,
     title: 'Was passiert ohne Internetverbindung?',
     summary:
         'Unterstützte Änderungen werden vorgemerkt und bei stabiler Verbindung automatisch übertragen.',
@@ -1102,7 +1130,7 @@ const helpArticles = <HelpArticle>[
     route: '/messages',
     routeLabel: 'Benachrichtigungen öffnen',
     steps: [
-      'Bestätige beim ersten Start die Push-Abfrage der App und anschließend die Android- beziehungsweise Browserfreigabe.',
+      'Bestätige beim ersten Start die Push-Abfrage der App und anschließend die Android- beziehungsweise Browserfreigabe. Auf dem iPhone muss die Seite vorher über Safari zum Home-Bildschirm hinzugefügt worden sein.',
       'Öffne bei Bedarf „Nachrichten & Abstimmung“ und dort „Einstellungen“, um Push pro Kategorie zu aktivieren.',
       'Jedes Gerät wird separat registriert; ein Benutzer kann mehrere Geräte verwenden.',
       'Beim Antippen einer Pushnachricht öffnet sich die App direkt im passenden Kalender, Spieltag oder Mitteilungscenter.',

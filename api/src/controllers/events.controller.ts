@@ -916,17 +916,16 @@ export async function createEvent(req: Request, res: Response) {
     include: eventInclude,
   });
   await Promise.all(createdIds.map(syncScheduledRemindersForEvent));
-  if (req.body.requestPitchConflictApprovals === true) {
-    await Promise.all(
-      createdIds.map((eventId) =>
-        createPitchConflictRequestsForEvent({
-          eventId,
-          requesterId: user.id,
-          message: clean(req.body.pitchConflictMessage),
-        }),
-      ),
-    );
-  }
+  await Promise.all(
+    createdIds.map((eventId) =>
+      createPitchConflictRequestsForEvent({
+        eventId,
+        requesterId: user.id,
+        requestApprovals: req.body.requestPitchConflictApprovals === true,
+        message: clean(req.body.pitchConflictMessage),
+      }),
+    ),
+  );
   const accessibleIds = await accessibleTeamIds(user);
   const roster = isStaff(user.role)
     ? await rosterForTeamIds(accessibleIds)
@@ -1129,13 +1128,12 @@ export async function updateEvent(req: Request, res: Response) {
       }).then((events) => events.map((event) => event.id))
     : [existing.id];
   await Promise.all(reminderEventIds.map(syncScheduledRemindersForEvent));
-  if (req.body.requestPitchConflictApprovals === true) {
-    await createPitchConflictRequestsForEvent({
-      eventId: existing.id,
-      requesterId: user.id,
-      message: clean(req.body.pitchConflictMessage),
-    });
-  }
+  await createPitchConflictRequestsForEvent({
+    eventId: existing.id,
+    requesterId: user.id,
+    requestApprovals: req.body.requestPitchConflictApprovals === true,
+    message: clean(req.body.pitchConflictMessage),
+  });
   return getEvent(req, res);
 }
 
@@ -1168,6 +1166,12 @@ export async function deleteEvent(req: Request, res: Response) {
               }
             : { id: existing.id },
         select: { id: true, type: true, title: true },
+      });
+      await tx.notification.deleteMany({
+        where: {
+          entityType: 'RecreationalPitchPriority',
+          entityId: { in: events.map((event) => event.id) },
+        },
       });
       await tx.event.deleteMany({
         where: { id: { in: events.map((event) => event.id) } },
@@ -1212,6 +1216,19 @@ export async function deleteEvent(req: Request, res: Response) {
   const reason = clean(req.body?.reason) ?? 'Abgesagt';
   const now = new Date();
   await prisma.$transaction(async (tx) => {
+    const affectedEvents = await tx.event.findMany({
+      where:
+        scope === 'series' && existing.seriesId
+          ? { seriesId: existing.seriesId, startAt: { gte: existing.startAt } }
+          : { id: existing.id },
+      select: { id: true },
+    });
+    await tx.notification.deleteMany({
+      where: {
+        entityType: 'RecreationalPitchPriority',
+        entityId: { in: affectedEvents.map((event) => event.id) },
+      },
+    });
     if (scope === 'series' && existing.seriesId) {
       await tx.event.updateMany({
         where: { seriesId: existing.seriesId, startAt: { gte: existing.startAt } },

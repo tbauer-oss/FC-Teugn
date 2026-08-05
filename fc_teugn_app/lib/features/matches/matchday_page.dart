@@ -332,6 +332,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         subtitle: _dateLine(match),
         denseMobileHeader: true,
         hideMobileHeader: true,
+        hideHeader: true,
         fillRemaining: true,
         child: Column(
           children: [
@@ -340,9 +341,9 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
               const SizedBox(height: 12),
             ],
             _ScoreHero(match: match),
-            SizedBox(height: mobile ? 5 : 18),
+            SizedBox(height: mobile ? 5 : 8),
             _MatchdayTabBar(compact: mobile),
-            SizedBox(height: mobile ? 4 : 14),
+            const SizedBox(height: 4),
             Expanded(
               child: TabBarView(
                 children: [
@@ -445,7 +446,7 @@ class _ScoreHero extends StatelessWidget {
     final dateLine = '${date.day}.${date.month}.${date.year} · '
         '${date.hour.toString().padLeft(2, '0')}:'
         '${date.minute.toString().padLeft(2, '0')} Uhr · ${match.location}';
-    final crestSize = compact ? 48.0 : 66.0;
+    final crestSize = compact ? 44.0 : 46.0;
     final score = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -459,10 +460,10 @@ class _ScoreHero extends StatelessWidget {
           ),
         ),
         Container(
-          margin: EdgeInsets.symmetric(horizontal: compact ? 6 : 20),
+          margin: EdgeInsets.symmetric(horizontal: compact ? 6 : 14),
           padding: EdgeInsets.symmetric(
-            horizontal: compact ? 11 : 18,
-            vertical: compact ? 8 : 11,
+            horizontal: compact ? 10 : 14,
+            vertical: compact ? 7 : 8,
           ),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: .2),
@@ -474,7 +475,7 @@ class _ScoreHero extends StatelessWidget {
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
-              fontSize: compact ? 27 : 40,
+              fontSize: compact ? 25 : 30,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
@@ -493,8 +494,8 @@ class _ScoreHero extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 10 : 20,
-        vertical: compact ? 12 : 22,
+        horizontal: compact ? 10 : 16,
+        vertical: compact ? 10 : 11,
       ),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -506,7 +507,7 @@ class _ScoreHero extends StatelessWidget {
           ? Column(
               children: [
                 score,
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   dateLine,
                   maxLines: 1,
@@ -522,11 +523,12 @@ class _ScoreHero extends StatelessWidget {
           : Column(
               children: [
                 score,
-                const SizedBox(height: 12),
+                const SizedBox(height: 5),
                 Text(
                   dateLine,
                   style: const TextStyle(
                     color: Colors.white70,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -547,14 +549,20 @@ class _MatchdayTabBar extends StatelessWidget {
       return const TabBar(
         isScrollable: true,
         tabs: [
-          Tab(icon: Icon(Icons.info_outline_rounded), text: 'Übersicht'),
-          Tab(icon: Icon(Icons.groups_rounded), text: 'Kader'),
-          Tab(
-            icon: Icon(Icons.dashboard_customize_rounded),
-            text: 'Aufstellung',
+          _WideMatchTab(
+            icon: Icons.info_outline_rounded,
+            label: 'Übersicht',
           ),
-          Tab(icon: Icon(Icons.auto_awesome_rounded), text: 'Autopilot'),
-          Tab(icon: Icon(Icons.bolt_rounded), text: 'Liveticker'),
+          _WideMatchTab(icon: Icons.groups_rounded, label: 'Kader'),
+          _WideMatchTab(
+            icon: Icons.dashboard_customize_rounded,
+            label: 'Aufstellung',
+          ),
+          _WideMatchTab(
+            icon: Icons.auto_awesome_rounded,
+            label: 'Autopilot',
+          ),
+          _WideMatchTab(icon: Icons.bolt_rounded, label: 'Liveticker'),
         ],
       );
     }
@@ -574,6 +582,26 @@ class _MatchdayTabBar extends StatelessWidget {
       ],
     );
   }
+}
+
+class _WideMatchTab extends StatelessWidget {
+  const _WideMatchTab({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Tab(
+        height: 42,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 7),
+            Text(label),
+          ],
+        ),
+      );
 }
 
 class _CompactMatchTab extends StatelessWidget {
@@ -614,30 +642,40 @@ class _ScoreTeam extends StatelessWidget {
   final bool compact;
 
   @override
-  Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) {
+    final crest = isClub
+        ? TeamCrest.club(size: crestSize, darkSurface: true)
+        : TeamCrest.opponent(
+            size: crestSize,
+            logoUrl: logoUrl,
+            darkSurface: true,
+          );
+    final label = Text(
+      name,
+      textAlign: TextAlign.center,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w800,
+        fontSize: compact ? 12.5 : 14.5,
+      ),
+    );
+    if (!compact) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          isClub
-              ? TeamCrest.club(size: crestSize, darkSurface: true)
-              : TeamCrest.opponent(
-                  size: crestSize,
-                  logoUrl: logoUrl,
-                  darkSurface: true,
-                ),
-          SizedBox(height: compact ? 5 : 8),
-          Text(
-            name,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: compact ? 12.5 : 17,
-            ),
-          ),
+          crest,
+          const SizedBox(width: 10),
+          Flexible(child: label),
         ],
       );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [crest, const SizedBox(height: 5), label],
+    );
+  }
 }
 
 class MatchOverview extends StatelessWidget {

@@ -395,6 +395,8 @@ class PitchConflictCoach {
 
 class PitchConflictPreview {
   const PitchConflictPreview({
+    required this.kind,
+    required this.requiresApproval,
     required this.trainingTeamId,
     required this.trainingTeamName,
     required this.ageGroupCode,
@@ -406,6 +408,8 @@ class PitchConflictPreview {
     this.headCoach,
   });
 
+  final String kind;
+  final bool requiresApproval;
   final String trainingTeamId;
   final String trainingTeamName;
   final String ageGroupCode;
@@ -418,6 +422,8 @@ class PitchConflictPreview {
 
   factory PitchConflictPreview.fromJson(Map<String, dynamic> json) =>
       PitchConflictPreview(
+        kind: json['kind'] as String? ?? 'TEAM',
+        requiresApproval: json['requiresApproval'] as bool? ?? false,
         trainingTeamId: json['trainingTeamId'] as String,
         trainingTeamName: json['trainingTeamName'] as String? ?? 'Mannschaft',
         ageGroupCode: json['ageGroupCode'] as String? ?? '',

@@ -1676,6 +1676,10 @@ class DataRepository {
     await client.dio.post('/notifications/read-all');
   }
 
+  Future<void> deleteNotification(String notificationId) async {
+    await client.dio.delete('/notifications/$notificationId');
+  }
+
   Future<List<NotificationPreferenceModel>> notificationPreferences() async {
     final res = await client.dio.get('/notifications/settings/preferences');
     return (res.data as List<dynamic>)

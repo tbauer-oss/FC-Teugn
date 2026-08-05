@@ -10,17 +10,41 @@ import 'package:flutter_test/flutter_test.dart';
 class _CommunicationRepository extends DataRepository {
   _CommunicationRepository() : super(ApiClient(baseUrl: 'http://localhost'));
 
+  bool notificationDeleted = false;
+
   @override
   Future<List<AnnouncementModel>> announcements({
     bool includeDrafts = false,
   }) async =>
       const [];
+
+  @override
+  Future<List<AppNotificationModel>> notifications() async => [
+        AppNotificationModel(
+          id: 'notification-1',
+          category: NotificationCategory.system,
+          title: 'Platzinformation',
+          body: 'Die Jugendmannschaft hat Vorrang.',
+          createdAt: DateTime(2026, 8, 5),
+          isRead: false,
+        ),
+      ];
+
+  @override
+  Future<void> deleteNotification(String notificationId) async {
+    notificationDeleted = notificationId == 'notification-1';
+  }
 }
 
-Widget _page({required bool staffView}) {
+Widget _page({
+  required bool staffView,
+  _CommunicationRepository? repository,
+}) {
   return ProviderScope(
     overrides: [
-      repositoryProvider.overrideWithValue(_CommunicationRepository()),
+      repositoryProvider.overrideWithValue(
+        repository ?? _CommunicationRepository(),
+      ),
     ],
     child: MaterialApp(
       home: Scaffold(
@@ -53,5 +77,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Platzanfragen'), findsOneWidget);
+  });
+
+  testWidgets('Trainer können eigene Benachrichtigungen bestätigt löschen',
+      (tester) async {
+    final repository = _CommunicationRepository();
+    await tester.binding.setSurfaceSize(const Size(1100, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _page(staffView: true, repository: repository),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Benachrichtigungen'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Benachrichtigung löschen'), findsOneWidget);
+    await tester.tap(find.byTooltip('Benachrichtigung löschen'));
+    await tester.pumpAndSettle();
+    expect(find.text('Benachrichtigung löschen?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Löschen'));
+    await tester.pumpAndSettle();
+
+    expect(repository.notificationDeleted, isTrue);
   });
 }

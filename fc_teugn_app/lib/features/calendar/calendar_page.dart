@@ -5027,8 +5027,11 @@ class _PitchConflictPanel extends StatelessWidget {
         ),
       );
     }
-    final requestable =
-        conflicts.where((item) => item.headCoach != null).length;
+    final requestable = conflicts
+        .where((item) => item.requiresApproval && item.headCoach != null)
+        .length;
+    final recreational =
+        conflicts.where((item) => item.kind == 'RECREATIONAL').length;
     return Card(
       color:
           Theme.of(context).colorScheme.errorContainer.withValues(alpha: .45),
@@ -5070,7 +5073,7 @@ class _PitchConflictPanel extends StatelessWidget {
                     ),
                     subtitle: Text(
                       '${conflict.pitch}\n'
-                      '${conflict.headCoach == null ? 'Kein Haupttrainer hinterlegt' : 'Haupttrainer: ${conflict.headCoach!.name}'}',
+                      '${conflict.kind == 'RECREATIONAL' ? 'Jugend hat Vorrang · Freizeitkicker werden nur informiert' : conflict.kind == 'SENIORS' ? 'Vereinsbelegung ohne digitale Freigabeanfrage' : conflict.headCoach == null ? 'Kein Haupttrainer hinterlegt' : 'Haupttrainer: ${conflict.headCoach!.name}'}',
                     ),
                     isThreeLine: true,
                     trailing: conflict.headCoach?.phone == null
@@ -5112,7 +5115,37 @@ class _PitchConflictPanel extends StatelessWidget {
                         'z. B. Freundschaftsspiel – können wir euer Training verlegen?',
                   ),
                 ),
-            ] else ...[
+            ],
+            if (recreational > 0) ...[
+              Container(
+                width: double.infinity,
+                margin: EdgeInsets.only(top: requestable > 0 ? 12 : 0),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.teal.withValues(alpha: .1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.teal.withValues(alpha: .25),
+                  ),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline_rounded, color: AppColors.teal),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Jugendmannschaften haben gegenüber den Freizeitkickern '
+                        'immer Vorrang. Beim Speichern wird deshalb keine Anfrage '
+                        'gestellt; die Freizeitkicker und die Systemadministration '
+                        'erhalten automatisch eine Information zur Belegung.',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (requestable == 0 && recreational == 0) ...[
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),

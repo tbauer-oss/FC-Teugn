@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
@@ -41,7 +42,7 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
         const _CommunicationDestination(
           view: _CommunicationView.pitchRequests,
           label: 'Platzanfragen',
-          description: 'Überschneidungen gemeinsam klären',
+          description: 'Überschneidungen und Jugendvorrang klären',
           icon: Icons.stadium_rounded,
         ),
       const _CommunicationDestination(
@@ -98,6 +99,7 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
           else if (effectiveView == _CommunicationView.notifications)
             _NotificationList(
               key: ValueKey('notifications-$_revision'),
+              canDelete: widget.staffView,
               onChanged: _reload,
             )
           else
@@ -326,16 +328,45 @@ class _PitchConflictRequestList extends ConsumerWidget {
         }
         if (snapshot.hasError) return _ErrorCard(onRetry: onChanged);
         final items = snapshot.data ?? const [];
+        final isSystemAdmin =
+            ref.read(authProvider).user?.role == UserRole.superAdmin;
+        final priorityInfo = Card(
+          color: AppColors.teal.withValues(alpha: .08),
+          child: ListTile(
+            leading: const Icon(Icons.shield_rounded, color: AppColors.teal),
+            title: const Text('Jugendmannschaften haben immer Vorrang'),
+            subtitle: const Text(
+              'Bei einer Überschneidung mit Freizeitkickern entsteht keine '
+              'Freigabeanfrage. Die Freizeitkicker und die Systemadministration '
+              'erhalten automatisch nur eine Belegungsinformation.',
+            ),
+            trailing: isSystemAdmin
+                ? IconButton(
+                    tooltip: 'Freizeit-Belegung verwalten',
+                    onPressed: () => context.go('/trainer/training'),
+                    icon: const Icon(Icons.edit_calendar_rounded),
+                  )
+                : null,
+          ),
+        );
         if (items.isEmpty) {
-          return const EmptyState(
-            icon: Icons.event_available_rounded,
-            title: 'Keine offenen Platzabstimmungen',
-            message:
-                'Anfragen wegen Überschneidungen mit Trainings erscheinen hier.',
+          return Column(
+            children: [
+              priorityInfo,
+              const SizedBox(height: 12),
+              const EmptyState(
+                icon: Icons.event_available_rounded,
+                title: 'Keine offenen Platzabstimmungen',
+                message:
+                    'Anfragen wegen Überschneidungen mit Trainings erscheinen hier.',
+              ),
+            ],
           );
         }
         return Column(
           children: [
+            priorityInfo,
+            const SizedBox(height: 12),
             for (final item in items) ...[
               _PitchConflictRequestCard(
                 request: item,
@@ -991,8 +1022,13 @@ class _AnnouncementCard extends StatelessWidget {
 }
 
 class _NotificationList extends ConsumerWidget {
-  const _NotificationList({super.key, required this.onChanged});
+  const _NotificationList({
+    super.key,
+    required this.canDelete,
+    required this.onChanged,
+  });
 
+  final bool canDelete;
   final VoidCallback onChanged;
 
   @override
@@ -1041,10 +1077,34 @@ class _NotificationList extends ConsumerWidget {
                   ),
                   title: Text(item.title),
                   subtitle: Text(item.body),
-                  trailing: item.isRead
-                      ? null
-                      : const Icon(Icons.circle,
-                          size: 10, color: AppColors.orange),
+                  trailing: canDelete
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!item.isRead)
+                              const Padding(
+                                padding: EdgeInsets.only(right: 2),
+                                child: Icon(
+                                  Icons.circle,
+                                  size: 10,
+                                  color: AppColors.orange,
+                                ),
+                              ),
+                            IconButton(
+                              tooltip: 'Benachrichtigung löschen',
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              color: Theme.of(context).colorScheme.error,
+                              onPressed: () => _delete(context, ref, item),
+                            ),
+                          ],
+                        )
+                      : item.isRead
+                          ? null
+                          : const Icon(
+                              Icons.circle,
+                              size: 10,
+                              color: AppColors.orange,
+                            ),
                   onTap: item.isRead
                       ? null
                       : () async {
@@ -1059,6 +1119,51 @@ class _NotificationList extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _delete(
+    BuildContext context,
+    WidgetRef ref,
+    AppNotificationModel item,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Benachrichtigung löschen?'),
+        content: Text(
+          '„${item.title}“ wird nur aus deinem persönlichen '
+          'Benachrichtigungsverlauf entfernt.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref.read(repositoryProvider).deleteNotification(item.id);
+      ref.invalidate(liveNotificationsProvider);
+      onChanged();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Benachrichtigung wurde gelöscht.')),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Benachrichtigung konnte nicht gelöscht werden.'),
+        ),
+      );
+    }
   }
 }
 

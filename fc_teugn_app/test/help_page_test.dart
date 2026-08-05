@@ -20,6 +20,17 @@ void main() {
     }
   });
 
+  test('FAQ contains the complete iPhone home-screen and push guide', () {
+    final article = helpArticles.singleWhere(
+      (article) => article.title.contains('auf dem iPhone als App'),
+    );
+
+    expect(article.steps.join(' '), contains('Zum Home-Bildschirm'));
+    expect(article.steps.join(' '), contains('Als Web-App öffnen'));
+    expect(article.steps.join(' '), contains('Push aktivieren'));
+    expect(article.steps.join(' '), contains('Mitteilungen erlauben'));
+  });
+
   testWidgets('family help hides staff-only administration instructions',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));

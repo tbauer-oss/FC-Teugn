@@ -10,6 +10,7 @@ class PageScaffold extends StatelessWidget {
     this.action,
     this.denseMobileHeader = false,
     this.hideMobileHeader = false,
+    this.hideHeader = false,
     this.fillRemaining = false,
   });
 
@@ -19,6 +20,7 @@ class PageScaffold extends StatelessWidget {
   final Widget? action;
   final bool denseMobileHeader;
   final bool hideMobileHeader;
+  final bool hideHeader;
   final bool fillRemaining;
 
   @override
@@ -64,7 +66,7 @@ class PageScaffold extends StatelessWidget {
             parent: ClampingScrollPhysics(),
           ),
           slivers: [
-            if (!(mobile && hideMobileHeader))
+            if (!hideHeader && !(mobile && hideMobileHeader))
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(
                   horizontal,
@@ -105,7 +107,7 @@ class PageScaffold extends StatelessWidget {
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 horizontal,
-                mobile && hideMobileHeader ? 6 : 0,
+                hideHeader || (mobile && hideMobileHeader) ? 6 : 0,
                 horizontal,
                 mobile ? 20 : 32,
               ),
