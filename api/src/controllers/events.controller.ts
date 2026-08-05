@@ -1501,6 +1501,7 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
   const message =
     clean(req.body.message) ??
     `Bitte Rückmeldung zu „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`;
+  const pushEnabled = req.body.pushEnabled !== false;
   let pushResult = { notifications: 0, deliveries: 0 };
   if (recipientIds.size) {
     const recipients = [...recipientIds];
@@ -1518,7 +1519,7 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
       actionUrl: `/events/${event.id}`,
       entityType: 'Event',
       entityId: event.id,
-      pushEnabled: true,
+      pushEnabled,
     });
   }
   await prisma.auditLog.create({
@@ -1528,7 +1529,12 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
       action: 'EVENT_ATTENDANCE_REMINDER_SENT',
       entityType: 'Event',
       entityId: event.id,
-      metadata: { recipients: recipientIds.size, missingPlayers: players.length },
+      metadata: {
+        recipients: recipientIds.size,
+        missingPlayers: players.length,
+        pushEnabled,
+        pushDeliveries: pushResult.deliveries,
+      },
     },
   });
   return res.json({

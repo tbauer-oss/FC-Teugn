@@ -44,6 +44,9 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
         _ => false,
       };
 
+  bool get _canManageTrainingSettings =>
+      ref.read(authProvider).user?.isTrainer ?? false;
+
   @override
   void initState() {
     super.initState();
@@ -196,7 +199,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             ),
           _TrainingPageView.occupancy => null,
         };
-        final manage = _canManageOccupancy
+        final manage = _canManageTrainingSettings
             ? OutlinedButton.icon(
                 onPressed: _creating ? null : _manageTrainingTimes,
                 icon: const Icon(Icons.edit_calendar_rounded),
@@ -611,7 +614,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
 
   Future<void> _manageTrainingTimes() async {
     final organization = _organization;
-    if (organization == null || !_canManageOccupancy) {
+    if (organization == null || !_canManageTrainingSettings) {
       return;
     }
     final draft = await showDialog<_TrainingScheduleDraft>(
@@ -651,6 +654,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           trainingPartnerIds: draft.trainingPartnerIds,
           matchdayTimes: draft.matchdayTimes,
           trainingLocation: draft.trainingLocation,
+          defaultReminderMinutes: draft.defaultReminderMinutes,
         );
       }
       await _load(refresh: true);
@@ -1222,6 +1226,7 @@ class _TrainingScheduleDraft {
     this.isRecreational = false,
     this.isSenior = false,
     this.trainingLocation,
+    this.defaultReminderMinutes,
   });
 
   final String teamId;
@@ -1231,6 +1236,7 @@ class _TrainingScheduleDraft {
   final bool isRecreational;
   final bool isSenior;
   final String? trainingLocation;
+  final int? defaultReminderMinutes;
 }
 
 class _TrainingScheduleDialog extends StatefulWidget {
@@ -1278,6 +1284,8 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
   List<String> _legacyTimes = [];
   List<String> _legacyMatchdayTimes = [];
   String? _validationMessage;
+  String _reminderMode = '60';
+  late final TextEditingController _customReminderMinutes;
 
   bool get _isRecreational => _teamId == _recreationalId;
   bool get _isSenior => _teamId == _seniorId;
@@ -1306,10 +1314,17 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
   @override
   void initState() {
     super.initState();
+    _customReminderMinutes = TextEditingController();
     _teamId = widget.teams.any((team) => team.id == widget.initialTeamId)
         ? widget.initialTeamId
         : widget.teams.first.id;
     _loadTeam();
+  }
+
+  @override
+  void dispose() {
+    _customReminderMinutes.dispose();
+    super.dispose();
   }
 
   void _loadTeam() {
@@ -1333,6 +1348,19 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
         specialSchedule == null ? _team.trainingPartnerIds.toSet() : {};
     _legacyTimes = [];
     _legacyMatchdayTimes = [];
+    if (!_isRecreational && !_isSenior) {
+      final reminder = _team.defaultReminderMinutes;
+      if (reminder == null) {
+        _reminderMode = 'none';
+        _customReminderMinutes.clear();
+      } else if (const {30, 60, 120}.contains(reminder)) {
+        _reminderMode = '$reminder';
+        _customReminderMinutes.clear();
+      } else {
+        _reminderMode = 'custom';
+        _customReminderMinutes.text = '$reminder';
+      }
+    }
     for (final value in trainingTimes) {
       final parsed = _TrainingTimeSelection.tryParse(
         value,
@@ -1535,6 +1563,85 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                   ),
                 ],
                 if (!_isRecreational && !_isSenior) ...[
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.yellow.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.yellowDark.withValues(alpha: .25),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Automatische Trainingserinnerung',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Wird serverseitig vor jedem regulären Training an '
+                          'die berechtigten Spieler und Eltern gesendet.',
+                          style: TextStyle(color: AppColors.muted),
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey(
+                              'training_reminder_$_teamId-$_reminderMode'),
+                          initialValue: _reminderMode,
+                          decoration: const InputDecoration(
+                            labelText: 'Vorlaufzeit',
+                            prefixIcon:
+                                Icon(Icons.notifications_active_outlined),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'none',
+                              child: Text('Keine Erinnerung'),
+                            ),
+                            DropdownMenuItem(
+                              value: '30',
+                              child: Text('30 Minuten vorher'),
+                            ),
+                            DropdownMenuItem(
+                              value: '60',
+                              child: Text('1 Stunde vorher (Standard)'),
+                            ),
+                            DropdownMenuItem(
+                              value: '120',
+                              child: Text('2 Stunden vorher'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'custom',
+                              child: Text('Benutzerdefiniert'),
+                            ),
+                          ],
+                          onChanged: (value) => setState(() {
+                            _reminderMode = value ?? '60';
+                            _validationMessage = null;
+                          }),
+                        ),
+                        if (_reminderMode == 'custom') ...[
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: _customReminderMinutes,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Minuten vor Trainingsbeginn',
+                              helperText: '1 bis 10.080 Minuten (7 Tage)',
+                            ),
+                            onChanged: (_) => setState(
+                              () => _validationMessage = null,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+                if (!_isRecreational && !_isSenior) ...[
                   const SizedBox(height: 14),
                   const Text(
                     'Gemeinsames Training',
@@ -1698,6 +1805,20 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                 });
                 return;
               }
+              final customReminder =
+                  int.tryParse(_customReminderMinutes.text.trim());
+              if (!_isRecreational &&
+                  !_isSenior &&
+                  _reminderMode == 'custom' &&
+                  (customReminder == null ||
+                      customReminder < 1 ||
+                      customReminder > 10080)) {
+                setState(() {
+                  _validationMessage =
+                      'Bitte 1 bis 10.080 Minuten für die Erinnerung eingeben.';
+                });
+                return;
+              }
               final times = [
                 ..._times.map(
                   (value) => value
@@ -1724,6 +1845,13 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                   isRecreational: _isRecreational,
                   isSenior: _isSenior,
                   trainingLocation: _location,
+                  defaultReminderMinutes: _isRecreational || _isSenior
+                      ? null
+                      : _reminderMode == 'none'
+                          ? null
+                          : _reminderMode == 'custom'
+                              ? customReminder
+                              : int.parse(_reminderMode),
                 ),
               );
             },

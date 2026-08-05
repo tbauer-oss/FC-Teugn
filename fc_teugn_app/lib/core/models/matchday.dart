@@ -185,6 +185,7 @@ class MatchDetailsModel {
     required this.periodMinutes,
     required this.periodCount,
     this.competition,
+    this.opponentLogoUrl,
     this.division,
     this.matchDay,
     this.pitch,
@@ -198,6 +199,7 @@ class MatchDetailsModel {
   final bool isHome;
   final MatchStatus status;
   final String? competition;
+  final String? opponentLogoUrl;
   final String? division;
   final String? matchDay;
   final String? pitch;
@@ -219,6 +221,7 @@ class MatchDetailsModel {
           MatchStatus.planned,
         ),
         competition: json['competition'] as String?,
+        opponentLogoUrl: json['opponentLogoUrl'] as String?,
         division: json['division'] as String?,
         matchDay: json['matchDay'] as String?,
         pitch: json['pitch'] as String?,

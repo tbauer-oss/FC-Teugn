@@ -338,6 +338,7 @@ class DataRepository {
     required List<String> trainingTimes,
     required List<String> trainingPartnerIds,
     required List<String> matchdayTimes,
+    required int? defaultReminderMinutes,
     String? trainingLocation,
   }) async {
     final res = await client.dio.patch(
@@ -347,6 +348,7 @@ class DataRepository {
         'trainingTimes': trainingTimes,
         'trainingPartnerIds': trainingPartnerIds,
         'matchdayTimes': matchdayTimes,
+        'defaultReminderMinutes': defaultReminderMinutes,
       },
     );
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
@@ -973,18 +975,21 @@ class DataRepository {
     await client.dio.post('/events/$eventId/attendance/finalize');
   }
 
-  Future<({int recipients, int missingPlayers})> sendAttendanceReminders(
+  Future<({int recipients, int missingPlayers, int pushDeliveries})>
+      sendAttendanceReminders(
     String eventId, {
     String? message,
+    bool pushEnabled = true,
   }) async {
     final res = await client.dio.post(
       '/events/$eventId/attendance/reminders',
-      data: {'message': message},
+      data: {'message': message, 'pushEnabled': pushEnabled},
     );
     final data = res.data as Map<String, dynamic>;
     return (
       recipients: data['recipients'] as int? ?? 0,
       missingPlayers: data['missingPlayers'] as int? ?? 0,
+      pushDeliveries: data['pushDeliveries'] as int? ?? 0,
     );
   }
 

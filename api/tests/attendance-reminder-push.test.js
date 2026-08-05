@@ -11,10 +11,11 @@ const start = source.indexOf('export async function sendAttendanceReminders');
 const end = source.indexOf('export async function createCarpoolOffer', start);
 const handler = source.slice(start, end);
 
-test('manual attendance reminders use the push notification service', () => {
+test('manual attendance reminders honor the optional push selection', () => {
   assert.match(handler, /notifyUsers\(recipients/);
   assert.match(handler, /NotificationCategory\.EVENT_REMINDER/);
-  assert.match(handler, /pushEnabled:\s*true/);
+  assert.match(handler, /req\.body\.pushEnabled !== false/);
+  assert.match(handler, /pushEnabled,/);
 });
 
 test('every manual reminder can create a fresh push delivery', () => {

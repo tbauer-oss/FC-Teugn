@@ -20,6 +20,7 @@ import '../../core/squad_selection.dart';
 import '../../core/ticker_signal.dart';
 import '../../core/widgets/captain_badge.dart';
 import '../../core/widgets/player_team_chip.dart';
+import '../../core/widgets/team_crest.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import 'matchday_autopilot_tab.dart';
@@ -446,41 +447,56 @@ class _ScoreHero extends StatelessWidget {
     final dateLine = '${date.day}.${date.month}.${date.year} · '
         '${date.hour.toString().padLeft(2, '0')}:'
         '${date.minute.toString().padLeft(2, '0')} Uhr · ${match.location}';
+    final crestSize = compact ? 48.0 : 66.0;
     final score = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(child: _TeamName(name: home, compact: compact)),
-        Text(
-          homeGoals == null ? '–' : '$homeGoals',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            fontSize: compact ? 27 : 38,
+        Expanded(
+          child: _ScoreTeam(
+            name: home,
+            isClub: details?.isHome != false,
+            logoUrl: details?.opponentLogoUrl,
+            crestSize: crestSize,
+            compact: compact,
           ),
         ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 14),
-          child: Text(':',
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: compact ? 22 : 32,
-              )),
-        ),
-        Text(
-          awayGoals == null ? '–' : '$awayGoals',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            fontSize: compact ? 27 : 38,
+        Container(
+          margin: EdgeInsets.symmetric(horizontal: compact ? 6 : 20),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 11 : 18,
+            vertical: compact ? 8 : 11,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: .2),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Text(
+            '${homeGoals ?? '–'} : ${awayGoals ?? '–'}',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: compact ? 27 : 40,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
         ),
-        Expanded(child: _TeamName(name: away, compact: compact)),
+        Expanded(
+          child: _ScoreTeam(
+            name: away,
+            isClub: details?.isHome == false,
+            logoUrl: details?.opponentLogoUrl,
+            crestSize: crestSize,
+            compact: compact,
+          ),
+        ),
       ],
     );
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 10 : 20,
-        vertical: compact ? 9 : 22,
+        vertical: compact ? 12 : 22,
       ),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -492,20 +508,32 @@ class _ScoreHero extends StatelessWidget {
           ? Column(
               children: [
                 score,
-                const SizedBox(height: 2),
+                const SizedBox(height: 8),
                 Text(
                   dateLine,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: .64),
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
             )
-          : score,
+          : Column(
+              children: [
+                score,
+                const SizedBox(height: 12),
+                Text(
+                  dateLine,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
@@ -573,24 +601,44 @@ class _CompactMatchTab extends StatelessWidget {
   }
 }
 
-class _TeamName extends StatelessWidget {
-  const _TeamName({required this.name, required this.compact});
+class _ScoreTeam extends StatelessWidget {
+  const _ScoreTeam({
+    required this.name,
+    required this.isClub,
+    required this.logoUrl,
+    required this.crestSize,
+    required this.compact,
+  });
   final String name;
+  final bool isClub;
+  final String? logoUrl;
+  final double crestSize;
   final bool compact;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 14),
-        child: Text(
-          name,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ).copyWith(fontSize: compact ? 15 : 18),
-        ),
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          isClub
+              ? TeamCrest.club(size: crestSize, darkSurface: true)
+              : TeamCrest.opponent(
+                  size: crestSize,
+                  logoUrl: logoUrl,
+                  darkSurface: true,
+                ),
+          SizedBox(height: compact ? 5 : 8),
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: compact ? 12.5 : 17,
+            ),
+          ),
+        ],
       );
 }
 
@@ -601,19 +649,33 @@ class _Overview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final details = match.details;
+    final start = match.startAt.toLocal();
     final rows = <(IconData, String, String)>[
+      (
+        Icons.schedule_rounded,
+        'Anstoß',
+        '${start.hour.toString().padLeft(2, '0')}:'
+            '${start.minute.toString().padLeft(2, '0')} Uhr',
+      ),
+      if (match.meetingAt != null)
+        (
+          Icons.groups_rounded,
+          'Treffpunkt',
+          '${match.meetingAt!.toLocal().hour.toString().padLeft(2, '0')}:'
+              '${match.meetingAt!.toLocal().minute.toString().padLeft(2, '0')} Uhr',
+        ),
       (
         Icons.emoji_events_outlined,
         'Wettbewerb',
-        details?.competition ?? 'Nicht angegeben'
+        details?.competition ?? 'Noch offen'
       ),
       (
         Icons.format_list_numbered_rounded,
         'Spieltag',
-        details?.matchDay ?? 'Nicht angegeben'
+        details?.matchDay ?? 'Noch offen'
       ),
       (Icons.location_on_outlined, 'Spielstätte', match.location),
-      (Icons.sports_rounded, 'Platz', details?.pitch ?? 'Nicht angegeben'),
+      (Icons.sports_rounded, 'Platz', details?.pitch ?? 'Noch offen'),
       (
         Icons.timer_outlined,
         'Spielzeit',
@@ -622,41 +684,149 @@ class _Overview extends StatelessWidget {
       (
         Icons.person_outline_rounded,
         'Schiedsrichter',
-        details?.referee ?? 'Nicht angegeben'
+        details?.referee ?? 'Noch offen'
       ),
     ];
-    return ListView(
-      padding: const EdgeInsets.only(top: 4),
-      children: [
-        Wrap(
-          spacing: 14,
-          runSpacing: 14,
+    final status = switch (details?.status) {
+      MatchStatus.live ||
+      MatchStatus.halfTime ||
+      MatchStatus.interrupted =>
+        'Läuft gerade',
+      MatchStatus.finished || MatchStatus.recorded => 'Beendet',
+      MatchStatus.postponed => 'Verschoben',
+      MatchStatus.confirmed => 'Bestätigt',
+      MatchStatus.cancelled => 'Abgesagt',
+      _ => 'Geplant',
+    };
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 980
+            ? 3
+            : constraints.maxWidth >= 350
+                ? 2
+                : 1;
+        final gap = constraints.maxWidth < 600 ? 8.0 : 12.0;
+        final tileWidth =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(2, 4, 2, 24),
           children: [
-            for (final row in rows)
-              SizedBox(
-                width: 310,
-                child: Card(
-                  child: ListTile(
-                    leading: Icon(row.$1, color: AppColors.blue),
-                    title: Text(row.$2),
-                    subtitle: Text(row.$3),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              decoration: BoxDecoration(
+                color: AppColors.yellow.withValues(alpha: .13),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                    color: AppColors.yellowDark.withValues(alpha: .22)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: AppColors.blue),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Spielstatus: $status · ${details?.isHome != false ? 'Heimspiel' : 'Auswärtsspiel'}',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (final row in rows)
+                  SizedBox(
+                    width: tileWidth,
+                    child: _OverviewTile(
+                      icon: row.$1,
+                      label: row.$2,
+                      value: row.$3,
+                    ),
+                  ),
+              ],
+            ),
+            if (details?.notes?.isNotEmpty == true) ...[
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Hinweise',
+                          style: TextStyle(fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 5),
+                      Text(details!.notes!),
+                    ],
                   ),
                 ),
               ),
+            ],
           ],
-        ),
-        if (details?.notes?.isNotEmpty == true) ...[
-          const SizedBox(height: 14),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Text(details!.notes!),
-            ),
-          ),
-        ],
-      ],
+        );
+      },
     );
   }
+}
+
+class _OverviewTile extends StatelessWidget {
+  const _OverviewTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minHeight: 92),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppColors.yellow.withValues(alpha: .13),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: AppColors.blue, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label.toUpperCase(),
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .7,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(value,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _SquadTab extends ConsumerStatefulWidget {
@@ -2695,6 +2865,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       ourGoals: scores.ours,
       theirGoals: scores.theirs,
       opponent: widget.match.details?.opponent ?? 'Gegner',
+      opponentLogoUrl: widget.match.details?.opponentLogoUrl,
       periodLabel: matchPeriodLabel(ticker.currentPeriod, periodCount),
       status: ticker.status,
       currentPeriod: ticker.currentPeriod,
@@ -2754,6 +2925,10 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         valueListenable: _focusData,
         builder: (context, data, _) => _CountdownCard(
           clock: data.clock,
+          ourGoals: data.ourGoals,
+          theirGoals: data.theirGoals,
+          opponent: data.opponent,
+          opponentLogoUrl: data.opponentLogoUrl,
           periodLabel: data.periodLabel,
           status: data.status,
           onExpand: _showFocusMode,
@@ -3775,6 +3950,7 @@ class _TickerFocusData {
     required this.ourGoals,
     required this.theirGoals,
     required this.opponent,
+    required this.opponentLogoUrl,
     required this.periodLabel,
     required this.status,
     required this.currentPeriod,
@@ -3785,6 +3961,7 @@ class _TickerFocusData {
   final int ourGoals;
   final int theirGoals;
   final String opponent;
+  final String? opponentLogoUrl;
   final String periodLabel;
   final TickerStatus status;
   final int currentPeriod;
@@ -3794,12 +3971,20 @@ class _TickerFocusData {
 class _CountdownCard extends StatelessWidget {
   const _CountdownCard({
     required this.clock,
+    required this.ourGoals,
+    required this.theirGoals,
+    required this.opponent,
+    required this.opponentLogoUrl,
     required this.periodLabel,
     required this.status,
     required this.onExpand,
   });
 
   final MatchClockValue clock;
+  final int ourGoals;
+  final int theirGoals;
+  final String opponent;
+  final String? opponentLogoUrl;
   final String periodLabel;
   final TickerStatus status;
   final VoidCallback onExpand;
@@ -3856,6 +4041,56 @@ class _CountdownCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const TeamCrest.club(size: 42, darkSurface: true),
+              const SizedBox(width: 9),
+              const Flexible(
+                child: Text(
+                  'FC Teugn',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Text(
+                  '$ourGoals : $theirGoals',
+                  style: const TextStyle(
+                    color: AppColors.yellow,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              Flexible(
+                child: Text(
+                  opponent,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              TeamCrest.opponent(
+                size: 42,
+                logoUrl: opponentLogoUrl,
+                darkSurface: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           Text(
             clock.countdown,
             style: TextStyle(
@@ -4005,6 +4240,7 @@ class _TickerFocusView extends StatelessWidget {
                                 _FocusTeamScore(
                                   team: 'FC Teugn',
                                   goals: data.ourGoals,
+                                  isClub: true,
                                   highlighted: true,
                                 ),
                                 const Padding(
@@ -4021,6 +4257,7 @@ class _TickerFocusView extends StatelessWidget {
                                 _FocusTeamScore(
                                   team: data.opponent,
                                   goals: data.theirGoals,
+                                  logoUrl: data.opponentLogoUrl,
                                 ),
                               ],
                             ),
@@ -4181,11 +4418,15 @@ class _FocusTeamScore extends StatelessWidget {
   const _FocusTeamScore({
     required this.team,
     required this.goals,
+    this.isClub = false,
+    this.logoUrl,
     this.highlighted = false,
   });
 
   final String team;
   final int goals;
+  final bool isClub;
+  final String? logoUrl;
   final bool highlighted;
 
   @override
@@ -4193,6 +4434,14 @@ class _FocusTeamScore extends StatelessWidget {
         width: min(MediaQuery.sizeOf(context).width * .28, 240.0),
         child: Column(
           children: [
+            isClub
+                ? const TeamCrest.club(size: 64, darkSurface: true)
+                : TeamCrest.opponent(
+                    size: 64,
+                    logoUrl: logoUrl,
+                    darkSurface: true,
+                  ),
+            const SizedBox(height: 10),
             Text(
               '$goals',
               style: TextStyle(

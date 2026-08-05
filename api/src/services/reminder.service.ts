@@ -1,5 +1,6 @@
 import {
   AccountStatus,
+  AttendanceStatus,
   EventCategory,
   EventStatus,
   NotificationCategory,
@@ -26,13 +27,24 @@ export async function reminderRecipientsForEvent(eventId: string) {
           },
         },
       },
+      attendance: {
+        select: { playerId: true, status: true },
+      },
     },
   });
   if (!event) return { event: null, recipientIds: [] as string[] };
   const recipientIds = new Set<string>();
+  const declinedPlayerIds = new Set(
+    event.attendance
+      .filter((entry) => entry.status === AttendanceStatus.NO)
+      .map((entry) => entry.playerId),
+  );
   if (event.participants.length) {
     for (const participant of event.participants) {
       if (participant.userId) recipientIds.add(participant.userId);
+      if (participant.playerId && declinedPlayerIds.has(participant.playerId)) {
+        continue;
+      }
       if (participant.player?.userId) recipientIds.add(participant.player.userId);
       participant.player?.parentLinks.forEach((link) => recipientIds.add(link.parentId));
     }
@@ -60,6 +72,7 @@ export async function reminderRecipientsForEvent(eventId: string) {
       }),
     ]);
     players.forEach((player) => {
+      if (declinedPlayerIds.has(player.id)) return;
       if (player.userId) recipientIds.add(player.userId);
       player.parentLinks.forEach((link) => recipientIds.add(link.parentId));
     });
@@ -171,7 +184,23 @@ export async function processDueReminders(now = new Date()) {
   });
   let sent = 0;
   let failed = 0;
+  const currentRecipients = new Map<string, Set<string>>();
   for (const job of due) {
+    if (!currentRecipients.has(job.eventId)) {
+      const current = await reminderRecipientsForEvent(job.eventId);
+      currentRecipients.set(job.eventId, new Set(current.recipientIds));
+    }
+    if (!currentRecipients.get(job.eventId)!.has(job.recipientId)) {
+      await prisma.scheduledReminder.updateMany({
+        where: { id: job.id, status: job.status },
+        data: {
+          status: ReminderJobStatus.CANCELLED,
+          cancelledAt: now,
+          errorMessage: 'Empfänger ist für diesen Termin nicht mehr relevant.',
+        },
+      });
+      continue;
+    }
     const claimed = await prisma.scheduledReminder.updateMany({
       where: {
         id: job.id,
@@ -297,7 +326,10 @@ async function processRegularTrainingReminders(now: Date) {
     const indoor = team.indoorSeasonStartDate && team.indoorSeasonEndDate &&
       berlinNow >= team.indoorSeasonStartDate && berlinNow <= team.indoorSeasonEndDate;
     const slots = indoor ? team.indoorTrainingTimes : team.trainingTimes;
-    const minutesBefore = team.defaultReminderMinutes ?? 60;
+    // `null` is the explicit opt-out selected by the trainer. Existing teams
+    // receive the database default of 60 minutes.
+    if (team.defaultReminderMinutes == null) continue;
+    const minutesBefore = team.defaultReminderMinutes;
     for (const raw of slots) {
       const slot = parseRegularTrainingSlot(raw);
       if (!slot || slot.weekday !== berlinNow.getDay()) continue;

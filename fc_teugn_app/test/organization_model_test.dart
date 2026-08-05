@@ -39,6 +39,7 @@ void main() {
       'indoorSeasonEndDate': '2027-03-15T00:00:00.000Z',
       'indoorTrainingLocation': 'Mehrzweckhalle Teugn',
       'indoorTrainingTimes': ['Freitag 17:00–18:30'],
+      'defaultReminderMinutes': 30,
       'homeVenue': 'Waldstadion',
       'bfvTeamId': 'bfv-1',
       'dfbnetTeamId': 'dfb-1',
@@ -66,6 +67,7 @@ void main() {
     expect(team.seasonEndDate?.month, 5);
     expect(team.indoorTrainingLocation, 'Mehrzweckhalle Teugn');
     expect(team.indoorTrainingTimes, ['Freitag 17:00–18:30']);
+    expect(team.defaultReminderMinutes, 30);
     expect(team.staff.single.name, 'Max Trainer');
     expect(team.staff.single.role, 'COACH');
     expect(team.photoUrl, isNotNull);

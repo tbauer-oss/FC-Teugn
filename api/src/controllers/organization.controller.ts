@@ -1066,6 +1066,23 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
   const trainingLocation = optionalText(req.body.trainingLocation, 200);
   const trainingTimes = stringList(req.body.trainingTimes, 14, 100);
   const matchdayTimes = stringList(req.body.matchdayTimes, 14, 100);
+  const reminderValue = req.body.defaultReminderMinutes;
+  const defaultReminderMinutes = reminderValue === undefined
+    ? undefined
+    : reminderValue === null
+      ? null
+      : Number(reminderValue);
+  if (
+    defaultReminderMinutes !== undefined &&
+    defaultReminderMinutes !== null &&
+    (!Number.isInteger(defaultReminderMinutes) ||
+      defaultReminderMinutes < 1 ||
+      defaultReminderMinutes > 10_080)
+  ) {
+    return res.status(400).json({
+      message: 'Die Trainingserinnerung muss zwischen 1 Minute und 7 Tagen liegen.',
+    });
+  }
   const requestedPartnerIds = stringList(req.body.trainingPartnerIds, 12, 100)
     .filter((id) => id !== teamId);
   const team = await prisma.$transaction(async (tx) => {
@@ -1117,6 +1134,9 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
         trainingTimes,
         trainingPartnerIds,
         matchdayTimes,
+        ...(defaultReminderMinutes !== undefined
+          ? { defaultReminderMinutes }
+          : {}),
       },
       include: hierarchyInclude,
     });
@@ -1133,12 +1153,17 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
             trainingTimes: existing.trainingTimes,
             trainingPartnerIds: existing.trainingPartnerIds,
             matchdayTimes: existing.matchdayTimes,
+            defaultReminderMinutes: existing.defaultReminderMinutes,
           },
           after: {
             trainingLocation,
             trainingTimes,
             trainingPartnerIds,
             matchdayTimes,
+            defaultReminderMinutes:
+              defaultReminderMinutes === undefined
+                ? existing.defaultReminderMinutes
+                : defaultReminderMinutes,
           },
         },
       },
@@ -1287,6 +1312,7 @@ async function serializeTeam(team: {
   trainingTimes: string[];
   trainingPartnerIds: string[];
   matchdayTimes: string[];
+  defaultReminderMinutes: number | null;
   seasonStartDate: Date | null;
   seasonEndDate: Date | null;
   indoorSeasonStartDate: Date | null;
@@ -1363,6 +1389,7 @@ async function serializeTeam(team: {
     trainingTimes: team.trainingTimes,
     trainingPartnerIds: team.trainingPartnerIds,
     matchdayTimes: team.matchdayTimes,
+    defaultReminderMinutes: team.defaultReminderMinutes,
     seasonStartDate: team.seasonStartDate,
     seasonEndDate: team.seasonEndDate,
     indoorSeasonStartDate: team.indoorSeasonStartDate,

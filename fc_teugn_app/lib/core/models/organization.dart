@@ -96,6 +96,7 @@ class TeamSummary {
     this.trainingTimes = const [],
     this.trainingPartnerIds = const [],
     this.matchdayTimes = const [],
+    this.defaultReminderMinutes = 60,
     this.seasonStartDate,
     this.seasonEndDate,
     this.indoorSeasonStartDate,
@@ -132,6 +133,7 @@ class TeamSummary {
   final List<String> trainingTimes;
   final List<String> trainingPartnerIds;
   final List<String> matchdayTimes;
+  final int? defaultReminderMinutes;
   final DateTime? seasonStartDate;
   final DateTime? seasonEndDate;
   final DateTime? indoorSeasonStartDate;
@@ -213,6 +215,9 @@ class TeamSummary {
         matchdayTimes: (json['matchdayTimes'] as List<dynamic>? ?? [])
             .whereType<String>()
             .toList(),
+        defaultReminderMinutes: json.containsKey('defaultReminderMinutes')
+            ? (json['defaultReminderMinutes'] as num?)?.toInt()
+            : 60,
         seasonStartDate: dateOnlyFromApi(json['seasonStartDate']),
         seasonEndDate: dateOnlyFromApi(json['seasonEndDate']),
         indoorSeasonStartDate: dateOnlyFromApi(json['indoorSeasonStartDate']),

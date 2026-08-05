@@ -3081,17 +3081,87 @@ class _AttendanceSection extends ConsumerWidget {
                   event.missingAttendance.isNotEmpty)
                 OutlinedButton.icon(
                   onPressed: () async {
-                    final result = await ref
-                        .read(repositoryProvider)
-                        .sendAttendanceReminders(event.id);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            '${result.recipients} Personen wurden erinnert.',
+                    var sendPush = true;
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogContext) => StatefulBuilder(
+                        builder: (context, setDialogState) => AlertDialog(
+                          title: const Text('Offene Rückmeldungen erinnern'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${event.missingAttendance.length} offene '
+                                'Rückmeldung(en) erhalten eine Erinnerung in '
+                                'der App.',
+                              ),
+                              const SizedBox(height: 12),
+                              SwitchListTile.adaptive(
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text(
+                                  'Zusätzlich als Push-Nachricht senden',
+                                ),
+                                subtitle: const Text(
+                                  'Kann für jede Erinnerung einzeln entschieden werden.',
+                                ),
+                                value: sendPush,
+                                onChanged: (value) => setDialogState(
+                                  () => sendPush = value,
+                                ),
+                              ),
+                            ],
                           ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, false),
+                              child: const Text('Abbrechen'),
+                            ),
+                            FilledButton.icon(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, true),
+                              icon: Icon(
+                                sendPush
+                                    ? Icons.notifications_active_rounded
+                                    : Icons.notifications_none_rounded,
+                              ),
+                              label: const Text('Jetzt erinnern'),
+                            ),
+                          ],
                         ),
-                      );
+                      ),
+                    );
+                    if (confirmed != true || !context.mounted) return;
+                    try {
+                      final result = await ref
+                          .read(repositoryProvider)
+                          .sendAttendanceReminders(
+                            event.id,
+                            pushEnabled: sendPush,
+                          );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              sendPush
+                                  ? '${result.recipients} Personen wurden erinnert; '
+                                      'Push an ${result.pushDeliveries} Gerät(e).'
+                                  : '${result.recipients} Personen wurden ohne Push erinnert.',
+                            ),
+                          ),
+                        );
+                      }
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Die Erinnerungen konnten nicht versendet werden.',
+                            ),
+                          ),
+                        );
+                      }
                     }
                   },
                   icon: const Icon(Icons.notifications_active_rounded),
@@ -3648,7 +3718,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   DateTime? recurrenceUntil;
   int interval = 1;
   final weekdays = <int>{};
-  final reminderMinutes = <int>{1440, 120};
+  String reminderMode = 'none';
+  late final TextEditingController customReminderMinutes;
   late final Future<List<PlayerModel>> participantPlayers;
   late Future<List<OpponentModel>> availableOpponents;
   late String opponentAgeGroupId;
@@ -3699,6 +3770,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     attachmentName = TextEditingController();
     attachmentUrl = TextEditingController();
     pitchConflictMessage = TextEditingController();
+    customReminderMinutes = TextEditingController();
     category = event?.category ?? EventCategory.training;
     visibility = event?.visibility ?? EventVisibility.team;
     homeAway = event?.homeAway ?? (category.isMatch ? HomeAway.home : null);
@@ -3721,9 +3793,18 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
             ? {event.teamId}
             : event.targetTeams.map((team) => team.id).toSet());
     carpoolRequired = event?.carpoolRequired ?? false;
-    reminderMinutes
-      ..clear()
-      ..addAll(event?.reminderMinutes ?? const [1440, 120]);
+    final savedReminders = event?.reminderMinutes ?? const <int>[];
+    if (savedReminders.isEmpty) {
+      reminderMode = 'none';
+    } else {
+      final saved = savedReminders.reduce((a, b) => a < b ? a : b);
+      if (saved == 60 || saved == 120) {
+        reminderMode = '$saved';
+      } else {
+        reminderMode = 'custom';
+        customReminderMinutes.text = '$saved';
+      }
+    }
     participantPlayers = widget.repository.players();
     opponentAgeGroupId = initialTeam?.ageGroup.id ?? '';
     availableOpponents = opponentAgeGroupId.isEmpty
@@ -3758,6 +3839,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       attachmentName,
       attachmentUrl,
       pitchConflictMessage,
+      customReminderMinutes,
     ]) {
       controller.dispose();
     }
@@ -4344,6 +4426,84 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 setState(() => responseDeadline = value),
                           ),
                           const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.yellow.withValues(alpha: .1),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: AppColors.line),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Automatische Erinnerung',
+                                  style: TextStyle(fontWeight: FontWeight.w900),
+                                ),
+                                const SizedBox(height: 3),
+                                const Text(
+                                  'Die Push-Nachricht wird zuverlässig vom '
+                                  'Server an die ausgewählten Personen gesendet.',
+                                  style: TextStyle(color: AppColors.muted),
+                                ),
+                                const SizedBox(height: 10),
+                                DropdownButtonFormField<String>(
+                                  initialValue: reminderMode,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Zeitpunkt',
+                                    prefixIcon: Icon(
+                                      Icons.notifications_active_outlined,
+                                    ),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 'none',
+                                      child: Text('Keine Erinnerung'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: '60',
+                                      child: Text('1 Stunde vorher'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: '120',
+                                      child: Text('2 Stunden vorher'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'custom',
+                                      child: Text('Benutzerdefiniert'),
+                                    ),
+                                  ],
+                                  onChanged: (value) => setState(
+                                    () => reminderMode = value ?? 'none',
+                                  ),
+                                ),
+                                if (reminderMode == 'custom') ...[
+                                  const SizedBox(height: 10),
+                                  TextFormField(
+                                    controller: customReminderMinutes,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Minuten vor Terminbeginn',
+                                      helperText:
+                                          '1 bis 10.080 Minuten (7 Tage)',
+                                    ),
+                                    validator: (value) {
+                                      if (reminderMode != 'custom') return null;
+                                      final minutes =
+                                          int.tryParse(value?.trim() ?? '');
+                                      if (minutes == null ||
+                                          minutes < 1 ||
+                                          minutes > 10080) {
+                                        return '1 bis 10.080 Minuten eingeben';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           SwitchListTile(
                             contentPadding: EdgeInsets.zero,
                             title: const Text('Fahrgemeinschaft benötigt'),
@@ -4636,7 +4796,13 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         responseDeadline: responseDeadline,
         internalNote: _optional(internalNote),
         visibility: visibility,
-        reminderMinutes: reminderMinutes.toList(),
+        reminderMinutes: reminderMode == 'none'
+            ? const []
+            : [
+                reminderMode == 'custom'
+                    ? int.parse(customReminderMinutes.text.trim())
+                    : int.parse(reminderMode),
+              ],
         attachmentName: _optional(attachmentName),
         attachmentUrl: _optional(attachmentUrl),
         recurrence: recurring

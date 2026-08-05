@@ -3,12 +3,12 @@ import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
-import '../../core/club_logo.dart';
 import '../../core/football_options.dart';
 import '../../core/models/event.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/responsive_form_dialog.dart';
+import '../../core/widgets/team_crest.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import '../imports/competition_import_dialog.dart';
@@ -596,28 +596,16 @@ class _MatchLogos extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = compact ? 34.0 : 42.0;
-    return SizedBox(
-      width: compact ? 58 : 72,
-      height: size,
-      child: Stack(
-        children: [
-          ClubLogo(size: size),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: CircleAvatar(
-              radius: size * .3,
-              backgroundColor: Colors.white,
-              backgroundImage: opponentLogoUrl == null
-                  ? null
-                  : NetworkImage(opponentLogoUrl!),
-              child: opponentLogoUrl == null
-                  ? const Icon(Icons.shield_outlined, size: 15)
-                  : null,
-            ),
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TeamCrest.club(size: size),
+        const SizedBox(width: 5),
+        TeamCrest.opponent(
+          size: size,
+          logoUrl: opponentLogoUrl,
+        ),
+      ],
     );
   }
 }
