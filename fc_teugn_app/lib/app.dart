@@ -29,10 +29,12 @@ import 'features/communications/communications_page.dart';
 import 'features/operations/team_operations_page.dart';
 import 'features/privacy/privacy_page.dart';
 import 'features/launch/animated_launch_screen.dart';
+import 'features/shared/app_update_dialog.dart';
 import 'core/models/communication.dart';
 import 'core/models/user.dart';
 import 'core/app_identity.dart';
 import 'core/app_theme.dart';
+import 'core/app_update/app_update_service.dart';
 import 'core/providers.dart';
 import 'core/loading/loading_widgets.dart';
 import 'core/push/initial_push_prompt.dart';
@@ -58,6 +60,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   String? _pendingPushAction;
   bool _minimumLaunchComplete = false;
   bool _initialPushPromptScheduled = false;
+  bool _startupPromptsScheduled = false;
 
   @override
   void initState() {
@@ -92,6 +95,29 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) router.go(route);
+    });
+  }
+
+  void _scheduleStartupPrompts() {
+    if (_startupPromptsScheduled) return;
+    _startupPromptsScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final update = await appUpdateService.checkForUpdate();
+        if (!mounted || update == null) return;
+        final updateContext = _rootNavigatorKey.currentContext;
+        if (updateContext == null || !updateContext.mounted) return;
+        await showDialog<void>(
+          context: updateContext,
+          barrierDismissible: !update.mandatory,
+          builder: (_) => AppUpdateDialog(manifest: update),
+        );
+      } catch (_) {
+        // Die Update-Prüfung läuft bewusst im Hintergrund. Ein kurzzeitig
+        // nicht erreichbarer Update-Speicher darf den App-Start nie stören.
+      } finally {
+        if (mounted) _scheduleInitialPushPrompt();
+      }
     });
   }
 
@@ -604,7 +630,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
       ],
     );
     _openPendingPushAction();
-    _scheduleInitialPushPrompt();
+    _scheduleStartupPrompts();
 
     return _withLaunchTransition(MaterialApp.router(
       key: const ValueKey('fc-teugn-app'),

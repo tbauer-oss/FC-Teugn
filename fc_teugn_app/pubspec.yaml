@@ -1,7 +1,7 @@
 name: fc_teugn_app
 description: FC Teugn Talents – die Jugendfußball-App für Team und Verein
 publish_to: 'none'
-version: 1.5.26+45
+version: 1.5.27+46
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -13,6 +13,7 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^2.4.0
   flutter_secure_storage: ^10.3.1
+  crypto: ^3.0.7
   dio: ^5.7.0
   go_router: ^14.0.0
   cupertino_icons: ^1.0.8
@@ -21,6 +22,7 @@ dependencies:
   image_picker: ^1.2.3
   url_launcher: ^6.3.2
   package_info_plus: ^9.0.1
+  path_provider: ^2.1.6
   firebase_core: ^4.12.1
   firebase_messaging: ^16.4.3
 dev_dependencies:

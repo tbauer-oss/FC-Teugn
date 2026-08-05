@@ -5,24 +5,31 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.annotation.NonNull
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL = "de.fcteugn.jugend/notifications"
+        private const val UPDATE_CHANNEL = "de.fcteugn.jugend/app_update"
         private const val NOTIFICATION_CHANNEL_ID = "fc_teugn_important"
         private const val ACTION_URL_EXTRA = "fc_teugn_action_url"
     }
 
     private var notificationMethodChannel: MethodChannel? = null
+    private var updateMethodChannel: MethodChannel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         createNotificationChannel()
@@ -45,6 +52,24 @@ class MainActivity : FlutterActivity() {
                     }
                     "getInitialPushAction" -> {
                         result.success(consumePushAction(intent))
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
+        updateMethodChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            UPDATE_CHANNEL,
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "installApk" -> {
+                        val path = call.argument<String>("path")
+                        if (path.isNullOrBlank()) {
+                            result.error("invalid_path", "APK-Pfad fehlt.", null)
+                        } else {
+                            installApk(path, result)
+                        }
                     }
                     else -> result.notImplemented()
                 }
@@ -78,6 +103,52 @@ class MainActivity : FlutterActivity() {
             enableVibration(true)
         }
         manager.createNotificationChannel(channel)
+    }
+
+    private fun installApk(path: String, result: MethodChannel.Result) {
+        try {
+            val allowedDirectory = File(cacheDir, "app_updates").canonicalFile
+            val apk = File(path).canonicalFile
+            val insideUpdateDirectory = apk.path.startsWith(
+                allowedDirectory.path + File.separator,
+            )
+            if (!insideUpdateDirectory || !apk.isFile) {
+                result.error("invalid_apk", "Die APK-Datei ist ungültig.", null)
+                return
+            }
+
+            if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                !packageManager.canRequestPackageInstalls()
+            ) {
+                val settingsIntent = Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName"),
+                )
+                startActivity(settingsIntent)
+                result.success("permissionRequired")
+                return
+            }
+
+            val apkUri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                apk,
+            )
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                clipData = ClipData.newRawUri("FC Teugn Talents Update", apkUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            if (installIntent.resolveActivity(packageManager) == null) {
+                result.success("unsupported")
+                return
+            }
+            startActivity(installIntent)
+            result.success("launched")
+        } catch (error: Exception) {
+            result.error("install_failed", error.message, null)
+        }
     }
 
     private fun showNotification(title: String, body: String, actionUrl: String?): Boolean {

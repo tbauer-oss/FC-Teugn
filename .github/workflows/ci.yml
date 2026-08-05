@@ -156,3 +156,28 @@ jobs:
           path: fc_teugn_app/build/app/outputs/flutter-apk/${{ env.FC_TEUGN_APK_FILE_NAME }}
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish signed Android release to MagentaCLOUD
+        if: >-
+          (github.event_name == 'push' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
+          github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          MAGENTACLOUD_WEBDAV_USERNAME: ${{ secrets.MAGENTACLOUD_WEBDAV_USERNAME }}
+          MAGENTACLOUD_WEBDAV_PASSWORD: ${{ secrets.MAGENTACLOUD_WEBDAV_PASSWORD }}
+        run: >-
+          bash ../scripts/publish_magentacloud_release.sh
+          "build/app/outputs/flutter-apk/${FC_TEUGN_APK_FILE_NAME}"
+
+      - name: Upload update manifest
+        if: >-
+          (github.event_name == 'push' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
+          github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fc-teugn-talents-update-manifest
+          path: fc_teugn_app/build/app/outputs/flutter-apk/latest.json
+          if-no-files-found: error
+          retention-days: 30

@@ -13,6 +13,27 @@ Android-Emulator kann das Ziel explizit überschrieben werden:
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:4000
 ```
 
+## Automatische App-Updates über MagentaCLOUD
+
+Android-Releases werden nach erfolgreicher Prüfung zusätzlich in den
+öffentlichen MagentaCLOUD-Ordner `FC-Teugn/App-Updates` veröffentlicht. Die
+App liest beim Start ausschließlich das maschinenlesbare `latest.json`. Eine
+neuere Version wird mit Versionsnummer und Änderungshinweis angeboten. Vor
+der Übergabe an den Android-Paketinstaller werden Dateigröße und SHA-256 der
+APK geprüft.
+
+Die GitHub-Actions-Secrets
+`MAGENTACLOUD_WEBDAV_USERNAME` und
+`MAGENTACLOUD_WEBDAV_PASSWORD` enthalten eine getrennte WebDAV-Sitzung und
+niemals das normale Telekom-Kontopasswort. Der Workflow lädt zuerst die
+versionierte APK ins `Archiv`, ersetzt anschließend
+`FC-Teugn-Talents-latest.apk` und veröffentlicht `latest.json` zuletzt.
+
+Android verlangt bei einer direkt verteilten APK einmalig die Freigabe
+„Unbekannte Apps installieren“ für FC Teugn Talents und anschließend bei
+jeder Version die Bestätigung des System-Installationsdialogs. Eine stille
+Installation ohne diese Android-Sicherheitsdialoge ist nicht möglich.
+
 ## Upload-Schlüssel lokal einrichten
 
 Der private Schlüssel und seine Passwörter dürfen niemals in Git eingecheckt
