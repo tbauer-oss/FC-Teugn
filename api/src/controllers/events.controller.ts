@@ -9,6 +9,7 @@ import {
   EventType,
   EventVisibility,
   HomeAway,
+  NotificationCategory,
   Prisma,
   RecurrenceFrequency,
   Role as PrismaRole,
@@ -30,6 +31,7 @@ import {
 } from '../services/default-lineup.service';
 import { syncScheduledRemindersForEvent } from '../services/reminder.service';
 import { mediaAssetUrl } from '../services/media-access';
+import { notifyUsers } from '../services/notification.service';
 
 const eventInclude = {
   series: true,
@@ -1499,37 +1501,25 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
   const message =
     clean(req.body.message) ??
     `Bitte Rückmeldung zu „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`;
+  let pushResult = { notifications: 0, deliveries: 0 };
   if (recipientIds.size) {
-    const existingRecipients = await prisma.eventReminder.findMany({
-      where: { eventId: event.id, recipientId: { in: [...recipientIds] } },
-      distinct: ['recipientId'],
-      select: { recipientId: true },
-    });
-    const alreadySent = new Set(existingRecipients.map((item) => item.recipientId));
-    const newRecipients = [...recipientIds].filter((id) => !alreadySent.has(id));
+    const recipients = [...recipientIds];
     await prisma.eventReminder.createMany({
-      data: newRecipients.map((recipientId) => ({
+      data: recipients.map((recipientId) => ({
         eventId: event.id,
         recipientId,
         message,
       })),
     });
-    await Promise.all(newRecipients.map((recipientId) =>
-      prisma.notification.upsert({
-        where: { dedupeKey: `attendance:${event.id}:${recipientId}` },
-        update: { title: 'Offene Rückmeldung', body: message, readAt: null },
-        create: {
-          userId: recipientId,
-          category: 'EVENT_REMINDER',
-          title: 'Offene Rückmeldung',
-          body: message,
-          actionUrl: `/events/${event.id}`,
-          entityType: 'Event',
-          entityId: event.id,
-          dedupeKey: `attendance:${event.id}:${recipientId}`,
-        },
-      }),
-    ));
+    pushResult = await notifyUsers(recipients, {
+      category: NotificationCategory.EVENT_REMINDER,
+      title: 'Offene Rückmeldung',
+      body: message,
+      actionUrl: `/events/${event.id}`,
+      entityType: 'Event',
+      entityId: event.id,
+      pushEnabled: true,
+    });
   }
   await prisma.auditLog.create({
     data: {
@@ -1541,7 +1531,12 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
       metadata: { recipients: recipientIds.size, missingPlayers: players.length },
     },
   });
-  return res.json({ recipients: recipientIds.size, missingPlayers: players.length });
+  return res.json({
+    recipients: recipientIds.size,
+    missingPlayers: players.length,
+    notifications: pushResult.notifications,
+    pushDeliveries: pushResult.deliveries,
+  });
 }
 
 export async function createCarpoolOffer(req: Request, res: Response) {

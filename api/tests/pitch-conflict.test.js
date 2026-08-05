@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const {
   parseTrainingSlot,
@@ -76,5 +78,20 @@ test('individual non-match events can request a pitch approval', () => {
   assert.equal(
     requestableEventPitch(null, 'Platz noch offen / unklar'),
     null,
+  );
+});
+
+test('pitch conflict requests are restricted to event managers', () => {
+  const routes = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'events.routes.ts'),
+    'utf8',
+  );
+  assert.match(
+    routes,
+    /'\/pitch-conflict-requests\/list',[\s\S]*?requirePermission\(Permission\.MANAGE_EVENTS\),[\s\S]*?listPitchConflictRequests/,
+  );
+  assert.match(
+    routes,
+    /'\/pitch-conflict-requests\/:requestId',[\s\S]*?requirePermission\(Permission\.MANAGE_EVENTS\),[\s\S]*?respondToPitchConflictRequest/,
   );
 });

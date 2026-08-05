@@ -23,67 +23,79 @@ class CommunicationsPage extends ConsumerStatefulWidget {
 }
 
 class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
-  int _tab = 0;
+  _CommunicationView _view = _CommunicationView.announcements;
   int _revision = 0;
 
   void _reload() => setState(() => _revision++);
 
   @override
   Widget build(BuildContext context) {
-    const destinations = [
-      _CommunicationDestination(
+    final destinations = [
+      const _CommunicationDestination(
+        view: _CommunicationView.announcements,
         label: 'Mitteilungen',
         description: 'Team-Infos verfassen und verwalten',
         icon: Icons.campaign_rounded,
       ),
-      _CommunicationDestination(
-        label: 'Platzanfragen',
-        description: 'Überschneidungen gemeinsam klären',
-        icon: Icons.stadium_rounded,
-      ),
-      _CommunicationDestination(
+      if (widget.staffView)
+        const _CommunicationDestination(
+          view: _CommunicationView.pitchRequests,
+          label: 'Platzanfragen',
+          description: 'Überschneidungen gemeinsam klären',
+          icon: Icons.stadium_rounded,
+        ),
+      const _CommunicationDestination(
+        view: _CommunicationView.notifications,
         label: 'Benachrichtigungen',
         description: 'Persönliche Hinweise im Blick behalten',
         icon: Icons.notifications_rounded,
       ),
-      _CommunicationDestination(
+      const _CommunicationDestination(
+        view: _CommunicationView.settings,
         label: 'Einstellungen',
         description: 'Push-Nachrichten und Geräte verwalten',
         icon: Icons.tune_rounded,
       ),
     ];
+    final selectedIndex = destinations.indexWhere(
+      (destination) => destination.view == _view,
+    );
+    final effectiveView =
+        selectedIndex < 0 ? _CommunicationView.announcements : _view;
     return PageScaffold(
       title: 'Mitteilungscenter',
       subtitle:
           'Alle Informationen, Abstimmungen und Benachrichtigungen zentral organisiert.',
-      action: widget.staffView && _tab == 0
-          ? FilledButton.icon(
-              onPressed: _compose,
-              icon: const Icon(Icons.add_comment_rounded),
-              label: const Text('Neue Mitteilung'),
-            )
-          : null,
+      action:
+          widget.staffView && effectiveView == _CommunicationView.announcements
+              ? FilledButton.icon(
+                  onPressed: _compose,
+                  icon: const Icon(Icons.add_comment_rounded),
+                  label: const Text('Neue Mitteilung'),
+                )
+              : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _CommunicationNavigation(
             destinations: destinations,
-            selectedIndex: _tab,
-            onSelected: (value) => setState(() => _tab = value),
+            selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
+            onSelected: (value) =>
+                setState(() => _view = destinations[value].view),
           ),
           const SizedBox(height: 24),
-          if (_tab == 0)
+          if (effectiveView == _CommunicationView.announcements)
             _AnnouncementList(
               key: ValueKey('announcements-$_revision'),
               staffView: widget.staffView,
               onChanged: _reload,
             )
-          else if (_tab == 1)
+          else if (effectiveView == _CommunicationView.pitchRequests)
             _PitchConflictRequestList(
               key: ValueKey('pitch-conflicts-$_revision'),
               onChanged: _reload,
             )
-          else if (_tab == 2)
+          else if (effectiveView == _CommunicationView.notifications)
             _NotificationList(
               key: ValueKey('notifications-$_revision'),
               onChanged: _reload,
@@ -140,13 +152,22 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
   }
 }
 
+enum _CommunicationView {
+  announcements,
+  pitchRequests,
+  notifications,
+  settings,
+}
+
 class _CommunicationDestination {
   const _CommunicationDestination({
+    required this.view,
     required this.label,
     required this.description,
     required this.icon,
   });
 
+  final _CommunicationView view;
   final String label;
   final String description;
   final IconData icon;

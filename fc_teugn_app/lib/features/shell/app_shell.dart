@@ -991,11 +991,19 @@ class MobileNavigationPanel extends StatelessWidget {
   final VoidCallback? onInstall;
   final VoidCallback onAbout;
 
-  bool _isSelected(ShellDestination destination) =>
-      destination.matches(location);
+  ShellDestination? _selectedDestination() {
+    for (final destination in destinations) {
+      if (location == destination.route) return destination;
+    }
+    for (final destination in destinations.reversed) {
+      if (destination.matches(location)) return destination;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final selectedDestination = _selectedDestination();
     return SafeArea(
       top: false,
       child: ListView(
@@ -1111,7 +1119,8 @@ class MobileNavigationPanel extends StatelessWidget {
                 destinations: destinations
                     .where((item) => item.section == section)
                     .toList(),
-                isSelected: _isSelected,
+                isSelected: (destination) =>
+                    destination.route == selectedDestination?.route,
                 onSelect: onSelect,
               ),
               const SizedBox(height: 10),

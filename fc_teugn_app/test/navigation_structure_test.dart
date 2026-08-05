@@ -244,6 +244,7 @@ void main() {
     expect(find.text('Übersicht'), findsOneWidget);
     expect(find.text('Meine Mannschaft'), findsOneWidget);
     expect(find.text('Organisation & Kommunikation'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
 
     final teamHeading = tester.widget<Container>(
       find.byKey(const ValueKey('mobile-menu-section-header-team')),

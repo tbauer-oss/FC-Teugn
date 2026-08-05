@@ -40,7 +40,11 @@ router.use(requireApproved);
 router.use(idempotencyMiddleware);
 
 router.get('/', listEvents);
-router.get('/pitch-conflict-requests/list', listPitchConflictRequests);
+router.get(
+  '/pitch-conflict-requests/list',
+  requirePermission(Permission.MANAGE_EVENTS),
+  listPitchConflictRequests,
+);
 router.post(
   '/pitch-conflicts/check',
   requirePermission(Permission.MANAGE_EVENTS),
@@ -48,6 +52,7 @@ router.post(
 );
 router.patch(
   '/pitch-conflict-requests/:requestId',
+  requirePermission(Permission.MANAGE_EVENTS),
   respondToPitchConflictRequest,
 );
 router.post('/calendar-subscription', calendarSubscription);
