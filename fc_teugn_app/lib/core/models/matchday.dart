@@ -493,6 +493,8 @@ class TickerEventModel {
     this.comment,
     this.scorer,
     this.assist,
+    this.clientEventId,
+    this.correctsId,
   });
 
   final String id;
@@ -505,6 +507,8 @@ class TickerEventModel {
   final String? comment;
   final MatchPlayer? scorer;
   final MatchPlayer? assist;
+  final String? clientEventId;
+  final String? correctsId;
 
   factory TickerEventModel.fromJson(Map<String, dynamic> json) =>
       TickerEventModel(
@@ -520,6 +524,8 @@ class TickerEventModel {
         theirGoals: json['theirGoals'] as int? ?? 0,
         period: json['period'] as int? ?? 1,
         comment: json['comment'] as String?,
+        clientEventId: json['clientEventId'] as String?,
+        correctsId: json['correctsId'] as String?,
         scorer: json['scorer'] == null
             ? null
             : MatchPlayer.fromJson(json['scorer'] as Map<String, dynamic>),

@@ -134,6 +134,92 @@ void main() {
 
     expect(clock.elapsedSeconds, 900);
   });
+
+  test('incremental ticker snapshots retain the known event history', () {
+    final current = LiveTickerModel(
+      status: TickerStatus.live,
+      currentPeriod: 1,
+      elapsedSeconds: 40,
+      ourGoals: 1,
+      theirGoals: 0,
+      lastSequence: 1,
+      events: [
+        _event(
+          type: TickerEventType.homeGoal,
+          period: 1,
+          elapsedSeconds: 40,
+          sequence: 1,
+          clientEventId: 'goal-1',
+        ),
+      ],
+    );
+    final incoming = LiveTickerModel(
+      status: TickerStatus.live,
+      currentPeriod: 1,
+      elapsedSeconds: 72,
+      ourGoals: 1,
+      theirGoals: 1,
+      lastSequence: 2,
+      events: [
+        _event(
+          type: TickerEventType.awayGoal,
+          period: 1,
+          elapsedSeconds: 72,
+          sequence: 2,
+          clientEventId: 'goal-2',
+        ),
+      ],
+    );
+
+    final merged = mergeLiveTickerSnapshot(current, incoming);
+
+    expect(merged.events.map((event) => event.sequence), [1, 2]);
+    expect(merged.theirGoals, 1);
+    expect(merged.elapsedSeconds, 72);
+  });
+
+  test('incremental correction removes the corrected event', () {
+    final goal = _event(
+      type: TickerEventType.homeGoal,
+      period: 1,
+      elapsedSeconds: 40,
+      sequence: 1,
+      clientEventId: 'goal-1',
+    );
+    final current = LiveTickerModel(
+      status: TickerStatus.live,
+      currentPeriod: 1,
+      elapsedSeconds: 40,
+      ourGoals: 1,
+      theirGoals: 0,
+      lastSequence: 1,
+      events: [goal],
+    );
+    final incoming = LiveTickerModel(
+      status: TickerStatus.live,
+      currentPeriod: 1,
+      elapsedSeconds: 42,
+      ourGoals: 0,
+      theirGoals: 0,
+      lastSequence: 2,
+      events: [
+        TickerEventModel(
+          id: 'revoke-1',
+          sequence: 2,
+          type: TickerEventType.eventRevoked,
+          elapsedSeconds: 42,
+          ourGoals: 0,
+          theirGoals: 0,
+          correctsId: goal.id,
+        ),
+      ],
+    );
+
+    final merged = mergeLiveTickerSnapshot(current, incoming);
+
+    expect(merged.events.map((event) => event.id), ['revoke-1']);
+    expect(merged.ourGoals, 0);
+  });
 }
 
 LiveTickerModel _ticker({
@@ -156,13 +242,16 @@ TickerEventModel _event({
   required TickerEventType type,
   required int period,
   required int elapsedSeconds,
+  int? sequence,
+  String? clientEventId,
 }) =>
     TickerEventModel(
-      id: '$period-${type.name}',
-      sequence: period,
+      id: '${sequence ?? period}-${type.name}',
+      sequence: sequence ?? period,
       type: type,
       period: period,
       elapsedSeconds: elapsedSeconds,
       ourGoals: 0,
       theirGoals: 0,
+      clientEventId: clientEventId,
     );

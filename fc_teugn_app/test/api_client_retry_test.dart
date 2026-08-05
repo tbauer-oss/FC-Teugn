@@ -57,14 +57,14 @@ void main() {
     expect(postCalls, 1);
   });
 
-  test('explicitly idempotent squad PUT retries once', () async {
+  test('explicitly idempotent writes survive two transient failures', () async {
     var putCalls = 0;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
     server.listen((request) async {
       putCalls++;
       request.response.headers.contentType = ContentType.json;
-      if (putCalls == 1) {
+      if (putCalls < 3) {
         request.response.statusCode = HttpStatus.serviceUnavailable;
         request.response.write(jsonEncode({'message': 'warming up'}));
       } else {
@@ -85,7 +85,7 @@ void main() {
     );
 
     expect(response.data, {'saved': true});
-    expect(putCalls, 2);
+    expect(putCalls, 3);
   });
 
   test('permanent client errors are not repeated', () async {

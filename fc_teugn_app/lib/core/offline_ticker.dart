@@ -378,6 +378,8 @@ Map<String, dynamic> _tickerToJson(LiveTickerModel ticker) => {
               'ourGoals': event.ourGoals,
               'theirGoals': event.theirGoals,
               'comment': event.comment,
+              'clientEventId': event.clientEventId,
+              'correctsId': event.correctsId,
               'scorer': _playerToJson(event.scorer),
               'assist': _playerToJson(event.assist),
             },

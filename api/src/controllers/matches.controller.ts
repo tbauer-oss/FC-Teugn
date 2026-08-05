@@ -209,6 +209,40 @@ async function findMatch(id: string, user: { id: string; teamId: string; role: R
   return prisma.event.findFirst({ where: { id, ...scope(teamIds) }, include: matchInclude });
 }
 
+async function findAccessibleTickerMatch(
+  id: string,
+  user: { id: string; teamId: string; role: Role },
+) {
+  const teamIds = await accessibleTeamIds(user);
+  return prisma.event.findFirst({
+    where: { id, ...scope(teamIds) },
+    select: { id: true },
+  });
+}
+
+async function findTickerCommandMatch(
+  id: string,
+  user: { id: string; teamId: string; role: Role },
+) {
+  const teamIds = await accessibleTeamIds(user);
+  return prisma.event.findFirst({
+    where: { id, ...scope(teamIds) },
+    select: {
+      id: true,
+      teamId: true,
+      matchDetails: { select: { isHome: true, status: true } },
+      squads: {
+        take: 1,
+        select: {
+          members: {
+            select: { playerId: true, status: true },
+          },
+        },
+      },
+    },
+  });
+}
+
 async function findMatchForSquadUpdate(
   id: string,
   user: { id: string; teamId: string; role: Role },
@@ -907,14 +941,14 @@ function elapsed(ticker: {
 }
 
 export async function getTicker(req: Request, res: Response) {
-  const match = await findMatch(req.params.id, req.user!);
+  const match = await findAccessibleTickerMatch(req.params.id, req.user!);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   const after = integer(req.query.after, 0, Number.MAX_SAFE_INTEGER, 0);
   const ticker = await prisma.liveTicker.findUnique({
     where: { eventId: match.id },
     include: {
       events: {
-        where: { sequence: { gt: after } },
+        where: { sequence: { gt: after }, revokedAt: null },
         orderBy: { sequence: 'asc' },
         take: 250,
         include: {
@@ -947,14 +981,9 @@ export async function getTicker(req: Request, res: Response) {
   });
 }
 
-const goalTypes = new Set<TickerEventType>([
-  TickerEventType.HOME_GOAL,
-  TickerEventType.AWAY_GOAL,
-]);
-
 export async function tickerCommand(req: Request, res: Response) {
   const user = req.user!;
-  const match = await findMatch(req.params.id, user);
+  const match = await findTickerCommandMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   if (!(await canManageTicker(user, match.id))) {
     return res.status(403).json({ message: 'Der Liveticker ist für dieses Konto nicht freigegeben.' });
@@ -1019,7 +1048,10 @@ export async function tickerCommand(req: Request, res: Response) {
     } else if (type === TickerEventType.PERIOD_END) {
       status = TickerStatus.HALF_TIME;
       clockStartedAt = null;
-    } else if (type === TickerEventType.INTERRUPTION || type === TickerEventType.INJURY) {
+    } else if (type === TickerEventType.INTERRUPTION) {
+      status = TickerStatus.PAUSED;
+      clockStartedAt = null;
+    } else if (type === TickerEventType.INJURY) {
       status = TickerStatus.INTERRUPTED;
       clockStartedAt = null;
     } else if (type === TickerEventType.MATCH_END) {
@@ -1099,7 +1131,7 @@ export async function tickerCommand(req: Request, res: Response) {
       },
     });
   }
-  if (goalTypes.has(type) || type === TickerEventType.MATCH_END) {
+  if (type === TickerEventType.MATCH_END) {
     await recalculateMatchStatistics(match.id);
   }
   return res.status(result.duplicate ? 200 : 201).json({
@@ -1110,7 +1142,7 @@ export async function tickerCommand(req: Request, res: Response) {
 
 export async function undoTickerEvent(req: Request, res: Response) {
   const user = req.user!;
-  const match = await findMatch(req.params.id, user);
+  const match = await findTickerCommandMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   if (!(await canManageTicker(user, match.id))) {
     return res.status(403).json({ message: 'Der Liveticker ist für dieses Konto nicht freigegeben.' });
@@ -1174,7 +1206,9 @@ export async function undoTickerEvent(req: Request, res: Response) {
       metadata: { correctedEventId: target.id },
     },
   });
-  await recalculateMatchStatistics(match.id);
+  if (ticker.status === TickerStatus.FINISHED) {
+    await recalculateMatchStatistics(match.id);
+  }
   return res.json(result);
 }
 

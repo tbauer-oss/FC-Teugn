@@ -48,12 +48,14 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   String? _error;
   Timer? _poller;
   int _loadRequest = 0;
+  DateTime? _lastTickerConnectionAt;
+  int _consecutiveTickerFailures = 0;
 
   @override
   void initState() {
     super.initState();
     unawaited(_load());
-    _poller = Timer.periodic(const Duration(seconds: 3), (_) {
+    _poller = Timer.periodic(const Duration(seconds: 4), (_) {
       if (mounted) unawaited(_refreshTicker());
     });
   }
@@ -119,13 +121,24 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         _online = true;
         _usingOfflineSnapshot = false;
         _error = null;
+        _lastTickerConnectionAt = DateTime.now();
+        _consecutiveTickerFailures = 0;
       });
     } catch (error) {
       if (!mounted || request != _loadRequest) return;
       if (_match != null) {
         setState(() {
           _loading = false;
-          if (_isConnectivityFailure(error)) _online = false;
+          if (_isConnectivityFailure(error)) {
+            _consecutiveTickerFailures += 1;
+            final lastSuccess = _lastTickerConnectionAt;
+            final stale = lastSuccess == null ||
+                DateTime.now().difference(lastSuccess) >=
+                    const Duration(seconds: 15);
+            if (stale && _consecutiveTickerFailures >= 2) {
+              _online = false;
+            }
+          }
         });
         return;
       }
@@ -160,11 +173,19 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     final matchId = widget.matchId;
     _refreshingTicker = true;
     try {
-      final ticker = await repository.ticker(matchId);
+      final previousSequence = _match?.ticker?.lastSequence ?? 0;
+      final incrementalTicker = await repository.ticker(
+        matchId,
+        after: previousSequence,
+      );
       if (!mounted) return;
       late final MatchdayModel updatedMatch;
       setState(() {
         final current = _match!;
+        final ticker = mergeLiveTickerSnapshot(
+          current.ticker,
+          incrementalTicker,
+        );
         updatedMatch = MatchdayModel(
           id: current.id,
           title: current.title,
@@ -187,6 +208,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         _match = updatedMatch;
         _online = true;
         _usingOfflineSnapshot = false;
+        _lastTickerConnectionAt = DateTime.now();
+        _consecutiveTickerFailures = 0;
       });
       if (userId != null) {
         try {
@@ -200,7 +223,16 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       }
     } catch (error) {
       if (mounted && _isConnectivityFailure(error)) {
-        setState(() => _online = false);
+        setState(() {
+          _consecutiveTickerFailures += 1;
+          final lastSuccess = _lastTickerConnectionAt;
+          final stale = lastSuccess == null ||
+              DateTime.now().difference(lastSuccess) >=
+                  const Duration(seconds: 15);
+          if (stale && _consecutiveTickerFailures >= 2) {
+            _online = false;
+          }
+        });
       }
     } finally {
       _refreshingTicker = false;
@@ -339,7 +371,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                     match: match,
                     editable: widget.staffView || match.canManageTicker,
                     online: _online,
-                    onChanged: _load,
+                    onChanged: _refreshTicker,
                   ),
                 ],
               ),
@@ -1121,10 +1153,12 @@ String _dioMessage(DioException error) {
     404 => 'Das Spiel wurde nicht gefunden.',
     408 => 'Die Speicherung hat das Zeitlimit des Servers überschritten.',
     429 => 'Der Server erhält gerade zu viele Anfragen. Bitte kurz warten.',
-    500 => 'Die Vereinsverwaltung konnte die Speicherung nicht abschließen (500).',
+    500 =>
+      'Die Vereinsverwaltung konnte die Speicherung nicht abschließen (500).',
     502 => 'Die Vereinsverwaltung war vorübergehend nicht erreichbar (502).',
     503 => 'Die Vereinsverwaltung ist vorübergehend ausgelastet (503).',
-    504 => 'Die Speicherung wurde vom Server nicht rechtzeitig abgeschlossen (504).',
+    504 =>
+      'Die Speicherung wurde vom Server nicht rechtzeitig abgeschlossen (504).',
     _ => switch (error.type) {
         DioExceptionType.connectionTimeout =>
           'Die Verbindung zur Vereinsverwaltung konnte nicht rechtzeitig aufgebaut werden.',
@@ -2503,6 +2537,7 @@ class _TickerTab extends ConsumerStatefulWidget {
 class _TickerTabState extends ConsumerState<_TickerTab> {
   bool _busy = false;
   bool _syncing = false;
+  bool _syncRequested = false;
   bool _queueOffline = false;
   List<QueuedTickerAction> _pending = const [];
   Timer? _queuePoller;
@@ -2522,9 +2557,11 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     _focusData = ValueNotifier(_tickerFocusData(_ticker));
     unawaited(_loadPending());
     _queuePoller = Timer.periodic(
-      const Duration(seconds: 5),
+      const Duration(seconds: 2),
       (_) {
-        if (mounted) unawaited(_synchronizePending());
+        if (mounted) {
+          unawaited(_synchronizePending(showSuccess: false));
+        }
       },
     );
     _scheduleNextClockTick(immediate: true);
@@ -2595,9 +2632,8 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       TickerEventType.periodStart =>
         TickerStatus.live,
       TickerEventType.periodEnd => TickerStatus.halfTime,
-      TickerEventType.interruption ||
-      TickerEventType.injury =>
-        TickerStatus.interrupted,
+      TickerEventType.interruption => TickerStatus.paused,
+      TickerEventType.injury => TickerStatus.interrupted,
       TickerEventType.matchEnd => TickerStatus.finished,
       _ => current.status,
     };
@@ -2631,11 +2667,17 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
 
   ({int ours, int theirs}) _displayedScores(LiveTickerModel ticker) {
     final fcIsHome = widget.match.details?.isHome != false;
+    final acknowledgedClientIds = ticker.events
+        .map((event) => event.clientEventId)
+        .whereType<String>()
+        .toSet();
     final pendingOurGoals = _pending.where((action) {
+      if (acknowledgedClientIds.contains(action.clientEventId)) return false;
       return (fcIsHome && action.type == TickerEventType.homeGoal) ||
           (!fcIsHome && action.type == TickerEventType.awayGoal);
     }).length;
     final pendingTheirGoals = _pending.where((action) {
+      if (acknowledgedClientIds.contains(action.clientEventId)) return false;
       return (fcIsHome && action.type == TickerEventType.awayGoal) ||
           (!fcIsHome && action.type == TickerEventType.homeGoal);
     }).length;
@@ -2655,7 +2697,19 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       opponent: widget.match.details?.opponent ?? 'Gegner',
       periodLabel: matchPeriodLabel(ticker.currentPeriod, periodCount),
       status: ticker.status,
+      currentPeriod: ticker.currentPeriod,
+      periodCount: periodCount,
     );
+  }
+
+  void _applyServerAcknowledgement(LiveTickerModel acknowledgement) {
+    if (!mounted) return;
+    final merged = mergeLiveTickerSnapshot(_ticker, acknowledgement);
+    setState(() => _optimisticTicker = merged);
+    _synchronizeClock(merged);
+    _lastRenderedElapsedSeconds = -1;
+    _scheduleNextClockTick(immediate: true);
+    _focusData.value = _tickerFocusData(merged);
   }
 
   void _scheduleNextClockTick({bool immediate = false}) {
@@ -2894,7 +2948,8 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                   icon: const Icon(Icons.timer_off_outlined),
                   label: const Text('Uhr pausieren'),
                 ),
-              if (ticker.status == TickerStatus.interrupted)
+              if (ticker.status == TickerStatus.paused ||
+                  ticker.status == TickerStatus.interrupted)
                 OutlinedButton.icon(
                   onPressed: _busy ? null : _resumeClock,
                   icon: const Icon(Icons.timer_outlined),
@@ -3051,7 +3106,8 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           icon: const Icon(Icons.timer_off_outlined),
           label: const Text('Uhr pausieren'),
         ),
-      if (ticker.status == TickerStatus.interrupted)
+      if (ticker.status == TickerStatus.paused ||
+          ticker.status == TickerStatus.interrupted)
         OutlinedButton.icon(
           onPressed: _busy ? null : _resumeClock,
           icon: const Icon(Icons.timer_outlined),
@@ -3184,13 +3240,55 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         builder: (dialogContext) => Dialog.fullscreen(
           child: ValueListenableBuilder<_TickerFocusData>(
             valueListenable: _focusData,
-            builder: (context, data, _) => _TickerFocusView(
-              data: data,
-              editable: widget.editable,
-              onOurGoal: () => _goal(true),
-              onTheirGoal: () => _goal(false),
-              onClose: () => Navigator.pop(dialogContext),
-            ),
+            builder: (context, data, _) {
+              VoidCallback? onClockControl;
+              var clockControlLabel = '';
+              var clockControlIcon = Icons.play_arrow_rounded;
+              final currentTicker = _ticker;
+              final nextPeriod = min(
+                data.currentPeriod + 1,
+                data.periodCount,
+              );
+              switch (data.status) {
+                case TickerStatus.notStarted:
+                  clockControlLabel = 'Spiel starten';
+                  onClockControl = () => unawaited(
+                        _startPeriod(currentTicker, 1),
+                      );
+                case TickerStatus.live:
+                  clockControlLabel = 'Uhr pausieren';
+                  clockControlIcon = Icons.pause_rounded;
+                  onClockControl = () => unawaited(
+                        _send(TickerEventType.interruption),
+                      );
+                case TickerStatus.paused || TickerStatus.interrupted:
+                  clockControlLabel = 'Uhr fortsetzen';
+                  clockControlIcon = Icons.play_arrow_rounded;
+                  onClockControl = () => unawaited(_resumeClock());
+                case TickerStatus.halfTime:
+                  if (data.currentPeriod < data.periodCount) {
+                    clockControlLabel = 'Abschnitt $nextPeriod starten';
+                    onClockControl = () => unawaited(
+                          _startPeriod(currentTicker, nextPeriod),
+                        );
+                  }
+                case TickerStatus.finished:
+                  break;
+              }
+              return _TickerFocusView(
+                data: data,
+                editable: widget.editable,
+                onClockControl: onClockControl,
+                clockControlLabel: clockControlLabel,
+                clockControlIcon: clockControlIcon,
+                onOurGoal: () => _goal(true),
+                onTheirGoal: () => _goal(false),
+                onEnd: data.status == TickerStatus.finished
+                    ? null
+                    : () => unawaited(_confirmEnd(dialogContext)),
+                onClose: () => Navigator.pop(dialogContext),
+              );
+            },
           ),
         ),
       );
@@ -3479,54 +3577,75 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         userId: userId,
         eventId: widget.match.id,
       );
-      if (mounted) setState(() => _pending = pending);
+      if (mounted) {
+        setState(() => _pending = pending);
+        _focusData.value = _tickerFocusData(_ticker);
+      }
     } catch (_) {
       // A browser storage problem is not a network outage.
     }
   }
 
   Future<void> _synchronizePending({bool showSuccess = true}) async {
-    if (_syncing || _pending.isEmpty) return;
+    if (_syncing) {
+      _syncRequested = true;
+      return;
+    }
+    if (_pending.isEmpty) return;
     final userId = ref.read(authProvider).user?.id;
     if (userId == null) return;
     final offlineQueue = ref.read(tickerOfflineQueueProvider);
     final repository = ref.read(repositoryProvider);
     setState(() => _syncing = true);
-    TickerQueueSyncResult result;
+    var totalSent = 0;
+    var totalRejected = 0;
+    var online = true;
     try {
-      result = await offlineQueue.synchronize(
-        userId: userId,
-        eventId: widget.match.id,
-        send: (action) async {
-          try {
-            await repository.sendTickerEvent(
-              eventId: action.eventId,
-              clientEventId: action.clientEventId,
-              type: action.type,
-              scorerId: action.scorerId,
-              assistId: action.assistId,
-              comment: action.comment,
-              period: action.period,
-              elapsedSeconds: action.elapsedSeconds,
-            );
-          } on DioException catch (error) {
-            final status = error.response?.statusCode;
-            if (status != null && [400, 403, 404, 409, 422].contains(status)) {
-              final data = error.response?.data;
-              final message = data is Map<String, dynamic>
-                  ? data['message'] as String?
-                  : null;
-              throw PermanentTickerActionError(
-                message ?? 'Die Aktion wurde vom Server abgelehnt.',
+      do {
+        _syncRequested = false;
+        final result = await offlineQueue.synchronize(
+          userId: userId,
+          eventId: widget.match.id,
+          send: (action) async {
+            try {
+              final acknowledgement = await repository.sendTickerEvent(
+                eventId: action.eventId,
+                clientEventId: action.clientEventId,
+                type: action.type,
+                scorerId: action.scorerId,
+                assistId: action.assistId,
+                comment: action.comment,
+                period: action.period,
+                elapsedSeconds: action.elapsedSeconds,
               );
+              _applyServerAcknowledgement(acknowledgement);
+            } on DioException catch (error) {
+              final status = error.response?.statusCode;
+              if (status != null &&
+                  [400, 403, 404, 409, 422].contains(status)) {
+                final data = error.response?.data;
+                final message = data is Map<String, dynamic>
+                    ? data['message'] as String?
+                    : null;
+                throw PermanentTickerActionError(
+                  message ?? 'Die Aktion wurde vom Server abgelehnt.',
+                );
+              }
+              rethrow;
             }
-            rethrow;
-          }
-        },
-      );
+          },
+        );
+        totalSent += result.sent;
+        totalRejected += result.rejected;
+        online = result.online;
+        await _loadPending();
+      } while (mounted && online && _pending.isNotEmpty && _syncRequested);
     } catch (_) {
       if (mounted) {
-        setState(() => _syncing = false);
+        setState(() {
+          _syncing = false;
+          _syncRequested = false;
+        });
         _message(
           'Die Ticker-Synchronisierung konnte nicht abgeschlossen werden.',
         );
@@ -3536,19 +3655,19 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     if (!mounted) return;
     setState(() {
       _syncing = false;
-      _queueOffline = !result.online;
+      _syncRequested = false;
+      _queueOffline = !online;
     });
-    await _loadPending();
-    if (result.rejected > 0 && mounted) {
+    if (totalRejected > 0 && mounted) {
       _message(
-        '${result.rejected} vorgemerkte Aktionen wurden vom Server abgelehnt '
+        '$totalRejected vorgemerkte Aktionen wurden vom Server abgelehnt '
         'und nicht übernommen.',
       );
     }
-    if (result.sent > 0) {
-      await widget.onChanged();
+    if (totalSent > 0) {
+      unawaited(widget.onChanged());
       if (showSuccess && mounted) {
-        _message('${result.sent} vorgemerkte Aktionen synchronisiert.');
+        _message('$totalSent vorgemerkte Aktionen synchronisiert.');
       }
     }
   }
@@ -3672,6 +3791,8 @@ class _TickerFocusData {
     required this.opponent,
     required this.periodLabel,
     required this.status,
+    required this.currentPeriod,
+    required this.periodCount,
   });
 
   final MatchClockValue clock;
@@ -3680,6 +3801,8 @@ class _TickerFocusData {
   final String opponent;
   final String periodLabel;
   final TickerStatus status;
+  final int currentPeriod;
+  final int periodCount;
 }
 
 class _CountdownCard extends StatelessWidget {
@@ -3788,15 +3911,23 @@ class _TickerFocusView extends StatelessWidget {
   const _TickerFocusView({
     required this.data,
     required this.editable,
+    required this.onClockControl,
+    required this.clockControlLabel,
+    required this.clockControlIcon,
     required this.onOurGoal,
     required this.onTheirGoal,
+    required this.onEnd,
     required this.onClose,
   });
 
   final _TickerFocusData data;
   final bool editable;
+  final VoidCallback? onClockControl;
+  final String clockControlLabel;
+  final IconData clockControlIcon;
   final VoidCallback onOurGoal;
   final VoidCallback onTheirGoal;
+  final VoidCallback? onEnd;
   final VoidCallback onClose;
 
   @override
@@ -3927,29 +4058,70 @@ class _TickerFocusView extends StatelessWidget {
               ),
               if (editable)
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 620),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: onOurGoal,
-                          icon: const Icon(Icons.sports_soccer_rounded),
-                          label: const Text('Tor FC Teugn'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: onTheirGoal,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white38),
-                          ),
-                          icon: const Icon(Icons.sports_soccer_rounded),
-                          label: const Text('Tor Gegner'),
-                        ),
-                      ),
-                    ],
+                  constraints: const BoxConstraints(maxWidth: 840),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final narrow = constraints.maxWidth < 680;
+                      final buttonWidth = narrow
+                          ? (constraints.maxWidth - 10) / 2
+                          : (constraints.maxWidth - 30) / 4;
+                      final canRecordGoal =
+                          data.status != TickerStatus.notStarted &&
+                              data.status != TickerStatus.finished;
+                      return Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          if (onClockControl != null)
+                            SizedBox(
+                              width: buttonWidth,
+                              child: FilledButton.tonalIcon(
+                                onPressed: onClockControl,
+                                icon: Icon(clockControlIcon),
+                                label: Text(clockControlLabel),
+                              ),
+                            ),
+                          if (canRecordGoal)
+                            SizedBox(
+                              width: buttonWidth,
+                              child: FilledButton.icon(
+                                onPressed: onOurGoal,
+                                icon: const Icon(Icons.sports_soccer_rounded),
+                                label: const Text('Tor FC Teugn'),
+                              ),
+                            ),
+                          if (canRecordGoal)
+                            SizedBox(
+                              width: buttonWidth,
+                              child: OutlinedButton.icon(
+                                onPressed: onTheirGoal,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: const BorderSide(
+                                    color: Colors.white38,
+                                  ),
+                                ),
+                                icon: const Icon(Icons.sports_soccer_rounded),
+                                label: const Text('Tor Gegner'),
+                              ),
+                            ),
+                          if (onEnd != null)
+                            SizedBox(
+                              width: buttonWidth,
+                              child: FilledButton.icon(
+                                onPressed: onEnd,
+                                style: FilledButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  backgroundColor: const Color(0xFFC2410C),
+                                ),
+                                icon: const Icon(Icons.stop_circle_outlined),
+                                label: const Text('Spiel beenden'),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ),
             ],
@@ -3960,7 +4132,7 @@ class _TickerFocusView extends StatelessWidget {
   }
 }
 
-class _SmoothClockProgress extends StatelessWidget {
+class _SmoothClockProgress extends StatefulWidget {
   const _SmoothClockProgress({
     required this.value,
     required this.minHeight,
@@ -3972,15 +4144,49 @@ class _SmoothClockProgress extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: value, end: value),
-        duration: const Duration(milliseconds: 950),
-        curve: Curves.linear,
-        builder: (context, animatedValue, _) => LinearProgressIndicator(
-          value: animatedValue,
-          minHeight: minHeight,
+  State<_SmoothClockProgress> createState() => _SmoothClockProgressState();
+}
+
+class _SmoothClockProgressState extends State<_SmoothClockProgress>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 980),
+    );
+    _animation = AlwaysStoppedAnimation(widget.value);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SmoothClockProgress oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value == widget.value) return;
+    final begin = _animation.value;
+    _animation = Tween<double>(begin: begin, end: widget.value).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.linear),
+    );
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _animation,
+        builder: (context, _) => LinearProgressIndicator(
+          value: _animation.value,
+          minHeight: widget.minHeight,
           backgroundColor: Colors.white12,
-          color: color,
+          color: widget.color,
         ),
       );
 }
@@ -4061,9 +4267,14 @@ class _ConnectionChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (syncing)
-            const LogoLoadingIndicator(
-              size: 22,
-              semanticsLabel: 'Spielstand wird synchronisiert',
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: color,
+                semanticsLabel: 'Spielstand wird synchronisiert',
+              ),
             )
           else
             Icon(
@@ -4088,7 +4299,7 @@ String _queuedActionLabel(TickerEventType type) => switch (type) {
       TickerEventType.matchStart => 'Spielstart',
       TickerEventType.periodEnd => 'Halbzeit',
       TickerEventType.periodStart || TickerEventType.resume => 'Fortsetzung',
-      TickerEventType.interruption => 'Unterbrechung',
+      TickerEventType.interruption => 'Pause',
       TickerEventType.matchEnd => 'Spielende',
       _ => 'Tickerereignis',
     };

@@ -1170,7 +1170,7 @@ class DataRepository {
     return LiveTickerModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<void> sendTickerEvent({
+  Future<LiveTickerModel> sendTickerEvent({
     required String eventId,
     required String clientEventId,
     required TickerEventType type,
@@ -1180,15 +1180,33 @@ class DataRepository {
     int? period,
     int? elapsedSeconds,
   }) async {
-    await client.dio.post('/matches/$eventId/ticker/events', data: {
-      'clientEventId': clientEventId,
-      'type': apiEnum(type),
-      'scorerId': scorerId,
-      'assistId': assistId,
-      'comment': comment,
-      'period': period,
-      'elapsedSeconds': elapsedSeconds,
-    });
+    final response = await client.dio.post(
+      '/matches/$eventId/ticker/events',
+      data: {
+        'clientEventId': clientEventId,
+        'type': apiEnum(type),
+        'scorerId': scorerId,
+        'assistId': assistId,
+        'comment': comment,
+        'period': period,
+        'elapsedSeconds': elapsedSeconds,
+      },
+      options: Options(
+        extra: const {
+          // clientEventId makes this write safely idempotent. A short retry
+          // therefore cannot create a duplicate goal or clock command.
+          'retryTransientWrite': true,
+          'suppressLoading': true,
+        },
+      ),
+    );
+    final body = response.data as Map<String, dynamic>;
+    final ticker = Map<String, dynamic>.from(
+      body['ticker'] as Map<String, dynamic>,
+    );
+    final event = body['event'];
+    ticker['events'] = event is Map<String, dynamic> ? [event] : const [];
+    return LiveTickerModel.fromJson(ticker);
   }
 
   Future<void> undoTickerEvent({

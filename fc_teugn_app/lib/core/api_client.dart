@@ -250,6 +250,7 @@ class _TransientRequestRetryInterceptor extends Interceptor {
 
   static const _attemptKey = 'transientRetryAttempt';
   static const _maximumGetRetries = 3;
+  static const _maximumIdempotentWriteRetries = 2;
 
   final Dio _dio;
 
@@ -262,7 +263,8 @@ class _TransientRequestRetryInterceptor extends Interceptor {
     final attempt = request.extra[_attemptKey] as int? ?? 0;
     final isGet = request.method.toUpperCase() == 'GET';
     final isIdempotentWrite = request.extra['retryTransientWrite'] == true;
-    final maximumRetries = isGet ? _maximumGetRetries : 1;
+    final maximumRetries =
+        isGet ? _maximumGetRetries : _maximumIdempotentWriteRetries;
     if ((!isGet && !isIdempotentWrite) ||
         attempt >= maximumRetries ||
         !_isTransient(error)) {

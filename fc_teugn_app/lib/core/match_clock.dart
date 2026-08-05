@@ -158,3 +158,39 @@ String matchPeriodLabel(int currentPeriod, int periodCount) {
   if (periodCount == 4) return '$currentPeriod. Viertel';
   return 'Abschnitt $currentPeriod von $periodCount';
 }
+
+/// Combines the small incremental ticker response with the locally known
+/// event history. The server remains authoritative for clock, score and
+/// status, while unchanged historical events never need to be downloaded on
+/// every poll.
+LiveTickerModel mergeLiveTickerSnapshot(
+  LiveTickerModel? current,
+  LiveTickerModel incoming,
+) {
+  if (current == null || incoming.lastSequence < current.lastSequence) {
+    return incoming;
+  }
+
+  final eventsById = <String, TickerEventModel>{
+    for (final event in current.events) event.id: event,
+  };
+  for (final event in incoming.events) {
+    if (event.type == TickerEventType.eventRevoked &&
+        event.correctsId?.isNotEmpty == true) {
+      eventsById.remove(event.correctsId);
+    }
+    eventsById[event.id] = event;
+  }
+  final events = eventsById.values.toList()
+    ..sort((left, right) => left.sequence.compareTo(right.sequence));
+
+  return LiveTickerModel(
+    status: incoming.status,
+    currentPeriod: incoming.currentPeriod,
+    elapsedSeconds: incoming.elapsedSeconds,
+    ourGoals: incoming.ourGoals,
+    theirGoals: incoming.theirGoals,
+    lastSequence: incoming.lastSequence,
+    events: events,
+  );
+}
