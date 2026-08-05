@@ -1384,72 +1384,138 @@ class _MonthDay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final today = _sameDay(date, DateTime.now());
-    return Container(
-      padding: const EdgeInsets.all(7),
-      decoration: const BoxDecoration(
-        border: Border(
-          right: BorderSide(color: AppColors.line),
-          bottom: BorderSide(color: AppColors.line),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: today ? AppColors.blue : Colors.transparent,
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              '${date.day}',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: today ? Colors.white : AppColors.navy,
-              ),
+    const previewLimit = 2;
+    final hasOverflow = events.length > previewLimit;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: ValueKey('calendar-day-${date.toIso8601String()}'),
+        onTap: hasOverflow ? () => _showAllEvents(context) : null,
+        child: Container(
+          padding: const EdgeInsets.all(7),
+          decoration: const BoxDecoration(
+            border: Border(
+              right: BorderSide(color: AppColors.line),
+              bottom: BorderSide(color: AppColors.line),
             ),
           ),
-          const SizedBox(height: 4),
-          for (final event in events.take(3))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(7),
-                onTap: () => onOpen(event),
-                child: Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _categoryColor(event.category)
-                        .withValues(alpha: event.isCancelled ? .07 : .13),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: Text(
-                    '${_time(event.startAt)} ${event.title}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      decoration:
-                          event.isCancelled ? TextDecoration.lineThrough : null,
-                      color: _categoryColor(event.category),
-                    ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: today ? AppColors.blue : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '${date.day}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: today ? Colors.white : AppColors.navy,
                   ),
                 ),
               ),
-            ),
-          if (events.length > 3)
-            Text(
-              '+ ${events.length - 3} weitere',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+              const SizedBox(height: 4),
+              for (final event in events.take(previewLimit))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(7),
+                    onTap: hasOverflow ? null : () => onOpen(event),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _categoryColor(event.category).withValues(
+                          alpha: event.isCancelled ? .07 : .13,
+                        ),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text(
+                        '${_time(event.startAt)} ${event.title}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          decoration: event.isCancelled
+                              ? TextDecoration.lineThrough
+                              : null,
+                          color: _categoryColor(event.category),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (hasOverflow)
+                Text(
+                  '+ ${events.length - previewLimit} weitere',
+                  key: const ValueKey('calendar-day-overflow'),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.blue,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAllEvents(BuildContext context) async {
+    final sortedEvents = [...events]
+      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    final selected = await showDialog<EventModel>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const ValueKey('calendar-day-events-dialog'),
+        title: Text('${_weekday(date)}, ${date.day}. ${_month(date.month)}'),
+        content: SizedBox(
+          width: 440,
+          height: sortedEvents.length <= 4 ? sortedEvents.length * 72.0 : 360,
+          child: ListView.separated(
+            itemCount: sortedEvents.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final event = sortedEvents[index];
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor:
+                      _categoryColor(event.category).withValues(alpha: .12),
+                  child: Icon(
+                    Icons.event_rounded,
+                    color: _categoryColor(event.category),
+                  ),
+                ),
+                title: Text(event.title),
+                subtitle: Text(
+                  '${_time(event.startAt)} Uhr · ${event.location}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.pop(dialogContext, event),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Schließen'),
+          ),
         ],
       ),
     );
+    if (selected != null) onOpen(selected);
   }
 }
 

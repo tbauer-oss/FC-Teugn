@@ -101,10 +101,6 @@ class AppShell extends ConsumerWidget {
     return null;
   }
 
-  int _selectedIndex(String location, List<ShellDestination> items) {
-    return _matchingIndex(location, items) ?? 0;
-  }
-
   Future<void> _refreshApp(WidgetRef ref) async {
     ref.invalidate(repositoryProvider);
     ref.invalidate(organizationProvider);
@@ -113,6 +109,17 @@ class AppShell extends ConsumerWidget {
     } catch (_) {
       // Die aktuell sichtbare Seite zeigt ihren eigenen Ladefehler an.
     }
+  }
+
+  void _navigateContextBack(
+    BuildContext context,
+    ShellDestination destination,
+  ) {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(destination.route);
   }
 
   Future<void> _showMoreMenu(
@@ -311,8 +318,13 @@ class AppShell extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final organization = ref.watch(organizationProvider).valueOrNull;
     final queuedWrites = ref.watch(offlineOutboxCountProvider).valueOrNull ?? 0;
-    final location = GoRouterState.of(context).matchedLocation;
-    final selectedIndex = _selectedIndex(location, destinations);
+    final location = GoRouterState.of(context).uri.path;
+    final matchedIndex = _matchingIndex(location, destinations);
+    final selectedIndex = matchedIndex ?? 0;
+    final selectedDestination = destinations[selectedIndex];
+    final showContextBack = matchedIndex != null &&
+        location != selectedDestination.route &&
+        selectedDestination.matches(location);
     final mobileCandidates =
         destinations.where((destination) => destination.showOnMobile).toList();
     final mobileDestinations = mobileCandidates.take(4).toList();
@@ -380,6 +392,15 @@ class AppShell extends ConsumerWidget {
                           if (privacy != null) context.go(privacy.route);
                         },
                         onAbout: () => showAppAboutSheet(context),
+                      ),
+                    if (showContextBack)
+                      _ContextBackBar(
+                        destination: selectedDestination,
+                        compact: !isWide,
+                        onPressed: () => _navigateContextBack(
+                          context,
+                          selectedDestination,
+                        ),
                       ),
                     if (queuedWrites > 0)
                       Material(
@@ -477,6 +498,61 @@ class AppShell extends ConsumerWidget {
                 ),
         );
       },
+    );
+  }
+}
+
+class _ContextBackBar extends StatelessWidget {
+  const _ContextBackBar({
+    required this.destination,
+    required this.compact,
+    required this.onPressed,
+  });
+
+  final ShellDestination destination;
+  final bool compact;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.background.withValues(alpha: .96),
+        border: const Border(
+          bottom: BorderSide(color: AppColors.line),
+        ),
+      ),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1244),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 8 : 22,
+              vertical: 3,
+            ),
+            child: TextButton.icon(
+              key: const ValueKey('context-back-button'),
+              onPressed: onPressed,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.muted,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 7,
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+              label: Text(
+                'Zurück zu ${destination.label}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

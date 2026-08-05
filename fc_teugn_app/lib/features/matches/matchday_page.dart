@@ -2860,7 +2860,9 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         ],
       );
     }
-    return Column(
+    return ListView(
+      key: const ValueKey('desktop-live-ticker-scroll-view'),
+      padding: const EdgeInsets.fromLTRB(2, 0, 2, 24),
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -3014,41 +3016,25 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           ),
         ],
         const SizedBox(height: 18),
-        Expanded(
-          child: ticker.events.isEmpty
-              ? const EmptyState(
-                  icon: Icons.bolt_outlined,
-                  title: 'Noch keine Tickerereignisse',
-                  message:
-                      'Zum Spielstart erscheinen hier alle Aktionen chronologisch.',
-                )
-              : ListView.builder(
-                  reverse: true,
-                  itemCount: ticker.events.length,
-                  itemBuilder: (context, index) {
-                    final event =
-                        ticker.events[ticker.events.length - index - 1];
-                    return Card(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: _eventColor(event.type),
-                          child:
-                              Icon(_eventIcon(event.type), color: Colors.white),
-                        ),
-                        title: Text(_eventTitle(event, fcIsHome: fcIsHome)),
-                        subtitle: _eventSubtitle(
-                          event,
-                          fcIsHome: fcIsHome,
-                        ),
-                        trailing: Text(
-                          "${event.elapsedSeconds ~/ 60}' · ${event.ourGoals}:${event.theirGoals}",
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+        Text(
+          'Spielverlauf',
+          key: const ValueKey('desktop-live-ticker-history-heading'),
+          style: Theme.of(context).textTheme.titleLarge,
         ),
+        const SizedBox(height: 8),
+        if (ticker.events.isEmpty)
+          const SizedBox(
+            height: 220,
+            child: EmptyState(
+              icon: Icons.bolt_outlined,
+              title: 'Noch keine Tickerereignisse',
+              message:
+                  'Zum Spielstart erscheinen hier alle Aktionen chronologisch.',
+            ),
+          )
+        else
+          for (final event in ticker.events.reversed)
+            _tickerEventCard(event, fcIsHome: fcIsHome),
       ],
     );
   }

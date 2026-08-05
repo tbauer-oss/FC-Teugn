@@ -29,4 +29,10 @@ void main() {
     expect(source, contains('onChanged: _refreshTicker'));
     expect(source, isNot(contains('onChanged: _load,')));
   });
+
+  test('desktop ticker history owns a persistent scroll view', () {
+    expect(source, contains("ValueKey('desktop-live-ticker-scroll-view')"));
+    expect(source, contains("ValueKey('desktop-live-ticker-history-heading')"));
+    expect(source, contains("'Spielverlauf'"));
+  });
 }

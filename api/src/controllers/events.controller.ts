@@ -13,6 +13,7 @@ import {
   RecurrenceFrequency,
   Role as PrismaRole,
 } from '@prisma/client';
+import { openAttendancePlayerIds } from '../services/attendance-summary';
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
@@ -301,12 +302,17 @@ async function serializeEvent(
         accessibleIds.includes(reply.player.teamId),
       )
     : event.attendance.filter((reply) => personalPlayerIds.includes(reply.playerId));
-  const respondedIds = new Set(visibleAttendance.map((reply) => reply.playerId));
+  const openPlayerIds = new Set(
+    openAttendancePlayerIds(
+      roster.map((player) => player.id),
+      visibleAttendance,
+    ),
+  );
   const summary = {
     yes: visibleAttendance.filter((reply) => reply.status === AttendanceStatus.YES).length,
     no: visibleAttendance.filter((reply) => reply.status === AttendanceStatus.NO).length,
     maybe: visibleAttendance.filter((reply) => reply.status === AttendanceStatus.MAYBE).length,
-    unknown: staff ? roster.filter((player) => !respondedIds.has(player.id)).length : 0,
+    unknown: staff ? openPlayerIds.size : 0,
     goalkeeperAvailable: visibleAttendance.filter(
       (reply) =>
         reply.status === AttendanceStatus.YES &&
@@ -352,7 +358,7 @@ async function serializeEvent(
         ),
     attendanceSummary: summary,
     missingAttendance: staff
-      ? roster.filter((player) => !respondedIds.has(player.id))
+      ? roster.filter((player) => openPlayerIds.has(player.id))
       : undefined,
     carpoolOffers: event.carpoolOffers.map((offer) => ({
       ...offer,
