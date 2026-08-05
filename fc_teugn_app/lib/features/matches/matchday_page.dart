@@ -332,6 +332,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         subtitle: _dateLine(match),
         denseMobileHeader: true,
         hideMobileHeader: true,
+        fillRemaining: true,
         child: Column(
           children: [
             if (!_online || _usingOfflineSnapshot) ...[
@@ -342,13 +343,10 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
             SizedBox(height: mobile ? 5 : 18),
             _MatchdayTabBar(compact: mobile),
             SizedBox(height: mobile ? 4 : 14),
-            SizedBox(
-              height: mobile
-                  ? max(480.0, MediaQuery.sizeOf(context).height - 250)
-                  : max(520.0, MediaQuery.sizeOf(context).height - 350),
+            Expanded(
               child: TabBarView(
                 children: [
-                  _Overview(match: match),
+                  MatchOverview(match: match),
                   _SquadTab(
                     match: match,
                     allPlayers: _players,
@@ -642,49 +640,80 @@ class _ScoreTeam extends StatelessWidget {
       );
 }
 
-class _Overview extends StatelessWidget {
-  const _Overview({required this.match});
+class MatchOverview extends StatelessWidget {
+  const MatchOverview({required this.match, super.key});
+
   final MatchdayModel match;
 
   @override
   Widget build(BuildContext context) {
     final details = match.details;
     final start = match.startAt.toLocal();
-    final rows = <(IconData, String, String)>[
-      (
+    final startTime = '${start.hour.toString().padLeft(2, '0')}:'
+        '${start.minute.toString().padLeft(2, '0')} Uhr';
+    final date = '${start.day}.${start.month}.${start.year}';
+    final location = _valueOrFallback(match.location);
+    final competition = _valueOrFallback(details?.competition);
+    final matchDay = _valueOrFallback(details?.matchDay);
+    final pitch = _valueOrFallback(details?.pitch);
+    final referee = _valueOrFallback(details?.referee);
+    final essentials = <_OverviewEntry>[
+      _OverviewEntry(
         Icons.schedule_rounded,
         'Anstoß',
-        '${start.hour.toString().padLeft(2, '0')}:'
-            '${start.minute.toString().padLeft(2, '0')} Uhr',
+        startTime,
+        date,
       ),
       if (match.meetingAt != null)
-        (
+        _OverviewEntry(
           Icons.groups_rounded,
           'Treffpunkt',
           '${match.meetingAt!.toLocal().hour.toString().padLeft(2, '0')}:'
               '${match.meetingAt!.toLocal().minute.toString().padLeft(2, '0')} Uhr',
+          'Gemeinsames Treffen',
         ),
-      (
-        Icons.emoji_events_outlined,
-        'Wettbewerb',
-        details?.competition ?? 'Noch offen'
-      ),
-      (
-        Icons.format_list_numbered_rounded,
-        'Spieltag',
-        details?.matchDay ?? 'Noch offen'
-      ),
-      (Icons.location_on_outlined, 'Spielstätte', match.location),
-      (Icons.sports_rounded, 'Platz', details?.pitch ?? 'Noch offen'),
-      (
+      _OverviewEntry(
         Icons.timer_outlined,
         'Spielzeit',
         '${details?.periodCount ?? 2} × ${details?.periodMinutes ?? 30} Minuten',
+        '${details?.durationMinutes ?? 60} Minuten gesamt',
       ),
-      (
+    ];
+    final organization = <_OverviewEntry>[
+      _OverviewEntry(
+        Icons.emoji_events_outlined,
+        'Wettbewerb',
+        competition,
+        'Liga, Turnier oder Freundschaftsspiel',
+        missing: _isMissing(details?.competition),
+      ),
+      _OverviewEntry(
+        Icons.format_list_numbered_rounded,
+        'Spieltag',
+        matchDay,
+        'Runde oder Spielnummer',
+        missing: _isMissing(details?.matchDay),
+      ),
+      _OverviewEntry(
+        Icons.location_on_outlined,
+        'Spielstätte',
+        location,
+        'Austragungsort',
+        missing: _isMissing(match.location),
+      ),
+      _OverviewEntry(
+        Icons.sports_rounded,
+        'Platz',
+        pitch,
+        'Zugewiesenes Spielfeld',
+        missing: _isMissing(details?.pitch),
+      ),
+      _OverviewEntry(
         Icons.person_outline_rounded,
         'Schiedsrichter',
-        details?.referee ?? 'Noch offen'
+        referee,
+        'Spielleitung',
+        missing: _isMissing(details?.referee),
       ),
     ];
     final status = switch (details?.status) {
@@ -698,119 +727,344 @@ class _Overview extends StatelessWidget {
       MatchStatus.cancelled => 'Abgesagt',
       _ => 'Geplant',
     };
+    final statusColor = switch (details?.status) {
+      MatchStatus.live ||
+      MatchStatus.halfTime ||
+      MatchStatus.interrupted =>
+        const Color(0xFF0F8A5F),
+      MatchStatus.cancelled => const Color(0xFFC62828),
+      MatchStatus.finished || MatchStatus.recorded => AppColors.blue,
+      _ => AppColors.yellowDark,
+    };
+    final statusIcon = switch (details?.status) {
+      MatchStatus.live ||
+      MatchStatus.halfTime ||
+      MatchStatus.interrupted =>
+        Icons.sensors_rounded,
+      MatchStatus.cancelled => Icons.event_busy_rounded,
+      MatchStatus.finished || MatchStatus.recorded => Icons.flag_rounded,
+      _ => Icons.event_available_rounded,
+    };
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 980
+        final compact = constraints.maxWidth < 600;
+        final columns = constraints.maxWidth >= 1050
             ? 3
-            : constraints.maxWidth >= 350
+            : constraints.maxWidth >= 680
                 ? 2
                 : 1;
-        final gap = constraints.maxWidth < 600 ? 8.0 : 12.0;
+        final gap = compact ? 10.0 : 14.0;
         final tileWidth =
             (constraints.maxWidth - gap * (columns - 1)) / columns;
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(2, 4, 2, 24),
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-              decoration: BoxDecoration(
-                color: AppColors.yellow.withValues(alpha: .13),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                    color: AppColors.yellowDark.withValues(alpha: .22)),
+        return Scrollbar(
+          child: ListView(
+            key: const ValueKey('match-overview-list'),
+            primary: false,
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: ClampingScrollPhysics(),
+            ),
+            padding: EdgeInsets.fromLTRB(0, 4, 0, compact ? 44 : 30),
+            children: [
+              _OverviewStatusCard(
+                status: status,
+                statusColor: statusColor,
+                statusIcon: statusIcon,
+                fixtureKind:
+                    details?.isHome != false ? 'Heimspiel' : 'Auswärtsspiel',
+                dateLine: '$date · $startTime',
               ),
-              child: Row(
+              SizedBox(height: compact ? 18 : 22),
+              const _OverviewSectionHeader(
+                icon: Icons.flash_on_rounded,
+                title: 'Auf einen Blick',
+                subtitle: 'Die wichtigsten Zeiten für den Spieltag',
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: gap,
+                runSpacing: gap,
                 children: [
-                  const Icon(Icons.info_outline_rounded, color: AppColors.blue),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Spielstatus: $status · ${details?.isHome != false ? 'Heimspiel' : 'Auswärtsspiel'}',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                  for (final entry in essentials)
+                    SizedBox(
+                      width: tileWidth,
+                      child: _OverviewTile(entry: entry),
                     ),
-                  ),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: gap,
-              runSpacing: gap,
-              children: [
-                for (final row in rows)
-                  SizedBox(
-                    width: tileWidth,
-                    child: _OverviewTile(
-                      icon: row.$1,
-                      label: row.$2,
-                      value: row.$3,
+              SizedBox(height: compact ? 22 : 28),
+              const _OverviewSectionHeader(
+                icon: Icons.assignment_outlined,
+                title: 'Organisation',
+                subtitle: 'Rahmendaten, Ort und Verantwortliche',
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final entry in organization)
+                    SizedBox(
+                      width: tileWidth,
+                      child: _OverviewTile(entry: entry),
+                    ),
+                ],
+              ),
+              if (details?.notes?.trim().isNotEmpty == true) ...[
+                SizedBox(height: compact ? 22 : 28),
+                const _OverviewSectionHeader(
+                  icon: Icons.sticky_note_2_outlined,
+                  title: 'Hinweise',
+                  subtitle: 'Wichtige Informationen für alle Beteiligten',
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(compact ? 16 : 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.yellow.withValues(alpha: .09),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: AppColors.yellowDark.withValues(alpha: .2),
                     ),
                   ),
-              ],
-            ),
-            if (details?.notes?.isNotEmpty == true) ...[
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Hinweise',
-                          style: TextStyle(fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 5),
-                      Text(details!.notes!),
-                    ],
+                  child: Text(
+                    details!.notes!.trim(),
+                    style: const TextStyle(height: 1.45),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         );
       },
     );
   }
 }
 
-class _OverviewTile extends StatelessWidget {
-  const _OverviewTile({
+class _OverviewStatusCard extends StatelessWidget {
+  const _OverviewStatusCard({
+    required this.status,
+    required this.statusColor,
+    required this.statusIcon,
+    required this.fixtureKind,
+    required this.dateLine,
+  });
+
+  final String status;
+  final Color statusColor;
+  final IconData statusIcon;
+  final String fixtureKind;
+  final String dateLine;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white,
+              AppColors.yellow.withValues(alpha: .08),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.line),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.black.withValues(alpha: .035),
+              blurRadius: 18,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(statusIcon, color: statusColor, size: 25),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'SPIELSTATUS',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .8,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    status,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.navy,
+                        ),
+                  ),
+                  Text(
+                    dateLine,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.muted,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.navy,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                fixtureKind,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _OverviewSectionHeader extends StatelessWidget {
+  const _OverviewSectionHeader({
     required this.icon,
-    required this.label,
-    required this.value,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.navy,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 18, color: AppColors.yellow),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.navy,
+                      ),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.muted,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _OverviewEntry {
+  const _OverviewEntry(
+    this.icon,
+    this.label,
+    this.value,
+    this.supporting, {
+    this.missing = false,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final String supporting;
+  final bool missing;
+}
+
+class _OverviewTile extends StatelessWidget {
+  const _OverviewTile({required this.entry});
+
+  final _OverviewEntry entry;
 
   @override
   Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(minHeight: 92),
-        padding: const EdgeInsets.all(14),
+        key: ValueKey('match-overview-${entry.label}'),
+        constraints: const BoxConstraints(minHeight: 104),
+        padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white,
+              entry.missing
+                  ? AppColors.background
+                  : AppColors.yellow.withValues(alpha: .035),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: AppColors.line),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.black.withValues(alpha: .025),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                color: AppColors.yellow.withValues(alpha: .13),
-                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.yellow.withValues(alpha: .2),
+                    AppColors.yellow.withValues(alpha: .08),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(15),
               ),
-              child: Icon(icon, color: AppColors.blue, size: 22),
+              child: Icon(entry.icon, color: AppColors.blue, size: 23),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 13),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    label.toUpperCase(),
+                    entry.label.toUpperCase(),
                     style: const TextStyle(
                       color: AppColors.muted,
                       fontSize: 10,
@@ -819,8 +1073,26 @@ class _OverviewTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(value,
-                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Text(
+                    entry.value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: entry.missing ? AppColors.muted : AppColors.navy,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    entry.supporting,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.muted,
+                          fontSize: 10.5,
+                        ),
+                  ),
                 ],
               ),
             ),
@@ -828,6 +1100,11 @@ class _OverviewTile extends StatelessWidget {
         ),
       );
 }
+
+bool _isMissing(String? value) => value == null || value.trim().isEmpty;
+
+String _valueOrFallback(String? value) =>
+    _isMissing(value) ? 'Noch nicht festgelegt' : value!.trim();
 
 class _SquadTab extends ConsumerStatefulWidget {
   const _SquadTab({

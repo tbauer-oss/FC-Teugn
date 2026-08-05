@@ -10,6 +10,7 @@ class PageScaffold extends StatelessWidget {
     this.action,
     this.denseMobileHeader = false,
     this.hideMobileHeader = false,
+    this.fillRemaining = false,
   });
 
   final String title;
@@ -18,6 +19,7 @@ class PageScaffold extends StatelessWidget {
   final Widget? action;
   final bool denseMobileHeader;
   final bool hideMobileHeader;
+  final bool fillRemaining;
 
   @override
   Widget build(BuildContext context) {
@@ -107,12 +109,20 @@ class PageScaffold extends StatelessWidget {
                 horizontal,
                 mobile ? 20 : 32,
               ),
-              sliver: SliverToBoxAdapter(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1180),
-                  child: child,
-                ),
-              ),
+              sliver: fillRemaining
+                  ? SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1180),
+                        child: child,
+                      ),
+                    )
+                  : SliverToBoxAdapter(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1180),
+                        child: child,
+                      ),
+                    ),
             ),
           ],
         );
