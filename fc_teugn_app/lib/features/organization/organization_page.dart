@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
@@ -29,7 +30,9 @@ class OrganizationPage extends ConsumerWidget {
       subtitle:
           'Verantwortlichkeiten, Trainingsbetrieb und Mannschaftsdaten zentral verwalten.',
       child: organization.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+          child: LogoLoadingPanel(message: 'Mannschaften werden geladen …'),
+        ),
         error: (_, __) => _OrganizationError(
           onRetry: () => ref.invalidate(organizationProvider),
         ),

@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/data_repository.dart';
@@ -112,7 +113,12 @@ class _CompetitionManagementDialogState
                         ),
                       )
                     : opponents == null || leagues == null
-                        ? const Center(child: CircularProgressIndicator())
+                        ? const Center(
+                            child: LogoLoadingPanel(
+                              message: 'Ligadaten werden geladen …',
+                              compact: true,
+                            ),
+                          )
                         : TabBarView(
                             children: [
                               _opponentTab(height),

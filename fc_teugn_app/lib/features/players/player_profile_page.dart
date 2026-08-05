@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
@@ -52,7 +53,9 @@ class PlayerProfilePage extends ConsumerWidget {
               label: const Text('Zur Mannschaft'),
             ),
       child: player.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+          child: LogoLoadingPanel(message: 'Spielerprofil wird geladen …'),
+        ),
         error: (_, __) => EmptyState(
           icon: Icons.person_off_outlined,
           title: 'Profil nicht erreichbar',
@@ -982,7 +985,9 @@ class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
         future: _documents,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: LogoLoadingPanel(message: 'Dokumente werden geladen …'),
+            );
           }
           if (snapshot.hasError) {
             return const Text(
@@ -1657,7 +1662,9 @@ class _ConsentCard extends ConsumerWidget {
       child: templates.when(
         loading: () => const Padding(
           padding: EdgeInsets.all(16),
-          child: Center(child: CircularProgressIndicator()),
+          child: Center(
+            child: LogoLoadingPanel(message: 'Dokument wird geladen …'),
+          ),
         ),
         error: (_, __) => EmptyState(
           icon: Icons.description_outlined,

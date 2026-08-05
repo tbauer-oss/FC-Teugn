@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:fc_teugn_app/core/api_client.dart';
+import 'package:fc_teugn_app/core/loading/loading_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -76,5 +78,41 @@ void main() {
       throwsA(isA<DioException>()),
     );
     expect(getCalls, 1);
+  });
+
+  test('write requests keep one loading operation until completion', () async {
+    final arrived = Completer<void>();
+    final release = Completer<void>();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      arrived.complete();
+      await release.future;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({'saved': true}));
+      await request.response.close();
+    });
+    final loading = AppLoadingController(
+      showDelay: Duration.zero,
+      minimumVisibleDuration: Duration.zero,
+    );
+    addTearDown(loading.dispose);
+    final client = ApiClient(
+      baseUrl: 'http://${server.address.host}:${server.port}',
+      loadingController: loading,
+    );
+
+    final request = client.dio.post<void>(
+      '/matches/match-1/squad',
+      data: {'members': const []},
+    );
+    await arrived.future;
+    expect(loading.blockingVisible, isTrue);
+    expect(loading.blockingOperation?.message, 'Kader wird gespeichert …');
+
+    release.complete();
+    await request;
+    expect(loading.hasOperations, isFalse);
+    expect(loading.blockingVisible, isFalse);
   });
 }

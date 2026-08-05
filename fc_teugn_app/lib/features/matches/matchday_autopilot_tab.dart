@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
@@ -877,9 +878,9 @@ class _ApprovalCard extends StatelessWidget {
                 final publish = FilledButton.icon(
                   onPressed: saving || !plan.canApply ? null : onPublish,
                   icon: saving
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                      ? const LogoLoadingIndicator(
+                          size: 22,
+                          semanticsLabel: 'Aufstellung wird gespeichert',
                         )
                       : const Icon(Icons.publish_rounded, size: 18),
                   label: const Text('Übernehmen & veröffentlichen'),

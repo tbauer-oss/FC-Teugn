@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_identity.dart';
@@ -201,13 +202,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                 FilledButton(
                                   onPressed: authState.loading ? null : _submit,
                                   child: authState.loading
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
+                                      ? const LogoLoadingIndicator(
+                                          size: 24,
+                                          semanticsLabel:
+                                              'Anmeldung wird geprüft',
                                         )
                                       : const Text('Anmelden'),
                                 ),

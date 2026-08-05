@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
@@ -80,8 +81,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           const SizedBox(height: 18),
           events.when(
             loading: () => const Padding(
-              padding: EdgeInsets.all(72),
-              child: CircularProgressIndicator(),
+              padding: EdgeInsets.all(48),
+              child: LogoLoadingPanel(message: 'Termine werden geladen …'),
             ),
             error: (_, __) => EmptyState(
               icon: Icons.cloud_off_rounded,
@@ -522,9 +523,9 @@ class _CalendarPageActions extends StatelessWidget {
     final create = FilledButton.icon(
       onPressed: canCreate && !saving ? onCreate : null,
       icon: saving
-          ? const SizedBox.square(
-              dimension: 17,
-              child: CircularProgressIndicator(strokeWidth: 2),
+          ? const LogoLoadingIndicator(
+              size: 22,
+              semanticsLabel: 'Termin wird gespeichert',
             )
           : const Icon(Icons.add_rounded, size: 20),
       label: Text(saving ? 'Speichert…' : 'Termin anlegen'),
@@ -4126,7 +4127,10 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                           builder: (context, snapshot) {
                             if (snapshot.connectionState !=
                                 ConnectionState.done) {
-                              return const LinearProgressIndicator();
+                              return const LogoLoadingPanel(
+                                message: 'Spieler werden geladen …',
+                                compact: true,
+                              );
                             }
                             if (snapshot.hasError) {
                               return const Text(
@@ -4757,10 +4761,9 @@ class _PitchConflictPanel extends StatelessWidget {
           padding: EdgeInsets.all(16),
           child: Row(
             children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+              LogoLoadingIndicator(
+                size: 30,
+                semanticsLabel: 'Platzbelegung wird geprüft',
               ),
               SizedBox(width: 12),
               Text('Platzbelegung wird geprüft …'),

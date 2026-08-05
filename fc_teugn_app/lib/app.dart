@@ -34,6 +34,7 @@ import 'core/models/user.dart';
 import 'core/app_identity.dart';
 import 'core/app_theme.dart';
 import 'core/providers.dart';
+import 'core/loading/loading_widgets.dart';
 import 'core/push/initial_push_prompt.dart';
 import 'core/push/native_push_service.dart';
 import 'core/push/push_client.dart';
@@ -253,7 +254,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         locale: _germanLocale,
         supportedLocales: _supportedLocales,
         localizationsDelegates: _localizationsDelegates,
-        builder: _forceGerman24HourClock,
+        builder: _buildAppContent,
         home: AnimatedLaunchScreen(
           waitingForData: bootstrapLoading,
           statusMessage: bootstrapLoading
@@ -612,7 +613,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
       locale: _germanLocale,
       supportedLocales: _supportedLocales,
       localizationsDelegates: _localizationsDelegates,
-      builder: _forceGerman24HourClock,
+      builder: _buildAppContent,
     ));
   }
 }
@@ -649,8 +650,7 @@ const _localizationsDelegates = [
   GlobalCupertinoLocalizations.delegate,
 ];
 
-Widget _forceGerman24HourClock(BuildContext context, Widget? child) =>
-    MediaQuery(
+Widget _buildAppContent(BuildContext context, Widget? child) => MediaQuery(
       data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-      child: child ?? const SizedBox.shrink(),
+      child: AppLoadingHost(child: child ?? const SizedBox.shrink()),
     );

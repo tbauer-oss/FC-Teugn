@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'loading/loading_controller.dart';
 import 'offline_outbox.dart';
 
 class ApiClient {
@@ -16,6 +17,7 @@ class ApiClient {
     VoidCallback? onSessionExpired,
     GeneralOfflineOutbox? offlineOutbox,
     String? userId,
+    AppLoadingController? loadingController,
   }) {
     const envBaseUrl = String.fromEnvironment('API_BASE_URL');
 
@@ -85,11 +87,157 @@ class ApiClient {
           dio: dio,
           outbox: offlineOutbox,
           userId: userId!,
+          onSynchronizationComplete: (count) =>
+              loadingController?.showTransientStatus(
+            count == 1
+                ? 'Offline-Änderung synchronisiert'
+                : '$count Offline-Änderungen synchronisiert',
+          ),
+          onQueued: () =>
+              loadingController?.showTransientStatus('Offline gespeichert'),
         ),
       );
     }
+    // Deliberately last: retries, token refresh and offline queuing must finish
+    // before the visible operation is closed.
+    if (loadingController != null) {
+      dio.interceptors.add(_AppLoadingInterceptor(loadingController));
+    }
 
     return ApiClient._internal(dio);
+  }
+}
+
+class _AppLoadingInterceptor extends Interceptor {
+  _AppLoadingInterceptor(this._controller);
+
+  static const _handleKey = 'appLoadingHandle';
+  final AppLoadingController _controller;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.extra['suppressLoading'] == true ||
+        options.extra[_handleKey] is AppLoadingHandle) {
+      handler.next(options);
+      return;
+    }
+    final configuration = _configuration(options);
+    if (configuration != null) {
+      final handle = _controller.start(
+        message: configuration.message,
+        mode: configuration.mode,
+        completedItems: options.extra['loadingCompletedItems'] as int?,
+        totalItems: options.extra['loadingTotalItems'] as int?,
+      );
+      options.extra[_handleKey] = handle;
+      if (options.data is FormData) {
+        final existingProgress = options.onSendProgress;
+        options.onSendProgress = (sent, total) {
+          if (total > 0) handle.update(progress: sent / total);
+          existingProgress?.call(sent, total);
+        };
+      }
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    _finish(response.requestOptions);
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    _finish(err.requestOptions);
+    handler.next(err);
+  }
+
+  void _finish(RequestOptions options) {
+    final handle = options.extra.remove(_handleKey);
+    if (handle is AppLoadingHandle) handle.finish();
+  }
+
+  ({String message, AppLoadingMode mode})? _configuration(
+    RequestOptions options,
+  ) {
+    final explicitMessage = options.extra['loadingMessage']?.toString();
+    final explicitMode = switch (options.extra['loadingMode']) {
+      'fullscreen' => AppLoadingMode.fullscreen,
+      'background' => AppLoadingMode.background,
+      _ => AppLoadingMode.overlay,
+    };
+    if (explicitMessage?.trim().isNotEmpty == true) {
+      return (message: explicitMessage!.trim(), mode: explicitMode);
+    }
+
+    final method = options.method.toUpperCase();
+    final path = options.path.toLowerCase();
+    if (method == 'GET' || method == 'HEAD') return null;
+    if (options.extra['outboxReplay'] == true) {
+      return (
+        message: 'Offline-Änderungen werden synchronisiert …',
+        mode: AppLoadingMode.background,
+      );
+    }
+    if (path.contains('/ticker') ||
+        path.contains('/notifications/') && path.contains('/read')) {
+      return (
+        message: 'Änderung wird synchronisiert …',
+        mode: AppLoadingMode.background,
+      );
+    }
+    if (path.contains('/auth/login')) {
+      return (
+        message: 'Anmeldung wird geprüft …',
+        mode: AppLoadingMode.overlay
+      );
+    }
+    if (path.contains('/auth/register')) {
+      return (message: 'Konto wird angelegt …', mode: AppLoadingMode.overlay);
+    }
+    if (path.contains('/imports') || path.contains('/competition-import')) {
+      return (
+        message: 'Spielplan wird importiert …',
+        mode: AppLoadingMode.overlay
+      );
+    }
+    if (options.data is FormData ||
+        path.contains('/photo') ||
+        path.contains('/logo')) {
+      return (
+        message: 'Datei wird hochgeladen …',
+        mode: AppLoadingMode.overlay
+      );
+    }
+    if (path.contains('/lineup')) {
+      return (
+        message: 'Aufstellung wird gespeichert …',
+        mode: AppLoadingMode.overlay
+      );
+    }
+    if (path.contains('/squad')) {
+      return (
+        message: 'Kader wird gespeichert …',
+        mode: AppLoadingMode.overlay
+      );
+    }
+    if (path.contains('/communications') || path.contains('/push')) {
+      return (
+        message: 'Nachricht wird versendet …',
+        mode: AppLoadingMode.overlay
+      );
+    }
+    if (path.contains('/matches') || path.contains('/events')) {
+      return (
+        message: 'Termin wird gespeichert …',
+        mode: AppLoadingMode.overlay
+      );
+    }
+    return (
+      message: 'Änderungen werden gespeichert …',
+      mode: AppLoadingMode.overlay
+    );
   }
 }
 

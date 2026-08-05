@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
@@ -46,7 +47,9 @@ class _TeamOperationsPageState extends ConsumerState<TeamOperationsPage> {
   Widget build(BuildContext context) {
     final organization = ref.watch(organizationProvider);
     return organization.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(
+        child: LogoLoadingPanel(message: 'Teamaufgaben werden geladen …'),
+      ),
       error: (error, _) => _ErrorState(
         message: _errorMessage(error),
         onRetry: () => ref.invalidate(organizationProvider),
@@ -76,8 +79,11 @@ class _TeamOperationsPageState extends ConsumerState<TeamOperationsPage> {
               ),
               Expanded(
                 child: overview.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
+                  loading: () => const Center(
+                    child: LogoLoadingPanel(
+                      message: 'Teamaufgaben werden geladen …',
+                    ),
+                  ),
                   error: (error, _) => _ErrorState(
                     message: _errorMessage(error),
                     onRetry: () => _refresh(teamId),

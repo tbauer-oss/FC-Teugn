@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
@@ -130,7 +131,9 @@ class TrainerMatchesPage extends ConsumerWidget {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+          child: LogoLoadingPanel(message: 'Spiele werden geladen …'),
+        ),
         error: (_, __) => const EmptyState(
           icon: Icons.cloud_off_rounded,
           title: 'Spiele nicht erreichbar',

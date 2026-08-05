@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../loading/loading_widgets.dart';
 
 import '../app_theme.dart';
 
@@ -81,9 +82,9 @@ class _InitialPushPromptDialogState extends State<InitialPushPromptDialog> {
         FilledButton.icon(
           onPressed: _activating ? null : _activate,
           icon: _activating
-              ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+              ? const LogoLoadingIndicator(
+                  size: 22,
+                  semanticsLabel: 'Benachrichtigungen werden aktiviert',
                 )
               : const Icon(Icons.notifications_rounded),
           label: Text(_activating ? 'Aktiviere …' : 'Aktivieren'),

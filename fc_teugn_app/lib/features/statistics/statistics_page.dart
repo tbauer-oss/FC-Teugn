@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
@@ -70,7 +71,11 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
         subtitle:
             'Automatisch aus Spielen, Aufstellungen und Liveticker berechnet.',
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(
+                child: LogoLoadingPanel(
+                  message: 'Statistiken werden geladen …',
+                ),
+              )
             : _error != null || _overview == null
                 ? EmptyState(
                     icon: Icons.query_stats_rounded,

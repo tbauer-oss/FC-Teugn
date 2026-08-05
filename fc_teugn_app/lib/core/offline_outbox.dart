@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -103,13 +104,15 @@ class GeneralOfflineOutbox {
     ]);
   }
 
-  Future<void> synchronize(Dio dio, String userId) async {
-    if (_syncing) return;
+  Future<int> synchronize(Dio dio, String userId) async {
+    if (_syncing) return 0;
     _syncing = true;
+    var synchronized = 0;
     try {
       final writes = await pending(userId);
       final remaining = [...writes];
-      for (final write in writes) {
+      for (var index = 0; index < writes.length; index++) {
+        final write = writes[index];
         try {
           await dio.request<dynamic>(
             write.path,
@@ -118,11 +121,16 @@ class GeneralOfflineOutbox {
             options: Options(
               method: write.method,
               headers: {'X-Idempotency-Key': write.id},
-              extra: {'outboxReplay': true},
+              extra: {
+                'outboxReplay': true,
+                'loadingCompletedItems': index,
+                'loadingTotalItems': writes.length,
+              },
             ),
           );
           remaining.removeWhere((item) => item.id == write.id);
           await _write(userId, remaining);
+          synchronized += 1;
         } on DioException catch (error) {
           final status = error.response?.statusCode;
           if (status != null &&
@@ -141,6 +149,7 @@ class GeneralOfflineOutbox {
     } finally {
       _syncing = false;
     }
+    return synchronized;
   }
 
   Future<void> _write(String userId, List<QueuedApiWrite> values) =>
@@ -157,16 +166,24 @@ class OfflineOutboxInterceptor extends Interceptor {
     required this.dio,
     required this.outbox,
     required this.userId,
+    this.onSynchronizationComplete,
+    this.onQueued,
   });
 
   final Dio dio;
   final GeneralOfflineOutbox outbox;
   final String userId;
+  final void Function(int synchronized)? onSynchronizationComplete;
+  final void Function()? onQueued;
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
     if (response.requestOptions.extra['outboxReplay'] != true) {
-      outbox.synchronize(dio, userId);
+      unawaited(
+        outbox.synchronize(dio, userId).then((count) {
+          if (count > 0) onSynchronizationComplete?.call(count);
+        }),
+      );
     }
     handler.next(response);
   }
@@ -183,6 +200,7 @@ class OfflineOutboxInterceptor extends Interceptor {
     }
     try {
       await outbox.enqueue(userId, request);
+      onQueued?.call();
       handler.reject(
         DioException(
           requestOptions: request,

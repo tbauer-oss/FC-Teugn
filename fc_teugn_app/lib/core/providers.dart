@@ -15,6 +15,7 @@ import 'models/user.dart';
 import 'models/team_operations.dart';
 import 'offline_ticker.dart';
 import 'offline_outbox.dart';
+import 'loading/loading_controller.dart';
 import 'push/native_push_service.dart';
 
 final offlineOutboxProvider = Provider<GeneralOfflineOutbox>(
@@ -30,6 +31,7 @@ final repositoryProvider = Provider<DataRepository>((ref) {
     onSessionExpired: controller.clearSession,
     offlineOutbox: ref.watch(offlineOutboxProvider),
     userId: authState.user?.id,
+    loadingController: ref.read(appLoadingProvider),
   );
   return DataRepository(client);
 });

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
@@ -584,7 +585,9 @@ class _PendingListState extends State<_PendingList> {
   @override
   Widget build(BuildContext context) {
     return widget.value.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(
+        child: LogoLoadingPanel(message: 'Freigaben werden geladen …'),
+      ),
       error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         title: 'Freigaben nicht erreichbar',
@@ -835,7 +838,9 @@ class _MemberList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return value.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(
+        child: LogoLoadingPanel(message: 'Mitglieder werden geladen …'),
+      ),
       error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         title: 'Mitglieder nicht erreichbar',
@@ -1069,7 +1074,12 @@ class _MemberPermissionsDialogState extends State<_MemberPermissionsDialog> {
               if (snapshot.connectionState != ConnectionState.done) {
                 return const SizedBox(
                   height: 220,
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(
+                    child: LogoLoadingPanel(
+                      message: 'Berechtigungen werden geladen …',
+                      compact: true,
+                    ),
+                  ),
                 );
               }
               if (snapshot.hasError || snapshot.data == null) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -70,7 +71,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       if (snapshot.connectionState != ConnectionState.done) {
                         return const SizedBox(
                           height: 360,
-                          child: Center(child: CircularProgressIndicator()),
+                          child: Center(
+                            child: LogoLoadingPanel(
+                              message: 'Registrierung wird vorbereitet …',
+                            ),
+                          ),
                         );
                       }
                       if (snapshot.hasError || snapshot.data == null) {
@@ -366,10 +371,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             child: FilledButton.icon(
               onPressed: authState.loading ? null : () => _submit(options),
               icon: authState.loading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                  ? const LogoLoadingIndicator(
+                      size: 22,
+                      semanticsLabel: 'Registrierung wird gesendet',
                     )
                   : const Icon(Icons.how_to_reg_rounded),
               label: const Text('Registrierung verbindlich absenden'),

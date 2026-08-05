@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../loading/loading_widgets.dart';
 
 /// Einheitlicher, tastaturfester Bearbeitungsdialog für App und Web.
 ///
@@ -287,9 +288,9 @@ class _DialogActions extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: saving ? null : onSave,
                 icon: saving
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                    ? const LogoLoadingIndicator(
+                        size: 22,
+                        semanticsLabel: 'Änderungen werden gespeichert',
                       )
                     : Icon(saveIcon),
                 label: Text(saveLabel),
@@ -299,9 +300,9 @@ class _DialogActions extends StatelessWidget {
             FilledButton.icon(
               onPressed: saving ? null : onSave,
               icon: saving
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                  ? const LogoLoadingIndicator(
+                      size: 22,
+                      semanticsLabel: 'Änderungen werden gespeichert',
                     )
                   : Icon(saveIcon),
               label: Text(saveLabel),

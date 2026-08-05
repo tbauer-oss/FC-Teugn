@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -165,9 +166,9 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
               onPressed:
                   _organization == null || _creating ? null : _createTraining,
               icon: _creating
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                  ? const LogoLoadingIndicator(
+                      size: 22,
+                      semanticsLabel: 'Training wird angelegt',
                     )
                   : const Icon(Icons.add_rounded),
               style: compact ? _compactFilledActionStyle() : null,
@@ -320,7 +321,9 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           );
         }
         if (_trainings == null) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: LogoLoadingPanel(message: 'Trainingsdaten werden geladen …'),
+          );
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -345,7 +348,9 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           );
         }
         if (_occupancy == null) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: LogoLoadingPanel(message: 'Platzbelegung wird geladen …'),
+          );
         }
         return PitchOccupancyBoard(
           plan: _occupancy!,
@@ -364,7 +369,9 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           );
         }
         if (_indoorOccupancy == null) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: LogoLoadingPanel(message: 'Hallenbelegung wird geladen …'),
+          );
         }
         return PitchOccupancyBoard(
           plan: _indoorOccupancy!,
@@ -2309,7 +2316,9 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
       return const PageScaffold(
         title: 'Training',
         subtitle: 'Einheit wird geladen …',
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(
+          child: LogoLoadingPanel(message: 'Training wird geladen …'),
+        ),
       );
     }
     if (_training == null || _error != null) {

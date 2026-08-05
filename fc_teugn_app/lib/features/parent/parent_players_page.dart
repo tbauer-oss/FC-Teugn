@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
@@ -50,7 +51,9 @@ class ParentPlayersPage extends ConsumerWidget {
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(
+                child: LogoLoadingPanel(message: 'Kinder werden geladen …'),
+              ),
               error: (err, _) => Center(child: Text('Fehler: $err')),
             ),
           ),

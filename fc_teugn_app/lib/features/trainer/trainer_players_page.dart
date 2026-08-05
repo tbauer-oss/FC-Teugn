@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -80,7 +81,9 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
         label: const Text('Spieler anlegen'),
       ),
       child: players.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+          child: LogoLoadingPanel(message: 'Spieler werden geladen …'),
+        ),
         error: (_, __) => EmptyState(
           icon: Icons.cloud_off_rounded,
           title: 'Mannschaft nicht erreichbar',

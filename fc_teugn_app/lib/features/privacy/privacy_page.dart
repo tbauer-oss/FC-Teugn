@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -262,7 +263,11 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
           Text('Ihre Anträge', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 10),
           if (_loading)
-            const Center(child: CircularProgressIndicator())
+            const Center(
+              child: LogoLoadingPanel(
+                message: 'Datenschutzdaten werden geladen …',
+              ),
+            )
           else if (_requests.isEmpty)
             const EmptyState(
               icon: Icons.verified_user_outlined,

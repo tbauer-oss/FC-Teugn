@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -298,7 +299,9 @@ class _PitchConflictRequestList extends ConsumerWidget {
       future: ref.read(repositoryProvider).pitchConflictRequests(),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: LogoLoadingPanel(message: 'Nachrichten werden geladen …'),
+          );
         }
         if (snapshot.hasError) return _ErrorCard(onRetry: onChanged);
         final items = snapshot.data ?? const [];
@@ -571,7 +574,9 @@ class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
           .announcements(includeDrafts: widget.staffView),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: LogoLoadingPanel(message: 'Mitteilungen werden geladen …'),
+          );
         }
         if (snapshot.hasError) {
           return _ErrorCard(onRetry: widget.onChanged);
@@ -975,7 +980,9 @@ class _NotificationList extends ConsumerWidget {
       future: ref.read(repositoryProvider).notifications(),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: LogoLoadingPanel(message: 'Empfänger werden geladen …'),
+          );
         }
         if (snapshot.hasError) return _ErrorCard(onRetry: onChanged);
         final items = snapshot.data ?? const [];
@@ -1097,7 +1104,11 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
     final items = _items;
     final isSuperAdmin =
         ref.watch(authProvider).user?.role == UserRole.superAdmin;
-    if (items == null) return const Center(child: CircularProgressIndicator());
+    if (items == null) {
+      return const Center(
+        child: LogoLoadingPanel(message: 'Push-Geräte werden geladen …'),
+      );
+    }
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -1457,9 +1468,9 @@ class _AdminPushTestCard extends StatelessWidget {
               final button = FilledButton.icon(
                 onPressed: testing ? null : onTest,
                 icon: testing
-                    ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                    ? const LogoLoadingIndicator(
+                        size: 22,
+                        semanticsLabel: 'Pushnachricht wird versendet',
                       )
                     : const Icon(Icons.send_rounded),
                 label: Text(testing ? 'Sende …' : 'An alle testen'),
@@ -1669,9 +1680,9 @@ class _AdminPushDeviceCard extends StatelessWidget {
           const SizedBox(height: 14),
           if (values == null)
             const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
+              child: LogoLoadingPanel(
+                message: 'Gerätestatus wird geladen …',
+                compact: true,
               ),
             )
           else if (filtered.isEmpty)

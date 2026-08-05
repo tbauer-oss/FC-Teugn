@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/api_client.dart';
+import '../../core/loading/loading_controller.dart';
 import '../../core/models/user.dart';
 import '../../core/push/native_push_service.dart';
 
@@ -36,12 +37,15 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController() : super(AuthState(loading: true)) {
+  AuthController({AppLoadingController? loadingController})
+      : _loadingController = loadingController,
+        super(AuthState(loading: true)) {
     unawaited(_restore());
   }
 
   static const _refreshTokenKey = 'fc_teugn_refresh_token';
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final AppLoadingController? _loadingController;
   Future<String?>? _refreshing;
 
   Future<void> login(String email, String password) async {
@@ -125,7 +129,10 @@ class AuthController extends StateNotifier<AuthState> {
     final nativeToken = await nativePushService.currentTokenIfEnabled();
     if (accessToken != null && nativeToken != null) {
       try {
-        await ApiClient(accessToken: accessToken).dio.delete(
+        await ApiClient(
+          accessToken: accessToken,
+          loadingController: _loadingController,
+        ).dio.delete(
           '/notifications/settings/subscriptions',
           data: {'endpoint': nativeToken},
         );
@@ -139,7 +146,7 @@ class AuthController extends StateNotifier<AuthState> {
     } catch (_) {}
     if (refreshToken != null) {
       try {
-        await ApiClient().dio.post(
+        await ApiClient(loadingController: _loadingController).dio.post(
           '/auth/logout',
           data: {'refreshToken': refreshToken},
         );
@@ -165,7 +172,8 @@ class AuthController extends StateNotifier<AuthState> {
     try {
       final refreshToken = await _storage.read(key: _refreshTokenKey);
       if (refreshToken == null) return null;
-      final res = await ApiClient().dio.post(
+      final res =
+          await ApiClient(loadingController: _loadingController).dio.post(
         '/auth/refresh',
         data: {'refreshToken': refreshToken},
       );
@@ -210,11 +218,14 @@ class AuthController extends StateNotifier<AuthState> {
     return fallback;
   }
 
-  ApiClient get _client => ApiClient(accessToken: state.accessToken);
+  ApiClient get _client => ApiClient(
+        accessToken: state.accessToken,
+        loadingController: _loadingController,
+      );
 
   ApiClient get client => _client;
 }
 
 final authProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
-  return AuthController();
+  return AuthController(loadingController: ref.read(appLoadingProvider));
 });

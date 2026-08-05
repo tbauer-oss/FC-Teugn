@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
@@ -115,7 +116,10 @@ class _OrganizationAdminToolsState
           actionLabel: 'Saison vorbereiten',
           onAction: _prepareSeason,
           child: _loading
-              ? const LinearProgressIndicator()
+              ? const LogoLoadingPanel(
+                  message: 'Saisonwechsel wird vorbereitet …',
+                  compact: true,
+                )
               : _SeasonTransitionList(transitions: _transitions),
         ),
       ],

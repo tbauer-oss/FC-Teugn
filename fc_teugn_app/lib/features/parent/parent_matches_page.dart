@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -43,7 +44,9 @@ class ParentMatchesPage extends ConsumerWidget {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+          child: LogoLoadingPanel(message: 'Spiele werden geladen …'),
+        ),
         error: (_, __) => const EmptyState(
           icon: Icons.cloud_off_rounded,
           title: 'Spielplan nicht erreichbar',

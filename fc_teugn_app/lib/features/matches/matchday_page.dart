@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
@@ -270,7 +271,9 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       return const PageScaffold(
         title: 'Spieltag',
         subtitle: 'Spiel wird vorbereitet …',
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(
+          child: LogoLoadingPanel(message: 'Spieltag wird geladen …'),
+        ),
       );
     }
     if (_error != null || _match == null) {
@@ -1075,9 +1078,9 @@ class _AttendanceMenu extends StatelessWidget {
     if (saving) {
       return const Padding(
         padding: EdgeInsets.all(8),
-        child: SizedBox.square(
-          dimension: 16,
-          child: CircularProgressIndicator(strokeWidth: 2),
+        child: LogoLoadingIndicator(
+          size: 22,
+          semanticsLabel: 'Rückmeldung wird gespeichert',
         ),
       );
     }
@@ -1763,10 +1766,9 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                           },
                     tooltip: 'Aufstellung speichern',
                     icon: _saving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                        ? const LogoLoadingIndicator(
+                            size: 24,
+                            semanticsLabel: 'Aufstellung wird gespeichert',
                           )
                         : const Icon(Icons.save_outlined),
                   ),
@@ -3963,10 +3965,9 @@ class _ConnectionChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (syncing)
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: color),
+            const LogoLoadingIndicator(
+              size: 22,
+              semanticsLabel: 'Spielstand wird synchronisiert',
             )
           else
             Icon(
