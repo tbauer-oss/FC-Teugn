@@ -7,6 +7,10 @@ on:
       - master
   workflow_dispatch:
 
+concurrency:
+  group: deploy-backend-production
+  cancel-in-progress: false
+
 jobs:
   deploy-backend:
     runs-on: ubuntu-latest
@@ -42,4 +46,17 @@ jobs:
       - name: Deploy to Vercel (Backend API)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel deploy --prod --yes --token "$VERCEL_TOKEN" --local-config api/vercel.json
+        run: |
+          for attempt in 1 2 3; do
+            if vercel deploy --prod --yes --token "$VERCEL_TOKEN" --local-config api/vercel.json; then
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "Backend deployment failed after $attempt attempts."
+              exit 1
+            fi
+
+            echo "Backend deployment attempt $attempt hit a temporary failure; retrying in 30 seconds."
+            sleep 30
+          done
