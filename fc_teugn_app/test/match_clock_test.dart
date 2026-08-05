@@ -135,6 +135,42 @@ void main() {
     expect(clock.elapsedSeconds, 900);
   });
 
+  test('an authoritative match reset rewinds the clock immediately', () {
+    var nowMilliseconds = 0;
+    final clock = StableElapsedClock(
+      monotonicMilliseconds: () => nowMilliseconds,
+    );
+    clock.synchronize(
+      _ticker(
+        currentPeriod: 1,
+        elapsedSeconds: 120,
+        status: TickerStatus.live,
+        events: [
+          _event(
+            type: TickerEventType.matchStart,
+            period: 1,
+            elapsedSeconds: 0,
+          ),
+        ],
+      ),
+    );
+
+    nowMilliseconds = 2500;
+    expect(clock.elapsedSeconds, 122);
+
+    clock.synchronize(
+      _ticker(
+        currentPeriod: 1,
+        elapsedSeconds: 0,
+        status: TickerStatus.notStarted,
+        events: const [],
+      ),
+    );
+
+    expect(clock.elapsedSeconds, 0);
+    expect(clock.millisecondsUntilNextSecond, 1000);
+  });
+
   test('incremental ticker snapshots retain the known event history', () {
     final current = LiveTickerModel(
       status: TickerStatus.live,

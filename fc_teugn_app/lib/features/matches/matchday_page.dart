@@ -3056,14 +3056,19 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   void didUpdateWidget(covariant _TickerTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     final serverTicker = widget.match.ticker;
+    final previousServerTicker = oldWidget.match.ticker;
     final previousServerSequence = oldWidget.match.ticker?.lastSequence ?? 0;
+    final serverReset = serverTicker != null &&
+        isResetLiveTickerSnapshot(serverTicker) &&
+        (previousServerTicker == null ||
+            !isResetLiveTickerSnapshot(previousServerTicker));
     if (_optimisticTicker != null &&
         serverTicker != null &&
-        serverTicker.lastSequence > previousServerSequence) {
+        (serverReset || serverTicker.lastSequence > previousServerSequence)) {
       _optimisticTicker = null;
     }
     final ticker = _ticker;
-    final previousTicker = oldWidget.match.ticker;
+    final previousTicker = previousServerTicker;
     final elapsedBeforeSync = _effectiveElapsedSeconds();
     _synchronizeClock(_ticker);
     final timelineChanged =
@@ -4232,8 +4237,15 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
 
     setState(() => _busy = true);
     try {
-      await ref.read(repositoryProvider).resetTicker(widget.match.id);
+      final resetTicker =
+          await ref.read(repositoryProvider).resetTicker(widget.match.id);
+      if (!mounted) return;
       _warnedPeriods.clear();
+      setState(() => _optimisticTicker = resetTicker);
+      _synchronizeClock(resetTicker);
+      _lastRenderedElapsedSeconds = -1;
+      _scheduleNextClockTick(immediate: true);
+      _focusData.value = _tickerFocusData(resetTicker);
       await widget.onChanged();
       if (mounted) {
         _message(

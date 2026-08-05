@@ -1223,8 +1223,19 @@ class DataRepository {
     });
   }
 
-  Future<void> resetTicker(String eventId) async {
-    await client.dio.post('/matches/$eventId/ticker/reset');
+  Future<LiveTickerModel> resetTicker(String eventId) async {
+    final response = await client.dio.post(
+      '/matches/$eventId/ticker/reset',
+      options: Options(
+        extra: const {
+          'retryTransientWrite': true,
+          'suppressLoading': true,
+        },
+      ),
+    );
+    return LiveTickerModel.fromJson(
+      response.data as Map<String, dynamic>,
+    );
   }
 
   Future<TickerDelegation> tickerDelegation(String eventId) async {

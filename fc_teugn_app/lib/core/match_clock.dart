@@ -43,6 +43,14 @@ class StableElapsedClock {
 
   void synchronize(LiveTickerModel ticker) {
     final now = _monotonicMilliseconds();
+    if (isResetLiveTickerSnapshot(ticker)) {
+      // A deliberate match reset is the only authoritative update that must
+      // rewind the monotonic clock immediately. Routine polls and pauses keep
+      // their anti-jump behaviour below.
+      _setAnchor(0, ticker, now);
+      _initialized = true;
+      return;
+    }
     if (!_initialized) {
       _setAnchor(ticker.elapsedSeconds, ticker, now);
       _initialized = true;
@@ -96,6 +104,15 @@ class StableElapsedClock {
     _status = ticker.status;
   }
 }
+
+bool isResetLiveTickerSnapshot(LiveTickerModel ticker) =>
+    ticker.status == TickerStatus.notStarted &&
+    ticker.currentPeriod == 1 &&
+    ticker.elapsedSeconds == 0 &&
+    ticker.ourGoals == 0 &&
+    ticker.theirGoals == 0 &&
+    ticker.lastSequence == 0 &&
+    ticker.events.isEmpty;
 
 class MatchClockValue {
   const MatchClockValue({

@@ -35,4 +35,21 @@ void main() {
     expect(source, contains("ValueKey('desktop-live-ticker-history-heading')"));
     expect(source, contains("'Spielverlauf'"));
   });
+
+  test('reset response updates the visible ticker before the reload', () {
+    final resetStart = source.indexOf('Future<void> _confirmReset()');
+    final resetFlow = source.substring(
+      resetStart,
+      source.indexOf('void _message(String text)', resetStart),
+    );
+
+    expect(resetFlow, contains('final resetTicker ='));
+    expect(resetFlow, contains('_optimisticTicker = resetTicker'));
+    expect(resetFlow, contains('_synchronizeClock(resetTicker)'));
+    expect(resetFlow, contains('_scheduleNextClockTick(immediate: true)'));
+    expect(
+      resetFlow.indexOf('_focusData.value = _tickerFocusData(resetTicker)'),
+      lessThan(resetFlow.indexOf('await widget.onChanged()')),
+    );
+  });
 }
