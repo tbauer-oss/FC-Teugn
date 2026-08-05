@@ -24,6 +24,7 @@ import {
 } from '../services/team-access';
 import { syncSquadWithTeamDefaultLineup } from '../services/default-lineup.service';
 import { syncScheduledRemindersForEvent } from '../services/reminder.service';
+import { settlePostCommitTasks } from '../services/post-commit.service';
 
 const matchInclude = {
   team: {
@@ -599,17 +600,28 @@ export async function updateSquad(req: Request, res: Response) {
       },
     });
   });
-  await prisma.auditLog.create({
-    data: {
-      actorId: user.id,
-      teamId: match.teamId,
-      action: 'MATCH_SQUAD_UPDATED',
-      entityType: 'Squad',
-      entityId: squad?.id,
-      metadata: { memberCount: members.length },
+  // The squad transaction has already committed at this point. Audit and
+  // reminder maintenance are important, but a failure in either task must not
+  // turn a successful squad save into an HTTP error for the app.
+  await settlePostCommitTasks([
+    {
+      name: 'match-squad-audit',
+      promise: prisma.auditLog.create({
+        data: {
+          actorId: user.id,
+          teamId: match.teamId,
+          action: 'MATCH_SQUAD_UPDATED',
+          entityType: 'Squad',
+          entityId: squad?.id,
+          metadata: { memberCount: members.length },
+        },
+      }),
     },
-  });
-  await syncScheduledRemindersForEvent(match.id);
+    {
+      name: 'match-squad-reminders',
+      promise: syncScheduledRemindersForEvent(match.id),
+    },
+  ]);
   return res.json(squad);
 }
 

@@ -958,6 +958,10 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
       if (!mounted) return false;
       await widget.onSaved(savedSquad);
       if (mounted) _message('Kader wurde gespeichert.');
+      // Reconcile the complete match after applying the immediate response.
+      // This also refreshes a server-generated default lineup without making
+      // the successful squad save depend on a second request.
+      unawaited(widget.onReload());
       return true;
     } catch (_) {
       if (mounted) _message('Kader konnte nicht gespeichert werden.');
