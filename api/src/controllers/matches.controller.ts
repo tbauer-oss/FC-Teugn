@@ -23,6 +23,7 @@ import {
   youthPlayerPoolTeamIdsForTeam,
 } from '../services/team-access';
 import { syncSquadWithTeamDefaultLineup } from '../services/default-lineup.service';
+import { mediaAssetUrl } from '../services/media-access';
 
 const matchInclude = {
   team: {
@@ -48,7 +49,13 @@ const matchInclude = {
       },
     },
   },
-  matchDetails: true,
+  matchDetails: {
+    include: {
+      opponentRecord: {
+        include: { logoAsset: true },
+      },
+    },
+  },
   attendance: {
     include: {
       player: {
@@ -285,6 +292,20 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   );
   return {
     ...match,
+    matchDetails: match.matchDetails
+      ? {
+          ...match.matchDetails,
+          opponentRecord: undefined,
+          opponentLogoUrl:
+            match.matchDetails.opponentRecord?.logoAsset &&
+            match.matchDetails.opponentRecord.logoAsset.deletedAt === null
+              ? mediaAssetUrl(
+                  match.matchDetails.opponentRecord.logoAsset.id,
+                  '12h',
+                )
+              : match.matchDetails.opponentLogoUrl,
+        }
+      : null,
     attendance: staff
       ? match.attendance
       : match.attendance.filter((item) => viewerPlayerIds.includes(item.playerId)),
