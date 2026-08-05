@@ -245,6 +245,18 @@ void main() {
     expect(find.text('Meine Mannschaft'), findsOneWidget);
     expect(find.text('Organisation & Kommunikation'), findsOneWidget);
 
+    final teamHeading = tester.widget<Container>(
+      find.byKey(const ValueKey('mobile-menu-section-header-team')),
+    );
+    final headingDecoration = teamHeading.decoration! as BoxDecoration;
+    expect(headingDecoration.gradient, isA<LinearGradient>());
+    expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('mobile-menu-section-header-team')),
+          matching: find.text('BEREICH'),
+        ),
+        findsOneWidget);
+
     await tester.scrollUntilVisible(
       find.text('Verein & Verwaltung'),
       220,

@@ -618,7 +618,7 @@ class DesktopSidebar extends StatelessWidget {
                     for (final section in ShellSection.values)
                       if (destinations
                           .any((item) => item.section == section)) ...[
-                        _DesktopSectionHeader(label: section.label),
+                        _DesktopSectionHeader(section: section),
                         for (var index = 0;
                             index < destinations.length;
                             index++)
@@ -685,22 +685,132 @@ class DesktopSidebar extends StatelessWidget {
 }
 
 class _DesktopSectionHeader extends StatelessWidget {
-  const _DesktopSectionHeader({required this.label});
+  const _DesktopSectionHeader({required this.section});
 
-  final String label;
+  final ShellSection section;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 7),
-      child: Text(
-        label.toUpperCase(),
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: .38),
-          fontSize: 10,
-          letterSpacing: 1.25,
-          fontWeight: FontWeight.w800,
+    return Container(
+      key: ValueKey('desktop-menu-section-header-${section.name}'),
+      margin: const EdgeInsets.fromLTRB(2, 8, 2, 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .07),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(
+          color: AppColors.yellow.withValues(alpha: .12),
         ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: AppColors.yellow.withValues(alpha: .14),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(
+              section.icon,
+              size: 14,
+              color: AppColors.yellow.withValues(alpha: .88),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              section.label.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.yellow.withValues(alpha: .82),
+                fontSize: 9.5,
+                letterSpacing: 1.15,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileSectionHeading extends StatelessWidget {
+  const _MobileSectionHeading({required this.section});
+
+  final ShellSection section;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: ValueKey('mobile-menu-section-header-${section.name}'),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(11, 10, 11, 11),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF171A18), Color(0xFF393500)],
+        ),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: AppColors.yellow.withValues(alpha: .2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.yellow,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(section.icon, size: 21, color: AppColors.black),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'BEREICH',
+                  style: TextStyle(
+                    color: AppColors.yellow.withValues(alpha: .82),
+                    fontSize: 8,
+                    letterSpacing: 1.35,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  section.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15.5,
+                    height: 1.1,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  section.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: .66),
+                    fontSize: 10.5,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1002,47 +1112,24 @@ class _MobileMenuSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+      key: ValueKey('mobile-menu-section-${section.name}'),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.line),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              children: [
-                _MenuIcon(icon: section.icon),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        section.label,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      Text(
-                        section.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 9),
+          _MobileSectionHeading(section: section),
+          const SizedBox(height: 7),
           for (final destination in destinations)
             _MobileMenuDestination(
               destination: destination,
