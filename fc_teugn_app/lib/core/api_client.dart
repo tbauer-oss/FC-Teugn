@@ -80,7 +80,7 @@ class ApiClient {
         ),
       );
     }
-    dio.interceptors.add(_TransientGetRetryInterceptor(dio));
+    dio.interceptors.add(_TransientRequestRetryInterceptor(dio));
     if (offlineOutbox != null && userId?.isNotEmpty == true) {
       dio.interceptors.add(
         OfflineOutboxInterceptor(
@@ -241,15 +241,15 @@ class _AppLoadingInterceptor extends Interceptor {
   }
 }
 
-/// Wiederholt ausschließlich fehlgeschlagene Lesezugriffe. GET-Aufrufe sind
-/// idempotent und können deshalb nach einem kurzen Netzwechsel oder Vercel-
-/// Kaltstart sicher erneut gesendet werden. Schreibzugriffe bleiben bewusst
-/// unangetastet, damit keine Termine oder anderen Datensätze doppelt entstehen.
-class _TransientGetRetryInterceptor extends Interceptor {
-  _TransientGetRetryInterceptor(this._dio);
+/// Wiederholt fehlgeschlagene Lesezugriffe und ausschließlich solche
+/// Schreibzugriffe, die vom Repository ausdrücklich als idempotent markiert
+/// wurden. Der Kader-PUT ersetzt immer den vollständigen Stand und kann daher
+/// ohne doppelte Datensätze genau einmal erneut gesendet werden.
+class _TransientRequestRetryInterceptor extends Interceptor {
+  _TransientRequestRetryInterceptor(this._dio);
 
-  static const _attemptKey = 'transientGetRetryAttempt';
-  static const _maximumRetries = 3;
+  static const _attemptKey = 'transientRetryAttempt';
+  static const _maximumGetRetries = 3;
 
   final Dio _dio;
 
@@ -260,8 +260,11 @@ class _TransientGetRetryInterceptor extends Interceptor {
   ) async {
     final request = error.requestOptions;
     final attempt = request.extra[_attemptKey] as int? ?? 0;
-    if (request.method.toUpperCase() != 'GET' ||
-        attempt >= _maximumRetries ||
+    final isGet = request.method.toUpperCase() == 'GET';
+    final isIdempotentWrite = request.extra['retryTransientWrite'] == true;
+    final maximumRetries = isGet ? _maximumGetRetries : 1;
+    if ((!isGet && !isIdempotentWrite) ||
+        attempt >= maximumRetries ||
         !_isTransient(error)) {
       handler.next(error);
       return;

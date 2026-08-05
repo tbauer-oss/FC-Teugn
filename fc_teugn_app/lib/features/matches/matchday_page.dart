@@ -1111,13 +1111,29 @@ String _dioMessage(DioException error) {
   final data = error.response?.data;
   if (data is Map && data['message'] is String) {
     final message = (data['message'] as String).trim();
-    if (message.isNotEmpty) return message;
+    if (message.isNotEmpty && message != 'Internal server error') {
+      return message;
+    }
   }
   return switch (error.response?.statusCode) {
     400 => 'Die Auswahl enthält einen nicht verfügbaren Spieler.',
     403 => 'Für diese Mannschaft fehlt die Berechtigung.',
     404 => 'Das Spiel wurde nicht gefunden.',
-    _ => 'Die Verbindung zur Vereinsverwaltung war nicht stabil.',
+    408 => 'Die Speicherung hat das Zeitlimit des Servers überschritten.',
+    429 => 'Der Server erhält gerade zu viele Anfragen. Bitte kurz warten.',
+    500 => 'Die Vereinsverwaltung konnte die Speicherung nicht abschließen (500).',
+    502 => 'Die Vereinsverwaltung war vorübergehend nicht erreichbar (502).',
+    503 => 'Die Vereinsverwaltung ist vorübergehend ausgelastet (503).',
+    504 => 'Die Speicherung wurde vom Server nicht rechtzeitig abgeschlossen (504).',
+    _ => switch (error.type) {
+        DioExceptionType.connectionTimeout =>
+          'Die Verbindung zur Vereinsverwaltung konnte nicht rechtzeitig aufgebaut werden.',
+        DioExceptionType.receiveTimeout =>
+          'Die Vereinsverwaltung hat nicht rechtzeitig geantwortet.',
+        DioExceptionType.connectionError =>
+          'Die Vereinsverwaltung ist aktuell nicht erreichbar.',
+        _ => 'Die Speicherung konnte nicht abgeschlossen werden.',
+      },
   };
 }
 

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { asyncRouter } from '../middleware/async-handler';
 import {
   archiveLeague,
   archiveOpponent,
@@ -15,7 +15,7 @@ import { idempotencyMiddleware } from '../middleware/idempotency';
 import { playerFileUpload } from '../middleware/player-files';
 import { Permission } from '../security/permissions';
 
-const router = Router();
+const router = asyncRouter();
 router.use(requireAuth);
 router.use(requireApproved);
 router.use(idempotencyMiddleware);

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { asyncRouter } from '../middleware/async-handler';
 import {
   activeConsentTexts,
   login,
@@ -15,7 +15,7 @@ import {
   requestErasure,
 } from '../controllers/privacy.controller';
 
-const router = Router();
+const router = asyncRouter();
 
 router.post('/register', register);
 router.post('/login', login);

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { BlobError } from '@vercel/blob';
+import { Prisma } from '@prisma/client';
 
 export function errorHandler(err: any, _req: Request, res: Response, _next: NextFunction) {
   console.error(err);
@@ -30,5 +31,27 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
     });
     return;
   }
-  res.status(500).json({ message: 'Internal server error' });
+  if (
+    err instanceof Prisma.PrismaClientKnownRequestError &&
+    ['P2024', 'P2028'].includes(err.code)
+  ) {
+    res.status(503).json({
+      message:
+        'Die Vereinsdatenbank war kurzzeitig ausgelastet. Die Änderung konnte noch nicht bestätigt und kann sicher erneut gesendet werden.',
+      code: err.code,
+    });
+    return;
+  }
+  if (err instanceof Prisma.PrismaClientInitializationError) {
+    res.status(503).json({
+      message:
+        'Die Vereinsdatenbank wird gerade neu verbunden. Bitte die Änderung erneut senden.',
+      code: 'DATABASE_CONNECTION',
+    });
+    return;
+  }
+  res.status(500).json({
+    message: 'Die Vereinsverwaltung konnte die Anfrage nicht abschließen.',
+    code: 'INTERNAL_ERROR',
+  });
 }

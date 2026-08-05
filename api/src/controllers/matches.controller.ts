@@ -528,6 +528,7 @@ export async function updateMatch(req: Request, res: Response) {
 }
 
 export async function updateSquad(req: Request, res: Response) {
+  const startedAt = performance.now();
   const user = req.user!;
   // Dieser Endpunkt benötigt weder Ticker noch Statistiken oder die komplette
   // bestehende Aufstellung. Die schlanke Abfrage spart bei jedem Speichern
@@ -640,10 +641,20 @@ export async function updateSquad(req: Request, res: Response) {
         },
       },
     });
+  }, {
+    // The normal path remains well below this limit. These explicit values
+    // prevent Prisma's short interactive-transaction defaults from aborting a
+    // valid squad update during a brief production connection spike.
+    maxWait: 10_000,
+    timeout: 15_000,
   });
   // Die Antwort hängt ausschließlich vom atomaren Kader-Commit ab.
   // Erinnerungsjobs werden durch den Cron anhand reminderSyncPendingAt
   // zuverlässig nachgezogen und blockieren diese Kernfunktion nie wieder.
+  res.setHeader(
+    'Server-Timing',
+    `squad-save;dur=${(performance.now() - startedAt).toFixed(1)}`,
+  );
   return res.json(squad);
 }
 

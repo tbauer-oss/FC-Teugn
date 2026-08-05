@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { asyncRouter } from '../middleware/async-handler';
 import {
   approveUser,
   assignParentPlayer,
@@ -19,7 +19,7 @@ import {
   reviewPrivacyRequest,
 } from '../controllers/privacy.controller';
 
-const router = Router();
+const router = asyncRouter();
 
 router.use(requireAuth);
 router.use(requireApproved);

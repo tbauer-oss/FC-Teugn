@@ -90,14 +90,14 @@ void main() {
         home: AnimatedLaunchScreen(
           duration: Duration(milliseconds: 10),
           waitingForData: true,
-          statusMessage: 'Vereinsdaten werden sicher vorbereitet …',
+          statusMessage: 'Vereinsdaten werden geladen...',
         ),
       ),
     );
     await tester.pump(const Duration(milliseconds: 20));
 
     expect(
-      find.text('Vereinsdaten werden sicher vorbereitet …'),
+      find.text('Vereinsdaten werden geladen...'),
       findsOneWidget,
     );
     final progress = tester.widget<LinearProgressIndicator>(

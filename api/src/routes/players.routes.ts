@@ -1,4 +1,3 @@
-import { Router } from 'express';
 import {
   addDevelopmentNote,
   createEmergencyContact,
@@ -21,7 +20,7 @@ import { requireApproved, requireAuth, requirePermission } from '../middleware/a
 import { idempotencyMiddleware } from '../middleware/idempotency';
 import { Permission } from '../security/permissions';
 import { playerFileUpload } from '../middleware/player-files';
-import { asyncHandler } from '../middleware/async-handler';
+import { asyncHandler, asyncRouter } from '../middleware/async-handler';
 import {
   downloadConsentEvidence,
   downloadConsentTemplate,
@@ -30,7 +29,7 @@ import {
   signPlayerConsent,
 } from '../controllers/player-consents.controller';
 
-const router = Router();
+const router = asyncRouter();
 
 router.use(requireAuth);
 router.use(requireApproved);

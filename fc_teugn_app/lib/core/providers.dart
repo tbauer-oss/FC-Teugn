@@ -129,14 +129,14 @@ final offlineOutboxCountProvider =
   }
 });
 
-/// Hält die Meldungsanzeige ohne manuelles Neuladen aktuell. Das kurze
-/// Intervall ist zugleich der Web-Fallback, wenn keine native Push-Verbindung
-/// aktiv ist.
+/// Hält die Meldungsanzeige ohne manuelles Neuladen aktuell. Native Push-
+/// Nachrichten bleiben unmittelbar; der Web-Fallback vermeidet mit einem
+/// moderaten Intervall dauerhafte Datenbanklast durch jede offene Sitzung.
 final liveNotificationsProvider =
     StreamProvider.autoDispose<List<AppNotificationModel>>((ref) async* {
   while (true) {
     yield await ref.read(repositoryProvider).notifications();
-    await Future<void>.delayed(const Duration(seconds: 4));
+    await Future<void>.delayed(const Duration(seconds: 10));
   }
 });
 
@@ -169,8 +169,8 @@ class WorkingContextController extends StateNotifier<WorkingContextState> {
       ref.invalidate(trainingsProvider);
       ref.invalidate(outdoorPitchOccupancyProvider);
       ref.invalidate(indoorPitchOccupancyProvider);
+      await ref.read(organizationProvider.future);
       await Future.wait([
-        ref.read(organizationProvider.future),
         ref.read(playersProvider.future),
         ref.read(eventsProvider.future),
       ]);
@@ -200,11 +200,11 @@ class AppBootstrapException implements Exception {
   String toString() => '$resource konnte nicht geladen werden: $cause';
 }
 
-/// Lädt die Kerndaten einer angemeldeten Sitzung vollständig vor. Die
-/// aufgerufenen FutureProvider halten ihre Ergebnisse anschließend im Cache,
-/// sodass die erste sichtbare Seite nicht dieselben Requests erneut starten
-/// muss. autoDispose sorgt dafür, dass beim Abmelden keine Sitzung erhalten
-/// bleibt.
+/// Lädt nur die drei Datenbereiche vor, die jede erste Hauptansicht benötigt.
+/// Mannschaftsdaten werden zuerst geladen; Spieler und Kalender folgen mit
+/// höchstens zwei parallelen Requests. Rollenabhängige Spezialseiten laden ihre
+/// Daten erst beim Öffnen. So erzeugt der App-Start keine acht gleichzeitigen
+/// Datenbankabfragen mehr.
 final sessionBootstrapProvider =
     FutureProvider.autoDispose.family<void, AppBootstrapSession>(
   (ref, session) async {
@@ -216,57 +216,17 @@ final sessionBootstrapProvider =
       }
     }
 
-    final tasks = <Future<void>>[
-      preload('Mannschaftsdaten', ref.read(organizationProvider.future)),
+    // The family key intentionally contains the user and role so a changed
+    // session can never reuse another account's bootstrap state.
+    if (session.userId.isEmpty) return;
+    await preload(
+      'Mannschaftsdaten',
+      ref.read(organizationProvider.future),
+    );
+    await Future.wait([
       preload('Spielerdaten', ref.read(playersProvider.future)),
       preload('Kalenderdaten', ref.read(eventsProvider.future)),
-    ];
-
-    final isStaff = switch (session.role) {
-      UserRole.superAdmin ||
-      UserRole.clubAdmin ||
-      UserRole.youthDirector ||
-      UserRole.coach ||
-      UserRole.assistantCoach ||
-      UserRole.teamManager ||
-      UserRole.trainerAdmin ||
-      UserRole.trainer =>
-        true,
-      _ => false,
-    };
-    if (isStaff) {
-      tasks.addAll([
-        preload('Trainingsdaten', ref.read(trainingsProvider.future)),
-        preload(
-          'Platzbelegung',
-          ref.read(outdoorPitchOccupancyProvider.future),
-        ),
-        preload(
-          'Hallenbelegung',
-          ref.read(indoorPitchOccupancyProvider.future),
-        ),
-      ]);
-    }
-
-    final canManageMembers = switch (session.role) {
-      UserRole.superAdmin ||
-      UserRole.clubAdmin ||
-      UserRole.youthDirector ||
-      UserRole.coach ||
-      UserRole.teamManager ||
-      UserRole.trainerAdmin ||
-      UserRole.trainer =>
-        true,
-      _ => false,
-    };
-    if (canManageMembers) {
-      tasks.addAll([
-        preload('Offene Freigaben', ref.read(pendingUsersProvider.future)),
-        preload('Mitgliederdaten', ref.read(membersProvider.future)),
-      ]);
-    }
-
-    await Future.wait(tasks);
+    ]);
   },
 );
 

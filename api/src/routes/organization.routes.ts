@@ -1,4 +1,3 @@
-import { Router } from 'express';
 import {
   createTeam,
   deleteTeam,
@@ -24,10 +23,10 @@ import {
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { Permission } from '../security/permissions';
 import { playerFileUpload } from '../middleware/player-files';
-import { asyncHandler } from '../middleware/async-handler';
+import { asyncHandler, asyncRouter } from '../middleware/async-handler';
 import { idempotencyMiddleware } from '../middleware/idempotency';
 
-const router = Router();
+const router = asyncRouter();
 
 router.get('/public', publicOrganization);
 router.get('/context', requireAuth, requireApproved, organizationContext);

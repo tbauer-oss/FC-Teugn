@@ -6,7 +6,8 @@
   "buildCommand": "npx -y pnpm@10.13.1 exec prisma migrate deploy && npx -y pnpm@10.13.1 run build",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "{dist/**,prisma/**,assets/**}"
+      "includeFiles": "{dist/**,prisma/**,assets/**}",
+      "maxDuration": 30
     }
   },
   "crons": [

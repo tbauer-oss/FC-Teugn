@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('staff bootstrap preloads all role-relevant core resources', () async {
+  test('bootstrap preloads only universal core resources', () async {
     final calls = <String, int>{};
     int called(String resource) => calls.update(
           resource,
@@ -91,11 +91,6 @@ void main() {
       'organization': 1,
       'players': 1,
       'events': 1,
-      'trainings': 1,
-      'outdoor': 1,
-      'indoor': 1,
-      'pending': 1,
-      'members': 1,
     });
   });
 }

@@ -57,6 +57,37 @@ void main() {
     expect(postCalls, 1);
   });
 
+  test('explicitly idempotent squad PUT retries once', () async {
+    var putCalls = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      putCalls++;
+      request.response.headers.contentType = ContentType.json;
+      if (putCalls == 1) {
+        request.response.statusCode = HttpStatus.serviceUnavailable;
+        request.response.write(jsonEncode({'message': 'warming up'}));
+      } else {
+        request.response.write(jsonEncode({'saved': true}));
+      }
+      await request.response.close();
+    });
+
+    final client = ApiClient(
+      baseUrl: 'http://${server.address.host}:${server.port}',
+    );
+    final response = await client.dio.put<Map<String, dynamic>>(
+      '/matches/match-1/squad',
+      data: {'members': const []},
+      options: Options(
+        extra: const {'retryTransientWrite': true},
+      ),
+    );
+
+    expect(response.data, {'saved': true});
+    expect(putCalls, 2);
+  });
+
   test('permanent client errors are not repeated', () async {
     var getCalls = 0;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

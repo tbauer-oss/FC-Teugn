@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { asyncRouter } from '../middleware/async-handler';
 import {
   recalculateMatch,
   statisticsOverview,
@@ -6,7 +6,7 @@ import {
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { Permission } from '../security/permissions';
 
-const router = Router();
+const router = asyncRouter();
 router.use(requireAuth);
 router.use(requireApproved);
 router.get('/', requirePermission(Permission.VIEW_PLAYER_STATS), statisticsOverview);

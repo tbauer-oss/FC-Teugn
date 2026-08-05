@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { asyncRouter } from '../middleware/async-handler';
 import {
   calendarSubscription,
   createCarpoolOffer,
@@ -31,7 +31,7 @@ import {
   respondToPitchConflictRequest,
 } from '../controllers/pitch-conflicts.controller';
 
-const router = Router();
+const router = asyncRouter();
 
 router.get('/subscription/:token.ics', publicCalendarSubscription);
 

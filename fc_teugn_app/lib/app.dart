@@ -261,7 +261,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         home: AnimatedLaunchScreen(
           waitingForData: bootstrapLoading,
           statusMessage: bootstrapLoading
-              ? 'Vereinsdaten werden sicher vorbereitet …'
+              ? 'Vereinsdaten werden geladen...'
               : bootstrapError != null
                   ? 'Start konnte noch nicht abgeschlossen werden'
                   : 'App wird vorbereitet …',

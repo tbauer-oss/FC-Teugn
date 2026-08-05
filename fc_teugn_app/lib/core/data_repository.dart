@@ -1101,6 +1101,9 @@ class DataRepository {
             )
             .toList(),
       },
+      options: Options(
+        extra: const {'retryTransientWrite': true},
+      ),
     );
     return MatchSquadModel.fromJson(
       response.data as Map<String, dynamic>,

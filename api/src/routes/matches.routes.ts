@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { asyncRouter } from '../middleware/async-handler';
 import {
   getMatch,
   getTicker,
@@ -17,7 +17,7 @@ import { requireApproved, requireAuth, requirePermission } from '../middleware/a
 import { idempotencyMiddleware } from '../middleware/idempotency';
 import { Permission } from '../security/permissions';
 
-const router = Router();
+const router = asyncRouter();
 
 router.use(requireAuth);
 router.use(requireApproved);
