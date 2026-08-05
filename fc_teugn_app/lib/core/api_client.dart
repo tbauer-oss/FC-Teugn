@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'offline_outbox.dart';
 
 class ApiClient {
   static const productionBaseUrl = 'https://fc-teugn-backend.vercel.app';
@@ -13,6 +14,8 @@ class ApiClient {
     String? accessToken,
     Future<String?> Function()? refreshAccessToken,
     VoidCallback? onSessionExpired,
+    GeneralOfflineOutbox? offlineOutbox,
+    String? userId,
   }) {
     const envBaseUrl = String.fromEnvironment('API_BASE_URL');
 
@@ -76,6 +79,15 @@ class ApiClient {
       );
     }
     dio.interceptors.add(_TransientGetRetryInterceptor(dio));
+    if (offlineOutbox != null && userId?.isNotEmpty == true) {
+      dio.interceptors.add(
+        OfflineOutboxInterceptor(
+          dio: dio,
+          outbox: offlineOutbox,
+          userId: userId!,
+        ),
+      );
+    }
 
     return ApiClient._internal(dio);
   }

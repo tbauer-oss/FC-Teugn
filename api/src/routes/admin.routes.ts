@@ -2,11 +2,16 @@ import { Router } from 'express';
 import {
   approveUser,
   assignParentPlayer,
+  getMemberPermissions,
+  resetMemberPermissions,
+  updateMemberPermission,
   createMember,
   listMembers,
   pendingUsers,
 } from '../controllers/admin.controller';
-import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
+import { requireApproved, requireAuth, requirePermission, requireRoles } from '../middleware/auth';
+import { idempotencyMiddleware } from '../middleware/idempotency';
+import { Role } from '../types/enums';
 import { Permission } from '../security/permissions';
 import {
   completeErasure,
@@ -18,6 +23,7 @@ const router = Router();
 
 router.use(requireAuth);
 router.use(requireApproved);
+router.use(idempotencyMiddleware);
 router.use(requirePermission(Permission.MANAGE_MEMBERS));
 
 router.get('/pending-users', pendingUsers);
@@ -25,6 +31,9 @@ router.get('/members', listMembers);
 router.post('/members', createMember);
 router.post('/approve', approveUser);
 router.post('/assign-parent-player', assignParentPlayer);
+router.get('/members/:id/permissions', requireRoles([Role.SUPER_ADMIN]), getMemberPermissions);
+router.put('/members/:id/permissions', requireRoles([Role.SUPER_ADMIN]), updateMemberPermission);
+router.delete('/members/:id/permissions', requireRoles([Role.SUPER_ADMIN]), resetMemberPermissions);
 router.get(
   '/privacy-requests',
   requirePermission(Permission.MANAGE_ORGANIZATION),

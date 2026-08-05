@@ -53,19 +53,24 @@ ThemeData buildAppTheme() {
       headlineMedium: TextStyle(
         fontSize: 28,
         height: 1.18,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w900,
         letterSpacing: -0.6,
         color: AppColors.navy,
       ),
       headlineSmall: TextStyle(
         fontSize: 22,
         height: 1.2,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w900,
         color: AppColors.navy,
       ),
       titleLarge: TextStyle(
         fontSize: 18,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w900,
+        color: AppColors.navy,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w800,
         color: AppColors.navy,
       ),
       bodyLarge: TextStyle(fontSize: 16, height: 1.5, color: AppColors.navy),

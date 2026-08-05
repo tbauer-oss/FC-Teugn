@@ -6,6 +6,7 @@ import '../features/auth/auth_controller.dart';
 import 'api_client.dart';
 import 'data_repository.dart';
 import 'models/event.dart';
+import 'models/communication.dart';
 import 'models/organization.dart';
 import 'models/pitch_occupancy.dart';
 import 'models/player.dart';
@@ -13,7 +14,12 @@ import 'models/training.dart';
 import 'models/user.dart';
 import 'models/team_operations.dart';
 import 'offline_ticker.dart';
+import 'offline_outbox.dart';
 import 'push/native_push_service.dart';
+
+final offlineOutboxProvider = Provider<GeneralOfflineOutbox>(
+  (ref) => GeneralOfflineOutbox(),
+);
 
 final repositoryProvider = Provider<DataRepository>((ref) {
   final authState = ref.watch(authProvider);
@@ -22,6 +28,8 @@ final repositoryProvider = Provider<DataRepository>((ref) {
     accessToken: authState.accessToken,
     refreshAccessToken: controller.refreshAccessToken,
     onSessionExpired: controller.clearSession,
+    offlineOutbox: ref.watch(offlineOutboxProvider),
+    userId: authState.user?.id,
   );
   return DataRepository(client);
 });
@@ -105,6 +113,78 @@ final membersProvider = FutureProvider<List<AppUser>>((ref) async {
 final organizationProvider = FutureProvider<OrganizationContext>((ref) async {
   return ref.watch(repositoryProvider).organizationContext();
 });
+
+final offlineOutboxCountProvider =
+    StreamProvider.autoDispose<int>((ref) async* {
+  final userId = ref.watch(authProvider).user?.id;
+  if (userId == null) {
+    yield 0;
+    return;
+  }
+  while (true) {
+    yield (await ref.read(offlineOutboxProvider).pending(userId)).length;
+    await Future<void>.delayed(const Duration(seconds: 3));
+  }
+});
+
+/// Hält die Meldungsanzeige ohne manuelles Neuladen aktuell. Das kurze
+/// Intervall ist zugleich der Web-Fallback, wenn keine native Push-Verbindung
+/// aktiv ist.
+final liveNotificationsProvider =
+    StreamProvider.autoDispose<List<AppNotificationModel>>((ref) async* {
+  while (true) {
+    yield await ref.read(repositoryProvider).notifications();
+    await Future<void>.delayed(const Duration(seconds: 4));
+  }
+});
+
+class WorkingContextState {
+  const WorkingContextState({this.switching = false, this.error});
+  final bool switching;
+  final String? error;
+}
+
+class WorkingContextController extends StateNotifier<WorkingContextState> {
+  WorkingContextController(this.ref) : super(const WorkingContextState());
+  final Ref ref;
+
+  Future<bool> select({
+    required String ageGroupId,
+    String? teamId,
+    required bool includeAllTeams,
+  }) async {
+    if (state.switching) return false;
+    state = const WorkingContextState(switching: true);
+    try {
+      await ref.read(repositoryProvider).updateOrganizationContext(
+            ageGroupId: ageGroupId,
+            teamId: teamId,
+            includeAllTeams: includeAllTeams,
+          );
+      ref.invalidate(organizationProvider);
+      ref.invalidate(playersProvider);
+      ref.invalidate(eventsProvider);
+      ref.invalidate(trainingsProvider);
+      ref.invalidate(outdoorPitchOccupancyProvider);
+      ref.invalidate(indoorPitchOccupancyProvider);
+      await Future.wait([
+        ref.read(organizationProvider.future),
+        ref.read(playersProvider.future),
+        ref.read(eventsProvider.future),
+      ]);
+      state = const WorkingContextState();
+      return true;
+    } catch (error) {
+      state = WorkingContextState(error: error.toString());
+      return false;
+    }
+  }
+}
+
+final workingContextControllerProvider =
+    StateNotifierProvider<WorkingContextController, WorkingContextState>(
+  (ref) => WorkingContextController(ref),
+);
 
 typedef AppBootstrapSession = ({String userId, UserRole role});
 

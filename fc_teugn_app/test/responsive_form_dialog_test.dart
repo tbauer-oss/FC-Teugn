@@ -51,7 +51,8 @@ void main() {
     expect(find.text('Speichern'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -500));
+    await tester.drag(
+        find.byType(SingleChildScrollView), const Offset(0, -500));
     await tester.pumpAndSettle();
     expect(find.text('Feld 12'), findsOneWidget);
     expect(tester.takeException(), isNull);

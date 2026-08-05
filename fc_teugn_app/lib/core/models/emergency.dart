@@ -177,8 +177,8 @@ class EmergencyPlayer {
               EmergencyGuardian.fromJson(item as Map<String, dynamic>))
           .toList(),
       emergencyContacts: (json['emergencyContacts'] as List<dynamic>? ?? [])
-          .map((item) =>
-              EmergencyContact.fromJson(item as Map<String, dynamic>))
+          .map(
+              (item) => EmergencyContact.fromJson(item as Map<String, dynamic>))
           .toList(),
       medical: EmergencyMedicalInfo.fromJson(
         json['medical'] as Map<String, dynamic>?,
@@ -204,14 +204,12 @@ class EmergencyView {
 
   factory EmergencyView.fromJson(Map<String, dynamic> json) {
     return EmergencyView(
-      event:
-          EmergencyEvent.fromJson(json['event'] as Map<String, dynamic>),
+      event: EmergencyEvent.fromJson(json['event'] as Map<String, dynamic>),
       generatedAt: DateTime.parse(json['generatedAt'] as String).toLocal(),
       presenceSource:
           json['presenceSource'] as String? ?? 'CONFIRMED_ATTENDANCE',
       players: (json['players'] as List<dynamic>? ?? [])
-          .map((item) =>
-              EmergencyPlayer.fromJson(item as Map<String, dynamic>))
+          .map((item) => EmergencyPlayer.fromJson(item as Map<String, dynamic>))
           .toList(),
     );
   }

@@ -3,7 +3,8 @@ import 'package:fc_teugn_app/core/models/matchday.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('matchday exposes player confirmations for automatic lineup planning', () {
+  test('matchday exposes player confirmations for automatic lineup planning',
+      () {
     final match = MatchdayModel.fromJson({
       'id': 'match-1',
       'title': 'FC Teugn – Test',

@@ -68,10 +68,10 @@ class _PublicMatchCard extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 520;
-          final result =
-              details?.ourGoals != null && details?.theirGoals != null
-                  ? '${details!.ourGoals} : ${details.theirGoals}'
-                  : '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+          final result = details?.ourGoals != null &&
+                  details?.theirGoals != null
+              ? '${details!.ourGoals} : ${details.theirGoals}'
+              : '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
           final opponent = details?.opponent ?? event.title;
           final teams = compact
               ? Column(
@@ -86,7 +86,8 @@ class _PublicMatchCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 5),
-                    Text(result, style: Theme.of(context).textTheme.headlineSmall),
+                    Text(result,
+                        style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(height: 5),
                     Text(
                       opponent,

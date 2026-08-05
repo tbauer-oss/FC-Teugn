@@ -8,5 +8,11 @@
     "api/index.ts": {
       "includeFiles": "{dist/**,prisma/**,assets/**}"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/internal/cron/reminders",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

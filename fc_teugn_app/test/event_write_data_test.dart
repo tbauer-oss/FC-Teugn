@@ -4,7 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('event title uses the category label when left blank', () {
     expect(resolveEventTitle('', EventCategory.training), 'Training');
-    expect(resolveEventTitle('   ', EventCategory.parentsMeeting), 'Elternabend');
+    expect(
+        resolveEventTitle('   ', EventCategory.parentsMeeting), 'Elternabend');
     expect(
       resolveEventTitle('Individuelle Einheit', EventCategory.training),
       'Individuelle Einheit',

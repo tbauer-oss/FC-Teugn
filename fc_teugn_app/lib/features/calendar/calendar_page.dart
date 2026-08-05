@@ -8,6 +8,7 @@ import '../../core/app_theme.dart';
 import '../../core/data_repository.dart';
 import '../../core/meeting_time.dart';
 import '../../core/models/communication.dart';
+import '../../core/models/competition.dart';
 import '../../core/models/emergency.dart';
 import '../../core/models/event.dart';
 import '../../core/models/organization.dart';
@@ -3566,6 +3567,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   late EventVisibility visibility;
   HomeAway? homeAway;
   late DateTime startAt;
+  String? selectedOpponentId;
+  String? selectedOpponentName;
   DateTime? endAt;
   DateTime? meetingAt;
   late _MeetingTimeMode meetingTimeMode;
@@ -3579,6 +3582,11 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   int interval = 1;
   final weekdays = <int>{};
   final reminderMinutes = <int>{1440, 120};
+  late final Future<List<PlayerModel>> participantPlayers;
+  late Future<List<OpponentModel>> availableOpponents;
+  late String opponentAgeGroupId;
+  final participantPlayerIds = <String>{};
+  bool limitParticipants = false;
   String selectedPitch = 'Platz noch offen / unklar';
   List<PitchConflictPreview> pitchConflicts = const [];
   bool checkingPitchConflicts = false;
@@ -3599,6 +3607,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     address = TextEditingController(text: event?.address);
     mapUrl = TextEditingController(text: event?.mapUrl);
     opponent = TextEditingController(text: event?.opponent);
+    selectedOpponentId = event?.matchDetails?.opponentId;
+    selectedOpponentName = selectedOpponentId == null ? null : event?.opponent;
     periodCount = TextEditingController(
       text: (event?.matchDetails?.periodCount ?? initialTeam?.periodCount ?? 2)
           .toString(),
@@ -3647,6 +3657,13 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     reminderMinutes
       ..clear()
       ..addAll(event?.reminderMinutes ?? const [1440, 120]);
+    participantPlayers = widget.repository.players();
+    opponentAgeGroupId = initialTeam?.ageGroup.id ?? '';
+    availableOpponents = opponentAgeGroupId.isEmpty
+        ? Future.value(const <OpponentModel>[])
+        : widget.repository.opponents(opponentAgeGroupId);
+    participantPlayerIds.addAll(event?.participantPlayerIds ?? const []);
+    limitParticipants = participantPlayerIds.isNotEmpty;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshPitchConflicts();
     });
@@ -3726,7 +3743,33 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       value: startAt,
       compact: compact,
       onChanged: (value) {
-        setState(() => startAt = value ?? startAt);
+        if (value == null) return;
+        final previousStart = startAt;
+        final previousEnd = endAt;
+        setState(() {
+          startAt = value;
+          if (previousEnd != null) {
+            final previousDuration = previousEnd.difference(previousStart);
+            endAt = previousDuration.isNegative
+                ? DateTime(
+                    value.year,
+                    value.month,
+                    value.day,
+                    value.hour,
+                    value.minute,
+                  )
+                : value.add(previousDuration);
+          }
+          if (endAt != null && endAt!.isBefore(startAt)) {
+            endAt = DateTime(
+              startAt.year,
+              startAt.month,
+              startAt.day,
+              startAt.hour,
+              startAt.minute,
+            );
+          }
+        });
         _refreshPitchConflicts();
       },
     );
@@ -3869,10 +3912,55 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       ),
                       if (category.isMatch) ...[
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: opponent,
-                          decoration:
-                              const InputDecoration(labelText: 'Gegner'),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: FutureBuilder<List<OpponentModel>>(
+                                future: availableOpponents,
+                                builder: (context, snapshot) => LayoutBuilder(
+                                  builder: (context, constraints) =>
+                                      DropdownMenu<String>(
+                                    controller: opponent,
+                                    width: constraints.maxWidth,
+                                    label: const Text('Gegner'),
+                                    hintText: 'Gespeichert oder frei eingeben',
+                                    enableFilter: true,
+                                    enableSearch: true,
+                                    dropdownMenuEntries: [
+                                      for (final item in snapshot.data ??
+                                          const <OpponentModel>[])
+                                        DropdownMenuEntry(
+                                          value: item.displayName,
+                                          label: item.displayName,
+                                          leadingIcon: _OpponentLogo(
+                                            url: item.logoUrl,
+                                            label: item.clubName,
+                                          ),
+                                        ),
+                                    ],
+                                    onSelected: (value) {
+                                      selectedOpponentName = value;
+                                      selectedOpponentId = (snapshot.data ??
+                                              const <OpponentModel>[])
+                                          .where((item) =>
+                                              item.displayName == value)
+                                          .firstOrNull
+                                          ?.id;
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton.filledTonal(
+                              tooltip: 'Gegner fest hinzufügen',
+                              onPressed: opponentAgeGroupId.isEmpty
+                                  ? null
+                                  : _quickAddOpponent,
+                              icon: const Icon(Icons.add_rounded),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<HomeAway>(
@@ -4019,6 +4107,103 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Teilnehmende individuell auswählen'),
+                        subtitle: const Text(
+                          'Nur ausgewählte Spieler und deren Eltern erhalten die Anfrage.',
+                        ),
+                        value: limitParticipants,
+                        onChanged: (value) => setState(() {
+                          limitParticipants = value;
+                          if (!value) participantPlayerIds.clear();
+                        }),
+                      ),
+                      if (limitParticipants)
+                        FutureBuilder<List<PlayerModel>>(
+                          future: participantPlayers,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState !=
+                                ConnectionState.done) {
+                              return const LinearProgressIndicator();
+                            }
+                            if (snapshot.hasError) {
+                              return const Text(
+                                'Spieler konnten nicht geladen werden.',
+                              );
+                            }
+                            final players = (snapshot.data ??
+                                    const <PlayerModel>[])
+                                .where(
+                                    (player) => teamIds.contains(player.teamId))
+                                .toList()
+                              ..sort((a, b) =>
+                                  a.displayName.compareTo(b.displayName));
+                            if (players.isEmpty) {
+                              return const Text(
+                                'In den gewählten Mannschaften sind keine aktiven Spieler vorhanden.',
+                              );
+                            }
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      '${participantPlayerIds.length} ausgewählt',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall,
+                                    ),
+                                    const Spacer(),
+                                    TextButton(
+                                      onPressed: () => setState(() {
+                                        participantPlayerIds.addAll(
+                                          players.map((player) => player.id),
+                                        );
+                                      }),
+                                      child: const Text('Sichtbare auswählen'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => setState(() {
+                                        for (final player in players) {
+                                          participantPlayerIds
+                                              .remove(player.id);
+                                        }
+                                      }),
+                                      child: const Text('Abwählen'),
+                                    ),
+                                  ],
+                                ),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final player in players)
+                                      FilterChip(
+                                        avatar: CircleAvatar(
+                                          child: Text(player.initials),
+                                        ),
+                                        label: Text(
+                                          '${player.displayName} · ${player.teamCode}',
+                                        ),
+                                        selected: participantPlayerIds
+                                            .contains(player.id),
+                                        onSelected: (selected) => setState(() {
+                                          selected
+                                              ? participantPlayerIds
+                                                  .add(player.id)
+                                              : participantPlayerIds
+                                                  .remove(player.id);
+                                        }),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                       const SizedBox(height: 18),
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
@@ -4306,6 +4491,14 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       );
       return;
     }
+    if (limitParticipants && participantPlayerIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte mindestens eine teilnehmende Person auswählen.'),
+        ),
+      );
+      return;
+    }
     if (endAt != null && endAt!.isBefore(startAt)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Das Ende liegt vor dem Beginn.')),
@@ -4356,6 +4549,9 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         mapUrl: _optional(mapUrl),
         homeAway: homeAway,
         opponent: _optional(opponent),
+        opponentId: opponent.text.trim() == selectedOpponentName
+            ? selectedOpponentId
+            : null,
         periodCount: matchPeriodCount,
         periodMinutes: matchPeriodMinutes,
         venue: _usesClubPitch ? selectedPitch : _optional(venue),
@@ -4385,6 +4581,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
             requestPitchConflictApprovals &&
             pitchConflicts.any((item) => item.headCoach != null),
         pitchConflictMessage: _optional(pitchConflictMessage),
+        participantPlayerIds:
+            limitParticipants ? participantPlayerIds.toList() : null,
       ),
     );
   }
@@ -4439,6 +4637,85 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       });
     }
   }
+
+  Future<void> _quickAddOpponent() async {
+    final club = TextEditingController();
+    final designation = TextEditingController();
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Gegner fest hinzufügen'),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: club,
+                decoration: const InputDecoration(labelText: 'Verein *'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: designation,
+                decoration: const InputDecoration(
+                  labelText: 'Jugend / Mannschaft *',
+                  hintText: 'z. B. E1',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Hinzufügen'),
+          ),
+        ],
+      ),
+    );
+    try {
+      if (save != true ||
+          club.text.trim().isEmpty ||
+          designation.text.trim().isEmpty) {
+        return;
+      }
+      final created = await widget.repository.saveOpponent(
+        ageGroupId: opponentAgeGroupId,
+        clubName: club.text.trim(),
+        teamDesignation: designation.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        opponent.text = created.displayName;
+        selectedOpponentId = created.id;
+        selectedOpponentName = created.displayName;
+        availableOpponents = widget.repository.opponents(opponentAgeGroupId);
+      });
+    } finally {
+      club.dispose();
+      designation.dispose();
+    }
+  }
+}
+
+class _OpponentLogo extends StatelessWidget {
+  const _OpponentLogo({required this.url, required this.label});
+  final String? url;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => CircleAvatar(
+        radius: 14,
+        backgroundColor: AppColors.background,
+        backgroundImage: url == null ? null : NetworkImage(url!),
+        child: url == null
+            ? Text(label.isEmpty ? '?' : label[0].toUpperCase())
+            : null,
+      );
 }
 
 class _PitchConflictPanel extends StatelessWidget {

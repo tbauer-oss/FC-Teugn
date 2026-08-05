@@ -11,6 +11,7 @@ import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
 import {
   accessibleTeamIds,
+  contextualTeamIds,
   clubIdForTeam,
   TeamScopedUser,
   youthPlayerPoolTeamIds,
@@ -317,7 +318,8 @@ export async function listPlayers(req: Request, res: Response) {
   }
 
   const status = parsePlayerStatus(req.query.status);
-  const scope = await playerAccessScope(req.user!);
+  const contextTeamIds = await contextualTeamIds(req.user!);
+  const scope: Prisma.PlayerWhereInput = { teamId: { in: contextTeamIds } };
   const players = await prisma.player.findMany({
     where: { ...scope, ...(status ? { status } : {}) },
     orderBy: [{ status: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],

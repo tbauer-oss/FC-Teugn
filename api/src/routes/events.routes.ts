@@ -24,6 +24,7 @@ import {
 } from '../controllers/emergency.controller';
 import { sensitiveActionRateLimit } from '../middleware/rate-limit';
 import { Permission } from '../security/permissions';
+import { idempotencyMiddleware } from '../middleware/idempotency';
 import {
   checkPitchConflicts,
   listPitchConflictRequests,
@@ -36,6 +37,7 @@ router.get('/subscription/:token.ics', publicCalendarSubscription);
 
 router.use(requireAuth);
 router.use(requireApproved);
+router.use(idempotencyMiddleware);
 
 router.get('/', listEvents);
 router.get('/pitch-conflict-requests/list', listPitchConflictRequests);

@@ -11,12 +11,13 @@ import {
   TeamType,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { Permission, permissionsForRole } from '../security/permissions';
+import { effectivePermissionsForUser, Permission } from '../security/permissions';
 import {
   accessibleTeamIds,
   canManageFormation,
   canManageTeam,
   resolveContextTeamId,
+  selectedContextTeamIds,
 } from '../services/team-access';
 import { objectStorage } from '../services/object-storage';
 import { mediaAssetUrl } from '../services/media-access';
@@ -400,7 +401,8 @@ export async function publicOrganization(_req: Request, res: Response) {
 
 export async function organizationContext(req: Request, res: Response) {
   const user = req.user!;
-  const contextTeamId = await resolveContextTeamId(user);
+  const selectedIds = await selectedContextTeamIds(user);
+  const contextTeamId = selectedIds[0] ?? await resolveContextTeamId(user);
   if (!contextTeamId) {
     return res.status(404).json({ message: 'Keine aktive Mannschaft gefunden.' });
   }
@@ -411,18 +413,14 @@ export async function organizationContext(req: Request, res: Response) {
   if (!currentTeam) return res.status(404).json({ message: 'Aktive Mannschaft nicht gefunden.' });
 
   const clubId = currentTeam.ageGroup.season.clubId;
-  const permissions = permissionsForRole(user.role);
+  const permissions = user.permissions ?? await effectivePermissionsForUser(user.id, user.role);
   const canViewAllTeams = permissions.includes(Permission.MANAGE_ORGANIZATION);
   const visibleTeamIds = await accessibleTeamIds(user);
+  const contextTeamIds = selectedIds.length ? selectedIds : [contextTeamId];
   const seasonScope =
     user.role === Role.SUPER_ADMIN
       ? { isActive: true }
       : { clubId, isActive: true };
-  const memberships = canViewAllTeams ? [] : await prisma.teamMembership.findMany({
-    where: { userId: user.id, status: AccountStatus.APPROVED },
-    select: { teamId: true },
-  });
-  const membershipTeamIds = memberships.map((membership) => membership.teamId);
   const [ageGroups, teams, players, members, upcomingEvents, pendingApprovals] = await Promise.all([
     prisma.ageGroup.findMany({
       where: { season: seasonScope },
@@ -434,7 +432,7 @@ export async function organizationContext(req: Request, res: Response) {
         ageGroup: { season: seasonScope },
         deletedAt: null,
         ...(canViewAllTeams ? {} : {
-          id: { in: membershipTeamIds.length > 0 ? membershipTeamIds : [contextTeamId] },
+          id: { in: visibleTeamIds.length > 0 ? visibleTeamIds : [contextTeamId] },
         }),
       },
       orderBy: [
@@ -453,8 +451,8 @@ export async function organizationContext(req: Request, res: Response) {
         ...(user.role === Role.SUPER_ADMIN
           ? {}
           : { OR: [
-              { teamId: { in: visibleTeamIds } },
-              { memberships: { some: { teamId: { in: visibleTeamIds } } } },
+              { teamId: { in: contextTeamIds } },
+              { memberships: { some: { teamId: { in: contextTeamIds } } } },
             ] }),
       },
     }),
@@ -462,8 +460,8 @@ export async function organizationContext(req: Request, res: Response) {
       where: {
         startAt: { gte: new Date() },
         OR: [
-          { teamId: { in: visibleTeamIds } },
-          { targetTeams: { some: { teamId: { in: visibleTeamIds } } } },
+          { teamId: { in: contextTeamIds } },
+          { targetTeams: { some: { teamId: { in: contextTeamIds } } } },
         ],
       },
     }),
@@ -474,8 +472,8 @@ export async function organizationContext(req: Request, res: Response) {
             ...(user.role === Role.SUPER_ADMIN
               ? {}
               : { OR: [
-                  { teamId: { in: visibleTeamIds } },
-                  { memberships: { some: { teamId: { in: visibleTeamIds } } } },
+                  { teamId: { in: contextTeamIds } },
+                  { memberships: { some: { teamId: { in: contextTeamIds } } } },
                 ] }),
           },
         })
@@ -514,9 +512,72 @@ export async function organizationContext(req: Request, res: Response) {
     currentTeam: serializedCurrent,
     ageGroups,
     teams: serializedTeams,
+    workingContext: {
+      ageGroupId: currentTeam.ageGroupId,
+      teamIds: contextTeamIds,
+      includeAllTeams: contextTeamIds.length > 1,
+    },
     permissions,
     metrics: { players, members, upcomingEvents, pendingApprovals },
   });
+}
+
+export async function updateOrganizationContext(req: Request, res: Response) {
+  const user = req.user!;
+  const ageGroupId = typeof req.body?.ageGroupId === 'string'
+    ? req.body.ageGroupId.trim()
+    : '';
+  const requestedTeamId = typeof req.body?.teamId === 'string' && req.body.teamId.trim()
+    ? req.body.teamId.trim()
+    : null;
+  const includeAllTeams = req.body?.includeAllTeams === true;
+  if (!ageGroupId || (!includeAllTeams && !requestedTeamId)) {
+    return res.status(400).json({
+      message: 'Bitte Jugend und Mannschaft beziehungsweise „Alle“ auswählen.',
+    });
+  }
+  const accessibleIds = await accessibleTeamIds(user);
+  const eligibleTeams = await prisma.team.findMany({
+    where: {
+      id: { in: accessibleIds },
+      ageGroupId,
+      isActive: true,
+      deletedAt: null,
+    },
+    orderBy: { teamNumber: 'asc' },
+    select: { id: true },
+  });
+  if (!eligibleTeams.length ||
+      (requestedTeamId && !eligibleTeams.some((team) => team.id === requestedTeamId))) {
+    return res.status(403).json({
+      message: 'Auf diese Jugend oder Mannschaft besteht kein Zugriff.',
+    });
+  }
+  const activeTeamId = includeAllTeams ? null : requestedTeamId;
+  await prisma.$transaction(async (tx) => {
+    await tx.userContextPreference.upsert({
+      where: { userId: user.id },
+      update: { ageGroupId, activeTeamId, includeAllTeams },
+      create: { userId: user.id, ageGroupId, activeTeamId, includeAllTeams },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: activeTeamId ?? eligibleTeams[0].id,
+        action: 'WORKING_CONTEXT_CHANGED',
+        entityType: 'UserContextPreference',
+        entityId: user.id,
+        metadata: {
+          ageGroupId,
+          teamIds: includeAllTeams
+            ? eligibleTeams.map((team) => team.id)
+            : [activeTeamId],
+          includeAllTeams,
+        },
+      },
+    });
+  });
+  return organizationContext(req, res);
 }
 
 export async function createTeam(req: Request, res: Response) {

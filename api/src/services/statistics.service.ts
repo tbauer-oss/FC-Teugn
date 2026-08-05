@@ -98,8 +98,7 @@ export async function recalculateMatchStatistics(
     const attendance = event.attendance.find((item) => item.playerId === playerId);
     const appeared =
       positions.length > 0 ||
-      attendance?.actualAttendance === AttendanceStatus.YES ||
-      member?.status === NominationStatus.NOMINATED;
+      attendance?.actualAttendance === AttendanceStatus.YES;
     return {
       eventId,
       playerId,

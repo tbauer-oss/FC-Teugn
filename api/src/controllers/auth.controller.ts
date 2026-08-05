@@ -172,6 +172,14 @@ export async function register(req: Request, res: Response) {
   if (clubIds.size !== 1) {
     return res.status(400).json({ message: 'Alle Mannschaften müssen zum selben Verein gehören.' });
   }
+  if (
+    (normalizedRole === Role.COACH || normalizedRole === Role.ASSISTANT_COACH) &&
+    new Set(selectedTeams.map((team) => team.ageGroupId)).size !== 1
+  ) {
+    return res.status(400).json({
+      message: 'Trainer und Co-Trainer dürfen nur Mannschaften einer Jugend auswählen.',
+    });
+  }
   const resolvedTeam = selectedTeams.find((team) => team.id === requestedTeamIds[0])!;
   const consentVersions = await prisma.consentTextVersion.findMany({
     where: {

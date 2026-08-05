@@ -32,6 +32,7 @@ export type NotificationInput = {
   entityId?: string | null;
   expiresAt?: Date | null;
   pushEnabled?: boolean;
+  dedupeKey?: string | null;
 };
 
 type PushDeliverySummaryInput = {
@@ -136,8 +137,23 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
     const inApp = preference?.inApp ?? true;
     const push = (preference?.push ?? true) && input.pushEnabled !== false;
     if (!inApp && !push) continue;
-    const notification = await prisma.notification.create({
-      data: {
+    const notification = input.dedupeKey
+      ? await prisma.notification.upsert({
+          where: { dedupeKey: input.dedupeKey },
+          update: {},
+          create: {
+            userId,
+            category: input.category,
+            title: input.title.slice(0, 160),
+            body: input.body.slice(0, 1000),
+            actionUrl: input.actionUrl,
+            entityType: input.entityType,
+            entityId: input.entityId,
+            expiresAt: input.expiresAt,
+            dedupeKey: input.dedupeKey,
+          },
+        })
+      : await prisma.notification.create({ data: {
         userId,
         category: input.category,
         title: input.title.slice(0, 160),
@@ -146,8 +162,7 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
         entityType: input.entityType,
         entityId: input.entityId,
         expiresAt: input.expiresAt,
-      },
-    });
+      } });
     notificationCount++;
     if (!push) continue;
     for (const subscription of subscriptions.filter((item) => item.userId === userId)) {

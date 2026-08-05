@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
+import '../../core/club_logo.dart';
 import '../../core/football_options.dart';
 import '../../core/models/event.dart';
 import '../../core/models/user.dart';
@@ -10,6 +11,7 @@ import '../../core/widgets/responsive_form_dialog.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import '../imports/competition_import_dialog.dart';
+import '../matches/competition_management_dialog.dart';
 
 class TrainerMatchesPage extends ConsumerWidget {
   const TrainerMatchesPage({super.key});
@@ -24,26 +26,47 @@ class TrainerMatchesPage extends ConsumerWidget {
     return PageScaffold(
       title: 'Spieltage',
       subtitle: 'Gegner, Wettbewerb und Ergebnisse zentral verwalten.',
-      action: FilledButton.icon(
-        onPressed: () async {
-          final organization = await ref.read(organizationProvider.future);
-          if (!context.mounted) return;
-          final imported = await showDialog<bool>(
-            context: context,
-            builder: (context) =>
-                CompetitionImportDialog(organization: organization),
-          );
-          if (imported == true) {
-            ref.invalidate(eventsProvider);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Spielplan wurde importiert.')),
+      action: Wrap(
+        spacing: 8,
+        children: [
+          OutlinedButton.icon(
+            onPressed: () async {
+              final organization = await ref.read(organizationProvider.future);
+              if (!context.mounted) return;
+              await showDialog<void>(
+                context: context,
+                builder: (context) => CompetitionManagementDialog(
+                  repository: repository,
+                  organization: organization,
+                ),
               );
-            }
-          }
-        },
-        icon: const Icon(Icons.upload_file_rounded),
-        label: const Text('Spielplan importieren'),
+            },
+            icon: const Icon(Icons.emoji_events_outlined),
+            label: const Text('Liga & Gegner'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              final organization = await ref.read(organizationProvider.future);
+              if (!context.mounted) return;
+              final imported = await showDialog<bool>(
+                context: context,
+                builder: (context) =>
+                    CompetitionImportDialog(organization: organization),
+              );
+              if (imported == true) {
+                ref.invalidate(eventsProvider);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Spielplan wurde importiert.')),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.upload_file_rounded),
+            label: const Text('Spielplan importieren'),
+          ),
+        ],
       ),
       child: events.when(
         data: (items) {
@@ -517,17 +540,9 @@ class _MatchCard extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 46,
-                            height: 46,
-                            decoration: BoxDecoration(
-                              color: AppColors.blue.withValues(alpha: .1),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(
-                              Icons.sports_soccer_rounded,
-                              color: AppColors.blue,
-                            ),
+                          _MatchLogos(
+                            opponentLogoUrl: details?.opponentLogoUrl,
+                            compact: true,
                           ),
                           const SizedBox(width: 12),
                           Expanded(child: information),
@@ -546,17 +561,9 @@ class _MatchCard extends StatelessWidget {
                   )
                 : Row(
                     children: [
-                      Container(
-                        width: 58,
-                        height: 58,
-                        decoration: BoxDecoration(
-                          color: AppColors.blue.withValues(alpha: .1),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.sports_soccer_rounded,
-                          color: AppColors.blue,
-                        ),
+                      _MatchLogos(
+                        opponentLogoUrl: details?.opponentLogoUrl,
+                        compact: false,
                       ),
                       const SizedBox(width: 16),
                       Expanded(child: information),
@@ -573,6 +580,40 @@ class _MatchCard extends StatelessWidget {
                   ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _MatchLogos extends StatelessWidget {
+  const _MatchLogos({required this.opponentLogoUrl, required this.compact});
+  final String? opponentLogoUrl;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = compact ? 34.0 : 42.0;
+    return SizedBox(
+      width: compact ? 58 : 72,
+      height: size,
+      child: Stack(
+        children: [
+          ClubLogo(size: size),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: CircleAvatar(
+              radius: size * .3,
+              backgroundColor: Colors.white,
+              backgroundImage: opponentLogoUrl == null
+                  ? null
+                  : NetworkImage(opponentLogoUrl!),
+              child: opponentLogoUrl == null
+                  ? const Icon(Icons.shield_outlined, size: 15)
+                  : null,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/data_repository.dart';
 import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
 import '../../core/models/user.dart';
@@ -76,6 +77,9 @@ class TrainerApprovalsPage extends ConsumerWidget {
                         players,
                         currentUser?.role == UserRole.superAdmin,
                       ),
+              onPermissions: currentUser?.role == UserRole.superAdmin
+                  ? (user) => _showPermissions(context, ref, user)
+                  : null,
             )
           : DefaultTabController(
               length: 2,
@@ -144,6 +148,10 @@ class TrainerApprovalsPage extends ConsumerWidget {
                                     players,
                                     currentUser?.role == UserRole.superAdmin,
                                   ),
+                          onPermissions: currentUser?.role ==
+                                  UserRole.superAdmin
+                              ? (user) => _showPermissions(context, ref, user)
+                              : null,
                         ),
                       ],
                     ),
@@ -296,6 +304,19 @@ class TrainerApprovalsPage extends ConsumerWidget {
       }
     }
   }
+
+  Future<void> _showPermissions(
+    BuildContext context,
+    WidgetRef ref,
+    AppUser user,
+  ) =>
+      showDialog<void>(
+        context: context,
+        builder: (context) => _MemberPermissionsDialog(
+          user: user,
+          repository: ref.read(repositoryProvider),
+        ),
+      );
 
   Future<void> _reviewWithoutApproval(
     BuildContext context,
@@ -456,6 +477,7 @@ class _MobileMemberTabs extends StatefulWidget {
     required this.onRetryPending,
     required this.onRetryMembers,
     required this.onEdit,
+    required this.onPermissions,
   });
 
   final AsyncValue<List<AppUser>> pending;
@@ -468,6 +490,7 @@ class _MobileMemberTabs extends StatefulWidget {
   final VoidCallback onRetryPending;
   final VoidCallback onRetryMembers;
   final ValueChanged<AppUser>? onEdit;
+  final ValueChanged<AppUser>? onPermissions;
 
   @override
   State<_MobileMemberTabs> createState() => _MobileMemberTabsState();
@@ -520,6 +543,7 @@ class _MobileMemberTabsState extends State<_MobileMemberTabs> {
             value: widget.members,
             onRetry: widget.onRetryMembers,
             onEdit: widget.onEdit,
+            onPermissions: widget.onPermissions,
             embedded: true,
           ),
       ],
@@ -798,12 +822,14 @@ class _MemberList extends StatelessWidget {
     required this.value,
     required this.onRetry,
     required this.onEdit,
+    required this.onPermissions,
     this.embedded = false,
   });
 
   final AsyncValue<List<AppUser>> value;
   final VoidCallback onRetry;
   final ValueChanged<AppUser>? onEdit;
+  final ValueChanged<AppUser>? onPermissions;
   final bool embedded;
 
   @override
@@ -856,6 +882,13 @@ class _MemberList extends StatelessWidget {
                     tooltip: 'Rolle, Mannschaften und Rechte bearbeiten',
                     onPressed: onEdit == null ? null : () => onEdit!(user),
                     icon: const Icon(Icons.manage_accounts_outlined),
+                  );
+                  final permissions = IconButton.filledTonal(
+                    tooltip: 'Individuelle Rechte festlegen',
+                    onPressed: onPermissions == null
+                        ? null
+                        : () => onPermissions!(user),
+                    icon: const Icon(Icons.security_rounded),
                   );
                   final memberships = Wrap(
                     spacing: 6,
@@ -932,6 +965,7 @@ class _MemberList extends StatelessWidget {
                                       ],
                                     ),
                                   ),
+                                  if (onPermissions != null) permissions,
                                   edit,
                                 ],
                               ),
@@ -970,6 +1004,10 @@ class _MemberList extends StatelessWidget {
                               children: [
                                 status,
                                 const SizedBox(width: 8),
+                                if (onPermissions != null) ...[
+                                  permissions,
+                                  const SizedBox(width: 8),
+                                ],
                                 edit,
                               ],
                             ),
@@ -991,6 +1029,128 @@ class _MemberList extends StatelessWidget {
         AccountStatus.blocked => 'Blockiert',
         AccountStatus.archived => 'Archiviert',
       };
+}
+
+class _MemberPermissionsDialog extends StatefulWidget {
+  const _MemberPermissionsDialog({
+    required this.user,
+    required this.repository,
+  });
+
+  final AppUser user;
+  final DataRepository repository;
+
+  @override
+  State<_MemberPermissionsDialog> createState() =>
+      _MemberPermissionsDialogState();
+}
+
+class _MemberPermissionsDialogState extends State<_MemberPermissionsDialog> {
+  late Future<MemberPermissionProfile> profile;
+
+  @override
+  void initState() {
+    super.initState();
+    profile = widget.repository.memberPermissions(widget.user.id);
+  }
+
+  void _reload() => setState(() {
+        profile = widget.repository.memberPermissions(widget.user.id);
+      });
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text('Individuelle Rechte · ${widget.user.name}'),
+        content: SizedBox(
+          width: 720,
+          child: FutureBuilder<MemberPermissionProfile>(
+            future: profile,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const SizedBox(
+                  height: 220,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError || snapshot.data == null) {
+                return const Text('Rechte konnten nicht geladen werden.');
+              }
+              final value = snapshot.data!;
+              return SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Die Rolle bleibt die Vorgabe. Einzelne Rechte können zusätzlich erlaubt oder ausdrücklich entzogen werden; Entzug hat Vorrang.',
+                    ),
+                    const SizedBox(height: 14),
+                    for (final permission in allRolePermissions)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          value.effectivePermissions.contains(permission.code)
+                              ? Icons.check_circle_rounded
+                              : Icons.cancel_rounded,
+                          color: value.effectivePermissions
+                                  .contains(permission.code)
+                              ? AppColors.success
+                              : Colors.redAccent,
+                        ),
+                        title: Text(permission.label),
+                        subtitle: Text(
+                          value.rolePermissions.contains(permission.code)
+                              ? 'Durch Rolle vorgesehen'
+                              : 'Nicht in der Rolle enthalten',
+                        ),
+                        trailing: DropdownButton<String>(
+                          value: value.overrides[permission.code] ?? 'DEFAULT',
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'DEFAULT',
+                              child: Text('Rollenstandard'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'ALLOW',
+                              child: Text('Zusätzlich erlauben'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'DENY',
+                              child: Text('Entziehen'),
+                            ),
+                          ],
+                          onChanged: (state) async {
+                            if (state == null) return;
+                            await widget.repository.updateMemberPermission(
+                              userId: widget.user.id,
+                              permission: permission.code,
+                              state: state,
+                            );
+                            _reload();
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              await widget.repository.resetMemberPermissions(widget.user.id);
+              _reload();
+            },
+            icon: const Icon(Icons.restart_alt_rounded),
+            label: const Text('Alle auf Rollenstandard'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Schließen'),
+          ),
+        ],
+      );
 }
 
 class _ApprovalDialog extends StatefulWidget {

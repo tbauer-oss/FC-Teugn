@@ -7,6 +7,7 @@ import '../../core/models/event.dart';
 import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
+import '../shared/dashboard_notifications.dart';
 
 class ParentDashboardPage extends ConsumerWidget {
   const ParentDashboardPage({super.key});
@@ -15,6 +16,8 @@ class ParentDashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).user;
     final players = ref.watch(playersProvider).valueOrNull ?? [];
+    final notifications =
+        ref.watch(liveNotificationsProvider).valueOrNull ?? const [];
     final events = [
       ...(ref.watch(eventsProvider).valueOrNull ?? <EventModel>[]),
     ];
@@ -29,6 +32,10 @@ class ParentDashboardPage extends ConsumerWidget {
       subtitle: 'Alle Termine und Rückmeldungen deiner Kinder auf einen Blick.',
       child: Column(
         children: [
+          DashboardNotifications(
+            notifications: notifications,
+            isTrainer: false,
+          ),
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
@@ -175,6 +182,9 @@ class _ParentEventRow extends StatelessWidget {
       '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} Uhr',
       if (event.location.trim().isNotEmpty) event.location,
     ].join(' · ');
+    final openReplies = event.attendance
+        .where((reply) => reply.status == AttendanceStatus.unknown)
+        .length;
     return InkWell(
       onTap: () => event.type == EventType.match
           ? context.push(route)
@@ -215,7 +225,13 @@ class _ParentEventRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+            if (openReplies > 0)
+              Chip(
+                avatar: const Icon(Icons.schedule_rounded, size: 15),
+                label: Text('$openReplies offen'),
+              )
+            else
+              const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
           ],
         ),
       ),

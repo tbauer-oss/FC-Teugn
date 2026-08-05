@@ -11,7 +11,9 @@ enum TrainingAttendanceStatus {
 
 T _enum<T extends Enum>(List<T> values, Object? raw, T fallback) {
   final normalized = raw?.toString().toLowerCase().replaceAll('_', '');
-  return values.where((item) => item.name.toLowerCase() == normalized).firstOrNull ??
+  return values
+          .where((item) => item.name.toLowerCase() == normalized)
+          .firstOrNull ??
       fallback;
 }
 
@@ -127,8 +129,7 @@ class TrainingPlanModel {
         coaches: (json['coachAssignments'] as List<dynamic>? ?? const [])
             .map(
               (item) => TrainingCoachModel.fromJson(
-                (item as Map<String, dynamic>)['user']
-                    as Map<String, dynamic>,
+                (item as Map<String, dynamic>)['user'] as Map<String, dynamic>,
               ),
             )
             .toList(),
@@ -265,11 +266,10 @@ class TrainingAttendanceEntry {
     final player = json['player'] as Map<String, dynamic>;
     return TrainingAttendanceEntry(
       playerId: player['id'] as String,
-      playerName:
-          (player['preferredName'] as String?)?.trim().isNotEmpty == true
-              ? player['preferredName'] as String
-              : '${player['firstName'] ?? ''} ${player['lastName'] ?? ''}'
-                  .trim(),
+      playerName: (player['preferredName'] as String?)?.trim().isNotEmpty ==
+              true
+          ? player['preferredName'] as String
+          : '${player['firstName'] ?? ''} ${player['lastName'] ?? ''}'.trim(),
       status: json['trainingStatus'] == null
           ? null
           : _enum(

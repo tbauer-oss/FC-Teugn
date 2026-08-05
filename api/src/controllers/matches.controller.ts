@@ -18,9 +18,12 @@ import { recalculateMatchStatistics } from '../services/statistics.service';
 import { rosterTeamIdsForMatch } from '../services/match-roster';
 import {
   accessibleTeamIds,
+  contextualTeamIds,
+  ownPlayerIds,
   youthPlayerPoolTeamIdsForTeam,
 } from '../services/team-access';
 import { syncSquadWithTeamDefaultLineup } from '../services/default-lineup.service';
+import { syncScheduledRemindersForEvent } from '../services/reminder.service';
 
 const matchInclude = {
   team: {
@@ -212,16 +215,26 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   staff: boolean,
   eligiblePlayers: Array<Prisma.PlayerGetPayload<{ select: typeof eligiblePlayerSelect }>> = [],
   tickerEditable = staff,
+  viewerPlayerIds: string[] = [],
 ) {
   const squad = match.squads[0] ?? null;
   const lineup = squad?.lineup;
   const lineupTeam = match.targetTeams[0]?.team ?? match.team;
   const canSeeLineup =
     staff ||
-    (lineup?.status === LineupStatus.PUBLISHED &&
+    (squad?.publishedAt !== null &&
+      squad?.members.some((member) => viewerPlayerIds.includes(member.playerId)) === true &&
+      lineup?.status === LineupStatus.PUBLISHED &&
       (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now()));
+  const canSeePublishedSquad = staff || tickerEditable || (
+    squad?.publishedAt !== null &&
+    squad?.members.some((member) => viewerPlayerIds.includes(member.playerId)) === true
+  );
   return {
     ...match,
+    attendance: staff
+      ? match.attendance
+      : match.attendance.filter((item) => viewerPlayerIds.includes(item.playerId)),
     teamGameFormat:
       lineupTeam.gameFormat,
     teamDefaultFormation: lineupTeam.defaultFormation,
@@ -235,7 +248,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       canManageTicker: tickerEditable,
       canDelegateTicker: staff,
     },
-    squads: squad && (staff || tickerEditable || squad.publishedAt)
+    squads: squad && canSeePublishedSquad
       ? [
           {
             ...squad,
@@ -268,7 +281,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
 
 export async function listMatches(req: Request, res: Response) {
   const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
+  const teamIds = await contextualTeamIds(user);
   const from = req.query.from ? new Date(String(req.query.from)) : undefined;
   const to = req.query.to ? new Date(String(req.query.to)) : undefined;
   const matches = await prisma.event.findMany({
@@ -287,7 +300,10 @@ export async function listMatches(req: Request, res: Response) {
     orderBy: { startAt: 'desc' },
     take: 100,
   });
-  return res.json(matches.map((match) => serializeMatch(match, isStaff(user.role))));
+  const viewerPlayerIds = isStaff(user.role) ? [] : await ownPlayerIds(user);
+  return res.json(matches.map((match) =>
+    serializeMatch(match, isStaff(user.role), [], false, viewerPlayerIds),
+  ));
 }
 
 export async function getMatch(req: Request, res: Response) {
@@ -309,7 +325,14 @@ export async function getMatch(req: Request, res: Response) {
         orderBy: [{ status: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
       })
     : [];
-  return res.json(serializeMatch(match, staff, eligiblePlayers, tickerEditable));
+  const viewerPlayerIds = staff ? [] : await ownPlayerIds(user);
+  return res.json(serializeMatch(
+    match,
+    staff,
+    eligiblePlayers,
+    tickerEditable,
+    viewerPlayerIds,
+  ));
 }
 
 export async function getTickerDelegation(req: Request, res: Response) {
@@ -531,6 +554,29 @@ export async function updateSquad(req: Request, res: Response) {
         skipDuplicates: true,
       });
     }
+    await tx.eventParticipant.deleteMany({
+      where: { eventId: match.id, playerId: { not: null } },
+    });
+    await tx.attendance.deleteMany({
+      where: { eventId: match.id, playerId: { notIn: ids } },
+    });
+    if (ids.length) {
+      await tx.eventParticipant.createMany({
+        data: ids.map((playerId) => ({
+          eventId: match.id,
+          playerId,
+          responseRequired: true,
+        })),
+        skipDuplicates: true,
+      });
+      for (const playerId of ids) {
+        await tx.attendance.upsert({
+          where: { eventId_playerId: { eventId: match.id, playerId } },
+          update: {},
+          create: { eventId: match.id, playerId },
+        });
+      }
+    }
     await syncSquadWithTeamDefaultLineup(tx, {
       teamId: match.targetTeams[0]?.team.id ?? match.team.id,
       squadId: saved.id,
@@ -563,6 +609,7 @@ export async function updateSquad(req: Request, res: Response) {
       metadata: { memberCount: members.length },
     },
   });
+  await syncScheduledRemindersForEvent(match.id);
   return res.json(squad);
 }
 
@@ -570,20 +617,78 @@ export async function publishSquad(req: Request, res: Response) {
   const user = req.user!;
   const match = await findMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
-  const squad = await prisma.squad.findUnique({ where: { eventId: match.id } });
-  if (!squad) return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
-  const updated = await prisma.squad.update({
-    where: { id: squad.id },
-    data: { publishedAt: new Date() },
-  });
-  await prisma.auditLog.create({
-    data: {
-      actorId: user.id,
-      teamId: match.teamId,
-      action: 'MATCH_SQUAD_PUBLISHED',
-      entityType: 'Squad',
-      entityId: squad.id,
+  const squad = await prisma.squad.findUnique({
+    where: { eventId: match.id },
+    include: {
+      members: {
+        where: { status: { not: NominationStatus.DECLINED } },
+        include: {
+          player: {
+            include: {
+              parentLinks: {
+                where: { receivesCommunication: true },
+                select: { parentId: true },
+              },
+            },
+          },
+        },
+      },
     },
+  });
+  if (!squad) return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
+  const recipients = new Map<string, string[]>();
+  for (const member of squad.members) {
+    const playerName = member.player.preferredName || member.player.firstName;
+    if (member.player.userId) {
+      recipients.set(member.player.userId, [
+        ...(recipients.get(member.player.userId) ?? []),
+        playerName,
+      ]);
+    }
+    for (const link of member.player.parentLinks) {
+      recipients.set(link.parentId, [
+        ...(recipients.get(link.parentId) ?? []),
+        playerName,
+      ]);
+    }
+  }
+  const updated = await prisma.$transaction(async (tx) => {
+    const saved = await tx.squad.update({
+      where: { id: squad.id },
+      data: { publishedAt: new Date() },
+    });
+    for (const [recipientId, playerNames] of recipients) {
+      const names = [...new Set(playerNames)].join(', ');
+      await tx.notification.upsert({
+        where: { dedupeKey: `nomination:${match.id}:${recipientId}` },
+        update: {
+          title: 'Kader veröffentlicht',
+          body: `Die Kadernominierung für ${names} wurde veröffentlicht.`,
+          readAt: null,
+        },
+        create: {
+          userId: recipientId,
+          category: 'NOMINATION',
+          title: 'Kader veröffentlicht',
+          body: `Die Kadernominierung für ${names} wurde veröffentlicht.`,
+          actionUrl: `/matches/${match.id}`,
+          entityType: 'Event',
+          entityId: match.id,
+          dedupeKey: `nomination:${match.id}:${recipientId}`,
+        },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: match.teamId,
+        action: 'MATCH_SQUAD_PUBLISHED',
+        entityType: 'Squad',
+        entityId: squad.id,
+        metadata: { recipientCount: recipients.size },
+      },
+    });
+    return saved;
   });
   return res.json(updated);
 }

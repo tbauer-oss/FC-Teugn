@@ -5,10 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
 import '../../core/models/player.dart';
+import '../../core/models/organization.dart';
 import '../../core/models/team_operations.dart';
 import '../../core/providers.dart';
+import '../../core/regular_training_schedule.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
+import '../shared/dashboard_notifications.dart';
 
 class TrainerDashboardPage extends ConsumerWidget {
   const TrainerDashboardPage({super.key});
@@ -21,14 +24,19 @@ class TrainerDashboardPage extends ConsumerWidget {
     final events = ref.watch(eventsProvider);
     final approvals = ref.watch(pendingUsersProvider);
     final organization = ref.watch(organizationProvider).valueOrNull;
+    final notifications =
+        ref.watch(liveNotificationsProvider).valueOrNull ?? const [];
     final team = organization?.currentTeam;
     final teamId = team?.id;
+    final contextTeamIds = organization?.workingContext.teamIds.toSet() ??
+        {if (teamId != null) teamId};
     final teamOperations = teamId == null
         ? null
         : ref.watch(teamOperationsProvider(teamId)).valueOrNull;
 
     final teamPlayers = (players.valueOrNull ?? const <PlayerModel>[])
-        .where((player) => teamId == null || player.teamId == teamId)
+        .where((player) =>
+            contextTeamIds.isEmpty || contextTeamIds.contains(player.teamId))
         .toList();
     final activePlayers = teamPlayers
         .where((player) => player.status == PlayerStatus.active)
@@ -37,12 +45,18 @@ class TrainerDashboardPage extends ConsumerWidget {
         .where((player) => player.status == PlayerStatus.injured)
         .length;
 
-    final upcoming = (events.valueOrNull ?? const <EventModel>[])
+    final eventItems = _dashboardEvents(
+      events.valueOrNull ?? const <EventModel>[],
+      organization,
+      now,
+      contextTeamIds,
+    );
+    final upcoming = eventItems
         .where(
           (event) =>
               !event.isCancelled &&
               event.startAt.isAfter(now) &&
-              _belongsToTeam(event, teamId),
+              _belongsToTeams(event, contextTeamIds),
         )
         .toList()
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
@@ -74,6 +88,10 @@ class TrainerDashboardPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          DashboardNotifications(
+            notifications: notifications,
+            isTrainer: true,
+          ),
           _NextEventHero(event: nextEvent, now: now),
           const SizedBox(height: 12),
           _StatusGrid(
@@ -123,10 +141,10 @@ class TrainerDashboardPage extends ConsumerWidget {
     );
   }
 
-  bool _belongsToTeam(EventModel event, String? teamId) {
-    if (teamId == null) return true;
-    return event.teamId == teamId ||
-        event.targetTeams.any((target) => target.id == teamId);
+  bool _belongsToTeams(EventModel event, Set<String> teamIds) {
+    if (teamIds.isEmpty) return true;
+    return teamIds.contains(event.teamId) ||
+        event.targetTeams.any((target) => teamIds.contains(target.id));
   }
 
   int _openResponses(EventModel? event) {
@@ -277,6 +295,9 @@ class _NextEventContent extends StatelessWidget {
       if (event.meetingAt != null) 'Treffen ${_time(event.meetingAt!)} Uhr',
       if (event.location.trim().isNotEmpty) event.location.trim(),
     ];
+    final openResponses = event.missingAttendance.isNotEmpty
+        ? event.missingAttendance.length
+        : event.attendanceSummary.unknown;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -332,6 +353,8 @@ class _NextEventContent extends StatelessWidget {
           runSpacing: 6,
           children: [
             for (final detail in details) _HeroDetail(label: detail),
+            if (openResponses > 0)
+              _HeroDetail(label: '$openResponses Rückmeldungen offen'),
           ],
         ),
         const SizedBox(height: 13),
@@ -996,9 +1019,107 @@ class _PlayerLoadFailure extends StatelessWidget {
 
 String _eventRoute(EventModel event) => switch (event.type) {
       EventType.match => '/trainer/matches/${event.id}',
-      EventType.training => '/trainer/training/${event.id}',
+      EventType.training => event.id.startsWith('training-plan:')
+          ? '/trainer/events'
+          : '/trainer/training/${event.id}',
       EventType.event => '/trainer/events',
     };
+
+List<EventModel> _dashboardEvents(
+  List<EventModel> stored,
+  OrganizationContext? organization,
+  DateTime now,
+  Set<String> contextTeamIds,
+) {
+  if (organization == null) return stored;
+  final result = [...stored];
+  for (final team in organization.teams.where(
+    (team) => contextTeamIds.isEmpty || contextTeamIds.contains(team.id),
+  )) {
+    final candidates = <(DateTime, DateTime, String)>[];
+    void collect(
+      List<String> values,
+      String? fallbackLocation,
+      DateTime start,
+      DateTime end,
+    ) {
+      if (end.isBefore(now)) return;
+      for (final value in values) {
+        final slot = RegularTrainingSlot.tryParse(
+          value,
+          fallbackLocation: fallbackLocation,
+        );
+        if (slot == null) continue;
+        for (final occurrence in slot.occurrences(start, end)) {
+          if (occurrence.$1.isAfter(now)) {
+            candidates.add((occurrence.$1, occurrence.$2, slot.location));
+          }
+        }
+      }
+    }
+
+    final seasonStart = team.seasonStartDate ?? organization.season.startDate;
+    final seasonEnd = team.seasonEndDate ?? organization.season.endDate;
+    collect(
+      team.trainingTimes,
+      team.trainingLocation,
+      seasonStart,
+      seasonEnd,
+    );
+    if (team.indoorSeasonStartDate != null &&
+        team.indoorSeasonEndDate != null) {
+      collect(
+        team.indoorTrainingTimes,
+        team.indoorTrainingLocation,
+        team.indoorSeasonStartDate!,
+        team.indoorSeasonEndDate!,
+      );
+    }
+    candidates.sort((a, b) => a.$1.compareTo(b.$1));
+    final next = candidates.firstOrNull;
+    if (next == null ||
+        stored.any(
+          (event) =>
+              event.category == EventCategory.training &&
+              (event.teamId == team.id ||
+                  event.targetTeams.any((target) => target.id == team.id)) &&
+              event.startAt.difference(next.$1).abs() <
+                  const Duration(minutes: 5),
+        )) {
+      continue;
+    }
+    result.add(
+      EventModel(
+        id: 'training-plan:${team.id}:${next.$1.millisecondsSinceEpoch}',
+        teamId: team.id,
+        type: EventType.training,
+        category: EventCategory.training,
+        status: EventStatus.scheduled,
+        visibility: EventVisibility.team,
+        title: 'Training · ${team.displayName}',
+        startAt: next.$1,
+        endAt: next.$2,
+        location: next.$3,
+        attendanceFinalized: false,
+        targetTeams: [
+          EventTeam(
+            id: team.id,
+            name: team.name,
+            ageGroupCode: team.ageGroup.code,
+          ),
+        ],
+        attachments: const [],
+        attendance: const [],
+        attendanceSummary: const AttendanceSummary(),
+        missingAttendance: const [],
+        carpoolOffers: const [],
+        capabilities: const EventCapabilities(),
+        reminderMinutes: const [60],
+      ),
+    );
+  }
+  return result;
+}
 
 String _time(DateTime value) =>
     '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';

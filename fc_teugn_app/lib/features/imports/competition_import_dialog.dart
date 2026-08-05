@@ -101,10 +101,9 @@ class _CompetitionImportDialogState
                       onChanged: _preview == null
                           ? (value) => setState(() {
                                 _format = value!;
-                                _provider =
-                                    value == CompetitionImportFormat.csv
-                                        ? 'BFV_CSV'
-                                        : 'ICS';
+                                _provider = value == CompetitionImportFormat.csv
+                                    ? 'BFV_CSV'
+                                    : 'ICS';
                               })
                           : null,
                     ),
@@ -201,8 +200,7 @@ class _CompetitionImportDialogState
             child: const Text('Zurück'),
           ),
         FilledButton.icon(
-          onPressed: _busy ||
-                  (_preview == null && _content.text.trim().isEmpty)
+          onPressed: _busy || (_preview == null && _content.text.trim().isEmpty)
               ? null
               : _preview == null
                   ? _createPreview
@@ -225,19 +223,19 @@ class _CompetitionImportDialogState
   Future<void> _createPreview() async {
     setState(() => _busy = true);
     try {
-      final preview = await ref
-          .read(repositoryProvider)
-          .previewCompetitionImport(
-            teamId: _teamId,
-            format: _format,
-            provider: _provider,
-            content: _content.text,
-          );
+      final preview =
+          await ref.read(repositoryProvider).previewCompetitionImport(
+                teamId: _teamId,
+                format: _format,
+                provider: _provider,
+                content: _content.text,
+              );
       if (mounted) setState(() => _preview = preview);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Importvorschau konnte nicht erstellt werden.')),
+        const SnackBar(
+            content: Text('Importvorschau konnte nicht erstellt werden.')),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -309,16 +307,31 @@ class _ImportRowTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, color, label) = switch (row.action) {
-      CompetitionImportAction.create =>
-        (Icons.add_circle_rounded, AppColors.teal, 'Neu'),
-      CompetitionImportAction.update =>
-        (Icons.sync_rounded, AppColors.blue, 'Aktualisieren'),
-      CompetitionImportAction.skip =>
-        (Icons.done_rounded, AppColors.muted, 'Unverändert'),
-      CompetitionImportAction.conflict =>
-        (Icons.warning_rounded, AppColors.orange, 'Konflikt'),
-      CompetitionImportAction.invalid =>
-        (Icons.error_rounded, Colors.redAccent, 'Ungültig'),
+      CompetitionImportAction.create => (
+          Icons.add_circle_rounded,
+          AppColors.teal,
+          'Neu'
+        ),
+      CompetitionImportAction.update => (
+          Icons.sync_rounded,
+          AppColors.blue,
+          'Aktualisieren'
+        ),
+      CompetitionImportAction.skip => (
+          Icons.done_rounded,
+          AppColors.muted,
+          'Unverändert'
+        ),
+      CompetitionImportAction.conflict => (
+          Icons.warning_rounded,
+          AppColors.orange,
+          'Konflikt'
+        ),
+      CompetitionImportAction.invalid => (
+          Icons.error_rounded,
+          Colors.redAccent,
+          'Ungültig'
+        ),
     };
     return ListTile(
       dense: true,

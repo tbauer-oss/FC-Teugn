@@ -1,13 +1,22 @@
 import { AccountStatus, Prisma, Role as PrismaRole } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { hasPermission, Permission } from '../security/permissions';
+import { hasEffectivePermission, Permission } from '../security/permissions';
 import { Role } from '../types/enums';
 
 export type TeamScopedUser = {
   id: string;
   teamId: string;
   role: Role | PrismaRole;
+  permissions?: string[];
 };
+
+function permitted(user: TeamScopedUser, permission: Permission) {
+  return hasEffectivePermission(
+    user.role as Role,
+    permission,
+    user.permissions,
+  );
+}
 
 export async function clubIdForTeam(teamId: string) {
   const team = await prisma.team.findUnique({
@@ -65,7 +74,7 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
     });
     return teams.map((team) => team.id);
   }
-  if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
+  if (permitted(user, Permission.MANAGE_ORGANIZATION)) {
     const clubId = await clubIdForTeam(user.teamId);
     if (!clubId) return [user.teamId];
     const teams = await prisma.team.findMany({
@@ -89,12 +98,67 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
     where: { id: user.teamId, deletedAt: null },
     select: { id: true },
   });
+  const linkedPlayerTeams = String(user.role) === Role.PARENT
+    ? await prisma.parentPlayerLink.findMany({
+        where: { parentId: user.id, player: { teamId: { not: null } } },
+        select: { player: { select: { teamId: true } } },
+      })
+    : [];
   return [
     ...new Set([
       ...(currentTeam ? [currentTeam.id] : []),
       ...memberships.map((item) => item.teamId),
+      ...linkedPlayerTeams
+        .map((item) => item.player.teamId)
+        .filter((id): id is string => Boolean(id)),
     ]),
   ];
+}
+
+/**
+ * Returns the app-wide selected working context. It can only narrow the set of
+ * accessible teams and therefore never acts as an authorization grant.
+ */
+export async function selectedContextTeamIds(user: TeamScopedUser) {
+  const accessibleIds = await accessibleTeamIds(user);
+  if (!accessibleIds.length) return [];
+  const preference = await prisma.userContextPreference.findUnique({
+    where: { userId: user.id },
+    select: { ageGroupId: true, activeTeamId: true, includeAllTeams: true },
+  });
+  if (!preference) return accessibleIds.includes(user.teamId)
+    ? [user.teamId]
+    : [accessibleIds[0]];
+  const teams = await prisma.team.findMany({
+    where: {
+      id: { in: accessibleIds },
+      ageGroupId: preference.ageGroupId,
+      deletedAt: null,
+      isActive: true,
+      ...(!preference.includeAllTeams && preference.activeTeamId
+        ? { id: preference.activeTeamId }
+        : {}),
+    },
+    orderBy: { teamNumber: 'asc' },
+    select: { id: true },
+  });
+  return teams.length ? teams.map((team) => team.id) : [accessibleIds[0]];
+}
+
+export async function contextualTeamIds(user: TeamScopedUser) {
+  const contextRoles = new Set<string>([
+    Role.SUPER_ADMIN,
+    Role.CLUB_ADMIN,
+    Role.YOUTH_DIRECTOR,
+    Role.TRAINER_ADMIN,
+    Role.COACH,
+    Role.TRAINER,
+    Role.ASSISTANT_COACH,
+    Role.TEAM_MANAGER,
+  ]);
+  return contextRoles.has(String(user.role))
+    ? selectedContextTeamIds(user)
+    : accessibleTeamIds(user);
 }
 
 export async function youthPlayerPoolTeamIds(user: TeamScopedUser) {
@@ -137,7 +201,7 @@ export async function canManageTeam(user: TeamScopedUser, teamId: string) {
       select: { id: true, deletedAt: true },
     }).then((team) => team && team.deletedAt === null));
   }
-  if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
+  if (permitted(user, Permission.MANAGE_ORGANIZATION)) {
     const [currentClubId, targetClubId] = await Promise.all([
       clubIdForTeam(user.teamId),
       clubIdForTeam(teamId),
@@ -149,9 +213,9 @@ export async function canManageTeam(user: TeamScopedUser, teamId: string) {
     select: { role: true, status: true },
   });
   if (membership?.status === AccountStatus.APPROVED) {
-    return hasPermission(membership.role as Role, Permission.MANAGE_TEAM);
+    return permitted({ ...user, role: membership.role }, Permission.MANAGE_TEAM);
   }
-  return teamId === user.teamId && hasPermission(user.role as Role, Permission.MANAGE_TEAM);
+  return teamId === user.teamId && permitted(user, Permission.MANAGE_TEAM);
 }
 
 const formationManagerRoles = new Set<string>([

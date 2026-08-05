@@ -18,6 +18,7 @@ import {
   uploadPlayerPhoto,
 } from '../controllers/player-files.controller';
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
+import { idempotencyMiddleware } from '../middleware/idempotency';
 import { Permission } from '../security/permissions';
 import { playerFileUpload } from '../middleware/player-files';
 import { asyncHandler } from '../middleware/async-handler';
@@ -33,6 +34,7 @@ const router = Router();
 
 router.use(requireAuth);
 router.use(requireApproved);
+router.use(idempotencyMiddleware);
 
 router.get('/', listPlayers);
 router.get('/consent-templates', asyncHandler(listConsentTemplates));

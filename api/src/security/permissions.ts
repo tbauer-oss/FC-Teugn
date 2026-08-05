@@ -1,4 +1,6 @@
 import { Role } from '../types/enums';
+import { PermissionOverrideState } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 export const Permission = {
   VIEW_TEAM: 'VIEW_TEAM',
@@ -130,4 +132,48 @@ export function hasPermission(role: Role, permission: Permission) {
 
 export function permissionsForRole(role: Role) {
   return [...(permissionsByRole[role] ?? [])];
+}
+
+export type PermissionOverride = {
+  permission: string;
+  state: PermissionOverrideState | 'ALLOW' | 'DENY';
+};
+
+/** Pure effective-right calculation, shared by middleware and unit tests. */
+export function resolveEffectivePermissions(
+  role: Role,
+  overrides: readonly PermissionOverride[],
+) {
+  // A system administrator must never be able to lock themselves out.
+  if (role === Role.SUPER_ADMIN) return [...allPermissions];
+  const effective = new Set<Permission>(permissionsForRole(role));
+  for (const override of overrides) {
+    if (!allPermissions.includes(override.permission as Permission)) continue;
+    if (override.state === PermissionOverrideState.DENY) {
+      effective.delete(override.permission as Permission);
+    } else {
+      effective.add(override.permission as Permission);
+    }
+  }
+  return allPermissions.filter((permission) => effective.has(permission));
+}
+
+export async function effectivePermissionsForUser(userId: string, role: Role) {
+  if (role === Role.SUPER_ADMIN) return [...allPermissions];
+  const overrides = await prisma.userPermissionOverride.findMany({
+    where: { userId },
+    select: { permission: true, state: true },
+  });
+  return resolveEffectivePermissions(role, overrides);
+}
+
+export function hasEffectivePermission(
+  role: Role,
+  permission: Permission,
+  effectivePermissions?: readonly string[],
+) {
+  return role === Role.SUPER_ADMIN ||
+    (effectivePermissions
+      ? effectivePermissions.includes(permission)
+      : hasPermission(role, permission));
 }

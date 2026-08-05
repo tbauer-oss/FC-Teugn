@@ -31,6 +31,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   bool _pushOptIn = false;
   late Future<_RegistrationOptions> _options;
 
+  bool get _singleYouthRole =>
+      _role == UserRole.coach || _role == UserRole.assistantCoach;
+
   @override
   void initState() {
     super.initState();
@@ -197,7 +200,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           _sectionTitle(
             context,
             'Rolle & Mannschaften',
-            'Mehrere Mannschaften sind möglich.',
+            _singleYouthRole
+                ? 'Eine Jugend, darin mehrere Mannschaften möglich.'
+                : 'Mehrere Mannschaften sind möglich.',
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<UserRole>(
@@ -225,7 +230,18 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 child: Text('Teamorganisation'),
               ),
             ],
-            onChanged: (value) => setState(() => _role = value!),
+            onChanged: (value) => setState(() {
+              _role = value!;
+              if (_singleYouthRole && _teamIds.length > 1) {
+                final selectedYouth = options.teams
+                    .firstWhere((team) => _teamIds.contains(team.id))
+                    .ageGroupId;
+                _teamIds.removeWhere(
+                  (id) => options.teams.any((team) =>
+                      team.id == id && team.ageGroupId != selectedYouth),
+                );
+              }
+            }),
           ),
           const SizedBox(height: 14),
           if (options.teams.isEmpty)
@@ -248,6 +264,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     label: Text(team.label),
                     onSelected: (selected) => setState(() {
                       if (selected) {
+                        if (_singleYouthRole) {
+                          _teamIds.removeWhere(
+                            (id) => options.teams.any(
+                              (other) =>
+                                  other.id == id &&
+                                  other.ageGroupId != team.ageGroupId,
+                            ),
+                          );
+                        }
                         _teamIds.add(team.id);
                       } else {
                         _teamIds.remove(team.id);
@@ -435,6 +460,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           teams.add(
             _RegistrationTeam(
               id: team['id'] as String,
+              ageGroupId: ageGroup['id'] as String,
               label: '$teamLabel · ${season['name']}',
             ),
           );
@@ -555,8 +581,13 @@ class _RegistrationOptions {
 }
 
 class _RegistrationTeam {
-  const _RegistrationTeam({required this.id, required this.label});
+  const _RegistrationTeam({
+    required this.id,
+    required this.ageGroupId,
+    required this.label,
+  });
   final String id;
+  final String ageGroupId;
   final String label;
 }
 

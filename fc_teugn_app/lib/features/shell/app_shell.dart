@@ -6,6 +6,7 @@ import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
 import '../auth/auth_controller.dart';
 import '../../core/providers.dart';
+import '../../core/models/organization.dart';
 import '../shared/pwa_install_prompt.dart';
 import '../shared/app_about_sheet.dart';
 
@@ -160,10 +161,156 @@ class AppShell extends ConsumerWidget {
     context.go(destination.route);
   }
 
+  Future<void> _showWorkingContextSwitcher(
+    BuildContext context,
+    WidgetRef ref,
+    OrganizationContext organization,
+  ) async {
+    var ageGroupId = organization.workingContext.ageGroupId;
+    var includeAll = organization.workingContext.includeAllTeams;
+    String? teamId = organization.workingContext.teamIds.isEmpty
+        ? organization.currentTeam.id
+        : organization.workingContext.teamIds.first;
+
+    final selection = await showDialog<
+        ({
+          String ageGroupId,
+          String? teamId,
+          bool includeAll,
+        })>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final ageGroups = organization.ageGroups
+              .where((ageGroup) => organization.teams
+                  .any((team) => team.ageGroup.id == ageGroup.id))
+              .toList()
+            ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+          if (!ageGroups.any((item) => item.id == ageGroupId) &&
+              ageGroups.isNotEmpty) {
+            ageGroupId = ageGroups.first.id;
+          }
+          final teams = organization.teams
+              .where((team) => team.ageGroup.id == ageGroupId && team.isActive)
+              .toList()
+            ..sort((a, b) => a.teamNumber.compareTo(b.teamNumber));
+          if (!teams.any((item) => item.id == teamId) && teams.isNotEmpty) {
+            teamId = teams.first.id;
+          }
+
+          return AlertDialog(
+            title: const Text('Arbeitsbereich wechseln'),
+            content: SizedBox(
+              width: 430,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Alle Inhalte und Aktionen werden auf die gewählte Jugend und Mannschaft begrenzt.',
+                  ),
+                  const SizedBox(height: 18),
+                  DropdownButtonFormField<String>(
+                    initialValue: ageGroupId,
+                    decoration: const InputDecoration(
+                      labelText: 'Jugend',
+                      prefixIcon: Icon(Icons.category_rounded),
+                    ),
+                    items: [
+                      for (final ageGroup in ageGroups)
+                        DropdownMenuItem(
+                          value: ageGroup.id,
+                          child: Text(ageGroup.name),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setDialogState(() {
+                        ageGroupId = value;
+                        final candidates = organization.teams.where(
+                          (team) => team.ageGroup.id == value && team.isActive,
+                        );
+                        teamId =
+                            candidates.isEmpty ? null : candidates.first.id;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  if (teams.length > 1)
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Alle Mannschaften dieser Jugend'),
+                      subtitle: Text(
+                        '${teams.length} Mannschaften gemeinsam verwalten',
+                      ),
+                      value: includeAll,
+                      onChanged: (value) =>
+                          setDialogState(() => includeAll = value),
+                    ),
+                  if (!includeAll)
+                    DropdownButtonFormField<String>(
+                      initialValue: teamId,
+                      decoration: const InputDecoration(
+                        labelText: 'Mannschaft',
+                        prefixIcon: Icon(Icons.groups_rounded),
+                      ),
+                      items: [
+                        for (final team in teams)
+                          DropdownMenuItem(
+                            value: team.id,
+                            child: Text(team.displayName),
+                          ),
+                      ],
+                      onChanged: (value) =>
+                          setDialogState(() => teamId = value),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton.icon(
+                onPressed: teams.isEmpty || (!includeAll && teamId == null)
+                    ? null
+                    : () => Navigator.pop(
+                          context,
+                          (
+                            ageGroupId: ageGroupId,
+                            teamId: includeAll ? null : teamId,
+                            includeAll: includeAll,
+                          ),
+                        ),
+                icon: const Icon(Icons.swap_horiz_rounded),
+                label: const Text('Wechseln'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (selection == null || !context.mounted) return;
+    final ok = await ref.read(workingContextControllerProvider.notifier).select(
+          ageGroupId: selection.ageGroupId,
+          teamId: selection.teamId,
+          includeAllTeams: selection.includeAll,
+        );
+    if (!context.mounted || ok) return;
+    final error = ref.read(workingContextControllerProvider).error;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content:
+              Text(error ?? 'Arbeitsbereich konnte nicht gewechselt werden.')),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final organization = ref.watch(organizationProvider).valueOrNull;
+    final queuedWrites = ref.watch(offlineOutboxCountProvider).valueOrNull ?? 0;
     final location = GoRouterState.of(context).matchedLocation;
     final selectedIndex = _selectedIndex(location, destinations);
     final mobileCandidates =
@@ -173,7 +320,9 @@ class AppShell extends ConsumerWidget {
     final mobileSelectedIndex = primaryMobileIndex ?? mobileDestinations.length;
     final contextLabel = organization == null
         ? AppIdentity.name
-        : organization.currentTeam.displayName;
+        : organization.workingContext.includeAllTeams
+            ? '${organization.ageGroups.where((item) => item.id == organization.workingContext.ageGroupId).firstOrNull?.name ?? organization.currentTeam.ageGroup.name} · Alle Mannschaften'
+            : organization.currentTeam.displayName;
     final seasonLabel = organization?.season.name ?? '2026/27';
 
     return LayoutBuilder(
@@ -192,6 +341,13 @@ class AppShell extends ConsumerWidget {
                   userRole: authState.user?.roleLabel ?? '',
                   contextLabel: contextLabel,
                   seasonLabel: seasonLabel,
+                  onContextTap: organization == null
+                      ? _noOp
+                      : () => _showWorkingContextSwitcher(
+                            context,
+                            ref,
+                            organization,
+                          ),
                   onSelect: (index) => context.go(destinations[index].route),
                   onLogout: () => ref.read(authProvider.notifier).logout(),
                   onAbout: () => showAppAboutSheet(context),
@@ -204,6 +360,13 @@ class AppShell extends ConsumerWidget {
                         title: title,
                         userName: authState.user?.name ?? '',
                         contextLabel: contextLabel,
+                        onContextTap: organization == null
+                            ? _noOp
+                            : () => _showWorkingContextSwitcher(
+                                  context,
+                                  ref,
+                                  organization,
+                                ),
                         onLogout: () =>
                             ref.read(authProvider.notifier).logout(),
                         onPrivacy: () {
@@ -217,6 +380,31 @@ class AppShell extends ConsumerWidget {
                           if (privacy != null) context.go(privacy.route);
                         },
                         onAbout: () => showAppAboutSheet(context),
+                      ),
+                    if (queuedWrites > 0)
+                      Material(
+                        color: AppColors.yellowSoft,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 7,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.cloud_upload_outlined, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '$queuedWrites Änderung${queuedWrites == 1 ? '' : 'en'} offline gespeichert – automatischer Versand läuft.',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     Expanded(
                       child: RefreshIndicator.adaptive(
@@ -303,6 +491,7 @@ class DesktopSidebar extends StatelessWidget {
     required this.userRole,
     required this.contextLabel,
     required this.seasonLabel,
+    this.onContextTap = _noOp,
     required this.onSelect,
     required this.onLogout,
     this.onAbout = _noOp,
@@ -315,6 +504,7 @@ class DesktopSidebar extends StatelessWidget {
   final String userRole;
   final String contextLabel;
   final String seasonLabel;
+  final VoidCallback onContextTap;
   final ValueChanged<int> onSelect;
   final VoidCallback onLogout;
   final VoidCallback onAbout;
@@ -340,72 +530,84 @@ class DesktopSidebar extends StatelessWidget {
               child: _ClubBrand(light: true),
             ),
             const SizedBox(height: 24),
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.yellow.withValues(alpha: .16),
-                    Colors.white.withValues(alpha: .06),
-                  ],
-                ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onContextTap,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: AppColors.yellow.withValues(alpha: .22),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.yellow,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.groups_rounded,
-                      color: AppColors.black,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title.toUpperCase(),
-                          style: TextStyle(
-                            color: AppColors.yellow.withValues(alpha: .82),
-                            fontSize: 9,
-                            letterSpacing: 1.1,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          contextLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          'Saison $seasonLabel',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: .5),
-                            fontSize: 11,
-                          ),
-                        ),
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.yellow.withValues(alpha: .16),
+                        Colors.white.withValues(alpha: .06),
                       ],
                     ),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: AppColors.yellow.withValues(alpha: .22),
+                    ),
                   ),
-                ],
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: AppColors.yellow,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.groups_rounded,
+                          color: AppColors.black,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title.toUpperCase(),
+                              style: TextStyle(
+                                color: AppColors.yellow.withValues(alpha: .82),
+                                fontSize: 9,
+                                letterSpacing: 1.1,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              contextLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              'Saison $seasonLabel',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: .5),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.unfold_more_rounded,
+                        color: Colors.white70,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
             Expanded(
@@ -948,6 +1150,7 @@ class _MobileHeader extends StatelessWidget {
     required this.userName,
     required this.contextLabel,
     required this.onLogout,
+    required this.onContextTap,
     required this.onPrivacy,
     required this.onAbout,
   });
@@ -956,6 +1159,7 @@ class _MobileHeader extends StatelessWidget {
   final String userName;
   final String contextLabel;
   final VoidCallback onLogout;
+  final VoidCallback onContextTap;
   final VoidCallback onPrivacy;
   final VoidCallback onAbout;
 
@@ -986,30 +1190,43 @@ class _MobileHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.gold,
-                          fontSize: 9,
-                          letterSpacing: .8,
-                          fontWeight: FontWeight.w900,
-                        ),
+                  child: InkWell(
+                    onTap: onContextTap,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Row(
+                        children: [
+                          Expanded(
+                              child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title.toUpperCase(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.gold,
+                                  fontSize: 9,
+                                  letterSpacing: .8,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              Text(
+                                contextLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.navy,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          )),
+                          const Icon(Icons.unfold_more_rounded, size: 18),
+                        ],
                       ),
-                      Text(
-                        contextLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.navy,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
                 _Avatar(name: userName, small: true),

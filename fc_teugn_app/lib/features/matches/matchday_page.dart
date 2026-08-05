@@ -642,6 +642,7 @@ class _SquadTab extends ConsumerStatefulWidget {
 
 class _SquadTabState extends ConsumerState<_SquadTab> {
   late Map<String, NominationStatus> _selected;
+  String? _teamFilterId;
   final Set<String> _attendanceSaving = {};
   bool _saving = false;
 
@@ -649,6 +650,11 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
   void initState() {
     super.initState();
     _selected = _selectionFrom(widget.match);
+    _teamFilterId = widget.allPlayers.any(
+      (player) => player.teamId == widget.match.teamId,
+    )
+        ? widget.match.teamId
+        : null;
   }
 
   @override
@@ -658,6 +664,31 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
         _squadFingerprint(oldWidget.match) != _squadFingerprint(widget.match)) {
       _selected = _selectionFrom(widget.match);
     }
+    if (_teamFilterId != null &&
+        !widget.allPlayers.any((player) => player.teamId == _teamFilterId)) {
+      _teamFilterId = null;
+    }
+  }
+
+  List<PlayerModel> get _visiblePlayers => _teamFilterId == null
+      ? widget.allPlayers
+      : widget.allPlayers
+          .where((player) => player.teamId == _teamFilterId)
+          .toList();
+
+  List<({String id, String name})> get _availableTeams {
+    final teams = <String, String>{};
+    for (final player in widget.allPlayers) {
+      final id = player.teamId;
+      if (id != null && id.isNotEmpty) {
+        teams[id] = player.teamCode;
+      }
+    }
+    final result = teams.entries
+        .map((entry) => (id: entry.key, name: entry.value))
+        .toList();
+    result.sort((a, b) => a.name.compareTo(b.name));
+    return result;
   }
 
   @override
@@ -698,20 +729,63 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
         ],
       );
     }
+    final visiblePlayers = _visiblePlayers;
+    final availableTeams = _availableTeams;
     return Column(
       children: [
+        if (availableTeams.length > 1) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: compact
+                ? DropdownButton<String?>(
+                    value: _teamFilterId,
+                    hint: const Text('Alle Mannschaften'),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Alle Mannschaften'),
+                      ),
+                      for (final team in availableTeams)
+                        DropdownMenuItem<String?>(
+                          value: team.id,
+                          child: Text(team.name),
+                        ),
+                    ],
+                    onChanged: (value) => setState(() => _teamFilterId = value),
+                  )
+                : Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('Alle Mannschaften'),
+                        selected: _teamFilterId == null,
+                        onSelected: (_) => setState(() => _teamFilterId = null),
+                      ),
+                      for (final team in availableTeams)
+                        ChoiceChip(
+                          label: Text(team.name),
+                          selected: _teamFilterId == team.id,
+                          onSelected: (_) =>
+                              setState(() => _teamFilterId = team.id),
+                        ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 10),
+        ],
         Row(
           children: [
             Expanded(
               child: Text(
-                '${_selected.length}/${widget.allPlayers.length} ausgewählt',
+                '${_selected.length} ausgewählt · ${visiblePlayers.length} sichtbar',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
             if (compact) ...[
               IconButton(
                 onPressed:
-                    _saving || widget.allPlayers.isEmpty ? null : _selectAll,
+                    _saving || visiblePlayers.isEmpty ? null : _selectAll,
                 tooltip: 'Alle auswählen',
                 icon: const Icon(Icons.select_all_rounded),
               ),
@@ -735,9 +809,8 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
                 spacing: 10,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: _saving || widget.allPlayers.isEmpty
-                        ? null
-                        : _selectAll,
+                    onPressed:
+                        _saving || visiblePlayers.isEmpty ? null : _selectAll,
                     icon: const Icon(Icons.select_all_rounded),
                     label: const Text('Alle auswählen'),
                   ),
@@ -790,7 +863,7 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
               : ListView(
                   padding: EdgeInsets.zero,
                   children: [
-                    for (final player in widget.allPlayers)
+                    for (final player in visiblePlayers)
                       Card(
                         margin: EdgeInsets.only(bottom: compact ? 3 : 8),
                         child: ListTile(
@@ -912,14 +985,17 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
 
   void _selectAll() {
     setState(() {
-      _selected = {
-        for (final player in widget.allPlayers)
-          player.id: NominationStatus.nominated,
-      };
+      for (final player in _visiblePlayers) {
+        _selected[player.id] = NominationStatus.nominated;
+      }
     });
   }
 
-  void _deselectAll() => setState(_selected.clear);
+  void _deselectAll() => setState(() {
+        for (final player in _visiblePlayers) {
+          _selected.remove(player.id);
+        }
+      });
 
   AttendanceStatus _attendanceStatus(String playerId) =>
       widget.match.attendance
@@ -2334,6 +2410,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   int _lastRenderedElapsedSeconds = -1;
   late final ValueNotifier<_TickerFocusData> _focusData;
   final Set<int> _warnedPeriods = {};
+  LiveTickerModel? _optimisticTicker;
 
   @override
   void initState() {
@@ -2354,6 +2431,13 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   @override
   void didUpdateWidget(covariant _TickerTab oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final serverTicker = widget.match.ticker;
+    final previousServerSequence = oldWidget.match.ticker?.lastSequence ?? 0;
+    if (_optimisticTicker != null &&
+        serverTicker != null &&
+        serverTicker.lastSequence > previousServerSequence) {
+      _optimisticTicker = null;
+    }
     final ticker = _ticker;
     final previousTicker = oldWidget.match.ticker;
     final elapsedBeforeSync = _effectiveElapsedSeconds();
@@ -2388,6 +2472,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   }
 
   LiveTickerModel get _ticker =>
+      _optimisticTicker ??
       widget.match.ticker ??
       const LiveTickerModel(
         status: TickerStatus.notStarted,
@@ -2398,6 +2483,37 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         lastSequence: 0,
         events: [],
       );
+
+  void _applyOptimisticTickerAction(TickerEventType type, {int? period}) {
+    final current = _ticker;
+    final elapsed = _effectiveElapsedSeconds();
+    final status = switch (type) {
+      TickerEventType.matchStart ||
+      TickerEventType.resume ||
+      TickerEventType.periodStart =>
+        TickerStatus.live,
+      TickerEventType.periodEnd => TickerStatus.halfTime,
+      TickerEventType.interruption ||
+      TickerEventType.injury =>
+        TickerStatus.interrupted,
+      TickerEventType.matchEnd => TickerStatus.finished,
+      _ => current.status,
+    };
+    if (status == current.status && period == null) return;
+    _optimisticTicker = LiveTickerModel(
+      status: status,
+      currentPeriod: period ?? current.currentPeriod,
+      elapsedSeconds: elapsed,
+      ourGoals: current.ourGoals,
+      theirGoals: current.theirGoals,
+      lastSequence: current.lastSequence,
+      events: current.events,
+    );
+    _synchronizeClock(_optimisticTicker!);
+    _lastRenderedElapsedSeconds = -1;
+    _scheduleNextClockTick(immediate: true);
+    _focusData.value = _tickerFocusData(_optimisticTicker!);
+  }
 
   void _synchronizeClock(LiveTickerModel ticker) {
     _stableElapsedClock.synchronize(ticker);
@@ -3211,6 +3327,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     int? period,
   }) async {
     final now = DateTime.now();
+    final actionElapsedSeconds = _effectiveElapsedSeconds();
     if (_lastQueuedAt != null &&
         now.difference(_lastQueuedAt!) < const Duration(milliseconds: 500)) {
       return;
@@ -3221,6 +3338,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       _message('Die Sitzung ist abgelaufen. Bitte erneut anmelden.');
       return;
     }
+    _applyOptimisticTickerAction(type, period: period);
     setState(() => _busy = true);
     try {
       _lastQueuedAt = now;
@@ -3233,6 +3351,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           scorerId: scorerId,
           assistId: assistId,
           period: period,
+          elapsedSeconds: actionElapsedSeconds,
           createdAt: now,
         ),
       );
@@ -3286,6 +3405,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
               assistId: action.assistId,
               comment: action.comment,
               period: action.period,
+              elapsedSeconds: action.elapsedSeconds,
             );
           } on DioException catch (error) {
             final status = error.response?.statusCode;

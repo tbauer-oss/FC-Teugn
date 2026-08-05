@@ -13,6 +13,8 @@ import communicationsRoutes from './routes/communications.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import importsRoutes from './routes/imports.routes';
 import teamOperationsRoutes from './routes/team-operations.routes';
+import competitionsRoutes from './routes/competitions.routes';
+import cronRoutes from './routes/cron.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { authRateLimit } from './middleware/rate-limit';
 import openApiDocument from '../openapi.json';
@@ -94,6 +96,8 @@ app.use('/communications', communicationsRoutes);
 app.use('/notifications', notificationsRoutes);
 app.use('/imports', importsRoutes);
 app.use('/team-operations', teamOperationsRoutes);
+app.use('/competitions', competitionsRoutes);
+app.use('/internal/cron', cronRoutes);
 
 app.use(errorHandler);
 

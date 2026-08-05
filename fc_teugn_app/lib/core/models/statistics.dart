@@ -120,6 +120,8 @@ class PlayerSeasonStatistic {
     required this.minutes,
     required this.goals,
     required this.assists,
+    required this.cleanSheets,
+    required this.cleanSheetEligible,
     this.shirtNumber,
     this.career,
   });
@@ -132,6 +134,8 @@ class PlayerSeasonStatistic {
   final int minutes;
   final int goals;
   final int assists;
+  final int cleanSheets;
+  final bool cleanSheetEligible;
   final PlayerStatisticTotals? career;
 
   factory PlayerSeasonStatistic.fromJson(Map<String, dynamic> json) =>
@@ -144,6 +148,8 @@ class PlayerSeasonStatistic {
         minutes: json['minutes'] as int? ?? 0,
         goals: json['goals'] as int? ?? 0,
         assists: json['assists'] as int? ?? 0,
+        cleanSheets: json['cleanSheets'] as int? ?? 0,
+        cleanSheetEligible: json['cleanSheetEligible'] as bool? ?? false,
         career: json['career'] == null
             ? null
             : PlayerStatisticTotals.fromJson(
@@ -159,6 +165,8 @@ class PlayerStatisticTotals {
     required this.minutes,
     required this.goals,
     required this.assists,
+    required this.cleanSheets,
+    required this.cleanSheetEligible,
   });
 
   final int appearances;
@@ -166,6 +174,8 @@ class PlayerStatisticTotals {
   final int minutes;
   final int goals;
   final int assists;
+  final int cleanSheets;
+  final bool cleanSheetEligible;
 
   factory PlayerStatisticTotals.fromJson(Map<String, dynamic> json) =>
       PlayerStatisticTotals(
@@ -174,6 +184,8 @@ class PlayerStatisticTotals {
         minutes: json['minutes'] as int? ?? 0,
         goals: json['goals'] as int? ?? 0,
         assists: json['assists'] as int? ?? 0,
+        cleanSheets: json['cleanSheets'] as int? ?? 0,
+        cleanSheetEligible: json['cleanSheetEligible'] as bool? ?? false,
       );
 }
 

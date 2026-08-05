@@ -2,12 +2,18 @@ import { Request, Response } from 'express';
 import {
   AccountStatus,
   GuardianRelationship,
+  PermissionOverrideState,
   Prisma,
   RegistrationReviewStatus,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
-import { hasPermission, Permission } from '../security/permissions';
+import {
+  effectivePermissionsForUser,
+  hasPermission,
+  Permission,
+  permissionsForRole,
+} from '../security/permissions';
 import { accessibleTeamIds } from '../services/team-access';
 import { hashPassword } from '../lib/password';
 
@@ -115,6 +121,22 @@ function isSuperAdmin(role: Role) {
 
 export function canHaveParentPlayerLinks(role: Role) {
   return role !== Role.PLAYER;
+}
+
+const singleYouthRoles = new Set<Role>([
+  Role.COACH,
+  Role.TRAINER,
+  Role.ASSISTANT_COACH,
+]);
+
+async function violatesSingleYouthAssignment(role: Role, teamIds: string[]) {
+  if (!singleYouthRoles.has(role) || teamIds.length < 2) return false;
+  const ageGroups = await prisma.team.findMany({
+    where: { id: { in: teamIds }, deletedAt: null },
+    distinct: ['ageGroupId'],
+    select: { ageGroupId: true },
+  });
+  return ageGroups.length !== 1;
 }
 
 const assignableTeamFunctions: Role[] = [
@@ -258,6 +280,11 @@ export async function createMember(req: Request, res: Response) {
   const allowedIds = await accessibleTeamIds(actor);
   if (!requestedTeamIds.every((id) => allowedIds.includes(id))) {
     return res.status(403).json({ message: 'Mindestens eine Mannschaft ist nicht zulässig.' });
+  }
+  if (await violatesSingleYouthAssignment(requestedRole, requestedTeamIds)) {
+    return res.status(400).json({
+      message: 'Trainer und Co-Trainer dürfen nur Mannschaften einer Jugend zugeordnet sein.',
+    });
   }
   const playerId =
     typeof req.body?.playerId === 'string' ? req.body.playerId.trim() : null;
@@ -420,10 +447,18 @@ export async function approveUser(req: Request, res: Response) {
         ? { ageGroup: { season: { clubId, isActive: true } } }
         : { id: actor.teamId }),
     },
-    select: { id: true },
+    select: { id: true, ageGroupId: true },
   });
   if (allowedTeams.length !== requestedTeamIds.length) {
     return res.status(400).json({ message: 'Mindestens eine Mannschaft ist nicht zulässig.' });
+  }
+  if (await violatesSingleYouthAssignment(
+    nextRole,
+    allowedTeams.map((team) => team.id),
+  )) {
+    return res.status(400).json({
+      message: 'Trainer und Co-Trainer dürfen nur Mannschaften einer Jugend zugeordnet sein.',
+    });
   }
   let linkedPlayer =
     playerId
@@ -657,6 +692,119 @@ export async function assignParentPlayer(req: Request, res: Response) {
     return result;
   });
   return res.status(201).json(link);
+}
+
+export async function getMemberPermissions(req: Request, res: Response) {
+  const target = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      permissionOverrides: {
+        orderBy: { permission: 'asc' },
+        select: { permission: true, state: true, updatedAt: true },
+      },
+    },
+  });
+  if (!target) return res.status(404).json({ message: 'Mitglied nicht gefunden.' });
+  return res.json({
+    ...target,
+    rolePermissions: permissionsForRole(target.role as Role),
+    effectivePermissions: await effectivePermissionsForUser(
+      target.id,
+      target.role as Role,
+    ),
+    availablePermissions: Object.values(Permission),
+  });
+}
+
+export async function updateMemberPermission(req: Request, res: Response) {
+  const actor = req.user!;
+  const target = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, role: true, teamId: true },
+  });
+  if (!target) return res.status(404).json({ message: 'Mitglied nicht gefunden.' });
+  const permission = String(req.body?.permission ?? '') as Permission;
+  if (!Object.values(Permission).includes(permission)) {
+    return res.status(400).json({ message: 'Unbekannte Berechtigung.' });
+  }
+  if (target.role === Role.SUPER_ADMIN) {
+    return res.status(400).json({
+      message: 'Systemadministrator-Rechte sind aus Sicherheitsgründen unveränderlich.',
+    });
+  }
+  const requestedState = String(req.body?.state ?? '').toUpperCase();
+  const previous = await prisma.userPermissionOverride.findUnique({
+    where: { userId_permission: { userId: target.id, permission } },
+    select: { state: true },
+  });
+  await prisma.$transaction(async (tx) => {
+    if (requestedState === 'DEFAULT') {
+      await tx.userPermissionOverride.deleteMany({
+        where: { userId: target.id, permission },
+      });
+    } else {
+      const state = requestedState === PermissionOverrideState.ALLOW
+        ? PermissionOverrideState.ALLOW
+        : requestedState === PermissionOverrideState.DENY
+          ? PermissionOverrideState.DENY
+          : null;
+      if (!state) throw new Error('INVALID_PERMISSION_STATE');
+      await tx.userPermissionOverride.upsert({
+        where: { userId_permission: { userId: target.id, permission } },
+        update: { state, changedById: actor.id },
+        create: { userId: target.id, permission, state, changedById: actor.id },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        teamId: target.teamId,
+        action: 'USER_PERMISSION_CHANGED',
+        entityType: 'User',
+        entityId: target.id,
+        metadata: {
+          permission,
+          before: previous?.state ?? 'DEFAULT',
+          after: requestedState,
+        },
+      },
+    });
+  }).catch((error) => {
+    if (error instanceof Error && error.message === 'INVALID_PERMISSION_STATE') return null;
+    throw error;
+  });
+  if (!['DEFAULT', 'ALLOW', 'DENY'].includes(requestedState)) {
+    return res.status(400).json({ message: 'Status muss DEFAULT, ALLOW oder DENY sein.' });
+  }
+  return getMemberPermissions(req, res);
+}
+
+export async function resetMemberPermissions(req: Request, res: Response) {
+  const actor = req.user!;
+  const target = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, role: true, teamId: true },
+  });
+  if (!target) return res.status(404).json({ message: 'Mitglied nicht gefunden.' });
+  if (target.role === Role.SUPER_ADMIN) {
+    return res.status(400).json({ message: 'Systemadministrator-Rechte sind unveränderlich.' });
+  }
+  await prisma.$transaction([
+    prisma.userPermissionOverride.deleteMany({ where: { userId: target.id } }),
+    prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        teamId: target.teamId,
+        action: 'USER_PERMISSIONS_RESET',
+        entityType: 'User',
+        entityId: target.id,
+      },
+    }),
+  ]);
+  return getMemberPermissions(req, res);
 }
 
 function normalizeAssignableRole(role: Role, actorRole: Role) {

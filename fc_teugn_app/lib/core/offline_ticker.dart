@@ -40,6 +40,7 @@ class QueuedTickerAction {
     this.assistId,
     this.comment,
     this.period,
+    this.elapsedSeconds,
   });
 
   final String userId;
@@ -51,6 +52,7 @@ class QueuedTickerAction {
   final String? assistId;
   final String? comment;
   final int? period;
+  final int? elapsedSeconds;
 
   Map<String, dynamic> toJson() => {
         'userId': userId,
@@ -62,6 +64,7 @@ class QueuedTickerAction {
         'assistId': assistId,
         'comment': comment,
         'period': period,
+        'elapsedSeconds': elapsedSeconds,
       };
 
   factory QueuedTickerAction.fromJson(Map<String, dynamic> json) {
@@ -80,6 +83,7 @@ class QueuedTickerAction {
       assistId: json['assistId'] as String?,
       comment: json['comment'] as String?,
       period: json['period'] as int?,
+      elapsedSeconds: json['elapsedSeconds'] as int?,
     );
   }
 }

@@ -259,6 +259,8 @@ class MatchDetails {
     this.notes,
     this.ourGoals,
     this.theirGoals,
+    this.opponentId,
+    this.opponentLogoUrl,
   });
 
   final String opponent;
@@ -270,6 +272,8 @@ class MatchDetails {
   final String? notes;
   final int? ourGoals;
   final int? theirGoals;
+  final String? opponentId;
+  final String? opponentLogoUrl;
 
   factory MatchDetails.fromJson(Map<String, dynamic> json) {
     return MatchDetails(
@@ -282,6 +286,8 @@ class MatchDetails {
       notes: json['notes'] as String?,
       ourGoals: json['ourGoals'] as int?,
       theirGoals: json['theirGoals'] as int?,
+      opponentId: json['opponentId'] as String?,
+      opponentLogoUrl: json['opponentLogoUrl'] as String?,
     );
   }
 }
@@ -526,6 +532,7 @@ class EventModel {
     required this.carpoolOffers,
     required this.capabilities,
     required this.reminderMinutes,
+    this.participantPlayerIds = const [],
     this.series,
     this.endAt,
     this.meetingAt,
@@ -533,6 +540,7 @@ class EventModel {
     this.mapUrl,
     this.homeAway,
     this.opponent,
+    this.opponentId,
     this.venue,
     this.contactName,
     this.contactPhone,
@@ -564,6 +572,7 @@ class EventModel {
   final String? mapUrl;
   final HomeAway? homeAway;
   final String? opponent;
+  final String? opponentId;
   final String? venue;
   final String? contactName;
   final String? contactPhone;
@@ -576,6 +585,7 @@ class EventModel {
   final DateTime? responseDeadline;
   final String? internalNote;
   final List<int> reminderMinutes;
+  final List<String> participantPlayerIds;
   final bool isSeriesException;
   final String? cancellationReason;
   final bool attendanceFinalized;
@@ -655,6 +665,11 @@ class EventModel {
       internalNote: json['internalNote'] as String?,
       reminderMinutes: (json['reminderMinutes'] as List<dynamic>? ?? [])
           .whereType<int>()
+          .toList(),
+      participantPlayerIds: (json['participants'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map((item) => item['playerId'])
+          .whereType<String>()
           .toList(),
       isSeriesException: json['isSeriesException'] as bool? ?? false,
       cancellationReason: json['cancellationReason'] as String?,
@@ -738,6 +753,7 @@ class EventWriteData {
     this.mapUrl,
     this.homeAway,
     this.opponent,
+    this.opponentId,
     this.periodCount = 2,
     this.periodMinutes = 30,
     this.venue,
@@ -758,6 +774,7 @@ class EventWriteData {
     this.recurrence,
     this.requestPitchConflictApprovals = false,
     this.pitchConflictMessage,
+    this.participantPlayerIds,
   });
 
   final EventCategory category;
@@ -770,6 +787,7 @@ class EventWriteData {
   final String? mapUrl;
   final HomeAway? homeAway;
   final String? opponent;
+  final String? opponentId;
   final int periodCount;
   final int periodMinutes;
   final String? venue;
@@ -791,6 +809,7 @@ class EventWriteData {
   final EventRecurrenceDraft? recurrence;
   final bool requestPitchConflictApprovals;
   final String? pitchConflictMessage;
+  final List<String>? participantPlayerIds;
 
   Map<String, dynamic> toJson() => {
         'category': category.apiName,
@@ -803,6 +822,7 @@ class EventWriteData {
         'mapUrl': mapUrl,
         'homeAway': homeAway?.apiName,
         'opponent': opponent,
+        'opponentId': opponentId,
         'periodCount': periodCount,
         'periodMinutes': periodMinutes,
         'durationMinutes': periodCount * periodMinutes,
@@ -831,5 +851,7 @@ class EventWriteData {
         if (recurrence != null) 'recurrence': recurrence!.toJson(),
         'requestPitchConflictApprovals': requestPitchConflictApprovals,
         'pitchConflictMessage': pitchConflictMessage,
+        if (participantPlayerIds != null)
+          'participantPlayerIds': participantPlayerIds,
       };
 }

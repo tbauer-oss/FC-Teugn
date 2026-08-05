@@ -14,12 +14,14 @@ import {
   updateTickerDelegation,
 } from '../controllers/matches.controller';
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
+import { idempotencyMiddleware } from '../middleware/idempotency';
 import { Permission } from '../security/permissions';
 
 const router = Router();
 
 router.use(requireAuth);
 router.use(requireApproved);
+router.use(idempotencyMiddleware);
 
 router.get('/', listMatches);
 router.get('/:id', getMatch);

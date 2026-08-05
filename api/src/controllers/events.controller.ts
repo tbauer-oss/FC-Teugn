@@ -18,6 +18,7 @@ import { Role } from '../types/enums';
 import { hasPermission, Permission } from '../security/permissions';
 import {
   accessibleTeamIds,
+  contextualTeamIds,
   youthPlayerPoolTeamIdsForTeam,
 } from '../services/team-access';
 import { rosterTeamIdsForMatch } from '../services/match-roster';
@@ -26,6 +27,8 @@ import {
   fieldSizeForGameFormat,
   syncSquadWithTeamDefaultLineup,
 } from '../services/default-lineup.service';
+import { syncScheduledRemindersForEvent } from '../services/reminder.service';
+import { mediaAssetUrl } from '../services/media-access';
 
 const eventInclude = {
   series: true,
@@ -39,6 +42,22 @@ const eventInclude = {
           ageGroup: { select: { code: true, name: true } },
         },
       },
+    },
+  },
+  participants: {
+    include: {
+      player: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          position: true,
+          photoUrl: true,
+          teamId: true,
+        },
+      },
+      user: { select: { id: true, name: true, role: true } },
     },
   },
   attachments: true,
@@ -75,7 +94,13 @@ const eventInclude = {
       },
     },
   },
-  matchDetails: true,
+  matchDetails: {
+    include: {
+      opponentRecord: {
+        include: { logoAsset: { select: { id: true, deletedAt: true } } },
+      },
+    },
+  },
   squads: { include: { members: true } },
 } as const;
 
@@ -231,6 +256,14 @@ async function rosterForTeamIds(teamIds: string[]) {
 type RosterPlayer = Awaited<ReturnType<typeof rosterForTeamIds>>[number];
 
 async function rosterForEvent(event: CalendarEvent, accessibleIds: string[]) {
+  const explicit = event.participants
+    .filter((participant) => participant.responseRequired && participant.player)
+    .map((participant) => participant.player!);
+  if (explicit.length) {
+    return explicit.filter(
+      (player) => player.teamId !== null && accessibleIds.includes(player.teamId),
+    );
+  }
   const teamIds = targetIdsForEvent(event).filter((id) =>
     accessibleIds.includes(id),
   );
@@ -248,11 +281,17 @@ async function serializeEvent(
   const manageable = canManageEventWithIds(user, event, accessibleIds);
   const personalPlayerIds = staff ? [] : await ownPlayerIds(user.id, user.role);
   const eventTargetIds = targetIdsForEvent(event);
+  const explicitParticipantPlayers = event.participants
+    .filter((participant) => participant.responseRequired && participant.player)
+    .map((participant) => participant.player!);
   const roster = staff
     ? knownRoster
       ? knownRoster.filter(
           (player) =>
-            player.teamId !== null && eventTargetIds.includes(player.teamId),
+            player.teamId !== null &&
+            eventTargetIds.includes(player.teamId) &&
+            (!explicitParticipantPlayers.length ||
+              explicitParticipantPlayers.some((item) => item.id === player.id)),
         )
       : await rosterForEvent(event, accessibleIds)
     : [];
@@ -291,8 +330,26 @@ async function serializeEvent(
 
   return {
     ...event,
+    matchDetails: event.matchDetails
+      ? {
+          ...event.matchDetails,
+          opponentRecord: undefined,
+          opponentLogoUrl:
+            event.matchDetails.opponentRecord?.logoAsset &&
+            event.matchDetails.opponentRecord.logoAsset.deletedAt === null
+              ? mediaAssetUrl(event.matchDetails.opponentRecord.logoAsset.id, '12h')
+              : event.matchDetails.opponentLogoUrl,
+        }
+      : null,
     internalNote: staff ? event.internalNote : undefined,
     attendance: visibleAttendance,
+    participants: staff
+      ? event.participants
+      : event.participants.filter((participant) =>
+          participant.playerId
+            ? personalPlayerIds.includes(participant.playerId)
+            : participant.userId === user.id,
+        ),
     attendanceSummary: summary,
     missingAttendance: staff
       ? roster.filter((player) => !respondedIds.has(player.id))
@@ -332,6 +389,74 @@ function parseStringList(value: unknown) {
   return Array.isArray(value)
     ? value.map(clean).filter((item): item is string => Boolean(item))
     : [];
+}
+
+async function validatedParticipants(
+  teamIds: string[],
+  playerValue: unknown,
+  userValue: unknown,
+) {
+  const playerIds = [...new Set(parseStringList(playerValue))];
+  const userIds = [...new Set(parseStringList(userValue))];
+  const [players, users] = await Promise.all([
+    playerIds.length
+      ? prisma.player.findMany({
+          where: { id: { in: playerIds }, teamId: { in: teamIds }, status: 'ACTIVE' },
+          select: { id: true },
+        })
+      : Promise.resolve([]),
+    userIds.length
+      ? prisma.user.findMany({
+          where: {
+            id: { in: userIds },
+            status: AccountStatus.APPROVED,
+            OR: [
+              { teamId: { in: teamIds } },
+              { memberships: { some: { teamId: { in: teamIds }, status: AccountStatus.APPROVED } } },
+            ],
+          },
+          select: { id: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  return players.length === playerIds.length && users.length === userIds.length
+    ? { playerIds, userIds }
+    : null;
+}
+
+async function syncEventParticipants(
+  tx: Prisma.TransactionClient,
+  eventId: string,
+  participants: { playerIds: string[]; userIds: string[] },
+) {
+  await tx.eventParticipant.deleteMany({ where: { eventId } });
+  await tx.attendance.deleteMany({
+    where: { eventId, playerId: { notIn: participants.playerIds } },
+  });
+  if (participants.playerIds.length || participants.userIds.length) {
+    await tx.eventParticipant.createMany({
+      data: [
+        ...participants.playerIds.map((playerId) => ({
+          eventId,
+          playerId,
+          responseRequired: true,
+        })),
+        ...participants.userIds.map((userId) => ({
+          eventId,
+          userId,
+          responseRequired: false,
+        })),
+      ],
+      skipDuplicates: true,
+    });
+  }
+  for (const playerId of participants.playerIds) {
+    await tx.attendance.upsert({
+      where: { eventId_playerId: { eventId, playerId } },
+      update: {},
+      create: { eventId, playerId, status: AttendanceStatus.UNKNOWN },
+    });
+  }
 }
 
 function eventData(body: Record<string, unknown>) {
@@ -494,14 +619,15 @@ async function validatedTargetTeams(
 
 export async function listEvents(req: Request, res: Response) {
   const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
+  const accessibleIds = await accessibleTeamIds(user);
+  const teamIds = await contextualTeamIds(user);
   const from = validDate(req.query.from);
   const to = validDate(req.query.to);
   const requestedTeams = parseStringList(
     typeof req.query.teamIds === 'string' ? req.query.teamIds.split(',') : req.query.teamIds,
   );
   const effectiveTeams = requestedTeams.length
-    ? requestedTeams.filter((id) => teamIds.includes(id))
+    ? requestedTeams.filter((id) => accessibleIds.includes(id))
     : teamIds;
   const categories = parseStringList(
     typeof req.query.categories === 'string'
@@ -526,10 +652,10 @@ export async function listEvents(req: Request, res: Response) {
     orderBy: { startAt: 'asc' },
     include: eventInclude,
   });
-  const roster = isStaff(user.role) ? await rosterForTeamIds(teamIds) : undefined;
+  const roster = isStaff(user.role) ? await rosterForTeamIds(effectiveTeams) : undefined;
   return res.json(
     await Promise.all(
-      events.map((event) => serializeEvent(event, user, teamIds, roster)),
+      events.map((event) => serializeEvent(event, user, accessibleIds, roster)),
     ),
   );
 }
@@ -577,6 +703,29 @@ export async function createEvent(req: Request, res: Response) {
   if (!teamIds) {
     return res.status(403).json({ message: 'Mindestens eine erlaubte Mannschaft auswählen.' });
   }
+  const participants = await validatedParticipants(
+    teamIds,
+    req.body.participantPlayerIds,
+    req.body.participantUserIds,
+  );
+  if (!participants) {
+    return res.status(400).json({
+      message: 'Mindestens eine ausgewählte Person gehört nicht zum Terminkontext.',
+    });
+  }
+  const hasExplicitParticipants =
+    Object.prototype.hasOwnProperty.call(req.body, 'participantPlayerIds') ||
+    Object.prototype.hasOwnProperty.call(req.body, 'participantUserIds');
+  const opponentRecord = data.type === EventType.MATCH && req.body.opponentId
+    ? await prisma.opponent.findFirst({
+        where: {
+          id: String(req.body.opponentId),
+          archivedAt: null,
+          ageGroup: { teams: { some: { id: { in: teamIds } } } },
+        },
+        select: { id: true },
+      })
+    : null;
   const attachments: Array<{
     name: string;
     url: string;
@@ -682,6 +831,35 @@ export async function createEvent(req: Request, res: Response) {
         })),
       ),
     });
+    if (hasExplicitParticipants) {
+      await tx.eventParticipant.createMany({
+        data: events.flatMap((event) => [
+          ...participants.playerIds.map((playerId) => ({
+            eventId: event.id!,
+            playerId,
+            responseRequired: true,
+          })),
+          ...participants.userIds.map((userId) => ({
+            eventId: event.id!,
+            userId,
+            responseRequired: false,
+          })),
+        ]),
+        skipDuplicates: true,
+      });
+      if (participants.playerIds.length) {
+        await tx.attendance.createMany({
+          data: events.flatMap((event) =>
+            participants.playerIds.map((playerId) => ({
+              eventId: event.id!,
+              playerId,
+              status: AttendanceStatus.UNKNOWN,
+            })),
+          ),
+          skipDuplicates: true,
+        });
+      }
+    }
     if (attachments.length > 0) {
       await tx.eventAttachment.createMany({
         data: events.flatMap((event) =>
@@ -697,6 +875,7 @@ export async function createEvent(req: Request, res: Response) {
         data: events.map((event) => ({
           eventId: event.id!,
           opponent: data.opponent ?? 'Unbekannt',
+          opponentId: opponentRecord?.id,
           isHome: data.homeAway !== HomeAway.AWAY,
           pitch: data.venue,
           ...timing,
@@ -711,7 +890,13 @@ export async function createEvent(req: Request, res: Response) {
         action: series ? 'EVENT_SERIES_CREATED' : 'EVENT_CREATED',
         entityType: series ? 'EventSeries' : 'Event',
         entityId: series?.id ?? ids[0],
-        metadata: { eventIds: ids, occurrences: ids.length, teamIds },
+        metadata: {
+          eventIds: ids,
+          occurrences: ids.length,
+          teamIds,
+          participantPlayerIds: participants.playerIds,
+          participantUserIds: participants.userIds,
+        },
       },
     });
     return ids;
@@ -722,6 +907,7 @@ export async function createEvent(req: Request, res: Response) {
     orderBy: { startAt: 'asc' },
     include: eventInclude,
   });
+  await Promise.all(createdIds.map(syncScheduledRemindersForEvent));
   if (req.body.requestPitchConflictApprovals === true) {
     await Promise.all(
       createdIds.map((eventId) =>
@@ -763,6 +949,9 @@ export async function updateEvent(req: Request, res: Response) {
   if (!parsed.startAt || !parsed.location) {
     return res.status(400).json({ message: 'Beginn und Ort sind erforderlich.' });
   }
+  if (parsed.endAt && parsed.endAt < parsed.startAt) {
+    return res.status(400).json({ message: 'Das Ende darf nicht vor dem Beginn liegen.' });
+  }
   const timing =
     parsed.type === EventType.MATCH
       ? matchTiming(req.body, existing.matchDetails ?? undefined)
@@ -779,6 +968,31 @@ export async function updateEvent(req: Request, res: Response) {
     existing.teamId,
   );
   if (!targetTeamIds) return res.status(403).json({ message: 'Mannschaft nicht erlaubt.' });
+  const participantSelectionProvided =
+    Object.prototype.hasOwnProperty.call(req.body, 'participantPlayerIds') ||
+    Object.prototype.hasOwnProperty.call(req.body, 'participantUserIds');
+  const participants = participantSelectionProvided
+    ? await validatedParticipants(
+        targetTeamIds,
+        req.body.participantPlayerIds,
+        req.body.participantUserIds,
+      )
+    : null;
+  if (participantSelectionProvided && !participants) {
+    return res.status(400).json({
+      message: 'Mindestens eine ausgewählte Person gehört nicht zum Terminkontext.',
+    });
+  }
+  const opponentRecord = parsed.type === EventType.MATCH && req.body.opponentId
+    ? await prisma.opponent.findFirst({
+        where: {
+          id: String(req.body.opponentId),
+          archivedAt: null,
+          ageGroup: { teams: { some: { id: { in: targetTeamIds } } } },
+        },
+        select: { id: true },
+      })
+    : null;
   const updateStartAt = parsed.startAt;
   const updateEndAt = parsed.endAt;
   const baseUpdate = {
@@ -828,11 +1042,15 @@ export async function updateEvent(req: Request, res: Response) {
             },
           },
         });
+        if (participants) {
+          await syncEventParticipants(tx, occurrence.id, participants);
+        }
         if (parsed.type === EventType.MATCH && timing) {
           await tx.matchDetails.upsert({
             where: { eventId: occurrence.id },
             update: {
               opponent: parsed.opponent ?? 'Unbekannt',
+              opponentId: opponentRecord?.id ?? null,
               isHome: parsed.homeAway !== HomeAway.AWAY,
               pitch: parsed.venue,
               ...timing,
@@ -840,6 +1058,7 @@ export async function updateEvent(req: Request, res: Response) {
             create: {
               eventId: occurrence.id,
               opponent: parsed.opponent ?? 'Unbekannt',
+              opponentId: opponentRecord?.id ?? null,
               isHome: parsed.homeAway !== HomeAway.AWAY,
               pitch: parsed.venue,
               ...timing,
@@ -860,11 +1079,15 @@ export async function updateEvent(req: Request, res: Response) {
           },
         },
       });
+      if (participants) {
+        await syncEventParticipants(tx, existing.id, participants);
+      }
       if (parsed.type === EventType.MATCH && timing) {
         await tx.matchDetails.upsert({
           where: { eventId: existing.id },
           update: {
             opponent: parsed.opponent ?? 'Unbekannt',
+            opponentId: opponentRecord?.id ?? null,
             isHome: parsed.homeAway !== HomeAway.AWAY,
             pitch: parsed.venue,
             ...timing,
@@ -872,6 +1095,7 @@ export async function updateEvent(req: Request, res: Response) {
           create: {
             eventId: existing.id,
             opponent: parsed.opponent ?? 'Unbekannt',
+            opponentId: opponentRecord?.id ?? null,
             isHome: parsed.homeAway !== HomeAway.AWAY,
             pitch: parsed.venue,
             ...timing,
@@ -890,6 +1114,13 @@ export async function updateEvent(req: Request, res: Response) {
       },
     });
   });
+  const reminderEventIds = scope === 'series' && existing.seriesId
+    ? await prisma.event.findMany({
+        where: { seriesId: existing.seriesId, startAt: { gte: existing.startAt } },
+        select: { id: true },
+      }).then((events) => events.map((event) => event.id))
+    : [existing.id];
+  await Promise.all(reminderEventIds.map(syncScheduledRemindersForEvent));
   if (req.body.requestPitchConflictApprovals === true) {
     await createPitchConflictRequestsForEvent({
       eventId: existing.id,
@@ -1018,6 +1249,15 @@ export async function deleteEvent(req: Request, res: Response) {
       },
     });
   });
+  await prisma.scheduledReminder.updateMany({
+    where: {
+      ...(scope === 'series' && existing.seriesId
+        ? { event: { seriesId: existing.seriesId, startAt: { gte: existing.startAt } } }
+        : { eventId: existing.id }),
+      status: { in: ['SCHEDULED', 'FAILED', 'PROCESSING'] },
+    },
+    data: { status: 'CANCELLED', cancelledAt: now },
+  });
   return res.json({ status: EventStatus.CANCELLED, scope });
 }
 
@@ -1028,7 +1268,7 @@ export async function setAttendance(req: Request, res: Response) {
   if (!playerId) return res.status(400).json({ message: 'Spieler fehlt.' });
   const event = await prisma.event.findFirst({
     where: { id: req.params.id, status: EventStatus.SCHEDULED, ...eventScope(teamIds) },
-    include: { targetTeams: true, attendance: true },
+    include: { targetTeams: true, attendance: true, participants: true },
   });
   if (!event) return res.status(404).json({ message: 'Termin nicht gefunden oder abgesagt.' });
   if (event.attendanceFinalized) {
@@ -1049,6 +1289,14 @@ export async function setAttendance(req: Request, res: Response) {
   const attendanceTeamIds = event.type === EventType.MATCH
     ? rosterTeamIdsForMatch(await youthPlayerPoolTeamIdsForTeam(event.teamId))
     : eventTeamIds;
+  const requestedPlayerIds = event.participants
+    .filter((participant) => participant.responseRequired && participant.playerId)
+    .map((participant) => participant.playerId!);
+  if (event.participants.length && !requestedPlayerIds.includes(playerId)) {
+    return res.status(403).json({
+      message: 'Für diesen Spieler wurde keine Rückmeldung angefragt.',
+    });
+  }
   const player = await prisma.player.findFirst({
     where: { id: playerId, teamId: { in: attendanceTeamIds } },
   });
@@ -1204,7 +1452,7 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
   const teamIds = await accessibleTeamIds(user);
   const event = await prisma.event.findFirst({
     where: { id: req.params.id, ...eventScope(teamIds) },
-    include: { targetTeams: true, attendance: true },
+    include: { targetTeams: true, attendance: true, participants: true },
   });
   if (!event) return res.status(404).json({ message: 'Termin nicht gefunden.' });
   if (!(await canManageEvent(user, event))) {
@@ -1218,8 +1466,18 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
       .filter((attendance) => attendance.status !== AttendanceStatus.UNKNOWN)
       .map((attendance) => attendance.playerId),
   );
+  const explicitlyRequested = event.participants
+    .filter((participant) => participant.responseRequired && participant.playerId)
+    .map((participant) => participant.playerId!);
   const players = await prisma.player.findMany({
-    where: { teamId: { in: targetTeamIds }, status: 'ACTIVE', id: { notIn: [...replied] } },
+    where: {
+      teamId: { in: targetTeamIds },
+      status: 'ACTIVE',
+      id: {
+        notIn: [...replied],
+        ...(event.participants.length ? { in: explicitlyRequested } : {}),
+      },
+    },
     include: {
       parentLinks: {
         where: { receivesCommunication: true },
@@ -1236,13 +1494,36 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
     clean(req.body.message) ??
     `Bitte Rückmeldung zu „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`;
   if (recipientIds.size) {
+    const existingRecipients = await prisma.eventReminder.findMany({
+      where: { eventId: event.id, recipientId: { in: [...recipientIds] } },
+      distinct: ['recipientId'],
+      select: { recipientId: true },
+    });
+    const alreadySent = new Set(existingRecipients.map((item) => item.recipientId));
+    const newRecipients = [...recipientIds].filter((id) => !alreadySent.has(id));
     await prisma.eventReminder.createMany({
-      data: [...recipientIds].map((recipientId) => ({
+      data: newRecipients.map((recipientId) => ({
         eventId: event.id,
         recipientId,
         message,
       })),
     });
+    await Promise.all(newRecipients.map((recipientId) =>
+      prisma.notification.upsert({
+        where: { dedupeKey: `attendance:${event.id}:${recipientId}` },
+        update: { title: 'Offene Rückmeldung', body: message, readAt: null },
+        create: {
+          userId: recipientId,
+          category: 'EVENT_REMINDER',
+          title: 'Offene Rückmeldung',
+          body: message,
+          actionUrl: `/events/${event.id}`,
+          entityType: 'Event',
+          entityId: event.id,
+          dedupeKey: `attendance:${event.id}:${recipientId}`,
+        },
+      }),
+    ));
   }
   await prisma.auditLog.create({
     data: {

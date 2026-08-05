@@ -1,4 +1,5 @@
 import '../team_game_format.dart';
+import '../date_only.dart';
 
 class ClubSummary {
   const ClubSummary({
@@ -212,18 +213,10 @@ class TeamSummary {
         matchdayTimes: (json['matchdayTimes'] as List<dynamic>? ?? [])
             .whereType<String>()
             .toList(),
-        seasonStartDate: DateTime.tryParse(
-          json['seasonStartDate'] as String? ?? '',
-        ),
-        seasonEndDate: DateTime.tryParse(
-          json['seasonEndDate'] as String? ?? '',
-        ),
-        indoorSeasonStartDate: DateTime.tryParse(
-          json['indoorSeasonStartDate'] as String? ?? '',
-        ),
-        indoorSeasonEndDate: DateTime.tryParse(
-          json['indoorSeasonEndDate'] as String? ?? '',
-        ),
+        seasonStartDate: dateOnlyFromApi(json['seasonStartDate']),
+        seasonEndDate: dateOnlyFromApi(json['seasonEndDate']),
+        indoorSeasonStartDate: dateOnlyFromApi(json['indoorSeasonStartDate']),
+        indoorSeasonEndDate: dateOnlyFromApi(json['indoorSeasonEndDate']),
         indoorTrainingLocation: json['indoorTrainingLocation'] as String?,
         indoorTrainingTimes:
             (json['indoorTrainingTimes'] as List<dynamic>? ?? [])
@@ -488,6 +481,11 @@ class OrganizationContext {
     required this.teams,
     required this.permissions,
     required this.metrics,
+    this.workingContext = const WorkingContext(
+      ageGroupId: '',
+      teamIds: [],
+      includeAllTeams: false,
+    ),
   });
 
   final ClubSummary club;
@@ -497,6 +495,7 @@ class OrganizationContext {
   final List<TeamSummary> teams;
   final Set<String> permissions;
   final OrganizationMetrics metrics;
+  final WorkingContext workingContext;
 
   bool can(String permission) => permissions.contains(permission);
 
@@ -519,6 +518,40 @@ class OrganizationContext {
         metrics: OrganizationMetrics.fromJson(
           json['metrics'] as Map<String, dynamic>? ?? const {},
         ),
+        workingContext: WorkingContext.fromJson(
+          json['workingContext'] as Map<String, dynamic>? ?? const {},
+          fallbackTeamId:
+              (json['currentTeam'] as Map<String, dynamic>)['id'] as String,
+          fallbackAgeGroupId:
+              ((json['currentTeam'] as Map<String, dynamic>)['ageGroup']
+                      as Map<String, dynamic>?)?['id'] as String? ??
+                  '',
+        ),
+      );
+}
+
+class WorkingContext {
+  const WorkingContext({
+    required this.ageGroupId,
+    required this.teamIds,
+    required this.includeAllTeams,
+  });
+
+  final String ageGroupId;
+  final List<String> teamIds;
+  final bool includeAllTeams;
+
+  factory WorkingContext.fromJson(
+    Map<String, dynamic> json, {
+    required String fallbackTeamId,
+    required String fallbackAgeGroupId,
+  }) =>
+      WorkingContext(
+        ageGroupId: json['ageGroupId'] as String? ?? fallbackAgeGroupId,
+        teamIds: (json['teamIds'] as List<dynamic>? ?? [fallbackTeamId])
+            .whereType<String>()
+            .toList(),
+        includeAllTeams: json['includeAllTeams'] as bool? ?? false,
       );
 }
 

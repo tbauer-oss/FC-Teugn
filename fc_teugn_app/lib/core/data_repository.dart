@@ -16,15 +16,168 @@ import 'models/communication.dart';
 import 'models/competition_import.dart';
 import 'models/team_operations.dart';
 import 'models/emergency.dart';
+import 'models/competition.dart';
 import 'team_game_format.dart';
+import 'date_only.dart';
 
 class DataRepository {
   final ApiClient client;
 
   DataRepository(this.client);
 
+  Future<MemberPermissionProfile> memberPermissions(String userId) async {
+    final res = await client.dio.get('/admin/members/$userId/permissions');
+    return MemberPermissionProfile.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<MemberPermissionProfile> updateMemberPermission({
+    required String userId,
+    required String permission,
+    required String state,
+  }) async {
+    final res = await client.dio.put(
+      '/admin/members/$userId/permissions',
+      data: {'permission': permission, 'state': state},
+    );
+    return MemberPermissionProfile.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<MemberPermissionProfile> resetMemberPermissions(String userId) async {
+    final res = await client.dio.delete('/admin/members/$userId/permissions');
+    return MemberPermissionProfile.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<List<OpponentModel>> opponents(String ageGroupId) async {
+    final res = await client.dio.get(
+      '/competitions/opponents',
+      queryParameters: {'ageGroupId': ageGroupId},
+    );
+    return (res.data as List<dynamic>)
+        .whereType<Map<String, dynamic>>()
+        .map(OpponentModel.fromJson)
+        .toList();
+  }
+
+  Future<OpponentModel> saveOpponent({
+    String? id,
+    required String ageGroupId,
+    String? teamId,
+    required String clubName,
+    required String teamDesignation,
+    String? shortName,
+    String? venue,
+    String? address,
+  }) async {
+    final path =
+        id == null ? '/competitions/opponents' : '/competitions/opponents/$id';
+    final data = {
+      'ageGroupId': ageGroupId,
+      'teamId': teamId,
+      'clubName': clubName,
+      'teamDesignation': teamDesignation,
+      'shortName': shortName,
+      'venue': venue,
+      'address': address,
+    };
+    final res = id == null
+        ? await client.dio.post(path, data: data)
+        : await client.dio.put(path, data: data);
+    return OpponentModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<OpponentModel> uploadOpponentLogo({
+    required String opponentId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final res = await client.dio.post(
+      '/competitions/opponents/$opponentId/logo',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: fileName),
+      }),
+    );
+    return OpponentModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<List<LeagueModel>> leagues(String ageGroupId) async {
+    final res = await client.dio.get(
+      '/competitions/leagues',
+      queryParameters: {'ageGroupId': ageGroupId},
+    );
+    return (res.data as List<dynamic>)
+        .whereType<Map<String, dynamic>>()
+        .map(LeagueModel.fromJson)
+        .toList();
+  }
+
+  Future<LeagueModel> saveLeague({
+    String? id,
+    required String name,
+    required String seasonId,
+    required String ageGroupId,
+    String? teamId,
+    required List<String> ownTeamIds,
+    required List<String> opponentIds,
+  }) async {
+    final path =
+        id == null ? '/competitions/leagues' : '/competitions/leagues/$id';
+    final data = {
+      'name': name,
+      'seasonId': seasonId,
+      'ageGroupId': ageGroupId,
+      'teamId': teamId,
+      'ownTeamIds': ownTeamIds,
+      'opponentIds': opponentIds,
+    };
+    final res = id == null
+        ? await client.dio.post(path, data: data)
+        : await client.dio.put(path, data: data);
+    return LeagueModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> saveLeagueMatch({
+    required String leagueId,
+    String? matchId,
+    required String homeEntryId,
+    required String awayEntryId,
+    DateTime? startsAt,
+    int? homeGoals,
+    int? awayGoals,
+  }) async {
+    final path = matchId == null
+        ? '/competitions/leagues/$leagueId/matches'
+        : '/competitions/leagues/$leagueId/matches/$matchId';
+    final data = {
+      'homeEntryId': homeEntryId,
+      'awayEntryId': awayEntryId,
+      'startsAt': startsAt?.toUtc().toIso8601String(),
+      'homeGoals': homeGoals,
+      'awayGoals': awayGoals,
+      'status':
+          homeGoals != null && awayGoals != null ? 'FINISHED' : 'SCHEDULED',
+    };
+    if (matchId == null) {
+      await client.dio.post(path, data: data);
+    } else {
+      await client.dio.put(path, data: data);
+    }
+  }
+
   Future<OrganizationContext> organizationContext() async {
     final res = await client.dio.get('/organization/context');
+    return OrganizationContext.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<OrganizationContext> updateOrganizationContext({
+    required String ageGroupId,
+    String? teamId,
+    required bool includeAllTeams,
+  }) async {
+    final res = await client.dio.put('/organization/context', data: {
+      'ageGroupId': ageGroupId,
+      'teamId': teamId,
+      'includeAllTeams': includeAllTeams,
+    });
     return OrganizationContext.fromJson(res.data as Map<String, dynamic>);
   }
 
@@ -70,10 +223,16 @@ class DataRepository {
       'description': description,
       'trainingLocation': trainingLocation,
       'trainingTimes': trainingTimes,
-      'seasonStartDate': seasonStartDate?.toUtc().toIso8601String(),
-      'seasonEndDate': seasonEndDate?.toUtc().toIso8601String(),
-      'indoorSeasonStartDate': indoorSeasonStartDate?.toUtc().toIso8601String(),
-      'indoorSeasonEndDate': indoorSeasonEndDate?.toUtc().toIso8601String(),
+      'seasonStartDate':
+          seasonStartDate == null ? null : dateOnlyForApi(seasonStartDate),
+      'seasonEndDate':
+          seasonEndDate == null ? null : dateOnlyForApi(seasonEndDate),
+      'indoorSeasonStartDate': indoorSeasonStartDate == null
+          ? null
+          : dateOnlyForApi(indoorSeasonStartDate),
+      'indoorSeasonEndDate': indoorSeasonEndDate == null
+          ? null
+          : dateOnlyForApi(indoorSeasonEndDate),
       'indoorTrainingLocation': indoorTrainingLocation,
       'indoorTrainingTimes': indoorTrainingTimes,
       'homeVenue': homeVenue,
@@ -126,10 +285,16 @@ class DataRepository {
       'description': description,
       'trainingLocation': trainingLocation,
       'trainingTimes': trainingTimes,
-      'seasonStartDate': seasonStartDate?.toUtc().toIso8601String(),
-      'seasonEndDate': seasonEndDate?.toUtc().toIso8601String(),
-      'indoorSeasonStartDate': indoorSeasonStartDate?.toUtc().toIso8601String(),
-      'indoorSeasonEndDate': indoorSeasonEndDate?.toUtc().toIso8601String(),
+      'seasonStartDate':
+          seasonStartDate == null ? null : dateOnlyForApi(seasonStartDate),
+      'seasonEndDate':
+          seasonEndDate == null ? null : dateOnlyForApi(seasonEndDate),
+      'indoorSeasonStartDate': indoorSeasonStartDate == null
+          ? null
+          : dateOnlyForApi(indoorSeasonStartDate),
+      'indoorSeasonEndDate': indoorSeasonEndDate == null
+          ? null
+          : dateOnlyForApi(indoorSeasonEndDate),
       'indoorTrainingLocation': indoorTrainingLocation,
       'indoorTrainingTimes': indoorTrainingTimes,
       'homeVenue': homeVenue,
@@ -1007,6 +1172,7 @@ class DataRepository {
     String? assistId,
     String? comment,
     int? period,
+    int? elapsedSeconds,
   }) async {
     await client.dio.post('/matches/$eventId/ticker/events', data: {
       'clientEventId': clientEventId,
@@ -1015,6 +1181,7 @@ class DataRepository {
       'assistId': assistId,
       'comment': comment,
       'period': period,
+      'elapsedSeconds': elapsedSeconds,
     });
   }
 
@@ -1457,6 +1624,10 @@ class DataRepository {
 
   Future<void> deleteAnnouncementPermanently(String announcementId) async {
     await client.dio.delete('/communications/$announcementId/permanent');
+  }
+
+  Future<void> deleteAnnouncement(String announcementId) async {
+    await client.dio.delete('/communications/$announcementId');
   }
 
   Future<List<AppNotificationModel>> notifications() async {

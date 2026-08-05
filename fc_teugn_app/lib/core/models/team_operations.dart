@@ -276,21 +276,19 @@ class TeamOperationsOverview {
         teamId: json['teamId'] as String,
         canManage: json['canManage'] as bool? ?? false,
         tasks: (json['tasks'] as List<dynamic>? ?? [])
-            .map((item) =>
-                TeamTaskModel.fromJson(item as Map<String, dynamic>))
+            .map((item) => TeamTaskModel.fromJson(item as Map<String, dynamic>))
             .toList(),
         equipment: (json['equipment'] as List<dynamic>? ?? [])
             .map((item) =>
                 EquipmentItemModel.fromJson(item as Map<String, dynamic>))
             .toList(),
-        checklistTemplates:
-            (json['checklistTemplates'] as List<dynamic>? ?? [])
-                .map(
-                  (item) => ChecklistTemplateModel.fromJson(
-                    item as Map<String, dynamic>,
-                  ),
-                )
-                .toList(),
+        checklistTemplates: (json['checklistTemplates'] as List<dynamic>? ?? [])
+            .map(
+              (item) => ChecklistTemplateModel.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
         checklistRuns: (json['checklistRuns'] as List<dynamic>? ?? [])
             .map((item) =>
                 ChecklistRunModel.fromJson(item as Map<String, dynamic>))

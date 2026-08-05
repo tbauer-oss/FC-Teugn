@@ -7,8 +7,7 @@ abstract class PlayerViewPreferenceStorage {
   Future<void> write(String key, String value);
 }
 
-class SecurePlayerViewPreferenceStorage
-    implements PlayerViewPreferenceStorage {
+class SecurePlayerViewPreferenceStorage implements PlayerViewPreferenceStorage {
   SecurePlayerViewPreferenceStorage({
     FlutterSecureStorage storage = const FlutterSecureStorage(),
   }) : _storage = storage;

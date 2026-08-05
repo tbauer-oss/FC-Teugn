@@ -17,11 +17,13 @@ import {
   testPushBroadcast,
 } from '../controllers/notifications.controller';
 import { requireApproved, requireAuth, requireRoles } from '../middleware/auth';
+import { idempotencyMiddleware } from '../middleware/idempotency';
 import { Role } from '../types/enums';
 
 const router = Router();
 router.use(requireAuth);
 router.use(requireApproved);
+router.use(idempotencyMiddleware);
 router.get('/', listNotifications);
 router.post('/admin/test-push', requireRoles([Role.SUPER_ADMIN]), testPushBroadcast);
 router.get('/admin/devices', requireRoles([Role.SUPER_ADMIN]), listAdminPushDevices);

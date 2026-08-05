@@ -12,6 +12,39 @@ enum UserRole {
   readOnly,
 }
 
+class MemberPermissionProfile {
+  const MemberPermissionProfile({
+    required this.userId,
+    required this.rolePermissions,
+    required this.effectivePermissions,
+    required this.overrides,
+  });
+
+  final String userId;
+  final Set<String> rolePermissions;
+  final Set<String> effectivePermissions;
+  final Map<String, String> overrides;
+
+  factory MemberPermissionProfile.fromJson(Map<String, dynamic> json) =>
+      MemberPermissionProfile(
+        userId: json['id'] as String,
+        rolePermissions: (json['rolePermissions'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .toSet(),
+        effectivePermissions:
+            (json['effectivePermissions'] as List<dynamic>? ?? const [])
+                .whereType<String>()
+                .toSet(),
+        overrides: {
+          for (final item
+              in (json['permissionOverrides'] as List<dynamic>? ?? const [])
+                  .whereType<Map<String, dynamic>>())
+            if (item['permission'] is String && item['state'] is String)
+              item['permission'] as String: item['state'] as String,
+        },
+      );
+}
+
 enum AccountStatus { pending, approved, rejected, blocked, archived }
 
 enum RegistrationReviewStatus { newRequest, inReview, needsInfo, completed }

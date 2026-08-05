@@ -3,6 +3,7 @@ import {
   createTeam,
   deleteTeam,
   organizationContext,
+  updateOrganizationContext,
   publicOrganization,
   removeTeamPhoto,
   updateTeam,
@@ -24,15 +25,18 @@ import { requireApproved, requireAuth, requirePermission } from '../middleware/a
 import { Permission } from '../security/permissions';
 import { playerFileUpload } from '../middleware/player-files';
 import { asyncHandler } from '../middleware/async-handler';
+import { idempotencyMiddleware } from '../middleware/idempotency';
 
 const router = Router();
 
 router.get('/public', publicOrganization);
 router.get('/context', requireAuth, requireApproved, organizationContext);
+router.put('/context', requireAuth, requireApproved, idempotencyMiddleware, updateOrganizationContext);
 router.post(
   '/teams',
   requireAuth,
   requireApproved,
+  idempotencyMiddleware,
   requirePermission(Permission.MANAGE_ORGANIZATION),
   createTeam,
 );
@@ -40,6 +44,7 @@ router.patch(
   '/teams/:id',
   requireAuth,
   requireApproved,
+  idempotencyMiddleware,
   requirePermission(Permission.MANAGE_TEAM),
   updateTeam,
 );
@@ -47,18 +52,21 @@ router.put(
   '/teams/:id/default-lineup',
   requireAuth,
   requireApproved,
+  idempotencyMiddleware,
   updateTeamDefaultLineup,
 );
 router.delete(
   '/teams/:id',
   requireAuth,
   requireApproved,
+  idempotencyMiddleware,
   asyncHandler(deleteTeam),
 );
 router.patch(
   '/teams/:id/training-schedule',
   requireAuth,
   requireApproved,
+  idempotencyMiddleware,
   requirePermission(Permission.MANAGE_ORGANIZATION),
   updateTrainingSchedule,
 );
@@ -81,6 +89,7 @@ router.get(
   '/rule-profiles',
   requireAuth,
   requireApproved,
+  idempotencyMiddleware,
   requirePermission(Permission.MANAGE_ORGANIZATION),
   listRuleProfiles,
 );
@@ -88,6 +97,7 @@ router.post(
   '/rule-profiles',
   requireAuth,
   requireApproved,
+  idempotencyMiddleware,
   requirePermission(Permission.MANAGE_ORGANIZATION),
   createRuleProfile,
 );
@@ -95,6 +105,7 @@ router.post(
   '/rule-profiles/:id/approve',
   requireAuth,
   requireApproved,
+  idempotencyMiddleware,
   requirePermission(Permission.MANAGE_ORGANIZATION),
   approveRuleProfile,
 );
@@ -102,6 +113,7 @@ router.get(
   '/season-transitions',
   requireAuth,
   requireApproved,
+  idempotencyMiddleware,
   requirePermission(Permission.MANAGE_ORGANIZATION),
   listSeasonTransitions,
 );

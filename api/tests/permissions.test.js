@@ -2,7 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const { Permission, hasPermission } = require('../dist/src/security/permissions');
+const {
+  Permission,
+  hasPermission,
+  resolveEffectivePermissions,
+} = require('../dist/src/security/permissions');
 const { AccountStatus, Role } = require('../dist/src/types/enums');
 const {
   generateOccurrences,
@@ -22,8 +26,12 @@ const {
 } = require('../dist/src/services/statistics.service');
 const {
   canSelectStatisticsTeam,
+  isDefensivePlayer,
   resolveStatisticsTeamIds,
 } = require('../dist/src/controllers/statistics.controller');
+const {
+  calculateStandings,
+} = require('../dist/src/controllers/competitions.controller');
 const {
   competitionMatchChecksum,
   parseCompetitionSource,
@@ -197,6 +205,54 @@ test('system administrators always receive every defined permission', () => {
   }
 });
 
+test('individual permission overrides deny first and can add missing rights', () => {
+  const effective = resolveEffectivePermissions(Role.PARENT, [
+    { permission: Permission.VIEW_TEAM, state: 'DENY' },
+    { permission: Permission.MANAGE_EVENTS, state: 'ALLOW' },
+  ]);
+  assert.equal(effective.includes(Permission.VIEW_TEAM), false);
+  assert.equal(effective.includes(Permission.MANAGE_EVENTS), true);
+  assert.deepEqual(
+    resolveEffectivePermissions(Role.SUPER_ADMIN, [
+      { permission: Permission.MANAGE_ORGANIZATION, state: 'DENY' },
+    ]),
+    Object.values(Permission),
+  );
+});
+
+test('clean-sheet eligibility recognizes goalkeepers and defenders only', () => {
+  assert.equal(isDefensivePlayer('TW', null, false), true);
+  assert.equal(isDefensivePlayer('IV', 'RM', false), true);
+  assert.equal(isDefensivePlayer('ST', 'RA', false), false);
+  assert.equal(isDefensivePlayer('ST', null, true), true);
+});
+
+test('league standings use points, goal difference and goals deterministically', () => {
+  const standings = calculateStandings({
+    pointsWin: 3,
+    pointsDraw: 1,
+    pointsLoss: 0,
+    entries: [
+      { id: 'teugn', displayName: 'FC Teugn E1', ownTeamId: 'team-e1' },
+      { id: 'a', displayName: 'SV A E1', ownTeamId: null },
+      { id: 'b', displayName: 'SV B E1', ownTeamId: null },
+    ],
+    matches: [
+      { homeEntryId: 'teugn', awayEntryId: 'a', status: 'FINISHED', homeGoals: 2, awayGoals: 0 },
+      { homeEntryId: 'b', awayEntryId: 'teugn', status: 'FINISHED', homeGoals: 1, awayGoals: 1 },
+      { homeEntryId: 'a', awayEntryId: 'b', status: 'SCHEDULED', homeGoals: null, awayGoals: null },
+    ],
+  });
+  assert.deepEqual(
+    standings.map((row) => [row.name, row.points, row.goalDifference]),
+    [
+      ['FC Teugn E1', 4, 2],
+      ['SV B E1', 1, 0],
+      ['SV A E1', 0, -2],
+    ],
+  );
+});
+
 test('administrative and club roles can additionally be linked as parents', () => {
   for (const role of [
     Role.SUPER_ADMIN,
@@ -317,7 +373,7 @@ test('statistics team selection is reserved for administrator roles', () => {
   assert.equal(canSelectStatisticsTeam(Role.PLAYER), false);
 });
 
-test('statistics are locked to the registration team for non-admin users', () => {
+test('statistics include every assigned team for non-admin users', () => {
   const accessible = ['team-registration', 'team-membership'];
   for (const role of [Role.COACH, Role.TRAINER, Role.PARENT, Role.PLAYER]) {
     assert.deepEqual(
@@ -326,7 +382,7 @@ test('statistics are locked to the registration team for non-admin users', () =>
         accessible,
         ['team-membership'],
       ),
-      ['team-registration'],
+      ['team-registration', 'team-membership'],
     );
   }
 });

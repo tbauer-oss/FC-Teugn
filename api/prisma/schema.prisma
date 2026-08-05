@@ -232,6 +232,26 @@ enum NotificationDeliveryStatus {
   SKIPPED
 }
 
+enum PermissionOverrideState {
+  ALLOW
+  DENY
+}
+
+enum ReminderJobStatus {
+  SCHEDULED
+  PROCESSING
+  SENT
+  CANCELLED
+  FAILED
+}
+
+enum LeagueMatchStatus {
+  SCHEDULED
+  FINISHED
+  POSTPONED
+  CANCELLED
+}
+
 enum PushPlatform {
   WEB
   ANDROID
@@ -322,6 +342,7 @@ enum FileAssetKind {
   PLAYER_PHOTO
   PLAYER_DOCUMENT
   TEAM_PHOTO
+  OPPONENT_LOGO
 }
 
 enum TeamType {
@@ -389,65 +410,70 @@ enum ChecklistRunStatus {
 }
 
 model Team {
-  id                      String                    @id @default(cuid())
-  ageGroupId              String
-  teamNumber              Int                       @default(1)
-  name                    String
-  shortName               String?
-  level                   String?
-  teamType                TeamType                  @default(COMPETITIVE)
-  gender                  TeamGender                @default(MIXED)
-  gameFormat              TeamGameFormat            @default(FOOTBALL_7)
-  periodCount             Int                       @default(2)
-  periodMinutes           Int                       @default(30)
-  defaultFormation        String?
-  customFormations        String[]                  @default([])
-  formationTemplates      Json                      @default("[]")
-  birthYears              Int[]                     @default([])
-  description             String?
-  trainingLocation        String?
-  trainingTimes           String[]                  @default([])
-  trainingPartnerIds      String[]                  @default([])
-  matchdayTimes            String[]                  @default([])
-  seasonStartDate         DateTime?
-  seasonEndDate           DateTime?
-  indoorSeasonStartDate   DateTime?
-  indoorSeasonEndDate     DateTime?
-  indoorTrainingLocation  String?
-  indoorTrainingTimes     String[]                  @default([])
-  indoorTrainingPartnerIds String[]                 @default([])
-  homeVenue               String?
-  bfvTeamId               String?
-  dfbnetTeamId            String?
-  bfvTeamUrl              String?
-  photoAssetId            String?                   @unique
-  isActive                Boolean                   @default(true)
-  deletedAt               DateTime?
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime                  @updatedAt
-  ageGroup                AgeGroup                  @relation(fields: [ageGroupId], references: [id])
-  users                   User[]
-  memberships             TeamMembership[]
-  players                 Player[]
-  events                  Event[]
-  eventTargets            EventTargetTeam[]
-  eventSeries             EventSeries[]
-  auditLogs               AuditLog[]
-  ruleProfiles            RuleProfile[]
-  exercises               TrainingExercise[]
-  announcements           AnnouncementTargetTeam[]
-  importJobs              ImportJob[]
-  externalRefs            ExternalReference[]
-  playerSeasonAssignments PlayerSeasonAssignment[]
-  registrationRequests    RegistrationTeamRequest[]
-  tasks                   TeamTask[]
-  equipmentItems          EquipmentItem[]
-  checklistTemplates      ChecklistTemplate[]
-  checklistRuns           ChecklistRun[]
-  photoAsset              FileAsset?                @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
-  ownedFileAssets         FileAsset[]               @relation("TeamFileOwner")
-  pitchConflictRequests   PitchConflictRequest[]
-  defaultLineupPositions  TeamDefaultLineupPosition[]
+  id                       String                      @id @default(cuid())
+  ageGroupId               String
+  teamNumber               Int                         @default(1)
+  name                     String
+  shortName                String?
+  level                    String?
+  teamType                 TeamType                    @default(COMPETITIVE)
+  gender                   TeamGender                  @default(MIXED)
+  gameFormat               TeamGameFormat              @default(FOOTBALL_7)
+  periodCount              Int                         @default(2)
+  periodMinutes            Int                         @default(30)
+  defaultFormation         String?
+  customFormations         String[]                    @default([])
+  formationTemplates       Json                        @default("[]")
+  birthYears               Int[]                       @default([])
+  description              String?
+  trainingLocation         String?
+  trainingTimes            String[]                    @default([])
+  trainingPartnerIds       String[]                    @default([])
+  matchdayTimes            String[]                    @default([])
+  seasonStartDate          DateTime?
+  seasonEndDate            DateTime?
+  indoorSeasonStartDate    DateTime?
+  indoorSeasonEndDate      DateTime?
+  indoorTrainingLocation   String?
+  indoorTrainingTimes      String[]                    @default([])
+  indoorTrainingPartnerIds String[]                    @default([])
+  homeVenue                String?
+  bfvTeamId                String?
+  dfbnetTeamId             String?
+  bfvTeamUrl               String?
+  photoAssetId             String?                     @unique
+  isActive                 Boolean                     @default(true)
+  deletedAt                DateTime?
+  createdAt                DateTime                    @default(now())
+  updatedAt                DateTime                    @updatedAt
+  ageGroup                 AgeGroup                    @relation(fields: [ageGroupId], references: [id])
+  users                    User[]
+  memberships              TeamMembership[]
+  players                  Player[]
+  events                   Event[]
+  eventTargets             EventTargetTeam[]
+  eventSeries              EventSeries[]
+  auditLogs                AuditLog[]
+  ruleProfiles             RuleProfile[]
+  exercises                TrainingExercise[]
+  announcements            AnnouncementTargetTeam[]
+  importJobs               ImportJob[]
+  externalRefs             ExternalReference[]
+  playerSeasonAssignments  PlayerSeasonAssignment[]
+  registrationRequests     RegistrationTeamRequest[]
+  tasks                    TeamTask[]
+  equipmentItems           EquipmentItem[]
+  checklistTemplates       ChecklistTemplate[]
+  checklistRuns            ChecklistRun[]
+  photoAsset               FileAsset?                  @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
+  ownedFileAssets          FileAsset[]                 @relation("TeamFileOwner")
+  pitchConflictRequests    PitchConflictRequest[]
+  defaultLineupPositions   TeamDefaultLineupPosition[]
+  contextPreferences       UserContextPreference[]
+  opponents                Opponent[]
+  leagues                  League[]
+  leagueEntries            LeagueEntry[]
+  defaultReminderMinutes   Int?                        @default(60)
 
   @@index([ageGroupId, isActive, deletedAt])
 }
@@ -458,6 +484,7 @@ model Club {
   shortName         String
   primaryColor      String             @default("#176B87")
   accentColor       String             @default("#FFB000")
+  logoUrl           String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   seasons           Season[]
@@ -466,61 +493,65 @@ model Club {
 }
 
 model Season {
-  id                           String                   @id @default(cuid())
-  clubId                       String
-  name                         String
-  startDate                    DateTime
-  endDate                      DateTime
-  isActive                     Boolean                  @default(false)
-  recreationalTrainingLocation String?
-  recreationalTrainingTimes    String[]                 @default([])
-  seniorTrainingLocation       String?
-  seniorTrainingTimes          String[]                 @default([])
+  id                            String                   @id @default(cuid())
+  clubId                        String
+  name                          String
+  startDate                     DateTime
+  endDate                       DateTime
+  isActive                      Boolean                  @default(false)
+  recreationalTrainingLocation  String?
+  recreationalTrainingTimes     String[]                 @default([])
+  seniorTrainingLocation        String?
+  seniorTrainingTimes           String[]                 @default([])
   seniorMatchdayTimes           String[]                 @default([])
-  approvedOccupancyConflictKeys String[]                @default([])
-  createdAt                    DateTime                 @default(now())
-  updatedAt                    DateTime                 @updatedAt
-  club                         Club                     @relation(fields: [clubId], references: [id])
-  ageGroups                    AgeGroup[]
-  playerAssignments            PlayerSeasonAssignment[]
-  sourceTransitions            SeasonTransition[]       @relation("SeasonTransitionSource")
-  targetTransitions            SeasonTransition[]       @relation("SeasonTransitionTarget")
-  indoorOccupancyEntries       IndoorOccupancyEntry[]
+  approvedOccupancyConflictKeys String[]                 @default([])
+  createdAt                     DateTime                 @default(now())
+  updatedAt                     DateTime                 @updatedAt
+  club                          Club                     @relation(fields: [clubId], references: [id])
+  ageGroups                     AgeGroup[]
+  playerAssignments             PlayerSeasonAssignment[]
+  sourceTransitions             SeasonTransition[]       @relation("SeasonTransitionSource")
+  targetTransitions             SeasonTransition[]       @relation("SeasonTransitionTarget")
+  indoorOccupancyEntries        IndoorOccupancyEntry[]
+  leagues                       League[]
 
   @@unique([clubId, name])
   @@index([clubId, isActive])
 }
 
 model IndoorOccupancyEntry {
-  id                      String   @id @default(cuid())
+  id                      String    @id @default(cuid())
   seasonId                String
   title                   String
-  location                String   @default("Sporthalle")
+  location                String    @default("Sporthalle")
   startAt                 DateTime
   endAt                   DateTime
   notes                   String?
-  isRecurring             Boolean  @default(false)
-  recurrenceWeekdays      Int[]    @default([])
-  recurrenceIntervalWeeks Int      @default(1)
+  isRecurring             Boolean   @default(false)
+  recurrenceWeekdays      Int[]     @default([])
+  recurrenceIntervalWeeks Int       @default(1)
   recurrenceUntil         DateTime?
   createdById             String
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  season                  Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  season                  Season    @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   @@index([seasonId, startAt])
 }
 
 model AgeGroup {
-  id        String   @id @default(cuid())
-  seasonId  String
-  name      String
-  code      String
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  season    Season   @relation(fields: [seasonId], references: [id])
-  teams     Team[]
+  id                 String                  @id @default(cuid())
+  seasonId           String
+  name               String
+  code               String
+  sortOrder          Int                     @default(0)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  season             Season                  @relation(fields: [seasonId], references: [id])
+  teams              Team[]
+  contextPreferences UserContextPreference[]
+  opponents          Opponent[]
+  leagues            League[]
 
   @@unique([seasonId, code])
   @@index([seasonId, sortOrder])
@@ -572,9 +603,9 @@ model User {
   registrationRequest          RegistrationRequest?
   registrationReviews          RegistrationRequest[]    @relation("RegistrationReviewer")
   registrationHistory          RegistrationHistory[]    @relation("RegistrationHistoryActor")
-  requestedPitchConflicts      PitchConflictRequest[]    @relation("PitchConflictRequester")
-  receivedPitchConflicts       PitchConflictRequest[]    @relation("PitchConflictRecipient")
-  answeredPitchConflicts       PitchConflictRequest[]    @relation("PitchConflictResponder")
+  requestedPitchConflicts      PitchConflictRequest[]   @relation("PitchConflictRequester")
+  receivedPitchConflicts       PitchConflictRequest[]   @relation("PitchConflictRecipient")
+  answeredPitchConflicts       PitchConflictRequest[]   @relation("PitchConflictResponder")
   consents                     UserConsent[]
   uploadedFileAssets           FileAsset[]              @relation("FileAssetUploader")
   refreshTokens                RefreshToken[]
@@ -588,6 +619,44 @@ model User {
   dataSubjectRequests          DataSubjectRequest[]     @relation("DataSubjectRequester")
   reviewedDataSubjectRequests  DataSubjectRequest[]     @relation("DataSubjectReviewer")
   playerConsentEvidence        PlayerConsentEvidence[]  @relation("PlayerConsentSigner")
+  contextPreference            UserContextPreference?
+  permissionOverrides          UserPermissionOverride[] @relation("PermissionOverrideUser")
+  changedPermissionOverrides   UserPermissionOverride[] @relation("PermissionOverrideActor")
+  eventParticipantAssignments  EventParticipant[]
+  createdOpponents             Opponent[]               @relation("OpponentCreator")
+  createdLeagues               League[]                 @relation("LeagueCreator")
+  reminderJobs                 ScheduledReminder[]
+  idempotencyRecords           IdempotencyRecord[]
+  deletedAnnouncements         Announcement[]           @relation("AnnouncementDeleter")
+}
+
+model UserContextPreference {
+  userId          String   @id
+  ageGroupId      String
+  activeTeamId    String?
+  includeAllTeams Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ageGroup        AgeGroup @relation(fields: [ageGroupId], references: [id], onDelete: Cascade)
+  activeTeam      Team?    @relation(fields: [activeTeamId], references: [id], onDelete: SetNull)
+
+  @@index([ageGroupId, activeTeamId])
+}
+
+model UserPermissionOverride {
+  id          String                  @id @default(cuid())
+  userId      String
+  permission  String
+  state       PermissionOverrideState
+  changedById String
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  user        User                    @relation("PermissionOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
+  changedBy   User                    @relation("PermissionOverrideActor", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@unique([userId, permission])
+  @@index([changedById, updatedAt])
 }
 
 model RefreshToken {
@@ -709,48 +778,49 @@ model TeamMembership {
 }
 
 model Player {
-  id                   String                   @id @default(cuid())
-  clubId               String
-  teamId               String?
-  userId               String?                  @unique
-  firstName            String
-  lastName             String
-  preferredName        String?
-  birthDate            DateTime?
-  nationality          String?
-  gender               PlayerGender?
-  position             String?
-  secondaryPosition    String?
-  dominantFoot         DominantFoot             @default(UNKNOWN)
-  shirtNumber          Int?
-  passNumber           String?
-  status               PlayerStatus             @default(ACTIVE)
-  joinedAt             DateTime?
-  photoUrl             String?
-  photoAssetId         String?                  @unique
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
-  club                 Club                     @relation(fields: [clubId], references: [id], onDelete: Restrict)
-  team                 Team?                    @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  user                 User?                    @relation("PlayerAccount", fields: [userId], references: [id], onDelete: SetNull)
-  parentLinks          ParentPlayerLink[]
-  attendance           Attendance[]
-  squadMembers         SquadMember[]
-  medicalProfile       PlayerMedicalProfile?
-  emergencyContacts    PlayerEmergencyContact[]
-  developmentNotes     PlayerDevelopmentNote[]
-  consents             PlayerConsent[]
-  carpoolPassengers    CarpoolPassenger[]
-  equipmentAssignments EquipmentAssignment[]
-  lineupPositions      LineupPosition[]
+  id                         String                      @id @default(cuid())
+  clubId                     String
+  teamId                     String?
+  userId                     String?                     @unique
+  firstName                  String
+  lastName                   String
+  preferredName              String?
+  birthDate                  DateTime?
+  nationality                String?
+  gender                     PlayerGender?
+  position                   String?
+  secondaryPosition          String?
+  dominantFoot               DominantFoot                @default(UNKNOWN)
+  shirtNumber                Int?
+  passNumber                 String?
+  status                     PlayerStatus                @default(ACTIVE)
+  joinedAt                   DateTime?
+  photoUrl                   String?
+  photoAssetId               String?                     @unique
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  club                       Club                        @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  team                       Team?                       @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  user                       User?                       @relation("PlayerAccount", fields: [userId], references: [id], onDelete: SetNull)
+  parentLinks                ParentPlayerLink[]
+  attendance                 Attendance[]
+  squadMembers               SquadMember[]
+  medicalProfile             PlayerMedicalProfile?
+  emergencyContacts          PlayerEmergencyContact[]
+  developmentNotes           PlayerDevelopmentNote[]
+  consents                   PlayerConsent[]
+  carpoolPassengers          CarpoolPassenger[]
+  equipmentAssignments       EquipmentAssignment[]
+  lineupPositions            LineupPosition[]
   teamDefaultLineupPositions TeamDefaultLineupPosition[]
-  tickerGoals          LiveTickerEvent[]        @relation("TickerScorer")
-  tickerAssists        LiveTickerEvent[]        @relation("TickerAssist")
-  matchStatistics      PlayerMatchStatistic[]
-  seasonAssignments    PlayerSeasonAssignment[]
-  photoAsset           FileAsset?               @relation("PlayerPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
-  documents            PlayerDocument[]
-  ownedFileAssets      FileAsset[]              @relation("PlayerFileOwner")
+  tickerGoals                LiveTickerEvent[]           @relation("TickerScorer")
+  tickerAssists              LiveTickerEvent[]           @relation("TickerAssist")
+  matchStatistics            PlayerMatchStatistic[]
+  seasonAssignments          PlayerSeasonAssignment[]
+  photoAsset                 FileAsset?                  @relation("PlayerPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
+  documents                  PlayerDocument[]
+  ownedFileAssets            FileAsset[]                 @relation("PlayerFileOwner")
+  eventParticipants          EventParticipant[]
 
   @@index([clubId, teamId, status, lastName])
 }
@@ -776,6 +846,7 @@ model FileAsset {
   playerPhoto   Player?         @relation("PlayerPhotoAsset")
   ownerTeam     Team?           @relation("TeamFileOwner", fields: [ownerTeamId], references: [id], onDelete: SetNull)
   teamPhoto     Team?           @relation("TeamPhotoAsset")
+  opponentLogo  Opponent?       @relation("OpponentLogoAsset")
   document      PlayerDocument?
 
   @@index([ownerPlayerId, kind, deletedAt])
@@ -932,59 +1003,79 @@ model PlayerConsentEvidence {
 }
 
 model Event {
-  id                  String                 @id @default(cuid())
-  teamId              String
-  seriesId            String?
-  type                EventType
-  category            EventCategory          @default(SPECIAL_EVENT)
-  status              EventStatus            @default(SCHEDULED)
-  visibility          EventVisibility        @default(TEAM)
-  title               String
-  startAt             DateTime
-  endAt               DateTime?
-  meetingAt           DateTime?
-  location            String
-  address             String?
-  mapUrl              String?
-  homeAway            HomeAway?
-  opponent            String?
-  venue               String?
-  contactName         String?
-  contactPhone        String?
-  description         String?
-  equipment           String?
-  clothing            String?
-  catering            String?
-  carpoolRequired     Boolean                @default(false)
-  maxParticipants     Int?
-  responseDeadline    DateTime?
-  internalNote        String?
-  reminderMinutes     Int[]                  @default([])
-  isSeriesException   Boolean                @default(false)
-  cancellationReason  String?
-  cancelledAt         DateTime?
-  attendanceFinalized Boolean                @default(false)
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-  team                Team                   @relation(fields: [teamId], references: [id])
-  series              EventSeries?           @relation(fields: [seriesId], references: [id], onDelete: SetNull)
-  targetTeams         EventTargetTeam[]
-  attachments         EventAttachment[]
-  attendance          Attendance[]
-  carpoolOffers       CarpoolOffer[]
-  reminders           EventReminder[]
-  matchDetails        MatchDetails?
-  squads              Squad[]
-  liveTicker          LiveTicker?
-  trainingPlan        TrainingPlan?
-  teamMatchStatistic  TeamMatchStatistic?
-  playerMatchStats    PlayerMatchStatistic[]
-  tickerDelegate      MatchTickerDelegate?
+  id                    String                 @id @default(cuid())
+  teamId                String
+  seriesId              String?
+  type                  EventType
+  category              EventCategory          @default(SPECIAL_EVENT)
+  status                EventStatus            @default(SCHEDULED)
+  visibility            EventVisibility        @default(TEAM)
+  title                 String
+  startAt               DateTime
+  endAt                 DateTime?
+  meetingAt             DateTime?
+  location              String
+  address               String?
+  mapUrl                String?
+  homeAway              HomeAway?
+  opponent              String?
+  venue                 String?
+  contactName           String?
+  contactPhone          String?
+  description           String?
+  equipment             String?
+  clothing              String?
+  catering              String?
+  carpoolRequired       Boolean                @default(false)
+  maxParticipants       Int?
+  responseDeadline      DateTime?
+  internalNote          String?
+  reminderMinutes       Int[]                  @default([])
+  isSeriesException     Boolean                @default(false)
+  cancellationReason    String?
+  cancelledAt           DateTime?
+  attendanceFinalized   Boolean                @default(false)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  team                  Team                   @relation(fields: [teamId], references: [id])
+  series                EventSeries?           @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  targetTeams           EventTargetTeam[]
+  attachments           EventAttachment[]
+  attendance            Attendance[]
+  carpoolOffers         CarpoolOffer[]
+  reminders             EventReminder[]
+  matchDetails          MatchDetails?
+  squads                Squad[]
+  liveTicker            LiveTicker?
+  trainingPlan          TrainingPlan?
+  teamMatchStatistic    TeamMatchStatistic?
+  playerMatchStats      PlayerMatchStatistic[]
+  tickerDelegate        MatchTickerDelegate?
   pitchConflictRequests PitchConflictRequest[]
+  participants          EventParticipant[]
+  scheduledReminders    ScheduledReminder[]
+  leagueMatch           LeagueMatch?
 
   @@index([teamId, startAt])
   @@index([seriesId, startAt])
   @@index([status, startAt])
+}
+
+model EventParticipant {
+  id               String   @id @default(cuid())
+  eventId          String
+  playerId         String?
+  userId           String?
+  responseRequired Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  event            Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player           Player?  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  user             User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, playerId])
+  @@unique([eventId, userId])
+  @@index([playerId, eventId])
+  @@index([userId, eventId])
 }
 
 model PitchConflictRequest {
@@ -1086,9 +1177,108 @@ model MatchDetails {
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
   event              Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  opponentId         String?
+  leagueId           String?
+  opponentRecord     Opponent?   @relation(fields: [opponentId], references: [id], onDelete: SetNull)
+  league             League?     @relation(fields: [leagueId], references: [id], onDelete: SetNull)
 
   @@index([status, updatedAt])
   @@index([bfvMatchId])
+}
+
+model Opponent {
+  id              String         @id @default(cuid())
+  ageGroupId      String
+  teamId          String?
+  clubName        String
+  teamDesignation String
+  shortName       String?
+  normalizedKey   String
+  venue           String?
+  address         String?
+  logoAssetId     String?        @unique
+  createdById     String
+  archivedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  ageGroup        AgeGroup       @relation(fields: [ageGroupId], references: [id], onDelete: Cascade)
+  team            Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  logoAsset       FileAsset?     @relation("OpponentLogoAsset", fields: [logoAssetId], references: [id], onDelete: SetNull)
+  createdBy       User           @relation("OpponentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  matchDetails    MatchDetails[]
+  leagueEntries   LeagueEntry[]
+
+  @@unique([ageGroupId, normalizedKey])
+  @@index([ageGroupId, archivedAt, clubName])
+}
+
+model League {
+  id             String         @id @default(cuid())
+  seasonId       String
+  ageGroupId     String
+  teamId         String?
+  name           String
+  normalizedName String
+  pointsWin      Int            @default(3)
+  pointsDraw     Int            @default(1)
+  pointsLoss     Int            @default(0)
+  createdById    String
+  archivedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  season         Season         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  ageGroup       AgeGroup       @relation(fields: [ageGroupId], references: [id], onDelete: Cascade)
+  team           Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  createdBy      User           @relation("LeagueCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  entries        LeagueEntry[]
+  matches        LeagueMatch[]
+  matchDetails   MatchDetails[]
+
+  @@unique([seasonId, ageGroupId, normalizedName, teamId])
+  @@index([ageGroupId, archivedAt])
+}
+
+model LeagueEntry {
+  id          String        @id @default(cuid())
+  leagueId    String
+  opponentId  String?
+  ownTeamId   String?
+  displayName String
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  league      League        @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  opponent    Opponent?     @relation(fields: [opponentId], references: [id], onDelete: Cascade)
+  ownTeam     Team?         @relation(fields: [ownTeamId], references: [id], onDelete: Cascade)
+  homeMatches LeagueMatch[] @relation("LeagueHomeEntry")
+  awayMatches LeagueMatch[] @relation("LeagueAwayEntry")
+
+  @@unique([leagueId, opponentId])
+  @@unique([leagueId, ownTeamId])
+  @@index([leagueId, sortOrder])
+}
+
+model LeagueMatch {
+  id          String            @id @default(cuid())
+  leagueId    String
+  homeEntryId String
+  awayEntryId String
+  eventId     String?           @unique
+  startsAt    DateTime?
+  status      LeagueMatchStatus @default(SCHEDULED)
+  homeGoals   Int?
+  awayGoals   Int?
+  externalUid String?
+  venue       String?
+  notes       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  league      League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  homeEntry   LeagueEntry       @relation("LeagueHomeEntry", fields: [homeEntryId], references: [id], onDelete: Restrict)
+  awayEntry   LeagueEntry       @relation("LeagueAwayEntry", fields: [awayEntryId], references: [id], onDelete: Restrict)
+  event       Event?            @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@unique([leagueId, externalUid])
+  @@index([leagueId, status, startsAt])
 }
 
 model Attendance {
@@ -1159,6 +1349,28 @@ model EventReminder {
   @@index([eventId, createdAt])
 }
 
+model ScheduledReminder {
+  id             String            @id @default(cuid())
+  eventId        String
+  recipientId    String
+  dueAt          DateTime
+  minutesBefore  Int
+  status         ReminderJobStatus @default(SCHEDULED)
+  idempotencyKey String            @unique
+  attemptCount   Int               @default(0)
+  lastAttemptAt  DateTime?
+  sentAt         DateTime?
+  cancelledAt    DateTime?
+  errorMessage   String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  event          Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  recipient      User              @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([status, dueAt])
+  @@index([recipientId, status, dueAt])
+}
+
 model Squad {
   id          String        @id @default(cuid())
   eventId     String        @unique
@@ -1189,38 +1401,38 @@ model SquadMember {
 }
 
 model Lineup {
-  id            String                @id @default(cuid())
-  squadId       String                @unique
-  formation     String
-  fieldSize     Int                   @default(7)
-  status        LineupStatus          @default(DRAFT)
-  publicNote    String?
-  tacticalNote  String?
-  usesTeamDefault Boolean               @default(false)
-  automaticReplacements Int             @default(0)
-  visibleAt     DateTime?
-  publishedAt   DateTime?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
-  squad         Squad                 @relation(fields: [squadId], references: [id], onDelete: Cascade)
-  positions     LineupPosition[]
-  substitutions PlannedSubstitution[]
+  id                    String                @id @default(cuid())
+  squadId               String                @unique
+  formation             String
+  fieldSize             Int                   @default(7)
+  status                LineupStatus          @default(DRAFT)
+  publicNote            String?
+  tacticalNote          String?
+  usesTeamDefault       Boolean               @default(false)
+  automaticReplacements Int                   @default(0)
+  visibleAt             DateTime?
+  publishedAt           DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  squad                 Squad                 @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  positions             LineupPosition[]
+  substitutions         PlannedSubstitution[]
 }
 
 model TeamDefaultLineupPosition {
-  id             String   @id @default(cuid())
-  teamId         String
-  playerId       String
-  positionCode   String
-  x              Float
-  y              Float
-  isGoalkeeper   Boolean  @default(false)
-  isCaptain      Boolean  @default(false)
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  teamId       String
+  playerId     String
+  positionCode String
+  x            Float
+  y            Float
+  isGoalkeeper Boolean  @default(false)
+  isCaptain    Boolean  @default(false)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, playerId])
   @@index([teamId, sortOrder])
@@ -1501,11 +1713,14 @@ model Announcement {
   updatedAt          DateTime                 @updatedAt
   publishedAt        DateTime?
   archivedAt         DateTime?
+  deletedAt          DateTime?
+  deletedById        String?
   author             User                     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Restrict)
   targetTeams        AnnouncementTargetTeam[]
   recipients         AnnouncementRecipient[]
   attachments        AnnouncementAttachment[]
   reads              AnnouncementRead[]
+  deletedBy          User?                    @relation("AnnouncementDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 
   @@index([status, publishAt, expiresAt])
   @@index([authorId, createdAt])
@@ -1570,10 +1785,28 @@ model Notification {
   readAt     DateTime?
   createdAt  DateTime               @default(now())
   expiresAt  DateTime?
+  dedupeKey  String?                @unique
   user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   deliveries NotificationDelivery[]
 
   @@index([userId, readAt, createdAt])
+}
+
+model IdempotencyRecord {
+  id             String   @id @default(cuid())
+  userId         String
+  idempotencyKey String
+  method         String
+  path           String
+  requestHash    String
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([expiresAt])
 }
 
 model PushSubscription {

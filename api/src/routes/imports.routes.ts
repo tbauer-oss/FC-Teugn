@@ -9,11 +9,13 @@ import {
   requireAuth,
   requirePermission,
 } from '../middleware/auth';
+import { idempotencyMiddleware } from '../middleware/idempotency';
 import { Permission } from '../security/permissions';
 
 const router = Router();
 router.use(requireAuth);
 router.use(requireApproved);
+router.use(idempotencyMiddleware);
 router.get('/', requirePermission(Permission.MANAGE_IMPORTS), listCompetitionImports);
 router.post(
   '/competition/preview',

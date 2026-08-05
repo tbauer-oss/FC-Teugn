@@ -11,6 +11,7 @@ import { hasPermission, Permission } from '../security/permissions';
 import { Role } from '../types/enums';
 import {
   accessibleTeamIds,
+  contextualTeamIds,
   eventTeamScope,
   ownPlayerIds,
 } from '../services/team-access';
@@ -34,6 +35,8 @@ type PlayerStatisticRow = {
   minutes: number;
   goals: number;
   assists: number;
+  cleanSheets: number;
+  cleanSheetEligible: boolean;
 };
 
 type PlayerIdentity = {
@@ -42,6 +45,8 @@ type PlayerIdentity = {
   lastName: string;
   preferredName: string | null;
   shirtNumber: number | null;
+  position?: string | null;
+  secondaryPosition?: string | null;
 };
 
 export function canSelectStatisticsTeam(role: Role) {
@@ -59,7 +64,7 @@ export function resolveStatisticsTeamIds(
   requestedTeamIds: string[],
 ) {
   if (!canSelectStatisticsTeam(user.role)) {
-    return accessibleTeamIds.includes(user.teamId) ? [user.teamId] : [];
+    return accessibleTeamIds;
   }
   if (requestedTeamIds.some((teamId) => !accessibleTeamIds.includes(teamId))) {
     return null;
@@ -83,12 +88,29 @@ function emptyPlayerStatistic(player: PlayerIdentity): PlayerStatisticRow {
     minutes: 0,
     goals: 0,
     assists: 0,
+    cleanSheets: 0,
+    cleanSheetEligible: isDefensivePlayer(
+      player.position,
+      player.secondaryPosition,
+      false,
+    ),
   };
+}
+
+export function isDefensivePlayer(
+  position: string | null | undefined,
+  secondaryPosition: string | null | undefined,
+  isGoalkeeper: boolean,
+) {
+  if (isGoalkeeper) return true;
+  const value = `${position ?? ''} ${secondaryPosition ?? ''}`.toLocaleUpperCase('de-DE');
+  return /(^|\W)(TW|TORHÜTER|TORWART|IV|LV|RV|LIBERO|VERTEIDIGER|ABWEHR)(\W|$)/.test(value);
 }
 
 export async function statisticsOverview(req: Request, res: Response) {
   const user = req.user!;
   const accessible = await accessibleTeamIds(user);
+  const contextual = await contextualTeamIds(user);
   const accessibleTeams = await prisma.team.findMany({
     where: { id: { in: accessible } },
     select: {
@@ -114,7 +136,7 @@ export async function statisticsOverview(req: Request, res: Response) {
     .filter(Boolean);
   const baseTeamIds = resolveStatisticsTeamIds(
     { role: user.role as Role, teamId: user.teamId },
-    accessible,
+    requestedTeams.length ? accessible : contextual,
     requestedTeams,
   );
   if (baseTeamIds === null) {
@@ -195,6 +217,8 @@ export async function statisticsOverview(req: Request, res: Response) {
               preferredName: true,
               shirtNumber: true,
               teamId: true,
+              position: true,
+              secondaryPosition: true,
             },
           },
         },
@@ -244,6 +268,21 @@ export async function statisticsOverview(req: Request, res: Response) {
       current.minutes += stat.minutesPlayed;
       current.goals += stat.goals;
       current.assists += stat.assists;
+      const finished = match.matchDetails?.status === MatchStatus.FINISHED ||
+        match.matchDetails?.status === MatchStatus.RECORDED;
+      const conceded = match.teamMatchStatistic?.theirGoals ?? match.matchDetails?.theirGoals;
+      if (
+        finished &&
+        conceded === 0 &&
+        stat.appeared &&
+        isDefensivePlayer(
+          stat.player.position,
+          stat.player.secondaryPosition,
+          stat.isGoalkeeper,
+        )
+      ) {
+        current.cleanSheets += 1;
+      }
       aggregated.set(stat.playerId, current);
     }
   }
@@ -268,6 +307,8 @@ export async function statisticsOverview(req: Request, res: Response) {
           lastName: true,
           preferredName: true,
           shirtNumber: true,
+          position: true,
+          secondaryPosition: true,
         },
       },
       assist: {
@@ -318,6 +359,9 @@ export async function statisticsOverview(req: Request, res: Response) {
       ...(allowedPlayerIds ? { playerId: { in: [...allowedPlayerIds] } } : {}),
     },
     include: {
+      event: {
+        include: { matchDetails: true, teamMatchStatistic: true },
+      },
       player: {
         select: {
           id: true,
@@ -325,6 +369,8 @@ export async function statisticsOverview(req: Request, res: Response) {
           lastName: true,
           preferredName: true,
           shirtNumber: true,
+          position: true,
+          secondaryPosition: true,
         },
       },
     },
@@ -336,6 +382,22 @@ export async function statisticsOverview(req: Request, res: Response) {
     current.appearances += stat.appeared ? 1 : 0;
     current.starts += stat.started ? 1 : 0;
     current.minutes += stat.minutesPlayed;
+    const finished = stat.event.matchDetails?.status === MatchStatus.FINISHED ||
+      stat.event.matchDetails?.status === MatchStatus.RECORDED;
+    const conceded = stat.event.teamMatchStatistic?.theirGoals ??
+      stat.event.matchDetails?.theirGoals;
+    if (
+      finished &&
+      conceded === 0 &&
+      stat.appeared &&
+      isDefensivePlayer(
+        stat.player.position,
+        stat.player.secondaryPosition,
+        stat.isGoalkeeper,
+      )
+    ) {
+      current.cleanSheets += 1;
+    }
     career.set(stat.playerId, current);
   }
   const careerGoalEvents = await prisma.liveTickerEvent.findMany({
@@ -408,6 +470,7 @@ export async function statisticsOverview(req: Request, res: Response) {
           minutes: 0,
           goals: 0,
           assists: 0,
+          cleanSheets: 0,
         };
       return {
         ...scoped,

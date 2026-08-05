@@ -574,11 +574,13 @@ class _PlayerStatistics extends StatelessWidget {
                         if (showCareer && player.career != null)
                           'Gesamt: ${player.career!.appearances} Einsätze · '
                               '${player.career!.goals} Tore · '
-                              '${player.career!.assists} Assists',
+                              '${player.career!.assists} Assists'
+                              '${player.career!.cleanSheetEligible ? ' · ${player.career!.cleanSheets} Spiele zu null' : ''}',
                       ].join('\n'),
                     ),
                     trailing: Text(
-                      '${player.goals} T · ${player.assists} V',
+                      '${player.goals} T · ${player.assists} V'
+                      '${player.cleanSheetEligible ? ' · ${player.cleanSheets} ZN' : ''}',
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                   ),

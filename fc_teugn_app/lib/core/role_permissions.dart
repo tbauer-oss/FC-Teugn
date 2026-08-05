@@ -30,15 +30,18 @@ const _catalog = <RolePermission>[
     'Sensible Spielerdaten bearbeiten',
     PermissionKind.edit,
   ),
-  RolePermission('MANAGE_DOCUMENTS', 'Dokumente verwalten', PermissionKind.edit),
+  RolePermission(
+      'MANAGE_DOCUMENTS', 'Dokumente verwalten', PermissionKind.edit),
   RolePermission(
     'MANAGE_DEVELOPMENT',
     'Entwicklung dokumentieren',
     PermissionKind.edit,
   ),
   RolePermission('MANAGE_EVENTS', 'Termine verwalten', PermissionKind.edit),
-  RolePermission('MANAGE_LINEUPS', 'Aufstellungen verwalten', PermissionKind.edit),
-  RolePermission('MANAGE_LIVE_TICKER', 'Liveticker führen', PermissionKind.edit),
+  RolePermission(
+      'MANAGE_LINEUPS', 'Aufstellungen verwalten', PermissionKind.edit),
+  RolePermission(
+      'MANAGE_LIVE_TICKER', 'Liveticker führen', PermissionKind.edit),
   RolePermission(
     'VIEW_PLAYER_STATS',
     'Spielerstatistiken ansehen',
@@ -72,6 +75,8 @@ const _catalog = <RolePermission>[
     PermissionKind.edit,
   ),
 ];
+
+List<RolePermission> get allRolePermissions => List.unmodifiable(_catalog);
 
 const _coachPermissions = <String>{
   'VIEW_TEAM',
@@ -159,5 +164,7 @@ List<RolePermission> permissionsForUserRole(UserRole role) {
       },
     UserRole.readOnly => const {'VIEW_TEAM', 'VIEW_TEAM_OPERATIONS'},
   };
-  return _catalog.where((permission) => codes.contains(permission.code)).toList();
+  return _catalog
+      .where((permission) => codes.contains(permission.code))
+      .toList();
 }

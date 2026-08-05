@@ -1,7 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AccountStatus, Role } from '../types/enums';
-import { hasPermission, Permission } from '../security/permissions';
+import {
+  effectivePermissionsForUser,
+  hasEffectivePermission,
+  Permission,
+} from '../security/permissions';
 import { prisma } from '../lib/prisma';
 
 const ACCESS_SECRET =
@@ -12,6 +16,7 @@ export interface AuthUser {
   role: Role;
   status: AccountStatus;
   teamId: string;
+  permissions?: string[];
 }
 
 declare global {
@@ -49,7 +54,11 @@ export function requireRoles(roles: Role[]) {
 
 export function requirePermission(permission: Permission) {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user || !hasPermission(req.user.role, permission)) {
+    if (!req.user || !hasEffectivePermission(
+      req.user.role,
+      permission,
+      req.user.permissions,
+    )) {
       return res.status(403).json({
         message: 'Für diese Aktion fehlt die erforderliche Berechtigung.',
         permission,
@@ -81,11 +90,16 @@ export async function requireApproved(
   if (!current) {
     return res.status(401).json({ message: 'Account nicht gefunden.' });
   }
+  const permissions = await effectivePermissionsForUser(
+    req.user.id,
+    current.role as Role,
+  );
   req.user = {
     id: req.user.id,
     role: current.role as Role,
     status: current.status as AccountStatus,
     teamId: current.teamId,
+    permissions,
   };
 
   if (

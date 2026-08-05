@@ -10,7 +10,7 @@ import {
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { hasPermission, Permission } from '../security/permissions';
-import { accessibleTeamIds } from '../services/team-access';
+import { accessibleTeamIds, contextualTeamIds } from '../services/team-access';
 import { notifyUsers } from '../services/notification.service';
 import { Role } from '../types/enums';
 
@@ -142,6 +142,7 @@ async function notifyAnnouncement(announcementId: string) {
 export async function processDueAnnouncements() {
   const due = await prisma.announcement.findMany({
     where: {
+      deletedAt: null,
       status: AnnouncementStatus.SCHEDULED,
       publishAt: { lte: new Date() },
       OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
@@ -151,7 +152,11 @@ export async function processDueAnnouncements() {
   });
   for (const item of due) {
     const updated = await prisma.announcement.updateMany({
-      where: { id: item.id, status: AnnouncementStatus.SCHEDULED },
+      where: {
+        id: item.id,
+        deletedAt: null,
+        status: AnnouncementStatus.SCHEDULED,
+      },
       data: {
         status: AnnouncementStatus.PUBLISHED,
         publishedAt: new Date(),
@@ -177,10 +182,11 @@ function serializeAnnouncement(
 export async function listAnnouncements(req: Request, res: Response) {
   await processDueAnnouncements();
   const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
+  const teamIds = await contextualTeamIds(user);
   const staff = hasPermission(user.role as Role, Permission.SEND_ANNOUNCEMENTS);
   const announcements = await prisma.announcement.findMany({
     where: {
+      deletedAt: null,
       targetTeams: { some: { teamId: { in: teamIds } } },
       ...(staff && req.query.includeDrafts === 'true'
         ? { status: { not: AnnouncementStatus.ARCHIVED } }
@@ -218,6 +224,7 @@ export async function getAnnouncement(req: Request, res: Response) {
   const announcement = await prisma.announcement.findFirst({
     where: {
       id: req.params.id,
+      deletedAt: null,
       targetTeams: { some: { teamId: { in: teamIds } } },
     },
     include: announcementInclude,
@@ -318,6 +325,7 @@ export async function saveAnnouncement(req: Request, res: Response) {
     ? await prisma.announcement.findFirst({
         where: {
           id: req.params.id,
+          deletedAt: null,
           targetTeams: { some: { teamId: { in: accessible } } },
         },
         select: { id: true, authorId: true, status: true },
@@ -435,6 +443,7 @@ export async function publishAnnouncement(req: Request, res: Response) {
   const announcement = await prisma.announcement.findFirst({
     where: {
       id: req.params.id,
+      deletedAt: null,
       targetTeams: { some: { teamId: { in: teamIds } } },
     },
   });
@@ -464,14 +473,48 @@ export async function publishAnnouncement(req: Request, res: Response) {
 export async function archiveAnnouncement(req: Request, res: Response) {
   const user = req.user!;
   const teamIds = await accessibleTeamIds(user);
-  const updated = await prisma.announcement.updateMany({
+  const announcement = await prisma.announcement.findFirst({
     where: {
       id: req.params.id,
+      deletedAt: null,
       targetTeams: { some: { teamId: { in: teamIds } } },
     },
-    data: { status: AnnouncementStatus.ARCHIVED, archivedAt: new Date() },
+    include: { targetTeams: true },
   });
-  if (!updated.count) return res.status(404).json({ message: 'Mitteilung nicht gefunden.' });
+  if (!announcement) return res.status(404).json({ message: 'Mitteilung nicht gefunden.' });
+  if (
+    user.role !== Role.SUPER_ADMIN &&
+    announcement.authorId !== user.id &&
+    !announcement.targetTeams.every((target) => teamIds.includes(target.teamId))
+  ) {
+    return res.status(403).json({ message: 'Diese Mitteilung darf nicht gelöscht werden.' });
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.announcement.update({
+      where: { id: announcement.id },
+      data: {
+        status: AnnouncementStatus.ARCHIVED,
+        archivedAt: new Date(),
+        deletedAt: new Date(),
+        deletedById: user.id,
+      },
+    });
+    await tx.notification.deleteMany({
+      where: { entityType: 'Announcement', entityId: announcement.id },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: announcement.targetTeams[0]?.teamId ?? user.teamId,
+        action: 'ANNOUNCEMENT_SOFT_DELETED',
+        entityType: 'Announcement',
+        entityId: announcement.id,
+        metadata: {
+          wasPublished: announcement.status === AnnouncementStatus.PUBLISHED,
+        },
+      },
+    });
+  });
   return res.status(204).send();
 }
 
@@ -518,6 +561,7 @@ export async function markAnnouncementRead(req: Request, res: Response) {
   const announcement = await prisma.announcement.findFirst({
     where: {
       id: req.params.id,
+      deletedAt: null,
       status: AnnouncementStatus.PUBLISHED,
       AND: [
         { OR: [{ publishAt: null }, { publishAt: { lte: new Date() } }] },
