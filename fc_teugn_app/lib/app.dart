@@ -254,7 +254,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         locale: _germanLocale,
         supportedLocales: _supportedLocales,
         localizationsDelegates: _localizationsDelegates,
-        builder: _buildAppContent,
+        // Der Startbildschirm besitzt bereits seine eigene ruhige
+        // Ladeanimation. Globale Speicher-/Ladeoverlays würden hier ein
+        // zweites Vereinslogo darüberlegen.
+        builder: buildLaunchScreenContent,
         home: AnimatedLaunchScreen(
           waitingForData: bootstrapLoading,
           statusMessage: bootstrapLoading
@@ -653,4 +656,11 @@ const _localizationsDelegates = [
 Widget _buildAppContent(BuildContext context, Widget? child) => MediaQuery(
       data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
       child: AppLoadingHost(child: child ?? const SizedBox.shrink()),
+    );
+
+@visibleForTesting
+Widget buildLaunchScreenContent(BuildContext context, Widget? child) =>
+    MediaQuery(
+      data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+      child: child ?? const SizedBox.shrink(),
     );

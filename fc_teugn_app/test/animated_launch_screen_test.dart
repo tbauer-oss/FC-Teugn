@@ -1,3 +1,6 @@
+import 'package:fc_teugn_app/app.dart';
+import 'package:fc_teugn_app/core/club_logo.dart';
+import 'package:fc_teugn_app/core/loading/loading_widgets.dart';
 import 'package:fc_teugn_app/features/launch/animated_launch_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,6 +64,20 @@ void main() {
     expect(image.fit, BoxFit.contain);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Startsequenz zeigt kein zusätzliches globales Lade-Logo',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        builder: buildLaunchScreenContent,
+        home: AnimatedLaunchScreen(),
+      ),
+    );
+
+    expect(find.byType(AppLoadingHost), findsNothing);
+    expect(find.byType(ClubLogo), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
   });
 
   testWidgets('Startsequenz wartet sichtbar auf vorgeladene Vereinsdaten',

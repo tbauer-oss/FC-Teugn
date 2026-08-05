@@ -1101,10 +1101,6 @@ class DataRepository {
             )
             .toList(),
       },
-      // Das Backend aktualisiert nach der Kadertransaktion zusätzlich die
-      // Erinnerungsjobs. Der Standardwert bleibt für normale Requests knapp;
-      // diese Kernfunktion erhält bewusst etwas mehr Reserve.
-      options: Options(receiveTimeout: const Duration(seconds: 30)),
     );
     return MatchSquadModel.fromJson(
       response.data as Map<String, dynamic>,

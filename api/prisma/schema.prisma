@@ -1035,6 +1035,7 @@ model Event {
   cancellationReason    String?
   cancelledAt           DateTime?
   attendanceFinalized   Boolean                @default(false)
+  reminderSyncPendingAt DateTime?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   team                  Team                   @relation(fields: [teamId], references: [id])
@@ -1059,6 +1060,7 @@ model Event {
   @@index([teamId, startAt])
   @@index([seriesId, startAt])
   @@index([status, startAt])
+  @@index([reminderSyncPendingAt])
 }
 
 model EventParticipant {

@@ -23,8 +23,6 @@ import {
   youthPlayerPoolTeamIdsForTeam,
 } from '../services/team-access';
 import { syncSquadWithTeamDefaultLineup } from '../services/default-lineup.service';
-import { syncScheduledRemindersForEvent } from '../services/reminder.service';
-import { settlePostCommitTasks } from '../services/post-commit.service';
 
 const matchInclude = {
   team: {
@@ -209,6 +207,26 @@ async function canManageTicker(
 async function findMatch(id: string, user: { id: string; teamId: string; role: Role }) {
   const teamIds = await accessibleTeamIds(user);
   return prisma.event.findFirst({ where: { id, ...scope(teamIds) }, include: matchInclude });
+}
+
+async function findMatchForSquadUpdate(
+  id: string,
+  user: { id: string; teamId: string; role: Role },
+) {
+  const teamIds = await accessibleTeamIds(user);
+  return prisma.event.findFirst({
+    where: { id, ...scope(teamIds) },
+    select: {
+      id: true,
+      teamId: true,
+      team: { select: { id: true, gameFormat: true } },
+      targetTeams: {
+        select: {
+          team: { select: { id: true, gameFormat: true } },
+        },
+      },
+    },
+  });
 }
 
 function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof matchInclude }>>(
@@ -511,7 +529,10 @@ export async function updateMatch(req: Request, res: Response) {
 
 export async function updateSquad(req: Request, res: Response) {
   const user = req.user!;
-  const match = await findMatch(req.params.id, user);
+  // Dieser Endpunkt benötigt weder Ticker noch Statistiken oder die komplette
+  // bestehende Aufstellung. Die schlanke Abfrage spart bei jedem Speichern
+  // mehrere große Joins in der Produktionsdatenbank.
+  const match = await findMatchForSquadUpdate(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   const members = Array.isArray(req.body?.members) ? req.body.members : [];
   const ids = [...new Set(members.map((item: { playerId?: unknown }) => text(item.playerId, 100)).filter(Boolean))] as string[];
@@ -539,45 +560,65 @@ export async function updateSquad(req: Request, res: Response) {
         formation: text(req.body.formation, 50),
       },
     });
-    await tx.squadMember.deleteMany({ where: { squadId: saved.id } });
+    await Promise.all([
+      tx.squadMember.deleteMany({ where: { squadId: saved.id } }),
+      tx.eventParticipant.deleteMany({
+        where: { eventId: match.id, playerId: { not: null } },
+      }),
+      tx.attendance.deleteMany({
+        where: { eventId: match.id, playerId: { notIn: ids } },
+      }),
+    ]);
+    const writes: Prisma.PrismaPromise<unknown>[] = [
+      tx.event.update({
+        where: { id: match.id },
+        data: { reminderSyncPendingAt: new Date() },
+      }),
+      tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          teamId: match.teamId,
+          action: 'MATCH_SQUAD_UPDATED',
+          entityType: 'Squad',
+          entityId: saved.id,
+          metadata: { memberCount: members.length },
+        },
+      }),
+    ];
     if (members.length) {
-      await tx.squadMember.createMany({
-        data: members.map((item: Record<string, unknown>) => ({
-          squadId: saved.id,
-          playerId: String(item.playerId),
-          status: enumValue(NominationStatus, item.status, NominationStatus.NOMINATED),
-          note: text(item.note, 300),
-          plannedMinutes:
-            item.plannedMinutes == null
-              ? null
-              : integer(item.plannedMinutes, 0, 300, 0),
-        })),
-        skipDuplicates: true,
-      });
+      writes.push(
+        tx.squadMember.createMany({
+          data: members.map((item: Record<string, unknown>) => ({
+            squadId: saved.id,
+            playerId: String(item.playerId),
+            status: enumValue(NominationStatus, item.status, NominationStatus.NOMINATED),
+            note: text(item.note, 300),
+            plannedMinutes:
+              item.plannedMinutes == null
+                ? null
+                : integer(item.plannedMinutes, 0, 300, 0),
+          })),
+          skipDuplicates: true,
+        }),
+      );
     }
-    await tx.eventParticipant.deleteMany({
-      where: { eventId: match.id, playerId: { not: null } },
-    });
-    await tx.attendance.deleteMany({
-      where: { eventId: match.id, playerId: { notIn: ids } },
-    });
     if (ids.length) {
-      await tx.eventParticipant.createMany({
-        data: ids.map((playerId) => ({
-          eventId: match.id,
-          playerId,
-          responseRequired: true,
-        })),
-        skipDuplicates: true,
-      });
-      for (const playerId of ids) {
-        await tx.attendance.upsert({
-          where: { eventId_playerId: { eventId: match.id, playerId } },
-          update: {},
-          create: { eventId: match.id, playerId },
-        });
-      }
+      writes.push(
+        tx.eventParticipant.createMany({
+          data: ids.map((playerId) => ({
+            eventId: match.id,
+            playerId,
+            responseRequired: true,
+          })),
+          skipDuplicates: true,
+        }),
+        tx.attendance.createMany({
+          data: ids.map((playerId) => ({ eventId: match.id, playerId })),
+          skipDuplicates: true,
+        }),
+      );
     }
+    await Promise.all(writes);
     await syncSquadWithTeamDefaultLineup(tx, {
       teamId: match.targetTeams[0]?.team.id ?? match.team.id,
       squadId: saved.id,
@@ -600,28 +641,9 @@ export async function updateSquad(req: Request, res: Response) {
       },
     });
   });
-  // The squad transaction has already committed at this point. Audit and
-  // reminder maintenance are important, but a failure in either task must not
-  // turn a successful squad save into an HTTP error for the app.
-  await settlePostCommitTasks([
-    {
-      name: 'match-squad-audit',
-      promise: prisma.auditLog.create({
-        data: {
-          actorId: user.id,
-          teamId: match.teamId,
-          action: 'MATCH_SQUAD_UPDATED',
-          entityType: 'Squad',
-          entityId: squad?.id,
-          metadata: { memberCount: members.length },
-        },
-      }),
-    },
-    {
-      name: 'match-squad-reminders',
-      promise: syncScheduledRemindersForEvent(match.id),
-    },
-  ]);
+  // Die Antwort hängt ausschließlich vom atomaren Kader-Commit ab.
+  // Erinnerungsjobs werden durch den Cron anhand reminderSyncPendingAt
+  // zuverlässig nachgezogen und blockieren diese Kernfunktion nie wieder.
   return res.json(squad);
 }
 

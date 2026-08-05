@@ -82,53 +82,82 @@ export async function syncScheduledRemindersForEvent(eventId: string) {
         ? []
         : [team.defaultReminderMinutes]
       : [];
-  const desiredKeys = new Set<string>();
-  const writes: Prisma.PrismaPromise<unknown>[] = [];
+  const desiredJobs: Prisma.ScheduledReminderCreateManyInput[] = [];
   for (const recipientId of recipientIds) {
     for (const minutesBefore of reminderMinutes) {
       const dueAt = new Date(event.startAt.getTime() - minutesBefore * 60_000);
       const idempotencyKey = `event-reminder:${event.id}:${recipientId}:${minutesBefore}`;
-      desiredKeys.add(idempotencyKey);
-      writes.push(prisma.scheduledReminder.upsert({
-        where: { idempotencyKey },
-        update: {
-          dueAt,
-          status: event.status === EventStatus.CANCELLED
-            ? ReminderJobStatus.CANCELLED
-            : ReminderJobStatus.SCHEDULED,
-          cancelledAt: event.status === EventStatus.CANCELLED ? new Date() : null,
-          errorMessage: null,
-        },
-        create: {
-          eventId: event.id,
-          recipientId,
-          dueAt,
-          minutesBefore,
-          idempotencyKey,
-          status: event.status === EventStatus.CANCELLED
-            ? ReminderJobStatus.CANCELLED
-            : ReminderJobStatus.SCHEDULED,
-          cancelledAt: event.status === EventStatus.CANCELLED ? new Date() : null,
-        },
-      }));
+      desiredJobs.push({
+        eventId: event.id,
+        recipientId,
+        dueAt,
+        minutesBefore,
+        idempotencyKey,
+        status: event.status === EventStatus.CANCELLED
+          ? ReminderJobStatus.CANCELLED
+          : ReminderJobStatus.SCHEDULED,
+        cancelledAt: event.status === EventStatus.CANCELLED ? new Date() : null,
+      });
     }
   }
-  writes.push(prisma.scheduledReminder.updateMany({
-    where: {
-      eventId,
-      status: { in: [ReminderJobStatus.SCHEDULED, ReminderJobStatus.FAILED] },
-      idempotencyKey: { notIn: [...desiredKeys] },
-    },
-    data: { status: ReminderJobStatus.CANCELLED, cancelledAt: new Date() },
-  }));
-  // Ein Kader kann mehrere Kinder, Eltern und Erinnerungszeitpunkte umfassen.
-  // Die einzelnen Upserts in einer einzigen Prisma-Transaktion zu senden
-  // verhindert dutzende serielle Netzwerk-Roundtrips und damit Timeouts nach
-  // einer bereits erfolgreich abgeschlossenen Kaderspeicherung.
+  const writes: Prisma.PrismaPromise<unknown>[] = [
+    prisma.scheduledReminder.deleteMany({
+      where: {
+        eventId,
+        status: {
+          in: [
+            ReminderJobStatus.SCHEDULED,
+            ReminderJobStatus.FAILED,
+            ReminderJobStatus.CANCELLED,
+          ],
+        },
+      },
+    }),
+  ];
+  if (desiredJobs.length > 0) {
+    writes.push(
+      prisma.scheduledReminder.createMany({
+        data: desiredJobs,
+        skipDuplicates: true,
+      }),
+    );
+  }
+  // Zwei Bulk-Operationen ersetzen einen Upsert pro Elternteil, Kind und
+  // Erinnerungszeitpunkt. Bereits versendete oder gerade verarbeitete Jobs
+  // bleiben durch ihren Idempotenzschlüssel unverändert.
   await prisma.$transaction(writes);
 }
 
+export async function processPendingReminderSyncs(limit = 20) {
+  const pendingEvents = await prisma.event.findMany({
+    where: { reminderSyncPendingAt: { not: null } },
+    orderBy: { reminderSyncPendingAt: 'asc' },
+    take: limit,
+    select: { id: true, reminderSyncPendingAt: true },
+  });
+  let synchronized = 0;
+  let failed = 0;
+  for (const event of pendingEvents) {
+    try {
+      await syncScheduledRemindersForEvent(event.id);
+      const cleared = await prisma.event.updateMany({
+        where: {
+          id: event.id,
+          reminderSyncPendingAt: event.reminderSyncPendingAt,
+        },
+        data: { reminderSyncPendingAt: null },
+      });
+      synchronized += cleared.count;
+    } catch (error) {
+      console.error(`[reminder-sync] event ${event.id} failed`, error);
+      failed += 1;
+    }
+  }
+  return { pending: pendingEvents.length, synchronized, failed };
+}
+
 export async function processDueReminders(now = new Date()) {
+  const pendingSync = await processPendingReminderSyncs();
   const regularTrainingSent = await processRegularTrainingReminders(now);
   const due = await prisma.scheduledReminder.findMany({
     where: {
@@ -190,6 +219,7 @@ export async function processDueReminders(now = new Date()) {
     sent: sent + regularTrainingSent,
     failed,
     regularTrainingSent,
+    reminderSync: pendingSync,
   };
 }
 
