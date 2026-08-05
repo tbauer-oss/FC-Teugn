@@ -31,6 +31,7 @@ void main() {
         'Training & Spieltag',
         'Organisation & Kommunikation',
         'Verein & Verwaltung',
+        'Hilfe & Support',
       ],
     );
     expect(

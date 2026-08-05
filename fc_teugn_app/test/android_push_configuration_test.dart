@@ -25,6 +25,7 @@ void main() {
     expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
     expect(manifest, contains('fc_teugn_important'));
     expect(manifest, contains('@drawable/ic_stat_fc_teugn'));
+    expect(manifest, contains('FLUTTER_NOTIFICATION_CLICK'));
   });
 
   test('Android push uses the FC Teugn crest for every notification path', () {
@@ -37,6 +38,7 @@ void main() {
 
     expect(icon.existsSync(), isTrue);
     expect(icon.readAsStringSync(), contains('<vector'));
+    expect(icon.readAsStringSync(), contains('generous spacing'));
     expect(activity, contains('R.drawable.ic_stat_fc_teugn'));
     expect(activity, isNot(contains('R.drawable.ic_stat_notification')));
   });

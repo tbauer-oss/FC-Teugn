@@ -53,7 +53,11 @@ test('Android notification uses the app channel and retains navigation data', ()
   });
   assert.equal(message.android.notification.channelId, 'fc_teugn_important');
   assert.equal(message.android.notification.icon, 'ic_stat_fc_teugn');
-  assert.match(message.android.notification.imageUrl, /fc_teugn_logo\.png$/);
+  assert.equal(message.android.notification.imageUrl, undefined);
+  assert.equal(
+    message.android.notification.clickAction,
+    'FLUTTER_NOTIFICATION_CLICK',
+  );
   assert.equal(message.data.actionUrl, '/messages/announcement-1');
   assert.equal(message.data.notificationId, 'notification-1');
   assert.equal(message.android.priority, 'high');

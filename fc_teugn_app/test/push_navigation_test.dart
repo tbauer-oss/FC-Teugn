@@ -29,4 +29,26 @@ void main() {
       '/parent',
     );
   });
+
+  test('event notifications open the role-correct calendar', () {
+    expect(
+      normalizePushActionRoute('/events/event-1', isTrainer: true),
+      '/trainer/events',
+    );
+    expect(
+      normalizePushActionRoute('/events/event-1', isTrainer: false),
+      '/parent/events',
+    );
+  });
+
+  test('match notifications open the role-correct matchday', () {
+    expect(
+      normalizePushActionRoute('/matches/match-1', isTrainer: true),
+      '/trainer/matches/match-1',
+    );
+    expect(
+      normalizePushActionRoute('/matches/match-1', isTrainer: false),
+      '/parent/matches/match-1',
+    );
+  });
 }

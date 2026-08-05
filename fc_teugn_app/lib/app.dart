@@ -28,6 +28,7 @@ import 'features/training/training_pages.dart';
 import 'features/communications/communications_page.dart';
 import 'features/operations/team_operations_page.dart';
 import 'features/privacy/privacy_page.dart';
+import 'features/help/help_page.dart';
 import 'features/launch/animated_launch_screen.dart';
 import 'features/shared/app_update_dialog.dart';
 import 'core/models/communication.dart';
@@ -442,6 +443,13 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   section: ShellSection.administration,
                   hint: 'Daten, Dokumente und Zustimmungen',
                   showOnMobile: false),
+              ShellDestination(
+                  label: 'Hilfe & FAQ',
+                  icon: Icons.help_center_rounded,
+                  route: '/trainer/help',
+                  section: ShellSection.support,
+                  hint: 'Anleitungen und schnelle Antworten',
+                  showOnMobile: false),
             ],
             child: child,
           ),
@@ -515,6 +523,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               path: '/trainer/privacy',
               builder: (context, state) => const PrivacyPage(),
             ),
+            GoRoute(
+              path: '/trainer/help',
+              builder: (context, state) => const HelpPage(staffView: true),
+            ),
           ],
         ),
         ShellRoute(
@@ -574,6 +586,13 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   section: ShellSection.administration,
                   hint: 'Daten, Dokumente und Zustimmungen',
                   showOnMobile: false),
+              ShellDestination(
+                  label: 'Hilfe & FAQ',
+                  icon: Icons.help_center_rounded,
+                  route: '/parent/help',
+                  section: ShellSection.support,
+                  hint: 'Anleitungen und schnelle Antworten',
+                  showOnMobile: false),
             ],
             child: child,
           ),
@@ -625,6 +644,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               path: '/parent/privacy',
               builder: (context, state) => const PrivacyPage(),
             ),
+            GoRoute(
+              path: '/parent/help',
+              builder: (context, state) => const HelpPage(staffView: false),
+            ),
           ],
         ),
       ],
@@ -664,6 +687,20 @@ String normalizePushActionRoute(
   }
   if (path == '/trainer/messages' || path == '/parent/messages') {
     return isTrainer ? '/trainer/messages' : '/parent/messages';
+  }
+  if (path == '/events' || path.startsWith('/events/')) {
+    return isTrainer ? '/trainer/events' : '/parent/events';
+  }
+  if (path == '/matches') {
+    return isTrainer ? '/trainer/matches' : '/parent/matches';
+  }
+  if (path.startsWith('/matches/')) {
+    final matchId = path.substring('/matches/'.length).split('/').first;
+    if (matchId.isNotEmpty) {
+      return isTrainer
+          ? '/trainer/matches/$matchId'
+          : '/parent/matches/$matchId';
+    }
   }
   if (path.startsWith('/trainer/') && !isTrainer) return '/parent';
   if (path.startsWith('/parent/') && isTrainer) return '/trainer';

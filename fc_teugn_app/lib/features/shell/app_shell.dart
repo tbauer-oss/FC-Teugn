@@ -37,6 +37,11 @@ enum ShellSection {
     'Verein & Verwaltung',
     'Mitglieder, Strukturen und Einwilligungen',
     Icons.admin_panel_settings_rounded,
+  ),
+  support(
+    'Hilfe & Support',
+    'Anleitungen, Antworten und Problemlösung',
+    Icons.help_center_rounded,
   );
 
   const ShellSection(this.label, this.description, this.icon);
@@ -336,6 +341,9 @@ class AppShell extends ConsumerWidget {
             ? '${organization.ageGroups.where((item) => item.id == organization.workingContext.ageGroupId).firstOrNull?.name ?? organization.currentTeam.ageGroup.name} · Alle Mannschaften'
             : organization.currentTeam.displayName;
     final seasonLabel = organization?.season.name ?? '2026/27';
+    final helpDestination = destinations
+        .where((destination) => destination.route.endsWith('/help'))
+        .firstOrNull;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -362,6 +370,9 @@ class AppShell extends ConsumerWidget {
                           ),
                   onSelect: (index) => context.go(destinations[index].route),
                   onLogout: () => ref.read(authProvider.notifier).logout(),
+                  onHelp: helpDestination == null
+                      ? _noOp
+                      : () => context.go(helpDestination.route),
                   onAbout: () => showAppAboutSheet(context),
                 ),
               Expanded(
@@ -391,6 +402,9 @@ class AppShell extends ConsumerWidget {
                           }
                           if (privacy != null) context.go(privacy.route);
                         },
+                        onHelp: helpDestination == null
+                            ? _noOp
+                            : () => context.go(helpDestination.route),
                         onAbout: () => showAppAboutSheet(context),
                       ),
                     if (showContextBack)
@@ -570,6 +584,7 @@ class DesktopSidebar extends StatelessWidget {
     this.onContextTap = _noOp,
     required this.onSelect,
     required this.onLogout,
+    this.onHelp = _noOp,
     this.onAbout = _noOp,
   });
 
@@ -583,6 +598,7 @@ class DesktopSidebar extends StatelessWidget {
   final VoidCallback onContextTap;
   final ValueChanged<int> onSelect;
   final VoidCallback onLogout;
+  final VoidCallback onHelp;
   final VoidCallback onAbout;
 
   @override
@@ -738,6 +754,12 @@ class DesktopSidebar extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  tooltip: 'Hilfe & FAQ',
+                  onPressed: onHelp,
+                  color: Colors.white70,
+                  icon: const Icon(Icons.help_outline_rounded, size: 20),
                 ),
                 IconButton(
                   tooltip: 'Über ${AppIdentity.name}',
@@ -1324,6 +1346,7 @@ class _MobileHeader extends StatelessWidget {
     required this.onLogout,
     required this.onContextTap,
     required this.onPrivacy,
+    required this.onHelp,
     required this.onAbout,
   });
 
@@ -1333,6 +1356,7 @@ class _MobileHeader extends StatelessWidget {
   final VoidCallback onLogout;
   final VoidCallback onContextTap;
   final VoidCallback onPrivacy;
+  final VoidCallback onHelp;
   final VoidCallback onAbout;
 
   @override
@@ -1410,6 +1434,8 @@ class _MobileHeader extends StatelessWidget {
                     switch (action) {
                       case _MobileAccountAction.privacy:
                         onPrivacy();
+                      case _MobileAccountAction.help:
+                        onHelp();
                       case _MobileAccountAction.about:
                         onAbout();
                       case _MobileAccountAction.logout:
@@ -1417,6 +1443,14 @@ class _MobileHeader extends StatelessWidget {
                     }
                   },
                   itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: _MobileAccountAction.help,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.help_center_rounded),
+                        title: Text('Hilfe & FAQ'),
+                      ),
+                    ),
                     PopupMenuItem(
                       value: _MobileAccountAction.privacy,
                       child: ListTile(
@@ -1452,7 +1486,7 @@ class _MobileHeader extends StatelessWidget {
   }
 }
 
-enum _MobileAccountAction { privacy, about, logout }
+enum _MobileAccountAction { help, privacy, about, logout }
 
 class _ClubBrand extends StatelessWidget {
   const _ClubBrand({required this.light});

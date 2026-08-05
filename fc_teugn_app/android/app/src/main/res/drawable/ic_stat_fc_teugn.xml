@@ -3,9 +3,10 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Monochrome crest silhouette required by Android for status-bar icons. -->
+    <!-- Compact monochrome club crest. Android masks notification icons, so a
+         calm silhouette with generous spacing stays crisp on every device. -->
     <path
         android:fillColor="#FFFFFFFF"
         android:fillType="evenOdd"
-        android:pathData="M12,1.15C9.5,2.95 7.05,3.05 4.35,1.55L1.55,4.2C3.15,6.55 3.2,9.05 2.45,12.15C1.75,15.05 2.15,18.4 5.05,20.55L12,23L18.95,20.55C21.85,18.4 22.25,15.05 21.55,12.15C20.8,9.05 20.85,6.55 22.45,4.2L19.65,1.55C16.95,3.05 14.5,2.95 12,1.15ZM4.15,16.85L17.85,3.15L20.05,5.35L6.35,19.05Z" />
+        android:pathData="M12,2.75C9.85,4.1 7.8,4.2 5.45,3.05L3.25,5.15C4.45,7.15 4.55,9.25 3.95,11.8C3.35,14.45 3.75,17.25 6.1,19L12,21.25L17.9,19C20.25,17.25 20.65,14.45 20.05,11.8C19.45,9.25 19.55,7.15 20.75,5.15L18.55,3.05C16.2,4.2 14.15,4.1 12,2.75ZM6.35,15.75L15.95,6.15L17.75,7.95L8.15,17.55Z" />
 </vector>
