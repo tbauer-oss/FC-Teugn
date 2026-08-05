@@ -213,30 +213,30 @@ class _AppLoadingInterceptor extends Interceptor {
     if (path.contains('/lineup')) {
       return (
         message: 'Aufstellung wird gespeichert …',
-        mode: AppLoadingMode.overlay
+        mode: AppLoadingMode.background
       );
     }
     if (path.contains('/squad')) {
       return (
         message: 'Kader wird gespeichert …',
-        mode: AppLoadingMode.overlay
+        mode: AppLoadingMode.background
       );
     }
     if (path.contains('/communications') || path.contains('/push')) {
       return (
         message: 'Nachricht wird versendet …',
-        mode: AppLoadingMode.overlay
+        mode: AppLoadingMode.background
       );
     }
     if (path.contains('/matches') || path.contains('/events')) {
       return (
         message: 'Termin wird gespeichert …',
-        mode: AppLoadingMode.overlay
+        mode: AppLoadingMode.background
       );
     }
     return (
       message: 'Änderungen werden gespeichert …',
-      mode: AppLoadingMode.overlay
+      mode: AppLoadingMode.background
     );
   }
 }

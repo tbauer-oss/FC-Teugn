@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app_theme.dart';
-import '../club_logo.dart';
 import 'loading_controller.dart';
 
 class AppLoadingHost extends ConsumerWidget {
@@ -39,7 +38,11 @@ class AppLoadingHost extends ConsumerWidget {
   }
 }
 
-class LogoLoadingIndicator extends StatefulWidget {
+/// Schlanker, neutraler Fortschrittsindikator ohne Vereinswappen.
+///
+/// Der Klassenname bleibt vorerst aus Kompatibilitätsgründen bestehen, damit
+/// bestehende lokale Ladezustände nicht gleichzeitig umgebaut werden müssen.
+class LogoLoadingIndicator extends StatelessWidget {
   const LogoLoadingIndicator({
     super.key,
     this.size = 64,
@@ -52,94 +55,25 @@ class LogoLoadingIndicator extends StatefulWidget {
   final String semanticsLabel;
 
   @override
-  State<LogoLoadingIndicator> createState() => _LogoLoadingIndicatorState();
-}
-
-class _LogoLoadingIndicatorState extends State<LogoLoadingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _pulse;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    _pulse = Tween<double>(begin: .94, end: 1.03).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final media = MediaQuery.maybeOf(context);
-    final reduceMotion =
-        media?.disableAnimations == true || media?.accessibleNavigation == true;
-    if (reduceMotion) {
-      _controller.stop();
-      _controller.value = .5;
-    } else if (!_controller.isAnimating) {
-      _controller.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final media = MediaQuery.maybeOf(context);
     final reduceMotion =
         media?.disableAnimations == true || media?.accessibleNavigation == true;
-    final progress = widget.progress?.clamp(0, 1).toDouble();
-    // Keep the crest large enough to remain recognizable in compact loaders.
-    final logoSize = widget.size * .70;
-    final ring = SizedBox.square(
-      dimension: widget.size,
-      child: progress != null
-          ? CircularProgressIndicator(
-              value: progress,
-              strokeWidth: widget.size < 40 ? 2.2 : 3.2,
-              backgroundColor: AppColors.line,
-              color: AppColors.gold,
-              strokeCap: StrokeCap.round,
-            )
-          : reduceMotion
-              ? DecoratedBox(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.gold, width: 3),
-                  ),
-                )
-              : RotationTransition(
-                  turns: _controller,
-                  child: CircularProgressIndicator(
-                    value: .72,
-                    strokeWidth: widget.size < 40 ? 2.2 : 3.2,
-                    backgroundColor: AppColors.line,
-                    color: AppColors.gold,
-                    strokeCap: StrokeCap.round,
-                  ),
-                ),
-    );
-    final logo = reduceMotion
-        ? ClubLogo(size: logoSize)
-        : ScaleTransition(scale: _pulse, child: ClubLogo(size: logoSize));
+    final normalizedProgress = progress?.clamp(0, 1).toDouble();
     return Semantics(
-      label: widget.semanticsLabel,
-      value: progress == null ? null : '${(progress * 100).round()} Prozent',
+      label: semanticsLabel,
+      value: normalizedProgress == null
+          ? null
+          : '${(normalizedProgress * 100).round()} Prozent',
       liveRegion: true,
       child: SizedBox.square(
-        dimension: widget.size,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [ring, logo],
+        dimension: size,
+        child: CircularProgressIndicator(
+          value: normalizedProgress ?? (reduceMotion ? .72 : null),
+          strokeWidth: size < 40 ? 2.2 : 3.2,
+          backgroundColor: AppColors.line,
+          color: AppColors.gold,
+          strokeCap: StrokeCap.round,
         ),
       ),
     );

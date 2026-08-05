@@ -83,8 +83,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('local logo loader waits before becoming visible',
-      (tester) async {
+  testWidgets('local loader waits before becoming visible', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -93,14 +92,14 @@ void main() {
       ),
     );
 
-    expect(find.byType(ClubLogo), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     await tester.pump(const Duration(milliseconds: 249));
-    expect(find.byType(ClubLogo), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     await tester.pump(const Duration(milliseconds: 1));
-    expect(find.byType(ClubLogo), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
-  testWidgets('reduced motion uses a static logo loader', (tester) async {
+  testWidgets('reduced motion uses a static neutral loader', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: MediaQuery(
@@ -114,7 +113,8 @@ void main() {
       ),
     );
 
-    expect(find.byType(ClubLogo), findsOneWidget);
+    expect(find.byType(ClubLogo), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(
       find.descendant(
         of: find.byType(LogoLoadingIndicator),
@@ -128,20 +128,15 @@ void main() {
     );
   });
 
-  testWidgets('logo loader uses the crisp optimized crest asset',
-      (tester) async {
+  testWidgets('loading indicator never embeds the club crest', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(body: LogoLoadingIndicator()),
       ),
     );
 
-    final image = tester.widget<Image>(find.byType(Image));
-    expect(image.image, isA<AssetImage>());
-    expect(
-      (image.image as AssetImage).assetName,
-      'assets/branding/fc_teugn_logo.png',
-    );
-    expect(image.filterQuality, FilterQuality.high);
+    expect(find.byType(ClubLogo), findsNothing);
+    expect(find.byType(Image), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 }

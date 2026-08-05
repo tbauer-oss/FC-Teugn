@@ -80,7 +80,7 @@ void main() {
     expect(getCalls, 1);
   });
 
-  test('write requests keep one loading operation until completion', () async {
+  test('routine writes use one non-blocking loading operation', () async {
     final arrived = Completer<void>();
     final release = Completer<void>();
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -107,12 +107,14 @@ void main() {
       data: {'members': const []},
     );
     await arrived.future;
-    expect(loading.blockingVisible, isTrue);
-    expect(loading.blockingOperation?.message, 'Kader wird gespeichert …');
+    expect(loading.blockingVisible, isFalse);
+    expect(loading.backgroundVisible, isTrue);
+    expect(loading.backgroundOperation?.message, 'Kader wird gespeichert …');
 
     release.complete();
     await request;
     expect(loading.hasOperations, isFalse);
     expect(loading.blockingVisible, isFalse);
+    expect(loading.backgroundVisible, isFalse);
   });
 }
