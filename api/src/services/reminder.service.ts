@@ -3,6 +3,7 @@ import {
   EventCategory,
   EventStatus,
   NotificationCategory,
+  Prisma,
   ReminderJobStatus,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
@@ -82,12 +83,13 @@ export async function syncScheduledRemindersForEvent(eventId: string) {
         : [team.defaultReminderMinutes]
       : [];
   const desiredKeys = new Set<string>();
+  const writes: Prisma.PrismaPromise<unknown>[] = [];
   for (const recipientId of recipientIds) {
     for (const minutesBefore of reminderMinutes) {
       const dueAt = new Date(event.startAt.getTime() - minutesBefore * 60_000);
       const idempotencyKey = `event-reminder:${event.id}:${recipientId}:${minutesBefore}`;
       desiredKeys.add(idempotencyKey);
-      await prisma.scheduledReminder.upsert({
+      writes.push(prisma.scheduledReminder.upsert({
         where: { idempotencyKey },
         update: {
           dueAt,
@@ -108,17 +110,22 @@ export async function syncScheduledRemindersForEvent(eventId: string) {
             : ReminderJobStatus.SCHEDULED,
           cancelledAt: event.status === EventStatus.CANCELLED ? new Date() : null,
         },
-      });
+      }));
     }
   }
-  await prisma.scheduledReminder.updateMany({
+  writes.push(prisma.scheduledReminder.updateMany({
     where: {
       eventId,
       status: { in: [ReminderJobStatus.SCHEDULED, ReminderJobStatus.FAILED] },
       idempotencyKey: { notIn: [...desiredKeys] },
     },
     data: { status: ReminderJobStatus.CANCELLED, cancelledAt: new Date() },
-  });
+  }));
+  // Ein Kader kann mehrere Kinder, Eltern und Erinnerungszeitpunkte umfassen.
+  // Die einzelnen Upserts in einer einzigen Prisma-Transaktion zu senden
+  // verhindert dutzende serielle Netzwerk-Roundtrips und damit Timeouts nach
+  // einer bereits erfolgreich abgeschlossenen Kaderspeicherung.
+  await prisma.$transaction(writes);
 }
 
 export async function processDueReminders(now = new Date()) {

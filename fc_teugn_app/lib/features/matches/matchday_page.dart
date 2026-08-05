@@ -13,8 +13,10 @@ import '../../core/match_clock.dart';
 import '../../core/models/matchday.dart';
 import '../../core/models/event.dart';
 import '../../core/models/player.dart';
+import '../../core/offline_outbox.dart';
 import '../../core/offline_ticker.dart';
 import '../../core/providers.dart';
+import '../../core/squad_selection.dart';
 import '../../core/ticker_signal.dart';
 import '../../core/widgets/captain_badge.dart';
 import '../../core/widgets/player_team_chip.dart';
@@ -652,7 +654,7 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
   @override
   void initState() {
     super.initState();
-    _selected = _selectionFrom(widget.match);
+    _selected = _eligibleSelection(widget.match);
     _teamFilterId = widget.allPlayers.any(
       (player) => player.teamId == widget.match.teamId,
     )
@@ -665,7 +667,15 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
     super.didUpdateWidget(oldWidget);
     if (!_saving &&
         _squadFingerprint(oldWidget.match) != _squadFingerprint(widget.match)) {
-      _selected = _selectionFrom(widget.match);
+      _selected = _eligibleSelection(widget.match);
+    } else if (!_saving) {
+      // Bereits gespeicherte Spieler können inzwischen pausiert, ausgetreten
+      // oder in eine andere Jugend gewechselt sein. Solche unsichtbaren
+      // Alt-Einträge dürfen den nächsten Speichervorgang nicht blockieren.
+      _selected = retainEligibleSquadSelection(
+        _selected,
+        widget.allPlayers.map((player) => player.id),
+      );
     }
     if (_teamFilterId != null &&
         !widget.allPlayers.any((player) => player.teamId == _teamFilterId)) {
@@ -937,6 +947,12 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
     final repository = ref.read(repositoryProvider);
     setState(() => _saving = true);
     try {
+      final eligibleIds = widget.allPlayers.map((player) => player.id).toSet();
+      final removedUnavailable =
+          _selected.keys.where((id) => !eligibleIds.contains(id)).length;
+      if (removedUnavailable > 0) {
+        _selected = retainEligibleSquadSelection(_selected, eligibleIds);
+      }
       final savedSquad = await repository.saveMatchSquad(
         eventId: widget.match.id,
         members: _selected.entries
@@ -960,14 +976,40 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
       }
       if (!mounted) return false;
       await widget.onSaved(savedSquad);
-      if (mounted) _message('Kader wurde gespeichert.');
+      if (mounted) {
+        _message(
+          removedUnavailable == 0
+              ? 'Kader wurde gespeichert.'
+              : 'Kader wurde gespeichert. $removedUnavailable nicht mehr '
+                  'verfügbare Auswahl wurde entfernt.',
+        );
+      }
       // Reconcile the complete match after applying the immediate response.
       // This also refreshes a server-generated default lineup without making
       // the successful squad save depend on a second request.
       unawaited(widget.onReload());
       return true;
-    } catch (_) {
-      if (mounted) _message('Kader konnte nicht gespeichert werden.');
+    } on DioException catch (error) {
+      if (_isQueuedOfflineWrite(error)) {
+        if (mounted) {
+          _message(
+            'Kader wurde offline gespeichert und wird automatisch '
+            'übertragen, sobald die Verbindung wieder stabil ist.',
+          );
+        }
+        return true;
+      }
+      if (mounted) _message(_squadSaveError(error));
+      return false;
+    } catch (error) {
+      if (mounted) {
+        _message(
+          error is StateError
+              ? 'Kader konnte nicht gespeichert werden: ${error.message}'
+              : 'Kader konnte nicht gespeichert werden. Bitte erneut laden '
+                  'und nochmals versuchen.',
+        );
+      }
       return false;
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -982,8 +1024,20 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
       if (!mounted) return;
       await widget.onReload();
       if (mounted) _message('Nominierung wurde veröffentlicht.');
+    } on DioException catch (error) {
+      if (mounted) {
+        _message(
+          _isQueuedOfflineWrite(error)
+              ? 'Veröffentlichung wurde offline gespeichert und wird '
+                  'automatisch übertragen.'
+              : 'Nominierung konnte nicht veröffentlicht werden: '
+                  '${_dioMessage(error)}',
+        );
+      }
     } catch (_) {
-      if (mounted) _message('Nominierung konnte nicht veröffentlicht werden.');
+      if (mounted) {
+        _message('Nominierung konnte nicht veröffentlicht werden.');
+      }
     }
   }
 
@@ -1036,6 +1090,12 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
           member.player.id: member.status,
       };
 
+  Map<String, NominationStatus> _eligibleSelection(MatchdayModel match) =>
+      retainEligibleSquadSelection(
+        _selectionFrom(match),
+        widget.allPlayers.map((player) => player.id),
+      );
+
   String _squadFingerprint(MatchdayModel match) {
     final members = match.squad?.members ?? const <SquadMemberModel>[];
     return members
@@ -1043,6 +1103,26 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
         .join('|');
   }
 }
+
+bool _isQueuedOfflineWrite(DioException error) =>
+    error.error is OfflineWriteQueuedException;
+
+String _dioMessage(DioException error) {
+  final data = error.response?.data;
+  if (data is Map && data['message'] is String) {
+    final message = (data['message'] as String).trim();
+    if (message.isNotEmpty) return message;
+  }
+  return switch (error.response?.statusCode) {
+    400 => 'Die Auswahl enthält einen nicht verfügbaren Spieler.',
+    403 => 'Für diese Mannschaft fehlt die Berechtigung.',
+    404 => 'Das Spiel wurde nicht gefunden.',
+    _ => 'Die Verbindung zur Vereinsverwaltung war nicht stabil.',
+  };
+}
+
+String _squadSaveError(DioException error) =>
+    'Kader konnte nicht gespeichert werden: ${_dioMessage(error)}';
 
 class _AttendanceMenu extends StatelessWidget {
   const _AttendanceMenu({

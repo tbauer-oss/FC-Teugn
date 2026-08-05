@@ -127,4 +127,21 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('logo loader uses the crisp optimized crest asset',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: LogoLoadingIndicator()),
+      ),
+    );
+
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.image, isA<AssetImage>());
+    expect(
+      (image.image as AssetImage).assetName,
+      'assets/branding/fc_teugn_logo.png',
+    );
+    expect(image.filterQuality, FilterQuality.high);
+  });
 }

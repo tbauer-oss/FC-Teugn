@@ -1087,18 +1087,25 @@ class DataRepository {
         members,
     String? formation,
   }) async {
-    final response = await client.dio.put('/matches/$eventId/squad', data: {
-      'formation': formation,
-      'members': members
-          .map(
-            (member) => {
-              'playerId': member.playerId,
-              'status': apiEnum(member.status),
-              'plannedMinutes': member.plannedMinutes,
-            },
-          )
-          .toList(),
-    });
+    final response = await client.dio.put(
+      '/matches/$eventId/squad',
+      data: {
+        'formation': formation,
+        'members': members
+            .map(
+              (member) => {
+                'playerId': member.playerId,
+                'status': apiEnum(member.status),
+                'plannedMinutes': member.plannedMinutes,
+              },
+            )
+            .toList(),
+      },
+      // Das Backend aktualisiert nach der Kadertransaktion zusätzlich die
+      // Erinnerungsjobs. Der Standardwert bleibt für normale Requests knapp;
+      // diese Kernfunktion erhält bewusst etwas mehr Reserve.
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
     return MatchSquadModel.fromJson(
       response.data as Map<String, dynamic>,
     );

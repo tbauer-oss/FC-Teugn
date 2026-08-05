@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 
 import 'app_identity.dart';
 
-const _clubLogoAsset = 'assets/branding/fc_teugn_logo_hires.png';
+// Diese bereinigte 800px-Datei besitzt klare, harte Kanten und ist für die
+// kleinen Ladeindikatoren deutlich besser geeignet als der sehr große
+// Originalexport mit eingebetteten Vorschaudaten.
+const _clubLogoAsset = 'assets/branding/fc_teugn_logo.png';
 
 Future<void> _preloadAsset(String asset) async {
   final completer = Completer<void>();

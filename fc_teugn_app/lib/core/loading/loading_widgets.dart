@@ -98,7 +98,8 @@ class _LogoLoadingIndicatorState extends State<LogoLoadingIndicator>
     final reduceMotion =
         media?.disableAnimations == true || media?.accessibleNavigation == true;
     final progress = widget.progress?.clamp(0, 1).toDouble();
-    final logoSize = widget.size * .62;
+    // Keep the crest large enough to remain recognizable in compact loaders.
+    final logoSize = widget.size * .70;
     final ring = SizedBox.square(
       dimension: widget.size,
       child: progress != null
@@ -326,7 +327,7 @@ class _BackgroundLoadingCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 LogoLoadingIndicator(
-                  size: 30,
+                  size: 34,
                   progress: operation.progress,
                   semanticsLabel: operation.message,
                 ),
