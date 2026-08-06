@@ -1,10 +1,33 @@
 import 'package:fc_teugn_app/core/app_theme.dart';
+import 'package:fc_teugn_app/features/shared/context_help.dart';
 import 'package:fc_teugn_app/features/shared/page_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 void main() {
+  test('context help reflects responses, opponents, and publication', () {
+    final responses = contextHelpFor(
+      'Meine Kinder & Rückmeldungen',
+      'Rückmeldungen für alle dir zugeordneten Kinder.',
+    );
+    expect(responses.steps.join(' '), contains('vielleicht'));
+    expect(responses.steps.join(' '), contains('Grund'));
+
+    final opponents = contextHelpFor(
+      'Liga & Gegner',
+      'Gegner verwalten.',
+    );
+    expect(opponents.steps.join(' '), contains('„Speichern“ aktiv'));
+
+    final matchday = contextHelpFor(
+      'FC Teugn · SV Saal E1',
+      '14.8.2026 · 17:30 Uhr',
+    );
+    expect(matchday.steps.join(' '), contains('„Intern veröffentlichen“'));
+    expect(matchday.steps.join(' '), contains('Treffpunktzeit'));
+  });
+
   testWidgets('page help explains the area and opens filtered FAQ',
       (tester) async {
     final router = GoRouter(

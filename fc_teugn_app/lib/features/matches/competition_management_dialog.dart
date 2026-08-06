@@ -6,6 +6,7 @@ import '../../core/app_theme.dart';
 import '../../core/data_repository.dart';
 import '../../core/models/competition.dart';
 import '../../core/models/organization.dart';
+import '../shared/context_help.dart';
 
 class CompetitionManagementDialog extends StatefulWidget {
   const CompetitionManagementDialog({
@@ -68,6 +69,14 @@ class _CompetitionManagementDialogState
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Liga & Gegner'),
+            actions: const [
+              ContextHelpButton(
+                pageTitle: 'Liga & Gegner',
+                pageSubtitle:
+                    'Gegner-Pool, Vereinswappen und Ligen je Jugend verwalten.',
+              ),
+              SizedBox(width: 8),
+            ],
             leading: IconButton(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.close_rounded),

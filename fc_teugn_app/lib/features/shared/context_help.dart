@@ -21,13 +21,25 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
   if (title.contains('kinder') || title.contains('rückmeldung')) {
     return const ContextHelpInfo(
       summary:
-          'Hier beantwortest du Zu- und Absagen für alle zugeordneten Kinder.',
+          'Hier beantwortest du Termine für alle zugeordneten Kinder und siehst den aktuellen Stand sofort.',
       steps: [
-        'Oben siehst du sofort, wie viele Rückmeldungen offen, zugesagt oder abgesagt sind.',
-        'Wähle beim passenden Kind „Zusagen“ oder „Absagen“. Die Kalenderansicht wird direkt aktualisiert.',
-        'Unter „Details“ findest du Termin, Treffpunkt und weitere Informationen.',
+        'Oben siehst du, wie viele Antworten offen, zugesagt, vielleicht oder abgesagt sind.',
+        'Wähle beim passenden Kind „Zusagen“, „Vielleicht“ oder „Absagen“. Bei einer Absage kannst du freiwillig einen Grund ergänzen.',
+        'Die Kalenderansicht wird direkt synchronisiert. Unter „Details“ findest du Termin, Treffpunkt und weitere Informationen.',
       ],
-      searchQuery: 'Zu- und Absage Rückmeldung Kinder',
+      searchQuery: 'Rückmeldung Vielleicht Absage Grund',
+    );
+  }
+  if (title.contains('liga') || title.contains('gegner')) {
+    return const ContextHelpInfo(
+      summary:
+          'Hier pflegst du den Gegner-Pool und die Ligen getrennt für jede Jugend.',
+      steps: [
+        'Wähle oben die richtige Jugend und öffne anschließend „Gegner anlegen“.',
+        'Fülle „Verein“ und „Jugend / Mannschaft“ aus. Erst dann ist „Speichern“ aktiv; Spielstätte und Adresse sind freiwillig.',
+        'Nutze das Bildsymbol für das Wappen und den Stift, um einen Gegner später dauerhaft zu bearbeiten.',
+      ],
+      searchQuery: 'Gegner Speichern Pflichtfelder',
     );
   }
   if (title.contains('kalender') || title.contains('termin')) {
@@ -42,16 +54,18 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
       searchQuery: 'Termin Kalender anlegen',
     );
   }
-  if (title.contains('spiel') || title.contains('match')) {
+  if (title.contains('spiel') ||
+      title.contains('match') ||
+      title.startsWith('fc teugn ·')) {
     return const ContextHelpInfo(
       summary:
-          'Hier verwaltest du Gegner, Kader, Aufstellung und Liveticker eines Spiels.',
+          'Hier verwaltest du Spieldaten, Veröffentlichung, Kader, Aufstellung und Liveticker.',
       steps: [
-        'Öffne zuerst die Spieldaten und prüfe Gegner, Treffpunkt und Spielzeit.',
-        'Speichere und veröffentliche danach den Kader für die ausgewählten Spieler.',
-        'Am Spieltag steuerst du Uhr, Tore und Wechsel im Liveticker.',
+        'Prüfe zuerst Gegner, Anstoß sowie Treffpunktzeit und Treffpunktort.',
+        '„Intern veröffentlichen“ informiert ausgewählte Berechtigte; „Für Eltern & Spieler freigeben“ macht das Spiel für Familien sichtbar.',
+        'Speichere danach den Kader. Am Spieltag steuerst du Uhr, Tore und Wechsel im Liveticker.',
       ],
-      searchQuery: 'Spieltag Kader Liveticker',
+      searchQuery: 'Spiel intern veröffentlichen Treffpunkt',
     );
   }
   if (title.contains('training')) {

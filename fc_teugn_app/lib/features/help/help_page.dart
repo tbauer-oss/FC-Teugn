@@ -189,8 +189,8 @@ class _HelpPageState extends State<HelpPage> {
                     _QuickHelpAction(
                       icon: Icons.how_to_reg_rounded,
                       title: 'Rückmeldung',
-                      caption: 'Zu- oder absagen',
-                      onTap: () => context.go('/parent/events'),
+                      caption: 'Zusagen, vielleicht oder absagen',
+                      onTap: () => context.go('/parent/family'),
                     ),
                     _QuickHelpAction(
                       icon: Icons.groups_rounded,
@@ -886,19 +886,32 @@ const helpArticles = <HelpArticle>[
   ),
   HelpArticle(
     category: HelpCategory.calendar,
-    title: 'Wie gebe ich eine Zu- oder Absage ab?',
+    title: 'Wie gebe ich eine Rückmeldung ab?',
     summary:
-        'Rückmeldungen werden immer für das ausgewählte Kind beziehungsweise Spielerprofil gespeichert.',
+        'Du kannst für jedes zugeordnete Kind zusagen, vielleicht zusagen oder mit einem optionalen Grund absagen.',
     audience: HelpAudience.family,
-    keywords: ['Zusage', 'Absage', 'Vielleicht', 'Torhüter', 'Rückmeldung'],
-    route: '/events',
-    routeLabel: 'Termine öffnen',
-    steps: [
-      'Öffne den Termin über Kalender, Dashboard oder eine Benachrichtigung.',
-      'Wähle bei mehreren Kindern zuerst das richtige Spielerprofil.',
-      'Entscheide zwischen „Zugesagt“, „Abgesagt“ oder „Vielleicht“ und ergänze bei Bedarf eine Notiz.',
-      'Gib an, ob das Kind als Torhüter verfügbar ist, sofern diese Auswahl angeboten wird.',
+    keywords: [
+      'Zusage',
+      'Absage',
+      'Absagegrund',
+      'Grund',
+      'Vielleicht',
+      'Offen',
+      'Torhüter',
+      'Rückmeldung',
+      'Meine Kinder'
     ],
+    route: '/family',
+    routeLabel: 'Meine Rückmeldungen öffnen',
+    steps: [
+      'Öffne „Meine Kinder & Rückmeldungen“ oder rufe den Termin über Kalender, Startseite oder eine Benachrichtigung auf.',
+      'Prüfe bei mehreren Kindern am Namen, für welches Spielerprofil du antwortest. Oben fassen „Offen“, „Zugesagt“, „Vielleicht“ und „Abgesagt“ alle Antworten zusammen.',
+      'Wähle „Zusagen“, „Vielleicht“ oder „Absagen“. Eine Antwort darfst du später jederzeit ändern, solange Rückmeldungen möglich sind.',
+      'Bei „Absagen“ kannst du im folgenden Fenster freiwillig einen Grund eintragen. Das Feld darf leer bleiben; ein gespeicherter Grund wird am Termin angezeigt und kann durch erneutes Absagen geändert werden.',
+      'Die Antwort wird sofort mit der Terminansicht im Kalender synchronisiert. Gib zusätzlich an, ob das Kind als Torhüter verfügbar ist, sofern diese Auswahl angeboten wird.',
+    ],
+    tip:
+        '„Vielleicht“ ist eine eigene Rückmeldung und wird weder als offene Antwort noch als feste Zusage gezählt.',
   ),
   HelpArticle(
     category: HelpCategory.calendar,
@@ -1004,17 +1017,58 @@ const helpArticles = <HelpArticle>[
     summary:
         'Gegner werden je Jugend gespeichert und können mit Vereinswappen wiederverwendet werden.',
     audience: HelpAudience.staff,
-    keywords: ['Gegner', 'Liga', 'Vereinswappen', 'Spielplan', 'ICS', 'BFV'],
+    keywords: [
+      'Gegner',
+      'Liga',
+      'Vereinswappen',
+      'Spielplan',
+      'ICS',
+      'BFV',
+      'Speichern',
+      'Speicherbutton',
+      'Pflichtfelder',
+      'Verein',
+      'Jugend Mannschaft'
+    ],
     route: '/matches',
     routeLabel: 'Spielbetrieb öffnen',
     steps: [
-      'Öffne im Spielbetrieb „Liga & Gegner“ und lege Liga sowie gegnerische Mannschaften für die aktuelle Jugend an.',
-      'Lade beim Gegner ein gut zugeschnittenes Vereinswappen hoch und gib dessen Jugendbezeichnung an.',
-      'Wähle beim neuen Spiel den gespeicherten Gegner aus oder füge ihn direkt über das Plus hinzu.',
-      'Alternativ importierst du einen geeigneten Spielplan und prüfst die Vorschau vor der Übernahme.',
+      'Öffne im Spielbetrieb „Liga & Gegner“, wechsle zum Reiter „Gegner“ und wähle oben zuerst die richtige Jugend.',
+      'Tippe auf „Gegner anlegen“ und fülle die beiden Pflichtfelder „Verein“ und „Jugend / Mannschaft“ aus. Sobald beide Angaben vorhanden sind, wird „Speichern“ aktiv.',
+      'Spielstätte und Adresse sind optional. Nach dem Speichern steht die Mannschaft im Gegner-Pool dieser Jugend zur Verfügung.',
+      'Über das Bildsymbol lädst du ein gut zugeschnittenes Vereinswappen hoch; mit dem Stift bearbeitest du Namen, Mannschaft, Spielstätte oder Adresse später dauerhaft.',
+      'Beim Anlegen oder Bearbeiten eines Spiels wählst du den Gegner aus dem Dropdown oder legst ihn direkt über das Plus neu an. Alternativ kannst du einen geeigneten Spielplan importieren und vor der Übernahme prüfen.',
     ],
     tip:
         'Das FC-Teugn-Wappen wird automatisch verwendet. Gegnerwappen erscheinen im Spieltag und Liveticker, sobald sie im Gegner-Pool gespeichert sind.',
+  ),
+  HelpArticle(
+    category: HelpCategory.matchday,
+    title: 'Wie veröffentliche ich ein Spiel intern oder für Familien?',
+    summary:
+        'Die interne Information des Trainerteams und die Freigabe für Eltern und Spieler sind bewusst getrennte Schritte.',
+    audience: HelpAudience.staff,
+    keywords: [
+      'Spiel intern veröffentlichen',
+      'Trainer',
+      'Co-Trainer',
+      'Push',
+      'Empfänger',
+      'Treffpunkt',
+      'Treffpunktzeit',
+      'Treffpunktort',
+      'Eltern Spieler freigeben'
+    ],
+    route: '/matches',
+    routeLabel: 'Spieltage öffnen',
+    steps: [
+      'Öffne den Spieltag und prüfe zuerst Anstoß, Treffpunktzeit und Treffpunktort. Bei Heimspielen ist „Stadion am Kreutweg, Teugn“ als Spielstätte vorgesehen; bei Auswärtsspielen ist „Vereinsheim Teugn“ der standardmäßige Treffpunkt.',
+      'Wähle „Intern veröffentlichen“, um ausschließlich berechtigte Trainer, Co-Trainer und zuständige Funktionäre zu informieren. Prüfe die Empfängerliste und entscheide, ob zusätzlich eine Pushnachricht gesendet werden soll.',
+      'Wähle „Für Eltern & Spieler freigeben“, wenn die Begegnung für Familien sichtbar werden soll. Kontrolliere in der Vorschau besonders Gegner, Anstoß sowie den konkret angegebenen Treffpunkt.',
+      'Interne Veröffentlichung und Familienfreigabe können getrennt erfolgen. Eine erneute identische Freigabe erzeugt keine doppelte Nachricht.',
+    ],
+    tip:
+        '„Intern veröffentlichen“ macht das Spiel nicht automatisch für Eltern oder Spieler sichtbar. Dafür ist immer die eigene Familienfreigabe erforderlich.',
   ),
   HelpArticle(
     category: HelpCategory.matchday,

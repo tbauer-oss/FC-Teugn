@@ -41,7 +41,7 @@ void main() {
 
     expect(find.text('Hilfe & FAQ'), findsOneWidget);
     expect(find.byKey(const ValueKey('help-search-field')), findsOneWidget);
-    expect(find.text('Wie gebe ich eine Zu- oder Absage ab?'), findsOneWidget);
+    expect(find.text('Wie gebe ich eine Rückmeldung ab?'), findsOneWidget);
     expect(find.text('Wie führe ich einen sicheren Saisonwechsel durch?'),
         findsNothing);
     expect(tester.takeException(), isNull);
@@ -65,5 +65,30 @@ void main() {
     expect(find.text('Wie führe ich einen sicheren Saisonwechsel durch?'),
         findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  test('FAQ explains the latest response and match publication flows', () {
+    final responseArticle = helpArticles.singleWhere(
+      (article) => article.title == 'Wie gebe ich eine Rückmeldung ab?',
+    );
+    final responseText = responseArticle.steps.join(' ');
+    expect(responseText, contains('„Vielleicht“'));
+    expect(responseText, contains('Grund'));
+    expect(responseText, contains('Kalender synchronisiert'));
+
+    final opponentArticle = helpArticles.singleWhere(
+      (article) => article.title == 'Wie lege ich Gegner, Liga und Spiel an?',
+    );
+    expect(opponentArticle.steps.join(' '), contains('Pflichtfelder'));
+    expect(opponentArticle.steps.join(' '), contains('„Speichern“ aktiv'));
+
+    final publicationArticle = helpArticles.singleWhere(
+      (article) =>
+          article.title ==
+          'Wie veröffentliche ich ein Spiel intern oder für Familien?',
+    );
+    expect(publicationArticle.steps.join(' '), contains('Treffpunktzeit'));
+    expect(publicationArticle.steps.join(' '), contains('Empfängerliste'));
+    expect(publicationArticle.steps.join(' '), contains('Familienfreigabe'));
   });
 }
