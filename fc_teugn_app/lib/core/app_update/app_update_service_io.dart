@@ -12,6 +12,7 @@ import 'app_update_manifest.dart';
 
 const _manifestUri = 'https://magentacloud.de/public.php/dav/files/'
     'xkgHEESdKbQ6XMP/latest.json';
+const _publicShareUri = 'https://magentacloud.de/s/xkgHEESdKbQ6XMP';
 const _channel = MethodChannel('de.fcteugn.jugend/app_update');
 
 AppUpdateClient createAppUpdateService() => _AndroidUpdateClient();
@@ -42,14 +43,16 @@ class _AndroidUpdateClient implements AppUpdateClient {
   Future<AppUpdateManifest?> checkForUpdate() async {
     if (!supported) return null;
 
+    final publicShareCookies = await _openPublicShareSession();
     final response = await _manifestClient.get<Object?>(
       _manifestUri,
       queryParameters: {'check': DateTime.now().millisecondsSinceEpoch},
       options: Options(
         responseType: ResponseType.json,
-        headers: const {
+        headers: {
           HttpHeaders.acceptHeader: 'application/json',
           HttpHeaders.cacheControlHeader: 'no-cache',
+          HttpHeaders.cookieHeader: publicShareCookies,
         },
       ),
     );
@@ -83,12 +86,16 @@ class _AndroidUpdateClient implements AppUpdateClient {
 
     if (!await _isValid(apk, manifest)) {
       if (await apk.exists()) await apk.delete();
+      final publicShareCookies = await _openPublicShareSession();
       await _downloadClient.download(
         manifest.apkUri.toString(),
         apk.path,
         deleteOnError: true,
         options: Options(
-          headers: const {HttpHeaders.cacheControlHeader: 'no-cache'},
+          headers: {
+            HttpHeaders.cacheControlHeader: 'no-cache',
+            HttpHeaders.cookieHeader: publicShareCookies,
+          },
         ),
         onReceiveProgress: (received, total) {
           onProgress(total > 0 ? received / total : null);
@@ -113,6 +120,26 @@ class _AndroidUpdateClient implements AppUpdateClient {
       'permissionRequired' => AppUpdateInstallResult.permissionRequired,
       _ => AppUpdateInstallResult.unsupported,
     };
+  }
+
+  Future<String> _openPublicShareSession() async {
+    final response = await _manifestClient.get<void>(
+      _publicShareUri,
+      options: Options(
+        responseType: ResponseType.plain,
+        headers: const {HttpHeaders.cacheControlHeader: 'no-cache'},
+      ),
+    );
+    final cookies = response.headers.map[HttpHeaders.setCookieHeader]
+        ?.map((value) => value.split(';').first.trim())
+        .where((value) => value.isNotEmpty)
+        .join('; ');
+    if (cookies == null || cookies.isEmpty) {
+      throw const HttpException(
+        'Die öffentliche MagentaCLOUD-Freigabe konnte nicht geöffnet werden.',
+      );
+    }
+    return cookies;
   }
 
   Future<bool> _isValid(

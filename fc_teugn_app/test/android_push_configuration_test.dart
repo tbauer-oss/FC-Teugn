@@ -79,4 +79,15 @@ void main() {
       ),
     );
   });
+
+  test('Android updater opens the public MagentaCLOUD share session', () {
+    final updater = File(
+      'lib/core/app_update/app_update_service_io.dart',
+    ).readAsStringSync();
+
+    expect(updater, contains('magentacloud.de/s/xkgHEESdKbQ6XMP'));
+    expect(updater, contains('_openPublicShareSession()'));
+    expect(updater, contains('HttpHeaders.setCookieHeader'));
+    expect(updater, contains('HttpHeaders.cookieHeader'));
+  });
 }
