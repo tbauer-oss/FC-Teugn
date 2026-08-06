@@ -9,6 +9,7 @@ const {
   summarizePushDeliveries,
 } = require('../dist/src/services/notification.service');
 const {
+  disabledPushDeviceWhere,
   pushDeviceHealth,
   pushDeviceMayAutoReactivate,
   validPushEndpoint,
@@ -136,6 +137,14 @@ test('system-wide device management remains restricted to the system administrat
   );
   assert.match(
     routes,
+    /'\/admin\/devices\/disabled',[\s\S]*requireRoles\(\[Role\.SUPER_ADMIN\]\),[\s\S]*deleteAllDisabledAdminPushDevices/,
+  );
+  assert.match(
+    routes,
     /'\/admin\/devices\/:id',[\s\S]*requireRoles\(\[Role\.SUPER_ADMIN\]\),[\s\S]*deleteAdminPushDevice/,
   );
+});
+
+test('bulk cleanup targets disabled push registrations only', () => {
+  assert.deepEqual(disabledPushDeviceWhere, { isActive: false });
 });

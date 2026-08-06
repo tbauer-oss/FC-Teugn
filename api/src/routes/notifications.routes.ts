@@ -2,6 +2,7 @@ import { asyncRouter } from '../middleware/async-handler';
 import {
   getNotificationPreferences,
   grantPushConsent,
+  deleteAllDisabledAdminPushDevices,
   deleteAdminPushDevice,
   deleteNotification,
   listAdminPushDevices,
@@ -32,6 +33,11 @@ router.patch(
   '/admin/devices/:id',
   requireRoles([Role.SUPER_ADMIN]),
   setAdminPushDeviceState,
+);
+router.delete(
+  '/admin/devices/disabled',
+  requireRoles([Role.SUPER_ADMIN]),
+  deleteAllDisabledAdminPushDevices,
 );
 router.delete(
   '/admin/devices/:id',

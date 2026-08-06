@@ -2030,6 +2030,14 @@ class DataRepository {
     await client.dio.delete('/notifications/admin/devices/$deviceId');
   }
 
+  Future<int> deleteAllDisabledAdminPushDevices() async {
+    final res =
+        await client.dio.delete('/notifications/admin/devices/disabled');
+    return ((res.data as Map<String, dynamic>)['deletedCount'] as num?)
+            ?.toInt() ??
+        0;
+  }
+
   Future<CompetitionImportPreview> previewCompetitionImport({
     required String teamId,
     required CompetitionImportFormat format,

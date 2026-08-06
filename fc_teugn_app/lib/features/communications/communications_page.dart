@@ -1276,6 +1276,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                 onRefresh: _loadAdminDevices,
                 onToggle: _toggleAdminDevice,
                 onDelete: _deleteAdminDevice,
+                onDeleteDisabled: _deleteAllDisabledAdminDevices,
               ),
             ],
             const Divider(height: 32),
@@ -1484,6 +1485,75 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
     }
   }
 
+  Future<void> _deleteAllDisabledAdminDevices() async {
+    final disabledCount =
+        _devices?.where((device) => !device.isActive).length ?? 0;
+    if (disabledCount == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Es gibt keine deaktivierten Geräte.')),
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.delete_sweep_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: const Text('Alle deaktivierten Geräte löschen?'),
+        content: Text(
+          '${disabledCount == 1 ? 'Ein deaktiviertes Push-Gerät wird' : '$disabledCount deaktivierte Push-Geräte werden'} '
+          'endgültig aus der Geräteverwaltung entfernt. '
+          'Aktive Geräte bleiben erhalten. Wird die App auf einem entfernten Gerät später erneut verwendet, kann es sich neu registrieren.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_sweep_rounded),
+            label: const Text('Alle endgültig löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _changingDevice = true);
+    try {
+      final deleted = await ref
+          .read(repositoryProvider)
+          .deleteAllDisabledAdminPushDevices();
+      await _loadAdminDevices();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            deleted == 1
+                ? 'Ein deaktiviertes Push-Gerät wurde gelöscht.'
+                : '$deleted deaktivierte Push-Geräte wurden gelöscht.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Die deaktivierten Push-Geräte konnten nicht gelöscht werden.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _changingDevice = false);
+    }
+  }
+
   Future<void> _subscribe() async {
     setState(() => _subscribing = true);
     try {
@@ -1667,6 +1737,7 @@ class _AdminPushDeviceCard extends StatelessWidget {
     required this.onRefresh,
     required this.onToggle,
     required this.onDelete,
+    required this.onDeleteDisabled,
   });
 
   final List<AdminPushDevice>? devices;
@@ -1678,6 +1749,7 @@ class _AdminPushDeviceCard extends StatelessWidget {
   final VoidCallback onRefresh;
   final ValueChanged<AdminPushDevice> onToggle;
   final ValueChanged<AdminPushDevice> onDelete;
+  final VoidCallback onDeleteDisabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1743,6 +1815,18 @@ class _AdminPushDeviceCard extends StatelessWidget {
                 color: Theme.of(context).colorScheme.error,
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              onPressed: changing || disabled == 0 ? null : onDeleteDisabled,
+              icon: const Icon(Icons.delete_sweep_rounded),
+              label: Text('Alle deaktivierten Geräte löschen ($disabled)'),
+            ),
           ),
           const SizedBox(height: 14),
           LayoutBuilder(

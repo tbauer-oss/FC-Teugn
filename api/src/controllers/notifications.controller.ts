@@ -310,6 +310,8 @@ export function pushDeviceHealth(
   return lastUsedAt < staleAt ? ('STALE' as const) : ('ACTIVE' as const);
 }
 
+export const disabledPushDeviceWhere = { isActive: false } as const;
+
 export async function listAdminPushDevices(_req: Request, res: Response) {
   const devices = await prisma.pushSubscription.findMany({
     select: {
@@ -444,4 +446,47 @@ export async function deleteAdminPushDevice(req: Request, res: Response) {
     });
   });
   return res.status(204).send();
+}
+
+export async function deleteAllDisabledAdminPushDevices(
+  req: Request,
+  res: Response,
+) {
+  const result = await prisma.$transaction(async (tx) => {
+    const devices = await tx.pushSubscription.findMany({
+      where: disabledPushDeviceWhere,
+      select: {
+        id: true,
+        userId: true,
+        platform: true,
+      },
+    });
+    if (!devices.length) return { count: 0 };
+
+    const deleted = await tx.pushSubscription.deleteMany({
+      where: {
+        id: { in: devices.map((device) => device.id) },
+        ...disabledPushDeviceWhere,
+      },
+    });
+    if (deleted.count > 0) {
+      await tx.auditLog.create({
+        data: {
+          actorId: req.user!.id,
+          action: 'DISABLED_PUSH_DEVICES_BULK_DELETED',
+          entityType: 'PushSubscription',
+          metadata: {
+            deletedCount: deleted.count,
+            affectedUserCount: new Set(
+              devices.map((device) => device.userId),
+            ).size,
+            platforms: [...new Set(devices.map((device) => device.platform))],
+          },
+        },
+      });
+    }
+    return deleted;
+  });
+
+  return res.json({ deletedCount: result.count });
 }

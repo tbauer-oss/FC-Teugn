@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:fc_teugn_app/core/models/communication.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -66,5 +68,19 @@ void main() {
     expect(device.isStale, isTrue);
     expect(device.isActive, isTrue);
     expect(device.lastDeliveryStatus, isNull);
+  });
+
+  test('system administration can remove all disabled push devices', () {
+    final page = File(
+      'lib/features/communications/communications_page.dart',
+    ).readAsStringSync();
+    final repository = File('lib/core/data_repository.dart').readAsStringSync();
+
+    expect(page, contains('Alle deaktivierten Geräte löschen'));
+    expect(page, contains('_deleteAllDisabledAdminDevices'));
+    expect(
+      repository,
+      contains("delete('/notifications/admin/devices/disabled')"),
+    );
   });
 }

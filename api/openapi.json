@@ -235,6 +235,18 @@
         }
       }
     },
+    "/notifications/admin/devices/disabled": {
+      "delete": {
+        "tags": ["Administration", "Kommunikation"],
+        "summary": "Alle deaktivierten Push-Geräte endgültig löschen",
+        "description": "Nur für die Systemadministration. Entfernt ausschließlich Geräte mit isActive=false; aktive Geräte bleiben unverändert. Der Sammelvorgang wird auditiert.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "Anzahl der gelöschten deaktivierten Geräte"},
+          "403": {"$ref": "#/components/responses/Forbidden"}
+        }
+      }
+    },
     "/notifications/admin/devices/{id}": {
       "patch": {
         "tags": ["Administration", "Kommunikation"],
