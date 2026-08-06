@@ -11,7 +11,7 @@ test('attendance mutation returns the fully refreshed event snapshot', () => {
   const events = source('src/controllers/events.controller.ts');
   assert.match(
     events,
-    /export async function setAttendance[\s\S]*include:\s*eventInclude[\s\S]*event:\s*await serializeEvent\(refreshedEvent, user\)/,
+    /export async function setAttendance[\s\S]*include:\s*eventInclude[\s\S]*\.\.\.attendance[\s\S]*event:\s*await serializeEvent\(refreshedEvent, user\)/,
   );
 });
 

@@ -2094,6 +2094,10 @@ export async function setAttendance(req: Request, res: Response) {
     return res.status(404).json({ message: 'Termin nach der Rückmeldung nicht gefunden.' });
   }
   return res.json({
+    // Bestehende Clients erwarten die Rückmeldungsfelder weiterhin direkt
+    // im Antwortobjekt. Der neue Event-Snapshot ergänzt diesen Vertrag und
+    // ermöglicht die sofortige, konsistente Kalenderaktualisierung.
+    ...attendance,
     attendance,
     event: await serializeEvent(refreshedEvent, user),
   });
