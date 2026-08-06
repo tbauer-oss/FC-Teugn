@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { accessibleTeamIds } from '../services/team-access';
 import { mediaAssetUrl } from '../services/media-access';
 import { objectStorage } from '../services/object-storage';
+import { hasEffectivePermission, Permission } from '../security/permissions';
 
 const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -504,6 +505,66 @@ export async function saveLeagueMatch(req: Request, res: Response) {
     match,
     standings: calculateStandings(reloaded),
   });
+}
+
+export async function deleteLeagueMatch(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await prisma.leagueMatch.findFirst({
+    where: { id: req.params.matchId, leagueId: req.params.leagueId },
+    include: {
+      league: true,
+      homeEntry: true,
+      awayEntry: true,
+      event: { include: { targetTeams: true } },
+    },
+  });
+  if (!match) return res.status(404).json({ message: 'Ligapartie nicht gefunden.' });
+  const access = await accessibleAgeGroup(req, match.league.ageGroupId);
+  if (!access.ageGroupTeamIds.length) {
+    return res.status(403).json({ message: 'Kein Zugriff auf diese Liga.' });
+  }
+  const deleteLinkedEvent = req.query.deleteLinkedEvent === 'true';
+  if (
+    deleteLinkedEvent &&
+    !hasEffectivePermission(user.role, Permission.MATCH_DELETE, user.permissions)
+  ) {
+    return res.status(403).json({
+      message: 'Zum Löschen des verknüpften Spieltags fehlt die Berechtigung.',
+      permission: Permission.MATCH_DELETE,
+    });
+  }
+  await prisma.$transaction(async (tx) => {
+    if (deleteLinkedEvent && match.eventId) {
+      await tx.notification.deleteMany({ where: { entityId: match.eventId } });
+      await tx.event.delete({ where: { id: match.eventId } });
+    } else if (match.eventId) {
+      await tx.matchDetails.updateMany({
+        where: { eventId: match.eventId, leagueId: match.leagueId },
+        data: { leagueId: null },
+      });
+    }
+    await tx.leagueMatch.delete({ where: { id: match.id } });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: match.league.teamId ?? access.ageGroupTeamIds[0],
+        action: 'LEAGUE_MATCH_PERMANENTLY_DELETED',
+        entityType: 'LeagueMatch',
+        entityId: match.id,
+        metadata: {
+          leagueId: match.leagueId,
+          league: match.league.name,
+          home: match.homeEntry.displayName,
+          away: match.awayEntry.displayName,
+          startsAt: match.startsAt,
+          eventId: match.eventId,
+          deleteLinkedEvent,
+          externalUid: match.externalUid,
+        },
+      },
+    });
+  });
+  return res.json({ status: 'DELETED', standingsRecalculated: true });
 }
 
 export async function archiveLeague(req: Request, res: Response) {

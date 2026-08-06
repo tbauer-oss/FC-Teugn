@@ -6,6 +6,7 @@ import {
   listMatches,
   publishSquad,
   resetTicker,
+  rescheduleMatch,
   tickerCommand,
   undoTickerEvent,
   updateLineup,
@@ -16,6 +17,7 @@ import {
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { idempotencyMiddleware } from '../middleware/idempotency';
 import { Permission } from '../security/permissions';
+import { deleteEvent } from '../controllers/events.controller';
 
 const router = asyncRouter();
 
@@ -25,7 +27,20 @@ router.use(idempotencyMiddleware);
 
 router.get('/', listMatches);
 router.get('/:id', getMatch);
+router.delete(
+  '/:id',
+  requirePermission(Permission.MATCH_DELETE),
+  (req, res) => {
+    req.query.permanent = 'true';
+    return deleteEvent(req, res);
+  },
+);
 router.put('/:id', requirePermission(Permission.MANAGE_EVENTS), updateMatch);
+router.patch(
+  '/:id/reschedule',
+  requirePermission(Permission.MATCH_RESCHEDULE),
+  rescheduleMatch,
+);
 router.put('/:id/squad', requirePermission(Permission.MANAGE_LINEUPS), updateSquad);
 router.post('/:id/squad/publish', requirePermission(Permission.MANAGE_LINEUPS), publishSquad);
 router.put('/:id/lineup', requirePermission(Permission.MANAGE_LINEUPS), updateLineup);

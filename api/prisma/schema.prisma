@@ -1014,6 +1014,7 @@ model Event {
   startAt               DateTime
   endAt                 DateTime?
   meetingAt             DateTime?
+  meetingLocation       String?
   location              String
   address               String?
   mapUrl                String?

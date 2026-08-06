@@ -2,6 +2,7 @@ import { asyncRouter } from '../middleware/async-handler';
 import {
   archiveLeague,
   archiveOpponent,
+  deleteLeagueMatch,
   listLeagues,
   listOpponents,
   removeOpponentLogo,
@@ -45,8 +46,13 @@ router.post(
 );
 router.put(
   '/leagues/:leagueId/matches/:matchId',
-  requirePermission(Permission.MANAGE_EVENTS),
+  requirePermission(Permission.LEAGUE_MATCH_RESCHEDULE),
   saveLeagueMatch,
+);
+router.delete(
+  '/leagues/:leagueId/matches/:matchId',
+  requirePermission(Permission.LEAGUE_MATCH_DELETE),
+  deleteLeagueMatch,
 );
 
 export default router;

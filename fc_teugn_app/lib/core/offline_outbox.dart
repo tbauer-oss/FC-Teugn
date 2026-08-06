@@ -217,6 +217,7 @@ class OfflineOutboxInterceptor extends Interceptor {
   bool _canQueue(RequestOptions request, DioException error) {
     final method = request.method.toUpperCase();
     if (request.extra['outboxReplay'] == true ||
+        request.extra['requireOnline'] == true ||
         method == 'GET' ||
         method == 'HEAD' ||
         request.path.startsWith('/auth/') ||

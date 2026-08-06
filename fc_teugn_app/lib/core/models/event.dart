@@ -261,6 +261,7 @@ class MatchDetails {
     this.theirGoals,
     this.opponentId,
     this.opponentLogoUrl,
+    this.leagueId,
   });
 
   final String opponent;
@@ -274,6 +275,7 @@ class MatchDetails {
   final int? theirGoals;
   final String? opponentId;
   final String? opponentLogoUrl;
+  final String? leagueId;
 
   factory MatchDetails.fromJson(Map<String, dynamic> json) {
     return MatchDetails(
@@ -288,6 +290,7 @@ class MatchDetails {
       theirGoals: json['theirGoals'] as int?,
       opponentId: json['opponentId'] as String?,
       opponentLogoUrl: json['opponentLogoUrl'] as String?,
+      leagueId: json['leagueId'] as String?,
     );
   }
 }
@@ -495,12 +498,16 @@ class EventCapabilities {
     this.canRespond = false,
     this.canOfferRide = false,
     this.canOpenEmergencyView = false,
+    this.canDelete = false,
+    this.canReschedule = false,
   });
 
   final bool canManage;
   final bool canRespond;
   final bool canOfferRide;
   final bool canOpenEmergencyView;
+  final bool canDelete;
+  final bool canReschedule;
 
   factory EventCapabilities.fromJson(Map<String, dynamic>? json) {
     return EventCapabilities(
@@ -508,6 +515,8 @@ class EventCapabilities {
       canRespond: json?['canRespond'] as bool? ?? false,
       canOfferRide: json?['canOfferRide'] as bool? ?? false,
       canOpenEmergencyView: json?['canOpenEmergencyView'] as bool? ?? false,
+      canDelete: json?['canDelete'] as bool? ?? false,
+      canReschedule: json?['canReschedule'] as bool? ?? false,
     );
   }
 }
@@ -536,6 +545,7 @@ class EventModel {
     this.series,
     this.endAt,
     this.meetingAt,
+    this.meetingLocation,
     this.address,
     this.mapUrl,
     this.homeAway,
@@ -567,6 +577,7 @@ class EventModel {
   final DateTime startAt;
   final DateTime? endAt;
   final DateTime? meetingAt;
+  final String? meetingLocation;
   final String location;
   final String? address;
   final String? mapUrl;
@@ -639,6 +650,7 @@ class EventModel {
       meetingAt: json['meetingAt'] == null
           ? null
           : _localDate(json['meetingAt'] as String),
+      meetingLocation: json['meetingLocation'] as String?,
       location: json['location'] as String? ?? '',
       address: json['address'] as String?,
       mapUrl: json['mapUrl'] as String?,
@@ -650,6 +662,7 @@ class EventModel {
               HomeAway.neutral,
             ),
       opponent: json['opponent'] as String?,
+      opponentId: json['opponentId'] as String?,
       venue: json['venue'] as String?,
       contactName: json['contactName'] as String?,
       contactPhone: json['contactPhone'] as String?,
@@ -749,6 +762,7 @@ class EventWriteData {
     required this.teamIds,
     this.endAt,
     this.meetingAt,
+    this.meetingLocation,
     this.address,
     this.mapUrl,
     this.homeAway,
@@ -782,6 +796,7 @@ class EventWriteData {
   final DateTime startAt;
   final DateTime? endAt;
   final DateTime? meetingAt;
+  final String? meetingLocation;
   final String location;
   final String? address;
   final String? mapUrl;
@@ -817,6 +832,7 @@ class EventWriteData {
         'startAt': startAt.toUtc().toIso8601String(),
         'endAt': endAt?.toUtc().toIso8601String(),
         'meetingAt': meetingAt?.toUtc().toIso8601String(),
+        'meetingLocation': meetingLocation,
         'location': location,
         'address': address,
         'mapUrl': mapUrl,

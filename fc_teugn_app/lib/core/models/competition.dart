@@ -110,6 +110,8 @@ class LeagueMatchModel {
     this.startsAt,
     this.homeGoals,
     this.awayGoals,
+    this.eventId,
+    this.externalUid,
   });
   final String id;
   final String homeEntryId;
@@ -120,6 +122,8 @@ class LeagueMatchModel {
   final DateTime? startsAt;
   final int? homeGoals;
   final int? awayGoals;
+  final String? eventId;
+  final String? externalUid;
 
   factory LeagueMatchModel.fromJson(Map<String, dynamic> json) =>
       LeagueMatchModel(
@@ -138,6 +142,8 @@ class LeagueMatchModel {
             : DateTime.parse(json['startsAt'] as String).toLocal(),
         homeGoals: json['homeGoals'] as int?,
         awayGoals: json['awayGoals'] as int?,
+        eventId: json['eventId'] as String?,
+        externalUid: json['externalUid'] as String?,
       );
 }
 

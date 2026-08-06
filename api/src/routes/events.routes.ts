@@ -70,7 +70,10 @@ router.get(
 router.get('/:id', getEvent);
 router.post('/', requirePermission(Permission.MANAGE_EVENTS), createEvent);
 router.put('/:id', requirePermission(Permission.MANAGE_EVENTS), updateEvent);
-router.delete('/:id', requirePermission(Permission.MANAGE_EVENTS), deleteEvent);
+// Die konkrete Termin-/Spielberechtigung und der Objektbereich werden im
+// Controller geprüft. Dadurch funktionieren auch individuelle Rechte, ohne
+// dass ein allgemeines MANAGE_EVENTS-Recht als versteckte Voraussetzung wirkt.
+router.delete('/:id', deleteEvent);
 router.post('/:id/attendance', setAttendance);
 router.post(
   '/:id/attendance/finalize',

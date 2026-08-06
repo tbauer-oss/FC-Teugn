@@ -946,13 +946,17 @@ class DataRepository {
   Future<void> deleteEventPermanently({
     required String eventId,
     bool entireSeries = false,
+    String? scope,
+    bool deleteLeagueMatch = false,
   }) async {
     await client.dio.delete(
       '/events/$eventId',
       queryParameters: {
-        'scope': entireSeries ? 'series' : 'single',
+        'scope': scope ?? (entireSeries ? 'future' : 'single'),
         'permanent': 'true',
+        'deleteLeagueMatch': '$deleteLeagueMatch',
       },
+      options: Options(extra: const {'requireOnline': true}),
     );
   }
 
@@ -1046,9 +1050,11 @@ class DataRepository {
     int? theirGoals,
     required int periodCount,
     required int periodMinutes,
+    String? opponentId,
   }) async {
     await client.dio.put('/events/$eventId/match-details', data: {
       'opponent': opponent,
+      'opponentId': opponentId,
       'isHome': isHome,
       'competition': competition,
       'notes': notes,
@@ -1058,6 +1064,64 @@ class DataRepository {
       'periodMinutes': periodMinutes,
       'durationMinutes': periodCount * periodMinutes,
     });
+  }
+
+  Future<void> rescheduleMatch({
+    required String eventId,
+    required DateTime startAt,
+    DateTime? endAt,
+    DateTime? meetingAt,
+    String? meetingLocation,
+    required String location,
+    String? address,
+    String? pitch,
+    required bool isHome,
+    String? matchDay,
+    String? reason,
+    String? internalNote,
+    String? publicNotice,
+    String retention = 'KEEP',
+    String notification = 'IN_APP',
+    bool confirmConflicts = false,
+  }) async {
+    await client.dio.patch(
+      '/matches/$eventId/reschedule',
+      data: {
+        'startAt': startAt.toUtc().toIso8601String(),
+        'endAt': endAt?.toUtc().toIso8601String(),
+        'meetingAt': meetingAt?.toUtc().toIso8601String(),
+        'meetingLocation': meetingLocation,
+        'location': location,
+        'address': address,
+        'pitch': pitch,
+        'isHome': isHome,
+        'matchDay': matchDay,
+        'reason': reason,
+        'internalNote': internalNote,
+        'publicNotice': publicNotice,
+        'retention': retention,
+        'notification': notification,
+        'confirmConflicts': confirmConflicts,
+      },
+      options: Options(
+        extra: const {
+          'requireOnline': true,
+          'retryTransientWrite': true,
+        },
+      ),
+    );
+  }
+
+  Future<void> deleteLeagueMatch({
+    required String leagueId,
+    required String matchId,
+    bool deleteLinkedEvent = false,
+  }) async {
+    await client.dio.delete(
+      '/competitions/leagues/$leagueId/matches/$matchId',
+      queryParameters: {'deleteLinkedEvent': '$deleteLinkedEvent'},
+      options: Options(extra: const {'requireOnline': true}),
+    );
   }
 
   Future<void> updateSquad({

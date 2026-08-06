@@ -9,6 +9,7 @@ import {
   EventType,
   EventVisibility,
   HomeAway,
+  MatchStatus,
   NotificationCategory,
   Prisma,
   RecurrenceFrequency,
@@ -17,7 +18,11 @@ import {
 import { openAttendancePlayerIds } from '../services/attendance-summary';
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
-import { hasPermission, Permission } from '../security/permissions';
+import {
+  hasEffectivePermission,
+  hasPermission,
+  Permission,
+} from '../security/permissions';
 import {
   accessibleTeamIds,
   contextualTeamIds,
@@ -146,8 +151,15 @@ function enumValue<T extends Record<string, string>>(
     : fallback;
 }
 
-function isStaff(role: Role | PrismaRole) {
-  return hasPermission(role as Role, Permission.MANAGE_EVENTS);
+const HOME_MATCH_VENUE = 'Stadion am Kreutweg, Teugn';
+const AWAY_MEETING_LOCATION = 'Vereinsheim Teugn';
+
+function isStaff(role: Role | PrismaRole, permissions?: readonly string[]) {
+  return hasEffectivePermission(
+    role as Role,
+    Permission.MANAGE_EVENTS,
+    permissions,
+  );
 }
 
 function typeForCategory(category: EventCategory) {
@@ -221,7 +233,7 @@ function targetIdsForEvent(event: {
 }
 
 async function canManageEvent(
-  user: { id: string; teamId: string; role: Role | PrismaRole },
+  user: { id: string; teamId: string; role: Role | PrismaRole; permissions?: string[] },
   event: { teamId: string; targetTeams: Array<{ teamId: string }> },
 ) {
   const teamIds = await accessibleTeamIds(user);
@@ -229,12 +241,16 @@ async function canManageEvent(
 }
 
 function canManageEventWithIds(
-  user: { role: Role | PrismaRole },
+  user: { role: Role | PrismaRole; permissions?: string[] },
   event: { teamId: string; targetTeams: Array<{ teamId: string }> },
   teamIds: string[],
 ) {
-  if (!isStaff(user.role)) return false;
-  if (hasPermission(user.role as Role, Permission.MANAGE_ORGANIZATION)) {
+  if (!isStaff(user.role, user.permissions)) return false;
+  if (hasEffectivePermission(
+    user.role as Role,
+    Permission.MANAGE_ORGANIZATION,
+    user.permissions,
+  )) {
     return true;
   }
   return targetIdsForEvent(event).every((teamId) => teamIds.includes(teamId));
@@ -275,11 +291,16 @@ async function rosterForEvent(event: CalendarEvent, accessibleIds: string[]) {
 
 async function serializeEvent(
   event: CalendarEvent,
-  user: { id: string; teamId: string; role: Role | PrismaRole },
+  user: {
+    id: string;
+    teamId: string;
+    role: Role | PrismaRole;
+    permissions?: string[];
+  },
   knownAccessibleIds?: string[],
   knownRoster?: RosterPlayer[],
 ) {
-  const staff = isStaff(user.role);
+  const staff = isStaff(user.role, user.permissions);
   const accessibleIds = knownAccessibleIds ?? (await accessibleTeamIds(user));
   const manageable = canManageEventWithIds(user, event, accessibleIds);
   const personalPlayerIds = staff ? [] : await ownPlayerIds(user.id, user.role);
@@ -384,6 +405,23 @@ async function serializeEvent(
     })),
     capabilities: {
       canManage: manageable,
+      canDelete:
+        targetIdsForEvent(event).every((teamId) => accessibleIds.includes(teamId)) &&
+        hasEffectivePermission(
+          user.role as Role,
+          event.type === EventType.MATCH
+            ? Permission.MATCH_DELETE
+            : Permission.EVENT_DELETE,
+          user.permissions,
+        ),
+      canReschedule:
+        event.type === EventType.MATCH &&
+        targetIdsForEvent(event).every((teamId) => accessibleIds.includes(teamId)) &&
+        hasEffectivePermission(
+          user.role as Role,
+          Permission.MATCH_RESCHEDULE,
+          user.permissions,
+        ),
       canRespond: hasPermission(user.role as Role, Permission.RESPOND_ATTENDANCE),
       canOfferRide: user.role !== Role.READ_ONLY,
       canOpenEmergencyView:
@@ -477,8 +515,16 @@ function eventData(body: Record<string, unknown>) {
         ? EventCategory.LEAGUE_MATCH
         : EventCategory.SPECIAL_EVENT,
   );
+  const type = typeForCategory(category);
+  const homeAway = body.homeAway
+    ? enumValue(HomeAway, body.homeAway, HomeAway.NEUTRAL)
+    : null;
+  const location =
+    type === EventType.MATCH && homeAway === HomeAway.HOME
+      ? HOME_MATCH_VENUE
+      : clean(body.location);
   return {
-    type: typeForCategory(category),
+    type,
     category,
     status: enumValue(EventStatus, body.status, EventStatus.SCHEDULED),
     visibility: enumValue(EventVisibility, body.visibility, EventVisibility.TEAM),
@@ -486,12 +532,14 @@ function eventData(body: Record<string, unknown>) {
     startAt: validDate(body.startAt),
     endAt: validDate(body.endAt),
     meetingAt: validDate(body.meetingAt),
-    location: clean(body.location),
+    meetingLocation:
+      type === EventType.MATCH && homeAway === HomeAway.AWAY
+        ? clean(body.meetingLocation) ?? AWAY_MEETING_LOCATION
+        : clean(body.meetingLocation),
+    location,
     address: clean(body.address),
     mapUrl: safeHttpUrl(body.mapUrl),
-    homeAway: body.homeAway
-      ? enumValue(HomeAway, body.homeAway, HomeAway.NEUTRAL)
-      : null,
+    homeAway,
     opponent: clean(body.opponent),
     venue: clean(body.venue),
     contactName: clean(body.contactName),
@@ -1142,41 +1190,77 @@ export async function deleteEvent(req: Request, res: Response) {
   const teamIds = await accessibleTeamIds(user);
   const existing = await prisma.event.findFirst({
     where: { id: req.params.id, ...eventScope(teamIds) },
-    include: { targetTeams: true },
+    include: {
+      targetTeams: true,
+      matchDetails: true,
+      leagueMatch: true,
+      team: { include: { ageGroup: true } },
+    },
   });
   if (!existing) return res.status(404).json({ message: 'Termin nicht gefunden.' });
-  if (!(await canManageEvent(user, existing))) {
+  if (!targetIdsForEvent(existing).every((teamId) => teamIds.includes(teamId))) {
     return res.status(403).json({ message: 'Keine Berechtigung für die vollständige Termingruppe.' });
   }
-  const scope = req.query.scope === 'series' ? 'series' : 'single';
   const permanent = req.query.permanent === 'true';
+  const requiredPermission = permanent
+    ? existing.type === EventType.MATCH
+      ? Permission.MATCH_DELETE
+      : Permission.EVENT_DELETE
+    : Permission.MANAGE_EVENTS;
+  if (!hasEffectivePermission(user.role, requiredPermission, user.permissions)) {
+    return res.status(403).json({
+      message: 'Für diese Aktion fehlt die erforderliche Berechtigung.',
+      permission: requiredPermission,
+    });
+  }
+  const requestedScope = String(req.query.scope ?? 'single');
+  const scope = existing.seriesId && ['future', 'series', 'all'].includes(requestedScope)
+    ? requestedScope === 'all' ? 'all' : 'future'
+    : 'single';
+  const affectedWhere: Prisma.EventWhereInput =
+    scope === 'all' && existing.seriesId
+      ? { seriesId: existing.seriesId }
+      : scope === 'future' && existing.seriesId
+        ? { seriesId: existing.seriesId, startAt: { gte: existing.startAt } }
+        : { id: existing.id };
   if (permanent) {
-    if (user.role !== Role.SUPER_ADMIN) {
-      return res.status(403).json({
-        message: 'Nur die Systemadministration darf Termine und Spiele endgültig löschen.',
-      });
-    }
     const deleted = await prisma.$transaction(async (tx) => {
       const events = await tx.event.findMany({
-        where:
-          scope === 'series' && existing.seriesId
-            ? {
-                seriesId: existing.seriesId,
-                startAt: { gte: existing.startAt },
-              }
-            : { id: existing.id },
-        select: { id: true, type: true, title: true },
-      });
-      await tx.notification.deleteMany({
-        where: {
-          entityType: 'RecreationalPitchPriority',
-          entityId: { in: events.map((event) => event.id) },
+        where: affectedWhere,
+        select: {
+          id: true,
+          type: true,
+          title: true,
+          startAt: true,
+          meetingAt: true,
+          meetingLocation: true,
+          location: true,
+          opponent: true,
+          teamId: true,
+          matchDetails: {
+            select: {
+              competition: true,
+              bfvMatchId: true,
+              externalSource: true,
+              leagueId: true,
+            },
+          },
+          leagueMatch: { select: { id: true, leagueId: true, externalUid: true } },
         },
       });
-      await tx.event.deleteMany({
-        where: { id: { in: events.map((event) => event.id) } },
+      const eventIds = events.map((event) => event.id);
+      await tx.notification.deleteMany({
+        where: {
+          entityId: { in: eventIds },
+        },
       });
-      if (scope === 'series' && existing.seriesId) {
+      if (req.query.deleteLeagueMatch === 'true') {
+        await tx.leagueMatch.deleteMany({ where: { eventId: { in: eventIds } } });
+      }
+      await tx.event.deleteMany({
+        where: { id: { in: eventIds } },
+      });
+      if (scope !== 'single' && existing.seriesId) {
         const remaining = await tx.event.count({
           where: { seriesId: existing.seriesId },
         });
@@ -1191,7 +1275,7 @@ export async function deleteEvent(req: Request, res: Response) {
           actorId: user.id,
           teamId: existing.teamId,
           action:
-            scope === 'series'
+            scope !== 'single'
               ? 'EVENT_SERIES_PERMANENTLY_DELETED'
               : existing.type === EventType.MATCH
                 ? 'MATCH_PERMANENTLY_DELETED'
@@ -1201,6 +1285,9 @@ export async function deleteEvent(req: Request, res: Response) {
           metadata: {
             scope,
             seriesId: existing.seriesId,
+            team: existing.team.name,
+            ageGroup: existing.team.ageGroup.name,
+            deleteLeagueMatch: req.query.deleteLeagueMatch === 'true',
             deletedEvents: events,
           },
         },
@@ -1217,10 +1304,7 @@ export async function deleteEvent(req: Request, res: Response) {
   const now = new Date();
   await prisma.$transaction(async (tx) => {
     const affectedEvents = await tx.event.findMany({
-      where:
-        scope === 'series' && existing.seriesId
-          ? { seriesId: existing.seriesId, startAt: { gte: existing.startAt } }
-          : { id: existing.id },
+      where: affectedWhere,
       select: { id: true },
     });
     await tx.notification.deleteMany({
@@ -1229,9 +1313,9 @@ export async function deleteEvent(req: Request, res: Response) {
         entityId: { in: affectedEvents.map((event) => event.id) },
       },
     });
-    if (scope === 'series' && existing.seriesId) {
+    if (scope !== 'single' && existing.seriesId) {
       await tx.event.updateMany({
-        where: { seriesId: existing.seriesId, startAt: { gte: existing.startAt } },
+        where: affectedWhere,
         data: {
           status: EventStatus.CANCELLED,
           cancellationReason: reason,
@@ -1252,13 +1336,8 @@ export async function deleteEvent(req: Request, res: Response) {
     await tx.pitchConflictRequest.updateMany({
       where: {
         status: 'PENDING',
-        ...(scope === 'series' && existing.seriesId
-          ? {
-              event: {
-                seriesId: existing.seriesId,
-                startAt: { gte: existing.startAt },
-              },
-            }
+        ...(scope !== 'single' && existing.seriesId
+          ? { event: { is: affectedWhere } }
           : { eventId: existing.id }),
       },
       data: { status: 'CANCELLED' },
@@ -1267,7 +1346,7 @@ export async function deleteEvent(req: Request, res: Response) {
       data: {
         actorId: user.id,
         teamId: existing.teamId,
-        action: scope === 'series' ? 'EVENT_SERIES_CANCELLED' : 'EVENT_CANCELLED',
+        action: scope !== 'single' ? 'EVENT_SERIES_CANCELLED' : 'EVENT_CANCELLED',
         entityType: 'Event',
         entityId: existing.id,
         metadata: { scope, reason, seriesId: existing.seriesId },
@@ -1276,8 +1355,8 @@ export async function deleteEvent(req: Request, res: Response) {
   });
   await prisma.scheduledReminder.updateMany({
     where: {
-      ...(scope === 'series' && existing.seriesId
-        ? { event: { seriesId: existing.seriesId, startAt: { gte: existing.startAt } } }
+      ...(scope !== 'single' && existing.seriesId
+        ? { event: { is: affectedWhere } }
         : { eventId: existing.id }),
       status: { in: ['SCHEDULED', 'FAILED', 'PROCESSING'] },
     },
@@ -1785,6 +1864,30 @@ export async function upsertMatchDetails(req: Request, res: Response) {
     return res.status(403).json({ message: 'Keine Berechtigung für diesen Termin.' });
   }
   const { opponent, isHome, competition, notes, ourGoals, theirGoals } = req.body;
+  const targetTeamIds = targetIdsForEvent(event);
+  const opponentId = clean(req.body.opponentId);
+  const opponentRecord = opponentId
+    ? await prisma.opponent.findFirst({
+        where: {
+          id: opponentId,
+          archivedAt: null,
+          ageGroup: { teams: { some: { id: { in: targetTeamIds } } } },
+        },
+        select: {
+          id: true,
+          clubName: true,
+          teamDesignation: true,
+          venue: true,
+          address: true,
+        },
+      })
+    : null;
+  if (opponentId && !opponentRecord) {
+    return res.status(400).json({ message: 'Der ausgewählte Gegner gehört nicht zu dieser Jugend.' });
+  }
+  const opponentName = opponentRecord
+    ? `${opponentRecord.clubName} ${opponentRecord.teamDesignation}`.trim()
+    : clean(opponent) ?? 'Unbekannt';
   const current = await prisma.matchDetails.findUnique({
     where: { eventId: event.id },
     select: { periodCount: true, periodMinutes: true },
@@ -1799,7 +1902,8 @@ export async function upsertMatchDetails(req: Request, res: Response) {
   const details = await prisma.matchDetails.upsert({
     where: { eventId: event.id },
     update: {
-      opponent,
+      opponent: opponentName,
+      opponentId: opponentRecord?.id ?? null,
       isHome,
       competition,
       notes,
@@ -1809,13 +1913,24 @@ export async function upsertMatchDetails(req: Request, res: Response) {
     },
     create: {
       eventId: event.id,
-      opponent: opponent ?? 'Unbekannt',
+      opponent: opponentName,
+      opponentId: opponentRecord?.id ?? null,
       isHome: isHome ?? true,
       competition,
       notes,
       ourGoals,
       theirGoals,
       ...timing,
+    },
+  });
+  await prisma.event.update({
+    where: { id: event.id },
+    data: {
+      opponent: opponentName,
+      homeAway: isHome === false ? HomeAway.AWAY : HomeAway.HOME,
+      ...(isHome === false
+        ? { meetingLocation: event.meetingLocation ?? AWAY_MEETING_LOCATION }
+        : { location: HOME_MATCH_VENUE }),
     },
   });
   return res.json(details);

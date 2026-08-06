@@ -13,7 +13,10 @@ void main() {
       'title': 'Festival',
       'startAt': '2026-08-03T16:00:00.000Z',
       'endAt': '2026-08-03T18:00:00.000Z',
+      'meetingAt': '2026-08-03T15:00:00.000Z',
+      'meetingLocation': 'Vereinsheim Teugn',
       'location': 'Sportplatz',
+      'opponentId': 'opponent-1',
       'carpoolRequired': true,
       'reminderMinutes': [1440, 120],
       'attendanceFinalized': false,
@@ -62,6 +65,8 @@ void main() {
         'canRespond': true,
         'canOfferRide': true,
         'canOpenEmergencyView': true,
+        'canDelete': true,
+        'canReschedule': true,
       },
     });
 
@@ -72,6 +77,10 @@ void main() {
     expect(event.attendanceSummary.goalkeeperAvailable, 1);
     expect(event.capabilities.canManage, isTrue);
     expect(event.capabilities.canOpenEmergencyView, isTrue);
+    expect(event.capabilities.canDelete, isTrue);
+    expect(event.capabilities.canReschedule, isTrue);
+    expect(event.meetingLocation, 'Vereinsheim Teugn');
+    expect(event.opponentId, 'opponent-1');
   });
 
   test('serializes local calendar input as UTC and all selected teams', () {
@@ -80,6 +89,7 @@ void main() {
       title: 'Testspiel',
       startAt: DateTime.parse('2026-08-03T18:00:00+02:00'),
       location: 'Teugn',
+      meetingLocation: 'Vereinsheim Teugn',
       teamIds: const ['team-1', 'team-2'],
       visibility: EventVisibility.team,
       homeAway: HomeAway.home,
@@ -93,6 +103,7 @@ void main() {
     expect(data['startAt'], '2026-08-03T16:00:00.000Z');
     expect(data['teamIds'], ['team-1', 'team-2']);
     expect(data['homeAway'], 'HOME');
+    expect(data['meetingLocation'], 'Vereinsheim Teugn');
     expect(
       (data['recurrence'] as Map<String, dynamic>)['frequency'],
       'WEEKLY',
@@ -106,10 +117,14 @@ void main() {
       'periodCount': 4,
       'periodMinutes': 15,
       'durationMinutes': 60,
+      'opponentId': 'opponent-1',
+      'leagueId': 'league-1',
     });
 
     expect(details.periodCount, 4);
     expect(details.periodMinutes, 15);
     expect(details.durationMinutes, 60);
+    expect(details.opponentId, 'opponent-1');
+    expect(details.leagueId, 'league-1');
   });
 }

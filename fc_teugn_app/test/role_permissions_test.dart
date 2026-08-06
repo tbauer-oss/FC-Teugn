@@ -38,4 +38,30 @@ void main() {
     expect(canSelectStatisticsTeam(UserRole.parent), isFalse);
     expect(canSelectStatisticsTeam(UserRole.player), isFalse);
   });
+
+  test('staff lifecycle presets include delete and reschedule rights', () {
+    const lifecycle = {
+      'EVENT_DELETE',
+      'MATCH_DELETE',
+      'MATCH_RESCHEDULE',
+      'LEAGUE_MATCH_DELETE',
+      'LEAGUE_MATCH_RESCHEDULE',
+    };
+    for (final role in [
+      UserRole.coach,
+      UserRole.trainer,
+      UserRole.assistantCoach,
+      UserRole.teamManager,
+    ]) {
+      final codes = permissionsForUserRole(role)
+          .map((permission) => permission.code)
+          .toSet();
+      expect(codes, containsAll(lifecycle), reason: role.name);
+    }
+    final parentCodes = permissionsForUserRole(
+      UserRole.parent,
+    ).map((permission) => permission.code);
+    expect(parentCodes, isNot(contains('MATCH_DELETE')));
+    expect(parentCodes, isNot(contains('MATCH_RESCHEDULE')));
+  });
 }

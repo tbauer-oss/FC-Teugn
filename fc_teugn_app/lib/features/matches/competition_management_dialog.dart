@@ -235,13 +235,44 @@ class _CompetitionManagementDialogState
                         subtitle: match.startsAt == null
                             ? const Text('Termin offen')
                             : Text(_dateTime(match.startsAt!)),
-                        trailing: Text(
-                          match.homeGoals == null
-                              ? '– : –'
-                              : '${match.homeGoals} : ${match.awayGoals}',
-                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        trailing: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 2,
+                          children: [
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 6),
+                              child: Text(
+                                match.homeGoals == null
+                                    ? '– : –'
+                                    : '${match.homeGoals} : ${match.awayGoals}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            if (widget.organization
+                                .can('LEAGUE_MATCH_RESCHEDULE'))
+                              IconButton(
+                                tooltip: 'Partie bearbeiten / verlegen',
+                                onPressed: () =>
+                                    _editLeagueMatch(league, match),
+                                icon: const Icon(Icons.edit_calendar_outlined),
+                              ),
+                            if (widget.organization.can('LEAGUE_MATCH_DELETE'))
+                              IconButton(
+                                tooltip: 'Ligapartie endgültig löschen',
+                                color: Theme.of(context).colorScheme.error,
+                                onPressed: () =>
+                                    _deleteLeagueMatch(league, match),
+                                icon: const Icon(Icons.delete_forever_outlined),
+                              ),
+                          ],
                         ),
-                        onTap: () => _editLeagueMatch(league, match),
+                        onTap:
+                            widget.organization.can('LEAGUE_MATCH_RESCHEDULE')
+                                ? () => _editLeagueMatch(league, match)
+                                : null,
                       ),
                   ],
                 ),
@@ -521,6 +552,89 @@ class _CompetitionManagementDialogState
     } finally {
       homeGoals.dispose();
       awayGoals.dispose();
+    }
+  }
+
+  Future<void> _deleteLeagueMatch(
+    LeagueModel league,
+    LeagueMatchModel match,
+  ) async {
+    var deleteLinkedEvent =
+        match.eventId != null && widget.organization.can('MATCH_DELETE');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, update) => AlertDialog(
+          icon: Icon(
+            Icons.warning_amber_rounded,
+            color: Theme.of(dialogContext).colorScheme.error,
+          ),
+          title: const Text('Ligapartie endgültig löschen?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '„${match.homeName} – ${match.awayName}“ wird aus '
+                '„${league.name}“ entfernt. Die Tabelle wird direkt neu berechnet.',
+              ),
+              if (match.eventId != null &&
+                  widget.organization.can('MATCH_DELETE')) ...[
+                const SizedBox(height: 10),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: deleteLinkedEvent,
+                  title: const Text('Verknüpften Spieltag ebenfalls löschen'),
+                  subtitle: const Text(
+                    'Kader, Aufstellung, Liveticker und Rückmeldungen werden dann dauerhaft entfernt.',
+                  ),
+                  onChanged: (value) =>
+                      update(() => deleteLinkedEvent = value ?? false),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.delete_forever_rounded),
+              label: const Text('Endgültig löschen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await widget.repository.deleteLeagueMatch(
+        leagueId: league.id,
+        matchId: match.id,
+        deleteLinkedEvent: deleteLinkedEvent,
+      );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Ligapartie wurde gelöscht und Tabelle aktualisiert.'),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Ligapartie konnte nicht gelöscht werden.')),
+        );
+      }
     }
   }
 }

@@ -1371,8 +1371,17 @@ String _permissionCategory(String code) => switch (code) {
       'MANAGE_DOCUMENTS' ||
       'MANAGE_DEVELOPMENT' =>
         'Spieler & Kader',
-      'MANAGE_EVENTS' || 'RESPOND_ATTENDANCE' => 'Termine & Rückmeldungen',
-      'MANAGE_LINEUPS' || 'MANAGE_LIVE_TICKER' => 'Spiele & Aufstellung',
+      'MANAGE_EVENTS' ||
+      'EVENT_DELETE' ||
+      'RESPOND_ATTENDANCE' =>
+        'Termine & Rückmeldungen',
+      'MATCH_DELETE' ||
+      'MATCH_RESCHEDULE' ||
+      'LEAGUE_MATCH_DELETE' ||
+      'LEAGUE_MATCH_RESCHEDULE' ||
+      'MANAGE_LINEUPS' ||
+      'MANAGE_LIVE_TICKER' =>
+        'Spielbetrieb & Liga',
       'VIEW_PLAYER_STATS' || 'MANAGE_STATISTICS' => 'Statistiken',
       'MANAGE_TRAINING' => 'Training & Plätze',
       'SEND_ANNOUNCEMENTS' => 'Nachrichten',

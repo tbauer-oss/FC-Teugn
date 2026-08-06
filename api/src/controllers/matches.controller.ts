@@ -1,10 +1,13 @@
 import { Request, Response } from 'express';
 import {
   EventType,
+  AttendanceStatus,
   AccountStatus,
+  HomeAway,
   LineupStatus,
   MatchKind,
   MatchStatus,
+  NotificationCategory,
   NominationStatus,
   PlayerStatus,
   Prisma,
@@ -12,7 +15,11 @@ import {
   TickerStatus,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { hasPermission, Permission } from '../security/permissions';
+import {
+  hasEffectivePermission,
+  hasPermission,
+  Permission,
+} from '../security/permissions';
 import { Role } from '../types/enums';
 import { recalculateMatchStatistics } from '../services/statistics.service';
 import { rosterTeamIdsForMatch } from '../services/match-roster';
@@ -24,6 +31,15 @@ import {
 } from '../services/team-access';
 import { syncSquadWithTeamDefaultLineup } from '../services/default-lineup.service';
 import { mediaAssetUrl } from '../services/media-access';
+import {
+  reminderRecipientsForEvent,
+  syncScheduledRemindersForEvent,
+} from '../services/reminder.service';
+import { notifyUsers } from '../services/notification.service';
+import { settlePostCommitTasks } from '../services/post-commit.service';
+
+const HOME_MATCH_VENUE = 'Stadion am Kreutweg, Teugn';
+const AWAY_MEETING_LOCATION = 'Vereinsheim Teugn';
 
 const matchInclude = {
   team: {
@@ -125,6 +141,7 @@ const matchInclude = {
       },
     },
   },
+  leagueMatch: true,
 } as const;
 
 const eligiblePlayerSelect = {
@@ -181,8 +198,8 @@ function scope(teamIds: string[]): Prisma.EventWhereInput {
   };
 }
 
-function isStaff(role: Role) {
-  return hasPermission(role, Permission.MANAGE_EVENTS);
+function isStaff(role: Role, permissions?: readonly string[]) {
+  return hasEffectivePermission(role, Permission.MANAGE_EVENTS, permissions);
 }
 
 async function canManageTicker(
@@ -276,6 +293,8 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   eligiblePlayers: Array<Prisma.PlayerGetPayload<{ select: typeof eligiblePlayerSelect }>> = [],
   tickerEditable = staff,
   viewerPlayerIds: string[] = [],
+  canDelete = false,
+  canReschedule = false,
 ) {
   const squad = match.squads[0] ?? null;
   const lineup = squad?.lineup;
@@ -321,6 +340,8 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
     capabilities: {
       canManageTicker: tickerEditable,
       canDelegateTicker: staff,
+      canDelete,
+      canReschedule,
     },
     squads: squad && canSeePublishedSquad
       ? [
@@ -374,9 +395,28 @@ export async function listMatches(req: Request, res: Response) {
     orderBy: { startAt: 'desc' },
     take: 100,
   });
-  const viewerPlayerIds = isStaff(user.role) ? [] : await ownPlayerIds(user);
+  const staff = isStaff(user.role, user.permissions);
+  const viewerPlayerIds = staff ? [] : await ownPlayerIds(user);
+  const canDelete = hasEffectivePermission(
+    user.role,
+    Permission.MATCH_DELETE,
+    user.permissions,
+  );
+  const canReschedule = hasEffectivePermission(
+    user.role,
+    Permission.MATCH_RESCHEDULE,
+    user.permissions,
+  );
   return res.json(matches.map((match) =>
-    serializeMatch(match, isStaff(user.role), [], false, viewerPlayerIds),
+    serializeMatch(
+      match,
+      staff,
+      [],
+      false,
+      viewerPlayerIds,
+      canDelete,
+      canReschedule,
+    ),
   ));
 }
 
@@ -384,7 +424,7 @@ export async function getMatch(req: Request, res: Response) {
   const user = req.user!;
   const match = await findMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
-  const staff = isStaff(user.role);
+  const staff = isStaff(user.role, user.permissions);
   const tickerEditable = await canManageTicker(user, match.id);
   const rosterTeamIds = rosterTeamIdsForMatch(
     await youthPlayerPoolTeamIdsForTeam(match.teamId),
@@ -406,6 +446,8 @@ export async function getMatch(req: Request, res: Response) {
     eligiblePlayers,
     tickerEditable,
     viewerPlayerIds,
+    hasEffectivePermission(user.role, Permission.MATCH_DELETE, user.permissions),
+    hasEffectivePermission(user.role, Permission.MATCH_RESCHEDULE, user.permissions),
   ));
 }
 
@@ -580,6 +622,272 @@ export async function updateMatch(req: Request, res: Response) {
     },
   });
   return res.json(details);
+}
+
+type RescheduleRetention = 'KEEP' | 'RESET_RESPONSES' | 'RESET_SQUAD';
+type RescheduleNotification = 'NONE' | 'IN_APP' | 'PUSH';
+
+function validDate(value: unknown) {
+  if (!value) return null;
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export async function rescheduleMatch(req: Request, res: Response) {
+  const user = req.user!;
+  if (!hasEffectivePermission(
+    user.role,
+    Permission.MATCH_RESCHEDULE,
+    user.permissions,
+  )) {
+    return res.status(403).json({
+      message: 'Für die Spielverlegung fehlt die erforderliche Berechtigung.',
+      permission: Permission.MATCH_RESCHEDULE,
+    });
+  }
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const status = match.matchDetails?.status ?? MatchStatus.PLANNED;
+  const tickerStarted = match.liveTicker && (
+    match.liveTicker.status !== TickerStatus.NOT_STARTED ||
+    match.liveTicker.events.length > 0
+  );
+  if (
+    tickerStarted ||
+    new Set<MatchStatus>([
+      MatchStatus.LIVE,
+      MatchStatus.HALF_TIME,
+      MatchStatus.INTERRUPTED,
+      MatchStatus.FINISHED,
+      MatchStatus.RECORDED,
+    ]).has(status)
+  ) {
+    return res.status(409).json({
+      message:
+        'Ein laufendes oder abgeschlossenes Spiel kann nicht normal verlegt werden.',
+    });
+  }
+
+  const startAt = validDate(req.body?.startAt);
+  const meetingAt = validDate(req.body?.meetingAt);
+  if (!startAt) {
+    return res.status(400).json({ message: 'Das neue Spieldatum ist ungültig.' });
+  }
+  if (meetingAt && meetingAt >= startAt) {
+    return res.status(400).json({
+      message: 'Der Treffpunkt muss vor dem Spielbeginn liegen.',
+    });
+  }
+  const isHome = req.body?.isHome === undefined
+    ? match.matchDetails?.isHome !== false
+    : req.body.isHome === true;
+  const location = isHome
+    ? HOME_MATCH_VENUE
+    : text(req.body?.location, 160) ?? match.location;
+  const meetingLocation = isHome
+    ? text(req.body?.meetingLocation, 160)
+    : text(req.body?.meetingLocation, 160) ?? AWAY_MEETING_LOCATION;
+  if (!location) {
+    return res.status(400).json({ message: 'Bitte einen neuen Spielort angeben.' });
+  }
+  const durationMinutes = match.matchDetails?.durationMinutes ?? 60;
+  const endAt = validDate(req.body?.endAt) ??
+    new Date(startAt.getTime() + durationMinutes * 60_000);
+  if (endAt <= startAt) {
+    return res.status(400).json({ message: 'Das Spielende muss nach dem Beginn liegen.' });
+  }
+
+  const teamIds = match.targetTeams.length
+    ? match.targetTeams.map((target) => target.teamId)
+    : [match.teamId];
+  const conflictWhere: Prisma.EventWhereInput = {
+    id: { not: match.id },
+    status: { not: 'CANCELLED' },
+    startAt: { lt: endAt },
+    OR: [
+      { endAt: { gt: startAt } },
+      { endAt: null, startAt: { gte: new Date(startAt.getTime() - 3 * 60 * 60_000) } },
+    ],
+    AND: [{
+      OR: [
+        { teamId: { in: teamIds } },
+        { targetTeams: { some: { teamId: { in: teamIds } } } },
+        ...(isHome
+          ? [{
+              homeAway: { not: HomeAway.AWAY },
+              location: HOME_MATCH_VENUE,
+            } as Prisma.EventWhereInput]
+          : []),
+      ],
+    }],
+  };
+  const conflicts = await prisma.event.findMany({
+    where: conflictWhere,
+    select: { id: true, title: true, startAt: true, endAt: true, location: true },
+    orderBy: { startAt: 'asc' },
+    take: 10,
+  });
+  if (conflicts.length && req.body?.confirmConflicts !== true) {
+    return res.status(409).json({
+      message: 'Der neue Termin überschneidet sich mit bestehenden Belegungen.',
+      conflicts,
+    });
+  }
+
+  const retention = ['KEEP', 'RESET_RESPONSES', 'RESET_SQUAD'].includes(
+    String(req.body?.retention ?? '').toUpperCase(),
+  )
+    ? String(req.body.retention).toUpperCase() as RescheduleRetention
+    : 'KEEP';
+  const notification = ['NONE', 'IN_APP', 'PUSH'].includes(
+    String(req.body?.notification ?? '').toUpperCase(),
+  )
+    ? String(req.body.notification).toUpperCase() as RescheduleNotification
+    : 'IN_APP';
+  const old = {
+    startAt: match.startAt,
+    meetingAt: match.meetingAt,
+    meetingLocation: match.meetingLocation,
+    location: match.location,
+    isHome: match.matchDetails?.isHome !== false,
+    matchDay: match.matchDetails?.matchDay,
+  };
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.event.update({
+      where: { id: match.id },
+      data: {
+        startAt,
+        endAt,
+        meetingAt,
+        meetingLocation,
+        location,
+        address: text(req.body?.address, 240) ?? match.address,
+        homeAway: isHome ? HomeAway.HOME : HomeAway.AWAY,
+        internalNote: text(req.body?.internalNote, 2000) ?? match.internalNote,
+        reminderSyncPendingAt: now,
+      },
+    });
+    await tx.matchDetails.update({
+      where: { eventId: match.id },
+      data: {
+        isHome,
+        pitch: text(req.body?.pitch, 100),
+        matchDay: text(req.body?.matchDay, 50) ?? match.matchDetails?.matchDay,
+        status: status === MatchStatus.CONFIRMED
+          ? MatchStatus.CONFIRMED
+          : MatchStatus.PLANNED,
+        notes: text(req.body?.publicNotice, 2000) ?? match.matchDetails?.notes,
+      },
+    });
+    if (match.leagueMatch) {
+      await tx.leagueMatch.update({
+        where: { id: match.leagueMatch.id },
+        data: {
+          startsAt: startAt,
+          venue: location,
+          status: 'SCHEDULED',
+          notes: text(req.body?.reason, 1000) ?? match.leagueMatch.notes,
+        },
+      });
+    }
+    if (retention === 'RESET_RESPONSES') {
+      const nominatedPlayerIds = match.squads[0]?.members.map((member) => member.playerId) ?? [];
+      await tx.attendance.updateMany({
+        where: {
+          eventId: match.id,
+          ...(nominatedPlayerIds.length ? { playerId: { in: nominatedPlayerIds } } : {}),
+        },
+        data: {
+          status: AttendanceStatus.UNKNOWN,
+          reason: null,
+          goalkeeperAvailable: null,
+          respondedById: null,
+          respondedAt: null,
+        },
+      });
+    } else if (retention === 'RESET_SQUAD') {
+      await tx.squad.deleteMany({ where: { eventId: match.id } });
+      await tx.attendance.deleteMany({ where: { eventId: match.id } });
+    }
+    await tx.notification.deleteMany({
+      where: {
+        entityId: match.id,
+        category: NotificationCategory.EVENT_REMINDER,
+        expiresAt: { gt: now },
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: match.teamId,
+        action: 'MATCH_RESCHEDULED',
+        entityType: 'Match',
+        entityId: match.id,
+        metadata: {
+          opponent: match.matchDetails?.opponent,
+          old,
+          next: {
+            startAt,
+            meetingAt,
+            meetingLocation,
+            location,
+            isHome,
+            matchDay: text(req.body?.matchDay, 50) ?? match.matchDetails?.matchDay,
+          },
+          reason: text(req.body?.reason, 500),
+          retention,
+          notification,
+          leagueId: match.matchDetails?.leagueId,
+          leagueMatchId: match.leagueMatch?.id,
+          externalSource: match.matchDetails?.externalSource,
+          externalId: match.matchDetails?.bfvMatchId,
+          conflictsConfirmed: conflicts.length > 0,
+        },
+      },
+    });
+  });
+
+  const reminderTask = (async () => {
+    await syncScheduledRemindersForEvent(match.id);
+    await prisma.event.update({
+      where: { id: match.id },
+      data: { reminderSyncPendingAt: null },
+    });
+  })();
+  const notificationTask = notification !== 'NONE' ? (async () => {
+    const { recipientIds } = await reminderRecipientsForEvent(match.id);
+    const opponent = match.matchDetails?.opponent ?? 'Gegner';
+    const local = startAt.toLocaleString('de-DE', {
+      timeZone: 'Europe/Berlin',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    await notifyUsers(recipientIds, {
+      category: NotificationCategory.EVENT_REMINDER,
+      title: `Spiel gegen ${opponent} wurde verlegt`,
+      body: `Neuer Termin: ${local} Uhr · Treffpunkt: ${meetingLocation ?? 'noch offen'} · ${location}`,
+      actionUrl: `/trainer/matches/${match.id}`,
+      entityType: 'Event',
+      entityId: match.id,
+      pushEnabled: notification === 'PUSH',
+      dedupeKey: `match-rescheduled:${match.id}:${startAt.toISOString()}`,
+    });
+  })() : Promise.resolve();
+  await settlePostCommitTasks([
+    { name: 'match-reschedule-reminders', promise: reminderTask },
+    { name: 'match-reschedule-notification', promise: notificationTask },
+  ]);
+  const updated = await findMatch(match.id, user);
+  return res.json(updated ? serializeMatch(
+    updated,
+    isStaff(user.role, user.permissions),
+    [],
+    false,
+    [],
+    hasEffectivePermission(user.role, Permission.MATCH_DELETE, user.permissions),
+    hasEffectivePermission(user.role, Permission.MATCH_RESCHEDULE, user.permissions),
+  ) : null);
 }
 
 export async function updateSquad(req: Request, res: Response) {

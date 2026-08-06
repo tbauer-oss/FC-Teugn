@@ -14,10 +14,8 @@ import '../../core/models/emergency.dart';
 import '../../core/models/event.dart';
 import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
-import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/regular_training_schedule.dart';
-import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
 enum CalendarView { day, week, month, year, agenda }
@@ -2866,7 +2864,11 @@ class _EventFacts extends StatelessWidget {
               _InfoRow(
                 icon: Icons.groups_rounded,
                 label: 'Treffpunkt',
-                value: '${_time(event.meetingAt!)} Uhr',
+                value: [
+                  '${_time(event.meetingAt!)} Uhr',
+                  if (event.meetingLocation?.isNotEmpty == true)
+                    event.meetingLocation!,
+                ].join(' · '),
               ),
             _InfoRow(
               icon: Icons.location_on_rounded,
@@ -3400,8 +3402,6 @@ class _ManagementBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isSystemAdmin =
-        ref.watch(authProvider).user?.role == UserRole.superAdmin;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -3427,13 +3427,19 @@ class _ManagementBar extends ConsumerWidget {
             icon: const Icon(Icons.edit_rounded),
             label: const Text('Bearbeiten'),
           ),
+          if (event.type == EventType.match && event.capabilities.canReschedule)
+            OutlinedButton.icon(
+              onPressed: () => _edit(context, ref),
+              icon: const Icon(Icons.event_repeat_rounded),
+              label: const Text('Spiel verlegen'),
+            ),
           if (!event.isCancelled)
             FilledButton.tonalIcon(
               onPressed: () => _cancel(context, ref),
               icon: const Icon(Icons.event_busy_rounded),
               label: const Text('Absagen'),
             ),
-          if (isSystemAdmin)
+          if (event.capabilities.canDelete)
             OutlinedButton.icon(
               onPressed: () => _deletePermanently(context, ref),
               style: OutlinedButton.styleFrom(
@@ -3565,42 +3571,102 @@ class _ManagementBar extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final entireSeries =
-        event.isRecurring ? await _seriesScope(context, 'Löschung') : false;
-    if (entireSeries == null || !context.mounted) return;
+    final deleteScope = event.isRecurring
+        ? await showModalBottomSheet<String>(
+            context: context,
+            showDragHandle: true,
+            builder: (sheetContext) => SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.event_rounded),
+                    title: const Text('Nur diesen Termin löschen'),
+                    onTap: () => Navigator.pop(sheetContext, 'single'),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.update_rounded),
+                    title: const Text('Diesen und alle folgenden löschen'),
+                    subtitle: const Text(
+                        'Vergangene Serientermine bleiben erhalten.'),
+                    onTap: () => Navigator.pop(sheetContext, 'future'),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.delete_sweep_rounded),
+                    title: const Text('Gesamte Terminserie löschen'),
+                    onTap: () => Navigator.pop(sheetContext, 'all'),
+                  ),
+                ],
+              ),
+            ),
+          )
+        : 'single';
+    if (deleteScope == null || !context.mounted) return;
     final entity = event.type == EventType.match ? 'Spiel' : 'Termin';
+    var deleteLeagueMatch = event.matchDetails?.leagueId != null;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        icon: Icon(
-          Icons.warning_amber_rounded,
-          color: Theme.of(dialogContext).colorScheme.error,
-        ),
-        title: Text('$entity endgültig löschen?'),
-        content: Text(
-          entireSeries
-              ? 'Dieser und alle folgenden Termine der Serie werden mit '
-                  'Kader, Aufstellung, Liveticker und Rückmeldungen dauerhaft gelöscht. '
-                  'Diese Aktion kann nicht rückgängig gemacht werden.'
-              : '„${event.title}“ wird mit Kader, Aufstellung, Liveticker und '
-                  'Rückmeldungen dauerhaft gelöscht. Diese Aktion kann nicht '
-                  'rückgängig gemacht werden.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Abbrechen'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, update) => AlertDialog(
+          icon: Icon(
+            Icons.warning_amber_rounded,
+            color: Theme.of(dialogContext).colorScheme.error,
           ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+          title: Text('$entity endgültig löschen?'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '„${event.title}“ · ${_fullDate(event.startAt)} · '
+                  '${_time(event.startAt)} Uhr · ${event.location}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  deleteScope == 'all'
+                      ? 'Die gesamte Serie wird mit Rückmeldungen, Erinnerungen und Verknüpfungen gelöscht.'
+                      : deleteScope == 'future'
+                          ? 'Dieser und alle folgenden Serientermine werden gelöscht. Vergangene Termine bleiben erhalten.'
+                          : 'Kader, Aufstellung, Rückmeldungen, Erinnerungen und Liveticker-Daten werden entfernt.',
+                ),
+                if (event.matchDetails?.leagueId != null)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: deleteLeagueMatch,
+                    title:
+                        const Text('Verknüpfte Ligapartie ebenfalls löschen'),
+                    subtitle: const Text(
+                        'Die Ligatabelle wird unmittelbar neu berechnet.'),
+                    onChanged: (value) => update(
+                      () => deleteLeagueMatch = value ?? false,
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Diese Aktion kann in der App nicht rückgängig gemacht werden.',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+              ],
             ),
-            icon: const Icon(Icons.delete_forever_rounded),
-            label: const Text('Endgültig löschen'),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+              ),
+              icon: const Icon(Icons.delete_forever_rounded),
+              label: const Text('Endgültig löschen'),
+            ),
+          ],
+        ),
       ),
     );
     if (confirmed != true || !context.mounted) return;
@@ -3608,7 +3674,8 @@ class _ManagementBar extends ConsumerWidget {
       final repository = ref.read(repositoryProvider);
       await repository.deleteEventPermanently(
         eventId: event.id,
-        entireSeries: entireSeries,
+        scope: deleteScope,
+        deleteLeagueMatch: deleteLeagueMatch,
       );
       ref.invalidate(eventsProvider);
       final refreshed = await ref.read(eventsProvider.future);
@@ -3673,6 +3740,8 @@ class EventEditorDialog extends StatefulWidget {
 enum _MeetingTimeMode { beforeKickoff, exactTime }
 
 class _EventEditorDialogState extends State<EventEditorDialog> {
+  static const homeMatchVenue = 'Stadion am Kreutweg, Teugn';
+  static const awayMeetingLocation = 'Vereinsheim Teugn';
   static const pitchOptions = [
     'Platz 1 unten',
     'Platz 2 oben',
@@ -3683,6 +3752,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   final formKey = GlobalKey<FormState>();
   late final TextEditingController title;
   late final TextEditingController location;
+  late final TextEditingController meetingLocation;
   late final TextEditingController address;
   late final TextEditingController mapUrl;
   late final TextEditingController opponent;
@@ -3742,6 +3812,10 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         );
     title = TextEditingController(text: event?.title);
     location = TextEditingController(text: event?.location);
+    meetingLocation = TextEditingController(
+      text: event?.meetingLocation ??
+          (event?.homeAway == HomeAway.away ? awayMeetingLocation : null),
+    );
     address = TextEditingController(text: event?.address);
     mapUrl = TextEditingController(text: event?.mapUrl);
     opponent = TextEditingController(text: event?.opponent);
@@ -3774,6 +3848,13 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     category = event?.category ?? EventCategory.training;
     visibility = event?.visibility ?? EventVisibility.team;
     homeAway = event?.homeAway ?? (category.isMatch ? HomeAway.home : null);
+    if (category.isMatch && homeAway == HomeAway.home) {
+      location.text = homeMatchVenue;
+    } else if (category.isMatch && homeAway == HomeAway.away) {
+      meetingLocation.text = meetingLocation.text.trim().isEmpty
+          ? awayMeetingLocation
+          : meetingLocation.text;
+    }
     if (event?.venue != null && pitchOptions.contains(event!.venue)) {
       selectedPitch = event.venue!;
     }
@@ -3822,6 +3903,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     for (final controller in [
       title,
       location,
+      meetingLocation,
       address,
       mapUrl,
       opponent,
@@ -3859,7 +3941,14 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         onChanged: (value) {
           setState(() {
             category = value ?? category;
-            if (category.isMatch) homeAway ??= HomeAway.home;
+            if (category.isMatch) {
+              homeAway ??= HomeAway.home;
+              if (homeAway == HomeAway.home) location.text = homeMatchVenue;
+              if (homeAway == HomeAway.away &&
+                  meetingLocation.text.trim().isEmpty) {
+                meetingLocation.text = awayMeetingLocation;
+              }
+            }
           });
           _refreshPitchConflicts();
         },
@@ -4050,9 +4139,26 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: location,
-                        decoration: const InputDecoration(labelText: 'Ort'),
+                        readOnly: category.isMatch && homeAway == HomeAway.home,
+                        decoration: InputDecoration(
+                          labelText: category.isMatch ? 'Spielstätte' : 'Ort',
+                          helperText:
+                              category.isMatch && homeAway == HomeAway.home
+                                  ? 'Feste Heimspielstätte des FC Teugn'
+                                  : null,
+                        ),
                         validator: _required,
                       ),
+                      if (category.isMatch) ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: meetingLocation,
+                          decoration: const InputDecoration(
+                            labelText: 'Treffpunkt',
+                            prefixIcon: Icon(Icons.groups_rounded),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: address,
@@ -4130,6 +4236,11 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                               homeAway = value;
                               if (value == HomeAway.away) {
                                 pitchConflicts = const [];
+                                if (meetingLocation.text.trim().isEmpty) {
+                                  meetingLocation.text = awayMeetingLocation;
+                                }
+                              } else if (value == HomeAway.home) {
+                                location.text = homeMatchVenue;
                               }
                             });
                             _refreshPitchConflicts();
@@ -4773,7 +4884,14 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                 meetingTimeMode == _MeetingTimeMode.beforeKickoff
             ? meetingTimeBefore(startAt, meetingMinutesBefore)
             : meetingAt,
-        location: location.text.trim(),
+        meetingLocation: category.isMatch &&
+                homeAway == HomeAway.away &&
+                meetingLocation.text.trim().isEmpty
+            ? awayMeetingLocation
+            : _optional(meetingLocation),
+        location: category.isMatch && homeAway == HomeAway.home
+            ? homeMatchVenue
+            : location.text.trim(),
         teamIds: teamIds.toList(),
         address: _optional(address),
         mapUrl: _optional(mapUrl),

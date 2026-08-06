@@ -128,7 +128,21 @@ export async function previewCompetitionImport(req: Request, res: Response) {
       };
     }
     const event = eventById.get(reference.entityId);
-    if (!event || event.teamId !== teamId) {
+    if (!event) {
+      return {
+        rowNumber: row.rowNumber,
+        externalId: row.match.externalId,
+        action: ImportRowAction.CONFLICT,
+        normalized: row.match as unknown as Prisma.InputJsonValue,
+        messages: [
+          ...row.messages,
+          'Dieses importierte Spiel wurde zuvor bewusst gelöscht. '
+            + 'Es wird nur nach ausdrücklicher Auswahl „Import übernehmen“ neu angelegt.',
+        ],
+        entityId: null,
+      };
+    }
+    if (event.teamId !== teamId) {
       return {
         rowNumber: row.rowNumber,
         externalId: row.match.externalId,
