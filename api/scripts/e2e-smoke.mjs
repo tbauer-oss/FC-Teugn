@@ -385,6 +385,13 @@ assert(
   'A bench player was unexpectedly persisted as a starter',
 );
 
+// Kader und Aufstellung bleiben bis zur ausdrücklichen Familienfreigabe
+// intern. Erst dieser Schritt macht die Aufstellung für Eltern sichtbar.
+await request(`/matches/${match.id}/family-release`, {
+  method: 'POST',
+  headers: auth(trainerToken),
+});
+
 // 10. Trainer startet den Liveticker.
 await request(
   `/matches/${match.id}/ticker/events`,
