@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../loading/loading_widgets.dart';
+import 'adaptive_layout.dart';
 
 /// Einheitlicher, tastaturfester Bearbeitungsdialog für App und Web.
 ///
@@ -31,65 +32,42 @@ class ResponsiveFormDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final media = MediaQuery.of(context);
-    final mobile = media.size.width < 600;
     final theme = Theme.of(context);
-    final body = Theme(
-      data: theme.copyWith(
-        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
-          isDense: true,
-          floatingLabelBehavior: FloatingLabelBehavior.always,
-          contentPadding: const EdgeInsets.fromLTRB(16, 17, 16, 15),
-          helperMaxLines: 2,
-          errorMaxLines: 2,
-        ),
-      ),
-      child: Material(
-        color: theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface,
-        borderRadius: mobile ? BorderRadius.zero : BorderRadius.circular(28),
-        clipBehavior: Clip.antiAlias,
-        child: SizedBox(
-          width: mobile ? media.size.width : maxWidth,
-          height: mobile ? media.size.height : media.size.height * .88,
-          child: SafeArea(
-            child: Column(
-              children: [
-                _DialogHeader(title: title, subtitle: subtitle),
-                const Divider(height: 1),
-                Expanded(
-                  child: SingleChildScrollView(
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: EdgeInsets.fromLTRB(
-                      mobile ? 16 : 24,
-                      18,
-                      mobile ? 16 : 24,
-                      24 + media.viewInsets.bottom,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: children,
-                    ),
-                  ),
-                ),
-                const Divider(height: 1),
-                _DialogActions(
-                  saveLabel: saveLabel,
-                  saveIcon: saveIcon,
-                  saving: saving,
-                  onSave: onSave,
-                ),
-              ],
-            ),
+    return AdaptiveDialogScaffold(
+      title: title,
+      subtitle: subtitle,
+      maxWidth: maxWidth,
+      content: Theme(
+        data: theme.copyWith(
+          inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+            isDense: true,
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            contentPadding: const EdgeInsets.fromLTRB(16, 17, 16, 15),
+            helperMaxLines: 2,
+            errorMaxLines: 2,
           ),
         ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
       ),
-    );
-    return Dialog(
-      insetPadding: mobile ? EdgeInsets.zero : const EdgeInsets.all(24),
-      backgroundColor: Colors.transparent,
-      clipBehavior: Clip.none,
-      child: body,
+      actions: [
+        OutlinedButton(
+          onPressed: saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton.icon(
+          onPressed: saving ? null : onSave,
+          icon: saving
+              ? const LogoLoadingIndicator(
+                  size: 22,
+                  semanticsLabel: 'Änderungen werden gespeichert',
+                )
+              : Icon(saveIcon),
+          label: Text(saveLabel),
+        ),
+      ],
     );
   }
 }
@@ -198,117 +176,4 @@ class ResponsiveFormRow extends StatelessWidget {
           );
         },
       );
-}
-
-class _DialogHeader extends StatelessWidget {
-  const _DialogHeader({required this.title, this.subtitle});
-
-  final String title;
-  final String? subtitle;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            IconButton(
-              tooltip: 'Schließen',
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close_rounded),
-            ),
-          ],
-        ),
-      );
-}
-
-class _DialogActions extends StatelessWidget {
-  const _DialogActions({
-    required this.saveLabel,
-    required this.saveIcon,
-    required this.saving,
-    required this.onSave,
-  });
-
-  final String saveLabel;
-  final IconData saveIcon;
-  final bool saving;
-  final VoidCallback? onSave;
-
-  @override
-  Widget build(BuildContext context) {
-    final mobile = MediaQuery.sizeOf(context).width < 600;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, mobile ? 12 : 14),
-      child: Row(
-        children: [
-          if (!mobile)
-            TextButton(
-              onPressed: saving ? null : () => Navigator.of(context).pop(),
-              child: const Text('Abbrechen'),
-            ),
-          if (!mobile) const Spacer(),
-          if (mobile)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: saving ? null : () => Navigator.of(context).pop(),
-                child: const Text('Abbrechen'),
-              ),
-            ),
-          if (mobile) const SizedBox(width: 10),
-          if (mobile)
-            Expanded(
-              flex: 2,
-              child: FilledButton.icon(
-                onPressed: saving ? null : onSave,
-                icon: saving
-                    ? const LogoLoadingIndicator(
-                        size: 22,
-                        semanticsLabel: 'Änderungen werden gespeichert',
-                      )
-                    : Icon(saveIcon),
-                label: Text(saveLabel),
-              ),
-            )
-          else
-            FilledButton.icon(
-              onPressed: saving ? null : onSave,
-              icon: saving
-                  ? const LogoLoadingIndicator(
-                      size: 22,
-                      semanticsLabel: 'Änderungen werden gespeichert',
-                    )
-                  : Icon(saveIcon),
-              label: Text(saveLabel),
-            ),
-        ],
-      ),
-    );
-  }
 }

@@ -18,6 +18,7 @@ import '../../core/offline_ticker.dart';
 import '../../core/providers.dart';
 import '../../core/squad_selection.dart';
 import '../../core/ticker_signal.dart';
+import '../../core/widgets/adaptive_layout.dart';
 import '../../core/widgets/captain_badge.dart';
 import '../../core/widgets/player_team_chip.dart';
 import '../../core/widgets/team_crest.dart';
@@ -348,7 +349,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
               child: TabBarView(
                 children: [
                   MatchOverview(match: match),
-                  _SquadTab(
+                  MatchSquadTab(
                     match: match,
                     allPlayers: _players,
                     editable: widget.staffView,
@@ -1144,8 +1145,9 @@ bool _isMissing(String? value) => value == null || value.trim().isEmpty;
 String _valueOrFallback(String? value) =>
     _isMissing(value) ? 'Noch nicht festgelegt' : value!.trim();
 
-class _SquadTab extends ConsumerStatefulWidget {
-  const _SquadTab({
+class MatchSquadTab extends ConsumerStatefulWidget {
+  const MatchSquadTab({
+    super.key,
     required this.match,
     required this.allPlayers,
     required this.editable,
@@ -1159,10 +1161,10 @@ class _SquadTab extends ConsumerStatefulWidget {
   final Future<void> Function() onReload;
 
   @override
-  ConsumerState<_SquadTab> createState() => _SquadTabState();
+  ConsumerState<MatchSquadTab> createState() => _SquadTabState();
 }
 
-class _SquadTabState extends ConsumerState<_SquadTab> {
+class _SquadTabState extends ConsumerState<MatchSquadTab> {
   late Map<String, NominationStatus> _selected;
   String? _teamFilterId;
   final Set<String> _attendanceSaving = {};
@@ -1180,7 +1182,7 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
   }
 
   @override
-  void didUpdateWidget(covariant _SquadTab oldWidget) {
+  void didUpdateWidget(covariant MatchSquadTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!_saving &&
         _squadFingerprint(oldWidget.match) != _squadFingerprint(widget.match)) {
@@ -1222,54 +1224,63 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 700;
-    if (!widget.editable) {
-      final members = widget.match.squad?.members
-              .where((member) => member.status == NominationStatus.nominated)
-              .toList() ??
-          const [];
-      if (widget.match.squad?.publishedAt == null) {
-        return const EmptyState(
-          icon: Icons.visibility_off_outlined,
-          title: 'Kader noch nicht veröffentlicht',
-          message:
-              'Das Trainerteam veröffentlicht die Nominierung zu einem späteren Zeitpunkt.',
-        );
-      }
-      return ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          for (final member in members)
-            Card(
-              margin: EdgeInsets.only(bottom: compact ? 4 : 8),
-              child: ListTile(
-                dense: compact,
-                visualDensity:
-                    compact ? const VisualDensity(vertical: -3) : null,
-                leading: CircleAvatar(
-                  radius: compact ? 18 : null,
-                  child: Text(member.player.shirtNumber?.toString() ?? 'FC'),
-                ),
-                title: Text(member.player.name),
-                subtitle: Text(member.player.position ?? 'Spieler'),
-                trailing: const Chip(label: Text('Nominiert')),
-              ),
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = AppBreakpoints.isCompact(constraints.maxWidth);
+          if (!widget.editable) {
+            final members = widget.match.squad?.members
+                    .where(
+                        (member) => member.status == NominationStatus.nominated)
+                    .toList() ??
+                const [];
+            if (widget.match.squad?.publishedAt == null) {
+              return const EmptyState(
+                icon: Icons.visibility_off_outlined,
+                title: 'Kader noch nicht veröffentlicht',
+                message:
+                    'Das Trainerteam veröffentlicht die Nominierung zu einem späteren Zeitpunkt.',
+              );
+            }
+            return ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                for (final member in members)
+                  Card(
+                    margin: EdgeInsets.only(bottom: compact ? 4 : 8),
+                    child: ListTile(
+                      dense: compact,
+                      visualDensity:
+                          compact ? const VisualDensity(vertical: -3) : null,
+                      leading: CircleAvatar(
+                        radius: compact ? 18 : null,
+                        child:
+                            Text(member.player.shirtNumber?.toString() ?? 'FC'),
+                      ),
+                      title: Text(member.player.name),
+                      subtitle: Text(member.player.position ?? 'Spieler'),
+                      trailing: const Chip(label: Text('Nominiert')),
+                    ),
+                  ),
+              ],
+            );
+          }
+          final visiblePlayers = _visiblePlayers;
+          final availableTeams = _availableTeams;
+          return ListView(
+            key: const ValueKey('squad-responsive-list'),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.paddingOf(context).bottom + 16,
             ),
-        ],
-      );
-    }
-    final visiblePlayers = _visiblePlayers;
-    final availableTeams = _availableTeams;
-    return Column(
-      children: [
-        if (availableTeams.length > 1) ...[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: compact
-                ? DropdownButton<String?>(
-                    value: _teamFilterId,
-                    hint: const Text('Alle Mannschaften'),
+            children: [
+              if (availableTeams.length > 1) ...[
+                if (constraints.maxWidth < AppBreakpoints.narrow)
+                  DropdownButtonFormField<String?>(
+                    key: const ValueKey('squad-team-filter-dropdown'),
+                    initialValue: _teamFilterId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Mannschaft anzeigen',
+                    ),
                     items: [
                       const DropdownMenuItem<String?>(
                         value: null,
@@ -1283,102 +1294,80 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
                     ],
                     onChanged: (value) => setState(() => _teamFilterId = value),
                   )
-                : Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('Alle Mannschaften'),
-                        selected: _teamFilterId == null,
-                        onSelected: (_) => setState(() => _teamFilterId = null),
-                      ),
-                      for (final team in availableTeams)
+                else
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
                         ChoiceChip(
-                          label: Text(team.name),
-                          selected: _teamFilterId == team.id,
+                          label: const Text('Alle Mannschaften'),
+                          selected: _teamFilterId == null,
                           onSelected: (_) =>
-                              setState(() => _teamFilterId = team.id),
+                              setState(() => _teamFilterId = null),
                         ),
-                    ],
+                        for (final team in availableTeams)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: ChoiceChip(
+                              label: Text(team.name),
+                              selected: _teamFilterId == team.id,
+                              onSelected: (_) =>
+                                  setState(() => _teamFilterId = team.id),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-          ),
-          const SizedBox(height: 10),
-        ],
-        Row(
-          children: [
-            Expanded(
-              child: Text(
+                const SizedBox(height: 10),
+              ],
+              Text(
                 '${_selected.length} ausgewählt · ${visiblePlayers.length} sichtbar',
+                key: const ValueKey('squad-selection-summary'),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-            ),
-            if (compact) ...[
-              IconButton(
-                onPressed:
-                    _saving || visiblePlayers.isEmpty ? null : _selectAll,
-                tooltip: 'Alle auswählen',
-                icon: const Icon(Icons.select_all_rounded),
-              ),
-              IconButton(
-                onPressed: _saving || _selected.isEmpty ? null : _deselectAll,
-                tooltip: 'Alle abwählen',
-                icon: const Icon(Icons.deselect_rounded),
-              ),
-              IconButton(
-                onPressed: _saving ? null : _publish,
-                tooltip: 'Veröffentlichen',
-                icon: const Icon(Icons.campaign_outlined),
-              ),
-              IconButton.filled(
-                onPressed: _saving ? null : _save,
-                tooltip: 'Kader speichern',
-                icon: const Icon(Icons.save_outlined),
-              ),
-            ] else
-              Wrap(
-                spacing: 10,
-                children: [
-                  OutlinedButton.icon(
+              const SizedBox(height: 10),
+              AdaptiveActionBar(
+                key: const ValueKey('squad-adaptive-actions'),
+                actions: [
+                  AdaptiveActionSpec(
+                    label: 'Alle auswählen',
+                    icon: Icons.select_all_rounded,
                     onPressed:
                         _saving || visiblePlayers.isEmpty ? null : _selectAll,
-                    icon: const Icon(Icons.select_all_rounded),
-                    label: const Text('Alle auswählen'),
                   ),
-                  OutlinedButton.icon(
+                  AdaptiveActionSpec(
+                    label: 'Alle abwählen',
+                    icon: Icons.deselect_rounded,
                     onPressed:
                         _saving || _selected.isEmpty ? null : _deselectAll,
-                    icon: const Icon(Icons.deselect_rounded),
-                    label: const Text('Alle abwählen'),
                   ),
-                  OutlinedButton.icon(
+                  AdaptiveActionSpec(
+                    label: 'Veröffentlichen',
+                    icon: Icons.campaign_outlined,
                     onPressed: _saving ? null : _publish,
-                    icon: const Icon(Icons.campaign_outlined),
-                    label: const Text('Veröffentlichen'),
                   ),
-                  FilledButton.icon(
+                  AdaptiveActionSpec(
+                    label: _saving ? 'Wird gespeichert …' : 'Kader speichern',
+                    icon: Icons.save_outlined,
                     onPressed: _saving ? null : _save,
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('Kader speichern'),
+                    primary: true,
                   ),
                 ],
               ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Die automatische Startelf berücksichtigt nur zugesagte Spieler. '
-            'Trainer können Rückmeldungen hier direkt korrigieren.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.muted,
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Die automatische Startelf berücksichtigt nur zugesagte Spieler. '
+                  'Trainer können Rückmeldungen hier direkt korrigieren.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.muted,
+                      ),
                 ),
-          ),
-        ),
-        SizedBox(height: compact ? 6 : 12),
-        Expanded(
-          child: widget.allPlayers.isEmpty
-              ? EmptyState(
+              ),
+              SizedBox(height: compact ? 6 : 12),
+              if (widget.allPlayers.isEmpty)
+                EmptyState(
                   icon: Icons.group_off_outlined,
                   title: 'Noch keine Spieler verfügbar',
                   message: 'In deinen freigegebenen Mannschaften gibt es noch '
@@ -1390,75 +1379,69 @@ class _SquadTabState extends ConsumerState<_SquadTab> {
                     label: const Text('Spieler neu laden'),
                   ),
                 )
-              : ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    for (final player in visiblePlayers)
-                      Card(
-                        margin: EdgeInsets.only(bottom: compact ? 3 : 8),
-                        child: ListTile(
-                          dense: compact,
-                          visualDensity: compact
-                              ? const VisualDensity(vertical: -4)
-                              : null,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: compact ? 10 : 16,
-                            vertical: compact ? 0 : 4,
-                          ),
-                          leading: CircleAvatar(
-                            radius: compact ? 17 : null,
-                            child: Text(player.shirtNumber?.toString() ?? 'FC'),
-                          ),
-                          title: Row(
-                            children: [
-                              Expanded(child: Text(player.displayName)),
-                              _AttendanceMenu(
-                                status: _attendanceStatus(player.id),
-                                saving: _attendanceSaving.contains(player.id),
-                                onSelected: (status) =>
-                                    _setAttendance(player, status),
-                              ),
-                            ],
-                          ),
-                          subtitle: Wrap(
-                            spacing: 7,
-                            runSpacing: compact ? 1 : 4,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              PlayerTeamChip(player: player, compact: true),
-                              Text(
-                                player.status == PlayerStatus.injured
-                                    ? 'Verletzt · ${player.position ?? 'Spieler'}'
-                                    : player.position ?? 'Spieler',
-                              ),
-                            ],
-                          ),
-                          trailing: Checkbox(
-                            value: _selected.containsKey(player.id),
-                            onChanged: (value) => setState(() {
-                              if (value == true) {
-                                _selected[player.id] =
-                                    NominationStatus.nominated;
-                              } else {
-                                _selected.remove(player.id);
-                              }
-                            }),
-                          ),
-                          onTap: () => setState(() {
-                            if (_selected.containsKey(player.id)) {
-                              _selected.remove(player.id);
-                            } else {
-                              _selected[player.id] = NominationStatus.nominated;
-                            }
-                          }),
-                        ),
+              else
+                for (final player in visiblePlayers)
+                  Card(
+                    margin: EdgeInsets.only(bottom: compact ? 3 : 8),
+                    child: ListTile(
+                      dense: compact,
+                      visualDensity:
+                          compact ? const VisualDensity(vertical: -4) : null,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: compact ? 10 : 16,
+                        vertical: compact ? 0 : 4,
                       ),
-                  ],
-                ),
-        ),
-      ],
-    );
-  }
+                      leading: CircleAvatar(
+                        radius: compact ? 17 : null,
+                        child: Text(player.shirtNumber?.toString() ?? 'FC'),
+                      ),
+                      title: Text(
+                        player.displayName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Wrap(
+                        spacing: 7,
+                        runSpacing: compact ? 1 : 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          PlayerTeamChip(player: player, compact: true),
+                          Text(
+                            player.status == PlayerStatus.injured
+                                ? 'Verletzt · ${player.position ?? 'Spieler'}'
+                                : player.position ?? 'Spieler',
+                          ),
+                          _AttendanceMenu(
+                            status: _attendanceStatus(player.id),
+                            saving: _attendanceSaving.contains(player.id),
+                            onSelected: (status) =>
+                                _setAttendance(player, status),
+                          ),
+                        ],
+                      ),
+                      trailing: Checkbox(
+                        value: _selected.containsKey(player.id),
+                        onChanged: (value) => setState(() {
+                          if (value == true) {
+                            _selected[player.id] = NominationStatus.nominated;
+                          } else {
+                            _selected.remove(player.id);
+                          }
+                        }),
+                      ),
+                      onTap: () => setState(() {
+                        if (_selected.containsKey(player.id)) {
+                          _selected.remove(player.id);
+                        } else {
+                          _selected[player.id] = NominationStatus.nominated;
+                        }
+                      }),
+                    ),
+                  ),
+            ],
+          );
+        },
+      );
 
   Future<bool> _save() async {
     final repository = ref.read(repositoryProvider);

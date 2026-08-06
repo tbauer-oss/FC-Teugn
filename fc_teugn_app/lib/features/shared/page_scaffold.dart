@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_theme.dart';
+import '../../core/widgets/adaptive_layout.dart';
 
 class PageScaffold extends StatelessWidget {
   const PageScaffold({
@@ -27,8 +28,9 @@ class PageScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final mobile = constraints.maxWidth < 600;
-        final horizontal = constraints.maxWidth >= 700 ? 32.0 : 14.0;
+        final mobile = AppBreakpoints.isCompact(constraints.maxWidth);
+        final horizontal =
+            constraints.maxWidth >= AppBreakpoints.medium ? 32.0 : 14.0;
         final compactHeader = constraints.maxWidth < 640;
         final titleBlock = Column(
           crossAxisAlignment: CrossAxisAlignment.start,

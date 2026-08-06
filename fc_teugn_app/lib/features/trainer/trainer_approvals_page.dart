@@ -9,6 +9,7 @@ import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/role_permissions.dart';
+import '../../core/widgets/adaptive_layout.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
@@ -313,7 +314,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
   ) =>
       showDialog<void>(
         context: context,
-        builder: (context) => _MemberPermissionsDialog(
+        builder: (context) => MemberPermissionsDialog(
           user: user,
           repository: ref.read(repositoryProvider),
         ),
@@ -1036,8 +1037,9 @@ class _MemberList extends StatelessWidget {
       };
 }
 
-class _MemberPermissionsDialog extends StatefulWidget {
-  const _MemberPermissionsDialog({
+class MemberPermissionsDialog extends StatefulWidget {
+  const MemberPermissionsDialog({
+    super.key,
     required this.user,
     required this.repository,
   });
@@ -1046,12 +1048,14 @@ class _MemberPermissionsDialog extends StatefulWidget {
   final DataRepository repository;
 
   @override
-  State<_MemberPermissionsDialog> createState() =>
+  State<MemberPermissionsDialog> createState() =>
       _MemberPermissionsDialogState();
 }
 
-class _MemberPermissionsDialogState extends State<_MemberPermissionsDialog> {
+class _MemberPermissionsDialogState extends State<MemberPermissionsDialog> {
   late Future<MemberPermissionProfile> profile;
+  String? _savingPermission;
+  bool _resetting = false;
 
   @override
   void initState() {
@@ -1059,109 +1063,323 @@ class _MemberPermissionsDialogState extends State<_MemberPermissionsDialog> {
     profile = widget.repository.memberPermissions(widget.user.id);
   }
 
-  void _reload() => setState(() {
-        profile = widget.repository.memberPermissions(widget.user.id);
-      });
-
   @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: Text('Individuelle Rechte · ${widget.user.name}'),
-        content: SizedBox(
-          width: 720,
-          child: FutureBuilder<MemberPermissionProfile>(
-            future: profile,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const SizedBox(
-                  height: 220,
-                  child: Center(
-                    child: LogoLoadingPanel(
-                      message: 'Berechtigungen werden geladen …',
-                      compact: true,
-                    ),
+  Widget build(BuildContext context) => AdaptiveDialogScaffold(
+        title: 'Individuelle Rechte · ${widget.user.name}',
+        subtitle:
+            'Rollenstandard, individuelle Freigaben und Entzüge transparent verwalten.',
+        content: FutureBuilder<MemberPermissionProfile>(
+          future: profile,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const SizedBox(
+                height: 220,
+                child: Center(
+                  child: LogoLoadingPanel(
+                    message: 'Berechtigungen werden geladen …',
+                    compact: true,
                   ),
-                );
-              }
-              if (snapshot.hasError || snapshot.data == null) {
-                return const Text('Rechte konnten nicht geladen werden.');
-              }
-              final value = snapshot.data!;
-              return SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Die Rolle bleibt die Vorgabe. Einzelne Rechte können zusätzlich erlaubt oder ausdrücklich entzogen werden; Entzug hat Vorrang.',
-                    ),
-                    const SizedBox(height: 14),
-                    for (final permission in allRolePermissions)
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                          value.effectivePermissions.contains(permission.code)
-                              ? Icons.check_circle_rounded
-                              : Icons.cancel_rounded,
-                          color: value.effectivePermissions
-                                  .contains(permission.code)
-                              ? AppColors.success
-                              : Colors.redAccent,
-                        ),
-                        title: Text(permission.label),
-                        subtitle: Text(
-                          value.rolePermissions.contains(permission.code)
-                              ? 'Durch Rolle vorgesehen'
-                              : 'Nicht in der Rolle enthalten',
-                        ),
-                        trailing: DropdownButton<String>(
-                          value: value.overrides[permission.code] ?? 'DEFAULT',
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'DEFAULT',
-                              child: Text('Rollenstandard'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'ALLOW',
-                              child: Text('Zusätzlich erlauben'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'DENY',
-                              child: Text('Entziehen'),
-                            ),
-                          ],
-                          onChanged: (state) async {
-                            if (state == null) return;
-                            await widget.repository.updateMemberPermission(
-                              userId: widget.user.id,
-                              permission: permission.code,
-                              state: state,
-                            );
-                            _reload();
-                          },
-                        ),
-                      ),
-                  ],
                 ),
               );
-            },
-          ),
+            }
+            if (snapshot.hasError || snapshot.data == null) {
+              return const Text('Rechte konnten nicht geladen werden.');
+            }
+            final value = snapshot.data!;
+            final grouped = _groupPermissions(allRolePermissions);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Die Rolle bleibt die Vorgabe. Einzelne Rechte können '
+                  'zusätzlich erlaubt oder ausdrücklich entzogen werden; '
+                  'ein Entzug hat Vorrang.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                for (final entry in grouped.entries) ...[
+                  _PermissionSection(
+                    title: entry.key,
+                    permissions: entry.value,
+                    profile: value,
+                    savingPermission: _savingPermission,
+                    onChanged: _updatePermission,
+                  ),
+                  const SizedBox(height: 14),
+                ],
+              ],
+            );
+          },
         ),
         actions: [
-          TextButton.icon(
-            onPressed: () async {
-              await widget.repository.resetMemberPermissions(widget.user.id);
-              _reload();
-            },
+          OutlinedButton.icon(
+            onPressed: _resetting || _savingPermission != null ? null : _reset,
             icon: const Icon(Icons.restart_alt_rounded),
-            label: const Text('Alle auf Rollenstandard'),
+            label: Text(
+              _resetting ? 'Wird zurückgesetzt …' : 'Alle auf Rollenstandard',
+              textAlign: TextAlign.center,
+            ),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: _resetting || _savingPermission != null
+                ? null
+                : () => Navigator.pop(context),
             child: const Text('Schließen'),
           ),
         ],
       );
+
+  Future<void> _updatePermission(
+    RolePermission permission,
+    String state,
+  ) async {
+    if (_savingPermission != null || _resetting) return;
+    setState(() => _savingPermission = permission.code);
+    try {
+      final updated = await widget.repository.updateMemberPermission(
+        userId: widget.user.id,
+        permission: permission.code,
+        state: state,
+      );
+      if (!mounted) return;
+      setState(() => profile = Future.value(updated));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Das individuelle Recht konnte nicht gespeichert werden.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingPermission = null);
+    }
+  }
+
+  Future<void> _reset() async {
+    setState(() => _resetting = true);
+    try {
+      final updated =
+          await widget.repository.resetMemberPermissions(widget.user.id);
+      if (!mounted) return;
+      setState(() => profile = Future.value(updated));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Die Rechte konnten nicht zurückgesetzt werden.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _resetting = false);
+    }
+  }
 }
+
+class _PermissionSection extends StatelessWidget {
+  const _PermissionSection({
+    required this.title,
+    required this.permissions,
+    required this.profile,
+    required this.savingPermission,
+    required this.onChanged,
+  });
+
+  final String title;
+  final List<RolePermission> permissions;
+  final MemberPermissionProfile profile;
+  final String? savingPermission;
+  final Future<void> Function(RolePermission, String) onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            key: ValueKey('permission-category-$title'),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.yellow.withValues(alpha: .14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final permission in permissions)
+            _PermissionRow(
+              permission: permission,
+              profile: profile,
+              saving: savingPermission == permission.code,
+              disabled: savingPermission != null,
+              onChanged: (state) => onChanged(permission, state),
+            ),
+        ],
+      );
+}
+
+class _PermissionRow extends StatelessWidget {
+  const _PermissionRow({
+    required this.permission,
+    required this.profile,
+    required this.saving,
+    required this.disabled,
+    required this.onChanged,
+  });
+
+  final RolePermission permission;
+  final MemberPermissionProfile profile;
+  final bool saving;
+  final bool disabled;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final effective =
+              profile.effectivePermissions.contains(permission.code);
+          final roleDefault = profile.rolePermissions.contains(permission.code);
+          final selector = DropdownButtonFormField<String>(
+            key: ValueKey('permission-selector-${permission.code}'),
+            initialValue: profile.overrides[permission.code] ?? 'DEFAULT',
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'Individuelle Einstellung',
+              suffixIcon: saving
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : null,
+            ),
+            items: const [
+              DropdownMenuItem(
+                value: 'DEFAULT',
+                child: Text('Rollenstandard'),
+              ),
+              DropdownMenuItem(
+                value: 'ALLOW',
+                child: Text('Zusätzlich erlauben'),
+              ),
+              DropdownMenuItem(
+                value: 'DENY',
+                child: Text('Entziehen'),
+              ),
+            ],
+            onChanged: disabled
+                ? null
+                : (state) {
+                    if (state != null) onChanged(state);
+                  },
+          );
+          final description = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                effective ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                color: effective ? AppColors.success : Colors.redAccent,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      permission.label,
+                      key: ValueKey('permission-label-${permission.code}'),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${roleDefault ? 'Durch Rolle vorgesehen' : 'Nicht in der Rolle enthalten'} '
+                      '· ${effective ? 'wirksam' : 'nicht wirksam'}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          final stacked = constraints.maxWidth < 520 ||
+              MediaQuery.textScalerOf(context).scale(1) >= 1.4;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).dividerColor.withValues(alpha: .55),
+                ),
+              ),
+            ),
+            child: stacked
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      description,
+                      const SizedBox(height: 10),
+                      selector,
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(child: description),
+                      const SizedBox(width: 18),
+                      SizedBox(width: 230, child: selector),
+                    ],
+                  ),
+          );
+        },
+      );
+}
+
+Map<String, List<RolePermission>> _groupPermissions(
+  List<RolePermission> permissions,
+) {
+  final grouped = <String, List<RolePermission>>{};
+  for (final permission in permissions) {
+    grouped
+        .putIfAbsent(_permissionCategory(permission.code), () => [])
+        .add(permission);
+  }
+  return grouped;
+}
+
+String _permissionCategory(String code) => switch (code) {
+      'VIEW_TEAM' ||
+      'MANAGE_TEAM' ||
+      'MANAGE_ORGANIZATION' =>
+        'Mannschaft & Verein',
+      'MANAGE_MEMBERS' => 'Mitgliederverwaltung',
+      'MANAGE_PLAYERS' ||
+      'VIEW_SENSITIVE_PLAYER' ||
+      'MANAGE_SENSITIVE_PLAYER' ||
+      'MANAGE_DOCUMENTS' ||
+      'MANAGE_DEVELOPMENT' =>
+        'Spieler & Kader',
+      'MANAGE_EVENTS' || 'RESPOND_ATTENDANCE' => 'Termine & Rückmeldungen',
+      'MANAGE_LINEUPS' || 'MANAGE_LIVE_TICKER' => 'Spiele & Aufstellung',
+      'VIEW_PLAYER_STATS' || 'MANAGE_STATISTICS' => 'Statistiken',
+      'MANAGE_TRAINING' => 'Training & Plätze',
+      'SEND_ANNOUNCEMENTS' => 'Nachrichten',
+      'MANAGE_IMPORTS' => 'Datenimport',
+      'VIEW_TEAM_OPERATIONS' || 'MANAGE_TEAM_OPERATIONS' => 'Organisation',
+      _ => 'Weitere Rechte',
+    };
 
 class _ApprovalDialog extends StatefulWidget {
   const _ApprovalDialog({
