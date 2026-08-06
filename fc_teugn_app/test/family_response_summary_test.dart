@@ -37,6 +37,11 @@ void main() {
                   count: 3,
                   color: AppColors.teal,
                 ),
+                ResponseSummaryPill(
+                  label: 'Vielleicht',
+                  count: 4,
+                  color: AppColors.orange,
+                ),
               ],
             ),
           ),
@@ -48,6 +53,8 @@ void main() {
     expect(find.text('Offen'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
     expect(find.text('Zugesagt'), findsOneWidget);
+    expect(find.text('4'), findsOneWidget);
+    expect(find.text('Vielleicht'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

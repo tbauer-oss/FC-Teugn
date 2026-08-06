@@ -117,7 +117,7 @@ class FamilyResponsesPage extends ConsumerWidget {
     final responses = ref.watch(personalResponsesProvider);
     return PageScaffold(
       title: 'Meine Kinder & Rückmeldungen',
-      subtitle: 'Zu- und Absagen für alle dir zugeordneten Kinder.',
+      subtitle: 'Rückmeldungen für alle dir zugeordneten Kinder.',
       child: responses.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Card(
@@ -175,6 +175,14 @@ class FamilyResponsesPage extends ConsumerWidget {
                     color: AppColors.teal,
                   ),
                   ResponseSummaryPill(
+                    label: 'Vielleicht',
+                    count: sorted
+                        .where((item) =>
+                            item.responseStatus == AttendanceStatus.maybe)
+                        .length,
+                    color: AppColors.orange,
+                  ),
+                  ResponseSummaryPill(
                     label: 'Abgesagt',
                     count: sorted
                         .where((item) =>
@@ -220,7 +228,11 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
   Future<void> _answer(AttendanceStatus status) async {
     String? reason;
     if (status == AttendanceStatus.no) {
-      final controller = TextEditingController();
+      final controller = TextEditingController(
+        text: widget.item.responseStatus == AttendanceStatus.no
+            ? widget.item.reason ?? ''
+            : '',
+      );
       reason = await showDialog<String?>(
         context: context,
         builder: (context) => AlertDialog(
@@ -267,9 +279,16 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              status == AttendanceStatus.yes
-                  ? 'Zusage für ${widget.item.playerName} gespeichert.'
-                  : 'Absage für ${widget.item.playerName} gespeichert.',
+              switch (status) {
+                AttendanceStatus.yes =>
+                  'Zusage für ${widget.item.playerName} gespeichert.',
+                AttendanceStatus.maybe =>
+                  '„Vielleicht“ für ${widget.item.playerName} gespeichert.',
+                AttendanceStatus.no =>
+                  'Absage für ${widget.item.playerName} gespeichert.',
+                AttendanceStatus.unknown =>
+                  'Rückmeldung für ${widget.item.playerName} gespeichert.',
+              },
             ),
           ),
         );
@@ -389,52 +408,28 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
                         '${deadline.hour.toString().padLeft(2, '0')}:${deadline.minute.toString().padLeft(2, '0')} Uhr antworten',
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
+                    if (item.responseStatus == AttendanceStatus.no &&
+                        item.reason?.trim().isNotEmpty == true)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Grund: ${item.reason!.trim()}',
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
             ],
           );
           final actions = item.canRespond
-              ? Row(
-                  mainAxisSize: narrow ? MainAxisSize.max : MainAxisSize.min,
-                  children: [
-                    if (narrow)
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _saving
-                              ? null
-                              : () => _answer(AttendanceStatus.yes),
-                          icon: const Icon(Icons.check_rounded),
-                          label: const Text('Zusagen'),
-                        ),
-                      )
-                    else
-                      FilledButton.icon(
-                        onPressed: _saving
-                            ? null
-                            : () => _answer(AttendanceStatus.yes),
-                        icon: const Icon(Icons.check_rounded),
-                        label: const Text('Zusagen'),
-                      ),
-                    const SizedBox(width: 8),
-                    if (narrow)
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _saving
-                              ? null
-                              : () => _answer(AttendanceStatus.no),
-                          icon: const Icon(Icons.close_rounded),
-                          label: const Text('Absagen'),
-                        ),
-                      )
-                    else
-                      OutlinedButton.icon(
-                        onPressed:
-                            _saving ? null : () => _answer(AttendanceStatus.no),
-                        icon: const Icon(Icons.close_rounded),
-                        label: const Text('Absagen'),
-                      ),
-                  ],
+              ? _AttendanceResponseActions(
+                  expanded: narrow,
+                  saving: _saving,
+                  onAnswer: _answer,
                 )
               : Chip(
                   avatar: Icon(
@@ -484,6 +479,63 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
           ]);
         },
       ),
+    );
+  }
+}
+
+class _AttendanceResponseActions extends StatelessWidget {
+  const _AttendanceResponseActions({
+    required this.expanded,
+    required this.saving,
+    required this.onAnswer,
+  });
+
+  final bool expanded;
+  final bool saving;
+  final ValueChanged<AttendanceStatus> onAnswer;
+
+  @override
+  Widget build(BuildContext context) {
+    final buttons = <Widget>[
+      FilledButton.icon(
+        onPressed: saving ? null : () => onAnswer(AttendanceStatus.yes),
+        icon: const Icon(Icons.check_rounded),
+        label: const Text('Zusagen'),
+      ),
+      FilledButton.tonalIcon(
+        onPressed: saving ? null : () => onAnswer(AttendanceStatus.maybe),
+        icon: const Icon(Icons.help_outline_rounded),
+        label: const Text('Vielleicht'),
+      ),
+      OutlinedButton.icon(
+        onPressed: saving ? null : () => onAnswer(AttendanceStatus.no),
+        icon: const Icon(Icons.close_rounded),
+        label: const Text('Absagen'),
+      ),
+    ];
+
+    if (expanded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: buttons[0]),
+              const SizedBox(width: 8),
+              Expanded(child: buttons[1]),
+            ],
+          ),
+          const SizedBox(height: 8),
+          buttons[2],
+        ],
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.end,
+      children: buttons,
     );
   }
 }
@@ -549,10 +601,13 @@ class ResponseSummaryPill extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                label,
-                maxLines: 1,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ),
