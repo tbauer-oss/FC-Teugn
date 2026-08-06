@@ -542,7 +542,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
             ),
             GoRoute(
               path: '/trainer/help',
-              builder: (context, state) => const HelpPage(staffView: true),
+              builder: (context, state) => HelpPage(
+                staffView: true,
+                initialQuery: state.uri.queryParameters['topic'],
+              ),
             ),
             GoRoute(
               path: '/trainer/family',
@@ -689,7 +692,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
             ),
             GoRoute(
               path: '/parent/help',
-              builder: (context, state) => const HelpPage(staffView: false),
+              builder: (context, state) => HelpPage(
+                staffView: false,
+                initialQuery: state.uri.queryParameters['topic'],
+              ),
             ),
             GoRoute(
               path: '/parent/family',

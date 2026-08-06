@@ -1,0 +1,331 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/app_theme.dart';
+
+class ContextHelpInfo {
+  const ContextHelpInfo({
+    required this.summary,
+    required this.steps,
+    required this.searchQuery,
+  });
+
+  final String summary;
+  final List<String> steps;
+  final String searchQuery;
+}
+
+ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
+  final title = pageTitle.toLowerCase();
+
+  if (title.contains('kinder') || title.contains('rückmeldung')) {
+    return const ContextHelpInfo(
+      summary:
+          'Hier beantwortest du Zu- und Absagen für alle zugeordneten Kinder.',
+      steps: [
+        'Oben siehst du sofort, wie viele Rückmeldungen offen, zugesagt oder abgesagt sind.',
+        'Wähle beim passenden Kind „Zusagen“ oder „Absagen“. Die Kalenderansicht wird direkt aktualisiert.',
+        'Unter „Details“ findest du Termin, Treffpunkt und weitere Informationen.',
+      ],
+      searchQuery: 'Zu- und Absage Rückmeldung Kinder',
+    );
+  }
+  if (title.contains('kalender') || title.contains('termin')) {
+    return const ContextHelpInfo(
+      summary:
+          'Plane Termine, Teilnehmer, Rückmeldungen und Erinnerungen zentral.',
+      steps: [
+        'Tippe einen Tag an, um alle Termine dieses Tages vollständig zu sehen.',
+        'Beim Anlegen kannst du Mannschaften oder einzelne Personen auswählen.',
+        'Bearbeitete Zeiten, Teilnehmer und Erinnerungen werden sofort neu zugeordnet.',
+      ],
+      searchQuery: 'Termin Kalender anlegen',
+    );
+  }
+  if (title.contains('spiel') || title.contains('match')) {
+    return const ContextHelpInfo(
+      summary:
+          'Hier verwaltest du Gegner, Kader, Aufstellung und Liveticker eines Spiels.',
+      steps: [
+        'Öffne zuerst die Spieldaten und prüfe Gegner, Treffpunkt und Spielzeit.',
+        'Speichere und veröffentliche danach den Kader für die ausgewählten Spieler.',
+        'Am Spieltag steuerst du Uhr, Tore und Wechsel im Liveticker.',
+      ],
+      searchQuery: 'Spieltag Kader Liveticker',
+    );
+  }
+  if (title.contains('training')) {
+    return const ContextHelpInfo(
+      summary:
+          'Plane Trainingszeiten, Inhalte, Plätze und automatische Erinnerungen.',
+      steps: [
+        'Wähle Mannschaft und Trainingstermin im aktuellen Kontext.',
+        'Ergänze Übungen, Dauer und Hinweise für das Trainerteam.',
+        'Prüfe bei Platzänderungen die angezeigten Überschneidungen.',
+      ],
+      searchQuery: 'Training planen Erinnerung',
+    );
+  }
+  if (title.contains('spieler') || title.contains('team')) {
+    return const ContextHelpInfo(
+      summary:
+          'Verwalte Spielerprofile, Mannschaftszuordnung, Nummern und Positionen.',
+      steps: [
+        'Nutze die Mannschaftsauswahl, um nur den gewünschten Kader zu sehen.',
+        'Öffne ein Profil für Stammdaten, Positionen und Berechtigungen.',
+        'Änderungen gelten nur im aktuell ausgewählten Jugend- und Mannschaftskontext.',
+      ],
+      searchQuery: 'Spieler Team Profil Mannschaft',
+    );
+  }
+  if (title.contains('nachricht') || title.contains('mitteilung')) {
+    return const ContextHelpInfo(
+      summary:
+          'Sende gezielte Mitteilungen und optional eine Push-Benachrichtigung.',
+      steps: [
+        'Wähle zuerst Mannschaften und Empfängergruppe.',
+        'Aktiviere Push nur, wenn die Nachricht sofort auf den Geräten erscheinen soll.',
+        'Lesestatus und Antworten findest du direkt bei der Mitteilung.',
+      ],
+      searchQuery: 'Nachricht Mitteilung Push',
+    );
+  }
+  if (title.contains('statistik')) {
+    return const ContextHelpInfo(
+      summary: 'Werte Einsätze, Tore, Assists und weitere Saisondaten aus.',
+      steps: [
+        'Wähle Saison, Jugend und Mannschaft für den gewünschten Vergleich.',
+        'Die Daten werden aus abgeschlossenen Spielen übernommen.',
+        'Öffne Spielerwerte für detaillierte Auswertungen.',
+      ],
+      searchQuery: 'Statistiken Auswertungen',
+    );
+  }
+  if (title.contains('datenschutz')) {
+    return const ContextHelpInfo(
+      summary:
+          'Verwalte Einwilligungen, Datenexport und Löschanfragen nachvollziehbar.',
+      steps: [
+        'Prüfe den aktuellen Stand der Einwilligungen.',
+        'Fordere bei Bedarf einen persönlichen Datenexport an.',
+        'Löschanträge werden protokolliert und von Berechtigten bearbeitet.',
+      ],
+      searchQuery: 'Datenschutz Einwilligung Export Löschung',
+    );
+  }
+  if (title.contains('verein') || title.contains('organisation')) {
+    return const ContextHelpInfo(
+      summary:
+          'Verwalte Vereinsstruktur, Mannschaften, Rollen und Saisonkontext.',
+      steps: [
+        'Prüfe vor Änderungen immer die aktuell ausgewählte Jugend und Saison.',
+        'Berechtigungen begrenzen, welche Verwaltungsbereiche sichtbar sind.',
+        'Größere Saisonänderungen zeigen vor dem Speichern eine Vorschau.',
+      ],
+      searchQuery: 'Verein Mannschaft Rolle Saison',
+    );
+  }
+  if (title.contains('aufgabe') || title.contains('ausrüstung')) {
+    return const ContextHelpInfo(
+      summary: 'Organisiere Aufgaben, Material und wiederkehrende Checklisten.',
+      steps: [
+        'Lege Verantwortliche und Fälligkeit eindeutig fest.',
+        'Nutze Vorlagen für regelmäßig wiederkehrende Abläufe.',
+        'Erledigte Punkte bleiben für das Team nachvollziehbar.',
+      ],
+      searchQuery: 'Aufgaben Ausrüstung Checklisten',
+    );
+  }
+  if (title.contains('support')) {
+    return const ContextHelpInfo(
+      summary:
+          'Melde technische Probleme mit den Angaben, die für eine schnelle Lösung nötig sind.',
+      steps: [
+        'Beschreibe, was du unmittelbar vor dem Fehler gemacht hast.',
+        'Füge nach Möglichkeit einen Screenshot und den betroffenen Bereich hinzu.',
+        'Antworten und Statusänderungen erscheinen direkt im Supportfall.',
+      ],
+      searchQuery: 'Technischer Support Problem melden',
+    );
+  }
+
+  return ContextHelpInfo(
+    summary: pageSubtitle,
+    steps: const [
+      'Prüfe oben den aktuell ausgewählten Jugend- und Mannschaftskontext.',
+      'Öffne Einträge für Details oder nutze die hervorgehobenen Aktionen.',
+      'Weitere Schritt-für-Schritt-Anleitungen findest du in Hilfe & FAQ.',
+    ],
+    searchQuery: pageTitle,
+  );
+}
+
+class ContextHelpButton extends StatelessWidget {
+  const ContextHelpButton({
+    super.key,
+    required this.pageTitle,
+    required this.pageSubtitle,
+  });
+
+  final String pageTitle;
+  final String pageSubtitle;
+
+  @override
+  Widget build(BuildContext context) => IconButton.outlined(
+        tooltip: 'Hilfe zu diesem Bereich',
+        visualDensity: VisualDensity.compact,
+        onPressed: () => _showContextHelp(context),
+        icon: const Icon(Icons.help_outline_rounded, size: 21),
+      );
+
+  Future<void> _showContextHelp(BuildContext context) async {
+    final info = contextHelpFor(pageTitle, pageSubtitle);
+    final route = GoRouterState.of(context).uri.path;
+    final helpRoute =
+        route.startsWith('/parent') ? '/parent/help' : '/trainer/help';
+    final openFullHelp = await showModalBottomSheet<bool>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _ContextHelpSheet(
+        pageTitle: pageTitle,
+        info: info,
+      ),
+    );
+    if (openFullHelp != true || !context.mounted) return;
+    context.push(
+      '$helpRoute?topic=${Uri.encodeQueryComponent(info.searchQuery)}',
+    );
+  }
+}
+
+class _ContextHelpSheet extends StatelessWidget {
+  const _ContextHelpSheet({required this.pageTitle, required this.info});
+
+  final String pageTitle;
+  final ContextHelpInfo info;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewPaddingOf(context).bottom;
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: Material(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          clipBehavior: Clip.antiAlias,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(22, 12, 22, 22 + bottom),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 46,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppColors.line,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: AppColors.yellowSoft,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.help_outline_rounded),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hilfe zu diesem Bereich',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(
+                                  color: AppColors.gold,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                          Text(
+                            pageTitle,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Schließen',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(info.summary,
+                    style: Theme.of(context).textTheme.bodyLarge),
+                const SizedBox(height: 18),
+                for (var index = 0; index < info.steps.length; index++) ...[
+                  _HelpStep(number: index + 1, text: info.steps[index]),
+                  if (index != info.steps.length - 1)
+                    const SizedBox(height: 10),
+                ],
+                const SizedBox(height: 22),
+                FilledButton.icon(
+                  onPressed: () => Navigator.pop(context, true),
+                  icon: const Icon(Icons.menu_book_rounded),
+                  label: const Text('Ausführliche Hilfe & FAQ öffnen'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HelpStep extends StatelessWidget {
+  const _HelpStep({required this.number, required this.text});
+
+  final int number;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.black,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Text(
+              '$number',
+              style: const TextStyle(
+                color: AppColors.yellow,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(child: Text(text)),
+        ],
+      );
+}

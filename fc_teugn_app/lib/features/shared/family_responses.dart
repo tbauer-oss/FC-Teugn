@@ -161,12 +161,12 @@ class FamilyResponsesPage extends ConsumerWidget {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _SummaryChip(
+                  ResponseSummaryPill(
                     label: 'Offen',
                     count: sorted.where((item) => item.isOpen).length,
                     color: AppColors.orange,
                   ),
-                  _SummaryChip(
+                  ResponseSummaryPill(
                     label: 'Zugesagt',
                     count: sorted
                         .where((item) =>
@@ -174,7 +174,7 @@ class FamilyResponsesPage extends ConsumerWidget {
                         .length,
                     color: AppColors.teal,
                   ),
-                  _SummaryChip(
+                  ResponseSummaryPill(
                     label: 'Abgesagt',
                     count: sorted
                         .where((item) =>
@@ -497,20 +497,61 @@ int _compareByUrgency(PersonalResponseModel a, PersonalResponseModel b) {
   return a.startAt.compareTo(b.startAt);
 }
 
-class _SummaryChip extends StatelessWidget {
-  const _SummaryChip(
-      {required this.label, required this.count, required this.color});
+class ResponseSummaryPill extends StatelessWidget {
+  const ResponseSummaryPill({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.color,
+  });
   final String label;
   final int count;
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Chip(
-        avatar: CircleAvatar(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          child: Text('$count'),
+  Widget build(BuildContext context) => Semantics(
+        label: '$label: $count',
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 38),
+          padding: const EdgeInsets.fromLTRB(6, 5, 12, 5),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: AppColors.line),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                constraints: const BoxConstraints(
+                  minWidth: 28,
+                  minHeight: 28,
+                ),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '$count',
+                  maxLines: 1,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                maxLines: 1,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
         ),
-        label: Text(label),
       );
 }

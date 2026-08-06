@@ -222,7 +222,15 @@ class _AppLoadingInterceptor extends Interceptor {
         mode: AppLoadingMode.background
       );
     }
-    if (path.contains('/communications') || path.contains('/push')) {
+    if (path.contains('/notifications/settings/subscriptions') ||
+        path.contains('/notifications/settings/push-consent')) {
+      return (
+        message: 'Push-Gerät wird aktualisiert …',
+        mode: AppLoadingMode.background
+      );
+    }
+    if (path.contains('/communications') ||
+        path.contains('/notifications/admin/test-push')) {
       return (
         message: 'Nachricht wird versendet …',
         mode: AppLoadingMode.background

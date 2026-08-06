@@ -16,6 +16,7 @@ import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
 import '../../core/providers.dart';
 import '../../core/regular_training_schedule.dart';
+import '../../core/widgets/responsive_form_dialog.dart';
 import '../shared/page_scaffold.dart';
 
 enum CalendarView { day, week, month, year, agenda }
@@ -3971,13 +3972,21 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
 
   Widget _categoryInput() => DropdownButtonFormField<EventCategory>(
         initialValue: category,
+        isExpanded: true,
         decoration: const InputDecoration(
           labelText: 'Kategorie',
           prefixIcon: Icon(Icons.category_outlined),
         ),
         items: [
           for (final value in EventCategory.values)
-            DropdownMenuItem(value: value, child: Text(value.label)),
+            DropdownMenuItem(
+              value: value,
+              child: Text(
+                value.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
         ],
         onChanged: (value) {
           setState(() {
@@ -3995,24 +4004,35 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         },
       );
 
-  Widget _titleInput({required bool compact}) => LayoutBuilder(
-        builder: (context, constraints) => DropdownMenu<String>(
-          controller: title,
-          width: constraints.maxWidth,
-          label: const Text('Titel (optional)'),
+  Widget _titleInput({required bool compact}) => TextFormField(
+        controller: title,
+        decoration: InputDecoration(
+          labelText: 'Titel (optional)',
           hintText: category.label,
           helperText: compact
               ? null
               : 'Vorschlag wählen oder eigenen Titel eingeben. '
                   'Leer = ${category.label}.',
-          leadingIcon: const Icon(Icons.title_rounded),
-          enableFilter: true,
-          enableSearch: true,
-          requestFocusOnTap: true,
-          dropdownMenuEntries: [
-            for (final suggestion in category.titleSuggestions)
-              DropdownMenuEntry(value: suggestion, label: suggestion),
-          ],
+          prefixIcon: const Icon(Icons.title_rounded),
+          suffixIcon: PopupMenuButton<String>(
+            tooltip: 'Titelvorschläge',
+            icon: const Icon(Icons.arrow_drop_down_rounded),
+            onSelected: (value) => setState(() {
+              title.text = value;
+              title.selection = TextSelection.collapsed(offset: value.length);
+            }),
+            itemBuilder: (context) => [
+              for (final suggestion in category.titleSuggestions)
+                PopupMenuItem<String>(
+                  value: suggestion,
+                  child: Text(
+                    suggestion,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+          ),
         ),
       );
 
@@ -4062,6 +4082,16 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         _refreshPitchConflicts();
       },
     );
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          begin,
+          const SizedBox(height: 9),
+          end,
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -4140,9 +4170,15 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(width: 230, child: _categoryInput()),
+                            Expanded(
+                              flex: 3,
+                              child: _categoryInput(),
+                            ),
                             const SizedBox(width: 12),
-                            Expanded(child: _titleInput(compact: false)),
+                            Expanded(
+                              flex: 5,
+                              child: _titleInput(compact: false),
+                            ),
                           ],
                         ),
                       SizedBox(height: mobile ? 9 : 12),
@@ -4290,6 +4326,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                         const SizedBox(height: 12),
                         DropdownButtonFormField<HomeAway>(
                           initialValue: homeAway,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                               labelText: 'Heim / Auswärts'),
                           items: const [
@@ -4328,41 +4365,34 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                           },
                         ),
                         const SizedBox(height: 12),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        ResponsiveFormRow(
+                          breakpoint: 620,
                           children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: periodCount,
-                                keyboardType: TextInputType.number,
-                                onChanged: (_) {
-                                  setState(() {});
-                                  _refreshPitchConflicts();
-                                },
-                                decoration: const InputDecoration(
-                                  labelText: 'Spielabschnitte',
-                                  helperText:
-                                      'z. B. 2 Halbzeiten oder 4 Viertel',
-                                ),
-                                validator: (value) => _matchNumber(value, 1, 8),
+                            TextFormField(
+                              controller: periodCount,
+                              keyboardType: TextInputType.number,
+                              onChanged: (_) {
+                                setState(() {});
+                                _refreshPitchConflicts();
+                              },
+                              decoration: const InputDecoration(
+                                labelText: 'Spielabschnitte',
+                                helperText: 'z. B. 2 Halbzeiten oder 4 Viertel',
                               ),
+                              validator: (value) => _matchNumber(value, 1, 8),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: TextFormField(
-                                controller: periodMinutes,
-                                keyboardType: TextInputType.number,
-                                onChanged: (_) {
-                                  setState(() {});
-                                  _refreshPitchConflicts();
-                                },
-                                decoration: const InputDecoration(
-                                  labelText: 'Minuten je Abschnitt',
-                                  helperText: 'z. B. 15 Minuten',
-                                ),
-                                validator: (value) =>
-                                    _matchNumber(value, 1, 90),
+                            TextFormField(
+                              controller: periodMinutes,
+                              keyboardType: TextInputType.number,
+                              onChanged: (_) {
+                                setState(() {});
+                                _refreshPitchConflicts();
+                              },
+                              decoration: const InputDecoration(
+                                labelText: 'Minuten je Abschnitt',
+                                helperText: 'z. B. 15 Minuten',
                               ),
+                              validator: (value) => _matchNumber(value, 1, 90),
                             ),
                           ],
                         ),
@@ -4376,6 +4406,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
                           initialValue: selectedPitch,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Platz für diesen Termin',
                             helperText:
@@ -4385,7 +4416,11 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             for (final pitch in pitchOptions)
                               DropdownMenuItem(
                                 value: pitch,
-                                child: Text(pitch),
+                                child: Text(
+                                  pitch,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                           ],
                           onChanged: (value) {
@@ -4573,30 +4608,33 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 style: const TextStyle(color: AppColors.muted),
                               ),
                               if (!category.isMatch) ...[
-                                RadioGroup<EventNotificationMode>(
-                                  groupValue: notificationMode,
-                                  onChanged: (value) => setState(
-                                    () => notificationMode =
-                                        value ?? EventNotificationMode.none,
-                                  ),
-                                  child: const Column(
-                                    children: [
-                                      RadioListTile<EventNotificationMode>(
-                                        contentPadding: EdgeInsets.zero,
-                                        value: EventNotificationMode.none,
-                                        title: Text('Keine Nachricht'),
-                                      ),
-                                      RadioListTile<EventNotificationMode>(
-                                        contentPadding: EdgeInsets.zero,
-                                        value: EventNotificationMode.inApp,
-                                        title: Text('In-App-Nachricht'),
-                                      ),
-                                      RadioListTile<EventNotificationMode>(
-                                        contentPadding: EdgeInsets.zero,
-                                        value: EventNotificationMode.push,
-                                        title: Text('In-App + Pushnachricht'),
-                                      ),
-                                    ],
+                                Material(
+                                  color: Colors.transparent,
+                                  child: RadioGroup<EventNotificationMode>(
+                                    groupValue: notificationMode,
+                                    onChanged: (value) => setState(
+                                      () => notificationMode =
+                                          value ?? EventNotificationMode.none,
+                                    ),
+                                    child: const Column(
+                                      children: [
+                                        RadioListTile<EventNotificationMode>(
+                                          contentPadding: EdgeInsets.zero,
+                                          value: EventNotificationMode.none,
+                                          title: Text('Keine Nachricht'),
+                                        ),
+                                        RadioListTile<EventNotificationMode>(
+                                          contentPadding: EdgeInsets.zero,
+                                          value: EventNotificationMode.inApp,
+                                          title: Text('In-App-Nachricht'),
+                                        ),
+                                        RadioListTile<EventNotificationMode>(
+                                          contentPadding: EdgeInsets.zero,
+                                          value: EventNotificationMode.push,
+                                          title: Text('In-App + Pushnachricht'),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                                 if (notificationMode !=
@@ -4705,6 +4743,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 const SizedBox(height: 10),
                                 DropdownButtonFormField<String>(
                                   initialValue: reminderMode,
+                                  isExpanded: true,
                                   decoration: const InputDecoration(
                                     labelText: 'Zeitpunkt',
                                     prefixIcon: Icon(
@@ -4782,6 +4821,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                           const SizedBox(height: 12),
                           DropdownButtonFormField<EventVisibility>(
                             initialValue: visibility,
+                            isExpanded: true,
                             decoration: const InputDecoration(
                                 labelText: 'Sichtbarkeit'),
                             items: const [
@@ -4833,6 +4873,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                         if (recurring) ...[
                           DropdownButtonFormField<RecurrenceFrequency>(
                             initialValue: frequency,
+                            isExpanded: true,
                             decoration: const InputDecoration(
                                 labelText: 'Wiederholung'),
                             items: const [

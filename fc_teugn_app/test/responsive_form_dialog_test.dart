@@ -57,4 +57,37 @@ void main() {
     expect(find.text('Feld 12'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('form rows stack early when system text is enlarged',
+      (tester) async {
+    tester.view.physicalSize = const Size(700, 400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: const TextScaler.linear(1.4),
+          ),
+          child: child!,
+        ),
+        home: const Scaffold(
+          body: ResponsiveFormRow(
+            children: [
+              TextField(decoration: InputDecoration(labelText: 'Beginn')),
+              TextField(decoration: InputDecoration(labelText: 'Ende')),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final begin = tester.getTopLeft(find.byType(TextField).first);
+    final end = tester.getTopLeft(find.byType(TextField).last);
+    expect(end.dy, greaterThan(begin.dy));
+    expect(tester.takeException(), isNull);
+  });
 }

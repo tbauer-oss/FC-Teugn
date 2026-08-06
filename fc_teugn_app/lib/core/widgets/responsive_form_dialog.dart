@@ -155,7 +155,9 @@ class ResponsiveFormRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
-          if (constraints.maxWidth < breakpoint) {
+          final textScale = MediaQuery.textScalerOf(context).scale(1);
+          final effectiveBreakpoint = breakpoint * textScale.clamp(1, 1.45);
+          if (constraints.maxWidth < effectiveBreakpoint) {
             return Column(
               children: [
                 for (var index = 0; index < children.length; index++) ...[

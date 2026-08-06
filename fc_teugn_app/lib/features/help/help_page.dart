@@ -71,18 +71,30 @@ class HelpArticle {
 }
 
 class HelpPage extends StatefulWidget {
-  const HelpPage({super.key, required this.staffView});
+  const HelpPage({
+    super.key,
+    required this.staffView,
+    this.initialQuery,
+  });
 
   final bool staffView;
+  final String? initialQuery;
 
   @override
   State<HelpPage> createState() => _HelpPageState();
 }
 
 class _HelpPageState extends State<HelpPage> {
-  final _searchController = TextEditingController();
+  late final TextEditingController _searchController;
   HelpCategory _category = HelpCategory.all;
-  String _query = '';
+  late String _query;
+
+  @override
+  void initState() {
+    super.initState();
+    _query = widget.initialQuery?.trim() ?? '';
+    _searchController = TextEditingController(text: _query);
+  }
 
   @override
   void dispose() {
@@ -122,6 +134,7 @@ class _HelpPageState extends State<HelpPage> {
 
     return PageScaffold(
       title: 'Hilfe & FAQ',
+      showContextHelp: false,
       subtitle: widget.staffView
           ? 'Anleitungen für Trainer, Betreuung und Vereinsverwaltung.'
           : 'Schnelle Antworten für Eltern und Spieler.',

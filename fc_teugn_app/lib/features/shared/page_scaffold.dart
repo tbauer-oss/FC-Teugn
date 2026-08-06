@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_theme.dart';
 import '../../core/widgets/adaptive_layout.dart';
+import 'context_help.dart';
 
 class PageScaffold extends StatelessWidget {
   const PageScaffold({
@@ -13,6 +14,7 @@ class PageScaffold extends StatelessWidget {
     this.hideMobileHeader = false,
     this.hideHeader = false,
     this.fillRemaining = false,
+    this.showContextHelp = true,
   });
 
   final String title;
@@ -23,6 +25,7 @@ class PageScaffold extends StatelessWidget {
   final bool hideMobileHeader;
   final bool hideHeader;
   final bool fillRemaining;
+  final bool showContextHelp;
 
   @override
   Widget build(BuildContext context) {
@@ -32,35 +35,49 @@ class PageScaffold extends StatelessWidget {
         final horizontal =
             constraints.maxWidth >= AppBreakpoints.medium ? 32.0 : 14.0;
         final compactHeader = constraints.maxWidth < 640;
-        final titleBlock = Column(
+        final titleBlock = Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              maxLines: denseMobileHeader && mobile ? 1 : null,
-              overflow:
-                  denseMobileHeader && mobile ? TextOverflow.ellipsis : null,
-              style: mobile
-                  ? denseMobileHeader
-                      ? Theme.of(context).textTheme.titleLarge
-                      : Theme.of(context).textTheme.headlineSmall
-                  : Theme.of(context).textTheme.headlineMedium,
-            ),
-            SizedBox(height: mobile ? (denseMobileHeader ? 2 : 4) : 6),
-            Text(
-              subtitle,
-              maxLines: denseMobileHeader && mobile ? 1 : null,
-              overflow:
-                  denseMobileHeader && mobile ? TextOverflow.ellipsis : null,
-              style: (mobile
-                      ? denseMobileHeader
-                          ? Theme.of(context).textTheme.bodySmall
-                          : Theme.of(context).textTheme.bodyMedium
-                      : Theme.of(context).textTheme.bodyLarge)
-                  ?.copyWith(
-                color: AppColors.muted,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: denseMobileHeader && mobile ? 1 : null,
+                    overflow: denseMobileHeader && mobile
+                        ? TextOverflow.ellipsis
+                        : null,
+                    style: mobile
+                        ? denseMobileHeader
+                            ? Theme.of(context).textTheme.titleLarge
+                            : Theme.of(context).textTheme.headlineSmall
+                        : Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  SizedBox(height: mobile ? (denseMobileHeader ? 2 : 4) : 6),
+                  Text(
+                    subtitle,
+                    maxLines: denseMobileHeader && mobile ? 1 : null,
+                    overflow: denseMobileHeader && mobile
+                        ? TextOverflow.ellipsis
+                        : null,
+                    style: (mobile
+                            ? denseMobileHeader
+                                ? Theme.of(context).textTheme.bodySmall
+                                : Theme.of(context).textTheme.bodyMedium
+                            : Theme.of(context).textTheme.bodyLarge)
+                        ?.copyWith(color: AppColors.muted),
+                  ),
+                ],
               ),
             ),
+            if (showContextHelp) ...[
+              const SizedBox(width: 10),
+              ContextHelpButton(
+                pageTitle: title,
+                pageSubtitle: subtitle,
+              ),
+            ],
           ],
         );
         return CustomScrollView(

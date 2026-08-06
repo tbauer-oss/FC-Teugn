@@ -142,6 +142,8 @@ ThemeData buildAppTheme() {
       errorBorder: border.copyWith(
         borderSide: BorderSide(color: scheme.error),
       ),
+      helperMaxLines: 3,
+      errorMaxLines: 3,
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(

@@ -1979,7 +1979,10 @@ class DataRepository {
     });
   }
 
-  Future<String> registerAndroidPushSubscription(String token) async {
+  Future<String> registerAndroidPushSubscription(
+    String token, {
+    bool silent = false,
+  }) async {
     final res = await client.dio.post(
       '/notifications/settings/subscriptions',
       data: {
@@ -1987,6 +1990,7 @@ class DataRepository {
         'endpoint': token,
         'deviceName': 'FC Teugn Talents · Android',
       },
+      options: silent ? Options(extra: const {'suppressLoading': true}) : null,
     );
     return (res.data as Map<String, dynamic>)['id'] as String;
   }
@@ -1998,8 +2002,11 @@ class DataRepository {
     );
   }
 
-  Future<void> grantPushConsent() async {
-    await client.dio.post('/notifications/settings/push-consent');
+  Future<void> grantPushConsent({bool silent = false}) async {
+    await client.dio.post(
+      '/notifications/settings/push-consent',
+      options: silent ? Options(extra: const {'suppressLoading': true}) : null,
+    );
   }
 
   Future<AdminPushTestResult> sendAdminPushTest() async {
