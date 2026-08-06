@@ -116,7 +116,7 @@ class FamilyResponsesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final responses = ref.watch(personalResponsesProvider);
     return PageScaffold(
-      title: 'Familie & Rückmeldungen',
+      title: 'Meine Kinder & Rückmeldungen',
       subtitle: 'Zu- und Absagen für alle dir zugeordneten Kinder.',
       child: responses.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -259,6 +259,10 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
           );
       ref.invalidate(personalResponsesProvider);
       ref.invalidate(eventsProvider);
+      await Future.wait<void>([
+        ref.read(personalResponsesProvider.future).then<void>((_) {}),
+        ref.read(eventsProvider.future).then<void>((_) {}),
+      ]);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

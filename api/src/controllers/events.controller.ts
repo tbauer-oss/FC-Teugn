@@ -38,11 +38,17 @@ import {
   syncSquadWithTeamDefaultLineup,
 } from '../services/default-lineup.service';
 import {
+  parseRegularTrainingSlot,
   reminderRecipientsForEvent,
   syncScheduledRemindersForEvent,
 } from '../services/reminder.service';
 import { mediaAssetUrl } from '../services/media-access';
 import { notifyUsers } from '../services/notification.service';
+import {
+  AWAY_MEETING_LOCATION,
+  HOME_MATCH_VENUE,
+  isFcTeugnHomeVenue,
+} from '../services/match-venue.service';
 
 const eventInclude = {
   series: true,
@@ -157,9 +163,6 @@ function enumValue<T extends Record<string, string>>(
     ? (normalized as T[keyof T])
     : fallback;
 }
-
-const HOME_MATCH_VENUE = 'Stadion am Kreutweg, Teugn';
-const AWAY_MEETING_LOCATION = 'Vereinsheim Teugn';
 
 function isStaff(role: Role | PrismaRole, permissions?: readonly string[]) {
   return hasEffectivePermission(
@@ -400,7 +403,10 @@ async function serializeEvent(
           user.role as Role,
           event.type === EventType.MATCH
             ? Permission.MATCH_DELETE
-            : Permission.EVENT_DELETE,
+            : event.category === EventCategory.TRAINING &&
+                event.status === EventStatus.CANCELLED
+              ? Permission.DELETE_CANCELLED_TRAINING
+              : Permission.EVENT_DELETE,
           user.permissions,
         ),
       canReschedule:
@@ -412,11 +418,13 @@ async function serializeEvent(
           user.permissions,
         ),
       canCancel:
-        event.type === EventType.MATCH &&
+        (event.type === EventType.MATCH || event.category === EventCategory.TRAINING) &&
         targetIdsForEvent(event).every((teamId) => accessibleIds.includes(teamId)) &&
         hasEffectivePermission(
           user.role as Role,
-          Permission.MATCH_CANCEL,
+          event.type === EventType.MATCH
+            ? Permission.MATCH_CANCEL
+            : Permission.CANCEL_TRAINING_OCCURRENCE,
           user.permissions,
         ),
       canRespond:
@@ -438,6 +446,125 @@ function parseStringList(value: unknown) {
   return Array.isArray(value)
     ? value.map(clean).filter((item): item is string => Boolean(item))
     : [];
+}
+
+function berlinDateParts(value: Date) {
+  const parts = new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin',
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? '';
+  return {
+    weekday: part('weekday'),
+    date: `${part('day')}.${part('month')}.${part('year')}`,
+    time: `${part('hour')}:${part('minute')}`,
+  };
+}
+
+export async function cancelRegularTrainingOccurrence(req: Request, res: Response) {
+  const user = req.user!;
+  const teamId = clean(req.body.teamId);
+  const startAt = validDate(req.body.startAt);
+  const endAt = validDate(req.body.endAt);
+  if (!teamId || !startAt) {
+    return res.status(400).json({ message: 'Mannschaft und Trainingsbeginn fehlen.' });
+  }
+  const accessibleIds = await accessibleTeamIds(user);
+  if (!accessibleIds.includes(teamId)) {
+    return res.status(403).json({ message: 'Keine Berechtigung für diese Mannschaft.' });
+  }
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    include: { ageGroup: true },
+  });
+  if (!team || team.deletedAt) {
+    return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  }
+  const local = berlinDateParts(startAt);
+  const weekdayMap = new Map([
+    ['sonntag', 0], ['montag', 1], ['dienstag', 2], ['mittwoch', 3],
+    ['donnerstag', 4], ['freitag', 5], ['samstag', 6],
+  ]);
+  const weekday = weekdayMap.get(local.weekday.toLocaleLowerCase('de-DE'));
+  const [hour, minute] = local.time.split(':').map(Number);
+  const configured = [...team.trainingTimes, ...team.indoorTrainingTimes]
+    .map(parseRegularTrainingSlot)
+    .some((slot) =>
+      slot !== null &&
+      slot.weekday === weekday &&
+      slot.hour === hour &&
+      slot.minute === minute,
+    );
+  if (!configured) {
+    return res.status(409).json({
+      message: 'Der Termin gehört nicht mehr zum aktuellen regulären Trainingsplan.',
+    });
+  }
+  const duplicate = await prisma.event.findFirst({
+    where: {
+      teamId,
+      category: EventCategory.TRAINING,
+      isSeriesException: true,
+      startAt: {
+        gte: new Date(startAt.getTime() - 5 * 60_000),
+        lte: new Date(startAt.getTime() + 5 * 60_000),
+      },
+    },
+    include: eventInclude,
+  });
+  if (duplicate) return res.json(await serializeEvent(duplicate, user));
+  const reason = clean(req.body.reason);
+  const title = clean(req.body.title) ?? `Training · ${team.name}`;
+  const created = await prisma.event.create({
+    data: {
+      teamId,
+      type: EventType.TRAINING,
+      category: EventCategory.TRAINING,
+      status: EventStatus.CANCELLED,
+      title,
+      startAt,
+      endAt,
+      location: clean(req.body.location) ?? team.trainingLocation ?? '',
+      cancellationReason: reason ?? 'Abgesagt',
+      cancelledAt: new Date(),
+      isSeriesException: true,
+      targetTeams: { create: [{ teamId }] },
+    },
+    include: eventInclude,
+  });
+  const audience = await reminderRecipientsForEvent(created.id, { includeDeclined: true });
+  const delivery = await notifyUsers(
+    audience.recipientIds.filter((id) => id !== user.id),
+    {
+      category: NotificationCategory.EVENT_REMINDER,
+      title: 'Trainingsabsage',
+      body: `Das Training der ${team.ageGroup.code}${team.teamNumber} am ${local.weekday}, ${local.date}, um ${local.time} Uhr fällt aus.${reason ? ` Grund: ${reason}` : ''}`,
+      actionUrl: '/events',
+      entityType: 'TrainingCancellation',
+      entityId: created.id,
+      dedupeKey: `training-cancelled:${teamId}:${startAt.toISOString()}`,
+      forceInApp: true,
+      forcePush: true,
+    },
+  );
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId,
+      action: 'REGULAR_TRAINING_OCCURRENCE_CANCELLED',
+      entityType: 'Event',
+      entityId: created.id,
+      metadata: { startAt, reason, delivery },
+    },
+  });
+  return res.status(201).json(await serializeEvent(created, user));
 }
 
 async function validatedParticipants(
@@ -528,7 +655,7 @@ function eventData(body: Record<string, unknown>) {
       ? requestedLocation ?? HOME_MATCH_VENUE
       : type === EventType.MATCH &&
           homeAway === HomeAway.AWAY &&
-          requestedLocation === HOME_MATCH_VENUE
+          isFcTeugnHomeVenue(requestedLocation)
         ? null
         : requestedLocation;
   return {
@@ -879,6 +1006,29 @@ export async function getEvent(req: Request, res: Response) {
 export async function createEvent(req: Request, res: Response) {
   const user = req.user!;
   const data = eventData(req.body);
+  const notificationMode = ['NONE', 'IN_APP', 'PUSH'].includes(
+    String(req.body.notificationMode ?? 'NONE').toUpperCase(),
+  )
+    ? String(req.body.notificationMode ?? 'NONE').toUpperCase()
+    : 'NONE';
+  if (
+    notificationMode !== 'NONE' &&
+    !hasEffectivePermission(
+      user.role,
+      Permission.SEND_EVENT_NOTIFICATIONS,
+      user.permissions,
+    )
+  ) {
+    return res.status(403).json({
+      message: 'Keine Berechtigung zum Versenden von Terminbenachrichtigungen.',
+      permission: Permission.SEND_EVENT_NOTIFICATIONS,
+    });
+  }
+  if (data.type === EventType.MATCH && notificationMode !== 'NONE') {
+    return res.status(409).json({
+      message: 'Spiele werden erst über die gesonderte Familienfreigabe kommuniziert.',
+    });
+  }
   if (!data.startAt) {
     return res.status(400).json({ message: 'Beginn ist erforderlich.' });
   }
@@ -945,7 +1095,7 @@ export async function createEvent(req: Request, res: Response) {
       data.address = data.address ?? opponentRecord?.address ?? null;
     }
   }
-  if (!data.location) {
+  if (!data.location && !(data.type === EventType.MATCH && data.homeAway === HomeAway.AWAY)) {
     return res.status(400).json({ message: 'Bitte einen Spiel- oder Veranstaltungsort angeben.' });
   }
   const attachments: Array<{
@@ -1015,7 +1165,7 @@ export async function createEvent(req: Request, res: Response) {
     ...data,
     title: data.title,
     startAt: data.startAt,
-    location: data.location,
+    location: data.location ?? '',
   };
 
   const createdIds = await prisma.$transaction(async (tx) => {
@@ -1039,7 +1189,7 @@ export async function createEvent(req: Request, res: Response) {
       seriesId: series?.id ?? null,
       title: data.title!,
       startAt,
-      location: data.location!,
+      location: data.location ?? '',
       endAt: duration === null ? null : new Date(startAt.getTime() + duration),
       meetingAt:
         meetingOffset === null ? null : new Date(startAt.getTime() + meetingOffset),
@@ -1118,6 +1268,7 @@ export async function createEvent(req: Request, res: Response) {
           teamIds,
           participantPlayerIds: participants.playerIds,
           participantUserIds: participants.userIds,
+          notificationMode,
         },
       },
     });
@@ -1130,6 +1281,41 @@ export async function createEvent(req: Request, res: Response) {
     include: eventInclude,
   });
   await Promise.all(createdIds.map(syncScheduledRemindersForEvent));
+  if (notificationMode !== 'NONE' && createdIds.length > 0) {
+    const firstEvent = created.find((event) => event.id === createdIds[0]) ?? created[0];
+    const audience = await reminderRecipientsForEvent(createdIds[0], {
+      includeDeclined: true,
+    });
+    const local = berlinDateParts(firstEvent.startAt);
+    const delivery = await notifyUsers(
+      audience.recipientIds.filter((id) => id !== user.id),
+      {
+        category: NotificationCategory.EVENT_REMINDER,
+        title: `Neuer Termin: ${firstEvent.title}`,
+        body: `${firstEvent.title} am ${local.weekday}, ${local.date}, um ${local.time} Uhr${firstEvent.location ? ` in ${firstEvent.location}` : ''}.${createdIds.length > 1 ? ` Die Serie umfasst ${createdIds.length} Termine.` : ''}`,
+        actionUrl: '/events',
+        entityType: 'EventCreation',
+        entityId: firstEvent.id,
+        dedupeKey: `event-created:${firstEvent.id}`,
+        forceInApp: true,
+        pushEnabled: notificationMode === 'PUSH',
+      },
+    );
+    await prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: firstEvent.teamId,
+        action: 'EVENT_CREATION_NOTIFICATION_SENT',
+        entityType: 'Event',
+        entityId: firstEvent.id,
+        metadata: {
+          notificationMode,
+          recipientIds: audience.recipientIds,
+          delivery,
+        },
+      },
+    });
+  }
   await Promise.all(
     createdIds.map((eventId) =>
       createPitchConflictRequestsForEvent({
@@ -1232,7 +1418,7 @@ export async function updateEvent(req: Request, res: Response) {
       parsed.address = parsed.address ?? opponentRecord?.address ?? null;
     }
   }
-  if (!parsed.location) {
+  if (!parsed.location && !(parsed.type === EventType.MATCH && parsed.homeAway === HomeAway.AWAY)) {
     return res.status(400).json({ message: 'Bitte einen Spiel- oder Veranstaltungsort angeben.' });
   }
   const updateStartAt = parsed.startAt;
@@ -1241,7 +1427,7 @@ export async function updateEvent(req: Request, res: Response) {
     ...parsed,
     title: parsed.title,
     startAt: updateStartAt,
-    location: parsed.location,
+    location: parsed.location ?? '',
   };
 
   await prisma.$transaction(async (tx) => {
@@ -1392,10 +1578,14 @@ export async function deleteEvent(req: Request, res: Response) {
   const requiredPermission = permanent
     ? existing.type === EventType.MATCH
       ? Permission.MATCH_DELETE
-      : Permission.EVENT_DELETE
+      : existing.category === EventCategory.TRAINING && existing.status === EventStatus.CANCELLED
+        ? Permission.DELETE_CANCELLED_TRAINING
+        : Permission.EVENT_DELETE
     : existing.type === EventType.MATCH
       ? Permission.MATCH_CANCEL
-      : Permission.MANAGE_EVENTS;
+      : existing.category === EventCategory.TRAINING
+        ? Permission.CANCEL_TRAINING_OCCURRENCE
+        : Permission.MANAGE_EVENTS;
   if (!hasEffectivePermission(user.role, requiredPermission, user.permissions)) {
     return res.status(403).json({
       message: 'Für diese Aktion fehlt die erforderliche Berechtigung.',
@@ -1433,6 +1623,64 @@ export async function deleteEvent(req: Request, res: Response) {
     },
     select: { userId: true, role: true },
   });
+  if (
+    permanent &&
+    existing.category === EventCategory.TRAINING &&
+    existing.status !== EventStatus.CANCELLED
+  ) {
+    return res.status(409).json({
+      message: 'Ein Training muss zuerst abgesagt werden, bevor es endgültig gelöscht werden kann.',
+    });
+  }
+  if (
+    permanent &&
+    existing.category === EventCategory.TRAINING &&
+    existing.status === EventStatus.CANCELLED &&
+    existing.isSeriesException
+  ) {
+    const ownTrainerRoles = new Set<PrismaRole>([
+      PrismaRole.COACH,
+      PrismaRole.TRAINER,
+      PrismaRole.ASSISTANT_COACH,
+      PrismaRole.TEAM_MANAGER,
+    ]);
+    const deletionRecipients = staffRecipients
+      .filter((item) => ownTrainerRoles.has(item.role))
+      .map((item) => item.userId)
+      .filter((id) => id !== user.id);
+    await prisma.event.update({
+      where: { id: existing.id },
+      data: {
+        isHiddenRegularOccurrence: true,
+        // Der unsichtbare Serientombstone bleibt für alle betroffenen
+        // Kalender abrufbar, damit das reguläre Vorkommen nicht neu erzeugt
+        // wird. Flutter blendet ihn über isHiddenRegularOccurrence aus.
+        visibility: EventVisibility.TEAM,
+      },
+    });
+    const delivery = await notifyUsers(deletionRecipients, {
+      category: NotificationCategory.EVENT_REMINDER,
+      title: 'Abgesagtes Training entfernt',
+      body: `„${existing.title}“ wurde endgültig aus dem Kalender entfernt. Die Trainingsserie bleibt unverändert.`,
+      actionUrl: '/events',
+      entityType: 'TrainingDeletion',
+      entityId: existing.id,
+      dedupeKey: `training-deleted:${existing.id}`,
+      forceInApp: true,
+      forcePush: true,
+    });
+    await prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: existing.teamId,
+        action: 'CANCELLED_TRAINING_OCCURRENCE_DELETED',
+        entityType: 'Event',
+        entityId: existing.id,
+        metadata: { informedTrainerIds: deletionRecipients, delivery },
+      },
+    });
+    return res.json({ status: 'DELETED', scope: 'single', delivery });
+  }
   if (permanent) {
     const deleted = await prisma.$transaction(async (tx) => {
       const events = await tx.event.findMany({
@@ -1556,8 +1804,9 @@ export async function deleteEvent(req: Request, res: Response) {
   }
   const reason = clean(req.body?.reason) ?? 'Abgesagt';
   const now = new Date();
-  const cancellationAudience = existing.type === EventType.MATCH
-    ? await reminderRecipientsForEvent(existing.id)
+  const cancellationAudience =
+    existing.type === EventType.MATCH || existing.category === EventCategory.TRAINING
+    ? await reminderRecipientsForEvent(existing.id, { includeDeclined: true })
     : null;
   await prisma.$transaction(async (tx) => {
     const affectedEvents = await tx.event.findMany({
@@ -1651,7 +1900,28 @@ export async function deleteEvent(req: Request, res: Response) {
           forcePush: true,
         },
       )
-    : null;
+    : existing.category === EventCategory.TRAINING
+      ? await notifyUsers(
+          [
+            ...(cancellationAudience?.recipientIds ?? []),
+            ...staffRecipients.map((item) => item.userId),
+          ].filter((id) => id !== user.id),
+          {
+            category: NotificationCategory.EVENT_REMINDER,
+            title: 'Trainingsabsage',
+            body: (() => {
+              const local = berlinDateParts(existing.startAt);
+              return `Das Training am ${local.weekday}, ${local.date}, um ${local.time} Uhr fällt aus.${reason ? ` Grund: ${reason}` : ''}`;
+            })(),
+            actionUrl: '/events',
+            entityType: 'TrainingCancellation',
+            entityId: existing.id,
+            dedupeKey: `training-cancelled:${existing.id}`,
+            forceInApp: true,
+            forcePush: true,
+          },
+        )
+      : null;
   return res.json({ status: EventStatus.CANCELLED, scope, delivery });
 }
 
@@ -1816,7 +2086,17 @@ export async function setAttendance(req: Request, res: Response) {
     },
     data: { readAt: new Date() },
   });
-  return res.json(attendance);
+  const refreshedEvent = await prisma.event.findUnique({
+    where: { id: event.id },
+    include: eventInclude,
+  });
+  if (!refreshedEvent) {
+    return res.status(404).json({ message: 'Termin nach der Rückmeldung nicht gefunden.' });
+  }
+  return res.json({
+    attendance,
+    event: await serializeEvent(refreshedEvent, user),
+  });
 }
 
 export async function finalizeAttendance(req: Request, res: Response) {

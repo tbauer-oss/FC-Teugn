@@ -20,6 +20,18 @@ enum EventCategory {
 
 enum EventStatus { scheduled, cancelled }
 
+enum EventCommunicationStatus { draft, internalPublished, familyReleased }
+
+enum EventNotificationMode { none, inApp, push }
+
+extension EventNotificationModeX on EventNotificationMode {
+  String get apiName => switch (this) {
+        EventNotificationMode.none => 'NONE',
+        EventNotificationMode.inApp => 'IN_APP',
+        EventNotificationMode.push => 'PUSH',
+      };
+}
+
 enum EventVisibility { team, club, staffOnly }
 
 enum HomeAway { home, away, neutral }
@@ -531,6 +543,7 @@ class EventModel {
     required this.type,
     required this.category,
     required this.status,
+    this.communicationStatus = EventCommunicationStatus.draft,
     required this.visibility,
     required this.title,
     required this.startAt,
@@ -567,6 +580,10 @@ class EventModel {
     this.responseDeadline,
     this.internalNote,
     this.isSeriesException = false,
+    this.isHiddenRegularOccurrence = false,
+    this.internalPublishedAt,
+    this.familyReleasedAt,
+    this.familyReleaseAudience,
     this.cancellationReason,
     this.matchDetails,
   });
@@ -576,6 +593,7 @@ class EventModel {
   final EventType type;
   final EventCategory category;
   final EventStatus status;
+  final EventCommunicationStatus communicationStatus;
   final EventVisibility visibility;
   final String title;
   final DateTime startAt;
@@ -603,6 +621,10 @@ class EventModel {
   final bool reminderPushEnabled;
   final List<String> participantPlayerIds;
   final bool isSeriesException;
+  final bool isHiddenRegularOccurrence;
+  final DateTime? internalPublishedAt;
+  final DateTime? familyReleasedAt;
+  final String? familyReleaseAudience;
   final String? cancellationReason;
   final bool attendanceFinalized;
   final EventSeriesModel? series;
@@ -643,6 +665,11 @@ class EventModel {
         json['status'] as String?,
         EventStatus.values,
         EventStatus.scheduled,
+      ),
+      communicationStatus: _enumFromApi(
+        json['communicationStatus'] as String?,
+        EventCommunicationStatus.values,
+        EventCommunicationStatus.draft,
       ),
       visibility: _enumFromApi(
         json['visibility'] as String?,
@@ -691,6 +718,15 @@ class EventModel {
           .whereType<String>()
           .toList(),
       isSeriesException: json['isSeriesException'] as bool? ?? false,
+      isHiddenRegularOccurrence:
+          json['isHiddenRegularOccurrence'] as bool? ?? false,
+      internalPublishedAt: json['internalPublishedAt'] == null
+          ? null
+          : _localDate(json['internalPublishedAt'] as String),
+      familyReleasedAt: json['familyReleasedAt'] == null
+          ? null
+          : _localDate(json['familyReleasedAt'] as String),
+      familyReleaseAudience: json['familyReleaseAudience'] as String?,
       cancellationReason: json['cancellationReason'] as String?,
       attendanceFinalized: json['attendanceFinalized'] as bool? ?? false,
       series: json['series'] == null
@@ -796,6 +832,8 @@ class EventWriteData {
     this.requestPitchConflictApprovals = false,
     this.pitchConflictMessage,
     this.participantPlayerIds,
+    this.participantUserIds,
+    this.notificationMode = EventNotificationMode.none,
   });
 
   final EventCategory category;
@@ -833,6 +871,8 @@ class EventWriteData {
   final bool requestPitchConflictApprovals;
   final String? pitchConflictMessage;
   final List<String>? participantPlayerIds;
+  final List<String>? participantUserIds;
+  final EventNotificationMode notificationMode;
 
   Map<String, dynamic> toJson() => {
         'category': category.apiName,
@@ -878,5 +918,8 @@ class EventWriteData {
         'pitchConflictMessage': pitchConflictMessage,
         if (participantPlayerIds != null)
           'participantPlayerIds': participantPlayerIds,
+        if (participantUserIds != null)
+          'participantUserIds': participantUserIds,
+        'notificationMode': notificationMode.apiName,
       };
 }

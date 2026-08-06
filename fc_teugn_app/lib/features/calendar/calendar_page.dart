@@ -166,7 +166,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     OrganizationContext? organization,
   ) {
     if (organization == null) return events;
-    final result = [...events];
+    final result =
+        events.where((event) => !event.isHiddenRegularOccurrence).toList();
     for (final team in organization.teams) {
       final seasonStart = team.seasonStartDate ?? organization.season.startDate;
       final seasonEnd = team.seasonEndDate ?? organization.season.endDate;
@@ -231,7 +232,10 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 attendanceSummary: const AttendanceSummary(),
                 missingAttendance: const [],
                 carpoolOffers: const [],
-                capabilities: const EventCapabilities(),
+                capabilities: EventCapabilities(
+                  canManage: organization.can('CANCEL_TRAINING_OCCURRENCE'),
+                  canCancel: organization.can('CANCEL_TRAINING_OCCURRENCE'),
+                ),
                 reminderMinutes: const [],
                 description:
                     'Reguläre ${indoor ? 'Hallen' : 'Platz'}trainingszeit '
@@ -3064,6 +3068,14 @@ class _AttendanceSection extends ConsumerWidget {
                             reason: response.reason,
                             goalkeeperAvailable: response.goalkeeperAvailable,
                           );
+                      ref.invalidate(personalResponsesProvider);
+                      ref.invalidate(eventsProvider);
+                      await Future.wait<void>([
+                        ref
+                            .read(personalResponsesProvider.future)
+                            .then<void>((_) {}),
+                        ref.read(eventsProvider.future).then<void>((_) {}),
+                      ]);
                       onRefresh();
                     } catch (_) {
                       if (context.mounted) {
@@ -3412,7 +3424,8 @@ class _ManagementBar extends ConsumerWidget {
         runSpacing: 8,
         alignment: WrapAlignment.end,
         children: [
-          if (!event.attendanceFinalized)
+          if (!event.id.startsWith('training-plan:') &&
+              !event.attendanceFinalized)
             TextButton.icon(
               onPressed: () async {
                 await ref.read(repositoryProvider).finalizeAttendance(event.id);
@@ -3422,22 +3435,27 @@ class _ManagementBar extends ConsumerWidget {
               icon: const Icon(Icons.lock_rounded),
               label: const Text('Rückmeldungen abschließen'),
             ),
-          OutlinedButton.icon(
-            onPressed: () => _edit(context, ref),
-            icon: const Icon(Icons.edit_rounded),
-            label: const Text('Bearbeiten'),
-          ),
+          if (!event.id.startsWith('training-plan:'))
+            OutlinedButton.icon(
+              onPressed: () => _edit(context, ref),
+              icon: const Icon(Icons.edit_rounded),
+              label: const Text('Bearbeiten'),
+            ),
           if (event.type == EventType.match && event.capabilities.canReschedule)
             OutlinedButton.icon(
               onPressed: () => _edit(context, ref),
               icon: const Icon(Icons.event_repeat_rounded),
               label: const Text('Spiel verlegen'),
             ),
-          if (!event.isCancelled)
+          if (!event.isCancelled && event.capabilities.canCancel)
             FilledButton.tonalIcon(
               onPressed: () => _cancel(context, ref),
               icon: const Icon(Icons.event_busy_rounded),
-              label: const Text('Absagen'),
+              label: Text(
+                event.category == EventCategory.training
+                    ? 'Dieses Training absagen'
+                    : 'Absagen',
+              ),
             ),
           if (event.capabilities.canDelete)
             OutlinedButton.icon(
@@ -3449,7 +3467,10 @@ class _ManagementBar extends ConsumerWidget {
               label: Text(
                 event.type == EventType.match
                     ? 'Spiel löschen'
-                    : 'Termin löschen',
+                    : event.category == EventCategory.training &&
+                            event.isCancelled
+                        ? 'Abgesagtes Training endgültig löschen'
+                        : 'Termin löschen',
               ),
             ),
         ],
@@ -3528,12 +3549,23 @@ class _ManagementBar extends ConsumerWidget {
     if (result == null) return;
     try {
       final repository = ref.read(repositoryProvider);
-      await repository.cancelEvent(
-        eventId: event.id,
-        reason: result.reason,
-        entireSeries: result.entireSeries,
-      );
-      final confirmed = await repository.event(event.id);
+      final confirmed = event.id.startsWith('training-plan:')
+          ? await repository.cancelRegularTrainingOccurrence(
+              teamId: event.teamId,
+              title: event.title,
+              startAt: event.startAt,
+              endAt: event.endAt,
+              location: event.location,
+              reason: result.reason,
+            )
+          : await (() async {
+              await repository.cancelEvent(
+                eventId: event.id,
+                reason: result.reason,
+                entireSeries: result.entireSeries,
+              );
+              return repository.event(event.id);
+            })();
       if (!confirmed.isCancelled) {
         throw StateError('Terminabsage wurde nicht bestätigt.');
       }
@@ -3679,7 +3711,9 @@ class _ManagementBar extends ConsumerWidget {
       );
       ref.invalidate(eventsProvider);
       final refreshed = await ref.read(eventsProvider.future);
-      if (refreshed.any((item) => item.id == event.id)) {
+      if (refreshed.any(
+        (item) => item.id == event.id && !item.isHiddenRegularOccurrence,
+      )) {
         throw StateError('Der gelöschte Termin ist weiterhin vorhanden.');
       }
       if (context.mounted) {
@@ -3790,6 +3824,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   final weekdays = <int>{};
   String reminderMode = 'none';
   bool reminderPushEnabled = true;
+  EventNotificationMode notificationMode = EventNotificationMode.none;
   String? lastAutomaticLocation;
   late final TextEditingController customReminderMinutes;
   late final Future<List<PlayerModel>> participantPlayers;
@@ -4152,7 +4187,9 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                               ? 'Standard: Stadion am Kreutweg, Teugn · bei Bedarf änderbar'
                               : null,
                         ),
-                        validator: _required,
+                        validator: category.isMatch && homeAway == HomeAway.away
+                            ? (_) => null
+                            : _required,
                       ),
                       if (category.isMatch) ...[
                         const SizedBox(height: 12),
@@ -4269,6 +4306,12 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                               homeAway = value;
                               if (value == HomeAway.away) {
                                 pitchConflicts = const [];
+                                if (location.text.trim() == homeMatchVenue ||
+                                    location.text.trim() ==
+                                        lastAutomaticLocation) {
+                                  location.clear();
+                                  lastAutomaticLocation = null;
+                                }
                                 if (meetingLocation.text.trim().isEmpty) {
                                   meetingLocation.text = awayMeetingLocation;
                                 }
@@ -4505,6 +4548,70 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             );
                           },
                         ),
+                      if (widget.event == null) ...[
+                        const SizedBox(height: 18),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.teal.withValues(alpha: .08),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.line),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Beteiligte informieren',
+                                style: TextStyle(fontWeight: FontWeight.w900),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                category.isMatch
+                                    ? 'Spiele bleiben zunächst Entwurf und werden später über „Für Eltern & Spieler freigeben“ kommuniziert.'
+                                    : 'Empfängerkreis: ${limitParticipants ? '${participantPlayerIds.length} ausgewählte Kinder mit ihren Sorgeberechtigten' : '${teamIds.length} ausgewählte Mannschaft(en)'}.',
+                                style: const TextStyle(color: AppColors.muted),
+                              ),
+                              if (!category.isMatch) ...[
+                                RadioGroup<EventNotificationMode>(
+                                  groupValue: notificationMode,
+                                  onChanged: (value) => setState(
+                                    () => notificationMode =
+                                        value ?? EventNotificationMode.none,
+                                  ),
+                                  child: const Column(
+                                    children: [
+                                      RadioListTile<EventNotificationMode>(
+                                        contentPadding: EdgeInsets.zero,
+                                        value: EventNotificationMode.none,
+                                        title: Text('Keine Nachricht'),
+                                      ),
+                                      RadioListTile<EventNotificationMode>(
+                                        contentPadding: EdgeInsets.zero,
+                                        value: EventNotificationMode.inApp,
+                                        title: Text('In-App-Nachricht'),
+                                      ),
+                                      RadioListTile<EventNotificationMode>(
+                                        contentPadding: EdgeInsets.zero,
+                                        value: EventNotificationMode.push,
+                                        title: Text('In-App + Pushnachricht'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (notificationMode !=
+                                    EventNotificationMode.none)
+                                  Text(
+                                    'Vorschau: Neuer Termin: ${resolveEventTitle(title.text, category)} am ${startAt.day}.${startAt.month}.${startAt.year} um ${startAt.hour.toString().padLeft(2, '0')}:${startAt.minute.toString().padLeft(2, '0')} Uhr${location.text.trim().isEmpty ? '' : ' in ${location.text.trim()}'}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 18),
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
@@ -4994,6 +5101,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         pitchConflictMessage: _optional(pitchConflictMessage),
         participantPlayerIds:
             limitParticipants ? participantPlayerIds.toList() : null,
+        notificationMode:
+            category.isMatch ? EventNotificationMode.none : notificationMode,
       ),
     );
   }

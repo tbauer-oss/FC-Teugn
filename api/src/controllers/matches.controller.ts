@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import {
   EventType,
+  EventCommunicationStatus,
   AttendanceStatus,
   AccountStatus,
   HomeAway,
@@ -37,9 +38,11 @@ import {
 } from '../services/reminder.service';
 import { notifyUsers } from '../services/notification.service';
 import { settlePostCommitTasks } from '../services/post-commit.service';
-
-const HOME_MATCH_VENUE = 'Stadion am Kreutweg, Teugn';
-const AWAY_MEETING_LOCATION = 'Vereinsheim Teugn';
+import {
+  AWAY_MEETING_LOCATION,
+  HOME_MATCH_VENUE,
+  normalizedMatchVenue,
+} from '../services/match-venue.service';
 
 const matchInclude = {
   team: {
@@ -296,13 +299,17 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   canDelete = false,
   canReschedule = false,
   canCancel = canDelete,
+  canPublishInternal = staff,
+  canNominateSquad = staff,
+  canReleaseFamily = staff,
 ) {
   const squad = match.squads[0] ?? null;
   const lineup = squad?.lineup;
   const lineupTeam = match.targetTeams[0]?.team ?? match.team;
   const canSeeLineup =
     staff ||
-    (squad?.publishedAt !== null &&
+    (match.familyReleasedAt !== null &&
+      squad?.publishedAt !== null &&
       squad?.members.some((member) => viewerPlayerIds.includes(member.playerId)) === true &&
       lineup?.status === LineupStatus.PUBLISHED &&
       (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now()));
@@ -344,6 +351,9 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       canDelete,
       canReschedule,
       canCancel,
+      canPublishInternal,
+      canNominateSquad,
+      canReleaseFamily,
     },
     squads: squad && canSeePublishedSquad
       ? [
@@ -418,6 +428,10 @@ export async function listMatches(req: Request, res: Response) {
       viewerPlayerIds,
       canDelete,
       canReschedule,
+      hasEffectivePermission(user.role, Permission.MATCH_CANCEL, user.permissions),
+      hasEffectivePermission(user.role, Permission.PUBLISH_LINEUP_INTERNAL, user.permissions),
+      hasEffectivePermission(user.role, Permission.NOMINATE_SQUAD, user.permissions),
+      hasEffectivePermission(user.role, Permission.RELEASE_MATCH_FAMILY, user.permissions),
     ),
   ));
 }
@@ -469,6 +483,9 @@ export async function getMatch(req: Request, res: Response) {
     hasEffectivePermission(user.role, Permission.MATCH_DELETE, user.permissions),
     hasEffectivePermission(user.role, Permission.MATCH_RESCHEDULE, user.permissions),
     hasEffectivePermission(user.role, Permission.MATCH_CANCEL, user.permissions),
+    hasEffectivePermission(user.role, Permission.PUBLISH_LINEUP_INTERNAL, user.permissions),
+    hasEffectivePermission(user.role, Permission.NOMINATE_SQUAD, user.permissions),
+    hasEffectivePermission(user.role, Permission.RELEASE_MATCH_FAMILY, user.permissions),
   ));
 }
 
@@ -761,6 +778,19 @@ export async function updateMatch(req: Request, res: Response) {
   const body = req.body ?? {};
   const opponent = text(body.opponent, 120);
   if (!opponent) return res.status(400).json({ message: 'Der Gegner ist erforderlich.' });
+  const opponentId = text(body.opponentId, 100);
+  const opponentRecord = opponentId
+    ? await prisma.opponent.findFirst({
+        where: {
+          id: opponentId,
+          archivedAt: null,
+          ageGroup: { teams: { some: { id: match.teamId } } },
+        },
+      })
+    : null;
+  if (opponentId && !opponentRecord) {
+    return res.status(400).json({ message: 'Die gegnerische Mannschaft ist nicht verfügbar.' });
+  }
   const bfvUrl = text(body.bfvUrl, 500);
   if (bfvUrl) {
     try {
@@ -790,47 +820,75 @@ export async function updateMatch(req: Request, res: Response) {
     });
   }
   const durationMinutes = periodCount * periodMinutes;
-  const details = await prisma.matchDetails.upsert({
-    where: { eventId: match.id },
-    update: {
-      opponent,
-      opponentShortName: text(body.opponentShortName, 30),
-      opponentLogoUrl: text(body.opponentLogoUrl, 500),
-      isHome: body.isHome !== false,
-      kind: enumValue(MatchKind, body.kind, MatchKind.FRIENDLY),
-      status: enumValue(MatchStatus, body.status, MatchStatus.PLANNED),
-      competition: text(body.competition, 120),
-      division: text(body.division, 120),
-      matchDay: text(body.matchDay, 50),
-      pitch: text(body.pitch, 100),
-      referee: text(body.referee, 100),
-      durationMinutes,
-      periodMinutes,
-      periodCount,
-      bfvMatchId: text(body.bfvMatchId, 100),
-      bfvUrl,
-      notes: text(body.notes, 2000),
-    },
-    create: {
-      eventId: match.id,
-      opponent,
-      opponentShortName: text(body.opponentShortName, 30),
-      opponentLogoUrl: text(body.opponentLogoUrl, 500),
-      isHome: body.isHome !== false,
-      kind: enumValue(MatchKind, body.kind, MatchKind.FRIENDLY),
-      status: enumValue(MatchStatus, body.status, MatchStatus.PLANNED),
-      competition: text(body.competition, 120),
-      division: text(body.division, 120),
-      matchDay: text(body.matchDay, 50),
-      pitch: text(body.pitch, 100),
-      referee: text(body.referee, 100),
-      durationMinutes,
-      periodMinutes,
-      periodCount,
-      bfvMatchId: text(body.bfvMatchId, 100),
-      bfvUrl,
-      notes: text(body.notes, 2000),
-    },
+  const isHome = body.isHome !== false;
+  const location = normalizedMatchVenue({
+    isHome,
+    requested: text(body.location, 160),
+    previous: match.location,
+    previousWasHome: match.matchDetails?.isHome !== false,
+    opponentVenue: opponentRecord?.venue,
+    opponentAddress: opponentRecord?.address,
+  });
+  const meetingLocation = isHome
+    ? text(body.meetingLocation, 160) ?? match.meetingLocation
+    : text(body.meetingLocation, 160) ?? AWAY_MEETING_LOCATION;
+  const details = await prisma.$transaction(async (tx) => {
+    const saved = await tx.matchDetails.upsert({
+      where: { eventId: match.id },
+      update: {
+        opponent,
+        opponentId: opponentRecord?.id ?? null,
+        opponentShortName: text(body.opponentShortName, 30),
+        opponentLogoUrl: text(body.opponentLogoUrl, 500),
+        isHome,
+        kind: enumValue(MatchKind, body.kind, MatchKind.FRIENDLY),
+        status: enumValue(MatchStatus, body.status, MatchStatus.PLANNED),
+        competition: text(body.competition, 120),
+        division: text(body.division, 120),
+        matchDay: text(body.matchDay, 50),
+        pitch: text(body.pitch, 100),
+        referee: text(body.referee, 100),
+        durationMinutes,
+        periodMinutes,
+        periodCount,
+        bfvMatchId: text(body.bfvMatchId, 100),
+        bfvUrl,
+        notes: text(body.notes, 2000),
+      },
+      create: {
+        eventId: match.id,
+        opponent,
+        opponentId: opponentRecord?.id ?? null,
+        opponentShortName: text(body.opponentShortName, 30),
+        opponentLogoUrl: text(body.opponentLogoUrl, 500),
+        isHome,
+        kind: enumValue(MatchKind, body.kind, MatchKind.FRIENDLY),
+        status: enumValue(MatchStatus, body.status, MatchStatus.PLANNED),
+        competition: text(body.competition, 120),
+        division: text(body.division, 120),
+        matchDay: text(body.matchDay, 50),
+        pitch: text(body.pitch, 100),
+        referee: text(body.referee, 100),
+        durationMinutes,
+        periodMinutes,
+        periodCount,
+        bfvMatchId: text(body.bfvMatchId, 100),
+        bfvUrl,
+        notes: text(body.notes, 2000),
+      },
+    });
+    await tx.event.update({
+      where: { id: match.id },
+      data: {
+        opponent,
+        homeAway: isHome ? HomeAway.HOME : HomeAway.AWAY,
+        location,
+        address:
+          text(body.address, 240) ?? opponentRecord?.address ?? match.address,
+        meetingLocation,
+      },
+    });
+    return saved;
   });
   await prisma.auditLog.create({
     data: {
@@ -902,15 +960,17 @@ export async function rescheduleMatch(req: Request, res: Response) {
   const isHome = req.body?.isHome === undefined
     ? match.matchDetails?.isHome !== false
     : req.body.isHome === true;
-  const location = isHome
-    ? HOME_MATCH_VENUE
-    : text(req.body?.location, 160) ?? match.location;
+  const location = normalizedMatchVenue({
+    isHome,
+    requested: text(req.body?.location, 160),
+    previous: match.location,
+    previousWasHome: match.matchDetails?.isHome !== false,
+    opponentVenue: match.matchDetails?.opponentRecord?.venue,
+    opponentAddress: match.matchDetails?.opponentRecord?.address,
+  });
   const meetingLocation = isHome
     ? text(req.body?.meetingLocation, 160)
     : text(req.body?.meetingLocation, 160) ?? AWAY_MEETING_LOCATION;
-  if (!location) {
-    return res.status(400).json({ message: 'Bitte einen neuen Spielort angeben.' });
-  }
   const durationMinutes = match.matchDetails?.durationMinutes ?? 60;
   const endAt = validDate(req.body?.endAt) ??
     new Date(startAt.getTime() + durationMinutes * 60_000);
@@ -1108,6 +1168,10 @@ export async function rescheduleMatch(req: Request, res: Response) {
     [],
     hasEffectivePermission(user.role, Permission.MATCH_DELETE, user.permissions),
     hasEffectivePermission(user.role, Permission.MATCH_RESCHEDULE, user.permissions),
+    hasEffectivePermission(user.role, Permission.MATCH_CANCEL, user.permissions),
+    hasEffectivePermission(user.role, Permission.PUBLISH_LINEUP_INTERNAL, user.permissions),
+    hasEffectivePermission(user.role, Permission.NOMINATE_SQUAD, user.permissions),
+    hasEffectivePermission(user.role, Permission.RELEASE_MATCH_FAMILY, user.permissions),
   ) : null);
 }
 
@@ -1343,7 +1407,7 @@ export async function publishSquad(req: Request, res: Response) {
     ];
     summaries.push(await notifyUsers(recipientIds, {
       category: NotificationCategory.NOMINATION,
-      title: 'Kader veröffentlicht',
+      title: 'Kadernominierung – Rückmeldung erforderlich',
       body: `${playerName} wurde für „${match.title}“ nominiert. Bitte jetzt zu- oder absagen.`,
       actionUrl: `/family?eventId=${match.id}&playerId=${member.playerId}`,
       entityType: 'AttendanceRequest',
@@ -1366,6 +1430,230 @@ export async function publishSquad(req: Request, res: Response) {
       pushEnabled: req.body.pushEnabled !== false,
     },
   });
+}
+
+function matchTeamIds(match: { teamId: string; targetTeams: Array<{ teamId: string }> }) {
+  return match.targetTeams.length
+    ? match.targetTeams.map((target) => target.teamId)
+    : [match.teamId];
+}
+
+async function nominatedAudience(eventId: string) {
+  const squad = await prisma.squad.findUnique({
+    where: { eventId },
+    include: {
+      members: {
+        where: { status: NominationStatus.NOMINATED },
+        include: {
+          player: {
+            include: {
+              parentLinks: {
+                where: { receivesCommunication: true },
+                select: { parentId: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  const recipients = new Set<string>();
+  squad?.members.forEach((member) => {
+    if (member.player.userId) recipients.add(member.player.userId);
+    member.player.parentLinks.forEach((link) => recipients.add(link.parentId));
+  });
+  return { squad, recipients: [...recipients] };
+}
+
+export async function nominationPreview(req: Request, res: Response) {
+  const match = await findMatch(req.params.id, req.user!);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const { squad, recipients } = await nominatedAudience(match.id);
+  if (!squad?.members.length) {
+    return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
+  }
+  return res.json({
+    matchId: match.id,
+    title: match.title,
+    opponent: match.matchDetails?.opponent ?? match.opponent,
+    players: squad.members.map((member) => ({
+      id: member.playerId,
+      name: member.player.preferredName ||
+        `${member.player.firstName} ${member.player.lastName}`.trim(),
+    })),
+    recipients: recipients.length,
+  });
+}
+
+export async function publishMatchInternally(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const teamIds = matchTeamIds(match);
+  const staff = await prisma.teamMembership.findMany({
+    where: {
+      teamId: { in: teamIds },
+      status: AccountStatus.APPROVED,
+      role: { in: ['COACH', 'TRAINER', 'ASSISTANT_COACH', 'TEAM_MANAGER'] },
+      user: { status: AccountStatus.APPROVED },
+    },
+    select: { userId: true },
+  });
+  const recipientIds = [...new Set(staff.map((entry) => entry.userId))]
+    .filter((id) => id !== user.id);
+  const squad = match.squads[0];
+  const lineup = squad?.lineup;
+  const delivery = await notifyUsers(recipientIds, {
+    category: NotificationCategory.MATCH,
+    title: 'Kader und Aufstellung intern veröffentlicht',
+    body: `${match.title}: ${squad?.members.length ?? 0} Kaderspieler, ${lineup?.positions.length ?? 0} Aufstellungspositionen und ${lineup?.substitutions.length ?? 0} geplante Wechsel.`,
+    actionUrl: `/matches/${match.id}`,
+    entityType: 'MatchInternalPublication',
+    entityId: match.id,
+    dedupeKey: `match-internal:${match.id}:${squad?.updatedAt.getTime() ?? 0}:${lineup?.updatedAt.getTime() ?? 0}`,
+    forceInApp: true,
+    pushEnabled: req.body.pushEnabled === true,
+  });
+  await prisma.$transaction([
+    prisma.event.update({
+      where: { id: match.id },
+      data: {
+        communicationStatus: EventCommunicationStatus.INTERNAL_PUBLISHED,
+        internalPublishedAt: new Date(),
+      },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: match.teamId,
+        action: 'MATCH_INTERNALLY_PUBLISHED',
+        entityType: 'Event',
+        entityId: match.id,
+        metadata: { recipientIds, pushEnabled: req.body.pushEnabled === true, delivery },
+      },
+    }),
+    ...(lineup
+      ? [prisma.lineup.update({
+          where: { id: lineup.id },
+          data: {
+            status: LineupStatus.PUBLISHED,
+            publishedAt: new Date(),
+          },
+        })]
+      : []),
+  ]);
+  return res.json({ status: 'INTERNAL_PUBLISHED', recipients: recipientIds.length, delivery });
+}
+
+async function fullTeamFamilyAudience(teamIds: string[]) {
+  const players = await prisma.player.findMany({
+    where: { teamId: { in: teamIds }, status: PlayerStatus.ACTIVE },
+    include: {
+      parentLinks: {
+        where: { receivesCommunication: true },
+        select: { parentId: true },
+      },
+    },
+  });
+  const recipients = new Set<string>();
+  players.forEach((player) => {
+    if (player.userId) recipients.add(player.userId);
+    player.parentLinks.forEach((link) => recipients.add(link.parentId));
+  });
+  return { players, recipients: [...recipients] };
+}
+
+export async function familyReleasePreview(req: Request, res: Response) {
+  const match = await findMatch(req.params.id, req.user!);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const nominated = await nominatedAudience(match.id);
+  const audienceMode = nominated.squad?.members.length ? 'NOMINATED_SQUAD' : 'FULL_TEAM_REQUIRED';
+  const full = audienceMode === 'FULL_TEAM_REQUIRED'
+    ? await fullTeamFamilyAudience(matchTeamIds(match))
+    : null;
+  return res.json({
+    team: match.targetTeams[0]?.team.name ?? match.team.ageGroup.code,
+    category: match.category,
+    opponent: match.matchDetails?.opponent ?? match.opponent,
+    startAt: match.startAt,
+    meetingAt: match.meetingAt,
+    meetingLocation: match.meetingLocation,
+    location: match.location,
+    isHome: match.matchDetails?.isHome !== false,
+    audienceMode,
+    players: nominated.squad?.members.length ?? full?.players.length ?? 0,
+    recipients: nominated.recipients.length || full?.recipients.length || 0,
+    alreadyReleased: Boolean(match.familyReleasedAt),
+  });
+}
+
+export async function releaseMatchToFamilies(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  if (match.familyReleasedAt) {
+    return res.json({ status: 'FAMILY_RELEASED', alreadyReleased: true, delivery: null });
+  }
+  const nominated = await nominatedAudience(match.id);
+  const hasSquad = Boolean(nominated.squad?.members.length);
+  if (!hasSquad && req.body.audienceMode !== 'FULL_TEAM') {
+    return res.status(409).json({
+      message: 'Ohne nominierten Kader muss die gesamte Mannschaft ausdrücklich gewählt werden.',
+    });
+  }
+  const full = hasSquad ? null : await fullTeamFamilyAudience(matchTeamIds(match));
+  const recipientIds = hasSquad ? nominated.recipients : full!.recipients;
+  const local = match.startAt.toLocaleString('de-DE', {
+    timeZone: 'Europe/Berlin',
+    dateStyle: 'full',
+    timeStyle: 'short',
+  });
+  const opponent = match.matchDetails?.opponent ?? match.opponent ?? 'den Gegner';
+  const delivery = await notifyUsers(recipientIds, {
+    category: NotificationCategory.MATCH,
+    title: 'Spiel freigegeben',
+    body: `${match.title} gegen ${opponent} wurde für ${local} Uhr freigegeben. Treffpunkt: ${match.meetingLocation ?? 'noch offen'}.`,
+    actionUrl: `/matches/${match.id}`,
+    entityType: 'MatchFamilyRelease',
+    entityId: match.id,
+    dedupeKey: `match-family-release:${match.id}`,
+    forceInApp: true,
+    forcePush: true,
+  });
+  await prisma.$transaction([
+    prisma.event.update({
+      where: { id: match.id },
+      data: {
+        communicationStatus: EventCommunicationStatus.FAMILY_RELEASED,
+        familyReleasedAt: new Date(),
+        familyReleaseAudience: hasSquad ? 'NOMINATED_SQUAD' : 'FULL_TEAM',
+      },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: match.teamId,
+        action: 'MATCH_RELEASED_TO_FAMILIES',
+        entityType: 'Event',
+        entityId: match.id,
+        metadata: {
+          audience: hasSquad ? 'NOMINATED_SQUAD' : 'FULL_TEAM',
+          recipientIds,
+          delivery,
+        },
+      },
+    }),
+    ...(match.squads[0]?.lineup
+      ? [prisma.lineup.update({
+          where: { id: match.squads[0].lineup.id },
+          data: {
+            status: LineupStatus.PUBLISHED,
+            publishedAt: new Date(),
+          },
+        })]
+      : []),
+  ]);
+  return res.json({ status: 'FAMILY_RELEASED', alreadyReleased: false, recipients: recipientIds.length, delivery });
 }
 
 export async function updateLineup(req: Request, res: Response) {

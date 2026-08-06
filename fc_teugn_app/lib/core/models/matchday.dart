@@ -66,6 +66,13 @@ class MatchdayModel {
     this.teamFormationOptions = const [],
     this.canManageTicker = false,
     this.canDelegateTicker = false,
+    this.communicationStatus = EventCommunicationStatus.draft,
+    this.internalPublishedAt,
+    this.familyReleasedAt,
+    this.familyReleaseAudience,
+    this.canPublishInternal = false,
+    this.canNominateSquad = false,
+    this.canReleaseFamily = false,
   });
 
   final String id;
@@ -85,6 +92,13 @@ class MatchdayModel {
   final List<String> teamFormationOptions;
   final bool canManageTicker;
   final bool canDelegateTicker;
+  final EventCommunicationStatus communicationStatus;
+  final DateTime? internalPublishedAt;
+  final DateTime? familyReleasedAt;
+  final String? familyReleaseAudience;
+  final bool canPublishInternal;
+  final bool canNominateSquad;
+  final bool canReleaseFamily;
 
   factory MatchdayModel.fromJson(Map<String, dynamic> json) {
     final squads = json['squads'] as List<dynamic>? ?? const [];
@@ -130,6 +144,21 @@ class MatchdayModel {
               .toList(),
       canManageTicker: capabilities?['canManageTicker'] as bool? ?? false,
       canDelegateTicker: capabilities?['canDelegateTicker'] as bool? ?? false,
+      communicationStatus: _enum(
+        EventCommunicationStatus.values,
+        json['communicationStatus'],
+        EventCommunicationStatus.draft,
+      ),
+      internalPublishedAt: json['internalPublishedAt'] == null
+          ? null
+          : DateTime.parse(json['internalPublishedAt'] as String).toLocal(),
+      familyReleasedAt: json['familyReleasedAt'] == null
+          ? null
+          : DateTime.parse(json['familyReleasedAt'] as String).toLocal(),
+      familyReleaseAudience: json['familyReleaseAudience'] as String?,
+      canPublishInternal: capabilities?['canPublishInternal'] as bool? ?? false,
+      canNominateSquad: capabilities?['canNominateSquad'] as bool? ?? false,
+      canReleaseFamily: capabilities?['canReleaseFamily'] as bool? ?? false,
     );
   }
 }

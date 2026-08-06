@@ -86,4 +86,19 @@ void main() {
     expect(payload['periodMinutes'], 15);
     expect(payload['durationMinutes'], 60);
   });
+
+  test('event notification mode and exact user audience are serialized', () {
+    final payload = EventWriteData(
+      category: EventCategory.clubEvent,
+      title: 'Arbeitseinsatz',
+      startAt: DateTime(2026, 9, 12, 10),
+      location: 'Stadion am Kreutweg, Teugn',
+      teamIds: const ['team-e1'],
+      participantUserIds: const ['user-1', 'user-2'],
+      notificationMode: EventNotificationMode.push,
+    ).toJson();
+
+    expect(payload['participantUserIds'], ['user-1', 'user-2']);
+    expect(payload['notificationMode'], 'PUSH');
+  });
 }

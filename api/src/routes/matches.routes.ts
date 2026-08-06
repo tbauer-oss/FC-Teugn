@@ -5,6 +5,10 @@ import {
   getMatch,
   getTicker,
   getTickerDelegation,
+  familyReleasePreview,
+  nominationPreview,
+  publishMatchInternally,
+  releaseMatchToFamilies,
   listMatches,
   publishSquad,
   resetTicker,
@@ -54,7 +58,11 @@ router.patch(
   rescheduleMatch,
 );
 router.put('/:id/squad', requirePermission(Permission.MANAGE_LINEUPS), updateSquad);
-router.post('/:id/squad/publish', requirePermission(Permission.MANAGE_LINEUPS), publishSquad);
+router.get('/:id/squad/nomination-preview', requirePermission(Permission.NOMINATE_SQUAD), nominationPreview);
+router.post('/:id/squad/publish', requirePermission(Permission.NOMINATE_SQUAD), publishSquad);
+router.post('/:id/internal-publish', requirePermission(Permission.PUBLISH_LINEUP_INTERNAL), publishMatchInternally);
+router.get('/:id/family-release-preview', requirePermission(Permission.RELEASE_MATCH_FAMILY), familyReleasePreview);
+router.post('/:id/family-release', requirePermission(Permission.RELEASE_MATCH_FAMILY), releaseMatchToFamilies);
 router.put('/:id/lineup', requirePermission(Permission.MANAGE_LINEUPS), updateLineup);
 router.get('/:id/ticker', getTicker);
 router.get('/:id/ticker/delegation', getTickerDelegation);

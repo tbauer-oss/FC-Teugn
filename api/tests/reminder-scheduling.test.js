@@ -13,7 +13,8 @@ const organization = fs.readFileSync(
 );
 
 test('regular training reminders support an explicit opt-out', () => {
-  assert.match(service, /if \(team\.defaultReminderMinutes == null\) continue/);
+  assert.match(service, /if \(reminderMinutes\.length === 0\) continue/);
+  assert.match(service, /secondaryReminderMinutes/);
   assert.doesNotMatch(service, /defaultReminderMinutes \?\? 60/);
 });
 

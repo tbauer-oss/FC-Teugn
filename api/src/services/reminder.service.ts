@@ -10,7 +10,10 @@ import {
 import { prisma } from '../lib/prisma';
 import { notifyUsers } from './notification.service';
 
-export async function reminderRecipientsForEvent(eventId: string) {
+export async function reminderRecipientsForEvent(
+  eventId: string,
+  options: { includeDeclined?: boolean } = {},
+) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: {
@@ -42,7 +45,11 @@ export async function reminderRecipientsForEvent(eventId: string) {
   if (event.participants.length) {
     for (const participant of event.participants) {
       if (participant.userId) recipientIds.add(participant.userId);
-      if (participant.playerId && declinedPlayerIds.has(participant.playerId)) {
+      if (
+        !options.includeDeclined &&
+        participant.playerId &&
+        declinedPlayerIds.has(participant.playerId)
+      ) {
         continue;
       }
       if (participant.player?.userId) recipientIds.add(participant.player.userId);
@@ -72,7 +79,7 @@ export async function reminderRecipientsForEvent(eventId: string) {
       }),
     ]);
     players.forEach((player) => {
-      if (declinedPlayerIds.has(player.id)) return;
+      if (!options.includeDeclined && declinedPlayerIds.has(player.id)) return;
       if (player.userId) recipientIds.add(player.userId);
       player.parentLinks.forEach((link) => recipientIds.add(link.parentId));
     });
@@ -88,15 +95,17 @@ export async function syncScheduledRemindersForEvent(eventId: string) {
     where: { id: event.teamId },
     select: {
       defaultReminderMinutes: true,
+      secondaryReminderMinutes: true,
       defaultReminderPushEnabled: true,
     },
   });
   const reminderMinutes = event.reminderMinutes.length
     ? event.reminderMinutes
     : event.category === EventCategory.TRAINING && event.seriesId
-      ? team?.defaultReminderMinutes == null
-        ? []
-        : [team.defaultReminderMinutes]
+      ? [...new Set([
+          team?.secondaryReminderMinutes,
+          team?.defaultReminderMinutes,
+        ].filter((value): value is number => value != null))]
       : [];
   const desiredJobs: Prisma.ScheduledReminderCreateManyInput[] = [];
   for (const recipientId of recipientIds) {
@@ -291,6 +300,7 @@ async function processRegularTrainingReminders(now: Date) {
       id: true,
       name: true,
       defaultReminderMinutes: true,
+      secondaryReminderMinutes: true,
       defaultReminderPushEnabled: true,
       seasonStartDate: true,
       seasonEndDate: true,
@@ -318,6 +328,14 @@ async function processRegularTrainingReminders(now: Date) {
         },
         select: { userId: true },
       },
+      events: {
+        where: {
+          category: EventCategory.TRAINING,
+          isSeriesException: true,
+          status: EventStatus.CANCELLED,
+        },
+        select: { startAt: true },
+      },
     },
   });
   let sent = 0;
@@ -331,47 +349,69 @@ async function processRegularTrainingReminders(now: Date) {
     const indoor = team.indoorSeasonStartDate && team.indoorSeasonEndDate &&
       berlinNow >= team.indoorSeasonStartDate && berlinNow <= team.indoorSeasonEndDate;
     const slots = indoor ? team.indoorTrainingTimes : team.trainingTimes;
-    // `null` is the explicit opt-out selected by the trainer. Existing teams
-    // receive the database default of 60 minutes.
-    if (team.defaultReminderMinutes == null) continue;
-    const minutesBefore = team.defaultReminderMinutes;
+    const reminderMinutes = [...new Set([
+      team.secondaryReminderMinutes,
+      team.defaultReminderMinutes,
+    ].filter((value): value is number => value != null))];
+    if (reminderMinutes.length === 0) continue;
     for (const raw of slots) {
       const slot = parseRegularTrainingSlot(raw);
-      if (!slot || slot.weekday !== berlinNow.getDay()) continue;
+      if (!slot) continue;
+      const dayOffset = (slot.weekday - berlinNow.getDay() + 7) % 7;
       const start = new Date(
         berlinNow.getFullYear(),
         berlinNow.getMonth(),
-        berlinNow.getDate(),
+        berlinNow.getDate() + dayOffset,
         slot.hour,
         slot.minute,
       );
-      const minutesUntil = (start.getTime() - berlinNow.getTime()) / 60_000;
-      if (minutesUntil > minutesBefore || minutesUntil <= minutesBefore - 5) continue;
+      if (start <= berlinNow) start.setDate(start.getDate() + 7);
+      const occurrenceKey = [
+        start.getFullYear(),
+        String(start.getMonth() + 1).padStart(2, '0'),
+        String(start.getDate()).padStart(2, '0'),
+        String(start.getHours()).padStart(2, '0'),
+        String(start.getMinutes()).padStart(2, '0'),
+      ].join('-');
+      const cancelled = team.events.some((event) => {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Europe/Berlin',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hourCycle: 'h23',
+        }).formatToParts(event.startAt);
+        const value = (type: Intl.DateTimeFormatPartTypes) =>
+          parts.find((part) => part.type === type)?.value ?? '';
+        return [value('year'), value('month'), value('day'), value('hour'), value('minute')]
+          .join('-') === occurrenceKey;
+      });
+      if (cancelled) continue;
       const recipients = new Set<string>();
       team.players.forEach((player) => {
         if (player.userId) recipients.add(player.userId);
         player.parentLinks.forEach((link) => recipients.add(link.parentId));
       });
       team.memberships.forEach((membership) => recipients.add(membership.userId));
-      const occurrence = [
-        start.getFullYear(),
-        String(start.getMonth() + 1).padStart(2, '0'),
-        String(start.getDate()).padStart(2, '0'),
-        String(slot.hour).padStart(2, '0'),
-        String(slot.minute).padStart(2, '0'),
-      ].join('-');
-      for (const recipientId of recipients) {
-        const result = await notifyUsers([recipientId], {
-          category: NotificationCategory.EVENT_REMINDER,
-          title: 'Training steht an',
-          body: `Das reguläre Training von ${team.name} beginnt um ${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')} Uhr.`,
-          actionUrl: '/events',
-          entityType: 'Team',
-          entityId: team.id,
-          dedupeKey: `regular-training:${team.id}:${occurrence}:${recipientId}`,
-          pushEnabled: team.defaultReminderPushEnabled,
-        });
-        if (result.notifications > 0) sent += 1;
+      const occurrence = occurrenceKey;
+      for (const minutesBefore of reminderMinutes) {
+        const minutesUntil = (start.getTime() - berlinNow.getTime()) / 60_000;
+        if (minutesUntil > minutesBefore || minutesUntil <= minutesBefore - 5) continue;
+        for (const recipientId of recipients) {
+          const result = await notifyUsers([recipientId], {
+            category: NotificationCategory.EVENT_REMINDER,
+            title: 'Training steht an',
+            body: `Das reguläre Training von ${team.name} beginnt um ${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')} Uhr.`,
+            actionUrl: '/events',
+            entityType: 'Team',
+            entityId: team.id,
+            dedupeKey: `regular-training:${team.id}:${occurrence}:${minutesBefore}:${recipientId}`,
+            pushEnabled: team.defaultReminderPushEnabled,
+          });
+          if (result.notifications > 0) sent += 1;
+        }
       }
     }
   }

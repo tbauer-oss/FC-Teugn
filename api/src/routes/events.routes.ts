@@ -1,6 +1,7 @@
 import { asyncRouter } from '../middleware/async-handler';
 import {
   calendarSubscription,
+  cancelRegularTrainingOccurrence,
   createCarpoolOffer,
   createEvent,
   deleteEvent,
@@ -42,6 +43,11 @@ router.use(idempotencyMiddleware);
 
 router.get('/', listEvents);
 router.get('/personal-responses/list', listPersonalResponses);
+router.post(
+  '/regular-training-occurrences/cancel',
+  requirePermission(Permission.CANCEL_TRAINING_OCCURRENCE),
+  cancelRegularTrainingOccurrence,
+);
 router.get(
   '/pitch-conflict-requests/list',
   requirePermission(Permission.MANAGE_EVENTS),

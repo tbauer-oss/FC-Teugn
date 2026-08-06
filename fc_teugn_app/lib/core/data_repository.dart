@@ -342,6 +342,7 @@ class DataRepository {
     required List<String> trainingPartnerIds,
     required List<String> matchdayTimes,
     required int? defaultReminderMinutes,
+    required int? secondaryReminderMinutes,
     required bool defaultReminderPushEnabled,
     String? trainingLocation,
   }) async {
@@ -353,6 +354,7 @@ class DataRepository {
         'trainingPartnerIds': trainingPartnerIds,
         'matchdayTimes': matchdayTimes,
         'defaultReminderMinutes': defaultReminderMinutes,
+        'secondaryReminderMinutes': secondaryReminderMinutes,
         'defaultReminderPushEnabled': defaultReminderPushEnabled,
       },
     );
@@ -948,6 +950,29 @@ class DataRepository {
     );
   }
 
+  Future<EventModel> cancelRegularTrainingOccurrence({
+    required String teamId,
+    required String title,
+    required DateTime startAt,
+    DateTime? endAt,
+    required String location,
+    String? reason,
+  }) async {
+    final response = await client.dio.post(
+      '/events/regular-training-occurrences/cancel',
+      data: {
+        'teamId': teamId,
+        'title': title,
+        'startAt': startAt.toUtc().toIso8601String(),
+        'endAt': endAt?.toUtc().toIso8601String(),
+        'location': location,
+        'reason': reason,
+      },
+      options: Options(extra: const {'requireOnline': true}),
+    );
+    return EventModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<void> deleteEventPermanently({
     required String eventId,
     bool entireSeries = false,
@@ -965,7 +990,7 @@ class DataRepository {
     );
   }
 
-  Future<void> setAttendance({
+  Future<EventModel> setAttendance({
     required String eventId,
     required String playerId,
     required AttendanceStatus status,
@@ -973,13 +998,16 @@ class DataRepository {
     bool? goalkeeperAvailable,
     bool personalResponse = false,
   }) async {
-    await client.dio.post('/events/$eventId/attendance', data: {
+    final response =
+        await client.dio.post('/events/$eventId/attendance', data: {
       'playerId': playerId,
       'status': status.apiName,
       'reason': reason,
       'goalkeeperAvailable': goalkeeperAvailable,
       if (personalResponse) 'responseMode': 'PERSONAL_GUARDIAN',
     });
+    final payload = response.data as Map<String, dynamic>;
+    return EventModel.fromJson(payload['event'] as Map<String, dynamic>);
   }
 
   Future<List<PersonalResponseModel>> personalResponses() async {
@@ -1202,6 +1230,42 @@ class DataRepository {
     final response = await client.dio.post(
       '/matches/$eventId/squad/publish',
       data: {'pushEnabled': pushEnabled, 'resendAll': resendAll},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> nominationPreview(String eventId) async {
+    final response =
+        await client.dio.get('/matches/$eventId/squad/nomination-preview');
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> publishMatchInternally(
+    String eventId, {
+    bool pushEnabled = true,
+  }) async {
+    final response = await client.dio.post(
+      '/matches/$eventId/internal-publish',
+      data: {'pushEnabled': pushEnabled},
+      options: Options(extra: const {'requireOnline': true}),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> familyReleasePreview(String eventId) async {
+    final response =
+        await client.dio.get('/matches/$eventId/family-release-preview');
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> releaseMatchToFamilies(
+    String eventId, {
+    bool fullTeam = false,
+  }) async {
+    final response = await client.dio.post(
+      '/matches/$eventId/family-release',
+      data: {'audienceMode': fullTeam ? 'FULL_TEAM' : 'NOMINATED_SQUAD'},
+      options: Options(extra: const {'requireOnline': true}),
     );
     return response.data as Map<String, dynamic>;
   }

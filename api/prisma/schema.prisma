@@ -71,6 +71,12 @@ enum EventStatus {
   CANCELLED
 }
 
+enum EventCommunicationStatus {
+  DRAFT
+  INTERNAL_PUBLISHED
+  FAMILY_RELEASED
+}
+
 enum EventVisibility {
   TEAM
   CLUB
@@ -502,6 +508,7 @@ model Team {
   leagues                    League[]
   leagueEntries              LeagueEntry[]
   defaultReminderMinutes     Int?                        @default(60)
+  secondaryReminderMinutes   Int?                        @default(1440)
   defaultReminderPushEnabled Boolean                     @default(true)
 
   @@index([ageGroupId, isActive, deletedAt])
@@ -1042,6 +1049,7 @@ model Event {
   type                  EventType
   category              EventCategory          @default(SPECIAL_EVENT)
   status                EventStatus            @default(SCHEDULED)
+  communicationStatus   EventCommunicationStatus @default(DRAFT)
   visibility            EventVisibility        @default(TEAM)
   title                 String
   startAt               DateTime
@@ -1067,6 +1075,10 @@ model Event {
   reminderMinutes       Int[]                  @default([])
   reminderPushEnabled   Boolean                @default(true)
   isSeriesException     Boolean                @default(false)
+  isHiddenRegularOccurrence Boolean            @default(false)
+  internalPublishedAt   DateTime?
+  familyReleasedAt      DateTime?
+  familyReleaseAudience String?
   cancellationReason    String?
   cancelledAt           DateTime?
   attendanceFinalized   Boolean                @default(false)

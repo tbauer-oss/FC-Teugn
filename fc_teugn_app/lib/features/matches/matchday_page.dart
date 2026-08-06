@@ -206,6 +206,13 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           teamFormationOptions: current.teamFormationOptions,
           canManageTicker: current.canManageTicker,
           canDelegateTicker: current.canDelegateTicker,
+          communicationStatus: current.communicationStatus,
+          internalPublishedAt: current.internalPublishedAt,
+          familyReleasedAt: current.familyReleasedAt,
+          familyReleaseAudience: current.familyReleaseAudience,
+          canPublishInternal: current.canPublishInternal,
+          canNominateSquad: current.canNominateSquad,
+          canReleaseFamily: current.canReleaseFamily,
         );
         _match = updatedMatch;
         _online = true;
@@ -263,6 +270,13 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         teamFormationOptions: current.teamFormationOptions,
         canManageTicker: current.canManageTicker,
         canDelegateTicker: current.canDelegateTicker,
+        communicationStatus: current.communicationStatus,
+        internalPublishedAt: current.internalPublishedAt,
+        familyReleasedAt: current.familyReleasedAt,
+        familyReleaseAudience: current.familyReleaseAudience,
+        canPublishInternal: current.canPublishInternal,
+        canNominateSquad: current.canNominateSquad,
+        canReleaseFamily: current.canReleaseFamily,
       );
     });
   }
@@ -297,8 +311,169 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         teamFormationOptions: current.teamFormationOptions,
         canManageTicker: current.canManageTicker,
         canDelegateTicker: current.canDelegateTicker,
+        communicationStatus: current.communicationStatus,
+        internalPublishedAt: current.internalPublishedAt,
+        familyReleasedAt: current.familyReleasedAt,
+        familyReleaseAudience: current.familyReleaseAudience,
+        canPublishInternal: current.canPublishInternal,
+        canNominateSquad: current.canNominateSquad,
+        canReleaseFamily: current.canReleaseFamily,
       );
     });
+  }
+
+  Future<void> _publishInternally() async {
+    var pushEnabled = true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Kader und Aufstellung intern veröffentlichen?'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Nur Trainer, Co-Trainer und Mannschaftsverantwortliche der eigenen Mannschaft werden informiert. Eltern und Spieler erhalten noch keine Nachricht.',
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: pushEnabled,
+                  onChanged: (value) => update(() => pushEnabled = value),
+                  title: const Text('Zusätzlich als Pushnachricht senden'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Intern veröffentlichen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      final result = await ref.read(repositoryProvider).publishMatchInternally(
+            widget.matchId,
+            pushEnabled: pushEnabled,
+          );
+      await _load();
+      if (mounted) {
+        final recipients = result['recipients'] as int? ?? 0;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Intern an $recipients Verantwortliche veröffentlicht.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Interne Veröffentlichung fehlgeschlagen: $error'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _releaseForFamilies() async {
+    try {
+      final repository = ref.read(repositoryProvider);
+      final preview = await repository.familyReleasePreview(widget.matchId);
+      if (!mounted) return;
+      final requiresFullTeam = preview['audienceMode'] == 'FULL_TEAM_REQUIRED';
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Spiel für Eltern und Spieler freigeben?'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ReleasePreviewRow('Mannschaft', '${preview['team'] ?? '–'}'),
+                  _ReleasePreviewRow(
+                      'Spielart', '${preview['category'] ?? '–'}'),
+                  _ReleasePreviewRow('Gegner', '${preview['opponent'] ?? '–'}'),
+                  _ReleasePreviewRow('Anstoß', _dateLine(_match!)),
+                  _ReleasePreviewRow(
+                    'Treffpunkt',
+                    '${preview['meetingLocation'] ?? 'Noch offen'}',
+                  ),
+                  _ReleasePreviewRow(
+                    'Spielstätte',
+                    '${preview['location'] ?? 'Noch offen'}',
+                  ),
+                  _ReleasePreviewRow(
+                    'Empfängerkreis',
+                    requiresFullTeam
+                        ? 'Gesamte Mannschaft'
+                        : 'Nominierter Kader',
+                  ),
+                  _ReleasePreviewRow(
+                    'Empfänger',
+                    '${preview['recipients'] ?? 0} Benutzer',
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Die Freigabe versendet verbindlich eine In-App- und Pushnachricht und wird nur einmal ausgeführt.',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.family_restroom_rounded),
+              label: const Text('Jetzt freigeben'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      final result = await repository.releaseMatchToFamilies(
+        widget.matchId,
+        fullTeam: requiresFullTeam,
+      );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['alreadyReleased'] == true
+                  ? 'Das Spiel war bereits freigegeben; keine doppelte Nachricht wurde versendet.'
+                  : 'Spiel wurde für Eltern und Spieler freigegeben.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Spielfreigabe fehlgeschlagen: $error')),
+        );
+      }
+    }
   }
 
   @override
@@ -342,6 +517,15 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
               const SizedBox(height: 12),
             ],
             _ScoreHero(match: match),
+            if (widget.staffView &&
+                (match.canPublishInternal || match.canReleaseFamily)) ...[
+              const SizedBox(height: 6),
+              _MatchCommunicationActions(
+                match: match,
+                onPublishInternal: _publishInternally,
+                onReleaseFamily: _releaseForFamilies,
+              ),
+            ],
             SizedBox(height: mobile ? 5 : 8),
             _MatchdayTabBar(compact: mobile),
             const SizedBox(height: 4),
@@ -389,6 +573,75 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     return '${date.day}.${date.month}.${date.year} · $time Uhr · ${match.location}';
   }
+}
+
+class _ReleasePreviewRow extends StatelessWidget {
+  const _ReleasePreviewRow(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 112,
+              child: Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            Expanded(child: Text(value)),
+          ],
+        ),
+      );
+}
+
+class _MatchCommunicationActions extends StatelessWidget {
+  const _MatchCommunicationActions({
+    required this.match,
+    required this.onPublishInternal,
+    required this.onReleaseFamily,
+  });
+
+  final MatchdayModel match;
+  final VoidCallback onPublishInternal;
+  final VoidCallback onReleaseFamily;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          alignment: WrapAlignment.center,
+          children: [
+            if (match.canPublishInternal)
+              OutlinedButton.icon(
+                onPressed: onPublishInternal,
+                icon: const Icon(
+                  Icons.admin_panel_settings_outlined,
+                  size: 18,
+                ),
+                label: const Text('Intern veröffentlichen'),
+              ),
+            if (match.canReleaseFamily && match.familyReleasedAt == null)
+              FilledButton.icon(
+                onPressed: onReleaseFamily,
+                icon: const Icon(Icons.family_restroom_rounded, size: 18),
+                label: const Text('Für Eltern & Spieler freigeben'),
+              )
+            else if (match.familyReleasedAt != null)
+              const Chip(
+                avatar: Icon(Icons.verified_rounded, size: 18),
+                label: Text('Für Familien freigegeben'),
+              ),
+          ],
+        ),
+      );
 }
 
 class _OfflineBanner extends StatelessWidget {
@@ -1342,9 +1595,11 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                         _saving || _selected.isEmpty ? null : _deselectAll,
                   ),
                   AdaptiveActionSpec(
-                    label: 'Veröffentlichen',
+                    label: 'Kader verbindlich nominieren',
                     icon: Icons.campaign_outlined,
-                    onPressed: _saving ? null : _publish,
+                    onPressed: _saving || !widget.match.canNominateSquad
+                        ? null
+                        : _publish,
                   ),
                   AdaptiveActionSpec(
                     label: _saving ? 'Wird gespeichert …' : 'Kader speichern',
@@ -1519,29 +1774,57 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
   Future<void> _publish() async {
     final repository = ref.read(repositoryProvider);
     if (!await _save() || !mounted) return;
+    late final Map<String, dynamic> preview;
+    try {
+      preview = await repository.nominationPreview(widget.match.id);
+    } catch (error) {
+      if (mounted) {
+        _message(
+            'Vorschau der Kadernominierung konnte nicht geladen werden: $error');
+      }
+      return;
+    }
+    if (!mounted) return;
     var pushEnabled = true;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Kader veröffentlichen?'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${_selected.length} nominierte Spieler erhalten jetzt eine Rückmeldeanfrage. Der gespeicherte Entwurf allein versendet nichts.',
-              ),
-              const SizedBox(height: 12),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                value: pushEnabled,
-                onChanged: (value) => setDialogState(() => pushEnabled = value),
-                title: const Text('Zusätzlich als Pushnachricht senden'),
-                subtitle:
-                    const Text('In-App wird die Anfrage immer bereitgestellt.'),
-              ),
-            ],
+          title: const Text('Kader nominieren und Rückmeldung anfordern?'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${preview['title'] ?? widget.match.title} · ${preview['opponent'] ?? widget.match.details?.opponent ?? 'Gegner'}',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  (preview['players'] as List<dynamic>? ?? const [])
+                      .map(
+                        (item) => (item as Map<String, dynamic>)['name'],
+                      )
+                      .join(', '),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${preview['recipients'] ?? 0} betroffene Spieleraccounts und Sorgeberechtigte erhalten eine In-App-Rückmeldungsanfrage.',
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: pushEnabled,
+                  onChanged: (value) =>
+                      setDialogState(() => pushEnabled = value),
+                  title: const Text('Zusätzlich als Pushnachricht senden'),
+                  subtitle: const Text(
+                    'In-App wird die Anfrage immer bereitgestellt.',
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -1551,7 +1834,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
             FilledButton.icon(
               onPressed: () => Navigator.pop(dialogContext, true),
               icon: const Icon(Icons.campaign_rounded),
-              label: const Text('Jetzt veröffentlichen'),
+              label: const Text('Verbindlich nominieren'),
             ),
           ],
         ),
@@ -1960,10 +2243,11 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                   label: const Text('Entwurf'),
                 ),
                 FilledButton.icon(
-                  onPressed:
-                      _saving ? null : () => _save(LineupStatus.published),
+                  onPressed: _saving
+                      ? null
+                      : () => _save(LineupStatus.internallyApproved),
                   icon: const Icon(Icons.publish_rounded),
-                  label: const Text('Veröffentlichen'),
+                  label: const Text('Aufstellung intern speichern'),
                 ),
               ];
               if (constraints.maxWidth < 700) {
@@ -2058,9 +2342,9 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                           child: FilledButton.icon(
                             onPressed: _saving
                                 ? null
-                                : () => _save(LineupStatus.published),
+                                : () => _save(LineupStatus.internallyApproved),
                             icon: const Icon(Icons.publish_rounded),
-                            label: const Text('Freigeben'),
+                            label: const Text('Intern speichern'),
                             style: FilledButton.styleFrom(
                               minimumSize: Size(0, compact ? 40 : 44),
                               visualDensity: VisualDensity.compact,
@@ -2795,8 +3079,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              status == LineupStatus.published
-                  ? 'Aufstellung wurde veröffentlicht.'
+              status == LineupStatus.internallyApproved
+                  ? 'Aufstellung wurde intern gespeichert.'
                   : 'Aufstellungsentwurf wurde gespeichert.',
             ),
           ),

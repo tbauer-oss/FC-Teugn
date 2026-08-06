@@ -31,7 +31,7 @@ void main() {
           );
           expect(find.text('Alle auswählen'), findsOneWidget);
           expect(find.text('Alle abwählen'), findsOneWidget);
-          expect(find.text('Veröffentlichen'), findsOneWidget);
+          expect(find.text('Kader verbindlich nominieren'), findsOneWidget);
           expect(find.text('Kader speichern'), findsOneWidget);
           expect(tester.takeException(), isNull);
         },

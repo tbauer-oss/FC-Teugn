@@ -9,6 +9,7 @@ void main() {
       'type': 'TRAINING',
       'category': 'FOOTBALL_FESTIVAL',
       'status': 'SCHEDULED',
+      'communicationStatus': 'FAMILY_RELEASED',
       'visibility': 'TEAM',
       'title': 'Festival',
       'startAt': '2026-08-03T16:00:00.000Z',
@@ -18,6 +19,8 @@ void main() {
       'location': 'Sportplatz',
       'opponentId': 'opponent-1',
       'carpoolRequired': true,
+      'familyReleasedAt': '2026-08-01T12:00:00.000Z',
+      'familyReleaseAudience': 'NOMINATED',
       'reminderMinutes': [1440, 120],
       'attendanceFinalized': false,
       'series': {
@@ -71,6 +74,12 @@ void main() {
     });
 
     expect(event.category, EventCategory.footballFestival);
+    expect(event.communicationStatus, EventCommunicationStatus.familyReleased);
+    expect(
+      event.familyReleasedAt,
+      DateTime.parse('2026-08-01T12:00:00.000Z').toLocal(),
+    );
+    expect(event.familyReleaseAudience, 'NOMINATED');
     expect(event.isRecurring, isTrue);
     expect(event.targetTeams.single.label, 'E-Jugend · E1');
     expect(event.attendanceFor('player-1')?.status, AttendanceStatus.yes);

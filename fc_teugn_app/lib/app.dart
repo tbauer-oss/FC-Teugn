@@ -454,10 +454,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   showOnMobile: false),
               if (authState.user?.parentPlayers.isNotEmpty == true)
                 const ShellDestination(
-                  label: 'Familie & Rückmeldungen',
+                  label: 'Meine Kinder & Rückmeldungen',
                   icon: Icons.family_restroom_rounded,
                   route: '/trainer/family',
-                  section: ShellSection.support,
+                  section: ShellSection.overview,
                   hint: 'Zu- und Absagen für eigene Kinder',
                 ),
               const ShellDestination(
@@ -625,10 +625,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   hint: 'Anleitungen und schnelle Antworten',
                   showOnMobile: false),
               ShellDestination(
-                  label: 'Familie & Rückmeldungen',
+                  label: 'Meine Kinder & Rückmeldungen',
                   icon: Icons.family_restroom_rounded,
                   route: '/parent/family',
-                  section: ShellSection.support,
+                  section: ShellSection.overview,
                   hint: 'Alle Zu- und Absagen auf einen Blick'),
               ShellDestination(
                   label: 'Technischer Support',

@@ -44,10 +44,11 @@ test('match and league routes publish online-only lifecycle endpoints', () => {
 test('server enforces Teugn venue defaults and checks conflicts before moving', () => {
   const events = source('src/controllers/events.controller.ts');
   const matches = source('src/controllers/matches.controller.ts');
-  for (const current of [events, matches]) {
-    assert.match(current, /Stadion am Kreutweg, Teugn/);
-    assert.match(current, /Vereinsheim Teugn/);
-  }
+  const venue = source('src/services/match-venue.service.ts');
+  assert.match(venue, /Stadion am Kreutweg, Teugn/);
+  assert.match(venue, /Vereinsheim Teugn/);
+  assert.match(events, /HOME_MATCH_VENUE/);
+  assert.match(matches, /normalizedMatchVenue/);
   assert.match(matches, /meetingAt && meetingAt >= startAt/);
   assert.match(matches, /status\(409\)[\s\S]*conflicts/);
   assert.match(matches, /syncScheduledRemindersForEvent\(match\.id\)/);

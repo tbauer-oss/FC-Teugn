@@ -12,6 +12,10 @@ import {
   Prisma,
 } from '@prisma/client';
 import { Request, Response } from 'express';
+import {
+  HOME_MATCH_VENUE,
+  isFcTeugnHomeVenue,
+} from '../services/match-venue.service';
 import { prisma } from '../lib/prisma';
 import { accessibleTeamIds } from '../services/team-access';
 import {
@@ -213,7 +217,9 @@ async function writeMatch(
     title: match.title,
     startAt,
     endAt: match.endAt ? new Date(match.endAt) : null,
-    location: match.location,
+    location: match.isHome
+      ? match.location || HOME_MATCH_VENUE
+      : isFcTeugnHomeVenue(match.location) ? '' : match.location,
     address: match.address,
     homeAway: match.isHome ? HomeAway.HOME : HomeAway.AWAY,
     opponent: match.opponent,

@@ -1,3 +1,4 @@
+import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/models/matchday.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,6 +14,10 @@ void main() {
       'teamGameFormat': 'FOOTBALL_5',
       'teamDefaultFormation': '1-2-1',
       'teamFormationOptions': ['1-2-1', '3-1'],
+      'communicationStatus': 'FAMILY_RELEASED',
+      'internalPublishedAt': '2026-08-11T10:00:00.000Z',
+      'familyReleasedAt': '2026-08-11T11:00:00.000Z',
+      'familyReleaseAudience': 'NOMINATED',
       'matchDetails': {
         'opponent': 'SV Beispiel',
         'isHome': true,
@@ -105,6 +110,11 @@ void main() {
     });
 
     expect(match.details?.status, MatchStatus.live);
+    expect(
+      match.communicationStatus,
+      EventCommunicationStatus.familyReleased,
+    );
+    expect(match.familyReleaseAudience, 'NOMINATED');
     expect(match.teamDefaultFormation, '1-2-1');
     expect(match.teamFormationOptions, ['1-2-1', '3-1']);
     expect(match.squad?.lineup?.status, LineupStatus.published);

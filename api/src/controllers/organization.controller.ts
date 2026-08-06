@@ -1058,6 +1058,13 @@ export async function deleteTeam(req: Request, res: Response) {
 export async function updateTrainingSchedule(req: Request, res: Response) {
   const user = req.user!;
   const teamId = req.params.id;
+  const effectivePermissions = user.permissions ??
+    await effectivePermissionsForUser(user.id, user.role);
+  if (!effectivePermissions.includes(Permission.CONFIGURE_TRAINING_REMINDERS)) {
+    return res.status(403).json({
+      message: 'Keine Berechtigung zum Konfigurieren der Trainingserinnerungen.',
+    });
+  }
   if (!(await canManageTeam(user, teamId))) {
     return res.status(403).json({
       message: 'Die Trainingszeiten dieser Mannschaft dürfen nicht bearbeitet werden.',
@@ -1072,6 +1079,12 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
     : reminderValue === null
       ? null
       : Number(reminderValue);
+  const secondaryReminderValue = req.body.secondaryReminderMinutes;
+  const secondaryReminderMinutes = secondaryReminderValue === undefined
+    ? undefined
+    : secondaryReminderValue === null
+      ? null
+      : Number(secondaryReminderValue);
   const defaultReminderPushEnabled = req.body.defaultReminderPushEnabled === undefined
     ? undefined
     : req.body.defaultReminderPushEnabled !== false;
@@ -1084,6 +1097,17 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
   ) {
     return res.status(400).json({
       message: 'Die Trainingserinnerung muss zwischen 1 Minute und 7 Tagen liegen.',
+    });
+  }
+  if (
+    secondaryReminderMinutes !== undefined &&
+    secondaryReminderMinutes !== null &&
+    (!Number.isInteger(secondaryReminderMinutes) ||
+      secondaryReminderMinutes < 1 ||
+      secondaryReminderMinutes > 10_080)
+  ) {
+    return res.status(400).json({
+      message: 'Die zweite Trainingserinnerung muss zwischen 1 Minute und 7 Tagen liegen.',
     });
   }
   const requestedPartnerIds = stringList(req.body.trainingPartnerIds, 12, 100)
@@ -1140,6 +1164,9 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
         ...(defaultReminderMinutes !== undefined
           ? { defaultReminderMinutes }
           : {}),
+        ...(secondaryReminderMinutes !== undefined
+          ? { secondaryReminderMinutes }
+          : {}),
         ...(defaultReminderPushEnabled !== undefined
           ? { defaultReminderPushEnabled }
           : {}),
@@ -1160,6 +1187,7 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
             trainingPartnerIds: existing.trainingPartnerIds,
             matchdayTimes: existing.matchdayTimes,
             defaultReminderMinutes: existing.defaultReminderMinutes,
+            secondaryReminderMinutes: existing.secondaryReminderMinutes,
             defaultReminderPushEnabled: existing.defaultReminderPushEnabled,
           },
           after: {
@@ -1171,6 +1199,10 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
               defaultReminderMinutes === undefined
                 ? existing.defaultReminderMinutes
                 : defaultReminderMinutes,
+            secondaryReminderMinutes:
+              secondaryReminderMinutes === undefined
+                ? existing.secondaryReminderMinutes
+                : secondaryReminderMinutes,
             defaultReminderPushEnabled:
               defaultReminderPushEnabled ?? existing.defaultReminderPushEnabled,
           },
@@ -1322,6 +1354,7 @@ async function serializeTeam(team: {
   trainingPartnerIds: string[];
   matchdayTimes: string[];
   defaultReminderMinutes: number | null;
+  secondaryReminderMinutes: number | null;
   defaultReminderPushEnabled: boolean;
   seasonStartDate: Date | null;
   seasonEndDate: Date | null;
@@ -1400,6 +1433,7 @@ async function serializeTeam(team: {
     trainingPartnerIds: team.trainingPartnerIds,
     matchdayTimes: team.matchdayTimes,
     defaultReminderMinutes: team.defaultReminderMinutes,
+    secondaryReminderMinutes: team.secondaryReminderMinutes,
     defaultReminderPushEnabled: team.defaultReminderPushEnabled,
     seasonStartDate: team.seasonStartDate,
     seasonEndDate: team.seasonEndDate,
