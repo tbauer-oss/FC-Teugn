@@ -167,15 +167,34 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
     notificationCount++;
     if (!push) continue;
     for (const subscription of subscriptions.filter((item) => item.userId === userId)) {
-      const delivery = await prisma.notificationDelivery.create({
-        data: {
+      const existingDelivery = await prisma.notificationDelivery.findUnique({
+        where: {
+          notificationId_subscriptionId: {
+            notificationId: notification.id,
+            subscriptionId: subscription.id,
+          },
+        },
+        select: { id: true, status: true },
+      });
+      const delivery = existingDelivery ?? await prisma.notificationDelivery.upsert({
+        where: {
+          notificationId_subscriptionId: {
+            notificationId: notification.id,
+            subscriptionId: subscription.id,
+          },
+        },
+        update: {},
+        create: {
           notificationId: notification.id,
           subscriptionId: subscription.id,
           userId,
         },
+        select: { id: true, status: true },
       });
-      deliveryCount++;
-      await deliverPush(delivery.id).catch(() => undefined);
+      if (!existingDelivery) deliveryCount++;
+      if (delivery.status !== NotificationDeliveryStatus.SENT) {
+        await deliverPush(delivery.id).catch(() => undefined);
+      }
     }
   }
   const deliverySummary = deliveryCount

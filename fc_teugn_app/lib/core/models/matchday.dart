@@ -55,6 +55,7 @@ class MatchdayModel {
     required this.location,
     required this.teamId,
     this.meetingAt,
+    this.meetingLocation,
     this.details,
     this.squad,
     this.ticker,
@@ -79,6 +80,7 @@ class MatchdayModel {
   final String title;
   final DateTime startAt;
   final DateTime? meetingAt;
+  final String? meetingLocation;
   final String location;
   final String teamId;
   final MatchDetailsModel? details;
@@ -110,6 +112,7 @@ class MatchdayModel {
       meetingAt: json['meetingAt'] == null
           ? null
           : DateTime.parse(json['meetingAt'] as String),
+      meetingLocation: json['meetingLocation'] as String?,
       location: json['location'] as String? ?? '',
       teamId: json['teamId'] as String? ?? '',
       details: json['matchDetails'] == null

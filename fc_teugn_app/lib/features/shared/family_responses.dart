@@ -294,8 +294,12 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
     final details = [
       '${date.day}.${date.month}.${date.year}',
       '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} Uhr',
-      if (item.meetingLocation?.isNotEmpty == true)
-        'Treffpunkt: ${item.meetingLocation}'
+      if (item.meetingAt != null && item.meetingLocation?.isNotEmpty == true)
+        'Treffpunkt: ${item.meetingAt!.hour.toString().padLeft(2, '0')}:${item.meetingAt!.minute.toString().padLeft(2, '0')} Uhr · ${item.meetingLocation}'
+      else if (item.meetingAt != null)
+        'Treffpunkt: ${item.meetingAt!.hour.toString().padLeft(2, '0')}:${item.meetingAt!.minute.toString().padLeft(2, '0')} Uhr'
+      else if (item.meetingLocation?.isNotEmpty == true)
+        'Treffpunktort: ${item.meetingLocation}'
       else if (item.location.isNotEmpty)
         item.location,
     ].join(' · ');

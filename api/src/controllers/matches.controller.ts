@@ -43,6 +43,11 @@ import {
   HOME_MATCH_VENUE,
   normalizedMatchVenue,
 } from '../services/match-venue.service';
+import {
+  buildFamilyReleaseMessage,
+  buildInternalPublicationMessage,
+  resolveMeetingPoint,
+} from '../services/match-publication.service';
 
 const matchInclude = {
   team: {
@@ -1438,6 +1443,114 @@ function matchTeamIds(match: { teamId: string; targetTeams: Array<{ teamId: stri
     : [match.teamId];
 }
 
+const internalPublicationRoles = [
+  Role.COACH,
+  Role.TRAINER,
+  Role.ASSISTANT_COACH,
+  Role.TEAM_MANAGER,
+] as const;
+
+function internalRoleLabel(role: Role) {
+  switch (role) {
+    case Role.COACH:
+    case Role.TRAINER:
+      return 'Trainer';
+    case Role.ASSISTANT_COACH:
+      return 'Co-Trainer';
+    case Role.TEAM_MANAGER:
+      return 'Mannschaftsverantwortlicher';
+    default:
+      return role;
+  }
+}
+
+async function eligibleInternalPublicationRecipients(
+  match: { teamId: string; targetTeams: Array<{ teamId: string }> },
+) {
+  const staff = await prisma.teamMembership.findMany({
+    where: {
+      teamId: { in: matchTeamIds(match) },
+      status: AccountStatus.APPROVED,
+      role: { in: [...internalPublicationRoles] },
+      user: { status: AccountStatus.APPROVED },
+    },
+    select: {
+      userId: true,
+      role: true,
+      user: { select: { name: true } },
+      team: { select: { id: true, name: true, shortName: true } },
+    },
+    orderBy: [
+      { team: { name: 'asc' } },
+      { user: { name: 'asc' } },
+    ],
+  });
+  const recipients = new Map<string, {
+    id: string;
+    name: string;
+    roles: Set<string>;
+    teams: Map<string, string>;
+  }>();
+  for (const membership of staff) {
+    const recipient = recipients.get(membership.userId) ?? {
+      id: membership.userId,
+      name: membership.user.name,
+      roles: new Set<string>(),
+      teams: new Map<string, string>(),
+    };
+    recipient.roles.add(internalRoleLabel(membership.role));
+    recipient.teams.set(
+      membership.team.id,
+      membership.team.shortName || membership.team.name,
+    );
+    recipients.set(membership.userId, recipient);
+  }
+  return [...recipients.values()]
+    .map((recipient) => ({
+      id: recipient.id,
+      name: recipient.name,
+      functions: [...recipient.roles],
+      teams: [...recipient.teams.values()],
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'de-DE'));
+}
+
+function publicationOpponent(match: {
+  opponent: string | null;
+  matchDetails: { opponent: string } | null;
+}) {
+  return match.matchDetails?.opponent || match.opponent || 'den Gegner';
+}
+
+function publicationTeam(match: {
+  team: { ageGroup: { code: string } };
+  targetTeams: Array<{ team: { name: string; shortName: string | null } }>;
+}) {
+  return match.targetTeams[0]?.team.shortName ||
+    match.targetTeams[0]?.team.name ||
+    match.team.ageGroup.code;
+}
+
+export async function internalPublicationPreview(req: Request, res: Response) {
+  const match = await findMatch(req.params.id, req.user!);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const recipients = await eligibleInternalPublicationRecipients(match);
+  const messagePreview = buildInternalPublicationMessage({
+    category: match.category,
+    team: publicationTeam(match),
+    opponent: publicationOpponent(match),
+  });
+  return res.json({
+    recipients: recipients.map((recipient) => ({
+      ...recipient,
+      isSender: recipient.id === req.user!.id,
+    })),
+    recipientCount: recipients.length,
+    pushEnabled: true,
+    messagePreview,
+  });
+}
+
 async function nominatedAudience(eventId: string) {
   const squad = await prisma.squad.findUnique({
     where: { eventId },
@@ -1489,24 +1602,41 @@ export async function publishMatchInternally(req: Request, res: Response) {
   const user = req.user!;
   const match = await findMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
-  const teamIds = matchTeamIds(match);
-  const staff = await prisma.teamMembership.findMany({
-    where: {
-      teamId: { in: teamIds },
-      status: AccountStatus.APPROVED,
-      role: { in: ['COACH', 'TRAINER', 'ASSISTANT_COACH', 'TEAM_MANAGER'] },
-      user: { status: AccountStatus.APPROVED },
-    },
-    select: { userId: true },
-  });
-  const recipientIds = [...new Set(staff.map((entry) => entry.userId))]
-    .filter((id) => id !== user.id);
+  const eligibleRecipients = await eligibleInternalPublicationRecipients(match);
+  const eligibleIds = new Set(eligibleRecipients.map((recipient) => recipient.id));
+  const requestedIds = req.body?.recipientIds;
+  if (requestedIds !== undefined && !Array.isArray(requestedIds)) {
+    return res.status(400).json({ message: 'Die Empfängerauswahl ist ungültig.' });
+  }
+  const recipientIds: string[] = requestedIds === undefined
+    ? [...eligibleIds]
+    : [...new Set<string>(
+        (requestedIds as unknown[])
+          .filter((id: unknown): id is string => typeof id === 'string')
+          .map((id: string) => id.trim())
+          .filter(Boolean),
+      )];
+  if (!recipientIds.length) {
+    return res.status(400).json({ message: 'Mindestens ein Trainerteam-Mitglied muss ausgewählt sein.' });
+  }
+  const invalidRecipientIds = recipientIds.filter((id) => !eligibleIds.has(id));
+  if (invalidRecipientIds.length) {
+    return res.status(403).json({
+      message: 'Die Auswahl enthält Personen außerhalb des zuständigen Trainerteams.',
+      invalidRecipientIds,
+    });
+  }
   const squad = match.squads[0];
   const lineup = squad?.lineup;
+  const message = buildInternalPublicationMessage({
+    category: match.category,
+    team: publicationTeam(match),
+    opponent: publicationOpponent(match),
+  });
   const delivery = await notifyUsers(recipientIds, {
     category: NotificationCategory.MATCH,
     title: 'Kader und Aufstellung intern veröffentlicht',
-    body: `${match.title}: ${squad?.members.length ?? 0} Kaderspieler, ${lineup?.positions.length ?? 0} Aufstellungspositionen und ${lineup?.substitutions.length ?? 0} geplante Wechsel.`,
+    body: message,
     actionUrl: `/matches/${match.id}`,
     entityType: 'MatchInternalPublication',
     entityId: match.id,
@@ -1529,7 +1659,12 @@ export async function publishMatchInternally(req: Request, res: Response) {
         action: 'MATCH_INTERNALLY_PUBLISHED',
         entityType: 'Event',
         entityId: match.id,
-        metadata: { recipientIds, pushEnabled: req.body.pushEnabled === true, delivery },
+        metadata: {
+          recipientIds,
+          pushEnabled: req.body.pushEnabled === true,
+          message,
+          delivery,
+        },
       },
     }),
     ...(lineup
@@ -1542,7 +1677,13 @@ export async function publishMatchInternally(req: Request, res: Response) {
         })]
       : []),
   ]);
-  return res.json({ status: 'INTERNAL_PUBLISHED', recipients: recipientIds.length, delivery });
+  return res.json({
+    status: 'INTERNAL_PUBLISHED',
+    recipients: recipientIds.length,
+    recipientIds,
+    message,
+    delivery,
+  });
 }
 
 async function fullTeamFamilyAudience(teamIds: string[]) {
@@ -1571,19 +1712,32 @@ export async function familyReleasePreview(req: Request, res: Response) {
   const full = audienceMode === 'FULL_TEAM_REQUIRED'
     ? await fullTeamFamilyAudience(matchTeamIds(match))
     : null;
+  const meeting = resolveMeetingPoint({
+    startAt: match.startAt,
+    meetingAt: match.meetingAt,
+    meetingLocation: match.meetingLocation,
+  });
+  const messagePreview = buildFamilyReleaseMessage({
+    category: match.category,
+    opponent: publicationOpponent(match),
+    startAt: match.startAt,
+    meeting,
+  });
   return res.json({
     team: match.targetTeams[0]?.team.name ?? match.team.ageGroup.code,
     category: match.category,
     opponent: match.matchDetails?.opponent ?? match.opponent,
     startAt: match.startAt,
-    meetingAt: match.meetingAt,
-    meetingLocation: match.meetingLocation,
+    meetingAt: meeting.at,
+    meetingLocation: meeting.location,
+    meetingSummary: meeting.summary,
     location: match.location,
     isHome: match.matchDetails?.isHome !== false,
     audienceMode,
     players: nominated.squad?.members.length ?? full?.players.length ?? 0,
     recipients: nominated.recipients.length || full?.recipients.length || 0,
     alreadyReleased: Boolean(match.familyReleasedAt),
+    messagePreview,
   });
 }
 
@@ -1603,16 +1757,21 @@ export async function releaseMatchToFamilies(req: Request, res: Response) {
   }
   const full = hasSquad ? null : await fullTeamFamilyAudience(matchTeamIds(match));
   const recipientIds = hasSquad ? nominated.recipients : full!.recipients;
-  const local = match.startAt.toLocaleString('de-DE', {
-    timeZone: 'Europe/Berlin',
-    dateStyle: 'full',
-    timeStyle: 'short',
+  const meeting = resolveMeetingPoint({
+    startAt: match.startAt,
+    meetingAt: match.meetingAt,
+    meetingLocation: match.meetingLocation,
   });
-  const opponent = match.matchDetails?.opponent ?? match.opponent ?? 'den Gegner';
+  const message = buildFamilyReleaseMessage({
+    category: match.category,
+    opponent: publicationOpponent(match),
+    startAt: match.startAt,
+    meeting,
+  });
   const delivery = await notifyUsers(recipientIds, {
     category: NotificationCategory.MATCH,
     title: 'Spiel freigegeben',
-    body: `${match.title} gegen ${opponent} wurde für ${local} Uhr freigegeben. Treffpunkt: ${match.meetingLocation ?? 'noch offen'}.`,
+    body: message,
     actionUrl: `/matches/${match.id}`,
     entityType: 'MatchFamilyRelease',
     entityId: match.id,
@@ -1627,6 +1786,8 @@ export async function releaseMatchToFamilies(req: Request, res: Response) {
         communicationStatus: EventCommunicationStatus.FAMILY_RELEASED,
         familyReleasedAt: new Date(),
         familyReleaseAudience: hasSquad ? 'NOMINATED_SQUAD' : 'FULL_TEAM',
+        meetingAt: meeting.at,
+        meetingLocation: meeting.location,
       },
     }),
     prisma.auditLog.create({
@@ -1639,6 +1800,7 @@ export async function releaseMatchToFamilies(req: Request, res: Response) {
         metadata: {
           audience: hasSquad ? 'NOMINATED_SQUAD' : 'FULL_TEAM',
           recipientIds,
+          message,
           delivery,
         },
       },
@@ -1653,7 +1815,14 @@ export async function releaseMatchToFamilies(req: Request, res: Response) {
         })]
       : []),
   ]);
-  return res.json({ status: 'FAMILY_RELEASED', alreadyReleased: false, recipients: recipientIds.length, delivery });
+  return res.json({
+    status: 'FAMILY_RELEASED',
+    alreadyReleased: false,
+    recipients: recipientIds.length,
+    message,
+    meeting,
+    delivery,
+  });
 }
 
 export async function updateLineup(req: Request, res: Response) {

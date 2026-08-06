@@ -272,6 +272,7 @@ class CachedMatchdaySnapshot {
     required this.cachedAt,
     this.gameFormat = TeamGameFormat.football7,
     this.meetingAt,
+    this.meetingLocation,
     this.ticker,
   });
 
@@ -279,6 +280,7 @@ class CachedMatchdaySnapshot {
   final String title;
   final DateTime startAt;
   final DateTime? meetingAt;
+  final String? meetingLocation;
   final String location;
   final String teamId;
   final String opponent;
@@ -293,6 +295,7 @@ class CachedMatchdaySnapshot {
       title: match.title,
       startAt: match.startAt,
       meetingAt: match.meetingAt,
+      meetingLocation: match.meetingLocation,
       location: match.location,
       teamId: match.teamId,
       opponent: match.details?.opponent ?? 'Gegner',
@@ -308,6 +311,7 @@ class CachedMatchdaySnapshot {
         'title': title,
         'startAt': startAt.toUtc().toIso8601String(),
         'meetingAt': meetingAt?.toUtc().toIso8601String(),
+        'meetingLocation': meetingLocation,
         'location': location,
         'teamId': teamId,
         'opponent': opponent,
@@ -325,6 +329,7 @@ class CachedMatchdaySnapshot {
       meetingAt: json['meetingAt'] == null
           ? null
           : DateTime.parse(json['meetingAt'] as String),
+      meetingLocation: json['meetingLocation'] as String?,
       location: json['location'] as String? ?? '',
       teamId: json['teamId'] as String? ?? '',
       opponent: json['opponent'] as String? ?? 'Gegner',
@@ -344,6 +349,7 @@ class CachedMatchdaySnapshot {
         title: title,
         startAt: startAt,
         meetingAt: meetingAt,
+        meetingLocation: meetingLocation,
         location: location,
         teamId: teamId,
         details: MatchDetailsModel(

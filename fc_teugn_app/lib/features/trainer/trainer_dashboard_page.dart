@@ -298,6 +298,8 @@ class _NextEventContent extends StatelessWidget {
     final details = [
       '${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr',
       if (event.meetingAt != null) 'Treffen ${_time(event.meetingAt!)} Uhr',
+      if (event.meetingLocation?.trim().isNotEmpty == true)
+        event.meetingLocation!.trim(),
       if (event.location.trim().isNotEmpty) event.location.trim(),
     ];
     final openResponses = event.missingAttendance.isNotEmpty

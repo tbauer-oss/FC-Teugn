@@ -7,6 +7,7 @@ import {
   getTickerDelegation,
   familyReleasePreview,
   nominationPreview,
+  internalPublicationPreview,
   publishMatchInternally,
   releaseMatchToFamilies,
   listMatches,
@@ -60,6 +61,7 @@ router.patch(
 router.put('/:id/squad', requirePermission(Permission.MANAGE_LINEUPS), updateSquad);
 router.get('/:id/squad/nomination-preview', requirePermission(Permission.NOMINATE_SQUAD), nominationPreview);
 router.post('/:id/squad/publish', requirePermission(Permission.NOMINATE_SQUAD), publishSquad);
+router.get('/:id/internal-publish-preview', requirePermission(Permission.PUBLISH_LINEUP_INTERNAL), internalPublicationPreview);
 router.post('/:id/internal-publish', requirePermission(Permission.PUBLISH_LINEUP_INTERNAL), publishMatchInternally);
 router.get('/:id/family-release-preview', requirePermission(Permission.RELEASE_MATCH_FAMILY), familyReleasePreview);
 router.post('/:id/family-release', requirePermission(Permission.RELEASE_MATCH_FAMILY), releaseMatchToFamilies);

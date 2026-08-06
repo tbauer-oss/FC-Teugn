@@ -19,6 +19,8 @@ void main() {
       ),
     );
 
+    expect(find.text('Vereinsheim Teugn'), findsOneWidget);
+
     await tester.drag(
       find.byKey(const ValueKey('match-overview-list')),
       const Offset(0, -520),
@@ -83,6 +85,7 @@ MatchdayModel _match() => MatchdayModel(
       title: 'FC Teugn · ATSV Kelheim E2',
       startAt: DateTime(2026, 8, 14, 17),
       meetingAt: DateTime(2026, 8, 14, 16, 15),
+      meetingLocation: 'Vereinsheim Teugn',
       location: 'Teugn Sportplatz',
       teamId: 'team-1',
       details: const MatchDetailsModel(

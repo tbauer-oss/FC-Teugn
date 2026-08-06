@@ -193,6 +193,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           title: current.title,
           startAt: current.startAt,
           meetingAt: current.meetingAt,
+          meetingLocation: current.meetingLocation,
           location: current.location,
           teamId: current.teamId,
           details: current.details,
@@ -257,6 +258,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         title: current.title,
         startAt: current.startAt,
         meetingAt: current.meetingAt,
+        meetingLocation: current.meetingLocation,
         location: current.location,
         teamId: current.teamId,
         details: current.details,
@@ -291,6 +293,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         title: current.title,
         startAt: current.startAt,
         meetingAt: current.meetingAt,
+        meetingLocation: current.meetingLocation,
         location: current.location,
         teamId: current.teamId,
         details: current.details,
@@ -323,49 +326,39 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   }
 
   Future<void> _publishInternally() async {
-    var pushEnabled = true;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: const Text('Kader und Aufstellung intern veröffentlichen?'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Nur Trainer, Co-Trainer und Mannschaftsverantwortliche der eigenen Mannschaft werden informiert. Eltern und Spieler erhalten noch keine Nachricht.',
-                ),
-                const SizedBox(height: 10),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: pushEnabled,
-                  onChanged: (value) => update(() => pushEnabled = value),
-                  title: const Text('Zusätzlich als Pushnachricht senden'),
-                ),
-              ],
+    try {
+      final repository = ref.read(repositoryProvider);
+      final preview =
+          await repository.internalPublicationPreview(widget.matchId);
+      if (!mounted) return;
+      final recipients = (preview['recipients'] as List<dynamic>? ?? const [])
+          .map((item) => InternalPublicationRecipient.fromJson(
+                item as Map<String, dynamic>,
+              ))
+          .toList();
+      if (recipients.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Für diese Mannschaft ist noch kein zuständiges Trainerteam zugeordnet.',
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Intern veröffentlichen'),
-            ),
-          ],
+        );
+        return;
+      }
+      final selection = await showDialog<InternalPublicationSelection>(
+        context: context,
+        builder: (_) => InternalPublicationDialog(
+          recipients: recipients,
+          messagePreview: '${preview['messagePreview'] ?? ''}',
         ),
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    try {
-      final result = await ref.read(repositoryProvider).publishMatchInternally(
-            widget.matchId,
-            pushEnabled: pushEnabled,
-          );
+      );
+      if (selection == null || !mounted) return;
+      final result = await repository.publishMatchInternally(
+        widget.matchId,
+        recipientIds: selection.recipientIds,
+        pushEnabled: selection.pushEnabled,
+      );
       await _load();
       if (mounted) {
         final recipients = result['recipients'] as int? ?? 0;
@@ -412,7 +405,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                   _ReleasePreviewRow('Anstoß', _dateLine(_match!)),
                   _ReleasePreviewRow(
                     'Treffpunkt',
-                    '${preview['meetingLocation'] ?? 'Noch offen'}',
+                    '${preview['meetingSummary'] ?? 'Treffpunkt noch offen'}',
                   ),
                   _ReleasePreviewRow(
                     'Spielstätte',
@@ -427,6 +420,26 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                   _ReleasePreviewRow(
                     'Empfänger',
                     '${preview['recipients'] ?? 0} Benutzer',
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Nachrichtenvorschau',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 4),
+                        Text('${preview['messagePreview'] ?? ''}'),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 10),
                   const Text(
@@ -572,6 +585,242 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     final time =
         '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     return '${date.day}.${date.month}.${date.year} · $time Uhr · ${match.location}';
+  }
+}
+
+class InternalPublicationRecipient {
+  const InternalPublicationRecipient({
+    required this.id,
+    required this.name,
+    required this.functions,
+    required this.teams,
+    required this.isSender,
+  });
+
+  final String id;
+  final String name;
+  final List<String> functions;
+  final List<String> teams;
+  final bool isSender;
+
+  factory InternalPublicationRecipient.fromJson(Map<String, dynamic> json) =>
+      InternalPublicationRecipient(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? 'Trainerteam-Mitglied',
+        functions: (json['functions'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .toList(),
+        teams: (json['teams'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .toList(),
+        isSender: json['isSender'] as bool? ?? false,
+      );
+}
+
+class InternalPublicationSelection {
+  const InternalPublicationSelection({
+    required this.recipientIds,
+    required this.pushEnabled,
+  });
+
+  final List<String> recipientIds;
+  final bool pushEnabled;
+}
+
+class InternalPublicationDialog extends StatefulWidget {
+  const InternalPublicationDialog({
+    super.key,
+    required this.recipients,
+    required this.messagePreview,
+  });
+
+  final List<InternalPublicationRecipient> recipients;
+  final String messagePreview;
+
+  @override
+  State<InternalPublicationDialog> createState() =>
+      _InternalPublicationDialogState();
+}
+
+class _InternalPublicationDialogState extends State<InternalPublicationDialog> {
+  late final Set<String> _selectedIds;
+  bool _pushEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIds = widget.recipients.map((item) => item.id).toSet();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: size.width < 420 ? 12 : 24,
+        vertical: 20,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 620,
+          maxHeight: size.height * .88,
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(size.width < 420 ? 16 : 22),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Intern veröffentlichen',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Wähle die zuständigen Trainer, Co-Trainer und Mannschaftsverantwortlichen aus. Eltern und Spieler werden hier noch nicht informiert.',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Nachrichtenvorschau',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(widget.messagePreview),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      '${_selectedIds.length} von ${widget.recipients.length} Empfängern',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => setState(() {
+                        _selectedIds
+                          ..clear()
+                          ..addAll(widget.recipients.map((item) => item.id));
+                      }),
+                      icon: const Icon(Icons.select_all_rounded),
+                      label: const Text('Alle auswählen'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => setState(_selectedIds.clear),
+                      icon: const Icon(Icons.deselect_rounded),
+                      label: const Text('Alle abwählen'),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: widget.recipients.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final recipient = widget.recipients[index];
+                    final selected = _selectedIds.contains(recipient.id);
+                    final details = [
+                      if (recipient.functions.isNotEmpty)
+                        recipient.functions.join(' / '),
+                      if (recipient.teams.isNotEmpty)
+                        recipient.teams.join(', '),
+                    ].join(' · ');
+                    return CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: selected,
+                      onChanged: (value) => setState(() {
+                        if (value == true) {
+                          _selectedIds.add(recipient.id);
+                        } else {
+                          _selectedIds.remove(recipient.id);
+                        }
+                      }),
+                      title: Text(
+                        '${recipient.name}${recipient.isSender ? ' (Du)' : ''}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: details.isEmpty
+                          ? null
+                          : Text(
+                              details,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                    );
+                  },
+                ),
+                const Divider(),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _pushEnabled,
+                  onChanged: (value) => setState(() => _pushEnabled = value),
+                  title: const Text(
+                    'Zusätzlich als Pushnachricht senden',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                if (_selectedIds.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Bitte mindestens eine Person auswählen.',
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Abbrechen'),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: FilledButton.icon(
+                        onPressed: _selectedIds.isEmpty
+                            ? null
+                            : () => Navigator.pop(
+                                  context,
+                                  InternalPublicationSelection(
+                                    recipientIds: _selectedIds.toList(),
+                                    pushEnabled: _pushEnabled,
+                                  ),
+                                ),
+                        icon: const Icon(Icons.campaign_rounded),
+                        label: const Text('Intern veröffentlichen'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -962,7 +1211,17 @@ class MatchOverview extends StatelessWidget {
           'Treffpunkt',
           '${match.meetingAt!.toLocal().hour.toString().padLeft(2, '0')}:'
               '${match.meetingAt!.toLocal().minute.toString().padLeft(2, '0')} Uhr',
-          'Gemeinsames Treffen',
+          match.meetingLocation?.trim().isNotEmpty == true
+              ? match.meetingLocation!.trim()
+              : 'Gemeinsames Treffen',
+        ),
+      if (match.meetingAt == null &&
+          match.meetingLocation?.trim().isNotEmpty == true)
+        _OverviewEntry(
+          Icons.groups_rounded,
+          'Treffpunktort',
+          match.meetingLocation!.trim(),
+          'Uhrzeit noch offen',
         ),
       _OverviewEntry(
         Icons.timer_outlined,

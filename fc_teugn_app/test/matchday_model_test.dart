@@ -10,6 +10,7 @@ void main() {
       'title': 'Testspiel',
       'startAt': '2026-08-12T16:00:00.000Z',
       'meetingAt': '2026-08-12T15:00:00.000Z',
+      'meetingLocation': 'Vereinsheim Teugn',
       'location': 'Waldstadion',
       'teamGameFormat': 'FOOTBALL_5',
       'teamDefaultFormation': '1-2-1',
@@ -110,6 +111,7 @@ void main() {
     });
 
     expect(match.details?.status, MatchStatus.live);
+    expect(match.meetingLocation, 'Vereinsheim Teugn');
     expect(
       match.communicationStatus,
       EventCommunicationStatus.familyReleased,

@@ -1909,6 +1909,7 @@ model NotificationDelivery {
 
   @@index([status, createdAt])
   @@index([userId, createdAt])
+  @@unique([notificationId, subscriptionId])
 }
 
 model ImportJob {

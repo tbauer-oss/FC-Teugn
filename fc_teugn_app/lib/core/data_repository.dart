@@ -1242,12 +1242,25 @@ class DataRepository {
 
   Future<Map<String, dynamic>> publishMatchInternally(
     String eventId, {
+    required List<String> recipientIds,
     bool pushEnabled = true,
   }) async {
     final response = await client.dio.post(
       '/matches/$eventId/internal-publish',
-      data: {'pushEnabled': pushEnabled},
+      data: {
+        'recipientIds': recipientIds,
+        'pushEnabled': pushEnabled,
+      },
       options: Options(extra: const {'requireOnline': true}),
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> internalPublicationPreview(
+    String eventId,
+  ) async {
+    final response = await client.dio.get(
+      '/matches/$eventId/internal-publish-preview',
     );
     return response.data as Map<String, dynamic>;
   }

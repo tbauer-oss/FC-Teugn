@@ -175,6 +175,35 @@ class _PublicMatchCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (event.meetingAt != null ||
+                    event.meetingLocation?.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.groups_rounded,
+                        size: 18,
+                        color: AppColors.muted,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          [
+                            if (event.meetingAt != null)
+                              'Treffpunkt ${event.meetingAt!.hour.toString().padLeft(2, '0')}:${event.meetingAt!.minute.toString().padLeft(2, '0')} Uhr',
+                            if (event.meetingLocation?.trim().isNotEmpty ==
+                                true)
+                              event.meetingLocation!.trim(),
+                          ].join(' · '),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
