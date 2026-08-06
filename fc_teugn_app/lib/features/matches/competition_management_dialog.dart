@@ -281,71 +281,22 @@ class _CompetitionManagementDialogState
       );
 
   Future<void> _editOpponent([OpponentModel? value]) async {
-    final club = TextEditingController(text: value?.clubName);
-    final designation = TextEditingController(text: value?.teamDesignation);
-    final venue = TextEditingController(text: value?.venue);
-    final address = TextEditingController(text: value?.address);
-    final result = await showDialog<bool>(
+    final draft = await showDialog<OpponentEditorDraft>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(value == null ? 'Gegner anlegen' : 'Gegner bearbeiten'),
-        content: SizedBox(
-          width: 520,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                  controller: club,
-                  decoration: const InputDecoration(labelText: 'Verein *')),
-              const SizedBox(height: 10),
-              TextField(
-                  controller: designation,
-                  decoration: const InputDecoration(
-                      labelText: 'Jugend / Mannschaft *',
-                      hintText: 'z. B. E1')),
-              const SizedBox(height: 10),
-              TextField(
-                  controller: venue,
-                  decoration: const InputDecoration(labelText: 'Spielstätte')),
-              const SizedBox(height: 10),
-              TextField(
-                  controller: address,
-                  decoration: const InputDecoration(labelText: 'Adresse')),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Abbrechen')),
-          FilledButton(
-            onPressed:
-                club.text.trim().isEmpty || designation.text.trim().isEmpty
-                    ? null
-                    : () => Navigator.pop(context, true),
-            child: const Text('Speichern'),
-          ),
-        ],
+      builder: (context) => OpponentEditorDialog(
+        value: value,
       ),
     );
-    try {
-      if (result == true) {
-        await widget.repository.saveOpponent(
-          id: value?.id,
-          ageGroupId: ageGroupId,
-          clubName: club.text.trim(),
-          teamDesignation: designation.text.trim(),
-          venue: venue.text.trim(),
-          address: address.text.trim(),
-        );
-        await _load();
-      }
-    } finally {
-      club.dispose();
-      designation.dispose();
-      venue.dispose();
-      address.dispose();
-    }
+    if (draft == null) return;
+    await widget.repository.saveOpponent(
+      id: value?.id,
+      ageGroupId: ageGroupId,
+      clubName: draft.clubName,
+      teamDesignation: draft.teamDesignation,
+      venue: draft.venue,
+      address: draft.address,
+    );
+    await _load();
   }
 
   Future<void> _uploadLogo(OpponentModel opponent) async {
@@ -637,6 +588,130 @@ class _CompetitionManagementDialogState
       }
     }
   }
+}
+
+class OpponentEditorDraft {
+  const OpponentEditorDraft({
+    required this.clubName,
+    required this.teamDesignation,
+    required this.venue,
+    required this.address,
+  });
+
+  final String clubName;
+  final String teamDesignation;
+  final String venue;
+  final String address;
+}
+
+class OpponentEditorDialog extends StatefulWidget {
+  const OpponentEditorDialog({super.key, this.value});
+
+  final OpponentModel? value;
+
+  @override
+  State<OpponentEditorDialog> createState() => _OpponentEditorDialogState();
+}
+
+class _OpponentEditorDialogState extends State<OpponentEditorDialog> {
+  late final TextEditingController club;
+  late final TextEditingController designation;
+  late final TextEditingController venue;
+  late final TextEditingController address;
+
+  bool get canSave =>
+      club.text.trim().isNotEmpty && designation.text.trim().isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    club = TextEditingController(text: widget.value?.clubName);
+    designation = TextEditingController(text: widget.value?.teamDesignation);
+    venue = TextEditingController(text: widget.value?.venue);
+    address = TextEditingController(text: widget.value?.address);
+  }
+
+  @override
+  void dispose() {
+    club.dispose();
+    designation.dispose();
+    venue.dispose();
+    address.dispose();
+    super.dispose();
+  }
+
+  void refreshValidation(String _) => setState(() {});
+
+  void save() {
+    if (!canSave) return;
+    Navigator.pop(
+      context,
+      OpponentEditorDraft(
+        clubName: club.text.trim(),
+        teamDesignation: designation.text.trim(),
+        venue: venue.text.trim(),
+        address: address.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(
+          widget.value == null ? 'Gegner anlegen' : 'Gegner bearbeiten',
+        ),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: club,
+                  onChanged: refreshValidation,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'Verein *'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: designation,
+                  onChanged: refreshValidation,
+                  textCapitalization: TextCapitalization.characters,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'Jugend / Mannschaft *',
+                    hintText: 'z. B. E1',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: venue,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'Spielstätte'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: address,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: canSave ? (_) => save() : null,
+                  decoration: const InputDecoration(labelText: 'Adresse'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: canSave ? save : null,
+            child: const Text('Speichern'),
+          ),
+        ],
+      );
 }
 
 class _StandingsTable extends StatelessWidget {
