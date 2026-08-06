@@ -1,5 +1,7 @@
 import { asyncRouter } from '../middleware/async-handler';
 import {
+  cancelMatch,
+  cancelMatchPreview,
   getMatch,
   getTicker,
   getTickerDelegation,
@@ -27,6 +29,16 @@ router.use(idempotencyMiddleware);
 
 router.get('/', listMatches);
 router.get('/:id', getMatch);
+router.get(
+  '/:id/cancel-preview',
+  requirePermission(Permission.MATCH_CANCEL),
+  cancelMatchPreview,
+);
+router.post(
+  '/:id/cancel',
+  requirePermission(Permission.MATCH_CANCEL),
+  cancelMatch,
+);
 router.delete(
   '/:id',
   requirePermission(Permission.MATCH_DELETE),

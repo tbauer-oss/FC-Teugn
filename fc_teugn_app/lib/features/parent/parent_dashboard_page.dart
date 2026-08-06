@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import '../shared/dashboard_notifications.dart';
+import '../shared/family_responses.dart';
 
 class ParentDashboardPage extends ConsumerWidget {
   const ParentDashboardPage({super.key});
@@ -36,6 +37,8 @@ class ParentDashboardPage extends ConsumerWidget {
             notifications: notifications,
             isTrainer: false,
           ),
+          const PersonalResponsesCard(isTrainer: false),
+          const SizedBox(height: 18),
           Container(
             width: double.infinity,
             decoration: BoxDecoration(

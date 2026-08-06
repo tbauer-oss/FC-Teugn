@@ -1519,11 +1519,61 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
   Future<void> _publish() async {
     final repository = ref.read(repositoryProvider);
     if (!await _save() || !mounted) return;
+    var pushEnabled = true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Kader veröffentlichen?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${_selected.length} nominierte Spieler erhalten jetzt eine Rückmeldeanfrage. Der gespeicherte Entwurf allein versendet nichts.',
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: pushEnabled,
+                onChanged: (value) => setDialogState(() => pushEnabled = value),
+                title: const Text('Zusätzlich als Pushnachricht senden'),
+                subtitle:
+                    const Text('In-App wird die Anfrage immer bereitgestellt.'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.campaign_rounded),
+              label: const Text('Jetzt veröffentlichen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     try {
-      await repository.publishMatchSquad(widget.match.id);
+      final result = await repository.publishMatchSquad(
+        widget.match.id,
+        pushEnabled: pushEnabled,
+      );
       if (!mounted) return;
       await widget.onReload();
-      if (mounted) _message('Nominierung wurde veröffentlicht.');
+      if (mounted) {
+        final publication = result['publication'] as Map<String, dynamic>?;
+        final recipients = publication?['recipients'] as int? ?? 0;
+        final sent = publication?['sent'] as int? ?? 0;
+        _message(
+          'Nominierung veröffentlicht · $recipients Empfänger'
+          '${pushEnabled ? ' · $sent Push zugestellt' : ' · ohne Push'}',
+        );
+      }
     } on DioException catch (error) {
       if (mounted) {
         _message(

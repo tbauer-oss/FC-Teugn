@@ -7,7 +7,7 @@ function source(relativePath) {
   return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
 }
 
-test('squad save keeps slow reminder maintenance off the request path', () => {
+test('squad draft save stays fast and creates no attendance requests', () => {
   const controller = source('src/controllers/matches.controller.ts');
   const updateSquad = controller.slice(
     controller.indexOf('export async function updateSquad'),
@@ -15,11 +15,26 @@ test('squad save keeps slow reminder maintenance off the request path', () => {
   );
 
   assert.match(updateSquad, /findMatchForSquadUpdate/);
-  assert.match(updateSquad, /attendance\.createMany/);
+  assert.doesNotMatch(updateSquad, /attendance\.createMany/);
   assert.doesNotMatch(updateSquad, /attendance\.upsert/);
   assert.match(updateSquad, /reminderSyncPendingAt/);
   assert.doesNotMatch(updateSquad, /syncScheduledRemindersForEvent/);
   assert.doesNotMatch(updateSquad, /settlePostCommitTasks/);
+});
+
+test('publishing a squad atomically creates requests only for nominated players', () => {
+  const controller = source('src/controllers/matches.controller.ts');
+  const publishSquad = controller.slice(
+    controller.indexOf('export async function publishSquad'),
+    controller.indexOf('export async function updateLineup'),
+  );
+
+  assert.match(publishSquad, /NominationStatus\.NOMINATED/);
+  assert.match(publishSquad, /eventParticipant\.createMany/);
+  assert.match(publishSquad, /attendance\.createMany/);
+  assert.match(publishSquad, /pushEnabled/);
+  assert.match(publishSquad, /publication:/);
+  assert.match(publishSquad, /sent:[\s\S]*failed:[\s\S]*pending:/);
 });
 
 test('reminder rebuild uses bulk database operations', () => {

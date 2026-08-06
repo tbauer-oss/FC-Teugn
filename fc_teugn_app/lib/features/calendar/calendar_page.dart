@@ -3789,6 +3789,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   int interval = 1;
   final weekdays = <int>{};
   String reminderMode = 'none';
+  bool reminderPushEnabled = true;
+  String? lastAutomaticLocation;
   late final TextEditingController customReminderMinutes;
   late final Future<List<PlayerModel>> participantPlayers;
   late Future<List<OpponentModel>> availableOpponents;
@@ -3848,8 +3850,11 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     category = event?.category ?? EventCategory.training;
     visibility = event?.visibility ?? EventVisibility.team;
     homeAway = event?.homeAway ?? (category.isMatch ? HomeAway.home : null);
-    if (category.isMatch && homeAway == HomeAway.home) {
+    if (category.isMatch &&
+        homeAway == HomeAway.home &&
+        location.text.trim().isEmpty) {
       location.text = homeMatchVenue;
+      lastAutomaticLocation = homeMatchVenue;
     } else if (category.isMatch && homeAway == HomeAway.away) {
       meetingLocation.text = meetingLocation.text.trim().isEmpty
           ? awayMeetingLocation
@@ -3875,6 +3880,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
             : event.targetTeams.map((team) => team.id).toSet());
     carpoolRequired = event?.carpoolRequired ?? false;
     final savedReminders = event?.reminderMinutes ?? const <int>[];
+    reminderPushEnabled = event?.reminderPushEnabled ?? true;
     if (savedReminders.isEmpty) {
       reminderMode = 'none';
     } else {
@@ -4139,13 +4145,12 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: location,
-                        readOnly: category.isMatch && homeAway == HomeAway.home,
                         decoration: InputDecoration(
                           labelText: category.isMatch ? 'Spielstätte' : 'Ort',
-                          helperText:
-                              category.isMatch && homeAway == HomeAway.home
-                                  ? 'Feste Heimspielstätte des FC Teugn'
-                                  : null,
+                          helperText: category.isMatch &&
+                                  homeAway == HomeAway.home
+                              ? 'Standard: Stadion am Kreutweg, Teugn · bei Bedarf änderbar'
+                              : null,
                         ),
                         validator: _required,
                       ),
@@ -4196,12 +4201,40 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                     ],
                                     onSelected: (value) {
                                       selectedOpponentName = value;
-                                      selectedOpponentId = (snapshot.data ??
+                                      final selected = (snapshot.data ??
                                               const <OpponentModel>[])
                                           .where((item) =>
                                               item.displayName == value)
-                                          .firstOrNull
-                                          ?.id;
+                                          .firstOrNull;
+                                      selectedOpponentId = selected?.id;
+                                      if (selected != null &&
+                                          homeAway == HomeAway.away &&
+                                          (location.text.trim().isEmpty ||
+                                              location.text.trim() ==
+                                                  homeMatchVenue ||
+                                              location.text.trim() ==
+                                                  lastAutomaticLocation)) {
+                                        final automatic = (selected.venue
+                                                        ?.trim()
+                                                        .isNotEmpty ==
+                                                    true
+                                                ? selected.venue
+                                                : selected.address) ??
+                                            '';
+                                        if (automatic.isNotEmpty) {
+                                          setState(() {
+                                            location.text = automatic;
+                                            lastAutomaticLocation = automatic;
+                                            if (address.text.trim().isEmpty &&
+                                                selected.address
+                                                        ?.trim()
+                                                        .isNotEmpty ==
+                                                    true) {
+                                              address.text = selected.address!;
+                                            }
+                                          });
+                                        }
+                                      }
                                     },
                                   ),
                                 ),
@@ -4240,7 +4273,12 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                   meetingLocation.text = awayMeetingLocation;
                                 }
                               } else if (value == HomeAway.home) {
-                                location.text = homeMatchVenue;
+                                if (location.text.trim().isEmpty ||
+                                    location.text.trim() ==
+                                        lastAutomaticLocation) {
+                                  location.text = homeMatchVenue;
+                                  lastAutomaticLocation = homeMatchVenue;
+                                }
                               }
                             });
                             _refreshPitchConflicts();
@@ -4611,6 +4649,18 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                     },
                                   ),
                                 ],
+                                if (reminderMode != 'none')
+                                  SwitchListTile.adaptive(
+                                    contentPadding: EdgeInsets.zero,
+                                    value: reminderPushEnabled,
+                                    onChanged: (value) => setState(
+                                      () => reminderPushEnabled = value,
+                                    ),
+                                    title: const Text(
+                                        'Zusätzlich als Pushnachricht senden'),
+                                    subtitle: const Text(
+                                        'Die In-App-Erinnerung bleibt immer aktiv.'),
+                                  ),
                               ],
                             ),
                           ),
@@ -4873,6 +4923,14 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       );
       return;
     }
+    if (category.isMatch && opponent.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'Bitte eine gegnerische Mannschaft auswählen oder eingeben.')),
+      );
+      return;
+    }
     Navigator.pop(
       context,
       EventWriteData(
@@ -4889,9 +4947,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                 meetingLocation.text.trim().isEmpty
             ? awayMeetingLocation
             : _optional(meetingLocation),
-        location: category.isMatch && homeAway == HomeAway.home
-            ? homeMatchVenue
-            : location.text.trim(),
+        location: location.text.trim(),
         teamIds: teamIds.toList(),
         address: _optional(address),
         mapUrl: _optional(mapUrl),
@@ -4921,6 +4977,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                     ? int.parse(customReminderMinutes.text.trim())
                     : int.parse(reminderMode),
               ],
+        reminderPushEnabled: reminderPushEnabled,
         attachmentName: _optional(attachmentName),
         attachmentUrl: _optional(attachmentUrl),
         recurrence: recurring

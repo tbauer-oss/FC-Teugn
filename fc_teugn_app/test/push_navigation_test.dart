@@ -51,4 +51,27 @@ void main() {
       '/parent/matches/match-1',
     );
   });
+
+  test('family response push keeps the exact event and child target', () {
+    const action = '/family?eventId=event-1&playerId=player-2';
+    expect(
+      normalizePushActionRoute(action, isTrainer: true),
+      '/trainer/family?eventId=event-1&playerId=player-2',
+    );
+    expect(
+      normalizePushActionRoute(action, isTrainer: false),
+      '/parent/family?eventId=event-1&playerId=player-2',
+    );
+  });
+
+  test('support push opens the exact ticket', () {
+    expect(
+      normalizePushActionRoute('/support/ticket-7', isTrainer: true),
+      '/trainer/support?ticketId=ticket-7',
+    );
+    expect(
+      normalizePushActionRoute('/support/ticket-7', isTrainer: false),
+      '/parent/support?ticketId=ticket-7',
+    );
+  });
 }

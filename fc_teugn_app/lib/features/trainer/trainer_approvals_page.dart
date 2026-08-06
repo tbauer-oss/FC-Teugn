@@ -1376,7 +1376,9 @@ String _permissionCategory(String code) => switch (code) {
       'RESPOND_ATTENDANCE' =>
         'Termine & Rückmeldungen',
       'MATCH_DELETE' ||
+      'MATCH_CANCEL' ||
       'MATCH_RESCHEDULE' ||
+      'LEAGUE_MATCH_CANCEL' ||
       'LEAGUE_MATCH_DELETE' ||
       'LEAGUE_MATCH_RESCHEDULE' ||
       'MANAGE_LINEUPS' ||

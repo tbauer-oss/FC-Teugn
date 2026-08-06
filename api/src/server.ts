@@ -15,6 +15,7 @@ import importsRoutes from './routes/imports.routes';
 import teamOperationsRoutes from './routes/team-operations.routes';
 import competitionsRoutes from './routes/competitions.routes';
 import cronRoutes from './routes/cron.routes';
+import supportRoutes from './routes/support.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { authRateLimit } from './middleware/rate-limit';
 import openApiDocument from '../openapi.json';
@@ -97,6 +98,7 @@ app.use('/notifications', notificationsRoutes);
 app.use('/imports', importsRoutes);
 app.use('/team-operations', teamOperationsRoutes);
 app.use('/competitions', competitionsRoutes);
+app.use('/support', supportRoutes);
 app.use('/internal/cron', cronRoutes);
 
 app.use(errorHandler);

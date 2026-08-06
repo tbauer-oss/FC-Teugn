@@ -98,12 +98,13 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
     where: { id: user.teamId, deletedAt: null },
     select: { id: true },
   });
-  const linkedPlayerTeams = String(user.role) === Role.PARENT
-    ? await prisma.parentPlayerLink.findMany({
-        where: { parentId: user.id, player: { teamId: { not: null } } },
-        select: { player: { select: { teamId: true } } },
-      })
-    : [];
+  // Family assignments are independent from the user's primary club role. A
+  // trainer can therefore answer for their own child without losing trainer
+  // permissions or having to switch accounts.
+  const linkedPlayerTeams = await prisma.parentPlayerLink.findMany({
+    where: { parentId: user.id, player: { teamId: { not: null } } },
+    select: { player: { select: { teamId: true } } },
+  });
   return [
     ...new Set([
       ...(currentTeam ? [currentTeam.id] : []),
@@ -266,19 +267,18 @@ export function eventTeamScope(teamIds: string[]): Prisma.EventWhereInput {
 }
 
 export async function ownPlayerIds(user: TeamScopedUser) {
-  if (String(user.role) === Role.PARENT) {
-    const links = await prisma.parentPlayerLink.findMany({
+  const [links, player] = await Promise.all([
+    prisma.parentPlayerLink.findMany({
       where: { parentId: user.id },
       select: { playerId: true },
-    });
-    return links.map((link) => link.playerId);
-  }
-  if (String(user.role) === Role.PLAYER) {
-    const player = await prisma.player.findUnique({
+    }),
+    prisma.player.findUnique({
       where: { userId: user.id },
       select: { id: true },
-    });
-    return player ? [player.id] : [];
-  }
-  return [];
+    }),
+  ]);
+  return [...new Set([
+    ...links.map((link) => link.playerId),
+    ...(player ? [player.id] : []),
+  ])];
 }

@@ -95,6 +95,9 @@ class TrainerMatchesPage extends ConsumerWidget {
                     onDelete: match.capabilities.canDelete
                         ? () => _deleteMatch(context, ref, match)
                         : null,
+                    onCancel: match.capabilities.canCancel && !match.isCancelled
+                        ? () => _cancelMatch(context, ref, match)
+                        : null,
                     onReschedule: match.capabilities.canReschedule
                         ? () => _rescheduleMatch(context, ref, match)
                         : null,
@@ -260,6 +263,95 @@ class TrainerMatchesPage extends ConsumerWidget {
           const SnackBar(content: Text('Spiel konnte nicht gelöscht werden.')),
         );
       }
+    }
+  }
+
+  Future<void> _cancelMatch(
+    BuildContext context,
+    WidgetRef ref,
+    EventModel event,
+  ) async {
+    final reason = TextEditingController();
+    try {
+      final preview =
+          await ref.read(repositoryProvider).cancelMatchPreview(event.id);
+      if (!context.mounted) return;
+      final recipientCount = preview['recipientCount'] as int? ?? 0;
+      final playerCount = preview['playerCount'] as int? ?? 0;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.event_busy_rounded, color: Colors.redAccent),
+          title: const Text('Spiel verbindlich absagen?'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Das Spiel bleibt sichtbar und wird klar als abgesagt markiert. '
+                  '$playerCount Spieler sowie $recipientCount berechtigte Empfänger werden informiert.',
+                ),
+                const SizedBox(height: 12),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.notifications_active_rounded),
+                  title: Text('In-App und Push sind verpflichtend'),
+                  subtitle: Text(
+                      'Offene Rückmeldungen und geplante Erinnerungen werden geschlossen.'),
+                ),
+                TextField(
+                  controller: reason,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Absagegrund *',
+                    hintText: 'z. B. Platz nicht bespielbar',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Zurück')),
+            FilledButton.icon(
+              onPressed: () {
+                if (reason.text.trim().isEmpty) return;
+                Navigator.pop(dialogContext, true);
+              },
+              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+              icon: const Icon(Icons.event_busy_rounded),
+              label: const Text('Spiel absagen'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+      final result = await ref.read(repositoryProvider).cancelMatch(
+            eventId: event.id,
+            reason: reason.text.trim(),
+          );
+      ref.invalidate(eventsProvider);
+      if (context.mounted) {
+        final delivery = result['delivery'] as Map<String, dynamic>?;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Spiel abgesagt · ${delivery?['recipients'] ?? recipientCount} Empfänger informiert.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Spiel konnte nicht abgesagt werden: $error')),
+        );
+      }
+    } finally {
+      reason.dispose();
     }
   }
 
@@ -1080,12 +1172,14 @@ class _MatchCard extends StatelessWidget {
     required this.onEdit,
     required this.onOpen,
     this.onDelete,
+    this.onCancel,
     this.onReschedule,
   });
   final EventModel event;
   final VoidCallback onEdit;
   final VoidCallback onOpen;
   final VoidCallback? onDelete;
+  final VoidCallback? onCancel;
   final VoidCallback? onReschedule;
 
   @override
@@ -1171,6 +1265,14 @@ class _MatchCard extends StatelessWidget {
                   onPressed: onReschedule,
                   icon: const Icon(Icons.event_repeat_rounded, size: 18),
                   label: const Text('Verlegen'),
+                ),
+              if (onCancel != null)
+                OutlinedButton.icon(
+                  onPressed: onCancel,
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.redAccent),
+                  icon: const Icon(Icons.event_busy_rounded, size: 18),
+                  label: const Text('Absagen'),
                 ),
               if (onDelete != null)
                 IconButton.filledTonal(

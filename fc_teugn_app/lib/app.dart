@@ -29,6 +29,8 @@ import 'features/communications/communications_page.dart';
 import 'features/operations/team_operations_page.dart';
 import 'features/privacy/privacy_page.dart';
 import 'features/help/help_page.dart';
+import 'features/support/support_page.dart';
+import 'features/shared/family_responses.dart';
 import 'features/launch/animated_launch_screen.dart';
 import 'features/shared/app_update_dialog.dart';
 import 'core/models/communication.dart';
@@ -360,22 +362,22 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         ShellRoute(
           builder: (context, state, child) => AppShell(
             title: 'Trainer & Verwaltung',
-            destinations: const [
-              ShellDestination(
+            destinations: [
+              const ShellDestination(
                   label: 'Startseite',
                   mobileLabel: 'Start',
                   icon: Icons.grid_view_rounded,
                   route: '/trainer',
                   section: ShellSection.overview,
                   hint: 'Das Wichtigste auf einen Blick'),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Mitglieder & Berechtigungen',
                   icon: Icons.manage_accounts_rounded,
                   route: '/trainer/approvals',
                   section: ShellSection.administration,
                   hint: 'Zugänge, Rollen und Freigaben',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Team-Zentrale',
                   mobileLabel: 'Team',
                   icon: Icons.groups_rounded,
@@ -383,73 +385,88 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   section: ShellSection.team,
                   hint: 'Mannschaft zentral verwalten',
                   relatedRoutes: ['/trainer/players']),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Spieler & Kader',
                   icon: Icons.badge_rounded,
                   route: '/trainer/players',
                   section: ShellSection.team,
                   hint: 'Profile, Nummern und Positionen',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Kalender',
                   icon: Icons.calendar_month_rounded,
                   route: '/trainer/events',
                   section: ShellSection.schedule,
                   hint: 'Termine, Serien und Rückmeldungen'),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Spielbetrieb',
                   mobileLabel: 'Spiele',
                   icon: Icons.sports_soccer_rounded,
                   route: '/trainer/matches',
                   section: ShellSection.schedule,
                   hint: 'Spieltage, Kader und Liveticker'),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Training & Platzplanung',
                   icon: Icons.fitness_center_rounded,
                   route: '/trainer/training',
                   section: ShellSection.schedule,
                   hint: 'Einheiten, Übungen und Belegung',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Statistiken & Auswertungen',
                   icon: Icons.query_stats_rounded,
                   route: '/trainer/statistics',
                   section: ShellSection.schedule,
                   hint: 'Leistung und Saisonstatistik',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Nachrichten & Abstimmung',
                   icon: Icons.forum_rounded,
                   route: '/trainer/messages',
                   section: ShellSection.communication,
                   hint: 'Absprachen im Verein'),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Aufgaben & Ausrüstung',
                   icon: Icons.assignment_turned_in_rounded,
                   route: '/trainer/operations',
                   section: ShellSection.communication,
                   hint: 'Aufgaben, Listen und Ausrüstung'),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Mannschaften & Verein',
                   icon: Icons.account_tree_rounded,
                   route: '/trainer/organization',
                   section: ShellSection.administration,
                   hint: 'Mannschaften und Strukturen',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Datenschutz & Einwilligungen',
                   icon: Icons.shield_outlined,
                   route: '/trainer/privacy',
                   section: ShellSection.administration,
                   hint: 'Daten, Dokumente und Zustimmungen',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Hilfe & FAQ',
                   icon: Icons.help_center_rounded,
                   route: '/trainer/help',
                   section: ShellSection.support,
                   hint: 'Anleitungen und schnelle Antworten',
                   showOnMobile: false),
+              if (authState.user?.parentPlayers.isNotEmpty == true)
+                const ShellDestination(
+                  label: 'Familie & Rückmeldungen',
+                  icon: Icons.family_restroom_rounded,
+                  route: '/trainer/family',
+                  section: ShellSection.support,
+                  hint: 'Zu- und Absagen für eigene Kinder',
+                ),
+              const ShellDestination(
+                label: 'Technischer Support',
+                icon: Icons.support_agent_rounded,
+                route: '/trainer/support',
+                section: ShellSection.support,
+                hint: 'Probleme melden und Antworten verfolgen',
+              ),
             ],
             child: child,
           ),
@@ -527,6 +544,20 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               path: '/trainer/help',
               builder: (context, state) => const HelpPage(staffView: true),
             ),
+            GoRoute(
+              path: '/trainer/family',
+              builder: (context, state) => FamilyResponsesPage(
+                isTrainer: true,
+                highlightedEventId: state.uri.queryParameters['eventId'],
+                highlightedPlayerId: state.uri.queryParameters['playerId'],
+              ),
+            ),
+            GoRoute(
+              path: '/trainer/support',
+              builder: (context, state) => SupportPage(
+                initialTicketId: state.uri.queryParameters['ticketId'],
+              ),
+            ),
           ],
         ),
         ShellRoute(
@@ -593,6 +624,18 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   section: ShellSection.support,
                   hint: 'Anleitungen und schnelle Antworten',
                   showOnMobile: false),
+              ShellDestination(
+                  label: 'Familie & Rückmeldungen',
+                  icon: Icons.family_restroom_rounded,
+                  route: '/parent/family',
+                  section: ShellSection.support,
+                  hint: 'Alle Zu- und Absagen auf einen Blick'),
+              ShellDestination(
+                  label: 'Technischer Support',
+                  icon: Icons.support_agent_rounded,
+                  route: '/parent/support',
+                  section: ShellSection.support,
+                  hint: 'Probleme melden und Antworten verfolgen'),
             ],
             child: child,
           ),
@@ -648,6 +691,20 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               path: '/parent/help',
               builder: (context, state) => const HelpPage(staffView: false),
             ),
+            GoRoute(
+              path: '/parent/family',
+              builder: (context, state) => FamilyResponsesPage(
+                isTrainer: false,
+                highlightedEventId: state.uri.queryParameters['eventId'],
+                highlightedPlayerId: state.uri.queryParameters['playerId'],
+              ),
+            ),
+            GoRoute(
+              path: '/parent/support',
+              builder: (context, state) => SupportPage(
+                initialTicketId: state.uri.queryParameters['ticketId'],
+              ),
+            ),
           ],
         ),
       ],
@@ -690,6 +747,17 @@ String normalizePushActionRoute(
   }
   if (path == '/events' || path.startsWith('/events/')) {
     return isTrainer ? '/trainer/events' : '/parent/events';
+  }
+  if (path == '/family' || path.startsWith('/family/')) {
+    final base = isTrainer ? '/trainer/family' : '/parent/family';
+    return parsed?.hasQuery == true ? '$base?${parsed!.query}' : base;
+  }
+  if (path == '/support' || path.startsWith('/support/')) {
+    final base = isTrainer ? '/trainer/support' : '/parent/support';
+    final ticketId = path.startsWith('/support/')
+        ? path.substring('/support/'.length).split('/').first
+        : '';
+    return ticketId.isEmpty ? base : '$base?ticketId=$ticketId';
   }
   if (path == '/matches') {
     return isTrainer ? '/trainer/matches' : '/parent/matches';

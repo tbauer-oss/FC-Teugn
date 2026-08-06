@@ -96,6 +96,13 @@ enum AttendanceStatus {
   UNKNOWN
 }
 
+enum AttendanceResponseSource {
+  GUARDIAN
+  PLAYER
+  TRAINER_CORRECTION
+  SYSTEM_ADMINISTRATION
+}
+
 enum CarpoolRequestStatus {
   REQUESTED
   CONFIRMED
@@ -214,7 +221,27 @@ enum NotificationCategory {
   MATCH
   REGISTRATION
   URGENT
+  SUPPORT
   SYSTEM
+}
+
+enum SupportCategory {
+  USAGE
+  DISPLAY
+  ACCOUNT
+  PUSH
+  SYNC
+  CALENDAR
+  MATCHDAY
+  OTHER
+}
+
+enum SupportStatus {
+  OPEN
+  IN_PROGRESS
+  QUESTION
+  RESOLVED
+  CLOSED
 }
 
 enum PitchConflictRequestStatus {
@@ -343,6 +370,7 @@ enum FileAssetKind {
   PLAYER_DOCUMENT
   TEAM_PHOTO
   OPPONENT_LOGO
+  SUPPORT_ATTACHMENT
 }
 
 enum TeamType {
@@ -410,70 +438,71 @@ enum ChecklistRunStatus {
 }
 
 model Team {
-  id                       String                      @id @default(cuid())
-  ageGroupId               String
-  teamNumber               Int                         @default(1)
-  name                     String
-  shortName                String?
-  level                    String?
-  teamType                 TeamType                    @default(COMPETITIVE)
-  gender                   TeamGender                  @default(MIXED)
-  gameFormat               TeamGameFormat              @default(FOOTBALL_7)
-  periodCount              Int                         @default(2)
-  periodMinutes            Int                         @default(30)
-  defaultFormation         String?
-  customFormations         String[]                    @default([])
-  formationTemplates       Json                        @default("[]")
-  birthYears               Int[]                       @default([])
-  description              String?
-  trainingLocation         String?
-  trainingTimes            String[]                    @default([])
-  trainingPartnerIds       String[]                    @default([])
-  matchdayTimes            String[]                    @default([])
-  seasonStartDate          DateTime?
-  seasonEndDate            DateTime?
-  indoorSeasonStartDate    DateTime?
-  indoorSeasonEndDate      DateTime?
-  indoorTrainingLocation   String?
-  indoorTrainingTimes      String[]                    @default([])
-  indoorTrainingPartnerIds String[]                    @default([])
-  homeVenue                String?
-  bfvTeamId                String?
-  dfbnetTeamId             String?
-  bfvTeamUrl               String?
-  photoAssetId             String?                     @unique
-  isActive                 Boolean                     @default(true)
-  deletedAt                DateTime?
-  createdAt                DateTime                    @default(now())
-  updatedAt                DateTime                    @updatedAt
-  ageGroup                 AgeGroup                    @relation(fields: [ageGroupId], references: [id])
-  users                    User[]
-  memberships              TeamMembership[]
-  players                  Player[]
-  events                   Event[]
-  eventTargets             EventTargetTeam[]
-  eventSeries              EventSeries[]
-  auditLogs                AuditLog[]
-  ruleProfiles             RuleProfile[]
-  exercises                TrainingExercise[]
-  announcements            AnnouncementTargetTeam[]
-  importJobs               ImportJob[]
-  externalRefs             ExternalReference[]
-  playerSeasonAssignments  PlayerSeasonAssignment[]
-  registrationRequests     RegistrationTeamRequest[]
-  tasks                    TeamTask[]
-  equipmentItems           EquipmentItem[]
-  checklistTemplates       ChecklistTemplate[]
-  checklistRuns            ChecklistRun[]
-  photoAsset               FileAsset?                  @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
-  ownedFileAssets          FileAsset[]                 @relation("TeamFileOwner")
-  pitchConflictRequests    PitchConflictRequest[]
-  defaultLineupPositions   TeamDefaultLineupPosition[]
-  contextPreferences       UserContextPreference[]
-  opponents                Opponent[]
-  leagues                  League[]
-  leagueEntries            LeagueEntry[]
-  defaultReminderMinutes   Int?                        @default(60)
+  id                         String                      @id @default(cuid())
+  ageGroupId                 String
+  teamNumber                 Int                         @default(1)
+  name                       String
+  shortName                  String?
+  level                      String?
+  teamType                   TeamType                    @default(COMPETITIVE)
+  gender                     TeamGender                  @default(MIXED)
+  gameFormat                 TeamGameFormat              @default(FOOTBALL_7)
+  periodCount                Int                         @default(2)
+  periodMinutes              Int                         @default(30)
+  defaultFormation           String?
+  customFormations           String[]                    @default([])
+  formationTemplates         Json                        @default("[]")
+  birthYears                 Int[]                       @default([])
+  description                String?
+  trainingLocation           String?
+  trainingTimes              String[]                    @default([])
+  trainingPartnerIds         String[]                    @default([])
+  matchdayTimes              String[]                    @default([])
+  seasonStartDate            DateTime?
+  seasonEndDate              DateTime?
+  indoorSeasonStartDate      DateTime?
+  indoorSeasonEndDate        DateTime?
+  indoorTrainingLocation     String?
+  indoorTrainingTimes        String[]                    @default([])
+  indoorTrainingPartnerIds   String[]                    @default([])
+  homeVenue                  String?
+  bfvTeamId                  String?
+  dfbnetTeamId               String?
+  bfvTeamUrl                 String?
+  photoAssetId               String?                     @unique
+  isActive                   Boolean                     @default(true)
+  deletedAt                  DateTime?
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  ageGroup                   AgeGroup                    @relation(fields: [ageGroupId], references: [id])
+  users                      User[]
+  memberships                TeamMembership[]
+  players                    Player[]
+  events                     Event[]
+  eventTargets               EventTargetTeam[]
+  eventSeries                EventSeries[]
+  auditLogs                  AuditLog[]
+  ruleProfiles               RuleProfile[]
+  exercises                  TrainingExercise[]
+  announcements              AnnouncementTargetTeam[]
+  importJobs                 ImportJob[]
+  externalRefs               ExternalReference[]
+  playerSeasonAssignments    PlayerSeasonAssignment[]
+  registrationRequests       RegistrationTeamRequest[]
+  tasks                      TeamTask[]
+  equipmentItems             EquipmentItem[]
+  checklistTemplates         ChecklistTemplate[]
+  checklistRuns              ChecklistRun[]
+  photoAsset                 FileAsset?                  @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
+  ownedFileAssets            FileAsset[]                 @relation("TeamFileOwner")
+  pitchConflictRequests      PitchConflictRequest[]
+  defaultLineupPositions     TeamDefaultLineupPosition[]
+  contextPreferences         UserContextPreference[]
+  opponents                  Opponent[]
+  leagues                    League[]
+  leagueEntries              LeagueEntry[]
+  defaultReminderMinutes     Int?                        @default(60)
+  defaultReminderPushEnabled Boolean                     @default(true)
 
   @@index([ageGroupId, isActive, deletedAt])
 }
@@ -628,6 +657,9 @@ model User {
   reminderJobs                 ScheduledReminder[]
   idempotencyRecords           IdempotencyRecord[]
   deletedAnnouncements         Announcement[]           @relation("AnnouncementDeleter")
+  supportTickets               SupportTicket[]          @relation("SupportTicketCreator")
+  assignedSupportTickets       SupportTicket[]          @relation("SupportTicketAssignee")
+  supportMessages              SupportMessage[]
 }
 
 model UserContextPreference {
@@ -826,28 +858,29 @@ model Player {
 }
 
 model FileAsset {
-  id            String          @id @default(cuid())
-  kind          FileAssetKind
-  pathname      String          @unique
-  storageUrl    String
-  originalName  String
-  contentType   String
-  size          Int
-  checksum      String
-  isPrivate     Boolean         @default(true)
-  uploadedById  String
-  ownerPlayerId String?
-  ownerTeamId   String?
-  deletedAt     DateTime?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  uploadedBy    User            @relation("FileAssetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  ownerPlayer   Player?         @relation("PlayerFileOwner", fields: [ownerPlayerId], references: [id], onDelete: SetNull)
-  playerPhoto   Player?         @relation("PlayerPhotoAsset")
-  ownerTeam     Team?           @relation("TeamFileOwner", fields: [ownerTeamId], references: [id], onDelete: SetNull)
-  teamPhoto     Team?           @relation("TeamPhotoAsset")
-  opponentLogo  Opponent?       @relation("OpponentLogoAsset")
-  document      PlayerDocument?
+  id                String          @id @default(cuid())
+  kind              FileAssetKind
+  pathname          String          @unique
+  storageUrl        String
+  originalName      String
+  contentType       String
+  size              Int
+  checksum          String
+  isPrivate         Boolean         @default(true)
+  uploadedById      String
+  ownerPlayerId     String?
+  ownerTeamId       String?
+  deletedAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  uploadedBy        User            @relation("FileAssetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  ownerPlayer       Player?         @relation("PlayerFileOwner", fields: [ownerPlayerId], references: [id], onDelete: SetNull)
+  playerPhoto       Player?         @relation("PlayerPhotoAsset")
+  ownerTeam         Team?           @relation("TeamFileOwner", fields: [ownerTeamId], references: [id], onDelete: SetNull)
+  teamPhoto         Team?           @relation("TeamPhotoAsset")
+  opponentLogo      Opponent?       @relation("OpponentLogoAsset")
+  document          PlayerDocument?
+  supportAttachment SupportTicket?  @relation("SupportAttachment")
 
   @@index([ownerPlayerId, kind, deletedAt])
   @@index([ownerTeamId, kind, deletedAt])
@@ -1032,6 +1065,7 @@ model Event {
   responseDeadline      DateTime?
   internalNote          String?
   reminderMinutes       Int[]                  @default([])
+  reminderPushEnabled   Boolean                @default(true)
   isSeriesException     Boolean                @default(false)
   cancellationReason    String?
   cancelledAt           DateTime?
@@ -1285,21 +1319,23 @@ model LeagueMatch {
 }
 
 model Attendance {
-  id                   String                    @id @default(cuid())
-  eventId              String
-  playerId             String
-  status               AttendanceStatus          @default(UNKNOWN)
-  reason               String?
-  goalkeeperAvailable  Boolean?
-  respondedById        String?
-  respondedAt          DateTime?
-  actualAttendance     AttendanceStatus?
-  actualAttendanceNote String?
-  trainingStatus       TrainingAttendanceStatus?
-  updatedAt            DateTime                  @updatedAt
-  event                Event                     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  player               Player                    @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  respondedBy          User?                     @relation("AttendanceResponder", fields: [respondedById], references: [id], onDelete: SetNull)
+  id                    String                    @id @default(cuid())
+  eventId               String
+  playerId              String
+  status                AttendanceStatus          @default(UNKNOWN)
+  reason                String?
+  goalkeeperAvailable   Boolean?
+  respondedById         String?
+  respondedAt           DateTime?
+  responseSource        AttendanceResponseSource?
+  responderRelationship GuardianRelationship?
+  actualAttendance      AttendanceStatus?
+  actualAttendanceNote  String?
+  trainingStatus        TrainingAttendanceStatus?
+  updatedAt             DateTime                  @updatedAt
+  event                 Event                     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player                Player                    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  respondedBy           User?                     @relation("AttendanceResponder", fields: [respondedById], references: [id], onDelete: SetNull)
 
   @@unique([eventId, playerId])
   @@index([eventId, status])
@@ -2047,6 +2083,45 @@ model ChecklistRunItem {
   completedBy    User?        @relation("ChecklistRunItemCompleter", fields: [completedById], references: [id], onDelete: SetNull)
 
   @@unique([checklistRunId, position])
+}
+
+model SupportTicket {
+  id                String           @id @default(cuid())
+  creatorId         String
+  assignedToId      String?
+  category          SupportCategory
+  subject           String
+  description       String
+  appArea           String?
+  contactRequested  Boolean          @default(false)
+  technicalMetadata Json
+  status            SupportStatus    @default(OPEN)
+  attachmentAssetId String?          @unique
+  resolvedAt        DateTime?
+  closedAt          DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  creator           User             @relation("SupportTicketCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  assignedTo        User?            @relation("SupportTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  attachmentAsset   FileAsset?       @relation("SupportAttachment", fields: [attachmentAssetId], references: [id], onDelete: SetNull)
+  messages          SupportMessage[]
+
+  @@index([creatorId, status, updatedAt])
+  @@index([status, updatedAt])
+}
+
+model SupportMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  authorId  String
+  body      String
+  internal  Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@index([authorId, createdAt])
 }
 
 model AuditLog {

@@ -1,11 +1,20 @@
 import { createHash, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
-import { LeagueMatchStatus, Prisma } from '@prisma/client';
+import {
+  AccountStatus,
+  LeagueMatchStatus,
+  MatchStatus,
+  NotificationCategory,
+  Prisma,
+  Role,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { accessibleTeamIds } from '../services/team-access';
 import { mediaAssetUrl } from '../services/media-access';
 import { objectStorage } from '../services/object-storage';
 import { hasEffectivePermission, Permission } from '../security/permissions';
+import { reminderRecipientsForEvent } from '../services/reminder.service';
+import { notifyUsers } from '../services/notification.service';
 
 const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -565,6 +574,114 @@ export async function deleteLeagueMatch(req: Request, res: Response) {
     });
   });
   return res.json({ status: 'DELETED', standingsRecalculated: true });
+}
+
+export async function cancelLeagueMatch(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await prisma.leagueMatch.findFirst({
+    where: { id: req.params.matchId, leagueId: req.params.leagueId },
+    include: {
+      league: true,
+      homeEntry: true,
+      awayEntry: true,
+      event: { include: { targetTeams: true } },
+    },
+  });
+  if (!match) return res.status(404).json({ message: 'Ligapartie nicht gefunden.' });
+  const access = await accessibleAgeGroup(req, match.league.ageGroupId);
+  if (!access.ageGroupTeamIds.length) {
+    return res.status(403).json({ message: 'Kein Zugriff auf diese Liga.' });
+  }
+  const reason = text(req.body.reason, 1000);
+  if (!reason) return res.status(400).json({ message: 'Bitte einen Absagegrund angeben.' });
+  const now = new Date();
+  const audience = match.eventId
+    ? await reminderRecipientsForEvent(match.eventId)
+    : { recipientIds: [] as string[] };
+  const teamIds = match.event
+    ? match.event.targetTeams.length
+      ? match.event.targetTeams.map((target) => target.teamId)
+      : [match.event.teamId]
+    : access.ageGroupTeamIds;
+  const staff = await prisma.teamMembership.findMany({
+    where: {
+      teamId: { in: teamIds },
+      status: AccountStatus.APPROVED,
+      role: {
+        in: [
+          Role.SUPER_ADMIN,
+          Role.CLUB_ADMIN,
+          Role.YOUTH_DIRECTOR,
+          Role.TRAINER_ADMIN,
+          Role.COACH,
+          Role.TRAINER,
+          Role.ASSISTANT_COACH,
+          Role.TEAM_MANAGER,
+        ],
+      },
+    },
+    select: { userId: true },
+  });
+  await prisma.$transaction(async (tx) => {
+    await tx.leagueMatch.update({
+      where: { id: match.id },
+      data: { status: LeagueMatchStatus.CANCELLED, notes: reason },
+    });
+    if (match.eventId) {
+      await tx.event.update({
+        where: { id: match.eventId },
+        data: {
+          status: 'CANCELLED',
+          cancellationReason: reason,
+          cancelledAt: now,
+          attendanceFinalized: true,
+        },
+      });
+      await tx.matchDetails.updateMany({
+        where: { eventId: match.eventId },
+        data: { status: MatchStatus.CANCELLED },
+      });
+      await tx.scheduledReminder.updateMany({
+        where: {
+          eventId: match.eventId,
+          status: { in: ['SCHEDULED', 'FAILED', 'PROCESSING'] },
+        },
+        data: { status: 'CANCELLED', cancelledAt: now },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: match.league.teamId ?? access.ageGroupTeamIds[0],
+        action: 'LEAGUE_MATCH_CANCELLED',
+        entityType: 'LeagueMatch',
+        entityId: match.id,
+        metadata: {
+          leagueId: match.leagueId,
+          eventId: match.eventId,
+          home: match.homeEntry.displayName,
+          away: match.awayEntry.displayName,
+          reason,
+        },
+      },
+    });
+  });
+  const delivery = await notifyUsers(
+    [...audience.recipientIds, ...staff.map((item) => item.userId)]
+      .filter((id) => id !== user.id),
+    {
+      category: NotificationCategory.MATCH,
+      title: 'Ligaspiel abgesagt',
+      body: `${match.homeEntry.displayName} – ${match.awayEntry.displayName} wurde abgesagt. Grund: ${reason}`,
+      actionUrl: match.eventId ? `/matches/${match.eventId}` : '/matches',
+      entityType: 'LeagueMatchCancellation',
+      entityId: match.eventId ?? match.id,
+      dedupeKey: `league-match-cancelled:${match.id}`,
+      forceInApp: true,
+      forcePush: true,
+    },
+  );
+  return res.json({ status: LeagueMatchStatus.CANCELLED, reason, delivery });
 }
 
 export async function archiveLeague(req: Request, res: Response) {

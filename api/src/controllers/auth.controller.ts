@@ -12,6 +12,30 @@ import { ConsentDocumentType, GuardianRelationship } from '@prisma/client';
 
 const refreshLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 
+async function familyLinks(userId: string) {
+  return prisma.parentPlayerLink.findMany({
+    where: { parentId: userId },
+    orderBy: [{ player: { firstName: 'asc' } }, { player: { lastName: 'asc' } }],
+    include: {
+      player: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          teamId: true,
+          team: {
+            select: {
+              id: true,
+              name: true,
+              ageGroup: { select: { code: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 function tokenHash(token: string) {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -331,6 +355,7 @@ export async function register(req: Request, res: Response) {
   });
 
   const tokens = await issueSession(user, req);
+  const parentLinks = await familyLinks(user.id);
   const registrationRequest = await prisma.registrationRequest.findUnique({
     where: { userId: user.id },
     select: {
@@ -354,6 +379,7 @@ export async function register(req: Request, res: Response) {
       role: user.role,
       status: user.status,
       teamId: user.teamId,
+      parentLinks,
       registrationRequest,
     },
     ...tokens,
@@ -418,6 +444,7 @@ export async function login(req: Request, res: Response) {
   }
 
   const tokens = await issueSession(user, req);
+  const parentLinks = await familyLinks(user.id);
 
   return res.json({
     user: {
@@ -428,6 +455,7 @@ export async function login(req: Request, res: Response) {
       role: user.role,
       status: user.status,
       teamId: user.teamId,
+      parentLinks,
       registrationRequest: user.registrationRequest,
     },
     ...tokens,
@@ -500,6 +528,7 @@ export async function refresh(req: Request, res: Response) {
   }
 
   const next = await issueSession(session.user, req, session.familyId);
+  const parentLinks = await familyLinks(session.user.id);
   const nextPayload = verifyRefreshToken(next.refreshToken) as {
     sessionId: string;
   };
@@ -510,7 +539,7 @@ export async function refresh(req: Request, res: Response) {
     },
   });
   return res.json({
-    user: userResponse(session.user),
+    user: { ...userResponse(session.user), parentLinks },
     ...next,
   });
 }
@@ -557,6 +586,7 @@ export async function me(req: Request, res: Response) {
     },
   });
   if (!user) return res.status(404).json({ message: 'User not found' });
+  const parentLinks = await familyLinks(user.id);
 
   return res.json({
     id: user.id,
@@ -566,6 +596,7 @@ export async function me(req: Request, res: Response) {
     role: user.role,
     status: user.status,
     teamId: user.teamId,
+    parentLinks,
     registrationRequest: user.registrationRequest,
   });
 }

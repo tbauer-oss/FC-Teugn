@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import {
   AccountStatus,
+  AttendanceResponseSource,
   AttendanceStatus,
   CarpoolRequestStatus,
   EventCategory,
@@ -9,6 +10,7 @@ import {
   EventType,
   EventVisibility,
   HomeAway,
+  GuardianRelationship,
   MatchStatus,
   NotificationCategory,
   Prisma,
@@ -26,6 +28,7 @@ import {
 import {
   accessibleTeamIds,
   contextualTeamIds,
+  ownPlayerIds,
   youthPlayerPoolTeamIdsForTeam,
 } from '../services/team-access';
 import { rosterTeamIdsForMatch } from '../services/match-roster';
@@ -34,7 +37,10 @@ import {
   fieldSizeForGameFormat,
   syncSquadWithTeamDefaultLineup,
 } from '../services/default-lineup.service';
-import { syncScheduledRemindersForEvent } from '../services/reminder.service';
+import {
+  reminderRecipientsForEvent,
+  syncScheduledRemindersForEvent,
+} from '../services/reminder.service';
 import { mediaAssetUrl } from '../services/media-access';
 import { notifyUsers } from '../services/notification.service';
 
@@ -71,6 +77,7 @@ const eventInclude = {
   attachments: true,
   attendance: {
     include: {
+      respondedBy: { select: { id: true, name: true, role: true } },
       player: {
         select: {
           id: true,
@@ -205,24 +212,6 @@ function eventScope(teamIds: string[]): Prisma.EventWhereInput {
   };
 }
 
-async function ownPlayerIds(userId: string, role: Role | PrismaRole) {
-  if (role === Role.PARENT) {
-    const links = await prisma.parentPlayerLink.findMany({
-      where: { parentId: userId },
-      select: { playerId: true },
-    });
-    return links.map((link) => link.playerId);
-  }
-  if (role === Role.PLAYER) {
-    const player = await prisma.player.findUnique({
-      where: { userId },
-      select: { id: true },
-    });
-    return player ? [player.id] : [];
-  }
-  return [];
-}
-
 function targetIdsForEvent(event: {
   teamId: string;
   targetTeams: Array<{ teamId: string }>;
@@ -303,7 +292,7 @@ async function serializeEvent(
   const staff = isStaff(user.role, user.permissions);
   const accessibleIds = knownAccessibleIds ?? (await accessibleTeamIds(user));
   const manageable = canManageEventWithIds(user, event, accessibleIds);
-  const personalPlayerIds = staff ? [] : await ownPlayerIds(user.id, user.role);
+  const personalPlayerIds = await ownPlayerIds(user);
   const eventTargetIds = targetIdsForEvent(event);
   const explicitParticipantPlayers = event.participants
     .filter((participant) => participant.responseRequired && participant.player)
@@ -422,7 +411,21 @@ async function serializeEvent(
           Permission.MATCH_RESCHEDULE,
           user.permissions,
         ),
-      canRespond: hasPermission(user.role as Role, Permission.RESPOND_ATTENDANCE),
+      canCancel:
+        event.type === EventType.MATCH &&
+        targetIdsForEvent(event).every((teamId) => accessibleIds.includes(teamId)) &&
+        hasEffectivePermission(
+          user.role as Role,
+          Permission.MATCH_CANCEL,
+          user.permissions,
+        ),
+      canRespond:
+        personalPlayerIds.length > 0 ||
+        hasEffectivePermission(
+          user.role as Role,
+          Permission.RESPOND_ATTENDANCE,
+          user.permissions,
+        ),
       canOfferRide: user.role !== Role.READ_ONLY,
       canOpenEmergencyView:
         hasPermission(user.role as Role, Permission.VIEW_SENSITIVE_PLAYER) &&
@@ -519,10 +522,15 @@ function eventData(body: Record<string, unknown>) {
   const homeAway = body.homeAway
     ? enumValue(HomeAway, body.homeAway, HomeAway.NEUTRAL)
     : null;
+  const requestedLocation = clean(body.location);
   const location =
     type === EventType.MATCH && homeAway === HomeAway.HOME
-      ? HOME_MATCH_VENUE
-      : clean(body.location);
+      ? requestedLocation ?? HOME_MATCH_VENUE
+      : type === EventType.MATCH &&
+          homeAway === HomeAway.AWAY &&
+          requestedLocation === HOME_MATCH_VENUE
+        ? null
+        : requestedLocation;
   return {
     type,
     category,
@@ -559,6 +567,7 @@ function eventData(body: Record<string, unknown>) {
           .map((value) => boundedInt(value, 0, 10080))
           .filter((value): value is number => value !== null)
       : [],
+    reminderPushEnabled: body.reminderPushEnabled !== false,
   };
 }
 
@@ -673,6 +682,142 @@ async function validatedTargetTeams(
   return ids.length > 0 && ids.every((id) => allowed.includes(id)) ? ids : null;
 }
 
+/**
+ * App-wide family inbox. It deliberately ignores the currently selected
+ * trainer/team context and derives access exclusively from real guardian and
+ * player-account assignments.
+ */
+export async function listPersonalResponses(req: Request, res: Response) {
+  const user = req.user!;
+  const [links, ownPlayer] = await Promise.all([
+    prisma.parentPlayerLink.findMany({
+      where: { parentId: user.id },
+      include: {
+        player: {
+          include: {
+            team: { include: { ageGroup: { select: { code: true, name: true } } } },
+          },
+        },
+      },
+    }),
+    prisma.player.findUnique({
+      where: { userId: user.id },
+      include: {
+        team: { include: { ageGroup: { select: { code: true, name: true } } } },
+      },
+    }),
+  ]);
+  const assignments = [
+    ...links.map((link) => ({
+      player: link.player,
+      relationship: link.relationship,
+      isOwnPlayer: false,
+    })),
+    ...(ownPlayer && !links.some((link) => link.playerId === ownPlayer.id)
+      ? [{ player: ownPlayer, relationship: null, isOwnPlayer: true }]
+      : []),
+  ];
+  const playerIds = assignments.map((item) => item.player.id);
+  const teamIds = assignments
+    .map((item) => item.player.teamId)
+    .filter((id): id is string => Boolean(id));
+  if (!playerIds.length || !teamIds.length) return res.json([]);
+
+  const now = new Date();
+  const from = validDate(req.query.from) ?? new Date(now.getTime() - 30 * 86_400_000);
+  const to = validDate(req.query.to) ?? new Date(now.getTime() + 370 * 86_400_000);
+  const events = await prisma.event.findMany({
+    where: {
+      status: { in: [EventStatus.SCHEDULED, EventStatus.CANCELLED] },
+      visibility: { not: EventVisibility.STAFF_ONLY },
+      startAt: { gte: from, lte: to },
+      OR: [
+        { attendance: { some: { playerId: { in: playerIds } } } },
+        { participants: { some: { playerId: { in: playerIds }, responseRequired: true } } },
+        { teamId: { in: teamIds } },
+        { targetTeams: { some: { teamId: { in: teamIds } } } },
+      ],
+    },
+    orderBy: { startAt: 'asc' },
+    include: {
+      targetTeams: { select: { teamId: true } },
+      participants: { select: { playerId: true, responseRequired: true } },
+      attendance: { where: { playerId: { in: playerIds } } },
+      matchDetails: {
+        include: {
+          opponentRecord: {
+            include: { logoAsset: { select: { id: true, deletedAt: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  const result = assignments.flatMap((assignment) => {
+    const player = assignment.player;
+    if (!player.teamId) return [];
+    return events.flatMap((event) => {
+      const targetIds = event.targetTeams.length
+        ? event.targetTeams.map((item) => item.teamId)
+        : [event.teamId];
+      const requestedPlayers = event.participants
+        .filter((item) => item.responseRequired && item.playerId)
+        .map((item) => item.playerId!);
+      const response = event.attendance.find((item) => item.playerId === player.id);
+      const explicitlyRequested = requestedPlayers.includes(player.id);
+      const appliesToTeam = targetIds.includes(player.teamId!);
+      if (requestedPlayers.length && !explicitlyRequested) return [];
+      // A match squad is a draft until publishing creates the request.
+      if (event.type === EventType.MATCH && !response && !explicitlyRequested) return [];
+      if (!response && !explicitlyRequested && !appliesToTeam) return [];
+      const deadlinePassed = Boolean(
+        event.responseDeadline && event.responseDeadline.getTime() < now.getTime(),
+      );
+      return [{
+        eventId: event.id,
+        playerId: player.id,
+        playerName: player.preferredName || `${player.firstName} ${player.lastName}`.trim(),
+        teamId: player.teamId,
+        teamName: player.team?.name ?? '',
+        ageGroupCode: player.team?.ageGroup.code ?? '',
+        relationship: assignment.relationship,
+        isOwnPlayer: assignment.isOwnPlayer,
+        title: event.title,
+        type: event.type,
+        category: event.category,
+        status: event.status,
+        startAt: event.startAt,
+        meetingAt: event.meetingAt,
+        meetingLocation: event.meetingLocation,
+        location: event.location,
+        address: event.address,
+        homeAway: event.homeAway,
+        opponent: event.opponent,
+        responseDeadline: event.responseDeadline,
+        attendanceFinalized: event.attendanceFinalized,
+        responseStatus: response?.status ?? AttendanceStatus.UNKNOWN,
+        reason: response?.reason ?? null,
+        respondedAt: response?.respondedAt ?? null,
+        canRespond:
+          event.status === EventStatus.SCHEDULED &&
+          !event.attendanceFinalized &&
+          !deadlinePassed,
+        isOverdue:
+          event.status === EventStatus.SCHEDULED &&
+          !event.attendanceFinalized &&
+          deadlinePassed &&
+          (!response || response.status === AttendanceStatus.UNKNOWN),
+        opponentLogoUrl:
+          event.matchDetails?.opponentRecord?.logoAsset &&
+          event.matchDetails.opponentRecord.logoAsset.deletedAt === null
+            ? mediaAssetUrl(event.matchDetails.opponentRecord.logoAsset.id, '12h')
+            : event.matchDetails?.opponentLogoUrl ?? null,
+      }];
+    });
+  });
+  return res.json(result);
+}
+
 export async function listEvents(req: Request, res: Response) {
   const user = req.user!;
   const accessibleIds = await accessibleTeamIds(user);
@@ -734,8 +879,8 @@ export async function getEvent(req: Request, res: Response) {
 export async function createEvent(req: Request, res: Response) {
   const user = req.user!;
   const data = eventData(req.body);
-  if (!data.startAt || !data.location) {
-    return res.status(400).json({ message: 'Beginn und Ort sind erforderlich.' });
+  if (!data.startAt) {
+    return res.status(400).json({ message: 'Beginn ist erforderlich.' });
   }
   if (data.endAt && data.endAt < data.startAt) {
     return res.status(400).json({ message: 'Das Ende darf nicht vor dem Beginn liegen.' });
@@ -779,9 +924,30 @@ export async function createEvent(req: Request, res: Response) {
           archivedAt: null,
           ageGroup: { teams: { some: { id: { in: teamIds } } } },
         },
-        select: { id: true },
+        select: {
+          id: true,
+          clubName: true,
+          teamDesignation: true,
+          shortName: true,
+          venue: true,
+          address: true,
+        },
       })
     : null;
+  if (data.type === EventType.MATCH) {
+    data.opponent = data.opponent ?? opponentRecord?.shortName ??
+      [opponentRecord?.clubName, opponentRecord?.teamDesignation].filter(Boolean).join(' ');
+    if (!data.opponent) {
+      return res.status(400).json({ message: 'Bitte eine gegnerische Mannschaft auswählen oder eingeben.' });
+    }
+    if (data.homeAway === HomeAway.AWAY && !data.location) {
+      data.location = opponentRecord?.venue ?? opponentRecord?.address ?? null;
+      data.address = data.address ?? opponentRecord?.address ?? null;
+    }
+  }
+  if (!data.location) {
+    return res.status(400).json({ message: 'Bitte einen Spiel- oder Veranstaltungsort angeben.' });
+  }
   const attachments: Array<{
     name: string;
     url: string;
@@ -930,7 +1096,7 @@ export async function createEvent(req: Request, res: Response) {
       await tx.matchDetails.createMany({
         data: events.map((event) => ({
           eventId: event.id!,
-          opponent: data.opponent ?? 'Unbekannt',
+          opponent: data.opponent!,
           opponentId: opponentRecord?.id,
           isHome: data.homeAway !== HomeAway.AWAY,
           pitch: data.venue,
@@ -1001,8 +1167,8 @@ export async function updateEvent(req: Request, res: Response) {
   }
   const scope = req.query.scope === 'series' ? 'series' : 'single';
   const parsed = eventData({ ...existing, ...req.body });
-  if (!parsed.startAt || !parsed.location) {
-    return res.status(400).json({ message: 'Beginn und Ort sind erforderlich.' });
+  if (!parsed.startAt) {
+    return res.status(400).json({ message: 'Beginn ist erforderlich.' });
   }
   if (parsed.endAt && parsed.endAt < parsed.startAt) {
     return res.status(400).json({ message: 'Das Ende darf nicht vor dem Beginn liegen.' });
@@ -1045,9 +1211,30 @@ export async function updateEvent(req: Request, res: Response) {
           archivedAt: null,
           ageGroup: { teams: { some: { id: { in: targetTeamIds } } } },
         },
-        select: { id: true },
+        select: {
+          id: true,
+          clubName: true,
+          teamDesignation: true,
+          shortName: true,
+          venue: true,
+          address: true,
+        },
       })
     : null;
+  if (parsed.type === EventType.MATCH) {
+    parsed.opponent = parsed.opponent ?? opponentRecord?.shortName ??
+      [opponentRecord?.clubName, opponentRecord?.teamDesignation].filter(Boolean).join(' ');
+    if (!parsed.opponent) {
+      return res.status(400).json({ message: 'Bitte eine gegnerische Mannschaft auswählen oder eingeben.' });
+    }
+    if (parsed.homeAway === HomeAway.AWAY && !parsed.location) {
+      parsed.location = opponentRecord?.venue ?? opponentRecord?.address ?? null;
+      parsed.address = parsed.address ?? opponentRecord?.address ?? null;
+    }
+  }
+  if (!parsed.location) {
+    return res.status(400).json({ message: 'Bitte einen Spiel- oder Veranstaltungsort angeben.' });
+  }
   const updateStartAt = parsed.startAt;
   const updateEndAt = parsed.endAt;
   const baseUpdate = {
@@ -1104,7 +1291,7 @@ export async function updateEvent(req: Request, res: Response) {
           await tx.matchDetails.upsert({
             where: { eventId: occurrence.id },
             update: {
-              opponent: parsed.opponent ?? 'Unbekannt',
+              opponent: parsed.opponent!,
               opponentId: opponentRecord?.id ?? null,
               isHome: parsed.homeAway !== HomeAway.AWAY,
               pitch: parsed.venue,
@@ -1112,7 +1299,7 @@ export async function updateEvent(req: Request, res: Response) {
             },
             create: {
               eventId: occurrence.id,
-              opponent: parsed.opponent ?? 'Unbekannt',
+              opponent: parsed.opponent!,
               opponentId: opponentRecord?.id ?? null,
               isHome: parsed.homeAway !== HomeAway.AWAY,
               pitch: parsed.venue,
@@ -1141,7 +1328,7 @@ export async function updateEvent(req: Request, res: Response) {
         await tx.matchDetails.upsert({
           where: { eventId: existing.id },
           update: {
-            opponent: parsed.opponent ?? 'Unbekannt',
+            opponent: parsed.opponent!,
             opponentId: opponentRecord?.id ?? null,
             isHome: parsed.homeAway !== HomeAway.AWAY,
             pitch: parsed.venue,
@@ -1149,7 +1336,7 @@ export async function updateEvent(req: Request, res: Response) {
           },
           create: {
             eventId: existing.id,
-            opponent: parsed.opponent ?? 'Unbekannt',
+            opponent: parsed.opponent!,
             opponentId: opponentRecord?.id ?? null,
             isHome: parsed.homeAway !== HomeAway.AWAY,
             pitch: parsed.venue,
@@ -1206,7 +1393,9 @@ export async function deleteEvent(req: Request, res: Response) {
     ? existing.type === EventType.MATCH
       ? Permission.MATCH_DELETE
       : Permission.EVENT_DELETE
-    : Permission.MANAGE_EVENTS;
+    : existing.type === EventType.MATCH
+      ? Permission.MATCH_CANCEL
+      : Permission.MANAGE_EVENTS;
   if (!hasEffectivePermission(user.role, requiredPermission, user.permissions)) {
     return res.status(403).json({
       message: 'Für diese Aktion fehlt die erforderliche Berechtigung.',
@@ -1223,6 +1412,27 @@ export async function deleteEvent(req: Request, res: Response) {
       : scope === 'future' && existing.seriesId
         ? { seriesId: existing.seriesId, startAt: { gte: existing.startAt } }
         : { id: existing.id };
+  const affectedTeamIds = targetIdsForEvent(existing);
+  const staffRecipients = await prisma.teamMembership.findMany({
+    where: {
+      teamId: { in: affectedTeamIds },
+      status: AccountStatus.APPROVED,
+      role: {
+        in: [
+          PrismaRole.SUPER_ADMIN,
+          PrismaRole.CLUB_ADMIN,
+          PrismaRole.YOUTH_DIRECTOR,
+          PrismaRole.TRAINER_ADMIN,
+          PrismaRole.COACH,
+          PrismaRole.TRAINER,
+          PrismaRole.ASSISTANT_COACH,
+          PrismaRole.TEAM_MANAGER,
+        ],
+      },
+      user: { status: AccountStatus.APPROVED },
+    },
+    select: { userId: true, role: true },
+  });
   if (permanent) {
     const deleted = await prisma.$transaction(async (tx) => {
       const events = await tx.event.findMany({
@@ -1270,7 +1480,7 @@ export async function deleteEvent(req: Request, res: Response) {
           });
         }
       }
-      await tx.auditLog.create({
+      const audit = await tx.auditLog.create({
         data: {
           actorId: user.id,
           teamId: existing.teamId,
@@ -1278,7 +1488,7 @@ export async function deleteEvent(req: Request, res: Response) {
             scope !== 'single'
               ? 'EVENT_SERIES_PERMANENTLY_DELETED'
               : existing.type === EventType.MATCH
-                ? 'MATCH_PERMANENTLY_DELETED'
+                ? 'MATCH_DELETED'
                 : 'EVENT_PERMANENTLY_DELETED',
           entityType: existing.type === EventType.MATCH ? 'Match' : 'Event',
           entityId: existing.id,
@@ -1288,20 +1498,67 @@ export async function deleteEvent(req: Request, res: Response) {
             team: existing.team.name,
             ageGroup: existing.team.ageGroup.name,
             deleteLeagueMatch: req.query.deleteLeagueMatch === 'true',
-            deletedEvents: events,
+            deletedEventIds: eventIds,
           },
         },
       });
-      return events;
+      return { events, auditId: audit.id };
+    });
+    const ownTrainerRoles = new Set<PrismaRole>([
+      PrismaRole.COACH,
+      PrismaRole.TRAINER,
+      PrismaRole.ASSISTANT_COACH,
+      PrismaRole.TEAM_MANAGER,
+    ]);
+    const deletionRecipients = staffRecipients
+      .filter((item) => ownTrainerRoles.has(item.role))
+      .map((item) => item.userId)
+      .filter((id) => id !== user.id);
+    const delivery = existing.type === EventType.MATCH
+      ? await notifyUsers(
+          deletionRecipients,
+          {
+            category: NotificationCategory.MATCH,
+            title: 'Spiel dauerhaft gelöscht',
+            body: `„${existing.title}“ wurde dauerhaft aus der Spielverwaltung gelöscht.`,
+            actionUrl: `/matches/${existing.id}`,
+            entityType: 'MatchDeletion',
+            entityId: existing.id,
+            dedupeKey: `match-deleted:${existing.id}`,
+            forceInApp: true,
+            forcePush: true,
+          },
+        )
+      : null;
+    await prisma.auditLog.update({
+      where: { id: deleted.auditId },
+      data: {
+        metadata: {
+          scope,
+          seriesId: existing.seriesId,
+          team: existing.team.name,
+          opponent: existing.opponent,
+          deleteLeagueMatch: req.query.deleteLeagueMatch === 'true',
+          deletedEventIds: deleted.events.map((event) => event.id),
+          informedTrainerIds: deletionRecipients,
+          inAppNotifications: delivery?.notifications ?? 0,
+          pushSent: delivery?.sent ?? 0,
+          pushFailed: delivery?.failed ?? 0,
+        },
+      },
     });
     return res.json({
       status: 'DELETED',
       scope,
-      deletedCount: deleted.length,
+      deletedCount: deleted.events.length,
+      delivery,
     });
   }
   const reason = clean(req.body?.reason) ?? 'Abgesagt';
   const now = new Date();
+  const cancellationAudience = existing.type === EventType.MATCH
+    ? await reminderRecipientsForEvent(existing.id)
+    : null;
   await prisma.$transaction(async (tx) => {
     const affectedEvents = await tx.event.findMany({
       where: affectedWhere,
@@ -1342,12 +1599,26 @@ export async function deleteEvent(req: Request, res: Response) {
       },
       data: { status: 'CANCELLED' },
     });
+    if (existing.type === EventType.MATCH) {
+      await tx.matchDetails.updateMany({
+        where: { eventId: { in: affectedEvents.map((event) => event.id) } },
+        data: { status: MatchStatus.CANCELLED },
+      });
+      await tx.leagueMatch.updateMany({
+        where: { eventId: { in: affectedEvents.map((event) => event.id) } },
+        data: { status: 'CANCELLED' },
+      });
+    }
     await tx.auditLog.create({
       data: {
         actorId: user.id,
         teamId: existing.teamId,
-        action: scope !== 'single' ? 'EVENT_SERIES_CANCELLED' : 'EVENT_CANCELLED',
-        entityType: 'Event',
+        action: existing.type === EventType.MATCH
+          ? 'MATCH_CANCELLED'
+          : scope !== 'single'
+            ? 'EVENT_SERIES_CANCELLED'
+            : 'EVENT_CANCELLED',
+        entityType: existing.type === EventType.MATCH ? 'Match' : 'Event',
         entityId: existing.id,
         metadata: { scope, reason, seriesId: existing.seriesId },
       },
@@ -1362,16 +1633,54 @@ export async function deleteEvent(req: Request, res: Response) {
     },
     data: { status: 'CANCELLED', cancelledAt: now },
   });
-  return res.json({ status: EventStatus.CANCELLED, scope });
+  const delivery = existing.type === EventType.MATCH
+    ? await notifyUsers(
+        [
+          ...(cancellationAudience?.recipientIds ?? []),
+          ...staffRecipients.map((item) => item.userId),
+        ].filter((id) => id !== user.id),
+        {
+          category: NotificationCategory.MATCH,
+          title: 'Spiel abgesagt',
+          body: `„${existing.title}“ wurde abgesagt. Grund: ${reason}`,
+          actionUrl: `/matches/${existing.id}`,
+          entityType: 'MatchCancellation',
+          entityId: existing.id,
+          dedupeKey: `match-cancelled:${existing.id}`,
+          forceInApp: true,
+          forcePush: true,
+        },
+      )
+    : null;
+  return res.json({ status: EventStatus.CANCELLED, scope, delivery });
 }
 
 export async function setAttendance(req: Request, res: Response) {
   const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
   const playerId = clean(req.body.playerId);
   if (!playerId) return res.status(400).json({ message: 'Spieler fehlt.' });
+  const personalResponse = req.body.responseMode === 'PERSONAL_GUARDIAN';
+  const [parentLink, ownPlayer] = await Promise.all([
+    prisma.parentPlayerLink.findUnique({
+      where: { parentId_playerId: { parentId: user.id, playerId } },
+      select: { relationship: true },
+    }),
+    prisma.player.findFirst({
+      where: { id: playerId, userId: user.id },
+      select: { id: true },
+    }),
+  ]);
+  const isPersonalAssignment = Boolean(parentLink || ownPlayer);
+  if (personalResponse && !isPersonalAssignment) {
+    return res.status(403).json({ message: 'Keine familiäre Zuordnung für diesen Spieler.' });
+  }
+  const teamIds = personalResponse ? [] : await accessibleTeamIds(user);
   const event = await prisma.event.findFirst({
-    where: { id: req.params.id, status: EventStatus.SCHEDULED, ...eventScope(teamIds) },
+    where: {
+      id: req.params.id,
+      status: EventStatus.SCHEDULED,
+      ...(personalResponse ? {} : eventScope(teamIds)),
+    },
     include: { targetTeams: true, attendance: true, participants: true },
   });
   if (!event) return res.status(404).json({ message: 'Termin nicht gefunden oder abgesagt.' });
@@ -1379,7 +1688,7 @@ export async function setAttendance(req: Request, res: Response) {
     return res.status(409).json({ message: 'Die Rückmeldungen wurden bereits abgeschlossen.' });
   }
   if (
-    !isStaff(user.role) &&
+    (personalResponse || !isStaff(user.role)) &&
     event.responseDeadline &&
     event.responseDeadline < new Date()
   ) {
@@ -1405,8 +1714,8 @@ export async function setAttendance(req: Request, res: Response) {
     where: { id: playerId, teamId: { in: attendanceTeamIds } },
   });
   if (!player) return res.status(404).json({ message: 'Spieler nicht gefunden.' });
-  if (!isStaff(user.role)) {
-    const allowedIds = await ownPlayerIds(user.id, user.role);
+  if (!personalResponse && !isStaff(user.role)) {
+    const allowedIds = await ownPlayerIds(user);
     if (!allowedIds.includes(playerId)) {
       return res.status(403).json({ message: 'Keine Berechtigung für diesen Spieler.' });
     }
@@ -1416,6 +1725,14 @@ export async function setAttendance(req: Request, res: Response) {
     req.body.status,
     AttendanceStatus.UNKNOWN,
   );
+  const previous = event.attendance.find((item) => item.playerId === playerId);
+  const responseSource = parentLink
+    ? AttendanceResponseSource.GUARDIAN
+    : ownPlayer
+      ? AttendanceResponseSource.PLAYER
+      : user.role === Role.SUPER_ADMIN
+        ? AttendanceResponseSource.SYSTEM_ADMINISTRATION
+        : AttendanceResponseSource.TRAINER_CORRECTION;
   if (status === AttendanceStatus.YES && event.maxParticipants) {
     const yesCount = event.attendance.filter(
       (reply) => reply.status === AttendanceStatus.YES && reply.playerId !== playerId,
@@ -1436,6 +1753,8 @@ export async function setAttendance(req: Request, res: Response) {
             : null,
         respondedById: user.id,
         respondedAt: new Date(),
+        responseSource,
+        responderRelationship: parentLink?.relationship ?? null,
       },
       create: {
         eventId: event.id,
@@ -1448,6 +1767,25 @@ export async function setAttendance(req: Request, res: Response) {
             : null,
         respondedById: user.id,
         respondedAt: new Date(),
+        responseSource,
+        responderRelationship: parentLink?.relationship ?? null,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: player.teamId,
+        action: 'ATTENDANCE_RESPONSE_CHANGED',
+        entityType: 'Attendance',
+        entityId: reply.id,
+        metadata: {
+          eventId: event.id,
+          playerId,
+          previousStatus: previous?.status ?? null,
+          status,
+          source: responseSource,
+          relationship: parentLink?.relationship ?? null,
+        },
       },
     });
     if (event.type === EventType.MATCH) {
@@ -1466,6 +1804,17 @@ export async function setAttendance(req: Request, res: Response) {
       }
     }
     return reply;
+  });
+  await prisma.notification.updateMany({
+    where: {
+      userId: user.id,
+      readAt: null,
+      OR: [
+        { entityId: `${event.id}:${playerId}` },
+        { entityType: 'AttendanceRequest', entityId: event.id },
+      ],
+    },
+    data: { readAt: new Date() },
   });
   return res.json(attendance);
 }
@@ -1692,7 +2041,7 @@ export async function requestCarpoolSeat(req: Request, res: Response) {
   const playerId = clean(req.body.playerId);
   if (!playerId) return res.status(400).json({ message: 'Spieler fehlt.' });
   if (!isStaff(user.role)) {
-    const allowed = await ownPlayerIds(user.id, user.role);
+    const allowed = await ownPlayerIds(user);
     if (!allowed.includes(playerId)) {
       return res.status(403).json({ message: 'Keine Berechtigung für diesen Spieler.' });
     }
@@ -1857,7 +2206,14 @@ export async function upsertMatchDetails(req: Request, res: Response) {
   const teamIds = await accessibleTeamIds(user);
   const event = await prisma.event.findFirst({
     where: { id: req.params.id, ...eventScope(teamIds) },
-    include: { targetTeams: true },
+    include: {
+      targetTeams: true,
+      matchDetails: {
+        include: {
+          opponentRecord: { select: { venue: true, address: true } },
+        },
+      },
+    },
   });
   if (!event) return res.status(404).json({ message: 'Termin nicht gefunden.' });
   if (!(await canManageEvent(user, event))) {
@@ -1887,7 +2243,12 @@ export async function upsertMatchDetails(req: Request, res: Response) {
   }
   const opponentName = opponentRecord
     ? `${opponentRecord.clubName} ${opponentRecord.teamDesignation}`.trim()
-    : clean(opponent) ?? 'Unbekannt';
+    : clean(opponent);
+  if (!opponentName) {
+    return res.status(400).json({
+      message: 'Bitte wähle einen Gegner aus oder lege einen neuen Gegner an.',
+    });
+  }
   const current = await prisma.matchDetails.findUnique({
     where: { eventId: event.id },
     select: { periodCount: true, periodMinutes: true },
@@ -1929,8 +2290,32 @@ export async function upsertMatchDetails(req: Request, res: Response) {
       opponent: opponentName,
       homeAway: isHome === false ? HomeAway.AWAY : HomeAway.HOME,
       ...(isHome === false
-        ? { meetingLocation: event.meetingLocation ?? AWAY_MEETING_LOCATION }
-        : { location: HOME_MATCH_VENUE }),
+        ? {
+            location:
+              clean(req.body.location) ??
+              (event.homeAway === HomeAway.AWAY &&
+              event.location &&
+              event.location !== event.matchDetails?.opponentRecord?.venue &&
+              event.location !== event.matchDetails?.opponentRecord?.address
+                ? event.location
+                : opponentRecord?.venue ??
+                  opponentRecord?.address ??
+                  (event.location === HOME_MATCH_VENUE ? '' : event.location)),
+            address: opponentRecord?.address ?? event.address,
+            meetingLocation:
+              clean(req.body.meetingLocation) ??
+              (event.homeAway === HomeAway.AWAY
+                ? event.meetingLocation
+                : null) ??
+              AWAY_MEETING_LOCATION,
+          }
+        : {
+            location:
+              clean(req.body.location) ??
+              (event.homeAway === HomeAway.HOME && event.location
+                ? event.location
+                : HOME_MATCH_VENUE),
+          }),
     },
   });
   return res.json(details);

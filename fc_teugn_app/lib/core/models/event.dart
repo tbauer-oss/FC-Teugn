@@ -500,6 +500,7 @@ class EventCapabilities {
     this.canOpenEmergencyView = false,
     this.canDelete = false,
     this.canReschedule = false,
+    this.canCancel = false,
   });
 
   final bool canManage;
@@ -508,6 +509,7 @@ class EventCapabilities {
   final bool canOpenEmergencyView;
   final bool canDelete;
   final bool canReschedule;
+  final bool canCancel;
 
   factory EventCapabilities.fromJson(Map<String, dynamic>? json) {
     return EventCapabilities(
@@ -517,6 +519,7 @@ class EventCapabilities {
       canOpenEmergencyView: json?['canOpenEmergencyView'] as bool? ?? false,
       canDelete: json?['canDelete'] as bool? ?? false,
       canReschedule: json?['canReschedule'] as bool? ?? false,
+      canCancel: json?['canCancel'] as bool? ?? false,
     );
   }
 }
@@ -541,6 +544,7 @@ class EventModel {
     required this.carpoolOffers,
     required this.capabilities,
     required this.reminderMinutes,
+    this.reminderPushEnabled = true,
     this.participantPlayerIds = const [],
     this.series,
     this.endAt,
@@ -596,6 +600,7 @@ class EventModel {
   final DateTime? responseDeadline;
   final String? internalNote;
   final List<int> reminderMinutes;
+  final bool reminderPushEnabled;
   final List<String> participantPlayerIds;
   final bool isSeriesException;
   final String? cancellationReason;
@@ -679,6 +684,7 @@ class EventModel {
       reminderMinutes: (json['reminderMinutes'] as List<dynamic>? ?? [])
           .whereType<int>()
           .toList(),
+      reminderPushEnabled: json['reminderPushEnabled'] as bool? ?? true,
       participantPlayerIds: (json['participants'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map((item) => item['playerId'])
@@ -783,6 +789,7 @@ class EventWriteData {
     this.internalNote,
     this.visibility = EventVisibility.team,
     this.reminderMinutes = const [],
+    this.reminderPushEnabled = true,
     this.attachmentName,
     this.attachmentUrl,
     this.recurrence,
@@ -818,6 +825,7 @@ class EventWriteData {
   final String? internalNote;
   final EventVisibility visibility;
   final List<int> reminderMinutes;
+  final bool reminderPushEnabled;
   final List<String> teamIds;
   final String? attachmentName;
   final String? attachmentUrl;
@@ -855,6 +863,7 @@ class EventWriteData {
         'internalNote': internalNote,
         'visibility': visibility.apiName,
         'reminderMinutes': reminderMinutes,
+        'reminderPushEnabled': reminderPushEnabled,
         'teamIds': teamIds,
         'attachments': [
           if (attachmentName?.isNotEmpty == true &&

@@ -97,6 +97,7 @@ class TeamSummary {
     this.trainingPartnerIds = const [],
     this.matchdayTimes = const [],
     this.defaultReminderMinutes = 60,
+    this.defaultReminderPushEnabled = true,
     this.seasonStartDate,
     this.seasonEndDate,
     this.indoorSeasonStartDate,
@@ -134,6 +135,7 @@ class TeamSummary {
   final List<String> trainingPartnerIds;
   final List<String> matchdayTimes;
   final int? defaultReminderMinutes;
+  final bool defaultReminderPushEnabled;
   final DateTime? seasonStartDate;
   final DateTime? seasonEndDate;
   final DateTime? indoorSeasonStartDate;
@@ -218,6 +220,8 @@ class TeamSummary {
         defaultReminderMinutes: json.containsKey('defaultReminderMinutes')
             ? (json['defaultReminderMinutes'] as num?)?.toInt()
             : 60,
+        defaultReminderPushEnabled:
+            json['defaultReminderPushEnabled'] as bool? ?? true,
         seasonStartDate: dateOnlyFromApi(json['seasonStartDate']),
         seasonEndDate: dateOnlyFromApi(json['seasonEndDate']),
         indoorSeasonStartDate: dateOnlyFromApi(json['indoorSeasonStartDate']),

@@ -13,6 +13,8 @@ import 'models/player.dart';
 import 'models/training.dart';
 import 'models/user.dart';
 import 'models/team_operations.dart';
+import 'models/personal_response.dart';
+import 'models/support.dart';
 import 'offline_ticker.dart';
 import 'offline_outbox.dart';
 import 'loading/loading_controller.dart';
@@ -88,6 +90,16 @@ final consentTemplatesProvider =
 
 final eventsProvider = FutureProvider<List<EventModel>>((ref) async {
   return ref.watch(repositoryProvider).events();
+});
+
+final personalResponsesProvider =
+    FutureProvider<List<PersonalResponseModel>>((ref) async {
+  return ref.watch(repositoryProvider).personalResponses();
+});
+
+final supportTicketsProvider =
+    FutureProvider<List<SupportTicketModel>>((ref) async {
+  return ref.watch(repositoryProvider).supportTickets();
 });
 
 final trainingsProvider = FutureProvider<List<TrainingModel>>((ref) async {

@@ -12,8 +12,10 @@ test('match lifecycle exposes dedicated delete and reschedule permissions', () =
   const { Role } = require('../dist/src/types/enums');
   for (const permission of [
     Permission.EVENT_DELETE,
+    Permission.MATCH_CANCEL,
     Permission.MATCH_DELETE,
     Permission.MATCH_RESCHEDULE,
+    Permission.LEAGUE_MATCH_CANCEL,
     Permission.LEAGUE_MATCH_DELETE,
     Permission.LEAGUE_MATCH_RESCHEDULE,
   ]) {
@@ -27,10 +29,15 @@ test('match and league routes publish online-only lifecycle endpoints', () => {
   const matches = source('src/routes/matches.routes.ts');
   const leagues = source('src/routes/competitions.routes.ts');
   assert.match(matches, /router\.delete\([\s\S]*'\/:id'[\s\S]*MATCH_DELETE/);
+  assert.match(matches, /'\/:id\/cancel'[\s\S]*MATCH_CANCEL/);
   assert.match(matches, /'\/:id\/reschedule'[\s\S]*MATCH_RESCHEDULE/);
   assert.match(
     leagues,
     /'\/leagues\/:leagueId\/matches\/:matchId'[\s\S]*LEAGUE_MATCH_DELETE/,
+  );
+  assert.match(
+    leagues,
+    /'\/leagues\/:leagueId\/matches\/:matchId\/cancel'[\s\S]*LEAGUE_MATCH_CANCEL/,
   );
 });
 
@@ -52,7 +59,9 @@ test('permanent deletion supports series scope, audit and optional league remova
   assert.match(events, /\['future', 'series', 'all'\]/);
   assert.match(events, /deleteLeagueMatch === 'true'/);
   assert.match(events, /EVENT_SERIES_PERMANENTLY_DELETED/);
-  assert.match(events, /MATCH_PERMANENTLY_DELETED/);
+  assert.match(events, /MATCH_DELETED/);
+  assert.match(events, /MATCH_CANCELLED/);
+  assert.match(events, /forcePush:\s*true/);
   assert.match(events, /notification\.deleteMany/);
 });
 

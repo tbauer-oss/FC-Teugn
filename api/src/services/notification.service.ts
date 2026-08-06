@@ -29,6 +29,8 @@ export type NotificationInput = {
   entityId?: string | null;
   expiresAt?: Date | null;
   pushEnabled?: boolean;
+  forcePush?: boolean;
+  forceInApp?: boolean;
   dedupeKey?: string | null;
 };
 
@@ -114,7 +116,10 @@ export function androidPushMessage(
 
 export async function notifyUsers(userIds: string[], input: NotificationInput) {
   const uniqueIds = [...new Set(userIds)];
-  if (!uniqueIds.length) return { notifications: 0, deliveries: 0 };
+  if (!uniqueIds.length) return {
+    recipients: 0, notifications: 0, deliveries: 0,
+    sent: 0, failed: 0, pending: 0, skipped: 0,
+  };
   const [preferences, subscriptions] = await Promise.all([
     prisma.notificationPreference.findMany({
       where: { userId: { in: uniqueIds }, category: input.category },
@@ -130,12 +135,12 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
   let deliveryCount = 0;
   for (const userId of uniqueIds) {
     const preference = preferenceByUser.get(userId);
-    const inApp = preference?.inApp ?? true;
-    const push = (preference?.push ?? true) && input.pushEnabled !== false;
+    const inApp = input.forceInApp || (preference?.inApp ?? true);
+    const push = input.forcePush || ((preference?.push ?? true) && input.pushEnabled !== false);
     if (!inApp && !push) continue;
     const notification = input.dedupeKey
       ? await prisma.notification.upsert({
-          where: { dedupeKey: input.dedupeKey },
+          where: { dedupeKey: `${input.dedupeKey}:${userId}` },
           update: {},
           create: {
             userId,
@@ -146,7 +151,7 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
             entityType: input.entityType,
             entityId: input.entityId,
             expiresAt: input.expiresAt,
-            dedupeKey: input.dedupeKey,
+            dedupeKey: `${input.dedupeKey}:${userId}`,
           },
         })
       : await prisma.notification.create({ data: {
@@ -173,7 +178,29 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
       await deliverPush(delivery.id).catch(() => undefined);
     }
   }
-  return { notifications: notificationCount, deliveries: deliveryCount };
+  const deliverySummary = deliveryCount
+    ? summarizePushDeliveries(await prisma.notificationDelivery.findMany({
+        where: {
+          notification: {
+            userId: { in: uniqueIds },
+            ...(input.dedupeKey
+              ? { dedupeKey: { startsWith: `${input.dedupeKey}:` } }
+              : { createdAt: { gte: new Date(Date.now() - 60_000) } }),
+          },
+        },
+        select: {
+          status: true,
+          errorCode: true,
+          subscription: { select: { platform: true } },
+        },
+      }))
+    : summarizePushDeliveries([]);
+  return {
+    recipients: uniqueIds.length,
+    notifications: notificationCount,
+    deliveries: deliveryCount,
+    ...deliverySummary,
+  };
 }
 
 export async function sendAdminTestPush(actorName: string) {

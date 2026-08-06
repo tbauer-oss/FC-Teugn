@@ -12,6 +12,7 @@ import '../../core/regular_training_schedule.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import '../shared/dashboard_notifications.dart';
+import '../shared/family_responses.dart';
 
 class TrainerDashboardPage extends ConsumerWidget {
   const TrainerDashboardPage({super.key});
@@ -92,6 +93,10 @@ class TrainerDashboardPage extends ConsumerWidget {
             notifications: notifications,
             isTrainer: true,
           ),
+          if (user?.parentPlayers.isNotEmpty == true) ...[
+            const PersonalResponsesCard(isTrainer: true),
+            const SizedBox(height: 12),
+          ],
           _NextEventHero(event: nextEvent, now: now),
           const SizedBox(height: 12),
           _StatusGrid(

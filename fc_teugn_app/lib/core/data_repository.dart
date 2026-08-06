@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -17,6 +18,8 @@ import 'models/competition_import.dart';
 import 'models/team_operations.dart';
 import 'models/emergency.dart';
 import 'models/competition.dart';
+import 'models/personal_response.dart';
+import 'models/support.dart';
 import 'team_game_format.dart';
 import 'date_only.dart';
 
@@ -339,6 +342,7 @@ class DataRepository {
     required List<String> trainingPartnerIds,
     required List<String> matchdayTimes,
     required int? defaultReminderMinutes,
+    required bool defaultReminderPushEnabled,
     String? trainingLocation,
   }) async {
     final res = await client.dio.patch(
@@ -349,6 +353,7 @@ class DataRepository {
         'trainingPartnerIds': trainingPartnerIds,
         'matchdayTimes': matchdayTimes,
         'defaultReminderMinutes': defaultReminderMinutes,
+        'defaultReminderPushEnabled': defaultReminderPushEnabled,
       },
     );
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
@@ -966,13 +971,23 @@ class DataRepository {
     required AttendanceStatus status,
     String? reason,
     bool? goalkeeperAvailable,
+    bool personalResponse = false,
   }) async {
     await client.dio.post('/events/$eventId/attendance', data: {
       'playerId': playerId,
       'status': status.apiName,
       'reason': reason,
       'goalkeeperAvailable': goalkeeperAvailable,
+      if (personalResponse) 'responseMode': 'PERSONAL_GUARDIAN',
     });
+  }
+
+  Future<List<PersonalResponseModel>> personalResponses() async {
+    final response = await client.dio.get('/events/personal-responses/list');
+    return (response.data as List<dynamic>)
+        .whereType<Map<String, dynamic>>()
+        .map(PersonalResponseModel.fromJson)
+        .toList();
   }
 
   Future<void> finalizeAttendance(String eventId) async {
@@ -1179,8 +1194,99 @@ class DataRepository {
     );
   }
 
-  Future<void> publishMatchSquad(String eventId) async {
-    await client.dio.post('/matches/$eventId/squad/publish');
+  Future<Map<String, dynamic>> publishMatchSquad(
+    String eventId, {
+    bool pushEnabled = true,
+    bool resendAll = false,
+  }) async {
+    final response = await client.dio.post(
+      '/matches/$eventId/squad/publish',
+      data: {'pushEnabled': pushEnabled, 'resendAll': resendAll},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> cancelMatchPreview(String eventId) async {
+    final response = await client.dio.get('/matches/$eventId/cancel-preview');
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> cancelMatch({
+    required String eventId,
+    required String reason,
+  }) async {
+    final response = await client.dio.post(
+      '/matches/$eventId/cancel',
+      data: {'reason': reason},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<List<SupportTicketModel>> supportTickets() async {
+    final response = await client.dio.get('/support');
+    return (response.data as List<dynamic>)
+        .whereType<Map<String, dynamic>>()
+        .map(SupportTicketModel.fromJson)
+        .toList();
+  }
+
+  Future<SupportTicketModel> createSupportTicket({
+    required SupportCategory category,
+    required String subject,
+    required String description,
+    String? appArea,
+    bool contactRequested = false,
+    bool pushEnabled = true,
+    Map<String, dynamic> technicalMetadata = const {},
+    Uint8List? attachmentBytes,
+    String? attachmentName,
+  }) async {
+    final response = await client.dio.post(
+      '/support',
+      data: FormData.fromMap({
+        'category': category.apiName,
+        'subject': subject,
+        'description': description,
+        'appArea': appArea,
+        'contactRequested': '$contactRequested',
+        'pushEnabled': '$pushEnabled',
+        'technicalMetadata': jsonEncode(technicalMetadata),
+        if (attachmentBytes != null)
+          'file': MultipartFile.fromBytes(
+            attachmentBytes,
+            filename: attachmentName ?? 'anhang.png',
+          ),
+      }),
+    );
+    return SupportTicketModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<SupportTicketModel> replySupportTicket({
+    required String ticketId,
+    required String body,
+    bool internal = false,
+    bool pushEnabled = true,
+  }) async {
+    final response = await client.dio.post(
+      '/support/$ticketId/messages',
+      data: {
+        'body': body,
+        'internal': internal,
+        'pushEnabled': pushEnabled,
+      },
+    );
+    return SupportTicketModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<SupportTicketModel> updateSupportStatus({
+    required String ticketId,
+    required SupportStatus status,
+  }) async {
+    final response = await client.dio.patch(
+      '/support/$ticketId/status',
+      data: {'status': status.apiName},
+    );
+    return SupportTicketModel.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<LineupModel> saveLineup({

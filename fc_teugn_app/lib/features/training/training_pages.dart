@@ -655,6 +655,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           matchdayTimes: draft.matchdayTimes,
           trainingLocation: draft.trainingLocation,
           defaultReminderMinutes: draft.defaultReminderMinutes,
+          defaultReminderPushEnabled: draft.defaultReminderPushEnabled,
         );
       }
       await _load(refresh: true);
@@ -1227,6 +1228,7 @@ class _TrainingScheduleDraft {
     this.isSenior = false,
     this.trainingLocation,
     this.defaultReminderMinutes,
+    this.defaultReminderPushEnabled = true,
   });
 
   final String teamId;
@@ -1237,6 +1239,7 @@ class _TrainingScheduleDraft {
   final bool isSenior;
   final String? trainingLocation;
   final int? defaultReminderMinutes;
+  final bool defaultReminderPushEnabled;
 }
 
 class _TrainingScheduleDialog extends StatefulWidget {
@@ -1285,6 +1288,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
   List<String> _legacyMatchdayTimes = [];
   String? _validationMessage;
   String _reminderMode = '60';
+  bool _reminderPushEnabled = true;
   late final TextEditingController _customReminderMinutes;
 
   bool get _isRecreational => _teamId == _recreationalId;
@@ -1350,6 +1354,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
     _legacyMatchdayTimes = [];
     if (!_isRecreational && !_isSenior) {
       final reminder = _team.defaultReminderMinutes;
+      _reminderPushEnabled = _team.defaultReminderPushEnabled;
       if (reminder == null) {
         _reminderMode = 'none';
         _customReminderMinutes.clear();
@@ -1637,6 +1642,18 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                             ),
                           ),
                         ],
+                        if (_reminderMode != 'none')
+                          SwitchListTile.adaptive(
+                            contentPadding: EdgeInsets.zero,
+                            value: _reminderPushEnabled,
+                            onChanged: (value) => setState(
+                              () => _reminderPushEnabled = value,
+                            ),
+                            title: const Text(
+                                'Zusätzlich als Pushnachricht senden'),
+                            subtitle: const Text(
+                                'In-App bleibt die Erinnerung aktiv.'),
+                          ),
                       ],
                     ),
                   ),
@@ -1852,6 +1869,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                           : _reminderMode == 'custom'
                               ? customReminder
                               : int.parse(_reminderMode),
+                  defaultReminderPushEnabled: _reminderPushEnabled,
                 ),
               );
             },

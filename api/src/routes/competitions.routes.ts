@@ -2,6 +2,7 @@ import { asyncRouter } from '../middleware/async-handler';
 import {
   archiveLeague,
   archiveOpponent,
+  cancelLeagueMatch,
   deleteLeagueMatch,
   listLeagues,
   listOpponents,
@@ -34,6 +35,11 @@ router.delete(
   '/opponents/:id/logo',
   requirePermission(Permission.MANAGE_EVENTS),
   removeOpponentLogo,
+);
+router.post(
+  '/leagues/:leagueId/matches/:matchId/cancel',
+  requirePermission(Permission.LEAGUE_MATCH_CANCEL),
+  cancelLeagueMatch,
 );
 router.get('/leagues', listLeagues);
 router.post('/leagues', requirePermission(Permission.MANAGE_EVENTS), saveLeague);

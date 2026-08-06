@@ -1072,6 +1072,9 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
     : reminderValue === null
       ? null
       : Number(reminderValue);
+  const defaultReminderPushEnabled = req.body.defaultReminderPushEnabled === undefined
+    ? undefined
+    : req.body.defaultReminderPushEnabled !== false;
   if (
     defaultReminderMinutes !== undefined &&
     defaultReminderMinutes !== null &&
@@ -1137,6 +1140,9 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
         ...(defaultReminderMinutes !== undefined
           ? { defaultReminderMinutes }
           : {}),
+        ...(defaultReminderPushEnabled !== undefined
+          ? { defaultReminderPushEnabled }
+          : {}),
       },
       include: hierarchyInclude,
     });
@@ -1154,6 +1160,7 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
             trainingPartnerIds: existing.trainingPartnerIds,
             matchdayTimes: existing.matchdayTimes,
             defaultReminderMinutes: existing.defaultReminderMinutes,
+            defaultReminderPushEnabled: existing.defaultReminderPushEnabled,
           },
           after: {
             trainingLocation,
@@ -1164,6 +1171,8 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
               defaultReminderMinutes === undefined
                 ? existing.defaultReminderMinutes
                 : defaultReminderMinutes,
+            defaultReminderPushEnabled:
+              defaultReminderPushEnabled ?? existing.defaultReminderPushEnabled,
           },
         },
       },
@@ -1313,6 +1322,7 @@ async function serializeTeam(team: {
   trainingPartnerIds: string[];
   matchdayTimes: string[];
   defaultReminderMinutes: number | null;
+  defaultReminderPushEnabled: boolean;
   seasonStartDate: Date | null;
   seasonEndDate: Date | null;
   indoorSeasonStartDate: Date | null;
@@ -1390,6 +1400,7 @@ async function serializeTeam(team: {
     trainingPartnerIds: team.trainingPartnerIds,
     matchdayTimes: team.matchdayTimes,
     defaultReminderMinutes: team.defaultReminderMinutes,
+    defaultReminderPushEnabled: team.defaultReminderPushEnabled,
     seasonStartDate: team.seasonStartDate,
     seasonEndDate: team.seasonEndDate,
     indoorSeasonStartDate: team.indoorSeasonStartDate,

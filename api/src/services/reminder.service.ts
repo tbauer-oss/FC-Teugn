@@ -86,7 +86,10 @@ export async function syncScheduledRemindersForEvent(eventId: string) {
   if (!event) return;
   const team = await prisma.team.findUnique({
     where: { id: event.teamId },
-    select: { defaultReminderMinutes: true },
+    select: {
+      defaultReminderMinutes: true,
+      defaultReminderPushEnabled: true,
+    },
   });
   const reminderMinutes = event.reminderMinutes.length
     ? event.reminderMinutes
@@ -226,6 +229,7 @@ export async function processDueReminders(now = new Date()) {
         entityType: 'Event',
         entityId: job.eventId,
         dedupeKey: job.idempotencyKey,
+        pushEnabled: job.event.reminderPushEnabled,
       });
       await prisma.scheduledReminder.update({
         where: { id: job.id },
@@ -287,6 +291,7 @@ async function processRegularTrainingReminders(now: Date) {
       id: true,
       name: true,
       defaultReminderMinutes: true,
+      defaultReminderPushEnabled: true,
       seasonStartDate: true,
       seasonEndDate: true,
       trainingTimes: true,
@@ -364,6 +369,7 @@ async function processRegularTrainingReminders(now: Date) {
           entityType: 'Team',
           entityId: team.id,
           dedupeKey: `regular-training:${team.id}:${occurrence}:${recipientId}`,
+          pushEnabled: team.defaultReminderPushEnabled,
         });
         if (result.notifications > 0) sent += 1;
       }

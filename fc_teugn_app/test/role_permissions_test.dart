@@ -42,8 +42,10 @@ void main() {
   test('staff lifecycle presets include delete and reschedule rights', () {
     const lifecycle = {
       'EVENT_DELETE',
+      'MATCH_CANCEL',
       'MATCH_DELETE',
       'MATCH_RESCHEDULE',
+      'LEAGUE_MATCH_CANCEL',
       'LEAGUE_MATCH_DELETE',
       'LEAGUE_MATCH_RESCHEDULE',
     };
@@ -62,6 +64,7 @@ void main() {
       UserRole.parent,
     ).map((permission) => permission.code);
     expect(parentCodes, isNot(contains('MATCH_DELETE')));
+    expect(parentCodes, isNot(contains('MATCH_CANCEL')));
     expect(parentCodes, isNot(contains('MATCH_RESCHEDULE')));
   });
 }
