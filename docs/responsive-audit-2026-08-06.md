@@ -13,9 +13,9 @@ Ein erfolgreicher Build allein wird nicht als Prüfung markiert.
 
 ## Automatisierte Viewport-Matrix
 
-`AdaptiveActionBar` wird bei Textskalierung 100 % und 150 % in allen folgenden
-Größen gerendert und auf vollständig innerhalb des Viewports liegende Aktionen
-geprüft:
+`AdaptiveActionBar` wird bei Textskalierung 100 %, 115 %, 130 % und 150 % in
+allen folgenden Größen gerendert und auf vollständig innerhalb des Viewports
+liegende Aktionen geprüft:
 
 - 320 × 568
 - 360 × 640

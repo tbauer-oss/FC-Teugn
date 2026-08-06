@@ -25,7 +25,7 @@ void expectNoFlutterLayoutException(WidgetTester tester) {
 
 void main() {
   for (final viewport in _viewports) {
-    for (final scale in const [1.0, 1.5]) {
+    for (final scale in const [1.0, 1.15, 1.3, 1.5]) {
       testWidgets(
         'adaptive actions fit ${viewport.width}x${viewport.height} at $scale',
         (tester) async {
