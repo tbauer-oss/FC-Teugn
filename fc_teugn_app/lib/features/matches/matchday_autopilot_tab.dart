@@ -7,6 +7,7 @@ import '../../core/matchday_autopilot.dart';
 import '../../core/models/matchday.dart';
 import '../../core/models/player.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/adaptive_layout.dart';
 import '../../core/widgets/captain_badge.dart';
 
 class MatchdayAutopilotTab extends ConsumerStatefulWidget {
@@ -782,7 +783,7 @@ class _LineupPlayerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        height: 62,
+        constraints: const BoxConstraints(minHeight: 62),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         decoration: BoxDecoration(
           color: AppColors.background,
@@ -1088,7 +1089,7 @@ class _ApprovalCard extends StatelessWidget {
                 final draft = OutlinedButton.icon(
                   onPressed: saving || !plan.canApply ? null : onDraft,
                   icon: const Icon(Icons.save_outlined, size: 18),
-                  label: const Text('Entwurf speichern'),
+                  label: const AdaptiveButtonLabel('Entwurf speichern'),
                 );
                 final publish = FilledButton.icon(
                   onPressed: saving || !plan.canApply ? null : onPublish,
@@ -1098,15 +1099,17 @@ class _ApprovalCard extends StatelessWidget {
                           semanticsLabel: 'Aufstellung wird gespeichert',
                         )
                       : const Icon(Icons.publish_rounded, size: 18),
-                  label: const Text('Übernehmen & veröffentlichen'),
+                  label: const AdaptiveButtonLabel(
+                    'Übernehmen & veröffentlichen',
+                  ),
                 );
                 if (stacked) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      SizedBox(height: 44, child: publish),
+                      publish,
                       const SizedBox(height: 7),
-                      SizedBox(height: 42, child: draft),
+                      draft,
                     ],
                   );
                 }
@@ -1144,7 +1147,7 @@ class _MetricGrid extends StatelessWidget {
               for (final metric in metrics)
                 Container(
                   width: width,
-                  height: 57,
+                  constraints: const BoxConstraints(minHeight: 57),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
                   decoration: BoxDecoration(

@@ -576,7 +576,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
             if (widget.staffView &&
                 (match.canPublishInternal || match.canReleaseFamily)) ...[
               const SizedBox(height: 6),
-              _MatchCommunicationActions(
+              MatchCommunicationActions(
                 match: match,
                 onPublishInternal: _publishInternally,
                 onReleaseFamily: _releaseForFamilies,
@@ -1102,8 +1102,10 @@ class _ReleasePreviewRow extends StatelessWidget {
       );
 }
 
-class _MatchCommunicationActions extends StatelessWidget {
-  const _MatchCommunicationActions({
+@visibleForTesting
+class MatchCommunicationActions extends StatelessWidget {
+  const MatchCommunicationActions({
+    super.key,
     required this.match,
     required this.onPublishInternal,
     required this.onReleaseFamily,
@@ -1116,47 +1118,57 @@ class _MatchCommunicationActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
-    final actions = <Widget>[
+    final actionSpecs = <AdaptiveActionSpec>[
       if (match.canPublishInternal)
-        OutlinedButton.icon(
+        AdaptiveActionSpec(
+          label: 'Mit Trainerteam teilen',
+          icon: Icons.admin_panel_settings_outlined,
           onPressed: onPublishInternal,
-          icon: const Icon(
-            Icons.admin_panel_settings_outlined,
-            size: 17,
-          ),
-          label: Text(compact ? 'Trainerteam' : 'Mit Trainerteam teilen'),
         ),
       if (match.canReleaseFamily && match.familyReleasedAt == null)
-        FilledButton.icon(
+        AdaptiveActionSpec(
+          label: 'Für Eltern & Spieler freigeben',
+          icon: Icons.family_restroom_rounded,
           onPressed: onReleaseFamily,
-          icon: const Icon(Icons.family_restroom_rounded, size: 17),
-          label: Text(
-            compact ? 'Eltern & Spieler' : 'Für Eltern & Spieler freigeben',
-          ),
+          primary: true,
         )
-      else if (match.familyReleasedAt != null)
-        const Chip(
-          avatar: Icon(Icons.verified_rounded, size: 17),
-          label: Text('Familien freigegeben'),
-        ),
     ];
+    final releaseStatus = match.familyReleasedAt != null
+        ? const Chip(
+            avatar: Icon(Icons.verified_rounded, size: 17),
+            label: Text('Familien freigegeben'),
+          )
+        : null;
     if (compact) {
-      return SizedBox(
-        height: 38,
-        child: SingleChildScrollView(
-          key: const ValueKey('match-communication-mobile-scroll'),
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (var index = 0; index < actions.length; index++) ...[
-                actions[index],
-                if (index != actions.length - 1) const SizedBox(width: 6),
-              ],
-            ],
-          ),
-        ),
+      return Column(
+        key: const ValueKey('match-communication-mobile-actions'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (actionSpecs.isNotEmpty)
+            AdaptiveActionBar(actions: actionSpecs, spacing: 6),
+          if (actionSpecs.isNotEmpty && releaseStatus != null)
+            const SizedBox(height: 6),
+          if (releaseStatus != null)
+            Align(alignment: Alignment.center, child: releaseStatus),
+        ],
       );
     }
+    final actions = <Widget>[
+      for (final action in actionSpecs)
+        if (action.primary)
+          FilledButton.icon(
+            onPressed: action.onPressed,
+            icon: Icon(action.icon, size: 17),
+            label: AdaptiveButtonLabel(action.label),
+          )
+        else
+          OutlinedButton.icon(
+            onPressed: action.onPressed,
+            icon: Icon(action.icon, size: 17),
+            label: AdaptiveButtonLabel(action.label),
+          ),
+      if (releaseStatus != null) releaseStatus,
+    ];
     return SizedBox(
       width: double.infinity,
       child: Wrap(
@@ -4442,11 +4454,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
               ),
               onPressed: _busy ? null : () => _goal(true),
               icon: const Icon(Icons.sports_soccer_rounded, size: 18),
-              label: const Text(
-                'Tor FC Teugn',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              label: const AdaptiveButtonLabel('Tor FC Teugn'),
             ),
           ),
           const SizedBox(width: 8),
@@ -4459,11 +4467,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
               ),
               onPressed: _busy ? null : () => _goal(false),
               icon: const Icon(Icons.sports_soccer_rounded, size: 18),
-              label: const Text(
-                'Tor Gegner',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              label: const AdaptiveButtonLabel('Tor Gegner'),
             ),
           ),
         ],

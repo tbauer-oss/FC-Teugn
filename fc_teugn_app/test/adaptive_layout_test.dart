@@ -25,7 +25,7 @@ void expectNoFlutterLayoutException(WidgetTester tester) {
 
 void main() {
   for (final viewport in _viewports) {
-    for (final scale in const [1.0, 1.15, 1.3, 1.5]) {
+    for (final scale in const [1.0, 1.15, 1.3, 1.5, 1.8, 2.0]) {
       testWidgets(
         'adaptive actions fit ${viewport.width}x${viewport.height} at $scale',
         (tester) async {
@@ -89,9 +89,21 @@ void main() {
             final text = find.text(label);
             expect(text, findsOneWidget);
             final rect = tester.getRect(text);
+            final button = find.ancestor(
+              of: text,
+              matching: find.byWidgetPredicate(
+                (widget) => widget is ButtonStyleButton,
+              ),
+            );
+            expect(button, findsOneWidget);
+            final buttonRect = tester.getRect(button);
             expect(rect.left, greaterThanOrEqualTo(0));
             expect(rect.right, lessThanOrEqualTo(viewport.width));
             expect(rect.width, greaterThan(44));
+            expect(rect.left, greaterThanOrEqualTo(buttonRect.left - .5));
+            expect(rect.right, lessThanOrEqualTo(buttonRect.right + .5));
+            expect(rect.top, greaterThanOrEqualTo(buttonRect.top - .5));
+            expect(rect.bottom, lessThanOrEqualTo(buttonRect.bottom + .5));
           }
         },
       );

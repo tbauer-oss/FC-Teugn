@@ -10,6 +10,7 @@ import '../../core/models/pitch_occupancy.dart';
 import '../../core/models/training.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/adaptive_layout.dart';
 import '../auth/auth_controller.dart';
 import '../calendar/calendar_page.dart';
 import '../shared/page_scaffold.dart';
@@ -219,27 +220,19 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             ],
           );
         }
-        return SizedBox(
-          height: 54,
-          child: Row(
-            children: [
-              if (manage != null) Expanded(child: manage),
-              if (manage != null && primary != null) const SizedBox(width: 8),
-              if (primary != null) Expanded(flex: 2, child: primary),
-            ],
-          ),
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (manage != null) Expanded(child: manage),
+            if (manage != null && primary != null) const SizedBox(width: 8),
+            if (primary != null) Expanded(flex: 2, child: primary),
+          ],
         );
       },
     );
   }
 
-  Widget _actionLabel(String text) => Text(
-        text,
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.fade,
-        style: const TextStyle(height: 1.15),
-      );
+  Widget _actionLabel(String text) => AdaptiveButtonLabel(text);
 
   ButtonStyle _compactFilledActionStyle() => FilledButton.styleFrom(
         minimumSize: const Size.fromHeight(54),

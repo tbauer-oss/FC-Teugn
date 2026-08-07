@@ -9,6 +9,7 @@ import '../../core/models/organization.dart';
 import '../../core/models/team_operations.dart';
 import '../../core/providers.dart';
 import '../../core/regular_training_schedule.dart';
+import '../../core/widgets/adaptive_layout.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import '../shared/dashboard_notifications.dart';
@@ -968,15 +969,10 @@ class _QuickActions extends StatelessWidget {
                   for (final action in actions)
                     SizedBox(
                       width: width,
-                      height: 52,
                       child: OutlinedButton.icon(
                         onPressed: () => context.go(action.$3),
                         icon: Icon(action.$2, size: 19),
-                        label: Text(
-                          action.$1,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        label: AdaptiveButtonLabel(action.$1),
                       ),
                     ),
                 ],

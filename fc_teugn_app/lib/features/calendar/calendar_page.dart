@@ -16,6 +16,7 @@ import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
 import '../../core/providers.dart';
 import '../../core/regular_training_schedule.dart';
+import '../../core/widgets/adaptive_layout.dart';
 import '../../core/widgets/responsive_form_dialog.dart';
 import '../shared/page_scaffold.dart';
 
@@ -521,7 +522,7 @@ class _CalendarPageActions extends StatelessWidget {
     final subscribe = OutlinedButton.icon(
       onPressed: onSubscribe,
       icon: const Icon(Icons.event_repeat_rounded, size: 19),
-      label: Text(mobile ? 'Abo' : 'Kalender-Abo'),
+      label: AdaptiveButtonLabel(mobile ? 'Abo' : 'Kalender-Abo'),
     );
     final create = FilledButton.icon(
       onPressed: canCreate && !saving ? onCreate : null,
@@ -531,7 +532,7 @@ class _CalendarPageActions extends StatelessWidget {
               semanticsLabel: 'Termin wird gespeichert',
             )
           : const Icon(Icons.add_rounded, size: 20),
-      label: Text(saving ? 'Speichert…' : 'Termin anlegen'),
+      label: AdaptiveButtonLabel(saving ? 'Speichert…' : 'Termin anlegen'),
     );
     if (!mobile) {
       return Wrap(
@@ -541,17 +542,15 @@ class _CalendarPageActions extends StatelessWidget {
         children: [subscribe, if (canManage) create],
       );
     }
-    return SizedBox(
-      height: 46,
-      child: Row(
-        children: [
-          Expanded(flex: 2, child: subscribe),
-          if (canManage) ...[
-            const SizedBox(width: 8),
-            Expanded(flex: 3, child: create),
-          ],
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 2, child: subscribe),
+        if (canManage) ...[
+          const SizedBox(width: 8),
+          Expanded(flex: 3, child: create),
         ],
-      ),
+      ],
     );
   }
 }

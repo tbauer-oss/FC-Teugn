@@ -128,12 +128,12 @@ class AdaptiveActionBar extends StatelessWidget {
                       ? FilledButton.icon(
                           onPressed: action.onPressed,
                           icon: Icon(action.icon),
-                          label: _ActionLabel(action.label),
+                          label: AdaptiveButtonLabel(action.label),
                         )
                       : OutlinedButton.icon(
                           onPressed: action.onPressed,
                           icon: Icon(action.icon),
-                          label: _ActionLabel(action.label),
+                          label: AdaptiveButtonLabel(action.label),
                         ),
                 ),
             ],
@@ -142,16 +142,25 @@ class AdaptiveActionBar extends StatelessWidget {
       );
 }
 
-class _ActionLabel extends StatelessWidget {
-  const _ActionLabel(this.label);
+/// A button label that remains fully readable with Android's larger font
+/// settings. Parent buttons may grow vertically instead of clipping text.
+class AdaptiveButtonLabel extends StatelessWidget {
+  const AdaptiveButtonLabel(
+    this.label, {
+    super.key,
+    this.maxLines = 2,
+  });
 
   final String label;
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) => Text(
         label,
-        maxLines: 2,
+        maxLines: maxLines,
+        softWrap: true,
         textAlign: TextAlign.center,
+        overflow: TextOverflow.visible,
       );
 }
 

@@ -20,7 +20,7 @@ void main() {
           home: MediaQuery(
             data: const MediaQueryData(
               size: Size(390, 844),
-              textScaler: TextScaler.linear(1.1),
+              textScaler: TextScaler.linear(1.5),
             ),
             child: Scaffold(
               body: MatchdayAutopilotTab(
@@ -87,7 +87,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Trainerfreigabe'), findsOneWidget);
-    expect(find.text('Übernehmen & veröffentlichen'), findsOneWidget);
+    final publishText = find.text('Übernehmen & veröffentlichen');
+    expect(publishText, findsOneWidget);
+    final publishButton = find.ancestor(
+      of: publishText,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is ButtonStyleButton,
+      ),
+    );
+    expect(publishButton, findsOneWidget);
+    final textRect = tester.getRect(publishText);
+    final buttonRect = tester.getRect(publishButton);
+    expect(textRect.top, greaterThanOrEqualTo(buttonRect.top - .5));
+    expect(textRect.bottom, lessThanOrEqualTo(buttonRect.bottom + .5));
     expect(tester.takeException(), isNull);
   });
 }
