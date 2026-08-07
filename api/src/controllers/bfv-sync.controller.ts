@@ -131,6 +131,77 @@ export async function saveBfvSyncConfig(req: Request, res: Response) {
   return res.json({ ...config, widgetTeamId });
 }
 
+export async function saveBfvWidgetTeamIds(req: Request, res: Response) {
+  const rawTeams = req.body?.teams;
+  if (!Array.isArray(rawTeams) || rawTeams.length > 100) {
+    return res.status(400).json({
+      message: 'Bitte gültige Mannschaftskennungen übermitteln.',
+    });
+  }
+
+  const teams: Array<{ teamId: string; widgetTeamId: string | null }> = [];
+  const seenTeamIds = new Set<string>();
+  try {
+    for (const raw of rawTeams) {
+      const teamId = optionalText(raw?.teamId, 100);
+      if (!teamId || seenTeamIds.has(teamId)) {
+        return res.status(400).json({
+          message: 'Eine Mannschaft fehlt oder wurde doppelt übermittelt.',
+        });
+      }
+      seenTeamIds.add(teamId);
+      teams.push({
+        teamId,
+        widgetTeamId: validatedWidgetTeamId(raw?.widgetTeamId),
+      });
+    }
+  } catch (error) {
+    return res.status(400).json({
+      message: error instanceof Error
+        ? error.message
+        : 'Eine BfV-Mannschaftskennung ist ungültig.',
+    });
+  }
+
+  const existingTeams = await prisma.team.findMany({
+    where: {
+      id: { in: teams.map((team) => team.teamId) },
+      deletedAt: null,
+    },
+    select: { id: true },
+  });
+  if (existingTeams.length !== teams.length) {
+    return res.status(400).json({
+      message: 'Mindestens eine Mannschaft ist nicht mehr verfügbar.',
+    });
+  }
+
+  if (teams.length) {
+    await prisma.$transaction(
+      teams.map((team) => prisma.team.update({
+        where: { id: team.teamId },
+        data: { bfvTeamId: team.widgetTeamId },
+      })),
+    );
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: req.user!.id,
+      action: 'BFV_WIDGET_TEAM_IDS_UPDATED',
+      entityType: 'Team',
+      entityId: 'BFV_WIDGET_TEAM_IDS',
+      metadata: {
+        teamCount: teams.length,
+        configuredCount: teams.filter((team) => Boolean(team.widgetTeamId)).length,
+        teamIds: teams.map((team) => team.teamId),
+      },
+    },
+  });
+
+  return res.json({ teams });
+}
+
 export async function runBfvSync(req: Request, res: Response) {
   const teamId = await requireTeamAccess(req, res);
   if (!teamId) return;

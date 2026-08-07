@@ -15,6 +15,8 @@ import '../../core/widgets/team_crest.dart';
 import '../shared/page_scaffold.dart';
 import '../imports/competition_import_dialog.dart';
 import '../matches/competition_management_dialog.dart';
+import '../auth/auth_controller.dart';
+import '../../core/models/user.dart';
 
 class TrainerMatchesPage extends ConsumerWidget {
   const TrainerMatchesPage({super.key});
@@ -40,6 +42,11 @@ class TrainerMatchesPage extends ConsumerWidget {
                 builder: (context) => CompetitionManagementDialog(
                   repository: repository,
                   organization: organization,
+                  isSystemAdmin:
+                      ref.read(authProvider).user?.role == UserRole.superAdmin,
+                  onOrganizationChanged: () {
+                    ref.invalidate(organizationProvider);
+                  },
                 ),
               );
             },

@@ -14,10 +14,14 @@ class CompetitionManagementDialog extends StatefulWidget {
     super.key,
     required this.repository,
     required this.organization,
+    this.isSystemAdmin = false,
+    this.onOrganizationChanged,
   });
 
   final DataRepository repository;
   final OrganizationContext organization;
+  final bool isSystemAdmin;
+  final VoidCallback? onOrganizationChanged;
 
   @override
   State<CompetitionManagementDialog> createState() =>
@@ -137,6 +141,10 @@ class _CompetitionManagementDialogState
                               BfvSyncTab(
                                 key: ValueKey(ageGroupId),
                                 repository: widget.repository,
+                                allTeams: widget.organization.teams,
+                                isSystemAdmin: widget.isSystemAdmin,
+                                onConfigurationChanged:
+                                    widget.onOrganizationChanged,
                                 teams: widget.organization.teams
                                     .where((team) =>
                                         team.ageGroup.id == ageGroupId)

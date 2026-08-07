@@ -219,6 +219,20 @@ class DataRepository {
     return BfvSyncConfigModel.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<void> saveBfvWidgetTeamIds(
+    Map<String, String?> widgetTeamIds,
+  ) async {
+    await client.dio.put('/competitions/bfv-widget-teams', data: {
+      'teams': [
+        for (final entry in widgetTeamIds.entries)
+          {
+            'teamId': entry.key,
+            'widgetTeamId': entry.value,
+          },
+      ],
+    });
+  }
+
   Future<OrganizationContext> organizationContext() async {
     final res = await client.dio.get('/organization/context');
     return OrganizationContext.fromJson(res.data as Map<String, dynamic>);

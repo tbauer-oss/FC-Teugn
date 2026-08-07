@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/models/organization.dart';
@@ -23,9 +22,10 @@ Uri? buildBfvTeamPageUri(String? value) {
   final normalized = value?.trim() ?? '';
   if (normalized.isEmpty) return null;
   final uri = Uri.tryParse(normalized);
+  final host = uri?.host.toLowerCase() ?? '';
   if (uri == null ||
       !const {'http', 'https'}.contains(uri.scheme) ||
-      !uri.host.toLowerCase().endsWith('bfv.de')) {
+      (host != 'bfv.de' && !host.endsWith('.bfv.de'))) {
     return null;
   }
   return uri;
@@ -46,17 +46,18 @@ class BfvCompetitionPage extends ConsumerStatefulWidget {
 class _BfvCompetitionPageState extends ConsumerState<BfvCompetitionPage> {
   String? _selectedTeamId;
 
-  Future<void> _open(Uri? uri) async {
-    if (uri != null &&
-        await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
-      return;
-    }
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Die offizielle BfV-Seite konnte nicht geöffnet werden.'),
-      ),
+  void _openInsideApp(TeamSummary team) {
+    final route = Uri(
+      path: '/bfv-browser',
+      queryParameters: {
+        'teamName': team.displayName,
+        if (team.bfvTeamId?.trim().isNotEmpty == true)
+          'teamId': team.bfvTeamId!.trim()
+        else if (team.bfvTeamUrl?.trim().isNotEmpty == true)
+          'teamUrl': team.bfvTeamUrl!.trim(),
+      },
     );
+    context.push(route.toString());
   }
 
   @override
@@ -143,7 +144,7 @@ class _BfvCompetitionPageState extends ConsumerState<BfvCompetitionPage> {
                     buttonLabel: 'Offizielle BfV-Ansicht öffnen',
                     primary: true,
                     enabled: officialUri != null,
-                    onPressed: () => _open(officialUri),
+                    onPressed: () => _openInsideApp(team),
                   ),
                 ),
                 SizedBox(
@@ -167,9 +168,9 @@ class _BfvCompetitionPageState extends ConsumerState<BfvCompetitionPage> {
         if (teamUri != null) ...[
           const SizedBox(height: 16),
           OutlinedButton.icon(
-            onPressed: () => _open(teamUri),
-            icon: const Icon(Icons.open_in_new_rounded),
-            label: const Text('Mannschaftsseite auf bfv.de öffnen'),
+            onPressed: () => _openInsideApp(team),
+            icon: const Icon(Icons.fullscreen_rounded),
+            label: const Text('BfV-Mannschaftsseite in der App öffnen'),
           ),
         ],
         if (officialUri == null) ...[
@@ -382,7 +383,7 @@ class _BfvActionCard extends StatelessWidget {
               if (primary)
                 FilledButton.icon(
                   onPressed: enabled ? onPressed : null,
-                  icon: const Icon(Icons.open_in_new_rounded),
+                  icon: const Icon(Icons.fullscreen_rounded),
                   label: Text(buttonLabel, textAlign: TextAlign.center),
                 )
               else

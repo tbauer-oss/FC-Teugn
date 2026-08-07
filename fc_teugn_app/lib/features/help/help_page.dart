@@ -1090,7 +1090,8 @@ const helpArticles = <HelpArticle>[
       'Für den automatischen BfV-Abgleich öffnest du den Reiter „BfV“, wählst die konkrete Mannschaft und hinterlegst deren offizielle BfV-Mannschaftsseite sowie die iCal-Adresse.',
       'Nach „Speichern“ kannst du sofort synchronisieren. Danach gleicht die Vereinsverwaltung die eigenen Spiele automatisch ab; neue Spiele werden angelegt und lokale Änderungen bei Konflikten geschützt.',
       'Erzeuge im offiziellen BfV-Widgetgenerator ein Mannschafts-Komplett-Widget. Registriere dort einmalig fcteugnapp.vercel.app als erlaubte Domain und kopiere die Mannschaftskennung aus zeigeMannschaftKomplett(…) in das gleichnamige Feld der App.',
-      'Über „Tabelle & Ligaspiele“ öffnest du anschließend die moderne App-Ansicht mit dem offiziellen BfV-Widget. Beim ersten Aufruf muss das Nachladen der BfV-Inhalte aus Datenschutzgründen einmal bestätigt werden.',
+      'Als Systemadmin kannst du im BfV-Reiter „Alle Kennungen bearbeiten“ öffnen. Dort stehen sämtliche Mannschaften untereinander und du speicherst alle Widget-Kennungen gemeinsam, ohne vorher Jugend oder Mannschaft wechseln zu müssen. Auch vollständig eingefügter Widget-Code wird erkannt.',
+      'Über „Tabelle & Ligaspiele“ öffnest du anschließend die integrierte Vollbildansicht mit dem offiziellen BfV-Widget. Beim ersten Aufruf muss das Nachladen der BfV-Inhalte aus Datenschutzgründen einmal bestätigt werden.',
       'Die Ansicht enthält den offiziellen Tabellenstand und sämtliche Ligapartien. Dafür muss keine Liga mehr manuell gepflegt werden.',
     ],
     tip:
@@ -1115,7 +1116,8 @@ const helpArticles = <HelpArticle>[
     steps: [
       'Öffne im App-Menü unter „Training & Spieltag“ den Bereich „Tabelle & Ergebnisse“.',
       'Wähle oben die gewünschte Mannschaft. Eltern und Spieler sehen dabei nur die Mannschaften, denen sie zugeordnet sind.',
-      'Tippe auf „Offizielle BfV-Ansicht öffnen“. Dort findest du den amtlichen Tabellenstand, Liga-Ergebnisse, Spieltage und Gegnerpartien.',
+      'Tippe auf „Offizielle BfV-Ansicht öffnen“. Die Tabelle startet als interner Vollbildbrowser innerhalb der App. Dort findest du den amtlichen Tabellenstand, Liga-Ergebnisse, Spieltage und Gegnerpartien.',
+      'Mit dem Zurückpfeil oben links gelangst du direkt zur vorherigen App-Seite zurück; ein Wechsel in den externen Browser ist nicht erforderlich.',
       'Über „Unsere Spiele“ gelangst du zurück zu den in der FC-Teugn-App selbst gepflegten Spieltagen, Kadern und Livetickern.',
       'Beim ersten Öffnen bestätigst du einmalig, dass offizielle Inhalte vom BfV nachgeladen werden dürfen.',
     ],

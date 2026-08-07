@@ -25,6 +25,7 @@ import 'features/organization/organization_page.dart';
 import 'features/players/player_profile_page.dart';
 import 'features/matches/matchday_page.dart';
 import 'features/matches/bfv_competition_page.dart';
+import 'features/matches/bfv_browser_page.dart';
 import 'features/statistics/statistics_page.dart';
 import 'features/training/training_pages.dart';
 import 'features/communications/communications_page.dart';
@@ -383,6 +384,27 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         GoRoute(
           path: '/pending',
           builder: (context, state) => const PendingPage(),
+        ),
+        GoRoute(
+          path: '/bfv-browser',
+          parentNavigatorKey: _rootNavigatorKey,
+          builder: (context, state) {
+            final teamName = state.uri.queryParameters['teamName'] ?? 'BfV';
+            final target = buildEmbeddedBfvUri(
+              widgetTeamId: state.uri.queryParameters['teamId'],
+              teamName: teamName,
+              teamUrl: state.uri.queryParameters['teamUrl'],
+            );
+            if (target == null) {
+              return Scaffold(
+                appBar: AppBar(title: const Text('Tabelle & Ergebnisse')),
+                body: const Center(
+                  child: Text('Für diese Mannschaft fehlt die BfV-Kennung.'),
+                ),
+              );
+            }
+            return BfvBrowserPage(initialUri: target, teamName: teamName);
+          },
         ),
         ShellRoute(
           builder: (context, state, child) => AppShell(

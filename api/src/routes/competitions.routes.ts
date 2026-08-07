@@ -12,7 +12,7 @@ import {
   saveOpponent,
   uploadOpponentLogo,
 } from '../controllers/competitions.controller';
-import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
+import { requireApproved, requireAuth, requirePermission, requireRoles } from '../middleware/auth';
 import { idempotencyMiddleware } from '../middleware/idempotency';
 import { playerFileUpload } from '../middleware/player-files';
 import { Permission } from '../security/permissions';
@@ -20,7 +20,9 @@ import {
   getBfvSyncConfig,
   runBfvSync,
   saveBfvSyncConfig,
+  saveBfvWidgetTeamIds,
 } from '../controllers/bfv-sync.controller';
+import { Role } from '../types/enums';
 
 const router = asyncRouter();
 router.use(requireAuth);
@@ -69,6 +71,11 @@ router.get(
   '/bfv-sync',
   requirePermission(Permission.MANAGE_IMPORTS),
   getBfvSyncConfig,
+);
+router.put(
+  '/bfv-widget-teams',
+  requireRoles([Role.SUPER_ADMIN]),
+  saveBfvWidgetTeamIds,
 );
 router.put(
   '/bfv-sync/:teamId',

@@ -1,19 +1,38 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/data_repository.dart';
 import '../../core/models/competition.dart';
 import '../../core/models/organization.dart';
+
+String? normalizedBfvWidgetTeamId(String value) {
+  final normalized = value.trim();
+  if (normalized.isEmpty) return null;
+  final fromWidgetCode = RegExp(
+    r'''zeigeMannschaftKomplett\(\s*["']([^"']+)["']''',
+    caseSensitive: false,
+  ).firstMatch(normalized);
+  return (fromWidgetCode?.group(1) ?? normalized).trim();
+}
+
+bool isValidBfvWidgetTeamId(String? value) =>
+    value == null || RegExp(r'^[A-Za-z0-9_-]{6,160}$').hasMatch(value);
 
 class BfvSyncTab extends StatefulWidget {
   const BfvSyncTab({
     super.key,
     required this.repository,
     required this.teams,
+    this.allTeams = const [],
+    this.isSystemAdmin = false,
+    this.onConfigurationChanged,
   });
 
   final DataRepository repository;
   final List<TeamSummary> teams;
+  final List<TeamSummary> allTeams;
+  final bool isSystemAdmin;
+  final VoidCallback? onConfigurationChanged;
 
   @override
   State<BfvSyncTab> createState() => _BfvSyncTabState();
@@ -29,6 +48,7 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
   int interval = 30;
   bool busy = false;
   String? error;
+  int? centralConfiguredCount;
 
   @override
   void initState() {
@@ -104,6 +124,7 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
           const SnackBar(content: Text('BfV-Verknüpfung gespeichert.')),
         );
       }
+      widget.onConfigurationChanged?.call();
       return value;
     } catch (exception) {
       if (mounted) {
@@ -155,28 +176,37 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
     return marker?.group(1)?.trim() ?? fallback;
   }
 
-  Future<void> _openOfficialView() async {
+  void _openOfficialView() {
     final widgetTeamId = widgetTeamIdController.text.trim();
     final selectedTeam = widget.teams
         .where((team) => team.id == teamId)
-        .map((team) => team.name)
+        .map((team) => team.displayName)
         .firstOrNull;
-    final uri = widgetTeamId.isNotEmpty
-        ? Uri.https('fcteugnapp.vercel.app', '/bfv-widget.html', {
-            'teamId': widgetTeamId,
-            if (selectedTeam != null) 'teamName': selectedTeam,
-          })
-        : Uri.tryParse(teamPageController.text.trim());
-    if (uri == null ||
-        !await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'Die offizielle BfV-Ansicht konnte nicht geöffnet werden.')),
-        );
-      }
-    }
+    final route = Uri(
+      path: '/bfv-browser',
+      queryParameters: {
+        'teamName': selectedTeam ?? 'BfV',
+        if (widgetTeamId.isNotEmpty)
+          'teamId': widgetTeamId
+        else
+          'teamUrl': teamPageController.text.trim(),
+      },
+    );
+    context.push(route.toString());
+  }
+
+  Future<void> _openCentralWidgetManagement() async {
+    final configuredCount = await showDialog<int>(
+      context: context,
+      builder: (context) => _BfvWidgetTeamManagerDialog(
+        repository: widget.repository,
+        teams: widget.allTeams,
+      ),
+    );
+    if (configuredCount == null || !mounted) return;
+    setState(() => centralConfiguredCount = configuredCount);
+    widget.onConfigurationChanged?.call();
+    await _load();
   }
 
   @override
@@ -201,6 +231,17 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
+        if (widget.isSystemAdmin && widget.allTeams.isNotEmpty) ...[
+          _CentralWidgetManagementCard(
+            onOpen: () => _openCentralWidgetManagement(),
+            configuredCount: centralConfiguredCount ??
+                widget.allTeams
+                    .where((team) => team.bfvTeamId?.trim().isNotEmpty == true)
+                    .length,
+            teamCount: widget.allTeams.length,
+          ),
+          const SizedBox(height: 16),
+        ],
         _IntroCard(
             onOpen: _openOfficialView,
             canOpen: widgetTeamIdController.text.trim().isNotEmpty ||
@@ -324,6 +365,368 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CentralWidgetManagementCard extends StatelessWidget {
+  const _CentralWidgetManagementCard({
+    required this.onOpen,
+    required this.configuredCount,
+    required this.teamCount,
+  });
+
+  final VoidCallback onOpen;
+  final int configuredCount;
+  final int teamCount;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Alle Mannschaftskennungen zentral verwalten',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '$configuredCount von $teamCount Mannschaften sind mit '
+                      'dem BfV-Widget verbunden. Alle Kennungen lassen sich '
+                      'gemeinsam bearbeiten und speichern.',
+                    ),
+                  ],
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: onOpen,
+                icon: const Icon(Icons.table_rows_rounded),
+                label: const Text(
+                  'Alle Kennungen bearbeiten',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _BfvWidgetTeamManagerDialog extends StatefulWidget {
+  const _BfvWidgetTeamManagerDialog({
+    required this.repository,
+    required this.teams,
+  });
+
+  final DataRepository repository;
+  final List<TeamSummary> teams;
+
+  @override
+  State<_BfvWidgetTeamManagerDialog> createState() =>
+      _BfvWidgetTeamManagerDialogState();
+}
+
+class _BfvWidgetTeamManagerDialogState
+    extends State<_BfvWidgetTeamManagerDialog> {
+  late final List<TeamSummary> teams;
+  final controllers = <String, TextEditingController>{};
+  final originalValues = <String, String?>{};
+  bool busy = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    teams = widget.teams.where((team) => team.isActive).toList()
+      ..sort((a, b) {
+        final ageGroup = a.ageGroup.sortOrder.compareTo(b.ageGroup.sortOrder);
+        return ageGroup != 0 ? ageGroup : a.teamNumber.compareTo(b.teamNumber);
+      });
+    for (final team in teams) {
+      final value = normalizedBfvWidgetTeamId(team.bfvTeamId ?? '');
+      originalValues[team.id] = value;
+      controllers[team.id] = TextEditingController(text: value ?? '');
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  bool get changed => teams.any(
+        (team) =>
+            normalizedBfvWidgetTeamId(controllers[team.id]!.text) !=
+            originalValues[team.id],
+      );
+
+  int get configuredCount => teams
+      .where(
+        (team) =>
+            normalizedBfvWidgetTeamId(
+              controllers[team.id]!.text,
+            ) !=
+            null,
+      )
+      .length;
+
+  Future<void> _save() async {
+    final values = <String, String?>{};
+    final ownersByWidgetId = <String, TeamSummary>{};
+    for (final team in teams) {
+      final value = normalizedBfvWidgetTeamId(controllers[team.id]!.text);
+      if (!isValidBfvWidgetTeamId(value)) {
+        setState(() => error =
+            'Die Kennung bei ${team.displayName} ist ungültig. Bitte die '
+                'Kennung oder den vollständigen Widget-Code einfügen.');
+        return;
+      }
+      if (value != null && ownersByWidgetId.containsKey(value)) {
+        setState(() => error =
+            'Die gleiche Kennung wurde für ${ownersByWidgetId[value]!.displayName} '
+                'und ${team.displayName} eingetragen.');
+        return;
+      }
+      if (value != null) ownersByWidgetId[value] = team;
+      values[team.id] = value;
+    }
+
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await widget.repository.saveBfvWidgetTeamIds(values);
+      if (!mounted) return;
+      Navigator.of(context).pop(configuredCount);
+    } catch (exception) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        error = 'Die Mannschaftskennungen konnten nicht gespeichert werden.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              onPressed: busy ? null : () => Navigator.of(context).pop(),
+              tooltip: 'Schließen',
+              icon: const Icon(Icons.close_rounded),
+            ),
+            title: const Text('BfV-Mannschaftskennungen'),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Alle Mannschaften auf einen Blick',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Trage je Mannschaft die Kennung aus '
+                      'zeigeMannschaftKomplett(…) ein. Du kannst auch den '
+                      'vollständigen BfV-Widget-Code einfügen – die Kennung '
+                      'wird beim Speichern automatisch erkannt.',
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '$configuredCount von ${teams.length} konfiguriert',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cardWidth = constraints.maxWidth >= 900
+                      ? (constraints.maxWidth - 14) / 2
+                      : constraints.maxWidth;
+                  return Wrap(
+                    spacing: 14,
+                    runSpacing: 14,
+                    children: [
+                      for (final team in teams)
+                        SizedBox(
+                          width: cardWidth,
+                          child: _BfvWidgetTeamField(
+                            team: team,
+                            controller: controllers[team.id]!,
+                            enabled: !busy,
+                            onChanged: () => setState(() => error = null),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+          bottomNavigationBar: SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                border: Border(
+                  top: BorderSide(color: Theme.of(context).dividerColor),
+                ),
+              ),
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  TextButton(
+                    onPressed: busy ? null : () => Navigator.of(context).pop(),
+                    child: const Text('Abbrechen'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: busy || !changed ? null : _save,
+                    icon: busy
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_rounded),
+                    label: const Text(
+                      'Alle Kennungen speichern',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _BfvWidgetTeamField extends StatelessWidget {
+  const _BfvWidgetTeamField({
+    required this.team,
+    required this.controller,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final TeamSummary team;
+  final TextEditingController controller;
+  final bool enabled;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final configured = normalizedBfvWidgetTeamId(controller.text) != null;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(Icons.groups_rounded),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        team.displayName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      Text(
+                        team.ageGroup.name,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  configured
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: configured ? Colors.green : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              enabled: enabled,
+              minLines: 1,
+              maxLines: 3,
+              onChanged: (_) => onChanged(),
+              decoration: const InputDecoration(
+                labelText: 'Widget-Mannschaftskennung',
+                hintText: 'Kennung oder Widget-Code einfügen',
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
