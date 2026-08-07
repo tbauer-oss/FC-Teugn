@@ -1074,7 +1074,10 @@ const helpArticles = <HelpArticle>[
       'Speicherbutton',
       'Pflichtfelder',
       'Verein',
-      'Jugend Mannschaft'
+      'Jugend Mannschaft',
+      'Synchronisieren',
+      'Tabelle',
+      'Ligaspiele',
     ],
     route: '/matches',
     routeLabel: 'Spielbetrieb öffnen',
@@ -1084,9 +1087,12 @@ const helpArticles = <HelpArticle>[
       'Spielstätte und Adresse sind optional. Nach dem Speichern steht die Mannschaft im Gegner-Pool dieser Jugend zur Verfügung.',
       'Über das Bildsymbol lädst du ein gut zugeschnittenes Vereinswappen hoch; mit dem Stift bearbeitest du Namen, Mannschaft, Spielstätte oder Adresse später dauerhaft.',
       'Beim Anlegen oder Bearbeiten eines Spiels wählst du den Gegner aus dem Dropdown oder legst ihn direkt über das Plus neu an. Alternativ kannst du einen geeigneten Spielplan importieren und vor der Übernahme prüfen.',
+      'Für den automatischen BfV-Abgleich öffnest du den Reiter „BfV“, wählst die konkrete Mannschaft und hinterlegst deren offizielle BfV-Mannschaftsseite sowie die iCal-Adresse.',
+      'Nach „Speichern“ kannst du sofort synchronisieren. Danach gleicht die Vereinsverwaltung die eigenen Spiele automatisch ab; neue Spiele werden angelegt und lokale Änderungen bei Konflikten geschützt.',
+      'Über „Tabelle & Ligaspiele“ öffnest du die offizielle BfV-Ansicht mit Tabellenstand und sämtlichen Partien. Dafür muss keine Liga mehr manuell gepflegt werden.',
     ],
     tip:
-        'Das FC-Teugn-Wappen wird automatisch verwendet. Gegnerwappen erscheinen im Spieltag und Liveticker, sobald sie im Gegner-Pool gespeichert sind.',
+        'Das FC-Teugn-Wappen wird automatisch verwendet. Gegnerwappen erscheinen im Spieltag und Liveticker, sobald sie im Gegner-Pool gespeichert sind. Die automatische BfV-Verknüpfung wird je Mannschaft und damit passend zur Saison gespeichert.',
   ),
   HelpArticle(
     category: HelpCategory.matchday,

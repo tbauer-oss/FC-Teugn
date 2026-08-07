@@ -285,10 +285,17 @@ function icsRows(content: string): ParsedCompetitionRow[] {
       address: location === 'Noch offen' ? null : location,
       opponent,
       isHome,
-      competition: 'ICS-Spielplan',
+      competition:
+        properties.get('CATEGORIES')?.trim() ||
+        properties.get('X-WR-CALNAME')?.trim() ||
+        'BfV-Spielplan',
       division: null,
       matchDay: null,
-      status: 'PLANNED',
+      status:
+        properties.get('STATUS')?.toUpperCase() === 'CANCELLED' ||
+        /abgesagt|abgesetzt|entfällt/i.test(summary)
+          ? 'CANCELLED'
+          : 'PLANNED',
       ourGoals: null,
       theirGoals: null,
       sourceUrl: properties.get('URL')?.trim() || null,

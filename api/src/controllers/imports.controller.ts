@@ -1,21 +1,11 @@
 import crypto from 'node:crypto';
 import {
-  EventCategory,
-  EventStatus,
-  EventType,
-  HomeAway,
   ImportFormat,
   ImportJobStatus,
   ImportRowAction,
-  MatchKind,
-  MatchStatus,
   Prisma,
 } from '@prisma/client';
 import { Request, Response } from 'express';
-import {
-  HOME_MATCH_VENUE,
-  isFcTeugnHomeVenue,
-} from '../services/match-venue.service';
 import { prisma } from '../lib/prisma';
 import { accessibleTeamIds } from '../services/team-access';
 import {
@@ -24,29 +14,20 @@ import {
   parseCompetitionSource,
 } from '../services/competition-provider';
 import { recalculateMatchStatistics } from '../services/statistics.service';
+import { writeCompetitionMatch } from '../services/competition-import-write.service';
 
 const supportedProviders = new Set([
   'BFV_CSV',
   'DFBNET_CSV',
   'GENERIC_CSV',
   'ICS',
+  'BFV_ICS',
 ]);
 
 function text(value: unknown, max = 1000) {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
   return normalized ? normalized.slice(0, max) : null;
-}
-
-function matchStatus(value: string) {
-  return (Object.values(MatchStatus) as string[]).includes(value)
-    ? (value as MatchStatus)
-    : MatchStatus.PLANNED;
-}
-
-function eventStatus(value: string) {
-  if (value === MatchStatus.CANCELLED) return EventStatus.CANCELLED;
-  return EventStatus.SCHEDULED;
 }
 
 function counts(rows: { action: ImportRowAction }[]) {
@@ -201,101 +182,6 @@ export async function previewCompetitionImport(req: Request, res: Response) {
   return res.status(201).json(job);
 }
 
-async function writeMatch(
-  tx: Prisma.TransactionClient,
-  teamId: string,
-  provider: string,
-  match: NormalizedCompetitionMatch,
-  entityId?: string | null,
-) {
-  const startAt = new Date(match.startAt);
-  const eventData = {
-    teamId,
-    type: EventType.MATCH,
-    category: EventCategory.LEAGUE_MATCH,
-    status: eventStatus(match.status),
-    title: match.title,
-    startAt,
-    endAt: match.endAt ? new Date(match.endAt) : null,
-    location: match.isHome
-      ? match.location || HOME_MATCH_VENUE
-      : isFcTeugnHomeVenue(match.location) ? '' : match.location,
-    address: match.address,
-    homeAway: match.isHome ? HomeAway.HOME : HomeAway.AWAY,
-    opponent: match.opponent,
-  };
-  const event = entityId
-    ? await tx.event.update({ where: { id: entityId }, data: eventData })
-    : await tx.event.create({ data: eventData });
-  await tx.eventTargetTeam.upsert({
-    where: { eventId_teamId: { eventId: event.id, teamId } },
-    update: {},
-    create: { eventId: event.id, teamId },
-  });
-  await tx.matchDetails.upsert({
-    where: { eventId: event.id },
-    update: {
-      opponent: match.opponent,
-      isHome: match.isHome,
-      kind: MatchKind.LEAGUE,
-      status: matchStatus(match.status),
-      competition: match.competition,
-      division: match.division,
-      matchDay: match.matchDay,
-      bfvMatchId: match.externalId,
-      bfvUrl: match.sourceUrl,
-      externalSource: provider,
-      externalUpdatedAt: new Date(),
-      ourGoals: match.ourGoals,
-      theirGoals: match.theirGoals,
-    },
-    create: {
-      eventId: event.id,
-      opponent: match.opponent,
-      isHome: match.isHome,
-      kind: MatchKind.LEAGUE,
-      status: matchStatus(match.status),
-      competition: match.competition,
-      division: match.division,
-      matchDay: match.matchDay,
-      bfvMatchId: match.externalId,
-      bfvUrl: match.sourceUrl,
-      externalSource: provider,
-      externalUpdatedAt: new Date(),
-      ourGoals: match.ourGoals,
-      theirGoals: match.theirGoals,
-    },
-  });
-  const now = new Date();
-  await tx.externalReference.upsert({
-    where: {
-      provider_entityType_externalId: {
-        provider,
-        entityType: 'Event',
-        externalId: match.externalId,
-      },
-    },
-    update: {
-      teamId,
-      entityId: event.id,
-      sourceChecksum: competitionMatchChecksum(match),
-      sourceUrl: match.sourceUrl,
-      lastSyncedAt: now,
-    },
-    create: {
-      teamId,
-      provider,
-      entityType: 'Event',
-      externalId: match.externalId,
-      entityId: event.id,
-      sourceChecksum: competitionMatchChecksum(match),
-      sourceUrl: match.sourceUrl,
-      lastSyncedAt: now,
-    },
-  });
-  return event.id;
-}
-
 export async function applyCompetitionImport(req: Request, res: Response) {
   const user = req.user!;
   const teamIds = await accessibleTeamIds(user);
@@ -323,7 +209,7 @@ export async function applyCompetitionImport(req: Request, res: Response) {
         });
         if (!ownedEntity) continue;
       }
-      const entityId = await writeMatch(
+      const entityId = await writeCompetitionMatch(
         tx,
         job.teamId,
         job.provider,

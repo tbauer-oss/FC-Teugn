@@ -179,3 +179,61 @@ class LeagueStandingModel {
         points: json['points'] as int? ?? 0,
       );
 }
+
+class BfvSyncConfigModel {
+  const BfvSyncConfigModel({
+    required this.teamId,
+    required this.enabled,
+    required this.syncIntervalMinutes,
+    required this.lastStatus,
+    required this.lastCreatedCount,
+    required this.lastUpdatedCount,
+    required this.lastSkippedCount,
+    required this.lastConflictCount,
+    this.id,
+    this.teamPageUrl,
+    this.icalUrl,
+    this.officialViewUrl,
+    this.lastAttemptAt,
+    this.lastSuccessAt,
+    this.lastMessage,
+  });
+
+  final String? id;
+  final String teamId;
+  final String? teamPageUrl;
+  final String? icalUrl;
+  final String? officialViewUrl;
+  final bool enabled;
+  final int syncIntervalMinutes;
+  final DateTime? lastAttemptAt;
+  final DateTime? lastSuccessAt;
+  final String lastStatus;
+  final String? lastMessage;
+  final int lastCreatedCount;
+  final int lastUpdatedCount;
+  final int lastSkippedCount;
+  final int lastConflictCount;
+
+  factory BfvSyncConfigModel.fromJson(Map<String, dynamic> json) =>
+      BfvSyncConfigModel(
+        id: json['id'] as String?,
+        teamId: json['teamId'] as String,
+        teamPageUrl: json['teamPageUrl'] as String?,
+        icalUrl: json['icalUrl'] as String?,
+        officialViewUrl: json['officialViewUrl'] as String?,
+        enabled: json['enabled'] as bool? ?? true,
+        syncIntervalMinutes: json['syncIntervalMinutes'] as int? ?? 30,
+        lastAttemptAt: _optionalDate(json['lastAttemptAt']),
+        lastSuccessAt: _optionalDate(json['lastSuccessAt']),
+        lastStatus: json['lastStatus'] as String? ?? 'NOT_CONFIGURED',
+        lastMessage: json['lastMessage'] as String?,
+        lastCreatedCount: json['lastCreatedCount'] as int? ?? 0,
+        lastUpdatedCount: json['lastUpdatedCount'] as int? ?? 0,
+        lastSkippedCount: json['lastSkippedCount'] as int? ?? 0,
+        lastConflictCount: json['lastConflictCount'] as int? ?? 0,
+      );
+
+  static DateTime? _optionalDate(dynamic value) =>
+      value is String ? DateTime.tryParse(value)?.toLocal() : null;
+}

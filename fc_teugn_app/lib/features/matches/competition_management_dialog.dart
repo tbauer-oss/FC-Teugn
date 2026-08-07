@@ -7,6 +7,7 @@ import '../../core/data_repository.dart';
 import '../../core/models/competition.dart';
 import '../../core/models/organization.dart';
 import '../shared/context_help.dart';
+import 'bfv_sync_tab.dart';
 
 class CompetitionManagementDialog extends StatefulWidget {
   const CompetitionManagementDialog({
@@ -65,7 +66,7 @@ class _CompetitionManagementDialogState
     final height = MediaQuery.sizeOf(context).height;
     return Dialog.fullscreen(
       child: DefaultTabController(
-        length: 2,
+        length: 3,
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Liga & Gegner'),
@@ -73,7 +74,7 @@ class _CompetitionManagementDialogState
               ContextHelpButton(
                 pageTitle: 'Liga & Gegner',
                 pageSubtitle:
-                    'Gegner-Pool, Vereinswappen und Ligen je Jugend verwalten.',
+                    'Gegner-Pool, Ligen und automatische BfV-Spielplansynchronisation verwalten.',
               ),
               SizedBox(width: 8),
             ],
@@ -85,6 +86,7 @@ class _CompetitionManagementDialogState
               tabs: [
                 Tab(icon: Icon(Icons.shield_outlined), text: 'Gegner'),
                 Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Ligen'),
+                Tab(icon: Icon(Icons.sync_rounded), text: 'BfV'),
               ],
             ),
           ),
@@ -132,6 +134,14 @@ class _CompetitionManagementDialogState
                             children: [
                               _opponentTab(height),
                               _leagueTab(height),
+                              BfvSyncTab(
+                                key: ValueKey(ageGroupId),
+                                repository: widget.repository,
+                                teams: widget.organization.teams
+                                    .where((team) =>
+                                        team.ageGroup.id == ageGroupId)
+                                    .toList(),
+                              ),
                             ],
                           ),
               ),

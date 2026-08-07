@@ -499,6 +499,7 @@ model Team {
   announcements              AnnouncementTargetTeam[]
   importJobs                 ImportJob[]
   externalRefs               ExternalReference[]
+  bfvSyncConfig              BfvTeamSync?
   playerSeasonAssignments    PlayerSeasonAssignment[]
   registrationRequests       RegistrationTeamRequest[]
   tasks                      TeamTask[]
@@ -641,6 +642,7 @@ model User {
   notificationPreferences      NotificationPreference[]
   notificationDeliveries       NotificationDelivery[]
   importJobs                   ImportJob[]
+  createdBfvSyncConfigs        BfvTeamSync[]             @relation("BfvSyncCreator")
   seasonTransitions            SeasonTransition[]       @relation("SeasonTransitionActor")
   createdRuleProfiles          RuleProfile[]            @relation("RuleProfileCreator")
   approvedRuleProfiles         RuleProfile[]            @relation("RuleProfileApprover")
@@ -2034,6 +2036,31 @@ model ExternalReference {
   @@unique([provider, entityType, externalId])
   @@index([teamId, entityType])
   @@index([entityId])
+}
+
+model BfvTeamSync {
+  id                   String   @id @default(cuid())
+  teamId               String   @unique
+  teamPageUrl          String?
+  icalUrl              String?
+  officialViewUrl      String?
+  enabled              Boolean  @default(true)
+  syncIntervalMinutes  Int      @default(30)
+  lastAttemptAt        DateTime?
+  lastSuccessAt        DateTime?
+  lastStatus           String   @default("NOT_CONFIGURED")
+  lastMessage          String?
+  lastCreatedCount     Int      @default(0)
+  lastUpdatedCount     Int      @default(0)
+  lastSkippedCount     Int      @default(0)
+  lastConflictCount    Int      @default(0)
+  createdById          String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy            User     @relation("BfvSyncCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([enabled, lastAttemptAt])
 }
 
 model TeamTask {

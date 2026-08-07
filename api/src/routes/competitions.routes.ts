@@ -16,6 +16,11 @@ import { requireApproved, requireAuth, requirePermission } from '../middleware/a
 import { idempotencyMiddleware } from '../middleware/idempotency';
 import { playerFileUpload } from '../middleware/player-files';
 import { Permission } from '../security/permissions';
+import {
+  getBfvSyncConfig,
+  runBfvSync,
+  saveBfvSyncConfig,
+} from '../controllers/bfv-sync.controller';
 
 const router = asyncRouter();
 router.use(requireAuth);
@@ -59,6 +64,21 @@ router.delete(
   '/leagues/:leagueId/matches/:matchId',
   requirePermission(Permission.LEAGUE_MATCH_DELETE),
   deleteLeagueMatch,
+);
+router.get(
+  '/bfv-sync',
+  requirePermission(Permission.MANAGE_IMPORTS),
+  getBfvSyncConfig,
+);
+router.put(
+  '/bfv-sync/:teamId',
+  requirePermission(Permission.MANAGE_IMPORTS),
+  saveBfvSyncConfig,
+);
+router.post(
+  '/bfv-sync/:teamId/run',
+  requirePermission(Permission.MANAGE_IMPORTS),
+  runBfvSync,
 );
 
 export default router;

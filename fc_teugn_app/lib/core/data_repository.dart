@@ -183,6 +183,40 @@ class DataRepository {
     }
   }
 
+  Future<BfvSyncConfigModel> bfvSyncConfig(String teamId) async {
+    final res = await client.dio.get(
+      '/competitions/bfv-sync',
+      queryParameters: {'teamId': teamId},
+    );
+    return BfvSyncConfigModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<BfvSyncConfigModel> saveBfvSyncConfig({
+    required String teamId,
+    String? teamPageUrl,
+    String? icalUrl,
+    String? officialViewUrl,
+    required bool enabled,
+    required int syncIntervalMinutes,
+  }) async {
+    final res = await client.dio.put(
+      '/competitions/bfv-sync/$teamId',
+      data: {
+        'teamPageUrl': teamPageUrl,
+        'icalUrl': icalUrl,
+        'officialViewUrl': officialViewUrl,
+        'enabled': enabled,
+        'syncIntervalMinutes': syncIntervalMinutes,
+      },
+    );
+    return BfvSyncConfigModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<BfvSyncConfigModel> runBfvSync(String teamId) async {
+    final res = await client.dio.post('/competitions/bfv-sync/$teamId/run');
+    return BfvSyncConfigModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<OrganizationContext> organizationContext() async {
     final res = await client.dio.get('/organization/context');
     return OrganizationContext.fromJson(res.data as Map<String, dynamic>);
