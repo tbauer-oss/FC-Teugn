@@ -6,7 +6,7 @@ import '../../core/app_theme.dart';
 import '../../core/models/communication.dart';
 import '../../core/providers.dart';
 
-class DashboardNotifications extends ConsumerWidget {
+class DashboardNotifications extends ConsumerStatefulWidget {
   const DashboardNotifications({
     super.key,
     required this.notifications,
@@ -17,8 +17,20 @@ class DashboardNotifications extends ConsumerWidget {
   final bool isTrainer;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final unread = notifications.where((item) => !item.isRead).toList();
+  ConsumerState<DashboardNotifications> createState() =>
+      _DashboardNotificationsState();
+}
+
+class _DashboardNotificationsState
+    extends ConsumerState<DashboardNotifications> {
+  final Set<String> _locallyReadIds = <String>{};
+  final Set<String> _markingIds = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final unread = widget.notifications
+        .where((item) => !item.isRead && !_locallyReadIds.contains(item.id))
+        .toList();
     if (unread.isEmpty) return const SizedBox.shrink();
     final latest = unread.first;
     return Container(
@@ -31,7 +43,7 @@ class DashboardNotifications extends ConsumerWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _open(context, ref, latest),
+        onTap: () => _open(context, latest),
         child: Padding(
           padding: const EdgeInsets.all(15),
           child: Row(
@@ -65,6 +77,21 @@ class DashboardNotifications extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
+              Tooltip(
+                message: 'Ohne Öffnen als gelesen markieren',
+                child: IconButton.filledTonal(
+                  onPressed: _markingIds.contains(latest.id)
+                      ? null
+                      : () => _markRead(latest, showConfirmation: true),
+                  icon: _markingIds.contains(latest.id)
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.done_rounded),
+                ),
+              ),
+              const SizedBox(width: 2),
               Text(
                 unread.length == 1 ? 'Öffnen' : '+${unread.length - 1}',
                 style: const TextStyle(fontWeight: FontWeight.w800),
@@ -79,18 +106,11 @@ class DashboardNotifications extends ConsumerWidget {
 
   Future<void> _open(
     BuildContext context,
-    WidgetRef ref,
     AppNotificationModel item,
   ) async {
-    try {
-      await ref.read(repositoryProvider).markNotificationRead(item.id);
-      ref.invalidate(liveNotificationsProvider);
-    } catch (_) {
-      // Die Zielseite bleibt auch bei einer kurzzeitig fehlenden Verbindung
-      // erreichbar; gelesen wird beim nächsten Versuch synchronisiert.
-    }
+    await _markRead(item);
     if (!context.mounted) return;
-    final prefix = isTrainer ? '/trainer' : '/parent';
+    final prefix = widget.isTrainer ? '/trainer' : '/parent';
     final id = Uri.tryParse(item.actionUrl ?? '')?.pathSegments.lastOrNull;
     final route = switch (item.category) {
       NotificationCategory.announcement ||
@@ -101,12 +121,48 @@ class DashboardNotifications extends ConsumerWidget {
       NotificationCategory.liveTicker ||
       NotificationCategory.match =>
         id == null ? '$prefix/matches' : '$prefix/matches/$id',
-      NotificationCategory.registration when isTrainer => '/trainer/approvals',
+      NotificationCategory.registration when widget.isTrainer =>
+        '/trainer/approvals',
       NotificationCategory.event ||
       NotificationCategory.eventReminder =>
         '$prefix/events',
       _ => prefix,
     };
     context.go(route);
+  }
+
+  Future<void> _markRead(
+    AppNotificationModel item, {
+    bool showConfirmation = false,
+  }) async {
+    if (_locallyReadIds.contains(item.id) || _markingIds.contains(item.id)) {
+      return;
+    }
+    setState(() {
+      _locallyReadIds.add(item.id);
+      _markingIds.add(item.id);
+    });
+    try {
+      await ref.read(repositoryProvider).markNotificationRead(item.id);
+      ref.invalidate(liveNotificationsProvider);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _locallyReadIds.remove(item.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Benachrichtigung konnte noch nicht quittiert werden.'),
+          ),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _markingIds.remove(item.id));
+    }
+    if (showConfirmation && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Als gelesen markiert.')),
+      );
+    }
   }
 }

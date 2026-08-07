@@ -7,6 +7,8 @@ import {
   me,
   refresh,
   register,
+  requestPasswordReset,
+  confirmPasswordReset,
 } from '../controllers/auth.controller';
 import { requireAuth } from '../middleware/auth';
 import {
@@ -19,6 +21,8 @@ const router = asyncRouter();
 
 router.post('/register', register);
 router.post('/login', login);
+router.post('/password-reset/request', requestPasswordReset);
+router.post('/password-reset/confirm', confirmPasswordReset);
 router.post('/refresh', refresh);
 router.post('/logout', logout);
 router.post('/logout-all', requireAuth, logoutAll);

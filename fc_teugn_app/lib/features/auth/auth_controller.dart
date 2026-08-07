@@ -68,6 +68,48 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  Future<String> requestPasswordReset(String email) async {
+    try {
+      final response = await ApiClient(
+        loadingController: _loadingController,
+      ).dio.post('/auth/password-reset/request', data: {'email': email});
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['message'] is String) {
+        return data['message'] as String;
+      }
+      return 'Prüfe jetzt deine bereits registrierten Geräte.';
+    } catch (error) {
+      throw Exception(_messageFromError(
+        error,
+        fallback: 'Die Anfrage konnte gerade nicht gesendet werden.',
+      ));
+    }
+  }
+
+  Future<String> confirmPasswordReset({
+    required String token,
+    required String password,
+  }) async {
+    try {
+      final response = await ApiClient(
+        loadingController: _loadingController,
+      ).dio.post('/auth/password-reset/confirm', data: {
+        'token': token,
+        'password': password,
+      });
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['message'] is String) {
+        return data['message'] as String;
+      }
+      return 'Dein Passwort wurde geändert.';
+    } catch (error) {
+      throw Exception(_messageFromError(
+        error,
+        fallback: 'Das Passwort konnte nicht geändert werden.',
+      ));
+    }
+  }
+
   Future<void> register({
     required String firstName,
     required String lastName,

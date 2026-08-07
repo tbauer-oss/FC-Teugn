@@ -645,6 +645,7 @@ model User {
   consents                     UserConsent[]
   uploadedFileAssets           FileAsset[]              @relation("FileAssetUploader")
   refreshTokens                RefreshToken[]
+  passwordResetTokens          PasswordResetToken[]
   createdTeamTasks             TeamTask[]               @relation("TeamTaskCreator")
   assignedTeamTasks            TeamTask[]               @relation("TeamTaskAssignee")
   createdEquipmentAssignments  EquipmentAssignment[]    @relation("EquipmentAssignmentCreator")
@@ -714,6 +715,18 @@ model RefreshToken {
 
   @@index([userId, revokedAt, expiresAt])
   @@index([familyId])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, consumedAt, expiresAt])
 }
 
 model ConsentTextVersion {

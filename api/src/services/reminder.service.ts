@@ -3,6 +3,7 @@ import {
   AttendanceStatus,
   EventCategory,
   EventStatus,
+  EventType,
   NotificationCategory,
   Prisma,
   ReminderJobStatus,
@@ -226,15 +227,22 @@ export async function processDueReminders(now = new Date()) {
     });
     if (!claimed.count) continue;
     try {
+      const eventLabel = job.event.type === EventType.MATCH
+        ? 'Spiel'
+        : job.event.category === EventCategory.TRAINING
+          ? 'Training'
+          : 'Termin';
       await notifyUsers([job.recipientId], {
         category: NotificationCategory.EVENT_REMINDER,
-        title: `${job.event.category === EventCategory.TRAINING ? 'Training' : 'Termin'} steht an`,
+        title: `${eventLabel} steht an`,
         body: `„${job.event.title}“ beginnt um ${job.event.startAt.toLocaleTimeString('de-DE', {
           timeZone: 'Europe/Berlin',
           hour: '2-digit',
           minute: '2-digit',
         })} Uhr.`,
-        actionUrl: `/events/${job.eventId}`,
+        actionUrl: job.event.type === EventType.MATCH
+          ? `/matches/${job.eventId}`
+          : `/events/${job.eventId}`,
         entityType: 'Event',
         entityId: job.eventId,
         dedupeKey: job.idempotencyKey,

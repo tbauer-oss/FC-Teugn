@@ -1093,6 +1093,7 @@ class DataRepository {
     int? theirGoals,
     required int periodCount,
     required int periodMinutes,
+    required bool reminder24hEnabled,
     String? opponentId,
   }) async {
     await client.dio.put('/events/$eventId/match-details', data: {
@@ -1106,6 +1107,8 @@ class DataRepository {
       'periodCount': periodCount,
       'periodMinutes': periodMinutes,
       'durationMinutes': periodCount * periodMinutes,
+      'reminderMinutes': reminder24hEnabled ? [1440] : <int>[],
+      'reminderPushEnabled': reminder24hEnabled,
     });
   }
 

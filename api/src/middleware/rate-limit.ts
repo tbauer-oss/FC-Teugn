@@ -7,12 +7,24 @@ interface RateBucket {
 const buckets = new Map<string, RateBucket>();
 
 export function authRateLimit(req: Request, res: Response, next: NextFunction) {
-  if (req.method !== 'POST' || !['/login', '/register'].includes(req.path)) {
+  if (
+    req.method !== 'POST' ||
+    ![
+      '/login',
+      '/register',
+      '/password-reset/request',
+      '/password-reset/confirm',
+    ].includes(req.path)
+  ) {
     return next();
   }
   const now = Date.now();
   const windowMs = 15 * 60 * 1000;
-  const maxRequests = req.path === '/login' ? 20 : 8;
+  const maxRequests = req.path === '/login'
+    ? 20
+    : req.path === '/password-reset/request'
+      ? 5
+      : 8;
   const key = `${req.ip}:${req.path}`;
   let bucket = buckets.get(key);
   if (!bucket || bucket.resetAt <= now) {

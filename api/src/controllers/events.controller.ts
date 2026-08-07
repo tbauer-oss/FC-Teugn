@@ -646,6 +646,13 @@ function eventData(body: Record<string, unknown>) {
         : EventCategory.SPECIAL_EVENT,
   );
   const type = typeForCategory(category);
+  const reminderMinutes = Array.isArray(body.reminderMinutes)
+    ? body.reminderMinutes
+        .map((value) => boundedInt(value, 0, 10080))
+        .filter((value): value is number => value !== null)
+    : type === EventType.MATCH
+      ? [1440]
+      : [];
   const homeAway = body.homeAway
     ? enumValue(HomeAway, body.homeAway, HomeAway.NEUTRAL)
     : null;
@@ -689,11 +696,7 @@ function eventData(body: Record<string, unknown>) {
       : null,
     responseDeadline: validDate(body.responseDeadline),
     internalNote: clean(body.internalNote),
-    reminderMinutes: Array.isArray(body.reminderMinutes)
-      ? body.reminderMinutes
-          .map((value) => boundedInt(value, 0, 10080))
-          .filter((value): value is number => value !== null)
-      : [],
+    reminderMinutes,
     reminderPushEnabled: body.reminderPushEnabled !== false,
   };
 }
@@ -2568,6 +2571,15 @@ export async function upsertMatchDetails(req: Request, res: Response) {
       ...timing,
     },
   });
+  const reminderMinutes = Array.isArray(req.body.reminderMinutes)
+    ? req.body.reminderMinutes
+        .map((value: unknown) => boundedInt(value, 0, 10080))
+        .filter((value: number | null): value is number => value !== null)
+    : null;
+  const reminderPushEnabled =
+    typeof req.body.reminderPushEnabled === 'boolean'
+      ? req.body.reminderPushEnabled
+      : null;
   await prisma.event.update({
     where: { id: event.id },
     data: {
@@ -2600,8 +2612,17 @@ export async function upsertMatchDetails(req: Request, res: Response) {
                 ? event.location
                 : HOME_MATCH_VENUE),
           }),
+      ...(reminderMinutes == null
+        ? {}
+        : {
+            reminderMinutes,
+            reminderPushEnabled: reminderPushEnabled ?? reminderMinutes.length > 0,
+          }),
     },
   });
+  if (reminderMinutes != null) {
+    await syncScheduledRemindersForEvent(event.id);
+  }
   return res.json(details);
 }
 

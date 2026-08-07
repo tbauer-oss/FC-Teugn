@@ -174,6 +174,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                       ? 'Bitte Passwort eingeben'
                                       : null,
                                 ),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    onPressed: authState.loading
+                                        ? null
+                                        : _showForgotPassword,
+                                    icon: const Icon(Icons.key_rounded),
+                                    label: const Text('Passwort vergessen?'),
+                                  ),
+                                ),
                                 if (authState.error != null) ...[
                                   const SizedBox(height: 14),
                                   Container(
@@ -255,6 +265,116 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           _emailController.text.trim(),
           _passwordController.text,
         );
+  }
+
+  Future<void> _showForgotPassword() async {
+    final email = TextEditingController(text: _emailController.text.trim());
+    final formKey = GlobalKey<FormState>();
+    var sending = false;
+    var sent = false;
+    String? error;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            icon: Icon(sent
+                ? Icons.mark_email_read_rounded
+                : Icons.lock_reset_rounded),
+            title: Text(
+                sent ? 'Registrierte Geräte prüfen' : 'Passwort zurücksetzen'),
+            content: sent
+                ? const Text(
+                    'Wenn der Zugang existiert, erscheint auf einem bereits registrierten Gerät eine sichere Pushnachricht. Der Link ist 15 Minuten und nur einmal gültig.\n\nKein Push-Gerät mehr erreichbar? Dann wird die Systemadministration über den Hilfebedarf informiert.',
+                  )
+                : Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Ein E-Mail-Versand ist nicht nötig. Wir senden den sicheren Reset-Link als Push an ein bereits registriertes Gerät.',
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: email,
+                          autofocus: true,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'E-Mail-Adresse des Zugangs',
+                            prefixIcon: Icon(Icons.person_outline_rounded),
+                          ),
+                          validator: (value) {
+                            final text = value?.trim() ?? '';
+                            return text.contains('@')
+                                ? null
+                                : 'Bitte eine gültige E-Mail eingeben';
+                          },
+                        ),
+                        if (error != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            error!,
+                            style: TextStyle(
+                              color: Theme.of(dialogContext).colorScheme.error,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+            actions: [
+              TextButton(
+                onPressed: sending ? null : () => Navigator.pop(dialogContext),
+                child: Text(sent ? 'Schließen' : 'Abbrechen'),
+              ),
+              if (!sent)
+                FilledButton.icon(
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          if (!(formKey.currentState?.validate() ?? false)) {
+                            return;
+                          }
+                          setDialogState(() {
+                            sending = true;
+                            error = null;
+                          });
+                          try {
+                            await ref
+                                .read(authProvider.notifier)
+                                .requestPasswordReset(email.text.trim());
+                            if (!dialogContext.mounted) return;
+                            setDialogState(() {
+                              sending = false;
+                              sent = true;
+                            });
+                          } catch (exception) {
+                            if (!dialogContext.mounted) return;
+                            setDialogState(() {
+                              sending = false;
+                              error = exception
+                                  .toString()
+                                  .replaceFirst('Exception: ', '');
+                            });
+                          }
+                        },
+                  icon: sending
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.notifications_active_rounded),
+                  label: const Text('Reset-Push senden'),
+                ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      email.dispose();
+    }
   }
 }
 

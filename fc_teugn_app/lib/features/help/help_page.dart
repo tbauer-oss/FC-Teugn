@@ -790,6 +790,28 @@ const helpArticles = <HelpArticle>[
   ),
   HelpArticle(
     category: HelpCategory.start,
+    title: 'Was mache ich, wenn ich mein Passwort vergessen habe?',
+    summary:
+        'Der sichere Reset funktioniert ohne Vereins-Mailkonto über ein bereits registriertes Push-Gerät.',
+    keywords: [
+      'Passwort vergessen',
+      'Reset',
+      'Anmeldung',
+      'Push',
+      'Systemadmin'
+    ],
+    steps: [
+      'Tippe auf der Anmeldeseite auf „Passwort vergessen?“ und gib die E-Mail-Adresse deines Zugangs ein.',
+      'Öffne die Pushnachricht auf einem Gerät, auf dem Push für dieses Konto bereits registriert war.',
+      'Lege innerhalb von 15 Minuten ein neues Passwort mit mindestens 10 Zeichen fest. Der Link funktioniert nur einmal.',
+      'Melde dich anschließend neu an; bestehende Sitzungen werden aus Sicherheitsgründen beendet.',
+      'Ist kein registriertes Gerät mehr erreichbar, erhält die Systemadministration einen Hilfehinweis und unterstützt dich persönlich.',
+    ],
+    tip:
+        'Die App verrät bei der Anfrage bewusst nicht, ob eine E-Mail-Adresse registriert ist. Das schützt die Konten vor fremder Ausspähung.',
+  ),
+  HelpArticle(
+    category: HelpCategory.start,
     title: 'Wie aktualisiere ich Daten und App?',
     summary:
         'Die App aktualisiert Inhalte automatisch und prüft beim Start auf eine neue Android-Version.',
@@ -1072,6 +1094,32 @@ const helpArticles = <HelpArticle>[
   ),
   HelpArticle(
     category: HelpCategory.matchday,
+    title: 'Wie funktioniert die Erinnerung 24 Stunden vor einem Spiel?',
+    summary:
+        'Jede Spielform erhält standardmäßig eine serverseitig geplante Push- und In-App-Erinnerung.',
+    keywords: [
+      '24 Stunden',
+      'Spiel Erinnerung',
+      'Eltern Push',
+      'Liga',
+      'Freundschaftsspiel',
+      'Turnier'
+    ],
+    audience: HelpAudience.staff,
+    route: '/matches',
+    routeLabel: 'Spielbetrieb öffnen',
+    steps: [
+      'Beim Anlegen eines Liga-, Freundschafts-, Pokal- oder sonstigen Spiels ist „24 Stunden vorher“ standardmäßig aktiviert.',
+      'Im Kalender kannst du unter „Automatische Erinnerung“ einen anderen Zeitpunkt wählen oder die Erinnerung ausschalten.',
+      'Unter „Spieldaten bearbeiten“ lässt sich die 24-Stunden-Erinnerung für das einzelne Spiel ebenfalls ein- oder ausschalten.',
+      'Bei einer Terminverlegung wird die Erinnerung automatisch neu geplant; bei Absage oder Löschung wird sie storniert.',
+      'Benachrichtigt werden nur relevante Eltern und Spieler. Bereits abgesagte Teilnehmer werden beim Versand erneut geprüft und nicht angeschrieben.',
+    ],
+    tip:
+        'Die Planung läuft auf dem Server in der Zeitzone Europe/Berlin und funktioniert auch dann, wenn die App geschlossen ist.',
+  ),
+  HelpArticle(
+    category: HelpCategory.matchday,
     title: 'Wie speichere und veröffentliche ich den Kader?',
     summary:
         'Auswahl, Speicherung und Veröffentlichung sind getrennt, damit keine Person versehentlich angefragt wird.',
@@ -1232,6 +1280,7 @@ const helpArticles = <HelpArticle>[
     routeLabel: 'Mitteilungscenter öffnen',
     steps: [
       'Eine deutlich sichtbare Meldung im Dashboard weist auf neue Nachrichten hin.',
+      'Mit dem Haken quittierst du die sichtbare Benachrichtigung direkt auf der Startseite als gelesen, ohne den Zielbereich zu öffnen.',
       'Im Mitteilungscenter findest du veröffentlichte Mitteilungen und persönliche Benachrichtigungen.',
       'Öffne einen Eintrag, um ihn zu lesen und gegebenenfalls als gelesen zu markieren.',
       'Unter „Einstellungen“ steuerst du In-App- und Pushnachrichten je Kategorie.',

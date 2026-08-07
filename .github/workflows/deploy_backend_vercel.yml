@@ -43,6 +43,19 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN" --local-config api/vercel.json
 
+      - name: Apply production database migrations
+        shell: bash
+        run: |
+          if [[ ! -f .vercel/.env.production.local ]]; then
+            echo "Production environment file was not pulled from Vercel."
+            exit 1
+          fi
+          set -a
+          source .vercel/.env.production.local
+          set +a
+          cd api
+          npx -y pnpm@10.13.1 exec prisma migrate deploy
+
       - name: Deploy to Vercel (Backend API)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

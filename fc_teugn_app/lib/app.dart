@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
+import 'features/auth/reset_password_page.dart';
 import 'features/auth/pending_page.dart';
 import 'features/shell/app_shell.dart';
 import 'features/trainer/trainer_dashboard_page.dart';
@@ -90,7 +91,21 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
     final action = _pendingPushAction;
     final router = _activeRouter;
     final user = ref.read(authProvider).user;
-    if (action == null || router == null || user == null) return;
+    if (action == null || router == null) return;
+    final parsedAction = Uri.tryParse(action.trim());
+    if (parsedAction?.path == '/reset-password' &&
+        (parsedAction?.queryParameters['token']?.isNotEmpty ?? false)) {
+      _pendingPushAction = null;
+      final route = Uri(
+        path: '/reset-password',
+        queryParameters: {'token': parsedAction!.queryParameters['token']!},
+      ).toString();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) router.go(route);
+      });
+      return;
+    }
+    if (user == null) return;
     _pendingPushAction = null;
     final route = normalizePushActionRoute(
       action,
@@ -316,8 +331,11 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         final user = ref.read(authProvider).user;
         final location = state.matchedLocation;
         final loggedIn = user != null;
+        final publicLocation = location == '/login' ||
+            location == '/register' ||
+            location == '/reset-password';
 
-        if (!loggedIn && location != '/login' && location != '/register') {
+        if (!loggedIn && !publicLocation) {
           return '/login';
         }
 
@@ -329,7 +347,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         }
 
         if (loggedIn && user.status != AccountStatus.approved) {
-          if (location != '/pending') {
+          if (location != '/pending' && location != '/reset-password') {
             return '/pending';
           }
           return null;
@@ -354,6 +372,12 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         GoRoute(
           path: '/register',
           builder: (context, state) => const RegisterPage(),
+        ),
+        GoRoute(
+          path: '/reset-password',
+          builder: (context, state) => ResetPasswordPage(
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
         ),
         GoRoute(
           path: '/pending',
@@ -745,6 +769,13 @@ String normalizePushActionRoute(
 }) {
   final parsed = Uri.tryParse(action.trim());
   final path = parsed?.path ?? '';
+  if (path == '/reset-password' &&
+      (parsed?.queryParameters['token']?.isNotEmpty ?? false)) {
+    return Uri(
+      path: '/reset-password',
+      queryParameters: {'token': parsed!.queryParameters['token']!},
+    ).toString();
+  }
   if (path == '/messages' || path.startsWith('/messages/')) {
     return isTrainer ? '/trainer/messages' : '/parent/messages';
   }

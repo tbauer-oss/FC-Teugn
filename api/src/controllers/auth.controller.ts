@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { hashPassword, comparePassword } from '../lib/password';
 import {
@@ -8,7 +8,12 @@ import {
   verifyRefreshToken,
 } from '../lib/jwt';
 import { AccountStatus, Role } from '../types/enums';
-import { ConsentDocumentType, GuardianRelationship } from '@prisma/client';
+import {
+  ConsentDocumentType,
+  GuardianRelationship,
+  NotificationCategory,
+} from '@prisma/client';
+import { notifyUsers } from '../services/notification.service';
 
 const refreshLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 
@@ -459,6 +464,177 @@ export async function login(req: Request, res: Response) {
       registrationRequest: user.registrationRequest,
     },
     ...tokens,
+  });
+}
+
+const passwordResetLifetimeMs = 15 * 60 * 1000;
+const passwordResetResponse = {
+  message:
+    'Wenn der Zugang existiert, erhältst du auf einem bereits registrierten Gerät eine sichere Pushnachricht. Der Link ist 15 Minuten gültig.',
+};
+
+export async function requestPasswordReset(req: Request, res: Response) {
+  const normalizedEmail =
+    typeof req.body.email === 'string'
+      ? req.body.email.trim().toLowerCase()
+      : '';
+  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+    return res.status(202).json(passwordResetResponse);
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      teamId: true,
+      pushSubscriptions: {
+        where: { isActive: true, administrativelyDisabledAt: null },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+  if (
+    !user ||
+    user.status === AccountStatus.BLOCKED ||
+    user.status === AccountStatus.REJECTED ||
+    user.status === AccountStatus.ARCHIVED
+  ) {
+    return res.status(202).json(passwordResetResponse);
+  }
+
+  await prisma.passwordResetToken.deleteMany({
+    where: {
+      OR: [
+        { expiresAt: { lte: new Date() } },
+        { userId: user.id, consumedAt: null },
+      ],
+    },
+  });
+
+  if (user.pushSubscriptions.length === 0) {
+    const administrators = await prisma.user.findMany({
+      where: { role: Role.SUPER_ADMIN, status: AccountStatus.APPROVED },
+      select: { id: true },
+    });
+    try {
+      await notifyUsers(
+        administrators.map((administrator) => administrator.id),
+        {
+          category: NotificationCategory.SYSTEM,
+          title: 'Passwort-Hilfe angefragt',
+          body: `${user.name} benötigt Hilfe beim Zugang. Es ist kein aktives Push-Gerät registriert.`,
+          actionUrl: '/trainer/approvals',
+          entityType: 'User',
+          entityId: user.id,
+          forcePush: true,
+          forceInApp: true,
+          dedupeKey: `password-reset-help:${user.id}:${new Date().toISOString().slice(0, 10)}`,
+        },
+      );
+    } catch (error) {
+      console.error('[password-reset] admin fallback notification failed', error);
+    }
+    return res.status(202).json(passwordResetResponse);
+  }
+
+  const token = randomBytes(32).toString('base64url');
+  const reset = await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: tokenHash(token),
+      expiresAt: new Date(Date.now() + passwordResetLifetimeMs),
+    },
+  });
+  try {
+    await notifyUsers([user.id], {
+      category: NotificationCategory.SYSTEM,
+      title: 'Passwort sicher zurücksetzen',
+      body:
+        'Tippe hier, um innerhalb von 15 Minuten ein neues Passwort festzulegen.',
+      actionUrl: `/reset-password?token=${encodeURIComponent(token)}`,
+      entityType: 'PasswordReset',
+      entityId: reset.id,
+      expiresAt: reset.expiresAt,
+      forcePush: true,
+      forceInApp: true,
+      dedupeKey: `password-reset:${reset.id}`,
+    });
+  } catch (error) {
+    console.error('[password-reset] push delivery failed', error);
+  }
+  return res.status(202).json(passwordResetResponse);
+}
+
+export async function confirmPasswordReset(req: Request, res: Response) {
+  const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
+  const password =
+    typeof req.body.password === 'string' ? req.body.password : '';
+  if (!token || password.length < 10) {
+    return res.status(400).json({
+      message: token
+        ? 'Das neue Passwort muss mindestens 10 Zeichen lang sein.'
+        : 'Der Reset-Link ist ungültig oder abgelaufen.',
+    });
+  }
+
+  const now = new Date();
+  const reset = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: tokenHash(token) },
+    include: { user: { select: { id: true, teamId: true, status: true } } },
+  });
+  if (
+    !reset ||
+    reset.consumedAt ||
+    reset.expiresAt <= now ||
+    reset.user.status === AccountStatus.BLOCKED ||
+    reset.user.status === AccountStatus.REJECTED ||
+    reset.user.status === AccountStatus.ARCHIVED
+  ) {
+    return res.status(400).json({
+      message: 'Der Reset-Link ist ungültig oder abgelaufen.',
+    });
+  }
+
+  const passwordHash = await hashPassword(password);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const consumed = await tx.passwordResetToken.updateMany({
+        where: { id: reset.id, consumedAt: null, expiresAt: { gt: now } },
+        data: { consumedAt: now },
+      });
+      if (consumed.count !== 1) throw new Error('RESET_ALREADY_CONSUMED');
+      await tx.user.update({
+        where: { id: reset.user.id },
+        data: { password: passwordHash },
+      });
+      await tx.refreshToken.updateMany({
+        where: { userId: reset.user.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await tx.notification.updateMany({
+        where: { entityType: 'PasswordReset', entityId: reset.id },
+        data: { readAt: now },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: reset.user.id,
+          teamId: reset.user.teamId,
+          action: 'PASSWORD_RESET_COMPLETED',
+          entityType: 'User',
+          entityId: reset.user.id,
+        },
+      });
+    });
+  } catch {
+    return res.status(400).json({
+      message: 'Der Reset-Link ist ungültig oder wurde bereits verwendet.',
+    });
+  }
+  return res.json({
+    message: 'Dein Passwort wurde geändert. Du kannst dich jetzt anmelden.',
   });
 }
 

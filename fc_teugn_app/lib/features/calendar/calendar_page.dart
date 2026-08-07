@@ -3825,6 +3825,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   final weekdays = <int>{};
   String reminderMode = 'none';
   bool reminderPushEnabled = true;
+  bool reminderSetByMatchDefault = false;
   EventNotificationMode notificationMode = EventNotificationMode.none;
   String? lastAutomaticLocation;
   late final TextEditingController customReminderMinutes;
@@ -3921,7 +3922,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       reminderMode = 'none';
     } else {
       final saved = savedReminders.reduce((a, b) => a < b ? a : b);
-      if (saved == 60 || saved == 120) {
+      if (saved == 60 || saved == 120 || saved == 1440) {
         reminderMode = '$saved';
       } else {
         reminderMode = 'custom';
@@ -3990,6 +3991,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         ],
         onChanged: (value) {
           setState(() {
+            final wasMatch = category.isMatch;
             category = value ?? category;
             if (category.isMatch) {
               homeAway ??= HomeAway.home;
@@ -3998,6 +4000,14 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                   meetingLocation.text.trim().isEmpty) {
                 meetingLocation.text = awayMeetingLocation;
               }
+              if (widget.event == null && !wasMatch && reminderMode == 'none') {
+                reminderMode = '1440';
+                reminderPushEnabled = true;
+                reminderSetByMatchDefault = true;
+              }
+            } else if (reminderSetByMatchDefault) {
+              reminderMode = 'none';
+              reminderSetByMatchDefault = false;
             }
           });
           _refreshPitchConflicts();
@@ -4735,10 +4745,12 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                   style: TextStyle(fontWeight: FontWeight.w900),
                                 ),
                                 const SizedBox(height: 3),
-                                const Text(
-                                  'Die Push-Nachricht wird zuverlässig vom '
-                                  'Server an die ausgewählten Personen gesendet.',
-                                  style: TextStyle(color: AppColors.muted),
+                                Text(
+                                  category.isMatch
+                                      ? 'Für Spiele sind 24 Stunden standardmäßig aktiv. Die Push-Nachricht geht an die relevanten Eltern und Spieler.'
+                                      : 'Die Push-Nachricht wird zuverlässig vom Server an die ausgewählten Personen gesendet.',
+                                  style:
+                                      const TextStyle(color: AppColors.muted),
                                 ),
                                 const SizedBox(height: 10),
                                 DropdownButtonFormField<String>(
@@ -4762,6 +4774,10 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                     DropdownMenuItem(
                                       value: '120',
                                       child: Text('2 Stunden vorher'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: '1440',
+                                      child: Text('24 Stunden vorher'),
                                     ),
                                     DropdownMenuItem(
                                       value: 'custom',

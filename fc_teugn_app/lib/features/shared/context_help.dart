@@ -62,10 +62,12 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
           'Hier verwaltest du Spieldaten, Veröffentlichung, Kader, Aufstellung und Liveticker.',
       steps: [
         'Prüfe zuerst Gegner, Anstoß sowie Treffpunktzeit und Treffpunktort.',
+        'Die Erinnerung 24 Stunden vor dem Spiel ist standardmäßig aktiv und kann in den Spieldaten für dieses Spiel ausgeschaltet werden.',
         '„Intern veröffentlichen“ informiert ausgewählte Berechtigte; „Für Eltern & Spieler freigeben“ macht das Spiel für Familien sichtbar.',
         'Speichere danach den Kader. Am Spieltag steuerst du Uhr, Tore und Wechsel im Liveticker.',
       ],
-      searchQuery: 'Spiel intern veröffentlichen Treffpunkt',
+      searchQuery:
+          'Spiel Erinnerung 24 Stunden intern veröffentlichen Treffpunkt',
     );
   }
   if (title.contains('training')) {

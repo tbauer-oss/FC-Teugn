@@ -121,6 +121,7 @@ class TrainerMatchesPage extends ConsumerWidget {
                           periodCount: draft.periodCount,
                           periodMinutes: draft.periodMinutes,
                           opponentId: draft.opponentId,
+                          reminder24hEnabled: draft.reminder24hEnabled,
                         );
                         ref.invalidate(eventsProvider);
                         if (context.mounted) {
@@ -864,6 +865,8 @@ class TrainerMatchesPage extends ConsumerWidget {
       text: (details?.periodMinutes ?? 30).toString(),
     );
     var isHome = details?.isHome ?? true;
+    var reminder24hEnabled =
+        event.reminderPushEnabled && event.reminderMinutes.contains(1440);
 
     final result = await showDialog<_MatchDraft>(
       context: context,
@@ -913,6 +916,7 @@ class TrainerMatchesPage extends ConsumerWidget {
                 theirGoals: int.tryParse(theirGoals.text),
                 periodCount: count,
                 periodMinutes: minutes,
+                reminder24hEnabled: reminder24hEnabled,
               ),
             );
           }
@@ -1135,6 +1139,25 @@ class TrainerMatchesPage extends ConsumerWidget {
                         ),
                       );
                     },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              ResponsiveFormSection(
+                title: 'Automatische Erinnerung',
+                subtitle:
+                    'Gilt für Liga, Freundschaftsspiel, Turnier und alle weiteren Spielformen.',
+                icon: Icons.notifications_active_outlined,
+                children: [
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: reminder24hEnabled,
+                    onChanged: (value) =>
+                        setState(() => reminder24hEnabled = value),
+                    title: const Text('24 Stunden vorher erinnern'),
+                    subtitle: const Text(
+                      'Sendet automatisch eine Push- und In-App-Erinnerung an die relevanten Eltern und Spieler.',
+                    ),
                   ),
                 ],
               ),
@@ -1372,6 +1395,7 @@ class _MatchDraft {
     required this.notes,
     required this.periodCount,
     required this.periodMinutes,
+    required this.reminder24hEnabled,
     this.opponentId,
     this.ourGoals,
     this.theirGoals,
@@ -1383,6 +1407,7 @@ class _MatchDraft {
   final String notes;
   final int periodCount;
   final int periodMinutes;
+  final bool reminder24hEnabled;
   final int? ourGoals;
   final int? theirGoals;
 }
