@@ -266,7 +266,7 @@ _RotationPlan _planRotation({
     final outgoingPlayers = <MatchPlayer>[];
 
     for (final incoming in incomingPlayers) {
-      final candidates = List.generate(onField.length, (index) => index)
+      var candidates = List.generate(onField.length, (index) => index)
           .where((index) => !outgoingIndices.contains(index))
           .where((index) {
         final slot = onField[index];
@@ -274,27 +274,54 @@ _RotationPlan _planRotation({
             ? slot.isGoalkeeper
             : !slot.isGoalkeeper;
       }).toList();
+      if (candidates.isEmpty) continue;
+      final compatible = candidates
+          .where(
+            (index) =>
+                lineupFitScore(
+                  incoming.position,
+                  incoming.secondaryPosition,
+                  onField[index].positionCode,
+                ) >=
+                0,
+          )
+          .toList();
+      if (compatible.isNotEmpty) candidates = compatible;
+      final mostPlayed = candidates
+          .map((index) => minutes[onField[index].player.id] ?? 0)
+          .reduce((a, b) => a > b ? a : b);
+      // Position remains the primary criterion among players with a broadly
+      // comparable workload. Anyone already more than one rotation interval
+      // behind is protected from another substitution so fairness cannot be
+      // sacrificed indefinitely for an exact positional match.
+      candidates = candidates
+          .where(
+            (index) =>
+                (minutes[onField[index].player.id] ?? 0) >=
+                mostPlayed - interval,
+          )
+          .toList();
       candidates.sort((a, b) {
-        int fit(LineupPositionModel position) {
-          final primary = incoming.position?.toUpperCase();
-          final secondary = incoming.secondaryPosition?.toUpperCase();
-          if (position.positionCode == primary) return 2;
-          if (position.positionCode == secondary) return 1;
-          return 0;
-        }
-
+        final positionFit = lineupFitScore(
+          incoming.position,
+          incoming.secondaryPosition,
+          onField[b].positionCode,
+        ).compareTo(
+          lineupFitScore(
+            incoming.position,
+            incoming.secondaryPosition,
+            onField[a].positionCode,
+          ),
+        );
+        if (positionFit != 0) return positionFit;
         final played = (minutes[onField[b].player.id] ?? 0)
             .compareTo(minutes[onField[a].player.id] ?? 0);
         if (played != 0) return played;
-        final positionFit = fit(onField[b]).compareTo(fit(onField[a]));
-        if (positionFit != 0) return positionFit;
         if (onField[a].isCaptain != onField[b].isCaptain) {
           return onField[a].isCaptain ? 1 : -1;
         }
         return onField[a].player.name.compareTo(onField[b].player.name);
       });
-      if (candidates.isEmpty) continue;
-
       final outgoingIndex = candidates.first;
       final outgoing = onField[outgoingIndex];
       outgoingIndices.add(outgoingIndex);
@@ -308,7 +335,7 @@ _RotationPlan _planRotation({
           minute: minute,
           playerInId: incoming.id,
           playerOutId: outgoing.player.id,
-          note: '${outgoing.positionCode} positionsnah wechseln',
+          note: _rotationNote(incoming, outgoing.positionCode),
         ),
       );
       onField[outgoingIndex] = LineupPositionModel(
@@ -333,4 +360,16 @@ _RotationPlan _planRotation({
         (minutes[position.player.id] ?? 0) + remaining;
   }
   return _RotationPlan(minutes, substitutions);
+}
+
+String _rotationNote(MatchPlayer incoming, String slot) {
+  final primary = incoming.position?.trim().toUpperCase();
+  final secondary = incoming.secondaryPosition?.trim().toUpperCase();
+  if (primary == slot) return '$slot · Hauptposition';
+  if (secondary == slot) return '$slot · Nebenposition';
+  final score = lineupFitScore(primary, secondary, slot);
+  if (score >= 400) return '$slot · direkt kompatibel';
+  if (score >= 250) return '$slot · gleiche Positionsgruppe';
+  if (score > 0) return '$slot · benachbarte Positionsgruppe';
+  return '$slot · bestmögliche Alternative';
 }

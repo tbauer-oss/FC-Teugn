@@ -48,7 +48,12 @@ void main() {
 
     expect(plan.benchCount, 2);
     expect(plan.substitutions.length, greaterThanOrEqualTo(2));
-    final initialBench = {'bench-wing', 'bench-defence'};
+    final starters =
+        plan.positions.map((position) => position.player.id).toSet();
+    final initialBench = _players()
+        .map((player) => player.id)
+        .where((playerId) => !starters.contains(playerId))
+        .toSet();
     expect(
       plan.substitutions.map((substitution) => substitution.playerInId),
       containsAll(initialBench),
@@ -58,6 +63,50 @@ void main() {
       expect(substitution.minute, inInclusiveRange(0, 15));
       expect(substitution.playerInId, isNot(substitution.playerOutId));
     }
+  });
+
+  test('priorisiert Positionspassung vor bisheriger Einsatzzeit', () {
+    final plan = buildMatchdayAutopilotPlan(
+      match: _match(),
+      allPlayers: [
+        _player('keeper', 'Levin', 'TW', 1, 300),
+        _player('left', 'Anna', 'LV', 3, 50),
+        _player('right', 'Andi', 'RV', 4, 50),
+        _player('midfield', 'Max', 'ZM', 5, 50),
+        _player('striker', 'Lukas', 'ST', 6, 0),
+        _player('bench-striker', 'Felix', 'ST', 7, 500),
+      ],
+    );
+
+    final first = plan.substitutions.first;
+    expect(first.playerInId, 'bench-striker');
+    expect(first.playerOutId, 'striker');
+    expect(first.note, contains('Hauptposition'));
+  });
+
+  test('hält Ersatzspieler ohne exakte Position in ihrer taktischen Gruppe',
+      () {
+    final plan = buildMatchdayAutopilotPlan(
+      match: _match(),
+      allPlayers: [
+        _player('keeper', 'Levin', 'TW', 1, 300),
+        _player('left', 'Anna', 'LV', 3, 50),
+        _player('right', 'Andi', 'RV', 4, 50),
+        _player('midfield', 'Max', 'ZM', 5, 50),
+        _player('striker', 'Lukas', 'ST', 6, 50),
+        _player('bench-attacker', 'Felix', 'OM', 7, 500),
+        _player('bench-defender', 'Elias', 'IV', 2, 500),
+      ],
+    );
+
+    final attackerChange = plan.substitutions.firstWhere(
+      (item) => item.playerInId == 'bench-attacker',
+    );
+    final defenderChange = plan.substitutions.firstWhere(
+      (item) => item.playerInId == 'bench-defender',
+    );
+    expect(attackerChange.playerOutId, isNot(anyOf('left', 'right')));
+    expect(defenderChange.playerOutId, anyOf('left', 'right'));
   });
 
   test('kommt ohne Wechselplan aus wenn keine Ersatzspieler vorhanden sind',

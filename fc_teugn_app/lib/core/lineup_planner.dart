@@ -148,7 +148,31 @@ int lineupFitScore(
   };
   if (compatible[slot]?.contains(position) == true) return 500;
   if (compatible[slot]?.contains(secondary) == true) return 400;
+  final slotBand = lineupPositionBand(slot);
+  final primaryBand = lineupPositionBand(position);
+  final secondaryBand = lineupPositionBand(secondary);
+  if (slotBand == null) return 0;
+  if (primaryBand == slotBand) return 300;
+  if (secondaryBand == slotBand) return 250;
+  if (primaryBand != null && (primaryBand - slotBand).abs() == 1) return 120;
+  if (secondaryBand != null && (secondaryBand - slotBand).abs() == 1) {
+    return 90;
+  }
+  if (primaryBand != null || secondaryBand != null) return -250;
   return 0;
+}
+
+/// Coarse tactical band used only after exact and directly compatible
+/// positions have been exhausted. This keeps defensive, balanced and
+/// attacking players in a sensible part of the pitch during rotations.
+int? lineupPositionBand(String? rawPosition) {
+  final position = rawPosition?.trim().toUpperCase() ?? '';
+  return switch (position) {
+    'LV' || 'IV' || 'RV' || 'DM' => 1,
+    'ZM' || 'LM' || 'RM' || 'MF' || 'FLEX' => 2,
+    'OM' || 'LA' || 'RA' || 'ST' => 3,
+    _ => null,
+  };
 }
 
 List<(double, double, String)> lineupSlots(

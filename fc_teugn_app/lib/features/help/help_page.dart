@@ -1161,8 +1161,31 @@ const helpArticles = <HelpArticle>[
       'Speichere zuerst den Spieltagskader.',
       'Öffne „Aufstellung“, wähle die Formation und ziehe Spieler auf ihre Positionen.',
       'Markiere Torhüter und Kapitän und passe Positionsbezeichnungen bei Bedarf an.',
-      'Der Autopilot schlägt eine positionsgerechte Startelf und faire Wechsel vor; die Trainerfreigabe bleibt erforderlich.',
+      'Der Autopilot priorisiert bei Wechseln zuerst Hauptposition, dann Nebenposition und direkte Kompatibilität. Fehlt ein exakter Ersatz, bleiben defensive, zentrale und offensive Positionsgruppen möglichst erhalten.',
       'Veröffentliche die Aufstellung erst, wenn sie für Eltern und Spieler sichtbar werden soll.',
+    ],
+  ),
+  HelpArticle(
+    category: HelpCategory.matchday,
+    title: 'Wie bewerte ich Spieler nach dem Spiel?',
+    summary:
+        'Nach Abpfiff können Trainer den nominierten Kader von 1 bis 10 bewerten und die Saisonentwicklung verfolgen.',
+    audience: HelpAudience.staff,
+    keywords: [
+      'Bewertung',
+      '1 bis 10',
+      'Leistungszentrum',
+      'Entwicklung',
+      'Durchschnitt'
+    ],
+    route: '/matches',
+    routeLabel: 'Spieltag auswählen',
+    steps: [
+      'Beende das Spiel im Liveticker und öffne anschließend den Reiter „Bewertung“.',
+      'Bewerte die nominierten Spieler von 1 bis 10. Nicht bewertete Spieler dürfen leer bleiben.',
+      'Die gemeinsame Spielbewertung kann vom berechtigten Trainerteam später korrigiert werden.',
+      'Unter „Statistiken“ zeigt das trainerinterne Leistungszentrum Saisonmittel, letzte Werte und Entwicklungstrends.',
+      'Eltern und Spieler erhalten weder Einzelnoten noch Durchschnittswerte; es entsteht keine öffentliche Rangliste.',
     ],
   ),
   HelpArticle(
@@ -1186,7 +1209,7 @@ const helpArticles = <HelpArticle>[
     category: HelpCategory.matchday,
     title: 'Was sehen Eltern und Spieler am Spieltag?',
     summary:
-        'Nur veröffentlichte Kader und Aufstellungen sowie freigegebene Livetickerinhalte werden angezeigt.',
+        'Nach der Familienfreigabe sehen Eltern den vollständigen nominierten Mannschaftskader, die Aufstellung und den Torverlauf.',
     audience: HelpAudience.family,
     keywords: ['Kader sehen', 'Aufstellung', 'Liveticker', 'Ergebnis'],
     route: '/matches',
@@ -1194,8 +1217,9 @@ const helpArticles = <HelpArticle>[
     steps: [
       'Öffne „Spiele“ und wähle die Begegnung.',
       'Im Infobereich findest du Zeit, Ort, Wettbewerb und Spielzeit.',
-      'Kader und Aufstellung erscheinen erst nach der jeweiligen Trainerfreigabe.',
-      'Ein freigegebener Liveticker zeigt Uhr, Ergebnis und Verlauf; interne taktische Notizen bleiben verborgen.',
+      'Nach der Familienfreigabe erscheinen der vollständige nominierte Kader und die veröffentlichte Aufstellung der Mannschaft – unabhängig davon, welches eigene Kind nominiert ist.',
+      'Der Liveticker zeigt den vollständigen Torverlauf mit Torschütze und – falls erfasst – Vorlagengeber.',
+      'Autopilot, taktische Notizen und Spielerbewertungen bleiben ausschließlich für das Trainerteam sichtbar.',
     ],
   ),
   HelpArticle(
@@ -1353,6 +1377,7 @@ const helpArticles = <HelpArticle>[
       'Veröffentliche Aufstellung und erfasse Spielereignisse möglichst vollständig.',
       'Beim Spielende berechnet das System Einsätze, Minuten, Tore, Vorlagen und Mannschaftswerte neu.',
       'Für Torhüter und Verteidiger zählen Spiele ohne Gegentor automatisch als „Spiele zu Null“.',
+      'Trainer sehen zusätzlich das Leistungszentrum mit den Spielbewertungen von 1 bis 10, Saisonmittel und Entwicklungstrend.',
       'Eltern sehen ausschließlich die zulässigen Werte ihrer verknüpften Kinder; es gibt keine öffentliche Rangliste Minderjähriger.',
     ],
   ),

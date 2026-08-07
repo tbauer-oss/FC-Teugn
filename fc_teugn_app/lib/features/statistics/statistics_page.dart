@@ -257,6 +257,10 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
         ),
         const SizedBox(height: 18),
         _FormCard(form: team.form),
+        if (overview.performanceCenter != null) ...[
+          const SizedBox(height: 18),
+          _PerformanceCenterCard(data: overview.performanceCenter!),
+        ],
         const SizedBox(height: 18),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -470,6 +474,195 @@ class _FormCard extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _PerformanceCenterCard extends StatelessWidget {
+  const _PerformanceCenterCard({required this.data});
+
+  final PerformanceCenter data;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.navy, AppColors.blue],
+                ),
+              ),
+              child: Wrap(
+                spacing: 20,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Icon(Icons.insights_rounded,
+                      color: Colors.white, size: 34),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 310),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Leistungszentrum · trainerintern',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          'Entwicklung erkennen – ohne öffentliche Rangliste.',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _PerformanceMetric(
+                    label: 'Mannschaftsschnitt',
+                    value: data.teamAverage == null
+                        ? '–'
+                        : '${data.teamAverage!.toStringAsFixed(1)} / 10',
+                  ),
+                  _PerformanceMetric(
+                    label: 'Bewertete Spiele',
+                    value: '${data.ratedMatches}',
+                  ),
+                  _PerformanceMetric(
+                    label: 'Noch offen',
+                    value: '${data.unratedMatches}',
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                children: [
+                  if (data.players.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 18),
+                      child: Text(
+                          'Noch keine Spielerbewertungen in diesem Zeitraum.'),
+                    )
+                  else
+                    for (final player in data.players)
+                      _PlayerPerformanceRow(player: player),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _PerformanceMetric extends StatelessWidget {
+  const _PerformanceMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            Text(
+              value,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
+      );
+}
+
+class _PlayerPerformanceRow extends StatelessWidget {
+  const _PlayerPerformanceRow({required this.player});
+
+  final PlayerPerformance player;
+
+  @override
+  Widget build(BuildContext context) {
+    final trendIcon = player.trend > .15
+        ? Icons.trending_up_rounded
+        : player.trend < -.15
+            ? Icons.trending_down_rounded
+            : Icons.trending_flat_rounded;
+    final trendColor = player.trend > .15
+        ? AppColors.teal
+        : player.trend < -.15
+            ? Colors.deepOrange
+            : AppColors.muted;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(child: Text(player.shirtNumber?.toString() ?? 'FC')),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(player.name,
+                    style: const TextStyle(fontWeight: FontWeight.w900)),
+                Text(
+                  '${player.ratedMatches} Bewertungen · zuletzt ${player.lastScore ?? '–'} / 10',
+                  style: const TextStyle(color: AppColors.muted),
+                ),
+                if (player.recent.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Wrap(
+                    spacing: 5,
+                    runSpacing: 5,
+                    children: [
+                      for (final recent in player.recent)
+                        Tooltip(
+                          message:
+                              '${recent.opponent} · ${recent.startAt.day}.${recent.startAt.month}.${recent.startAt.year}',
+                          child: Chip(
+                            visualDensity: VisualDensity.compact,
+                            label: Text('${recent.score}'),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            children: [
+              Text(
+                player.average.toStringAsFixed(1),
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              Icon(trendIcon, color: trendColor),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MatchHistory extends StatelessWidget {

@@ -149,6 +149,23 @@ const matchInclude = {
       },
     },
   },
+  playerRatings: {
+    orderBy: { updatedAt: 'desc' as const },
+    include: {
+      player: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          shirtNumber: true,
+          position: true,
+          secondaryPosition: true,
+        },
+      },
+      ratedBy: { select: { id: true, name: true } },
+    },
+  },
   leagueMatch: true,
 } as const;
 
@@ -248,7 +265,7 @@ async function findAccessibleTickerMatch(
   const teamIds = await accessibleTeamIds(user);
   return prisma.event.findFirst({
     where: { id, ...scope(teamIds) },
-    select: { id: true },
+    select: { id: true, familyReleasedAt: true },
   });
 }
 
@@ -307,18 +324,25 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   canPublishInternal = staff,
   canNominateSquad = staff,
   canReleaseFamily = staff,
+  familyTeamViewer = false,
+  canRatePlayers = false,
 ) {
   const squad = match.squads[0] ?? null;
   const lineup = squad?.lineup;
   const lineupTeam = match.targetTeams[0]?.team ?? match.team;
+  const familyDetailsVisible =
+    familyTeamViewer && match.familyReleasedAt !== null;
   const canSeeLineup =
     staff ||
+    (familyDetailsVisible &&
+      lineup?.status === LineupStatus.PUBLISHED &&
+      (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now())) ||
     (match.familyReleasedAt !== null &&
       squad?.publishedAt !== null &&
       squad?.members.some((member) => viewerPlayerIds.includes(member.playerId)) === true &&
       lineup?.status === LineupStatus.PUBLISHED &&
       (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now()));
-  const canSeePublishedSquad = staff || tickerEditable || (
+  const canSeePublishedSquad = staff || tickerEditable || familyDetailsVisible || (
     squad?.publishedAt !== null &&
     squad?.members.some((member) => viewerPlayerIds.includes(member.playerId)) === true
   );
@@ -359,6 +383,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       canPublishInternal,
       canNominateSquad,
       canReleaseFamily,
+      canRatePlayers,
     },
     squads: squad && canSeePublishedSquad
       ? [
@@ -383,11 +408,12 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
           ...match.liveTicker,
           events: match.liveTicker.events.map((event) => ({
             ...event,
-            scorer: tickerEditable || match.liveTicker?.publicScorersEnabled ? event.scorer : null,
-            assist: tickerEditable || match.liveTicker?.publicScorersEnabled ? event.assist : null,
+            scorer: tickerEditable || familyDetailsVisible || match.liveTicker?.publicScorersEnabled ? event.scorer : null,
+            assist: tickerEditable || familyDetailsVisible || match.liveTicker?.publicScorersEnabled ? event.assist : null,
           })),
         }
       : null,
+    playerRatings: canRatePlayers ? match.playerRatings : undefined,
   };
 }
 
@@ -437,6 +463,8 @@ export async function listMatches(req: Request, res: Response) {
       hasEffectivePermission(user.role, Permission.PUBLISH_LINEUP_INTERNAL, user.permissions),
       hasEffectivePermission(user.role, Permission.NOMINATE_SQUAD, user.permissions),
       hasEffectivePermission(user.role, Permission.RELEASE_MATCH_FAMILY, user.permissions),
+      user.role === Role.PARENT,
+      hasEffectivePermission(user.role, Permission.MANAGE_STATISTICS, user.permissions),
     ),
   ));
 }
@@ -491,6 +519,8 @@ export async function getMatch(req: Request, res: Response) {
     hasEffectivePermission(user.role, Permission.PUBLISH_LINEUP_INTERNAL, user.permissions),
     hasEffectivePermission(user.role, Permission.NOMINATE_SQUAD, user.permissions),
     hasEffectivePermission(user.role, Permission.RELEASE_MATCH_FAMILY, user.permissions),
+    user.role === Role.PARENT,
+    hasEffectivePermission(user.role, Permission.MANAGE_STATISTICS, user.permissions),
   ));
 }
 
@@ -1984,6 +2014,92 @@ export async function updateLineup(req: Request, res: Response) {
   return res.json(saved);
 }
 
+export async function updateMatchRatings(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const finished =
+    match.matchDetails?.status === MatchStatus.FINISHED ||
+    match.matchDetails?.status === MatchStatus.RECORDED ||
+    match.liveTicker?.status === TickerStatus.FINISHED;
+  if (!finished) {
+    return res.status(409).json({
+      message: 'Spielerbewertungen sind erst nach Spielende möglich.',
+    });
+  }
+  const rawRatings = Array.isArray(req.body?.ratings) ? req.body.ratings : null;
+  if (!rawRatings || rawRatings.length > 60) {
+    return res.status(400).json({ message: 'Ungültige Spielerliste.' });
+  }
+  const nominatedPlayerIds = new Set(
+    (match.squads[0]?.members ?? [])
+      .filter((member) => member.status === NominationStatus.NOMINATED)
+      .map((member) => member.playerId),
+  );
+  const normalized = new Map<string, number | null>();
+  for (const raw of rawRatings as Array<Record<string, unknown>>) {
+    const playerId = text(raw.playerId, 100);
+    if (!playerId || !nominatedPlayerIds.has(playerId)) {
+      return res.status(400).json({
+        message: 'Bewertet werden dürfen nur nominierte Spieler.',
+      });
+    }
+    if (raw.score === null) {
+      normalized.set(playerId, null);
+      continue;
+    }
+    const score = Number(raw.score);
+    if (!Number.isInteger(score) || score < 1 || score > 10) {
+      return res.status(400).json({ message: 'Bewertungen müssen zwischen 1 und 10 liegen.' });
+    }
+    normalized.set(playerId, score);
+  }
+  await prisma.$transaction(async (tx) => {
+    for (const [playerId, score] of normalized) {
+      if (score === null) {
+        await tx.playerMatchRating.deleteMany({
+          where: { eventId: match.id, playerId },
+        });
+      } else {
+        await tx.playerMatchRating.upsert({
+          where: { eventId_playerId: { eventId: match.id, playerId } },
+          update: { score, ratedById: user.id },
+          create: { eventId: match.id, playerId, score, ratedById: user.id },
+        });
+      }
+    }
+  });
+  const ratings = await prisma.playerMatchRating.findMany({
+    where: { eventId: match.id },
+    orderBy: { updatedAt: 'desc' },
+    include: {
+      player: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          shirtNumber: true,
+          position: true,
+          secondaryPosition: true,
+        },
+      },
+      ratedBy: { select: { id: true, name: true } },
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: 'MATCH_PLAYER_RATINGS_UPDATED',
+      entityType: 'Event',
+      entityId: match.id,
+      metadata: { ratedPlayers: ratings.length },
+    },
+  });
+  return res.json({ ratings });
+}
+
 function elapsed(ticker: {
   elapsedSeconds: number;
   clockStartedAt: Date | null;
@@ -2023,13 +2139,15 @@ export async function getTicker(req: Request, res: Response) {
     });
   }
   const tickerEditable = await canManageTicker(req.user!, match.id);
+  const familyAttributionVisible =
+    req.user!.role === Role.PARENT && match.familyReleasedAt !== null;
   return res.json({
     ...ticker,
     elapsedSeconds: elapsed(ticker),
     events: ticker.events.map((event) => ({
       ...event,
-      scorer: tickerEditable || ticker.publicScorersEnabled ? event.scorer : null,
-      assist: tickerEditable || ticker.publicScorersEnabled ? event.assist : null,
+      scorer: tickerEditable || familyAttributionVisible || ticker.publicScorersEnabled ? event.scorer : null,
+      assist: tickerEditable || familyAttributionVisible || ticker.publicScorersEnabled ? event.assist : null,
     })),
   });
 }

@@ -6,6 +6,7 @@ class StatisticsOverview {
     required this.individualScope,
     required this.seasons,
     this.selectedSeason,
+    this.performanceCenter,
   });
 
   final TeamStatistics team;
@@ -14,6 +15,7 @@ class StatisticsOverview {
   final String individualScope;
   final List<StatisticsSeason> seasons;
   final StatisticsSeason? selectedSeason;
+  final PerformanceCenter? performanceCenter;
 
   factory StatisticsOverview.fromJson(Map<String, dynamic> json) =>
       StatisticsOverview(
@@ -45,6 +47,101 @@ class StatisticsOverview {
             : StatisticsSeason.fromJson(
                 json['selectedSeason'] as Map<String, dynamic>,
               ),
+        performanceCenter: json['performanceCenter'] == null
+            ? null
+            : PerformanceCenter.fromJson(
+                json['performanceCenter'] as Map<String, dynamic>,
+              ),
+      );
+}
+
+class PerformanceCenter {
+  const PerformanceCenter({
+    required this.ratedMatches,
+    required this.unratedMatches,
+    required this.players,
+    this.teamAverage,
+  });
+
+  final double? teamAverage;
+  final int ratedMatches;
+  final int unratedMatches;
+  final List<PlayerPerformance> players;
+
+  factory PerformanceCenter.fromJson(Map<String, dynamic> json) =>
+      PerformanceCenter(
+        teamAverage: (json['teamAverage'] as num?)?.toDouble(),
+        ratedMatches: (json['ratedMatches'] as num?)?.toInt() ?? 0,
+        unratedMatches: (json['unratedMatches'] as num?)?.toInt() ?? 0,
+        players: (json['players'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => PlayerPerformance.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
+}
+
+class PlayerPerformance {
+  const PlayerPerformance({
+    required this.playerId,
+    required this.name,
+    required this.average,
+    required this.ratedMatches,
+    required this.trend,
+    required this.recent,
+    this.shirtNumber,
+    this.lastScore,
+  });
+
+  final String playerId;
+  final String name;
+  final int? shirtNumber;
+  final double average;
+  final int ratedMatches;
+  final int? lastScore;
+  final double trend;
+  final List<RecentPerformance> recent;
+
+  factory PlayerPerformance.fromJson(Map<String, dynamic> json) =>
+      PlayerPerformance(
+        playerId: json['playerId'] as String,
+        name: json['name'] as String? ?? 'Spieler',
+        shirtNumber: (json['shirtNumber'] as num?)?.toInt(),
+        average: (json['average'] as num?)?.toDouble() ?? 0,
+        ratedMatches: (json['ratedMatches'] as num?)?.toInt() ?? 0,
+        lastScore: (json['lastScore'] as num?)?.toInt(),
+        trend: (json['trend'] as num?)?.toDouble() ?? 0,
+        recent: (json['recent'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => RecentPerformance.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
+}
+
+class RecentPerformance {
+  const RecentPerformance({
+    required this.eventId,
+    required this.startAt,
+    required this.opponent,
+    required this.score,
+  });
+
+  final String eventId;
+  final DateTime startAt;
+  final String opponent;
+  final int score;
+
+  factory RecentPerformance.fromJson(Map<String, dynamic> json) =>
+      RecentPerformance(
+        eventId: json['eventId'] as String,
+        startAt: DateTime.parse(json['startAt'] as String).toLocal(),
+        opponent: json['opponent'] as String? ?? 'Gegner',
+        score: (json['score'] as num).toInt(),
       );
 }
 

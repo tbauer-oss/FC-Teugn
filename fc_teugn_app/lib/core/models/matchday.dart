@@ -74,6 +74,8 @@ class MatchdayModel {
     this.canPublishInternal = false,
     this.canNominateSquad = false,
     this.canReleaseFamily = false,
+    this.canRatePlayers = false,
+    this.playerRatings = const [],
   });
 
   final String id;
@@ -101,6 +103,8 @@ class MatchdayModel {
   final bool canPublishInternal;
   final bool canNominateSquad;
   final bool canReleaseFamily;
+  final bool canRatePlayers;
+  final List<PlayerMatchRatingModel> playerRatings;
 
   factory MatchdayModel.fromJson(Map<String, dynamic> json) {
     final squads = json['squads'] as List<dynamic>? ?? const [];
@@ -162,8 +166,41 @@ class MatchdayModel {
       canPublishInternal: capabilities?['canPublishInternal'] as bool? ?? false,
       canNominateSquad: capabilities?['canNominateSquad'] as bool? ?? false,
       canReleaseFamily: capabilities?['canReleaseFamily'] as bool? ?? false,
+      canRatePlayers: capabilities?['canRatePlayers'] as bool? ?? false,
+      playerRatings: (json['playerRatings'] as List<dynamic>? ?? const [])
+          .map(
+            (item) => PlayerMatchRatingModel.fromJson(
+              item as Map<String, dynamic>,
+            ),
+          )
+          .toList(),
     );
   }
+}
+
+class PlayerMatchRatingModel {
+  const PlayerMatchRatingModel({
+    required this.player,
+    required this.score,
+    this.ratedByName,
+    this.updatedAt,
+  });
+
+  final MatchPlayer player;
+  final int score;
+  final String? ratedByName;
+  final DateTime? updatedAt;
+
+  factory PlayerMatchRatingModel.fromJson(Map<String, dynamic> json) =>
+      PlayerMatchRatingModel(
+        player: MatchPlayer.fromJson(json['player'] as Map<String, dynamic>),
+        score: (json['score'] as num).toInt(),
+        ratedByName:
+            (json['ratedBy'] as Map<String, dynamic>?)?['name'] as String?,
+        updatedAt: json['updatedAt'] == null
+            ? null
+            : DateTime.parse(json['updatedAt'] as String).toLocal(),
+      );
 }
 
 class TickerDelegateUser {

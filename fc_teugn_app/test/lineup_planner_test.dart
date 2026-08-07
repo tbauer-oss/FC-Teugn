@@ -106,6 +106,9 @@ void main() {
     expect(lineupFitScore('ST', null, 'ST'), 1000);
     expect(lineupFitScore('ZM', 'ST', 'ST'), 850);
     expect(lineupFitScore('TW', null, 'ST'), -1000);
+    expect(lineupFitScore('ST', null, 'IV'), lessThan(0));
+    expect(lineupFitScore('ST', null, 'ZM'), greaterThan(0));
+    expect(lineupFitScore('IV', null, 'LV'), greaterThan(0));
   });
 
   test('validates and builds a custom team formation', () {

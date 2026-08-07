@@ -53,6 +53,30 @@ void main() {
         'isActive': true,
       },
       'privacy': {'individualScope': 'OWN_PLAYERS'},
+      'performanceCenter': {
+        'teamAverage': 7.5,
+        'ratedMatches': 2,
+        'unratedMatches': 1,
+        'players': [
+          {
+            'playerId': 'p1',
+            'name': 'Fiktiver Spieler',
+            'shirtNumber': 9,
+            'average': 7.5,
+            'ratedMatches': 2,
+            'lastScore': 8,
+            'trend': 1,
+            'recent': [
+              {
+                'eventId': 'event-1',
+                'startAt': '2026-08-12T16:00:00.000Z',
+                'opponent': 'SV Beispiel',
+                'score': 8,
+              }
+            ],
+          }
+        ],
+      },
     });
 
     expect(overview.team.winRate, 50);
@@ -61,6 +85,8 @@ void main() {
     expect(overview.selectedSeason?.name, '2026/27');
     expect(overview.seasons.single.isActive, isTrue);
     expect(overview.individualScope, 'OWN_PLAYERS');
+    expect(overview.performanceCenter?.teamAverage, 7.5);
+    expect(overview.performanceCenter?.players.single.lastScore, 8);
   });
 
   test('parses a structured training plan and attendance status', () {

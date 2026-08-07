@@ -17,6 +17,7 @@ import {
   tickerCommand,
   undoTickerEvent,
   updateLineup,
+  updateMatchRatings,
   updateMatch,
   updateSquad,
   updateTickerDelegation,
@@ -66,6 +67,11 @@ router.post('/:id/internal-publish', requirePermission(Permission.PUBLISH_LINEUP
 router.get('/:id/family-release-preview', requirePermission(Permission.RELEASE_MATCH_FAMILY), familyReleasePreview);
 router.post('/:id/family-release', requirePermission(Permission.RELEASE_MATCH_FAMILY), releaseMatchToFamilies);
 router.put('/:id/lineup', requirePermission(Permission.MANAGE_LINEUPS), updateLineup);
+router.put(
+  '/:id/ratings',
+  requirePermission(Permission.MANAGE_STATISTICS),
+  updateMatchRatings,
+);
 router.get('/:id/ticker', getTicker);
 router.get('/:id/ticker/delegation', getTickerDelegation);
 router.put('/:id/ticker/delegation', updateTickerDelegation);

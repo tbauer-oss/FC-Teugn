@@ -64,7 +64,8 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
         'Prüfe zuerst Gegner, Anstoß sowie Treffpunktzeit und Treffpunktort.',
         'Die Erinnerung 24 Stunden vor dem Spiel ist standardmäßig aktiv und kann in den Spieldaten für dieses Spiel ausgeschaltet werden.',
         '„Intern veröffentlichen“ informiert ausgewählte Berechtigte; „Für Eltern & Spieler freigeben“ macht das Spiel für Familien sichtbar.',
-        'Speichere danach den Kader. Am Spieltag steuerst du Uhr, Tore und Wechsel im Liveticker.',
+        'Speichere danach den Kader. Der Autopilot bevorzugt zuerst die exakte Position und danach passende offensive oder defensive Positionsgruppen.',
+        'Am Spieltag steuerst du Uhr, Tore und Wechsel. Nach Abpfiff bewertest du die nominierten Spieler im trainerinternen Reiter „Bewertung“.',
       ],
       searchQuery:
           'Spiel Erinnerung 24 Stunden intern veröffentlichen Treffpunkt',
@@ -108,13 +109,15 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
   }
   if (title.contains('statistik')) {
     return const ContextHelpInfo(
-      summary: 'Werte Einsätze, Tore, Assists und weitere Saisondaten aus.',
+      summary:
+          'Werte Einsätze, Tore, Assists und trainerinterne Leistungsentwicklungen aus.',
       steps: [
         'Wähle Saison, Jugend und Mannschaft für den gewünschten Vergleich.',
         'Die Daten werden aus abgeschlossenen Spielen übernommen.',
+        'Das Leistungszentrum zeigt ausschließlich Trainern Durchschnitt, letzte Bewertungen und Trends – niemals als öffentliche Rangliste.',
         'Öffne Spielerwerte für detaillierte Auswertungen.',
       ],
-      searchQuery: 'Statistiken Auswertungen',
+      searchQuery: 'Statistiken Leistungszentrum Bewertungen',
     );
   }
   if (title.contains('datenschutz')) {

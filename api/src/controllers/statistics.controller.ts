@@ -7,7 +7,7 @@ import {
 } from '@prisma/client';
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
-import { hasPermission, Permission } from '../security/permissions';
+import { hasEffectivePermission, Permission } from '../security/permissions';
 import { Role } from '../types/enums';
 import {
   accessibleTeamIds,
@@ -251,10 +251,12 @@ export async function statisticsOverview(req: Request, res: Response) {
 
   const teamSummary = summarizeMatchResults(matchRows);
 
-  const allowedPlayerIds = hasPermission(
+  const canManageStatistics = hasEffectivePermission(
     user.role as Role,
     Permission.MANAGE_STATISTICS,
-  )
+    user.permissions,
+  );
+  const allowedPlayerIds = canManageStatistics
     ? null
     : new Set(await ownPlayerIds(user));
   const aggregated = new Map<string, PlayerStatisticRow>();
@@ -484,6 +486,92 @@ export async function statisticsOverview(req: Request, res: Response) {
         a.name.localeCompare(b.name),
     );
 
+  const scopedRatings = canManageStatistics
+    ? await prisma.playerMatchRating.findMany({
+        where: { eventId: { in: matches.map((match) => match.id) } },
+        include: {
+          event: {
+            select: {
+              id: true,
+              startAt: true,
+              matchDetails: { select: { opponent: true } },
+            },
+          },
+          player: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              preferredName: true,
+              shirtNumber: true,
+            },
+          },
+        },
+        orderBy: { event: { startAt: 'desc' } },
+      })
+    : [];
+  const ratingsByPlayer = new Map<string, typeof scopedRatings>();
+  for (const rating of scopedRatings) {
+    const rows = ratingsByPlayer.get(rating.playerId) ?? [];
+    rows.push(rating);
+    ratingsByPlayer.set(rating.playerId, rows);
+  }
+  const ratedMatchIds = new Set(scopedRatings.map((rating) => rating.eventId));
+  const completedMatches = matches.filter(
+    (match) =>
+      match.matchDetails?.status === MatchStatus.FINISHED ||
+      match.matchDetails?.status === MatchStatus.RECORDED,
+  );
+  const performanceCenter = canManageStatistics
+    ? {
+        visibility: 'STAFF_ONLY',
+        teamAverage: scopedRatings.length
+          ? scopedRatings.reduce((sum, rating) => sum + rating.score, 0) /
+            scopedRatings.length
+          : null,
+        ratedMatches: ratedMatchIds.size,
+        unratedMatches: completedMatches.filter(
+          (match) => !ratedMatchIds.has(match.id),
+        ).length,
+        players: [...ratingsByPlayer.entries()]
+          .map(([playerId, ratings]) => {
+            const player = ratings[0].player;
+            const chronological = [...ratings].sort(
+              (a, b) => a.event.startAt.getTime() - b.event.startAt.getTime(),
+            );
+            const recent = chronological.slice(-5);
+            const previous = chronological.slice(-10, -5);
+            const recentAverage = recent.length
+              ? recent.reduce((sum, rating) => sum + rating.score, 0) / recent.length
+              : 0;
+            const previousAverage = previous.length
+              ? previous.reduce((sum, rating) => sum + rating.score, 0) / previous.length
+              : recentAverage;
+            return {
+              playerId,
+              name:
+                player.preferredName || `${player.firstName} ${player.lastName}`,
+              shirtNumber: player.shirtNumber,
+              average:
+                ratings.reduce((sum, rating) => sum + rating.score, 0) /
+                ratings.length,
+              ratedMatches: ratings.length,
+              lastScore: chronological.length
+                ? chronological[chronological.length - 1].score
+                : null,
+              trend: recentAverage - previousAverage,
+              recent: [...recent].reverse().map((rating) => ({
+                eventId: rating.eventId,
+                startAt: rating.event.startAt,
+                opponent: rating.event.matchDetails?.opponent ?? 'Gegner',
+                score: rating.score,
+              })),
+            };
+          })
+          .sort((a, b) => a.name.localeCompare(b.name, 'de-DE')),
+      }
+    : null;
+
   const trainingAttendance = await prisma.attendance.groupBy({
     by: ['playerId', 'actualAttendance'],
     where: {
@@ -519,6 +607,7 @@ export async function statisticsOverview(req: Request, res: Response) {
     team: teamSummary,
     matches: matchRows.reverse(),
     players,
+    performanceCenter,
     trainingAttendance,
     privacy: {
       individualScope: allowedPlayerIds ? 'OWN_PLAYERS' : 'ASSIGNED_TEAMS',

@@ -19,6 +19,7 @@ void main() {
       'internalPublishedAt': '2026-08-11T10:00:00.000Z',
       'familyReleasedAt': '2026-08-11T11:00:00.000Z',
       'familyReleaseAudience': 'NOMINATED',
+      'capabilities': {'canRatePlayers': true},
       'matchDetails': {
         'opponent': 'SV Beispiel',
         'isHome': true,
@@ -108,6 +109,20 @@ void main() {
           },
         ],
       },
+      'playerRatings': [
+        {
+          'score': 8,
+          'updatedAt': '2026-08-12T18:00:00.000Z',
+          'player': {
+            'id': 'player-1',
+            'firstName': 'Max',
+            'lastName': 'Muster',
+            'shirtNumber': 9,
+            'position': 'ST',
+          },
+          'ratedBy': {'id': 'coach-1', 'name': 'Erika Trainer'},
+        },
+      ],
     });
 
     expect(match.details?.status, MatchStatus.live);
@@ -129,6 +144,9 @@ void main() {
     expect(match.eligiblePlayers.single.displayName, 'Max');
     expect(match.eligiblePlayers.single.position, 'ST');
     expect(match.gameFormat.playerCount, 5);
+    expect(match.canRatePlayers, isTrue);
+    expect(match.playerRatings.single.score, 8);
+    expect(match.playerRatings.single.ratedByName, 'Erika Trainer');
   });
 
   test('converts camel-case enum values to API constants', () {

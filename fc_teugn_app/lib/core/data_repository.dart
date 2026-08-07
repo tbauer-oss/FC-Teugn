@@ -1425,6 +1425,31 @@ class DataRepository {
     return LiveTickerModel.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<List<PlayerMatchRatingModel>> saveMatchRatings({
+    required String eventId,
+    required Map<String, int?> ratings,
+  }) async {
+    final response = await client.dio.put(
+      '/matches/$eventId/ratings',
+      data: {
+        'ratings': ratings.entries
+            .map((entry) => {
+                  'playerId': entry.key,
+                  'score': entry.value,
+                })
+            .toList(),
+      },
+    );
+    final body = response.data as Map<String, dynamic>;
+    return (body['ratings'] as List<dynamic>? ?? const [])
+        .map(
+          (item) => PlayerMatchRatingModel.fromJson(
+            item as Map<String, dynamic>,
+          ),
+        )
+        .toList();
+  }
+
   Future<LiveTickerModel> sendTickerEvent({
     required String eventId,
     required String clientEventId,

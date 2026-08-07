@@ -668,6 +668,7 @@ model User {
   supportTickets               SupportTicket[]          @relation("SupportTicketCreator")
   assignedSupportTickets       SupportTicket[]          @relation("SupportTicketAssignee")
   supportMessages              SupportMessage[]
+  authoredMatchRatings         PlayerMatchRating[]      @relation("PlayerMatchRatingAuthor")
 }
 
 model UserContextPreference {
@@ -873,6 +874,7 @@ model Player {
   documents                  PlayerDocument[]
   ownedFileAssets            FileAsset[]                 @relation("PlayerFileOwner")
   eventParticipants          EventParticipant[]
+  matchRatings               PlayerMatchRating[]
 
   @@index([clubId, teamId, status, lastName])
 }
@@ -1116,6 +1118,7 @@ model Event {
   participants          EventParticipant[]
   scheduledReminders    ScheduledReminder[]
   leagueMatch           LeagueMatch?
+  playerRatings         PlayerMatchRating[]
 
   @@index([teamId, startAt])
   @@index([seriesId, startAt])
@@ -1683,6 +1686,23 @@ model PlayerMatchStatistic {
 
   @@unique([eventId, playerId])
   @@index([playerId, recalculatedAt])
+}
+
+model PlayerMatchRating {
+  id        String   @id @default(cuid())
+  eventId   String
+  playerId  String
+  ratedById String
+  score     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  ratedBy   User     @relation("PlayerMatchRatingAuthor", fields: [ratedById], references: [id], onDelete: Restrict)
+
+  @@unique([eventId, playerId])
+  @@index([playerId, updatedAt])
+  @@index([ratedById, updatedAt])
 }
 
 model TrainingPlan {
