@@ -612,6 +612,7 @@ model User {
   teamId                       String
   createdAt                    DateTime                 @default(now())
   updatedAt                    DateTime                 @updatedAt
+  accountDeletedAt             DateTime?
   team                         Team                     @relation(fields: [teamId], references: [id])
   parentLinks                  ParentPlayerLink[]       @relation("ParentLinks")
   memberships                  TeamMembership[]
@@ -676,6 +677,8 @@ model User {
   assignedSupportTickets       SupportTicket[]          @relation("SupportTicketAssignee")
   supportMessages              SupportMessage[]
   authoredMatchRatings         PlayerMatchRating[]      @relation("PlayerMatchRatingAuthor")
+
+  @@index([accountDeletedAt])
 }
 
 model UserContextPreference {

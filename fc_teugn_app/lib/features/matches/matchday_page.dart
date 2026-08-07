@@ -925,7 +925,7 @@ class _InternalPublicationDialogState extends State<InternalPublicationDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Intern veröffentlichen',
+                  'Mit Trainerteam teilen',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
@@ -1063,7 +1063,7 @@ class _InternalPublicationDialogState extends State<InternalPublicationDialog> {
                                   ),
                                 ),
                         icon: const Icon(Icons.campaign_rounded),
-                        label: const Text('Intern veröffentlichen'),
+                        label: const Text('Mit Trainerteam teilen'),
                       ),
                     ),
                   ],
@@ -1128,7 +1128,7 @@ class _MatchCommunicationActions extends StatelessWidget {
                   Icons.admin_panel_settings_outlined,
                   size: 18,
                 ),
-                label: const Text('Intern veröffentlichen'),
+                label: const Text('Mit Trainerteam teilen'),
               ),
             if (match.canReleaseFamily && match.familyReleasedAt == null)
               FilledButton.icon(

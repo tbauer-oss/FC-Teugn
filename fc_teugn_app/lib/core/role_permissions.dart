@@ -55,7 +55,7 @@ const _catalog = <RolePermission>[
   ),
   RolePermission(
     'PUBLISH_LINEUP_INTERNAL',
-    'Kader und Aufstellung intern veröffentlichen',
+    'Kader und Aufstellung mit Trainerteam teilen',
     PermissionKind.edit,
   ),
   RolePermission(

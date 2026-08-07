@@ -63,12 +63,11 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
       steps: [
         'Prüfe zuerst Gegner, Anstoß sowie Treffpunktzeit und Treffpunktort.',
         'Die Erinnerung 24 Stunden vor dem Spiel ist standardmäßig aktiv und kann in den Spieldaten für dieses Spiel ausgeschaltet werden.',
-        '„Intern veröffentlichen“ informiert ausgewählte Berechtigte; „Für Eltern & Spieler freigeben“ macht das Spiel für Familien sichtbar.',
+        '„Mit Trainerteam teilen“ informiert ausgewählte Berechtigte; „Für Eltern & Spieler freigeben“ macht das Spiel für Familien sichtbar.',
         'Speichere danach den Kader. Im Autopiloten wählst du „Ausgewogen“, „Einsatzzeit“ oder „Positionstreu“ und prüfst anschließend den Wechselplan. Bei „Positionstreu“ kannst du zusätzlich festlegen, dass ausgewechselte Startspieler später bevorzugt auf ihren ursprünglichen Stammplatz zurückkehren.',
         'Am Spieltag steuerst du Uhr, Tore und Wechsel. Nach Abpfiff bewertest du die nominierten Spieler im trainerinternen Reiter „Bewertung“.',
       ],
-      searchQuery:
-          'Spiel Erinnerung 24 Stunden intern veröffentlichen Treffpunkt',
+      searchQuery: 'Spiel Erinnerung 24 Stunden Trainerteam teilen Treffpunkt',
     );
   }
   if (title.contains('training')) {
@@ -130,6 +129,18 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
         'Löschanträge werden protokolliert und von Berechtigten bearbeitet.',
       ],
       searchQuery: 'Datenschutz Einwilligung Export Löschung',
+    );
+  }
+  if (title.contains('mitglied') || title.contains('freigabe')) {
+    return const ContextHelpInfo(
+      summary:
+          'Prüfe Registrierungen, Rollen, Mannschaftszugriffe und bestehende Konten zentral.',
+      steps: [
+        'Neue Registrierungen werden vor der Freigabe einer Rolle und Mannschaft zugeordnet.',
+        'Systemadministratoren verwalten individuelle Rechte und sichere Zugangslinks.',
+        'Ein Konto lässt sich über das rote Löschsymbol dauerhaft entfernen; dafür muss ausdrücklich „LÖSCHEN“ eingegeben werden.',
+      ],
+      searchQuery: 'Mitglieder Freigaben Rollen Konto löschen',
     );
   }
   if (title.contains('verein') || title.contains('organisation')) {

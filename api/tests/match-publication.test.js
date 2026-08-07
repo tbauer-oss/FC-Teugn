@@ -87,7 +87,7 @@ test('internal publication message names match type, team and opponent', () => {
       team: 'E1',
       opponent: 'SV Saal E1',
     }),
-    'Kader und Aufstellung für das Freundschaftsspiel der E1 gegen SV Saal E1 wurden intern veröffentlicht.',
+    'Kader und Aufstellung für das Freundschaftsspiel der E1 gegen SV Saal E1 wurden mit dem Trainerteam geteilt.',
   );
 });
 

@@ -88,5 +88,5 @@ export function buildInternalPublicationMessage(input: {
   team: string;
   opponent: string;
 }) {
-  return `Kader und Aufstellung für das ${matchCategoryLabel(input.category)} der ${input.team} gegen ${input.opponent} wurden intern veröffentlicht.`;
+  return `Kader und Aufstellung für das ${matchCategoryLabel(input.category)} der ${input.team} gegen ${input.opponent} wurden mit dem Trainerteam geteilt.`;
 }

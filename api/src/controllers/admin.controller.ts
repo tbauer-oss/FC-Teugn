@@ -207,6 +207,7 @@ export async function pendingUsers(req: Request, res: Response) {
   const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   const users = await prisma.user.findMany({
     where: {
+      accountDeletedAt: null,
       status: AccountStatus.PENDING,
       ...(role && Object.values(Role).includes(role) ? { role } : {}),
       ...(query
@@ -241,7 +242,10 @@ export async function listMembers(req: Request, res: Response) {
   const user = req.user!;
   const clubId = await actorClubId(user.teamId);
   const users = await prisma.user.findMany({
-    where: userScope(user, clubId),
+    where: {
+      accountDeletedAt: null,
+      ...userScope(user, clubId),
+    },
     orderBy: [{ status: 'asc' }, { name: 'asc' }],
     select: memberSelect,
   });
@@ -413,6 +417,108 @@ export async function createMemberPasswordResetLink(
     url: `${appBaseUrl}/#${actionUrl}`,
     expiresAt,
   });
+}
+
+export async function deleteMemberAccount(req: Request, res: Response) {
+  const actor = req.user!;
+  const target = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      status: true,
+      teamId: true,
+      accountDeletedAt: true,
+      memberships: { select: { teamId: true } },
+    },
+  });
+  if (!target || target.accountDeletedAt) {
+    return res.status(404).json({ message: 'Mitglied nicht gefunden.' });
+  }
+  if (target.id === actor.id) {
+    return res.status(400).json({
+      message: 'Das aktuell verwendete Systemadministrationskonto kann nicht selbst gelöscht werden.',
+    });
+  }
+  if (target.role === Role.SUPER_ADMIN) {
+    const remainingSuperAdmins = await prisma.user.count({
+      where: {
+        id: { not: target.id },
+        role: Role.SUPER_ADMIN,
+        status: AccountStatus.APPROVED,
+        accountDeletedAt: null,
+      },
+    });
+    if (remainingSuperAdmins === 0) {
+      return res.status(400).json({
+        message: 'Das letzte aktive Systemadministrationskonto kann nicht gelöscht werden.',
+      });
+    }
+  }
+
+  const deletedAt = new Date();
+  const replacementPassword = await hashPassword(randomBytes(32).toString('base64url'));
+  const deletedEmail = `deleted-${target.id}@accounts.invalid`;
+  await prisma.$transaction(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        teamId: target.teamId,
+        action: 'USER_ACCOUNT_DELETED',
+        entityType: 'User',
+        entityId: target.id,
+        metadata: {
+          previousRole: target.role,
+          previousStatus: target.status,
+          previousTeamIds: target.memberships.map((item) => item.teamId),
+          deletionMode: 'ANONYMIZED_TOMBSTONE',
+        },
+      },
+    });
+    await tx.notificationDelivery.deleteMany({ where: { userId: target.id } });
+    await tx.notification.deleteMany({ where: { userId: target.id } });
+    await tx.pushSubscription.deleteMany({ where: { userId: target.id } });
+    await tx.notificationPreference.deleteMany({ where: { userId: target.id } });
+    await tx.refreshToken.deleteMany({ where: { userId: target.id } });
+    await tx.passwordResetToken.deleteMany({ where: { userId: target.id } });
+    await tx.idempotencyRecord.deleteMany({ where: { userId: target.id } });
+    await tx.userPermissionOverride.deleteMany({ where: { userId: target.id } });
+    await tx.userContextPreference.deleteMany({ where: { userId: target.id } });
+    await tx.registrationRequest.deleteMany({ where: { userId: target.id } });
+    await tx.userConsent.deleteMany({ where: { userId: target.id } });
+    await tx.eventParticipant.deleteMany({ where: { userId: target.id } });
+    await tx.eventReminder.deleteMany({ where: { recipientId: target.id } });
+    await tx.scheduledReminder.deleteMany({ where: { recipientId: target.id } });
+    await tx.announcementRecipient.deleteMany({ where: { userId: target.id } });
+    await tx.announcementRead.deleteMany({ where: { userId: target.id } });
+    await tx.carpoolPassenger.deleteMany({ where: { requestedById: target.id } });
+    await tx.carpoolNeed.deleteMany({ where: { requestedById: target.id } });
+    await tx.carpoolOffer.deleteMany({ where: { driverId: target.id } });
+    await tx.parentPlayerLink.deleteMany({ where: { parentId: target.id } });
+    await tx.teamMembership.deleteMany({ where: { userId: target.id } });
+    await tx.player.updateMany({
+      where: { userId: target.id },
+      data: { userId: null },
+    });
+    await tx.user.update({
+      where: { id: target.id },
+      data: {
+        name: 'Gelöschtes Konto',
+        firstName: null,
+        lastName: null,
+        phone: null,
+        email: deletedEmail,
+        password: replacementPassword,
+        role: Role.READ_ONLY,
+        status: AccountStatus.ARCHIVED,
+        calendarToken: null,
+        accountDeletedAt: deletedAt,
+      },
+    });
+  });
+  return res.status(204).send();
 }
 
 export async function approveUser(req: Request, res: Response) {

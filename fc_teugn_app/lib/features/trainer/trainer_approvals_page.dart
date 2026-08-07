@@ -86,6 +86,10 @@ class TrainerApprovalsPage extends ConsumerWidget {
               onPasswordHelp: currentUser?.role == UserRole.superAdmin
                   ? (user) => _createPasswordResetLink(context, ref, user)
                   : null,
+              onDelete: currentUser?.role == UserRole.superAdmin
+                  ? (user) => _deleteMemberAccount(context, ref, user)
+                  : null,
+              currentUserId: currentUser?.id,
             )
           : DefaultTabController(
               length: 2,
@@ -166,6 +170,11 @@ class TrainerApprovalsPage extends ConsumerWidget {
                                         user,
                                       )
                                   : null,
+                          onDelete: currentUser?.role == UserRole.superAdmin
+                              ? (user) =>
+                                  _deleteMemberAccount(context, ref, user)
+                              : null,
+                          currentUserId: currentUser?.id,
                         ),
                       ],
                     ),
@@ -433,6 +442,102 @@ class TrainerApprovalsPage extends ConsumerWidget {
     }
   }
 
+  Future<void> _deleteMemberAccount(
+    BuildContext context,
+    WidgetRef ref,
+    AppUser user,
+  ) async {
+    final confirmation = TextEditingController();
+    var canDelete = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          icon: Icon(
+            Icons.delete_forever_rounded,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          title: const Text('Konto dauerhaft löschen?'),
+          content: SizedBox(
+            width: 540,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Das Konto von ${user.name} (${user.email}) wird unwiderruflich '
+                  'gelöscht. Anmeldung, registrierte Geräte, Mannschafts- und '
+                  'Kinderzuordnungen werden entfernt.',
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Historische Vereins- und Prüfprotokolle bleiben ausschließlich '
+                  'anonymisiert erhalten, damit bestehende Spiel- und '
+                  'Vereinschroniken nicht beschädigt werden.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: confirmation,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Zur Bestätigung LÖSCHEN eingeben',
+                  ),
+                  onChanged: (value) {
+                    final next = value.trim().toUpperCase() == 'LÖSCHEN';
+                    if (next != canDelete) {
+                      setDialogState(() => canDelete = next);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+              ),
+              onPressed:
+                  canDelete ? () => Navigator.pop(dialogContext, true) : null,
+              icon: const Icon(Icons.delete_forever_rounded),
+              label: const Text('Konto endgültig löschen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    confirmation.dispose();
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await ref.read(repositoryProvider).deleteMemberAccount(user.id);
+      _refresh(ref);
+      ref.invalidate(playersProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Das Konto von ${user.name} wurde gelöscht.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Das Konto konnte nicht gelöscht werden. Das eigene oder letzte '
+              'Systemadministrationskonto ist besonders geschützt.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _reviewWithoutApproval(
     BuildContext context,
     WidgetRef ref,
@@ -594,6 +699,8 @@ class _MobileMemberTabs extends StatefulWidget {
     required this.onEdit,
     required this.onPermissions,
     required this.onPasswordHelp,
+    required this.onDelete,
+    required this.currentUserId,
   });
 
   final AsyncValue<List<AppUser>> pending;
@@ -608,6 +715,8 @@ class _MobileMemberTabs extends StatefulWidget {
   final ValueChanged<AppUser>? onEdit;
   final ValueChanged<AppUser>? onPermissions;
   final ValueChanged<AppUser>? onPasswordHelp;
+  final ValueChanged<AppUser>? onDelete;
+  final String? currentUserId;
 
   @override
   State<_MobileMemberTabs> createState() => _MobileMemberTabsState();
@@ -662,6 +771,8 @@ class _MobileMemberTabsState extends State<_MobileMemberTabs> {
             onEdit: widget.onEdit,
             onPermissions: widget.onPermissions,
             onPasswordHelp: widget.onPasswordHelp,
+            onDelete: widget.onDelete,
+            currentUserId: widget.currentUserId,
             embedded: true,
           ),
       ],
@@ -944,6 +1055,8 @@ class _MemberList extends StatelessWidget {
     required this.onEdit,
     required this.onPermissions,
     required this.onPasswordHelp,
+    required this.onDelete,
+    required this.currentUserId,
     this.embedded = false,
   });
 
@@ -952,6 +1065,8 @@ class _MemberList extends StatelessWidget {
   final ValueChanged<AppUser>? onEdit;
   final ValueChanged<AppUser>? onPermissions;
   final ValueChanged<AppUser>? onPasswordHelp;
+  final ValueChanged<AppUser>? onDelete;
+  final String? currentUserId;
   final bool embedded;
 
   @override
@@ -1020,6 +1135,14 @@ class _MemberList extends StatelessWidget {
                         ? null
                         : () => onPasswordHelp!(user),
                     icon: const Icon(Icons.key_rounded),
+                  );
+                  final canDelete =
+                      onDelete != null && user.id != currentUserId;
+                  final deleteAccount = IconButton.filledTonal(
+                    tooltip: 'Konto dauerhaft löschen',
+                    color: Theme.of(context).colorScheme.error,
+                    onPressed: canDelete ? () => onDelete!(user) : null,
+                    icon: const Icon(Icons.delete_forever_rounded),
                   );
                   final memberships = Wrap(
                     spacing: 6,
@@ -1096,9 +1219,6 @@ class _MemberList extends StatelessWidget {
                                       ],
                                     ),
                                   ),
-                                  if (onPermissions != null) permissions,
-                                  if (onPasswordHelp != null) passwordHelp,
-                                  edit,
                                 ],
                               ),
                               const SizedBox(height: 10),
@@ -1107,6 +1227,18 @@ class _MemberList extends StatelessWidget {
                               Align(
                                 alignment: Alignment.centerLeft,
                                 child: status,
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                alignment: WrapAlignment.end,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (onPermissions != null) permissions,
+                                  if (onPasswordHelp != null) passwordHelp,
+                                  edit,
+                                  if (canDelete) deleteAccount,
+                                ],
                               ),
                             ],
                           )
@@ -1145,6 +1277,10 @@ class _MemberList extends StatelessWidget {
                                   const SizedBox(width: 8),
                                 ],
                                 edit,
+                                if (canDelete) ...[
+                                  const SizedBox(width: 8),
+                                  deleteAccount,
+                                ],
                               ],
                             ),
                           ),

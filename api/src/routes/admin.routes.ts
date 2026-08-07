@@ -7,6 +7,7 @@ import {
   updateMemberPermission,
   createMember,
   createMemberPasswordResetLink,
+  deleteMemberAccount,
   listMembers,
   pendingUsers,
 } from '../controllers/admin.controller';
@@ -34,6 +35,11 @@ router.post(
   '/members/:id/password-reset-link',
   requireRoles([Role.SUPER_ADMIN]),
   createMemberPasswordResetLink,
+);
+router.delete(
+  '/members/:id',
+  requireRoles([Role.SUPER_ADMIN]),
+  deleteMemberAccount,
 );
 router.post('/approve', approveUser);
 router.post('/assign-parent-player', assignParentPlayer);

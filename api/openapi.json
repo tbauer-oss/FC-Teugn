@@ -275,6 +275,21 @@
     "/imports/competition/preview": {
       "post": {"tags": ["Import"], "summary": "CSV-/ICS-Import validieren und vorschauen", "security": [{"bearerAuth": []}], "responses": {"201": {"description": "Importvorschau"}}}
     },
+    "/admin/members/{id}": {
+      "delete": {
+        "tags": ["Administration"],
+        "summary": "Mitgliedskonto dauerhaft löschen",
+        "description": "Nur für die Systemadministration. Widerruft Zugänge und Geräte, entfernt aktive Zuordnungen und erhält notwendige Vereinshistorie anonymisiert.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"$ref": "#/components/parameters/Id"}],
+        "responses": {
+          "204": {"description": "Konto gelöscht und anonymisiert"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"description": "Mitglied nicht gefunden"}
+        }
+      }
+    },
     "/admin/privacy-requests": {
       "get": {"tags": ["Administration", "Datenschutz"], "summary": "Datenschutzanträge des Vereins", "security": [{"bearerAuth": []}], "responses": {"200": {"description": "Anträge"}, "403": {"$ref": "#/components/responses/Forbidden"}}}
     },

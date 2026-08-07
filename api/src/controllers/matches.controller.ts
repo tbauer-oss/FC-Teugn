@@ -1665,7 +1665,7 @@ export async function publishMatchInternally(req: Request, res: Response) {
   });
   const delivery = await notifyUsers(recipientIds, {
     category: NotificationCategory.MATCH,
-    title: 'Kader und Aufstellung intern veröffentlicht',
+    title: 'Kader und Aufstellung mit Trainerteam geteilt',
     body: message,
     actionUrl: `/matches/${match.id}`,
     entityType: 'MatchInternalPublication',

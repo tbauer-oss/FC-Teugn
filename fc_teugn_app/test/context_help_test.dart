@@ -24,7 +24,7 @@ void main() {
       'FC Teugn · SV Saal E1',
       '14.8.2026 · 17:30 Uhr',
     );
-    expect(matchday.steps.join(' '), contains('„Intern veröffentlichen“'));
+    expect(matchday.steps.join(' '), contains('„Mit Trainerteam teilen“'));
     expect(matchday.steps.join(' '), contains('Treffpunktzeit'));
   });
 

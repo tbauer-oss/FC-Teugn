@@ -50,6 +50,10 @@ class DataRepository {
     return MemberPermissionProfile.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<void> deleteMemberAccount(String userId) async {
+    await client.dio.delete('/admin/members/$userId');
+  }
+
   Future<({String url, DateTime expiresAt})> createMemberPasswordResetLink(
     String userId,
   ) async {

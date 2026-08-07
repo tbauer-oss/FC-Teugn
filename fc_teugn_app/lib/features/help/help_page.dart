@@ -1095,7 +1095,7 @@ const helpArticles = <HelpArticle>[
         'Die interne Information des Trainerteams und die Freigabe für Eltern und Spieler sind bewusst getrennte Schritte.',
     audience: HelpAudience.staff,
     keywords: [
-      'Spiel intern veröffentlichen',
+      'Spiel mit Trainerteam teilen',
       'Trainer',
       'Co-Trainer',
       'Push',
@@ -1109,12 +1109,12 @@ const helpArticles = <HelpArticle>[
     routeLabel: 'Spieltage öffnen',
     steps: [
       'Öffne den Spieltag und prüfe zuerst Anstoß, Treffpunktzeit und Treffpunktort. Bei Heimspielen ist „Stadion am Kreutweg, Teugn“ als Spielstätte vorgesehen; bei Auswärtsspielen ist „Vereinsheim Teugn“ der standardmäßige Treffpunkt.',
-      'Wähle „Intern veröffentlichen“, um ausschließlich berechtigte Trainer, Co-Trainer und zuständige Funktionäre zu informieren. Prüfe die Empfängerliste und entscheide, ob zusätzlich eine Pushnachricht gesendet werden soll.',
+      'Wähle „Mit Trainerteam teilen“, um ausschließlich berechtigte Trainer, Co-Trainer und zuständige Funktionäre zu informieren. Prüfe die Empfängerliste und entscheide, ob zusätzlich eine Pushnachricht gesendet werden soll.',
       'Wähle „Für Eltern & Spieler freigeben“, wenn die Begegnung für Familien sichtbar werden soll. Kontrolliere in der Vorschau besonders Gegner, Anstoß sowie den konkret angegebenen Treffpunkt.',
       'Interne Veröffentlichung und Familienfreigabe können getrennt erfolgen. Eine erneute identische Freigabe erzeugt keine doppelte Nachricht.',
     ],
     tip:
-        '„Intern veröffentlichen“ macht das Spiel nicht automatisch für Eltern oder Spieler sichtbar. Dafür ist immer die eigene Familienfreigabe erforderlich.',
+        '„Mit Trainerteam teilen“ macht das Spiel nicht automatisch für Eltern oder Spieler sichtbar. Dafür ist immer die eigene Familienfreigabe erforderlich.',
   ),
   HelpArticle(
     category: HelpCategory.matchday,
@@ -1366,7 +1366,10 @@ const helpArticles = <HelpArticle>[
       'Wähle eine zulässige Rolle und die Mannschaftszuordnungen innerhalb der vorgesehenen Jugend.',
       'Trainer und Co-Trainer können dadurch zwischen ihren freigegebenen Mannschaften wechseln.',
       'Vereinsweite Rollen und sensible Rechte dürfen nur mit entsprechender Organisationsberechtigung vergeben werden.',
+      'Nur die Systemadministration kann ein Konto dauerhaft löschen. Die App verlangt dafür die ausdrückliche Eingabe „LÖSCHEN“, entfernt Zugang, Geräte und Zuordnungen und bewahrt historische Vereinsdaten ausschließlich anonymisiert.',
     ],
+    tip:
+        'Das eigene sowie das letzte aktive Systemadministrationskonto sind gegen versehentliches Löschen geschützt.',
   ),
   HelpArticle(
     category: HelpCategory.organization,

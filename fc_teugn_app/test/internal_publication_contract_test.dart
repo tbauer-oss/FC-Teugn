@@ -43,7 +43,7 @@ void main() {
         home: Scaffold(
           body: InternalPublicationDialog(
             messagePreview:
-                'Kader und Aufstellung wurden intern veröffentlicht.',
+                'Kader und Aufstellung wurden mit dem Trainerteam geteilt.',
             recipients: [
               InternalPublicationRecipient(
                 id: '1',
@@ -66,7 +66,7 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Intern veröffentlichen'), findsNWidgets(2));
+    expect(find.text('Mit Trainerteam teilen'), findsNWidgets(2));
     expect(find.text('2 von 2 Empfängern'), findsOneWidget);
     expect(find.text('Zusätzlich als Pushnachricht senden'), findsOneWidget);
 
