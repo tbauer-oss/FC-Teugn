@@ -31,6 +31,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
       title: 'Mitglieder & Freigaben',
       subtitle:
           'Anfragen prüfen, Rollen festlegen und Zugriffe gezielt Mannschaften zuordnen.',
+      denseMobileHeader: true,
       action: FilledButton.icon(
         onPressed: organization == null
             ? null
@@ -860,10 +861,10 @@ class _PendingListState extends State<_PendingList> {
             if (index == 0) {
               return Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(14),
+                  padding: EdgeInsets.all(mobile ? 10 : 14),
                   child: Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                    spacing: mobile ? 7 : 10,
+                    runSpacing: mobile ? 7 : 10,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       SizedBox(
@@ -872,6 +873,7 @@ class _PendingListState extends State<_PendingList> {
                           decoration: const InputDecoration(
                             labelText: 'Name, E-Mail oder Kind',
                             prefixIcon: Icon(Icons.search_rounded),
+                            isDense: true,
                           ),
                           onChanged: (value) => setState(() => _query = value),
                         ),
@@ -880,7 +882,11 @@ class _PendingListState extends State<_PendingList> {
                         width: mobile ? double.infinity : 190,
                         child: DropdownButtonFormField<UserRole?>(
                           initialValue: _role,
-                          decoration: const InputDecoration(labelText: 'Rolle'),
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Rolle',
+                            isDense: true,
+                          ),
                           items: const [
                             DropdownMenuItem(
                                 value: null, child: Text('Alle Rollen')),
@@ -913,24 +919,38 @@ class _PendingListState extends State<_PendingList> {
                           width: mobile ? double.infinity : 220,
                           child: DropdownButtonFormField<String?>(
                             initialValue: _teamId,
-                            decoration:
-                                const InputDecoration(labelText: 'Mannschaft'),
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Mannschaft',
+                              isDense: true,
+                            ),
                             items: [
                               const DropdownMenuItem(
                                 value: null,
-                                child: Text('Alle Mannschaften'),
+                                child: Text(
+                                  'Alle Mannschaften',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                               for (final team in widget.organization!.teams)
                                 DropdownMenuItem(
                                   value: team.id,
-                                  child: Text(team.displayName),
+                                  child: Text(
+                                    team.displayName,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                             ],
                             onChanged: (value) =>
                                 setState(() => _teamId = value),
                           ),
                         ),
-                      Chip(label: Text('${filtered.length} Treffer')),
+                      Chip(
+                        visualDensity: mobile
+                            ? VisualDensity.compact
+                            : VisualDensity.standard,
+                        label: Text('${filtered.length} Treffer'),
+                      ),
                     ],
                   ),
                 ),
@@ -941,11 +961,12 @@ class _PendingListState extends State<_PendingList> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final compact = constraints.maxWidth < 620;
+                  final childName = user.registrationRequest?.childName?.trim();
                   final identity = Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       CircleAvatar(
-                        radius: 24,
+                        radius: compact ? 21 : 24,
                         backgroundColor:
                             AppColors.orange.withValues(alpha: .18),
                         child: Text(
@@ -963,14 +984,53 @@ class _PendingListState extends State<_PendingList> {
                           children: [
                             Text(
                               user.name,
-                              style: Theme.of(context).textTheme.titleLarge,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: compact
+                                  ? Theme.of(context).textTheme.titleMedium
+                                  : Theme.of(context).textTheme.titleLarge,
                             ),
-                            const SizedBox(height: 3),
+                            SizedBox(height: compact ? 1 : 3),
                             Text(
-                              '${user.email}\n${user.roleLabel}',
-                              maxLines: 3,
+                              '${user.email} · ${user.roleLabel}',
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            if (childName != null && childName.isNotEmpty) ...[
+                              const SizedBox(height: 5),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      AppColors.orange.withValues(alpha: .12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.child_care_rounded,
+                                      size: 15,
+                                      color: AppColors.navy,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Flexible(
+                                      child: Text(
+                                        'Kind: $childName',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             if (user.createdAt != null)
                               Text(
                                 'Registriert am ${_date(user.createdAt!)}',
@@ -981,9 +1041,8 @@ class _PendingListState extends State<_PendingList> {
                       ),
                     ],
                   );
-                  final actions = Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
+                  final actions = Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       PopupMenuButton<String>(
                         tooltip: 'Aktionen',
@@ -1008,6 +1067,14 @@ class _PendingListState extends State<_PendingList> {
                         ],
                       ),
                       FilledButton.icon(
+                        style: compact
+                            ? FilledButton.styleFrom(
+                                minimumSize: const Size(0, 38),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                              )
+                            : null,
                         onPressed: widget.organization == null
                             ? null
                             : () => widget.onApprove(user),
@@ -1017,13 +1084,13 @@ class _PendingListState extends State<_PendingList> {
                     ],
                   );
                   return Padding(
-                    padding: EdgeInsets.all(compact ? 14 : 18),
+                    padding: EdgeInsets.all(compact ? 11 : 18),
                     child: compact
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               identity,
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 7),
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: actions,

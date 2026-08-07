@@ -482,92 +482,176 @@ class _PerformanceCenterCard extends StatelessWidget {
   final PerformanceCenter data;
 
   @override
-  Widget build(BuildContext context) => Card(
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.navy, AppColors.blue],
-                ),
-              ),
-              child: Wrap(
-                spacing: 20,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  const Icon(Icons.insights_rounded,
-                      color: Colors.white, size: 34),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 310),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Leistungszentrum · trainerintern',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 19,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        Text(
-                          'Entwicklung erkennen – ohne öffentliche Rangliste.',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                      ],
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 600;
+          final metrics = [
+            _PerformanceMetric(
+              compact: compact,
+              label: 'Mannschaftsschnitt',
+              value: data.teamAverage == null
+                  ? '–'
+                  : '${data.teamAverage!.toStringAsFixed(1)} / 10',
+            ),
+            _PerformanceMetric(
+              compact: compact,
+              label: 'Bewertete Spiele',
+              value: '${data.ratedMatches}',
+            ),
+            _PerformanceMetric(
+              compact: compact,
+              label: 'Noch offen',
+              value: '${data.unratedMatches}',
+            ),
+          ];
+          return Card(
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(compact ? 12 : 18),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppColors.navy, AppColors.blue],
                     ),
                   ),
-                  _PerformanceMetric(
-                    label: 'Mannschaftsschnitt',
-                    value: data.teamAverage == null
-                        ? '–'
-                        : '${data.teamAverage!.toStringAsFixed(1)} / 10',
+                  child: compact
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.insights_rounded,
+                                  color: Colors.white,
+                                  size: 25,
+                                ),
+                                SizedBox(width: 9),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Leistungszentrum · trainerintern',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Entwicklung erkennen – ohne Rangliste.',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                for (var index = 0;
+                                    index < metrics.length;
+                                    index++) ...[
+                                  if (index > 0) const SizedBox(width: 6),
+                                  Expanded(child: metrics[index]),
+                                ],
+                              ],
+                            ),
+                          ],
+                        )
+                      : Wrap(
+                          spacing: 20,
+                          runSpacing: 12,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.insights_rounded,
+                              color: Colors.white,
+                              size: 34,
+                            ),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 310),
+                              child: const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Leistungszentrum · trainerintern',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Entwicklung erkennen – ohne öffentliche Rangliste.',
+                                    style: TextStyle(color: Colors.white70),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ...metrics,
+                          ],
+                        ),
+                ),
+                Padding(
+                  padding: EdgeInsets.all(compact ? 11 : 18),
+                  child: Column(
+                    children: [
+                      if (data.players.isEmpty)
+                        Padding(
+                          padding: EdgeInsets.symmetric(
+                            vertical: compact ? 6 : 18,
+                          ),
+                          child: const Text(
+                            'Noch keine Spielerbewertungen in diesem Zeitraum.',
+                          ),
+                        )
+                      else
+                        for (final player in data.players)
+                          _PlayerPerformanceRow(player: player),
+                    ],
                   ),
-                  _PerformanceMetric(
-                    label: 'Bewertete Spiele',
-                    value: '${data.ratedMatches}',
-                  ),
-                  _PerformanceMetric(
-                    label: 'Noch offen',
-                    value: '${data.unratedMatches}',
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                children: [
-                  if (data.players.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 18),
-                      child: Text(
-                          'Noch keine Spielerbewertungen in diesem Zeitraum.'),
-                    )
-                  else
-                    for (final player in data.players)
-                      _PlayerPerformanceRow(player: player),
-                ],
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       );
 }
 
+@visibleForTesting
+Widget performanceCenterCardForTesting(PerformanceCenter data) =>
+    _PerformanceCenterCard(data: data);
+
 class _PerformanceMetric extends StatelessWidget {
-  const _PerformanceMetric({required this.label, required this.value});
+  const _PerformanceMetric({
+    required this.label,
+    required this.value,
+    this.compact = false,
+  });
 
   final String label;
   final String value;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 8 : 14,
+          vertical: compact ? 7 : 9,
+        ),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: .12),
           borderRadius: BorderRadius.circular(14),
@@ -575,12 +659,26 @@ class _PerformanceMetric extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label,
-                style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            Text(
+              label,
+              maxLines: compact ? 2 : null,
+              overflow: compact ? TextOverflow.ellipsis : null,
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: compact ? 9.5 : 12,
+                height: 1.05,
+              ),
+            ),
+            if (compact) const SizedBox(height: 3),
             Text(
               value,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w900),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: compact ? 14 : null,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ],
         ),

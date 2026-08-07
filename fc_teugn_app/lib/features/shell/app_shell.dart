@@ -7,6 +7,7 @@ import '../../core/club_logo.dart';
 import '../auth/auth_controller.dart';
 import '../../core/providers.dart';
 import '../../core/models/organization.dart';
+import '../../core/widgets/adaptive_layout.dart';
 import '../shared/pwa_install_prompt.dart';
 import '../shared/app_about_sheet.dart';
 
@@ -345,173 +346,176 @@ class AppShell extends ConsumerWidget {
         .where((destination) => destination.route.endsWith('/help'))
         .firstOrNull;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 920;
+    return AdaptiveHingePane(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 920;
 
-        return Scaffold(
-          body: Row(
-            children: [
-              if (isWide)
-                DesktopSidebar(
-                  title: title,
-                  destinations: destinations,
-                  selectedIndex: selectedIndex,
-                  userName: authState.user?.name ?? '',
-                  userRole: authState.user?.roleLabel ?? '',
-                  contextLabel: contextLabel,
-                  seasonLabel: seasonLabel,
-                  onContextTap: organization == null
-                      ? _noOp
-                      : () => _showWorkingContextSwitcher(
-                            context,
-                            ref,
-                            organization,
-                          ),
-                  onSelect: (index) => context.go(destinations[index].route),
-                  onLogout: () => ref.read(authProvider.notifier).logout(),
-                  onHelp: helpDestination == null
-                      ? _noOp
-                      : () => context.go(helpDestination.route),
-                  onAbout: () => showAppAboutSheet(context),
-                ),
-              Expanded(
-                child: Column(
-                  children: [
-                    if (!isWide)
-                      _MobileHeader(
-                        title: title,
-                        userName: authState.user?.name ?? '',
-                        contextLabel: contextLabel,
-                        onContextTap: organization == null
-                            ? _noOp
-                            : () => _showWorkingContextSwitcher(
-                                  context,
-                                  ref,
-                                  organization,
-                                ),
-                        onLogout: () =>
-                            ref.read(authProvider.notifier).logout(),
-                        onPrivacy: () {
-                          ShellDestination? privacy;
-                          for (final item in destinations) {
-                            if (item.route.endsWith('/privacy')) {
-                              privacy = item;
-                              break;
+          return Scaffold(
+            body: Row(
+              children: [
+                if (isWide)
+                  DesktopSidebar(
+                    title: title,
+                    destinations: destinations,
+                    selectedIndex: selectedIndex,
+                    userName: authState.user?.name ?? '',
+                    userRole: authState.user?.roleLabel ?? '',
+                    contextLabel: contextLabel,
+                    seasonLabel: seasonLabel,
+                    onContextTap: organization == null
+                        ? _noOp
+                        : () => _showWorkingContextSwitcher(
+                              context,
+                              ref,
+                              organization,
+                            ),
+                    onSelect: (index) => context.go(destinations[index].route),
+                    onLogout: () => ref.read(authProvider.notifier).logout(),
+                    onHelp: helpDestination == null
+                        ? _noOp
+                        : () => context.go(helpDestination.route),
+                    onAbout: () => showAppAboutSheet(context),
+                  ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      if (!isWide)
+                        _MobileHeader(
+                          title: title,
+                          userName: authState.user?.name ?? '',
+                          contextLabel: contextLabel,
+                          onContextTap: organization == null
+                              ? _noOp
+                              : () => _showWorkingContextSwitcher(
+                                    context,
+                                    ref,
+                                    organization,
+                                  ),
+                          onLogout: () =>
+                              ref.read(authProvider.notifier).logout(),
+                          onPrivacy: () {
+                            ShellDestination? privacy;
+                            for (final item in destinations) {
+                              if (item.route.endsWith('/privacy')) {
+                                privacy = item;
+                                break;
+                              }
                             }
-                          }
-                          if (privacy != null) context.go(privacy.route);
-                        },
-                        onHelp: helpDestination == null
-                            ? _noOp
-                            : () => context.go(helpDestination.route),
-                        onAbout: () => showAppAboutSheet(context),
-                      ),
-                    if (showContextBack)
-                      _ContextBackBar(
-                        destination: selectedDestination,
-                        compact: !isWide,
-                        onPressed: () => _navigateContextBack(
-                          context,
-                          selectedDestination,
+                            if (privacy != null) context.go(privacy.route);
+                          },
+                          onHelp: helpDestination == null
+                              ? _noOp
+                              : () => context.go(helpDestination.route),
+                          onAbout: () => showAppAboutSheet(context),
                         ),
-                      ),
-                    if (queuedWrites > 0)
-                      Material(
-                        color: AppColors.yellowSoft,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 7,
+                      if (showContextBack)
+                        _ContextBackBar(
+                          destination: selectedDestination,
+                          compact: !isWide,
+                          onPressed: () => _navigateContextBack(
+                            context,
+                            selectedDestination,
                           ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.cloud_upload_outlined, size: 18),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '$queuedWrites Änderung${queuedWrites == 1 ? '' : 'en'} offline gespeichert – automatischer Versand läuft.',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
+                        ),
+                      if (queuedWrites > 0)
+                        Material(
+                          color: AppColors.yellowSoft,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 7,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.cloud_upload_outlined,
+                                    size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '$queuedWrites Änderung${queuedWrites == 1 ? '' : 'en'} offline gespeichert – automatischer Versand läuft.',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    Expanded(
-                      child: RefreshIndicator.adaptive(
-                        onRefresh: () => _refreshApp(ref),
-                        child: child,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          bottomNavigationBar: isWide
-              ? null
-              : Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: const Border(
-                      top: BorderSide(color: AppColors.line),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.black.withValues(alpha: .05),
-                        blurRadius: 18,
-                        offset: const Offset(0, -5),
+                      Expanded(
+                        child: RefreshIndicator.adaptive(
+                          onRefresh: () => _refreshApp(ref),
+                          child: child,
+                        ),
                       ),
                     ],
                   ),
-                  child: NavigationBar(
-                    height: 72,
-                    backgroundColor: Colors.white,
-                    surfaceTintColor: Colors.transparent,
-                    indicatorColor: AppColors.yellowSoft,
-                    selectedIndex: mobileSelectedIndex,
-                    onDestinationSelected: (index) {
-                      if (index < mobileDestinations.length) {
-                        context.go(mobileDestinations[index].route);
-                        return;
-                      }
-                      _showMoreMenu(
-                        context,
-                        destinations,
-                        location,
-                        contextLabel,
-                        seasonLabel,
-                        authState.user?.name ?? '',
-                        authState.user?.roleLabel ?? '',
-                      );
-                    },
-                    destinations: [
-                      for (final destination in mobileDestinations)
-                        NavigationDestination(
-                          icon: Icon(destination.icon),
+                ),
+              ],
+            ),
+            bottomNavigationBar: isWide
+                ? null
+                : Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: const Border(
+                        top: BorderSide(color: AppColors.line),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.black.withValues(alpha: .05),
+                          blurRadius: 18,
+                          offset: const Offset(0, -5),
+                        ),
+                      ],
+                    ),
+                    child: NavigationBar(
+                      height: 72,
+                      backgroundColor: Colors.white,
+                      surfaceTintColor: Colors.transparent,
+                      indicatorColor: AppColors.yellowSoft,
+                      selectedIndex: mobileSelectedIndex,
+                      onDestinationSelected: (index) {
+                        if (index < mobileDestinations.length) {
+                          context.go(mobileDestinations[index].route);
+                          return;
+                        }
+                        _showMoreMenu(
+                          context,
+                          destinations,
+                          location,
+                          contextLabel,
+                          seasonLabel,
+                          authState.user?.name ?? '',
+                          authState.user?.roleLabel ?? '',
+                        );
+                      },
+                      destinations: [
+                        for (final destination in mobileDestinations)
+                          NavigationDestination(
+                            icon: Icon(destination.icon),
+                            selectedIcon: Icon(
+                              destination.icon,
+                              color: AppColors.black,
+                            ),
+                            label: destination.mobileLabel,
+                          ),
+                        const NavigationDestination(
+                          icon: Icon(Icons.apps_rounded),
                           selectedIcon: Icon(
-                            destination.icon,
+                            Icons.apps_rounded,
                             color: AppColors.black,
                           ),
-                          label: destination.mobileLabel,
+                          label: 'Mehr',
                         ),
-                      const NavigationDestination(
-                        icon: Icon(Icons.apps_rounded),
-                        selectedIcon: Icon(
-                          Icons.apps_rounded,
-                          color: AppColors.black,
-                        ),
-                        label: 'Mehr',
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

@@ -118,6 +118,7 @@ class FamilyResponsesPage extends ConsumerWidget {
     return PageScaffold(
       title: 'Meine Kinder & Rückmeldungen',
       subtitle: 'Rückmeldungen für alle dir zugeordneten Kinder.',
+      denseMobileHeader: true,
       child: responses.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Card(
@@ -157,42 +158,51 @@ class FamilyResponsesPage extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  ResponseSummaryPill(
-                    label: 'Offen',
-                    count: sorted.where((item) => item.isOpen).length,
-                    color: AppColors.orange,
-                  ),
-                  ResponseSummaryPill(
-                    label: 'Zugesagt',
-                    count: sorted
-                        .where((item) =>
-                            item.responseStatus == AttendanceStatus.yes)
-                        .length,
-                    color: AppColors.teal,
-                  ),
-                  ResponseSummaryPill(
-                    label: 'Vielleicht',
-                    count: sorted
-                        .where((item) =>
-                            item.responseStatus == AttendanceStatus.maybe)
-                        .length,
-                    color: AppColors.orange,
-                  ),
-                  ResponseSummaryPill(
-                    label: 'Abgesagt',
-                    count: sorted
-                        .where((item) =>
-                            item.responseStatus == AttendanceStatus.no)
-                        .length,
-                    color: Colors.redAccent,
-                  ),
-                ],
+              SingleChildScrollView(
+                key: const ValueKey('family-response-summary-scroll'),
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ResponseSummaryPill(
+                      label: 'Offen',
+                      count: sorted.where((item) => item.isOpen).length,
+                      color: AppColors.orange,
+                      dense: true,
+                    ),
+                    const SizedBox(width: 6),
+                    ResponseSummaryPill(
+                      label: 'Zugesagt',
+                      count: sorted
+                          .where((item) =>
+                              item.responseStatus == AttendanceStatus.yes)
+                          .length,
+                      color: AppColors.teal,
+                      dense: true,
+                    ),
+                    const SizedBox(width: 6),
+                    ResponseSummaryPill(
+                      label: 'Vielleicht',
+                      count: sorted
+                          .where((item) =>
+                              item.responseStatus == AttendanceStatus.maybe)
+                          .length,
+                      color: AppColors.orange,
+                      dense: true,
+                    ),
+                    const SizedBox(width: 6),
+                    ResponseSummaryPill(
+                      label: 'Abgesagt',
+                      count: sorted
+                          .where((item) =>
+                              item.responseStatus == AttendanceStatus.no)
+                          .length,
+                      color: Colors.redAccent,
+                      dense: true,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 8),
               Card(
                 clipBehavior: Clip.antiAlias,
                 child: Column(
@@ -347,8 +357,9 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
               : '/parent/events');
     }
 
+    final narrowPage = MediaQuery.sizeOf(context).width < 660;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(narrowPage ? 10 : 16),
       decoration: BoxDecoration(
         color:
             widget.highlighted ? AppColors.orange.withValues(alpha: .10) : null,
@@ -366,11 +377,15 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
+                radius: narrow ? 17 : 20,
                 backgroundColor: AppColors.navy.withValues(alpha: .08),
-                child: const Icon(Icons.event_available_rounded,
-                    color: AppColors.navy),
+                child: Icon(
+                  Icons.event_available_rounded,
+                  color: AppColors.navy,
+                  size: narrow ? 18 : 24,
+                ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: narrow ? 8 : 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -380,9 +395,12 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
                       runSpacing: 4,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Text(item.title,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w800)),
+                        Text(
+                          item.title,
+                          maxLines: narrow ? 1 : 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
                         Chip(
                           visualDensity: VisualDensity.compact,
                           label:
@@ -395,7 +413,13 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
                         ),
                       ],
                     ),
-                    Text(details, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Text(
+                      details,
+                      maxLines: narrow ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          narrow ? Theme.of(context).textTheme.bodySmall : null,
+                    ),
                     if (item.isOverdue)
                       const Text(
                         'Rückmeldefrist abgelaufen',
@@ -452,12 +476,18 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 info,
-                const SizedBox(height: 12),
-                actions,
-                TextButton.icon(
-                  onPressed: openDetails,
-                  icon: const Icon(Icons.open_in_new_rounded),
-                  label: const Text('Details'),
+                const SizedBox(height: 7),
+                Row(
+                  children: [
+                    Expanded(child: actions),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      onPressed: openDetails,
+                      tooltip: 'Details öffnen',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.open_in_new_rounded, size: 19),
+                    ),
+                  ],
                 ),
               ],
             );
@@ -496,37 +526,49 @@ class _AttendanceResponseActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compactStyle = ButtonStyle(
+      minimumSize: WidgetStateProperty.all(const Size(0, 36)),
+      padding: WidgetStateProperty.all(
+        const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+      ),
+      visualDensity: VisualDensity.compact,
+      textStyle: WidgetStateProperty.all(
+        const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+      ),
+    );
     final buttons = <Widget>[
       FilledButton.icon(
+        style: expanded ? compactStyle : null,
         onPressed: saving ? null : () => onAnswer(AttendanceStatus.yes),
-        icon: const Icon(Icons.check_rounded),
+        icon: Icon(Icons.check_rounded, size: expanded ? 15 : 18),
         label: const Text('Zusagen'),
       ),
       FilledButton.tonalIcon(
+        style: expanded ? compactStyle : null,
         onPressed: saving ? null : () => onAnswer(AttendanceStatus.maybe),
-        icon: const Icon(Icons.help_outline_rounded),
+        icon: Icon(Icons.help_outline_rounded, size: expanded ? 15 : 18),
         label: const Text('Vielleicht'),
       ),
       OutlinedButton.icon(
+        style: expanded ? compactStyle : null,
         onPressed: saving ? null : () => onAnswer(AttendanceStatus.no),
-        icon: const Icon(Icons.close_rounded),
+        icon: Icon(Icons.close_rounded, size: expanded ? 15 : 18),
         label: const Text('Absagen'),
       ),
     ];
 
     if (expanded) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      return Row(
         children: [
-          Row(
-            children: [
-              Expanded(child: buttons[0]),
-              const SizedBox(width: 8),
-              Expanded(child: buttons[1]),
-            ],
-          ),
-          const SizedBox(height: 8),
-          buttons[2],
+          for (var index = 0; index < buttons.length; index++) ...[
+            Expanded(
+              child: ButtonTheme(
+                alignedDropdown: true,
+                child: buttons[index],
+              ),
+            ),
+            if (index != buttons.length - 1) const SizedBox(width: 4),
+          ],
         ],
       );
     }
@@ -559,17 +601,24 @@ class ResponseSummaryPill extends StatelessWidget {
     required this.label,
     required this.count,
     required this.color,
+    this.dense = false,
   });
   final String label;
   final int count;
   final Color color;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) => Semantics(
         label: '$label: $count',
         child: Container(
-          constraints: const BoxConstraints(minHeight: 38),
-          padding: const EdgeInsets.fromLTRB(6, 5, 12, 5),
+          constraints: BoxConstraints(minHeight: dense ? 32 : 38),
+          padding: EdgeInsets.fromLTRB(
+            dense ? 4 : 6,
+            dense ? 3 : 5,
+            dense ? 9 : 12,
+            dense ? 3 : 5,
+          ),
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(color: AppColors.line),
@@ -579,9 +628,9 @@ class ResponseSummaryPill extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                constraints: const BoxConstraints(
-                  minWidth: 28,
-                  minHeight: 28,
+                constraints: BoxConstraints(
+                  minWidth: dense ? 24 : 28,
+                  minHeight: dense ? 24 : 28,
                 ),
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -592,21 +641,24 @@ class ResponseSummaryPill extends StatelessWidget {
                 child: Text(
                   '$count',
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 14,
+                    fontSize: dense ? 12 : 14,
                     height: 1,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: dense ? 6 : 8),
               Flexible(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: dense ? 12 : null,
+                  ),
                 ),
               ),
             ],

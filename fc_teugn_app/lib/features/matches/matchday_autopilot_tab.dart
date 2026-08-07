@@ -233,7 +233,7 @@ class _AutopilotHero extends StatelessWidget {
     final missing = total - ready;
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(compact ? 14 : 18),
+      padding: EdgeInsets.all(compact ? 10 : 18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF151713), Color(0xFF3C3600)],
@@ -248,8 +248,8 @@ class _AutopilotHero extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: compact ? 38 : 44,
-                height: compact ? 38 : 44,
+                width: compact ? 34 : 44,
+                height: compact ? 34 : 44,
                 decoration: BoxDecoration(
                   color: AppColors.yellow,
                   borderRadius: BorderRadius.circular(13),
@@ -257,7 +257,7 @@ class _AutopilotHero extends StatelessWidget {
                 child: const Icon(
                   Icons.auto_awesome_rounded,
                   color: AppColors.black,
-                  size: 22,
+                  size: 20,
                 ),
               ),
               const SizedBox(width: 11),
@@ -271,7 +271,7 @@ class _AutopilotHero extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: compact ? 19 : 22,
+                        fontSize: compact ? 17 : 22,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -299,7 +299,7 @@ class _AutopilotHero extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: compact ? 8 : 14),
           Row(
             children: [
               const Text(
@@ -322,7 +322,7 @@ class _AutopilotHero extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: compact ? 4 : 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
             child: LinearProgressIndicator(
@@ -334,7 +334,7 @@ class _AutopilotHero extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 11),
+          SizedBox(height: compact ? 7 : 11),
           Wrap(
             spacing: 7,
             runSpacing: 7,
@@ -347,10 +347,11 @@ class _AutopilotHero extends StatelessWidget {
                 icon: Icons.groups_rounded,
                 label: '${plan.fieldSize} gegen ${plan.fieldSize}',
               ),
-              _HeroChip(
-                icon: Icons.tune_rounded,
-                label: plan.strategy.label,
-              ),
+              if (!compact)
+                _HeroChip(
+                  icon: Icons.tune_rounded,
+                  label: plan.strategy.label,
+                ),
               if (plan.restoreStartersToStartingPositions)
                 const _HeroChip(
                   icon: Icons.settings_backup_restore_rounded,
@@ -385,98 +386,136 @@ class _StrategySelector extends StatelessWidget {
   final ValueChanged<bool> onRestoreStartersChanged;
 
   @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.tune_rounded, color: AppColors.blue),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      'Wechselstrategie wählen',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                    ),
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(compact ? 10 : 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.tune_rounded, color: AppColors.blue),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'Wechselstrategie wählen',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
                   ),
+                ),
+              ],
+            ),
+            SizedBox(height: compact ? 3 : 5),
+            Text(
+              value.description,
+              maxLines: compact ? 2 : null,
+              overflow: compact ? TextOverflow.ellipsis : null,
+              style: TextStyle(
+                color: AppColors.muted,
+                fontSize: compact ? 12 : null,
+              ),
+            ),
+            SizedBox(height: compact ? 8 : 12),
+            if (compact)
+              DropdownButtonFormField<AutopilotStrategy>(
+                key: const ValueKey('autopilot-strategy-selector-mobile'),
+                initialValue: value,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Strategie',
+                ),
+                items: [
+                  for (final strategy in AutopilotStrategy.values)
+                    DropdownMenuItem(
+                      value: strategy,
+                      child: Row(
+                        children: [
+                          Icon(_strategyIcon(strategy), size: 17),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              strategy.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+                onChanged: (selection) {
+                  if (selection != null) onChanged(selection);
+                },
+              )
+            else
+              SegmentedButton<AutopilotStrategy>(
+                key: const ValueKey('autopilot-strategy-selector'),
+                showSelectedIcon: true,
+                multiSelectionEnabled: false,
+                selected: {value},
+                onSelectionChanged: (selection) {
+                  if (selection.isNotEmpty) onChanged(selection.first);
+                },
+                segments: [
+                  for (final strategy in AutopilotStrategy.values)
+                    ButtonSegment(
+                      value: strategy,
+                      icon: Icon(_strategyIcon(strategy), size: 18),
+                      label: Text(strategy.label),
+                    ),
                 ],
               ),
-              const SizedBox(height: 5),
-              Text(
-                value.description,
-                style: const TextStyle(color: AppColors.muted),
-              ),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 620;
-                  final segments = SegmentedButton<AutopilotStrategy>(
-                    key: const ValueKey('autopilot-strategy-selector'),
-                    showSelectedIcon: true,
-                    multiSelectionEnabled: false,
-                    selected: {value},
-                    onSelectionChanged: (selection) {
-                      if (selection.isNotEmpty) onChanged(selection.first);
-                    },
-                    segments: [
-                      for (final strategy in AutopilotStrategy.values)
-                        ButtonSegment(
-                          value: strategy,
-                          icon: Icon(_strategyIcon(strategy), size: 18),
-                          label: Text(strategy.label),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: value == AutopilotStrategy.positionFidelity
+                  ? Padding(
+                      key: const ValueKey(
+                          'restore-starters-to-starting-positions'),
+                      padding: EdgeInsets.only(top: compact ? 8 : 12),
+                      child: Material(
+                        color: AppColors.yellowSoft.withValues(alpha: .55),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: const BorderSide(color: AppColors.line),
                         ),
-                    ],
-                  );
-                  if (!compact) return segments;
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: segments,
-                  );
-                },
-              ),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                child: value == AutopilotStrategy.positionFidelity
-                    ? Padding(
-                        key: const ValueKey(
-                            'restore-starters-to-starting-positions'),
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Material(
-                          color: AppColors.yellowSoft.withValues(alpha: .55),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            side: const BorderSide(color: AppColors.line),
+                        clipBehavior: Clip.antiAlias,
+                        child: SwitchListTile.adaptive(
+                          key: const ValueKey(
+                              'autopilot-restore-starters-switch'),
+                          value: restoreStartersToStartingPositions,
+                          onChanged: onRestoreStartersChanged,
+                          dense: compact,
+                          visualDensity: compact
+                              ? VisualDensity.compact
+                              : VisualDensity.standard,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: compact ? 10 : 16,
                           ),
-                          clipBehavior: Clip.antiAlias,
-                          child: SwitchListTile.adaptive(
-                            key: const ValueKey(
-                                'autopilot-restore-starters-switch'),
-                            value: restoreStartersToStartingPositions,
-                            onChanged: onRestoreStartersChanged,
-                            secondary: const Icon(
-                              Icons.settings_backup_restore_rounded,
-                              color: AppColors.gold,
-                            ),
-                            title: const Text(
-                              'Stammspieler auf Stammplätze zurückführen',
-                              style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                            subtitle: const Text(
-                              'Bei späteren Wechseln kehren Startspieler bevorzugt auf ihren ursprünglichen Platz in der Startelf zurück.',
-                            ),
+                          secondary: const Icon(
+                            Icons.settings_backup_restore_rounded,
+                            color: AppColors.gold,
+                          ),
+                          title: const Text(
+                            'Stammspieler auf Stammplätze zurückführen',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          subtitle: const Text(
+                            'Bei späteren Wechseln kehren Startspieler bevorzugt auf ihren ursprünglichen Platz in der Startelf zurück.',
                           ),
                         ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
-          ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 }
 
 IconData _strategyIcon(AutopilotStrategy strategy) => switch (strategy) {

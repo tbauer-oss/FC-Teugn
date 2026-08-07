@@ -22,6 +22,56 @@ abstract final class AppBreakpoints {
   static bool isCompact(double width) => width < compact;
 }
 
+/// Keeps a complete application surface inside one usable foldable pane.
+///
+/// The child receives a pane-sized [MediaQuery], so existing responsive
+/// widgets classify the actually usable width instead of the full display
+/// width across a hinge.
+class AdaptiveHingePane extends StatelessWidget {
+  const AdaptiveHingePane({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final pane = largestUsablePaneFor(media);
+    final usesFullDisplay = (pane.width - media.size.width).abs() < .5 &&
+        (pane.height - media.size.height).abs() < .5;
+    if (usesFullDisplay) return child;
+
+    final horizontal = pane.center.dx < media.size.width / 2
+        ? -1.0
+        : pane.center.dx > media.size.width / 2
+            ? 1.0
+            : 0.0;
+    final vertical = pane.center.dy < media.size.height / 2
+        ? -1.0
+        : pane.center.dy > media.size.height / 2
+            ? 1.0
+            : 0.0;
+    final paneSize = Size(
+      math.max(0, pane.width),
+      math.max(0, pane.height),
+    );
+
+    return Align(
+      alignment: Alignment(horizontal, vertical),
+      child: SizedBox.fromSize(
+        key: const ValueKey('adaptive-hinge-pane'),
+        size: paneSize,
+        child: MediaQuery(
+          data: media.copyWith(
+            size: paneSize,
+            displayFeatures: const [],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 class AdaptiveActionSpec {
   const AdaptiveActionSpec({
     required this.label,
@@ -134,7 +184,7 @@ class AdaptiveDialogScaffold extends StatelessWidget {
           final constrainedWidth = constraints.hasBoundedWidth
               ? constraints.maxWidth
               : media.size.width;
-          final pane = _largestUsablePane(media);
+          final pane = largestUsablePaneFor(media);
           final availableWidth = math.min(constrainedWidth, pane.width);
           final availableHeight = constraints.hasBoundedHeight
               ? constraints.maxHeight
@@ -206,7 +256,8 @@ class AdaptiveDialogScaffold extends StatelessWidget {
       );
 }
 
-Rect _largestUsablePane(MediaQueryData media) {
+@visibleForTesting
+Rect largestUsablePaneFor(MediaQueryData media) {
   var selected = Offset.zero & media.size;
   for (final feature in media.displayFeatures) {
     final bounds = feature.bounds;
@@ -214,15 +265,31 @@ Rect _largestUsablePane(MediaQueryData media) {
         bounds.height >= media.size.height * .5 &&
         bounds.left > 0 &&
         bounds.right < media.size.width;
-    if (!separatesVertically) continue;
-    final left = Rect.fromLTWH(0, 0, bounds.left, media.size.height);
-    final right = Rect.fromLTWH(
-      bounds.right,
-      0,
-      media.size.width - bounds.right,
-      media.size.height,
-    );
-    selected = left.width >= right.width ? left : right;
+    final separatesHorizontally = bounds.height > 0 &&
+        bounds.width >= media.size.width * .5 &&
+        bounds.top > 0 &&
+        bounds.bottom < media.size.height;
+    if (separatesVertically) {
+      final left = Rect.fromLTWH(0, 0, bounds.left, media.size.height);
+      final right = Rect.fromLTWH(
+        bounds.right,
+        0,
+        media.size.width - bounds.right,
+        media.size.height,
+      );
+      selected =
+          left.width * left.height >= right.width * right.height ? left : right;
+    } else if (separatesHorizontally) {
+      final top = Rect.fromLTWH(0, 0, media.size.width, bounds.top);
+      final bottom = Rect.fromLTWH(
+        0,
+        bounds.bottom,
+        media.size.width,
+        media.size.height - bounds.bottom,
+      );
+      selected =
+          top.width * top.height >= bottom.width * bottom.height ? top : bottom;
+    }
   }
   return selected;
 }

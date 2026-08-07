@@ -145,4 +145,89 @@ void main() {
     expect(staysLeftOfHinge || staysRightOfHinge, isTrue);
     expectNoFlutterLayoutException(tester);
   });
+
+  testWidgets('app surface uses one pane and exposes its usable width',
+      (tester) async {
+    const viewport = Size(673, 841);
+    tester.view.physicalSize = viewport;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    double? usableWidth;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: viewport,
+            displayFeatures: [
+              DisplayFeature(
+                bounds: Rect.fromLTWH(330, 0, 13, 841),
+                type: DisplayFeatureType.hinge,
+                state: DisplayFeatureState.unknown,
+              ),
+            ],
+          ),
+          child: AdaptiveHingePane(
+            child: Builder(
+              builder: (context) {
+                usableWidth = MediaQuery.sizeOf(context).width;
+                return const ColoredBox(
+                  key: ValueKey('foldable-app-surface'),
+                  color: Colors.white,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(usableWidth, 330);
+    final surface = tester.getRect(
+      find.byKey(const ValueKey('foldable-app-surface')),
+    );
+    expect(surface.right, lessThanOrEqualTo(330));
+    expectNoFlutterLayoutException(tester);
+  });
+
+  testWidgets('horizontal hinge selects a complete usable pane',
+      (tester) async {
+    const viewport = Size(480, 800);
+    tester.view.physicalSize = viewport;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(
+            size: viewport,
+            displayFeatures: [
+              DisplayFeature(
+                bounds: Rect.fromLTWH(0, 390, 480, 20),
+                type: DisplayFeatureType.hinge,
+                state: DisplayFeatureState.unknown,
+              ),
+            ],
+          ),
+          child: AdaptiveHingePane(
+            child: ColoredBox(
+              key: ValueKey('horizontal-fold-surface'),
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final surface = tester.getRect(
+      find.byKey(const ValueKey('horizontal-fold-surface')),
+    );
+    expect(surface.bottom <= 390 || surface.top >= 410, isTrue);
+    expectNoFlutterLayoutException(tester);
+  });
 }

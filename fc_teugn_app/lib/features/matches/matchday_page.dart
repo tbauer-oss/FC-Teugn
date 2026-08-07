@@ -1114,36 +1114,59 @@ class _MatchCommunicationActions extends StatelessWidget {
   final VoidCallback onReleaseFamily;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: double.infinity,
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          alignment: WrapAlignment.center,
-          children: [
-            if (match.canPublishInternal)
-              OutlinedButton.icon(
-                onPressed: onPublishInternal,
-                icon: const Icon(
-                  Icons.admin_panel_settings_outlined,
-                  size: 18,
-                ),
-                label: const Text('Mit Trainerteam teilen'),
-              ),
-            if (match.canReleaseFamily && match.familyReleasedAt == null)
-              FilledButton.icon(
-                onPressed: onReleaseFamily,
-                icon: const Icon(Icons.family_restroom_rounded, size: 18),
-                label: const Text('Für Eltern & Spieler freigeben'),
-              )
-            else if (match.familyReleasedAt != null)
-              const Chip(
-                avatar: Icon(Icons.verified_rounded, size: 18),
-                label: Text('Für Familien freigegeben'),
-              ),
-          ],
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final actions = <Widget>[
+      if (match.canPublishInternal)
+        OutlinedButton.icon(
+          onPressed: onPublishInternal,
+          icon: const Icon(
+            Icons.admin_panel_settings_outlined,
+            size: 17,
+          ),
+          label: Text(compact ? 'Trainerteam' : 'Mit Trainerteam teilen'),
+        ),
+      if (match.canReleaseFamily && match.familyReleasedAt == null)
+        FilledButton.icon(
+          onPressed: onReleaseFamily,
+          icon: const Icon(Icons.family_restroom_rounded, size: 17),
+          label: Text(
+            compact ? 'Eltern & Spieler' : 'Für Eltern & Spieler freigeben',
+          ),
+        )
+      else if (match.familyReleasedAt != null)
+        const Chip(
+          avatar: Icon(Icons.verified_rounded, size: 17),
+          label: Text('Familien freigegeben'),
+        ),
+    ];
+    if (compact) {
+      return SizedBox(
+        height: 38,
+        child: SingleChildScrollView(
+          key: const ValueKey('match-communication-mobile-scroll'),
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var index = 0; index < actions.length; index++) ...[
+                actions[index],
+                if (index != actions.length - 1) const SizedBox(width: 6),
+              ],
+            ],
+          ),
         ),
       );
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        alignment: WrapAlignment.center,
+        children: actions,
+      ),
+    );
+  }
 }
 
 class _OfflineBanner extends StatelessWidget {
@@ -1202,7 +1225,7 @@ class _ScoreHero extends StatelessWidget {
     final dateLine = '${date.day}.${date.month}.${date.year} · '
         '${date.hour.toString().padLeft(2, '0')}:'
         '${date.minute.toString().padLeft(2, '0')} Uhr · ${match.location}';
-    final crestSize = compact ? 44.0 : 46.0;
+    final crestSize = compact ? 34.0 : 46.0;
     final score = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -1216,10 +1239,10 @@ class _ScoreHero extends StatelessWidget {
           ),
         ),
         Container(
-          margin: EdgeInsets.symmetric(horizontal: compact ? 6 : 14),
+          margin: EdgeInsets.symmetric(horizontal: compact ? 4 : 14),
           padding: EdgeInsets.symmetric(
-            horizontal: compact ? 10 : 14,
-            vertical: compact ? 7 : 8,
+            horizontal: compact ? 8 : 14,
+            vertical: compact ? 5 : 8,
           ),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: .2),
@@ -1231,7 +1254,7 @@ class _ScoreHero extends StatelessWidget {
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
-              fontSize: compact ? 25 : 30,
+              fontSize: compact ? 22 : 30,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
@@ -1250,8 +1273,8 @@ class _ScoreHero extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 10 : 16,
-        vertical: compact ? 10 : 11,
+        horizontal: compact ? 8 : 16,
+        vertical: compact ? 7 : 11,
       ),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -1263,14 +1286,14 @@ class _ScoreHero extends StatelessWidget {
           ? Column(
               children: [
                 score,
-                const SizedBox(height: 6),
+                const SizedBox(height: 3),
                 Text(
                   dateLine,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white70,
-                    fontSize: 11.5,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1328,21 +1351,23 @@ class _MatchdayTabBar extends StatelessWidget {
     }
 
     return TabBar(
-      isScrollable: staffView,
-      labelPadding: EdgeInsets.zero,
+      isScrollable: true,
+      tabAlignment: TabAlignment.start,
+      padding: EdgeInsets.zero,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 2),
       tabs: [
         const _CompactMatchTab(icon: Icons.info_outline_rounded, label: 'Info'),
         const _CompactMatchTab(icon: Icons.groups_rounded, label: 'Kader'),
         const _CompactMatchTab(
           icon: Icons.dashboard_customize_rounded,
-          label: 'Elf',
+          label: 'Aufstellung',
         ),
         if (staffView)
           const _CompactMatchTab(
-              icon: Icons.auto_awesome_rounded, label: 'Auto'),
-        const _CompactMatchTab(icon: Icons.bolt_rounded, label: 'Live'),
+              icon: Icons.auto_awesome_rounded, label: 'Autopilot'),
+        const _CompactMatchTab(icon: Icons.bolt_rounded, label: 'Liveticker'),
         if (staffView)
-          const _CompactMatchTab(icon: Icons.stars_rounded, label: 'Note'),
+          const _CompactMatchTab(icon: Icons.stars_rounded, label: 'Bewertung'),
       ],
     );
   }
@@ -1376,16 +1401,25 @@ class _CompactMatchTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tab(
-      height: 40,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 17),
-          const SizedBox(height: 1),
-          Text(label, style: const TextStyle(fontSize: 10.5)),
-        ],
+    return SizedBox(
+      width: 78,
+      child: Tab(
+        height: 42,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16),
+            const SizedBox(height: 1),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1422,7 +1456,7 @@ class _ScoreTeam extends StatelessWidget {
       style: TextStyle(
         color: Colors.white,
         fontWeight: FontWeight.w800,
-        fontSize: compact ? 12.5 : 14.5,
+        fontSize: compact ? 11.5 : 14.5,
       ),
     );
     if (!compact) {
@@ -1437,7 +1471,7 @@ class _ScoreTeam extends StatelessWidget {
     }
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: [crest, const SizedBox(height: 5), label],
+      children: [crest, const SizedBox(height: 3), label],
     );
   }
 }
@@ -1585,13 +1619,13 @@ class MatchOverview extends StatelessWidget {
                     details?.isHome != false ? 'Heimspiel' : 'Auswärtsspiel',
                 dateLine: '$date · $startTime',
               ),
-              SizedBox(height: compact ? 18 : 22),
+              SizedBox(height: compact ? 12 : 22),
               const _OverviewSectionHeader(
                 icon: Icons.flash_on_rounded,
                 title: 'Auf einen Blick',
                 subtitle: 'Die wichtigsten Zeiten für den Spieltag',
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: compact ? 7 : 10),
               Wrap(
                 spacing: gap,
                 runSpacing: gap,
@@ -1603,13 +1637,13 @@ class MatchOverview extends StatelessWidget {
                     ),
                 ],
               ),
-              SizedBox(height: compact ? 22 : 28),
+              SizedBox(height: compact ? 16 : 28),
               const _OverviewSectionHeader(
                 icon: Icons.assignment_outlined,
                 title: 'Organisation',
                 subtitle: 'Rahmendaten, Ort und Verantwortliche',
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: compact ? 7 : 10),
               Wrap(
                 spacing: gap,
                 runSpacing: gap,
@@ -1622,7 +1656,7 @@ class MatchOverview extends StatelessWidget {
                 ],
               ),
               if (details?.notes?.trim().isNotEmpty == true) ...[
-                SizedBox(height: compact ? 22 : 28),
+                SizedBox(height: compact ? 16 : 28),
                 const _OverviewSectionHeader(
                   icon: Icons.sticky_note_2_outlined,
                   title: 'Hinweise',
@@ -1669,89 +1703,102 @@ class _OverviewStatusCard extends StatelessWidget {
   final String dateLine;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.white,
-              AppColors.yellow.withValues(alpha: .08),
-            ],
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(compact ? 10 : 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white,
+            AppColors.yellow.withValues(alpha: .08),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.line),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: .035),
+            blurRadius: 18,
+            offset: const Offset(0, 7),
           ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.line),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.black.withValues(alpha: .035),
-              blurRadius: 18,
-              offset: const Offset(0, 7),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: compact ? 38 : 50,
+            height: compact ? 38 : 50,
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(16),
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(statusIcon, color: statusColor, size: 25),
+            child: Icon(
+              statusIcon,
+              color: statusColor,
+              size: compact ? 20 : 25,
             ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'SPIELSTATUS',
-                    style: TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: .8,
-                    ),
+          ),
+          SizedBox(width: compact ? 9 : 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SPIELSTATUS',
+                  style: TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .8,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    status,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.navy,
-                        ),
-                  ),
-                  Text(
-                    dateLine,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.muted,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-              decoration: BoxDecoration(
-                color: AppColors.navy,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                fixtureKind,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  status,
+                  style: (compact
+                          ? Theme.of(context).textTheme.titleMedium
+                          : Theme.of(context).textTheme.titleLarge)
+                      ?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.navy,
+                  ),
+                ),
+                Text(
+                  dateLine,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.muted,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 8 : 11,
+              vertical: compact ? 5 : 7,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.navy,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              fixtureKind,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: compact ? 10 : 11,
+                fontWeight: FontWeight.w800,
               ),
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _OverviewSectionHeader extends StatelessWidget {
@@ -1766,42 +1813,48 @@ class _OverviewSectionHeader extends StatelessWidget {
   final String subtitle;
 
   @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: AppColors.navy,
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(icon, size: 18, color: AppColors.yellow),
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return Row(
+      children: [
+        Container(
+          width: compact ? 30 : 34,
+          height: compact ? 30 : 34,
+          decoration: BoxDecoration(
+            color: AppColors.navy,
+            borderRadius: BorderRadius.circular(11),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.navy,
-                      ),
+          child: Icon(icon, size: compact ? 16 : 18, color: AppColors.yellow),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: (compact
+                        ? Theme.of(context).textTheme.titleSmall
+                        : Theme.of(context).textTheme.titleMedium)
+                    ?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.navy,
                 ),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.muted,
-                      ),
-                ),
-              ],
-            ),
+              ),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.muted,
+                    ),
+              ),
+            ],
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 }
 
 class _OverviewEntry {
@@ -1826,91 +1879,98 @@ class _OverviewTile extends StatelessWidget {
   final _OverviewEntry entry;
 
   @override
-  Widget build(BuildContext context) => Container(
-        key: ValueKey('match-overview-${entry.label}'),
-        constraints: const BoxConstraints(minHeight: 104),
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white,
-              entry.missing
-                  ? AppColors.background
-                  : AppColors.yellow.withValues(alpha: .035),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.line),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.black.withValues(alpha: .025),
-              blurRadius: 14,
-              offset: const Offset(0, 5),
-            ),
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return Container(
+      key: ValueKey('match-overview-${entry.label}'),
+      constraints: BoxConstraints(minHeight: compact ? 74 : 104),
+      padding: EdgeInsets.all(compact ? 10 : 15),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            entry.missing
+                ? AppColors.background
+                : AppColors.yellow.withValues(alpha: .035),
           ],
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.yellow.withValues(alpha: .2),
-                    AppColors.yellow.withValues(alpha: .08),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Icon(entry.icon, color: AppColors.blue, size: 23),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.label.toUpperCase(),
-                    style: const TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: .7,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    entry.value,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: entry.missing ? AppColors.muted : AppColors.navy,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    entry.supporting,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.muted,
-                          fontSize: 10.5,
-                        ),
-                  ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.line),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: .025),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: compact ? 38 : 48,
+            height: compact ? 38 : 48,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.yellow.withValues(alpha: .2),
+                  AppColors.yellow.withValues(alpha: .08),
                 ],
               ),
+              borderRadius: BorderRadius.circular(15),
             ),
-          ],
-        ),
-      );
+            child: Icon(
+              entry.icon,
+              color: AppColors.blue,
+              size: compact ? 19 : 23,
+            ),
+          ),
+          SizedBox(width: compact ? 9 : 13),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.label.toUpperCase(),
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .7,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  entry.value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: entry.missing ? AppColors.muted : AppColors.navy,
+                    fontSize: compact ? 14 : 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  entry.supporting,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.muted,
+                        fontSize: 10.5,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 bool _isMissing(String? value) => value == null || value.trim().isEmpty;
@@ -4375,17 +4435,35 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         children: [
           Expanded(
             child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                visualDensity: VisualDensity.compact,
+              ),
               onPressed: _busy ? null : () => _goal(true),
-              icon: const Icon(Icons.sports_soccer_rounded),
-              label: const Text('Tor FC Teugn'),
+              icon: const Icon(Icons.sports_soccer_rounded, size: 18),
+              label: const Text(
+                'Tor FC Teugn',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                visualDensity: VisualDensity.compact,
+              ),
               onPressed: _busy ? null : () => _goal(false),
-              icon: const Icon(Icons.sports_soccer_rounded),
-              label: const Text('Tor Gegner'),
+              icon: const Icon(Icons.sports_soccer_rounded, size: 18),
+              label: const Text(
+                'Tor Gegner',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
         ],
@@ -5155,11 +5233,17 @@ class _CountdownCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final expired = clock.expired && status == TickerStatus.live;
     final accent = expired ? const Color(0xFFC2410C) : AppColors.yellow;
     return Container(
       width: min(MediaQuery.sizeOf(context).width, 620.0),
-      padding: const EdgeInsets.fromLTRB(20, 14, 14, 14),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 12 : 20,
+        compact ? 8 : 14,
+        compact ? 8 : 14,
+        compact ? 9 : 14,
+      ),
       decoration: BoxDecoration(
         color: AppColors.black,
         borderRadius: BorderRadius.circular(22),
@@ -5198,6 +5282,8 @@ class _CountdownCard extends StatelessWidget {
               IconButton(
                 onPressed: onExpand,
                 tooltip: 'Liveticker groß anzeigen',
+                visualDensity:
+                    compact ? VisualDensity.compact : VisualDensity.standard,
                 icon: const Icon(
                   Icons.open_in_full_rounded,
                   color: Colors.white,
@@ -5205,12 +5291,12 @@ class _CountdownCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: compact ? 1 : 4),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const TeamCrest.club(size: 42, darkSurface: true),
-              const SizedBox(width: 9),
+              TeamCrest.club(size: compact ? 30 : 42, darkSurface: true),
+              SizedBox(width: compact ? 6 : 9),
               const Flexible(
                 child: Text(
                   'FC Teugn',
@@ -5223,14 +5309,14 @@ class _CountdownCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 14),
                 child: Text(
                   '$ourGoals : $theirGoals',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.yellow,
-                    fontSize: 24,
+                    fontSize: compact ? 20 : 24,
                     fontWeight: FontWeight.w900,
-                    fontFeatures: [FontFeature.tabularFigures()],
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ),
@@ -5246,36 +5332,36 @@ class _CountdownCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 9),
+              SizedBox(width: compact ? 6 : 9),
               TeamCrest.opponent(
-                size: 42,
+                size: compact ? 30 : 42,
                 logoUrl: opponentLogoUrl,
                 darkSurface: true,
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: compact ? 5 : 10),
           Text(
             clock.countdown,
             style: TextStyle(
               color: accent,
-              fontSize: 52,
+              fontSize: compact ? 38 : 52,
               height: 1,
               letterSpacing: 2,
               fontWeight: FontWeight.w900,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: compact ? 7 : 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: _SmoothClockProgress(
               value: clock.progress,
-              minHeight: 7,
+              minHeight: compact ? 5 : 7,
               color: accent,
             ),
           ),
-          const SizedBox(height: 7),
+          SizedBox(height: compact ? 4 : 7),
           Text(
             expired
                 ? 'Abschnittszeit abgelaufen'
@@ -5730,22 +5816,30 @@ class _TickerMetric extends StatelessWidget {
   final String label;
   final String value;
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.blue.withValues(alpha: .08),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          children: [
-            Text(label,
-                style: const TextStyle(fontSize: 10, color: AppColors.muted)),
-            Text(value,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 11 : 18,
+        vertical: compact ? 7 : 10,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.blue.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Text(label,
+              style: const TextStyle(fontSize: 10, color: AppColors.muted)),
+          Text(value,
+              style: TextStyle(
+                fontSize: compact ? 15 : 18,
+                fontWeight: FontWeight.w900,
+              )),
+        ],
+      ),
+    );
+  }
 }
 
 String _tickerStatus(TickerStatus status) => switch (status) {

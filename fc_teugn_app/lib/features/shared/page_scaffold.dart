@@ -102,10 +102,17 @@ class PageScaffold extends StatelessWidget {
                             children: [
                               titleBlock,
                               if (action != null) ...[
-                                const SizedBox(height: 16),
                                 SizedBox(
-                                  width: double.infinity,
-                                  child: action!,
+                                  height: denseMobileHeader && mobile ? 8 : 16,
+                                ),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: denseMobileHeader && mobile
+                                      ? action!
+                                      : SizedBox(
+                                          width: double.infinity,
+                                          child: action!,
+                                        ),
                                 ),
                               ],
                             ],

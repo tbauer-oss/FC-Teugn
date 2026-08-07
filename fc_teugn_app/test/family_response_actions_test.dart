@@ -8,17 +8,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 PersonalResponseModel _response({
+  String eventId = 'event-1',
+  String title = 'Training',
   AttendanceStatus status = AttendanceStatus.unknown,
   bool canRespond = true,
   String? reason,
 }) {
   return PersonalResponseModel(
-    eventId: 'event-1',
+    eventId: eventId,
     playerId: 'player-1',
     playerName: 'Max Muster',
     teamName: 'E1-Jugend',
     ageGroupCode: 'E1',
-    title: 'Training',
+    title: title,
     category: 'TRAINING',
     startAt: DateTime(2026, 8, 22, 10),
     location: 'Sportplatz Teugn',
@@ -80,5 +82,39 @@ void main() {
     );
 
     expect(find.text('Grund: Krank'), findsOneWidget);
+  });
+
+  testWidgets('several family responses stay compact at 320 logical pixels',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          personalResponsesProvider.overrideWith(
+            (ref) async => [
+              _response(eventId: 'event-1', title: 'Training'),
+              _response(eventId: 'event-2', title: 'Freundschaftsspiel'),
+              _response(eventId: 'event-3', title: 'Mannschaftsabend'),
+            ],
+          ),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const FamilyResponsesPage(isTrainer: false),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('family-response-summary-scroll')),
+      findsOneWidget,
+    );
+    expect(find.text('Freundschaftsspiel'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

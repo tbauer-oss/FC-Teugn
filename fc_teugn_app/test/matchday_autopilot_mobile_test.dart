@@ -41,8 +41,10 @@ void main() {
     expect(find.text('Plan auf einen Blick'), findsOneWidget);
     expect(find.text('Wechselstrategie wählen'), findsOneWidget);
     expect(find.text('Ausgewogen'), findsWidgets);
-    expect(find.text('Einsatzzeit'), findsOneWidget);
-    expect(find.text('Positionstreu'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('autopilot-strategy-selector-mobile')),
+      findsOneWidget,
+    );
     expect(find.text('Startformation'), findsOneWidget);
     expect(find.text('Fairer Wechselplan'), findsOneWidget);
     expect(
@@ -54,14 +56,11 @@ void main() {
     );
     expect(tester.takeException(), isNull);
 
-    final horizontalStrategyScroll = find.byWidgetPredicate(
-      (widget) =>
-          widget is SingleChildScrollView &&
-          widget.scrollDirection == Axis.horizontal,
+    await tester.tap(
+      find.byKey(const ValueKey('autopilot-strategy-selector-mobile')),
     );
-    await tester.drag(horizontalStrategyScroll, const Offset(-360, 0));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Positionstreu'));
+    await tester.tap(find.text('Positionstreu').last);
     await tester.pumpAndSettle();
     expect(
       find.text(
