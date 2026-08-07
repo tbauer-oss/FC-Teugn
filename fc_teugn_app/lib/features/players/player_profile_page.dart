@@ -634,6 +634,12 @@ class _ProfileHero extends StatelessWidget {
             label: '${player.minutes} Minuten',
             expanded: compact,
           ),
+          if (player.cleanSheetEligible)
+            _CareerStatChip(
+              icon: Icons.shield_outlined,
+              label: '${player.cleanSheets} Spiele zu null',
+              expanded: compact,
+            ),
         ];
         return Container(
           width: double.infinity,
@@ -805,6 +811,8 @@ class _SeasonStatisticsCard extends StatelessWidget {
                 minutes: player.minutes,
                 goals: player.goals,
                 assists: player.assists,
+                cleanSheets: player.cleanSheets,
+                cleanSheetEligible: player.cleanSheetEligible,
                 emphasized: true,
               ),
               if (player.statisticsBySeason.isEmpty)
@@ -821,6 +829,8 @@ class _SeasonStatisticsCard extends StatelessWidget {
                     minutes: season.minutes,
                     goals: season.goals,
                     assists: season.assists,
+                    cleanSheets: season.cleanSheets,
+                    cleanSheetEligible: player.cleanSheetEligible,
                   ),
             ],
           ),
@@ -836,6 +846,8 @@ class _PlayerStatisticRow extends StatelessWidget {
     required this.minutes,
     required this.goals,
     required this.assists,
+    required this.cleanSheets,
+    required this.cleanSheetEligible,
     this.emphasized = false,
   });
 
@@ -845,6 +857,8 @@ class _PlayerStatisticRow extends StatelessWidget {
   final int minutes;
   final int goals;
   final int assists;
+  final int cleanSheets;
+  final bool cleanSheetEligible;
   final bool emphasized;
 
   @override
@@ -864,9 +878,14 @@ class _PlayerStatisticRow extends StatelessWidget {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final values =
-                '$appearances Einsätze · $starts Startelf · $minutes Min. · '
-                '$goals Tore · $assists Assists';
+            final values = [
+              '$appearances Einsätze',
+              '$starts Startelf',
+              '$minutes Min.',
+              '$goals Tore',
+              '$assists Assists',
+              if (cleanSheetEligible) '$cleanSheets Spiele zu null',
+            ].join(' · ');
             if (constraints.maxWidth < 500) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

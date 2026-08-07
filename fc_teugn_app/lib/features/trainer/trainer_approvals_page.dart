@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -82,6 +83,9 @@ class TrainerApprovalsPage extends ConsumerWidget {
               onPermissions: currentUser?.role == UserRole.superAdmin
                   ? (user) => _showPermissions(context, ref, user)
                   : null,
+              onPasswordHelp: currentUser?.role == UserRole.superAdmin
+                  ? (user) => _createPasswordResetLink(context, ref, user)
+                  : null,
             )
           : DefaultTabController(
               length: 2,
@@ -154,6 +158,14 @@ class TrainerApprovalsPage extends ConsumerWidget {
                                   UserRole.superAdmin
                               ? (user) => _showPermissions(context, ref, user)
                               : null,
+                          onPasswordHelp:
+                              currentUser?.role == UserRole.superAdmin
+                                  ? (user) => _createPasswordResetLink(
+                                        context,
+                                        ref,
+                                        user,
+                                      )
+                                  : null,
                         ),
                       ],
                     ),
@@ -320,6 +332,107 @@ class TrainerApprovalsPage extends ConsumerWidget {
         ),
       );
 
+  Future<void> _createPasswordResetLink(
+    BuildContext context,
+    WidgetRef ref,
+    AppUser user,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sicheren Zugangslink erstellen?'),
+        content: Text(
+          'Für ${user.name} wird ein einmal nutzbarer Link erstellt. '
+          'Er ist 60 Minuten gültig und ersetzt alle älteren Reset-Links.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.key_rounded),
+            label: const Text('Link erstellen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final result = await ref
+          .read(repositoryProvider)
+          .createMemberPasswordResetLink(user.id);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Zugangslink bereit'),
+          content: SizedBox(
+            width: 580,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sende diesen Link persönlich an ${user.name}, zum Beispiel '
+                  'per WhatsApp. Er kann nur einmal verwendet werden.',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: SelectableText(result.url),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Gültig bis ${_date(result.expiresAt)} · '
+                  '${TimeOfDay.fromDateTime(result.expiresAt).format(context)} Uhr',
+                  style: const TextStyle(color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            OutlinedButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: result.url));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Zugangslink wurde kopiert.'),
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.copy_rounded),
+              label: const Text('Link kopieren'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fertig'),
+            ),
+          ],
+        ),
+      );
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Der Zugangslink konnte nicht erstellt werden.'),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _reviewWithoutApproval(
     BuildContext context,
     WidgetRef ref,
@@ -480,6 +593,7 @@ class _MobileMemberTabs extends StatefulWidget {
     required this.onRetryMembers,
     required this.onEdit,
     required this.onPermissions,
+    required this.onPasswordHelp,
   });
 
   final AsyncValue<List<AppUser>> pending;
@@ -493,6 +607,7 @@ class _MobileMemberTabs extends StatefulWidget {
   final VoidCallback onRetryMembers;
   final ValueChanged<AppUser>? onEdit;
   final ValueChanged<AppUser>? onPermissions;
+  final ValueChanged<AppUser>? onPasswordHelp;
 
   @override
   State<_MobileMemberTabs> createState() => _MobileMemberTabsState();
@@ -546,6 +661,7 @@ class _MobileMemberTabsState extends State<_MobileMemberTabs> {
             onRetry: widget.onRetryMembers,
             onEdit: widget.onEdit,
             onPermissions: widget.onPermissions,
+            onPasswordHelp: widget.onPasswordHelp,
             embedded: true,
           ),
       ],
@@ -827,6 +943,7 @@ class _MemberList extends StatelessWidget {
     required this.onRetry,
     required this.onEdit,
     required this.onPermissions,
+    required this.onPasswordHelp,
     this.embedded = false,
   });
 
@@ -834,6 +951,7 @@ class _MemberList extends StatelessWidget {
   final VoidCallback onRetry;
   final ValueChanged<AppUser>? onEdit;
   final ValueChanged<AppUser>? onPermissions;
+  final ValueChanged<AppUser>? onPasswordHelp;
   final bool embedded;
 
   @override
@@ -895,6 +1013,13 @@ class _MemberList extends StatelessWidget {
                         ? null
                         : () => onPermissions!(user),
                     icon: const Icon(Icons.security_rounded),
+                  );
+                  final passwordHelp = IconButton.filledTonal(
+                    tooltip: 'Sicheren Zugangslink erstellen',
+                    onPressed: onPasswordHelp == null
+                        ? null
+                        : () => onPasswordHelp!(user),
+                    icon: const Icon(Icons.key_rounded),
                   );
                   final memberships = Wrap(
                     spacing: 6,
@@ -972,6 +1097,7 @@ class _MemberList extends StatelessWidget {
                                     ),
                                   ),
                                   if (onPermissions != null) permissions,
+                                  if (onPasswordHelp != null) passwordHelp,
                                   edit,
                                 ],
                               ),
@@ -1012,6 +1138,10 @@ class _MemberList extends StatelessWidget {
                                 const SizedBox(width: 8),
                                 if (onPermissions != null) ...[
                                   permissions,
+                                  const SizedBox(width: 8),
+                                ],
+                                if (onPasswordHelp != null) ...[
+                                  passwordHelp,
                                   const SizedBox(width: 8),
                                 ],
                                 edit,

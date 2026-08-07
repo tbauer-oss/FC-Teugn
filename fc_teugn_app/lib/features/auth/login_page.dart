@@ -285,7 +285,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 sent ? 'Registrierte Geräte prüfen' : 'Passwort zurücksetzen'),
             content: sent
                 ? const Text(
-                    'Wenn der Zugang existiert, erscheint auf einem bereits registrierten Gerät eine sichere Pushnachricht. Der Link ist 15 Minuten und nur einmal gültig.\n\nKein Push-Gerät mehr erreichbar? Dann wird die Systemadministration über den Hilfebedarf informiert.',
+                    'Wenn der Zugang existiert, erscheint auf einem bereits registrierten Gerät eine sichere Pushnachricht. Der Link ist 15 Minuten und nur einmal gültig.\n\nKein Push-Gerät mehr erreichbar? Dann wird die Systemadministration informiert. Sie kann in „Mitglieder & Freigaben“ einen sicheren, 60 Minuten gültigen Einmal-Link erstellen und dir persönlich senden.',
                   )
                 : Form(
                     key: formKey,

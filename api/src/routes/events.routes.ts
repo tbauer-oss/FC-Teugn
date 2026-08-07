@@ -3,8 +3,11 @@ import {
   calendarSubscription,
   cancelRegularTrainingOccurrence,
   createCarpoolOffer,
+  createCarpoolNeeds,
   createEvent,
   deleteEvent,
+  deleteCarpoolNeed,
+  deleteCarpoolOffer,
   finalizeAttendance,
   getEvent,
   listEvents,
@@ -99,6 +102,9 @@ router.post(
   sendAttendanceReminders,
 );
 router.post('/:id/carpool-offers', createCarpoolOffer);
+router.delete('/:id/carpool-offers/:offerId', deleteCarpoolOffer);
+router.post('/:id/carpool-needs', createCarpoolNeeds);
+router.delete('/:id/carpool-needs/:needId', deleteCarpoolNeed);
 router.post('/:id/carpool-offers/:offerId/passengers', requestCarpoolSeat);
 router.patch(
   '/:id/carpool-offers/:offerId/passengers/:passengerId',

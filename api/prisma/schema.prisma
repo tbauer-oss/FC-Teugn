@@ -116,6 +116,12 @@ enum CarpoolRequestStatus {
   CANCELLED
 }
 
+enum CarpoolNeedStatus {
+  OPEN
+  MATCHED
+  CANCELLED
+}
+
 enum MatchKind {
   LEAGUE
   FRIENDLY
@@ -617,6 +623,7 @@ model User {
   attendanceReplies            Attendance[]             @relation("AttendanceResponder")
   carpoolOffers                CarpoolOffer[]           @relation("CarpoolDriver")
   carpoolRequests              CarpoolPassenger[]       @relation("CarpoolRequester")
+  carpoolNeeds                 CarpoolNeed[]             @relation("CarpoolNeedRequester")
   eventReminders               EventReminder[]          @relation("EventReminderRecipient")
   calendarToken                String?                  @unique
   tickerEvents                 LiveTickerEvent[]        @relation("TickerEventAuthor")
@@ -863,6 +870,7 @@ model Player {
   developmentNotes           PlayerDevelopmentNote[]
   consents                   PlayerConsent[]
   carpoolPassengers          CarpoolPassenger[]
+  carpoolNeeds               CarpoolNeed[]
   equipmentAssignments       EquipmentAssignment[]
   lineupPositions            LineupPosition[]
   teamDefaultLineupPositions TeamDefaultLineupPosition[]
@@ -1106,6 +1114,7 @@ model Event {
   attachments           EventAttachment[]
   attendance            Attendance[]
   carpoolOffers         CarpoolOffer[]
+  carpoolNeeds          CarpoolNeed[]
   reminders             EventReminder[]
   matchDetails          MatchDetails?
   squads                Squad[]
@@ -1400,6 +1409,24 @@ model CarpoolPassenger {
 
   @@unique([offerId, playerId])
   @@index([offerId, status])
+}
+
+model CarpoolNeed {
+  id            String            @id @default(cuid())
+  eventId       String
+  playerId      String
+  requestedById String
+  note          String?
+  status        CarpoolNeedStatus @default(OPEN)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  event         Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player        Player            @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  requestedBy   User              @relation("CarpoolNeedRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, playerId])
+  @@index([eventId, status, createdAt])
+  @@index([requestedById, status])
 }
 
 model EventReminder {

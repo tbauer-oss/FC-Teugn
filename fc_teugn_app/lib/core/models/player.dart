@@ -465,6 +465,8 @@ class PlayerModel {
     this.appearances = 0,
     this.starts = 0,
     this.minutes = 0,
+    this.cleanSheets = 0,
+    this.cleanSheetEligible = false,
     this.statisticsBySeason = const [],
     this.guardians = const [],
     this.medicalProfile,
@@ -498,6 +500,8 @@ class PlayerModel {
   final int appearances;
   final int starts;
   final int minutes;
+  final int cleanSheets;
+  final bool cleanSheetEligible;
   final List<PlayerSeasonStatistics> statisticsBySeason;
   final List<GuardianModel> guardians;
   final MedicalProfile? medicalProfile;
@@ -592,6 +596,8 @@ class PlayerModel {
       appearances: _jsonInt(statistics?['appearances']),
       starts: _jsonInt(statistics?['starts']),
       minutes: _jsonInt(statistics?['minutes']),
+      cleanSheets: _jsonInt(statistics?['cleanSheets']),
+      cleanSheetEligible: statistics?['cleanSheetEligible'] as bool? ?? false,
       statisticsBySeason: _jsonMapList(json['statisticsBySeason'])
           .map(PlayerSeasonStatistics.fromJson)
           .toList(),
@@ -623,6 +629,7 @@ class PlayerSeasonStatistics {
     required this.appearances,
     required this.starts,
     required this.minutes,
+    required this.cleanSheets,
   });
 
   final String seasonId;
@@ -632,6 +639,7 @@ class PlayerSeasonStatistics {
   final int appearances;
   final int starts;
   final int minutes;
+  final int cleanSheets;
 
   factory PlayerSeasonStatistics.fromJson(Map<String, dynamic> json) =>
       PlayerSeasonStatistics(
@@ -642,6 +650,7 @@ class PlayerSeasonStatistics {
         appearances: _jsonInt(json['appearances']),
         starts: _jsonInt(json['starts']),
         minutes: _jsonInt(json['minutes']),
+        cleanSheets: _jsonInt(json['cleanSheets']),
       );
 }
 

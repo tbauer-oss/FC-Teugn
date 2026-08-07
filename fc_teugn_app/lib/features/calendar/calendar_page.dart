@@ -2202,13 +2202,34 @@ class _CountChip extends StatelessWidget {
   }
 }
 
-class EventDetailsDialog extends ConsumerWidget {
+class EventDetailsDialog extends ConsumerStatefulWidget {
   const EventDetailsDialog({super.key, required this.event});
 
   final EventModel event;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EventDetailsDialog> createState() => _EventDetailsDialogState();
+}
+
+class _EventDetailsDialogState extends ConsumerState<EventDetailsDialog> {
+  late EventModel _event;
+
+  @override
+  void initState() {
+    super.initState();
+    _event = widget.event;
+  }
+
+  Future<void> _refresh() async {
+    final updated = await ref.read(repositoryProvider).event(_event.id);
+    if (!mounted) return;
+    setState(() => _event = updated);
+    ref.invalidate(eventsProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final event = _event;
     final players =
         ref.watch(playersProvider).valueOrNull ?? const <PlayerModel>[];
     final organization = ref.watch(organizationProvider).valueOrNull;
@@ -2271,19 +2292,13 @@ class EventDetailsDialog extends ConsumerWidget {
                     _AttendanceSection(
                       event: event,
                       players: players,
-                      onRefresh: () {
-                        ref.invalidate(eventsProvider);
-                        Navigator.pop(context);
-                      },
+                      onRefresh: _refresh,
                     ),
                     const SizedBox(height: 20),
                     _CarpoolSection(
                       event: event,
                       players: players,
-                      onRefresh: () {
-                        ref.invalidate(eventsProvider);
-                        Navigator.pop(context);
-                      },
+                      onRefresh: _refresh,
                     ),
                     if (event.internalNote != null) ...[
                       const SizedBox(height: 20),
@@ -3226,17 +3241,194 @@ class _CarpoolSection extends ConsumerWidget {
 
   final EventModel event;
   final List<PlayerModel> players;
-  final VoidCallback onRefresh;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final openNeeds = event.carpoolNeeds
+        .where((need) => need.status == CarpoolNeedStatus.open)
+        .toList();
+    final freeSeats = event.carpoolOffers.fold<int>(
+      0,
+      (sum, offer) => sum + offer.freeSeats,
+    );
     return _Section(
       title: 'Fahrgemeinschaften',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.yellow.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.yellow.withValues(alpha: .45),
+              ),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.route_rounded, color: AppColors.blue),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Einfach auswählen: Braucht dein Kind eine Mitfahrt oder '
+                    'kannst du freie Plätze anbieten? Mehrere Kinder können '
+                    'in einem Schritt eingetragen werden.',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _CarpoolMetric(
+                icon: Icons.airline_seat_recline_normal_rounded,
+                value: '$freeSeats',
+                label: 'freie Plätze',
+                color: AppColors.teal,
+              ),
+              _CarpoolMetric(
+                icon: Icons.front_hand_outlined,
+                value: '${openNeeds.length}',
+                label: 'Mitfahrbedarf',
+                color: AppColors.blue,
+              ),
+              _CarpoolMetric(
+                icon: Icons.directions_car_rounded,
+                value: '${event.carpoolOffers.length}',
+                label: 'Fahrangebote',
+                color: AppColors.navy,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 540;
+              final needButton = FilledButton.icon(
+                onPressed: event.isCancelled || players.isEmpty
+                    ? null
+                    : () => _createNeeds(context, ref),
+                icon: const Icon(Icons.front_hand_outlined),
+                label: const Text('Mitfahrt benötigt'),
+              );
+              final offerButton = OutlinedButton.icon(
+                onPressed: event.capabilities.canOfferRide && !event.isCancelled
+                    ? () => _offerRide(context, ref)
+                    : null,
+                icon: const Icon(Icons.add_road_rounded),
+                label: const Text('Plätze anbieten'),
+              );
+              if (!compact) {
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [needButton, offerButton],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [needButton, const SizedBox(height: 8), offerButton],
+              );
+            },
+          ),
+          if (event.carpoolNeeds.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text(
+              'Wer braucht eine Mitfahrt?',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            for (final need in event.carpoolNeeds)
+              if (need.status != CarpoolNeedStatus.cancelled)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: need.status == CarpoolNeedStatus.matched
+                        ? AppColors.teal.withValues(alpha: .09)
+                        : AppColors.background,
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        need.status == CarpoolNeedStatus.matched
+                            ? Icons.check_circle_rounded
+                            : Icons.front_hand_outlined,
+                        color: need.status == CarpoolNeedStatus.matched
+                            ? AppColors.teal
+                            : AppColors.blue,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              need.playerName,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                            Text(
+                              need.status == CarpoolNeedStatus.matched
+                                  ? 'Mitfahrplatz gefunden'
+                                  : need.note?.trim().isNotEmpty == true
+                                      ? need.note!
+                                      : 'Mitfahrplatz wird gesucht',
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (need.canCancel)
+                        IconButton(
+                          tooltip: 'Mitfahrbedarf zurückziehen',
+                          onPressed: () => _deleteNeed(context, ref, need),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                    ],
+                  ),
+                ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            'Angebotene Fahrten',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 8),
           if (event.carpoolOffers.isEmpty)
-            const Text('Noch keine Fahrplätze angeboten.')
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Text(
+                'Noch keine Fahrt angeboten. Sobald Eltern Plätze anbieten, '
+                'können diese hier direkt angefragt werden.',
+                style: TextStyle(color: AppColors.muted),
+              ),
+            )
           else
             for (final offer in event.carpoolOffers)
               Card(
@@ -3258,6 +3450,13 @@ class _CarpoolSection extends ConsumerWidget {
                                   const TextStyle(fontWeight: FontWeight.w900),
                             ),
                           ),
+                          if (offer.canManage)
+                            IconButton(
+                              tooltip: 'Fahrangebot zurückziehen',
+                              onPressed: () =>
+                                  _deleteOffer(context, ref, offer),
+                              icon: const Icon(Icons.delete_outline_rounded),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -3305,6 +3504,22 @@ class _CarpoolSection extends ConsumerWidget {
                                       color: Colors.redAccent),
                                 ),
                               ],
+                              if (passenger.canCancel &&
+                                  (passenger.status ==
+                                          CarpoolRequestStatus.requested ||
+                                      passenger.status ==
+                                          CarpoolRequestStatus.confirmed))
+                                IconButton(
+                                  tooltip: 'Mitfahranfrage zurückziehen',
+                                  onPressed: () => _updatePassenger(
+                                    context,
+                                    ref,
+                                    offer,
+                                    passenger,
+                                    CarpoolRequestStatus.cancelled,
+                                  ),
+                                  icon: const Icon(Icons.close_rounded),
+                                ),
                             ],
                           ),
                       ],
@@ -3313,25 +3528,41 @@ class _CarpoolSection extends ConsumerWidget {
                           players.isNotEmpty)
                         TextButton.icon(
                           onPressed: () =>
-                              _requestSeat(context, ref, offer, players),
+                              _requestSeats(context, ref, offer, players),
                           icon: const Icon(Icons.airline_seat_recline_normal),
-                          label: const Text('Platz anfragen'),
+                          label: const Text('Platz für Kind(er) anfragen'),
                         ),
                     ],
                   ),
                 ),
               ),
-          if (event.capabilities.canOfferRide && !event.isCancelled) ...[
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => _offerRide(context, ref),
-              icon: const Icon(Icons.add_road_rounded),
-              label: const Text('Fahrt anbieten'),
-            ),
-          ],
         ],
       ),
     );
+  }
+
+  Future<void> _createNeeds(BuildContext context, WidgetRef ref) async {
+    final draft = await showDialog<_CarpoolNeedDraft>(
+      context: context,
+      builder: (context) => _CarpoolNeedDialog(players: players),
+    );
+    if (draft == null) return;
+    try {
+      await ref.read(repositoryProvider).createCarpoolNeeds(
+            eventId: event.id,
+            playerIds: draft.playerIds,
+            note: draft.note,
+          );
+      await onRefresh();
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Der Mitfahrbedarf konnte nicht gespeichert werden.'),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _offerRide(BuildContext context, WidgetRef ref) async {
@@ -3348,7 +3579,7 @@ class _CarpoolSection extends ConsumerWidget {
             departureAt: draft.departureAt,
             notes: draft.notes,
           );
-      onRefresh();
+      await onRefresh();
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3359,27 +3590,29 @@ class _CarpoolSection extends ConsumerWidget {
     }
   }
 
-  Future<void> _requestSeat(
+  Future<void> _requestSeats(
     BuildContext context,
     WidgetRef ref,
     CarpoolOffer offer,
     List<PlayerModel> players,
   ) async {
-    final playerId = await showDialog<String>(
+    final playerIds = await showDialog<List<String>>(
       context: context,
-      builder: (context) => _PlayerSelectionDialog(
-        title: 'Mitfahrplatz anfragen',
+      builder: (context) => _CarpoolPlayerSelectionDialog(
         players: players,
+        maxSelections: offer.freeSeats,
       ),
     );
-    if (playerId == null) return;
+    if (playerIds == null || playerIds.isEmpty) return;
     try {
-      await ref.read(repositoryProvider).requestCarpoolSeat(
-            eventId: event.id,
-            offerId: offer.id,
-            playerId: playerId,
-          );
-      onRefresh();
+      for (final playerId in playerIds.take(offer.freeSeats)) {
+        await ref.read(repositoryProvider).requestCarpoolSeat(
+              eventId: event.id,
+              offerId: offer.id,
+              playerId: playerId,
+            );
+      }
+      await onRefresh();
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3403,8 +3636,87 @@ class _CarpoolSection extends ConsumerWidget {
           passengerId: passenger.id,
           status: status,
         );
-    onRefresh();
+    await onRefresh();
   }
+
+  Future<void> _deleteNeed(
+    BuildContext context,
+    WidgetRef ref,
+    CarpoolNeed need,
+  ) async {
+    await ref.read(repositoryProvider).deleteCarpoolNeed(
+          eventId: event.id,
+          needId: need.id,
+        );
+    await onRefresh();
+  }
+
+  Future<void> _deleteOffer(
+    BuildContext context,
+    WidgetRef ref,
+    CarpoolOffer offer,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Fahrangebot zurückziehen?'),
+        content: const Text(
+          'Bereits angefragte Plätze werden freigegeben und offene '
+          'Mitfahrbedarfe wieder angezeigt.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Zurückziehen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(repositoryProvider).deleteCarpoolOffer(
+          eventId: event.id,
+          offerId: offer.id,
+        );
+    await onRefresh();
+  }
+}
+
+class _CarpoolMetric extends StatelessWidget {
+  const _CarpoolMetric({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .09),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 7),
+            Text(
+              '$value $label',
+              style: TextStyle(color: color, fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
+      );
 }
 
 class _ManagementBar extends ConsumerWidget {
@@ -5937,43 +6249,79 @@ class _CarpoolDraft {
   final String? notes;
 }
 
-class _PlayerSelectionDialog extends StatefulWidget {
-  const _PlayerSelectionDialog({
-    required this.title,
-    required this.players,
-  });
+class _CarpoolNeedDraft {
+  const _CarpoolNeedDraft({required this.playerIds, this.note});
 
-  final String title;
+  final List<String> playerIds;
+  final String? note;
+}
+
+class _CarpoolNeedDialog extends StatefulWidget {
+  const _CarpoolNeedDialog({required this.players});
+
   final List<PlayerModel> players;
 
   @override
-  State<_PlayerSelectionDialog> createState() => _PlayerSelectionDialogState();
+  State<_CarpoolNeedDialog> createState() => _CarpoolNeedDialogState();
 }
 
-class _PlayerSelectionDialogState extends State<_PlayerSelectionDialog> {
-  late String playerId;
+class _CarpoolNeedDialogState extends State<_CarpoolNeedDialog> {
+  final selected = <String>{};
+  final note = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    playerId = widget.players.first.id;
+  void dispose() {
+    note.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.title),
-      content: DropdownButtonFormField<String>(
-        initialValue: playerId,
-        decoration: const InputDecoration(labelText: 'Spieler/in'),
-        items: [
-          for (final player in widget.players)
-            DropdownMenuItem(
-              value: player.id,
-              child: Text(player.fullName),
+      title: const Text('Mitfahrt benötigt'),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Wähle alle Kinder aus, die eine Mitfahrgelegenheit brauchen.',
             ),
-        ],
-        onChanged: (value) => setState(() => playerId = value ?? playerId),
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final player in widget.players)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: selected.contains(player.id),
+                      title: Text(player.fullName),
+                      subtitle: Text(player.teamCode),
+                      onChanged: (value) => setState(() {
+                        if (value == true) {
+                          selected.add(player.id);
+                        } else {
+                          selected.remove(player.id);
+                        }
+                      }),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: note,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Hinweis (optional)',
+                hintText: 'z. B. Rückfahrt wird ebenfalls benötigt',
+              ),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -5981,8 +6329,101 @@ class _PlayerSelectionDialogState extends State<_PlayerSelectionDialog> {
           child: const Text('Abbrechen'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, playerId),
-          child: const Text('Anfragen'),
+          onPressed: selected.isEmpty
+              ? null
+              : () => Navigator.pop(
+                    context,
+                    _CarpoolNeedDraft(
+                      playerIds: selected.toList(),
+                      note: note.text.trim().isEmpty ? null : note.text.trim(),
+                    ),
+                  ),
+          child: Text(
+            selected.length == 1
+                ? 'Bedarf melden'
+                : '${selected.length} Bedarfe melden',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CarpoolPlayerSelectionDialog extends StatefulWidget {
+  const _CarpoolPlayerSelectionDialog({
+    required this.players,
+    required this.maxSelections,
+  });
+
+  final List<PlayerModel> players;
+  final int maxSelections;
+
+  @override
+  State<_CarpoolPlayerSelectionDialog> createState() =>
+      _CarpoolPlayerSelectionDialogState();
+}
+
+class _CarpoolPlayerSelectionDialogState
+    extends State<_CarpoolPlayerSelectionDialog> {
+  final selected = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Mitfahrplätze anfragen'),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Wähle bis zu ${widget.maxSelections} '
+              '${widget.maxSelections == 1 ? 'Kind' : 'Kinder'} aus.',
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 300),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final player in widget.players)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: selected.contains(player.id),
+                      title: Text(player.fullName),
+                      subtitle: Text(player.teamCode),
+                      onChanged: !selected.contains(player.id) &&
+                              selected.length >= widget.maxSelections
+                          ? null
+                          : (value) => setState(() {
+                                if (value == true) {
+                                  selected.add(player.id);
+                                } else {
+                                  selected.remove(player.id);
+                                }
+                              }),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton(
+          onPressed: selected.isEmpty
+              ? null
+              : () => Navigator.pop(context, selected.toList()),
+          child: Text(
+            selected.length == 1
+                ? 'Platz anfragen'
+                : '${selected.length} Plätze anfragen',
+          ),
         ),
       ],
     );

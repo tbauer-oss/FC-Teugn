@@ -42,6 +42,8 @@ enum AttendanceStatus { yes, no, maybe, unknown }
 
 enum CarpoolRequestStatus { requested, confirmed, declined, cancelled }
 
+enum CarpoolNeedStatus { open, matched, cancelled }
+
 T _enumFromApi<T extends Enum>(String? value, List<T> values, T fallback) {
   final normalized = (value ?? '').replaceAll('_', '').toLowerCase();
   return values.firstWhere(
@@ -429,12 +431,14 @@ class CarpoolPassenger {
     required this.playerId,
     required this.playerName,
     required this.status,
+    this.canCancel = false,
   });
 
   final String id;
   final String playerId;
   final String playerName;
   final CarpoolRequestStatus status;
+  final bool canCancel;
 
   factory CarpoolPassenger.fromJson(Map<String, dynamic> json) {
     final player =
@@ -451,6 +455,45 @@ class CarpoolPassenger {
         CarpoolRequestStatus.values,
         CarpoolRequestStatus.requested,
       ),
+      canCancel: json['canCancel'] as bool? ?? false,
+    );
+  }
+}
+
+class CarpoolNeed {
+  const CarpoolNeed({
+    required this.id,
+    required this.playerId,
+    required this.playerName,
+    required this.status,
+    required this.canCancel,
+    this.note,
+  });
+
+  final String id;
+  final String playerId;
+  final String playerName;
+  final CarpoolNeedStatus status;
+  final bool canCancel;
+  final String? note;
+
+  factory CarpoolNeed.fromJson(Map<String, dynamic> json) {
+    final player =
+        json['player'] as Map<String, dynamic>? ?? const <String, dynamic>{};
+    final preferred = player['preferredName'] as String?;
+    return CarpoolNeed(
+      id: json['id'] as String,
+      playerId: json['playerId'] as String,
+      playerName: preferred?.trim().isNotEmpty == true
+          ? preferred!.trim()
+          : '${player['firstName'] ?? ''} ${player['lastName'] ?? ''}'.trim(),
+      status: _enumFromApi(
+        json['status'] as String?,
+        CarpoolNeedStatus.values,
+        CarpoolNeedStatus.open,
+      ),
+      canCancel: json['canCancel'] as bool? ?? false,
+      note: json['note'] as String?,
     );
   }
 }
@@ -555,6 +598,7 @@ class EventModel {
     required this.attendanceSummary,
     required this.missingAttendance,
     required this.carpoolOffers,
+    this.carpoolNeeds = const [],
     required this.capabilities,
     required this.reminderMinutes,
     this.reminderPushEnabled = true,
@@ -635,6 +679,7 @@ class EventModel {
   final AttendanceSummary attendanceSummary;
   final List<MissingAttendance> missingAttendance;
   final List<CarpoolOffer> carpoolOffers;
+  final List<CarpoolNeed> carpoolNeeds;
   final EventCapabilities capabilities;
 
   bool get isCancelled => status == EventStatus.cancelled;
@@ -756,6 +801,9 @@ class EventModel {
           .toList(),
       carpoolOffers: (json['carpoolOffers'] as List<dynamic>? ?? [])
           .map((item) => CarpoolOffer.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      carpoolNeeds: (json['carpoolNeeds'] as List<dynamic>? ?? [])
+          .map((item) => CarpoolNeed.fromJson(item as Map<String, dynamic>))
           .toList(),
       capabilities: EventCapabilities.fromJson(
         json['capabilities'] as Map<String, dynamic>?,

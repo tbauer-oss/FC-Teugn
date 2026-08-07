@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import {
   DominantFoot,
+  MatchStatus,
   PlayerGender,
   PlayerStatus,
   Prisma,
@@ -62,8 +63,15 @@ const publicPlayerSelect = {
       appeared: true,
       started: true,
       minutesPlayed: true,
+      isGoalkeeper: true,
       event: {
         select: {
+          matchDetails: {
+            select: { status: true, theirGoals: true },
+          },
+          teamMatchStatistic: {
+            select: { theirGoals: true },
+          },
           team: {
             select: {
               ageGroup: {
@@ -147,7 +155,13 @@ type PlayerMatchStatisticForCareer = {
   appeared: boolean;
   started: boolean;
   minutesPlayed: number;
+  isGoalkeeper: boolean;
   event: {
+    matchDetails: {
+      status: MatchStatus;
+      theirGoals: number | null;
+    } | null;
+    teamMatchStatistic: { theirGoals: number } | null;
     team: {
       ageGroup: {
         season: PlayerStatisticSeason;
@@ -175,6 +189,8 @@ function withCareerStatistics<T extends {
   tickerAssists: PlayerTickerStatisticForCareer[];
   photoAsset?: { id: string; deletedAt: Date | null } | null;
   photoUrl?: string | null;
+  position?: string | null;
+  secondaryPosition?: string | null;
 }>(player: T) {
   const {
     matchStatistics,
@@ -195,6 +211,7 @@ function withCareerStatistics<T extends {
       appearances: number;
       starts: number;
       minutes: number;
+      cleanSheets: number;
     }
   >();
   const ensureSeason = (season: PlayerStatisticSeason) => {
@@ -207,6 +224,7 @@ function withCareerStatistics<T extends {
       appearances: 0,
       starts: 0,
       minutes: 0,
+      cleanSheets: 0,
     };
     bySeason.set(season.id, current);
     return current;
@@ -216,6 +234,24 @@ function withCareerStatistics<T extends {
     current.appearances += statistic.appeared ? 1 : 0;
     current.starts += statistic.started ? 1 : 0;
     current.minutes += statistic.minutesPlayed;
+    const finished =
+      statistic.event.matchDetails?.status === MatchStatus.FINISHED ||
+      statistic.event.matchDetails?.status === MatchStatus.RECORDED;
+    const conceded =
+      statistic.event.teamMatchStatistic?.theirGoals ??
+      statistic.event.matchDetails?.theirGoals;
+    if (
+      finished &&
+      conceded === 0 &&
+      statistic.appeared &&
+      isDefensiveProfilePosition(
+        player.position,
+        player.secondaryPosition,
+        statistic.isGoalkeeper,
+      )
+    ) {
+      current.cleanSheets += 1;
+    }
   }
   for (const goal of tickerGoals) {
     ensureSeason(goal.ticker.event.team.ageGroup.season).goals += 1;
@@ -238,11 +274,30 @@ function withCareerStatistics<T extends {
         (sum, item) => sum + item.minutesPlayed,
         0,
       ),
+      cleanSheets: [...bySeason.values()].reduce(
+        (sum, item) => sum + item.cleanSheets,
+        0,
+      ),
+      cleanSheetEligible: isDefensiveProfilePosition(
+        player.position,
+        player.secondaryPosition,
+        matchStatistics.some((item) => item.isGoalkeeper),
+      ),
     },
     statisticsBySeason: [...bySeason.values()]
       .sort((a, b) => b.seasonStart.getTime() - a.seasonStart.getTime())
       .map(({ seasonStart, ...statistic }) => statistic),
   };
+}
+
+function isDefensiveProfilePosition(
+  position: string | null | undefined,
+  secondaryPosition: string | null | undefined,
+  isGoalkeeper: boolean,
+) {
+  if (isGoalkeeper) return true;
+  const value = `${position ?? ''} ${secondaryPosition ?? ''}`.toLocaleUpperCase('de-DE');
+  return /(^|\W)(TW|TORHÜTER|TORWART|IV|LV|RV|LIBERO|VERTEIDIGER|ABWEHR)(\W|$)/.test(value);
 }
 
 function isGuardianRole(role: Role) {

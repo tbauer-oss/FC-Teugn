@@ -50,6 +50,19 @@ class DataRepository {
     return MemberPermissionProfile.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<({String url, DateTime expiresAt})> createMemberPasswordResetLink(
+    String userId,
+  ) async {
+    final res = await client.dio.post(
+      '/admin/members/$userId/password-reset-link',
+    );
+    final data = res.data as Map<String, dynamic>;
+    return (
+      url: data['url'] as String,
+      expiresAt: DateTime.parse(data['expiresAt'] as String).toLocal(),
+    );
+  }
+
   Future<List<OpponentModel>> opponents(String ageGroupId) async {
     final res = await client.dio.get(
       '/competitions/opponents',
@@ -1058,6 +1071,31 @@ class DataRepository {
       'departureAt': departureAt.toUtc().toIso8601String(),
       'notes': notes,
     });
+  }
+
+  Future<void> deleteCarpoolOffer({
+    required String eventId,
+    required String offerId,
+  }) async {
+    await client.dio.delete('/events/$eventId/carpool-offers/$offerId');
+  }
+
+  Future<void> createCarpoolNeeds({
+    required String eventId,
+    required List<String> playerIds,
+    String? note,
+  }) async {
+    await client.dio.post('/events/$eventId/carpool-needs', data: {
+      'playerIds': playerIds,
+      'note': note,
+    });
+  }
+
+  Future<void> deleteCarpoolNeed({
+    required String eventId,
+    required String needId,
+  }) async {
+    await client.dio.delete('/events/$eventId/carpool-needs/$needId');
   }
 
   Future<void> requestCarpoolSeat({

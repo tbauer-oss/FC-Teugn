@@ -805,7 +805,8 @@ const helpArticles = <HelpArticle>[
       'Öffne die Pushnachricht auf einem Gerät, auf dem Push für dieses Konto bereits registriert war.',
       'Lege innerhalb von 15 Minuten ein neues Passwort mit mindestens 10 Zeichen fest. Der Link funktioniert nur einmal.',
       'Melde dich anschließend neu an; bestehende Sitzungen werden aus Sicherheitsgründen beendet.',
-      'Ist kein registriertes Gerät mehr erreichbar, erhält die Systemadministration einen Hilfehinweis und unterstützt dich persönlich.',
+      'Ist kein registriertes Gerät mehr erreichbar, erhält die Systemadministration einen Hilfehinweis. Sie öffnet „Mitglieder & Freigaben“, tippt beim Mitglied auf das Schlüsselsymbol und erstellt einen sicheren Einmal-Link.',
+      'Der Admin-Link ist 60 Minuten gültig, ersetzt ältere Links und kann persönlich zum Beispiel per WhatsApp weitergegeben werden.',
     ],
     tip:
         'Die App verrät bei der Anfrage bewusst nicht, ob eine E-Mail-Adresse registriert ist. Das schützt die Konten vor fremder Ausspähung.',
@@ -961,7 +962,8 @@ const helpArticles = <HelpArticle>[
     routeLabel: 'Kalender öffnen',
     steps: [
       'Öffne den betreffenden Termin und den Bereich „Fahrgemeinschaften“.',
-      'Lege ein Fahrangebot mit freien Plätzen, Treffpunkt und Abfahrtszeit an oder frage einen Platz an.',
+      'Wähle gut sichtbar „Plätze anbieten“ oder „Mitfahrt benötigt“. Bei Geschwistern können mehrere Kinder in einem Schritt ausgewählt werden.',
+      'Freie Plätze werden zusammengefasst angezeigt. Wähle bei einem Angebot ein oder mehrere Kinder aus; die Anzahl ist automatisch auf die freien Plätze begrenzt.',
       'Der Fahrer beziehungsweise ein berechtigter Trainer bestätigt oder lehnt die Anfrage ab.',
       'Telefonnummern sind nur für tatsächlich beteiligte und berechtigte Personen sichtbar.',
     ],
@@ -980,6 +982,28 @@ const helpArticles = <HelpArticle>[
       'Erfasse Zuordnung und persönliche Angaben einschließlich Geschlecht m/w/d.',
       'Pflege Haupt- und Nebenposition; LM und RM stehen ebenfalls zur Verfügung.',
       'Ergänze Trikotnummer, starken Fuß und Kaderstatus und speichere das Profil.',
+    ],
+  ),
+  HelpArticle(
+    category: HelpCategory.team,
+    title: 'Wo sehe ich Spiele zu null?',
+    summary:
+        'Torhüter und Verteidiger erhalten für abgeschlossene Spiele ohne Gegentor eine zusätzliche Saisonstatistik.',
+    audience: HelpAudience.staff,
+    keywords: [
+      'Spiele zu null',
+      'Zu null',
+      'Torhüter',
+      'Verteidiger',
+      'Statistik'
+    ],
+    route: '/players',
+    routeLabel: 'Spielerprofile öffnen',
+    steps: [
+      'Öffne „Spieler & Kader“ und das Profil eines Torhüters oder Verteidigers.',
+      'Oben im Profil sowie unter „Statistik nach Saison“ steht „Spiele zu null“ – auch wenn der aktuelle Wert noch 0 ist.',
+      'Gezählt werden abgeschlossene Spiele, in denen der Spieler eingesetzt wurde und die Mannschaft kein Gegentor kassiert hat.',
+      'Die Position wird aus Haupt- und Nebenposition sowie einem tatsächlichen Torhütereinsatz erkannt.',
     ],
   ),
   HelpArticle(
@@ -1161,7 +1185,9 @@ const helpArticles = <HelpArticle>[
       'Speichere zuerst den Spieltagskader.',
       'Öffne „Aufstellung“, wähle die Formation und ziehe Spieler auf ihre Positionen.',
       'Markiere Torhüter und Kapitän und passe Positionsbezeichnungen bei Bedarf an.',
-      'Der Autopilot priorisiert bei Wechseln zuerst Hauptposition, dann Nebenposition und direkte Kompatibilität. Fehlt ein exakter Ersatz, bleiben defensive, zentrale und offensive Positionsgruppen möglichst erhalten.',
+      'Wähle im Autopiloten „Ausgewogen“, „Einsatzzeit“ oder „Positionstreu“. Die Erklärung unter der Auswahl zeigt den Schwerpunkt.',
+      '„Einsatzzeit“ bevorzugt wenig eingesetzte Spieler, „Positionstreu“ Haupt-, Neben- und taktische Positionsgruppen; „Ausgewogen“ verbindet beide Ziele.',
+      'Fehlt ein exakter Ersatz, bleiben defensive, zentrale und offensive Positionsgruppen möglichst erhalten.',
       'Veröffentliche die Aufstellung erst, wenn sie für Eltern und Spieler sichtbar werden soll.',
     ],
   ),

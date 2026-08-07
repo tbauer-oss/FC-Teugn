@@ -32,6 +32,7 @@ class MatchdayAutopilotTab extends ConsumerStatefulWidget {
 
 class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
   late MatchdayAutopilotPlan _plan;
+  AutopilotStrategy _strategy = AutopilotStrategy.balanced;
   bool _saving = false;
 
   @override
@@ -53,6 +54,7 @@ class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
     _plan = buildMatchdayAutopilotPlan(
       match: widget.match,
       allPlayers: widget.allPlayers,
+      strategy: _strategy,
     );
   }
 
@@ -107,6 +109,7 @@ class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
         _plan = buildMatchdayAutopilotPlan(
           match: widget.match,
           allPlayers: widget.allPlayers,
+          strategy: _strategy,
         );
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -141,6 +144,16 @@ class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
           _AutopilotHero(
             plan: _plan,
             onRecalculate: () => setState(_recalculate),
+          ),
+          const SizedBox(height: 10),
+          _StrategySelector(
+            value: _strategy,
+            onChanged: (value) {
+              setState(() {
+                _strategy = value;
+                _recalculate();
+              });
+            },
           ),
           const SizedBox(height: 10),
           if (wide)
@@ -321,6 +334,10 @@ class _AutopilotHero extends StatelessWidget {
                 label: '${plan.fieldSize} gegen ${plan.fieldSize}',
               ),
               _HeroChip(
+                icon: Icons.tune_rounded,
+                label: plan.strategy.label,
+              ),
+              _HeroChip(
                 icon: missing == 0
                     ? Icons.check_circle_rounded
                     : Icons.warning_amber_rounded,
@@ -334,6 +351,78 @@ class _AutopilotHero extends StatelessWidget {
     );
   }
 }
+
+class _StrategySelector extends StatelessWidget {
+  const _StrategySelector({required this.value, required this.onChanged});
+
+  final AutopilotStrategy value;
+  final ValueChanged<AutopilotStrategy> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.tune_rounded, color: AppColors.blue),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      'Wechselstrategie wählen',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text(
+                value.description,
+                style: const TextStyle(color: AppColors.muted),
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 620;
+                  final segments = SegmentedButton<AutopilotStrategy>(
+                    key: const ValueKey('autopilot-strategy-selector'),
+                    showSelectedIcon: true,
+                    multiSelectionEnabled: false,
+                    selected: {value},
+                    onSelectionChanged: (selection) {
+                      if (selection.isNotEmpty) onChanged(selection.first);
+                    },
+                    segments: [
+                      for (final strategy in AutopilotStrategy.values)
+                        ButtonSegment(
+                          value: strategy,
+                          icon: Icon(_strategyIcon(strategy), size: 18),
+                          label: Text(strategy.label),
+                        ),
+                    ],
+                  );
+                  if (!compact) return segments;
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: segments,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+IconData _strategyIcon(AutopilotStrategy strategy) => switch (strategy) {
+      AutopilotStrategy.balanced => Icons.balance_rounded,
+      AutopilotStrategy.playingTime => Icons.timer_outlined,
+      AutopilotStrategy.positionFidelity => Icons.account_tree_outlined,
+    };
 
 class _HeroChip extends StatelessWidget {
   const _HeroChip({

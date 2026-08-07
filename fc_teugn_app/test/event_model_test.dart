@@ -62,7 +62,29 @@ void main() {
         'goalkeeperAvailable': 1,
       },
       'missingAttendance': [],
-      'carpoolOffers': [],
+      'carpoolOffers': [
+        {
+          'id': 'offer-1',
+          'driverId': 'parent-1',
+          'driver': {'name': 'Max Muster', 'phone': '0123'},
+          'seatsTotal': 3,
+          'freeSeats': 2,
+          'departureLocation': 'Vereinsheim',
+          'departureAt': '2026-08-03T15:20:00.000Z',
+          'passengers': [],
+          'canManage': true,
+        },
+      ],
+      'carpoolNeeds': [
+        {
+          'id': 'need-1',
+          'playerId': 'player-1',
+          'player': {'firstName': 'Mia', 'lastName': 'Muster'},
+          'status': 'OPEN',
+          'note': 'Hin- und Rückfahrt',
+          'canCancel': true,
+        },
+      ],
       'capabilities': {
         'canManage': true,
         'canRespond': true,
@@ -90,6 +112,10 @@ void main() {
     expect(event.capabilities.canReschedule, isTrue);
     expect(event.meetingLocation, 'Vereinsheim Teugn');
     expect(event.opponentId, 'opponent-1');
+    expect(event.carpoolOffers.single.freeSeats, 2);
+    expect(event.carpoolNeeds.single.playerName, 'Mia Muster');
+    expect(event.carpoolNeeds.single.status, CarpoolNeedStatus.open);
+    expect(event.carpoolNeeds.single.canCancel, isTrue);
   });
 
   test('serializes local calendar input as UTC and all selected teams', () {

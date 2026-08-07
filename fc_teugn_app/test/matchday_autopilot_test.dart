@@ -30,6 +30,21 @@ void main() {
         plan.positions.where((position) => position.isCaptain), hasLength(1));
   });
 
+  test('stellt alle drei Trainerstrategien explizit bereit', () {
+    for (final strategy in AutopilotStrategy.values) {
+      final plan = buildMatchdayAutopilotPlan(
+        match: _match(),
+        allPlayers: _players(),
+        strategy: strategy,
+      );
+
+      expect(plan.strategy, strategy);
+      expect(strategy.label, isNotEmpty);
+      expect(strategy.description, isNotEmpty);
+      expect(plan.substitutions, isNotEmpty);
+    }
+  });
+
   test('verteilt alle verfügbaren Einsatzminuten fair', () {
     final plan = buildMatchdayAutopilotPlan(
       match: _match(),

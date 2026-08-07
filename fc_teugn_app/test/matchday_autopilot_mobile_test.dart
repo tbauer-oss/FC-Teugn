@@ -39,8 +39,29 @@ void main() {
 
     expect(find.text('Spieltags-Autopilot'), findsOneWidget);
     expect(find.text('Plan auf einen Blick'), findsOneWidget);
+    expect(find.text('Wechselstrategie wählen'), findsOneWidget);
+    expect(find.text('Ausgewogen'), findsWidgets);
+    expect(find.text('Einsatzzeit'), findsOneWidget);
+    expect(find.text('Positionstreu'), findsOneWidget);
     expect(find.text('Startformation'), findsOneWidget);
     expect(find.text('Fairer Wechselplan'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    final horizontalStrategyScroll = find.byWidgetPredicate(
+      (widget) =>
+          widget is SingleChildScrollView &&
+          widget.scrollDirection == Axis.horizontal,
+    );
+    await tester.drag(horizontalStrategyScroll, const Offset(-360, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Positionstreu'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Hält Haupt-, Neben- und taktische Positionsgruppen besonders konsequent ein.',
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
 
     await tester.scrollUntilVisible(

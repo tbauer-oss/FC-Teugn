@@ -6,6 +6,7 @@ import {
   resetMemberPermissions,
   updateMemberPermission,
   createMember,
+  createMemberPasswordResetLink,
   listMembers,
   pendingUsers,
 } from '../controllers/admin.controller';
@@ -29,6 +30,11 @@ router.use(requirePermission(Permission.MANAGE_MEMBERS));
 router.get('/pending-users', pendingUsers);
 router.get('/members', listMembers);
 router.post('/members', createMember);
+router.post(
+  '/members/:id/password-reset-link',
+  requireRoles([Role.SUPER_ADMIN]),
+  createMemberPasswordResetLink,
+);
 router.post('/approve', approveUser);
 router.post('/assign-parent-player', assignParentPlayer);
 router.get('/members/:id/permissions', requireRoles([Role.SUPER_ADMIN]), getMemberPermissions);

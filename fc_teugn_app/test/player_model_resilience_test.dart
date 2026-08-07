@@ -23,6 +23,8 @@ void main() {
         'goals': 4.0,
         'assists': '3',
         'appearances': null,
+        'cleanSheets': 5,
+        'cleanSheetEligible': true,
       },
       'statisticsBySeason': [
         {
@@ -30,6 +32,7 @@ void main() {
           'seasonName': '2026/27',
           'goals': 2.0,
           'assists': '1',
+          'cleanSheets': 3,
         },
       ],
       'medicalProfile': 'nicht verfügbar',
@@ -45,7 +48,10 @@ void main() {
     expect(player.goals, 4);
     expect(player.assists, 3);
     expect(player.appearances, 0);
+    expect(player.cleanSheets, 5);
+    expect(player.cleanSheetEligible, isTrue);
     expect(player.statisticsBySeason.single.goals, 2);
+    expect(player.statisticsBySeason.single.cleanSheets, 3);
     expect(player.medicalProfile, isNull);
   });
 

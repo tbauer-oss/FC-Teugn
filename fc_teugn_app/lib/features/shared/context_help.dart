@@ -64,7 +64,7 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
         'Prüfe zuerst Gegner, Anstoß sowie Treffpunktzeit und Treffpunktort.',
         'Die Erinnerung 24 Stunden vor dem Spiel ist standardmäßig aktiv und kann in den Spieldaten für dieses Spiel ausgeschaltet werden.',
         '„Intern veröffentlichen“ informiert ausgewählte Berechtigte; „Für Eltern & Spieler freigeben“ macht das Spiel für Familien sichtbar.',
-        'Speichere danach den Kader. Der Autopilot bevorzugt zuerst die exakte Position und danach passende offensive oder defensive Positionsgruppen.',
+        'Speichere danach den Kader. Im Autopiloten wählst du „Ausgewogen“, „Einsatzzeit“ oder „Positionstreu“ und prüfst anschließend den Wechselplan.',
         'Am Spieltag steuerst du Uhr, Tore und Wechsel. Nach Abpfiff bewertest du die nominierten Spieler im trainerinternen Reiter „Bewertung“.',
       ],
       searchQuery:
@@ -89,7 +89,7 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
           'Verwalte Spielerprofile, Mannschaftszuordnung, Nummern und Positionen.',
       steps: [
         'Nutze die Mannschaftsauswahl, um nur den gewünschten Kader zu sehen.',
-        'Öffne ein Profil für Stammdaten, Positionen und Berechtigungen.',
+        'Öffne ein Profil für Stammdaten, Positionen und Statistiken. Bei Torhütern und Verteidigern erscheint dort zusätzlich „Spiele zu null“.',
         'Änderungen gelten nur im aktuell ausgewählten Jugend- und Mannschaftskontext.',
       ],
       searchQuery: 'Spieler Team Profil Mannschaft',

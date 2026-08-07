@@ -525,7 +525,7 @@ export async function requestPasswordReset(req: Request, res: Response) {
         {
           category: NotificationCategory.SYSTEM,
           title: 'Passwort-Hilfe angefragt',
-          body: `${user.name} benötigt Hilfe beim Zugang. Es ist kein aktives Push-Gerät registriert.`,
+          body: `${user.name} hat kein aktives Push-Gerät. Öffne die Mitgliederverwaltung und erstelle dort über das Schlüsselsymbol einen sicheren Einmal-Link.`,
           actionUrl: '/trainer/approvals',
           entityType: 'User',
           entityId: user.id,

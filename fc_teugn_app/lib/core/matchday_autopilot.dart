@@ -2,6 +2,29 @@ import 'lineup_planner.dart';
 import 'models/matchday.dart';
 import 'models/player.dart';
 
+enum AutopilotStrategy {
+  balanced,
+  playingTime,
+  positionFidelity,
+}
+
+extension AutopilotStrategyPresentation on AutopilotStrategy {
+  String get label => switch (this) {
+        AutopilotStrategy.balanced => 'Ausgewogen',
+        AutopilotStrategy.playingTime => 'Einsatzzeit',
+        AutopilotStrategy.positionFidelity => 'Positionstreu',
+      };
+
+  String get description => switch (this) {
+        AutopilotStrategy.balanced =>
+          'Verbindet faire Spielzeit mit möglichst passenden Positionen.',
+        AutopilotStrategy.playingTime =>
+          'Bevorzugt Spieler mit wenig Saison- und Spielminuten.',
+        AutopilotStrategy.positionFidelity =>
+          'Hält Haupt-, Neben- und taktische Positionsgruppen besonders konsequent ein.',
+      };
+}
+
 class AutopilotReadinessItem {
   const AutopilotReadinessItem({
     required this.label,
@@ -16,6 +39,7 @@ class AutopilotReadinessItem {
 
 class MatchdayAutopilotPlan {
   const MatchdayAutopilotPlan({
+    required this.strategy,
     required this.formation,
     required this.fieldSize,
     required this.periodCount,
@@ -28,6 +52,7 @@ class MatchdayAutopilotPlan {
     required this.positionMatches,
   });
 
+  final AutopilotStrategy strategy;
   final String formation;
   final int fieldSize;
   final int periodCount;
@@ -68,6 +93,7 @@ class MatchdayAutopilotPlan {
 MatchdayAutopilotPlan buildMatchdayAutopilotPlan({
   required MatchdayModel match,
   required List<PlayerModel> allPlayers,
+  AutopilotStrategy strategy = AutopilotStrategy.balanced,
 }) {
   final fieldSize = match.gameFormat.playerCount;
   final details = match.details;
@@ -158,6 +184,7 @@ MatchdayAutopilotPlan buildMatchdayAutopilotPlan({
     periodCount: periodCount,
     periodMinutes: periodMinutes,
     history: history,
+    strategy: strategy,
   );
   final positionMatches = positions.where((position) {
     final primary = position.player.position?.toUpperCase();
@@ -167,6 +194,7 @@ MatchdayAutopilotPlan buildMatchdayAutopilotPlan({
   }).length;
 
   return MatchdayAutopilotPlan(
+    strategy: strategy,
     formation: formation,
     fieldSize: fieldSize,
     periodCount: periodCount,
@@ -226,6 +254,7 @@ _RotationPlan _planRotation({
   required int periodCount,
   required int periodMinutes,
   required Map<String, int> history,
+  required AutopilotStrategy strategy,
 }) {
   final onField = positions.toList();
   final startingIds = onField.map((position) => position.player.id).toSet();
@@ -255,12 +284,14 @@ _RotationPlan _planRotation({
     }
     lastMinute = globalMinute;
 
-    bench.sort((a, b) {
-      final current = (minutes[a.id] ?? 0).compareTo(minutes[b.id] ?? 0);
-      if (current != 0) return current;
-      final historic = (history[a.id] ?? 0).compareTo(history[b.id] ?? 0);
-      return historic != 0 ? historic : a.name.compareTo(b.name);
-    });
+    bench.sort((a, b) => _compareIncomingPlayers(
+          a,
+          b,
+          onField: onField,
+          minutes: minutes,
+          history: history,
+          strategy: strategy,
+        ));
     final incomingPlayers = bench.take(waveSize).toList();
     final outgoingIndices = <int>{};
     final outgoingPlayers = <MatchPlayer>[];
@@ -287,36 +318,45 @@ _RotationPlan _planRotation({
           )
           .toList();
       if (compatible.isNotEmpty) candidates = compatible;
-      final mostPlayed = candidates
-          .map((index) => minutes[onField[index].player.id] ?? 0)
-          .reduce((a, b) => a > b ? a : b);
-      // Position remains the primary criterion among players with a broadly
-      // comparable workload. Anyone already more than one rotation interval
-      // behind is protected from another substitution so fairness cannot be
-      // sacrificed indefinitely for an exact positional match.
-      candidates = candidates
-          .where(
-            (index) =>
-                (minutes[onField[index].player.id] ?? 0) >=
-                mostPlayed - interval,
-          )
-          .toList();
+      if (strategy == AutopilotStrategy.balanced) {
+        final mostPlayed = candidates
+            .map((index) => minutes[onField[index].player.id] ?? 0)
+            .reduce((a, b) => a > b ? a : b);
+        // Im ausgewogenen Modus bleibt die Positionspassung das wichtigste
+        // Kriterium, solange die aktuelle Einsatzzeit nicht stark auseinander
+        // läuft.
+        candidates = candidates
+            .where(
+              (index) =>
+                  (minutes[onField[index].player.id] ?? 0) >=
+                  mostPlayed - interval,
+            )
+            .toList();
+      }
       candidates.sort((a, b) {
-        final positionFit = lineupFitScore(
+        final fitA = lineupFitScore(
+          incoming.position,
+          incoming.secondaryPosition,
+          onField[a].positionCode,
+        );
+        final fitB = lineupFitScore(
           incoming.position,
           incoming.secondaryPosition,
           onField[b].positionCode,
-        ).compareTo(
-          lineupFitScore(
-            incoming.position,
-            incoming.secondaryPosition,
-            onField[a].positionCode,
-          ),
         );
-        if (positionFit != 0) return positionFit;
-        final played = (minutes[onField[b].player.id] ?? 0)
-            .compareTo(minutes[onField[a].player.id] ?? 0);
-        if (played != 0) return played;
+        final playedA = minutes[onField[a].player.id] ?? 0;
+        final playedB = minutes[onField[b].player.id] ?? 0;
+        if (strategy == AutopilotStrategy.playingTime) {
+          final played = playedB.compareTo(playedA);
+          if (played != 0) return played;
+          final positionFit = fitB.compareTo(fitA);
+          if (positionFit != 0) return positionFit;
+        } else {
+          final positionFit = fitB.compareTo(fitA);
+          if (positionFit != 0) return positionFit;
+          final played = playedB.compareTo(playedA);
+          if (played != 0) return played;
+        }
         if (onField[a].isCaptain != onField[b].isCaptain) {
           return onField[a].isCaptain ? 1 : -1;
         }
@@ -360,6 +400,64 @@ _RotationPlan _planRotation({
         (minutes[position.player.id] ?? 0) + remaining;
   }
   return _RotationPlan(minutes, substitutions);
+}
+
+int _compareIncomingPlayers(
+  MatchPlayer a,
+  MatchPlayer b, {
+  required List<LineupPositionModel> onField,
+  required Map<String, int> minutes,
+  required Map<String, int> history,
+  required AutopilotStrategy strategy,
+}) {
+  final currentA = minutes[a.id] ?? 0;
+  final currentB = minutes[b.id] ?? 0;
+  final historyA = history[a.id] ?? 0;
+  final historyB = history[b.id] ?? 0;
+  final fitA = _bestAvailableFit(a, onField);
+  final fitB = _bestAvailableFit(b, onField);
+
+  if (strategy == AutopilotStrategy.positionFidelity) {
+    final fit = fitB.compareTo(fitA);
+    if (fit != 0) return fit;
+    final current = currentA.compareTo(currentB);
+    if (current != 0) return current;
+    final historic = historyA.compareTo(historyB);
+    if (historic != 0) return historic;
+  } else if (strategy == AutopilotStrategy.playingTime) {
+    final historic = historyA.compareTo(historyB);
+    if (historic != 0) return historic;
+    final current = currentA.compareTo(currentB);
+    if (current != 0) return current;
+    final fit = fitB.compareTo(fitA);
+    if (fit != 0) return fit;
+  } else {
+    final current = currentA.compareTo(currentB);
+    if (current != 0) return current;
+    final historic = historyA.compareTo(historyB);
+    if (historic != 0) return historic;
+    final fit = fitB.compareTo(fitA);
+    if (fit != 0) return fit;
+  }
+  return a.name.compareTo(b.name);
+}
+
+int _bestAvailableFit(
+  MatchPlayer player,
+  List<LineupPositionModel> onField,
+) {
+  final goalkeeper = player.position?.toUpperCase() == 'TW';
+  final scores = onField
+      .where((slot) => goalkeeper ? slot.isGoalkeeper : !slot.isGoalkeeper)
+      .map(
+        (slot) => lineupFitScore(
+          player.position,
+          player.secondaryPosition,
+          slot.positionCode,
+        ),
+      );
+  if (scores.isEmpty) return -1000;
+  return scores.reduce((a, b) => a > b ? a : b);
 }
 
 String _rotationNote(MatchPlayer incoming, String slot) {

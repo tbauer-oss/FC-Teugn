@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { createHash, randomBytes } from 'crypto';
 import {
   AccountStatus,
   GuardianRelationship,
@@ -16,6 +17,12 @@ import {
 } from '../security/permissions';
 import { accessibleTeamIds } from '../services/team-access';
 import { hashPassword } from '../lib/password';
+
+const adminPasswordResetLifetimeMs = 60 * 60 * 1000;
+
+function passwordResetTokenHash(token: string) {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 const memberSelect = {
   id: true,
@@ -347,6 +354,65 @@ export async function createMember(req: Request, res: Response) {
     return created;
   });
   return res.status(201).json(member);
+}
+
+export async function createMemberPasswordResetLink(
+  req: Request,
+  res: Response,
+) {
+  const actor = req.user!;
+  const member = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, name: true, teamId: true, status: true },
+  });
+  if (!member) {
+    return res.status(404).json({ message: 'Mitglied nicht gefunden.' });
+  }
+  if (
+    member.status === AccountStatus.BLOCKED ||
+    member.status === AccountStatus.REJECTED ||
+    member.status === AccountStatus.ARCHIVED
+  ) {
+    return res.status(400).json({
+      message: 'Für diesen inaktiven Zugang kann kein Link erstellt werden.',
+    });
+  }
+
+  const token = randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + adminPasswordResetLifetimeMs);
+  await prisma.$transaction(async (tx) => {
+    await tx.passwordResetToken.deleteMany({
+      where: { userId: member.id, consumedAt: null },
+    });
+    await tx.passwordResetToken.create({
+      data: {
+        userId: member.id,
+        tokenHash: passwordResetTokenHash(token),
+        expiresAt,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        teamId: member.teamId,
+        action: 'PASSWORD_RESET_LINK_CREATED_BY_ADMIN',
+        entityType: 'User',
+        entityId: member.id,
+        metadata: { expiresAt: expiresAt.toISOString() },
+      },
+    });
+  });
+
+  const appBaseUrl = (
+    process.env.PUBLIC_APP_URL ?? 'https://fcteugnapp.vercel.app'
+  ).replace(/\/$/, '');
+  const actionUrl = `/reset-password?token=${encodeURIComponent(token)}`;
+  return res.status(201).json({
+    memberName: member.name,
+    actionUrl,
+    url: `${appBaseUrl}/#${actionUrl}`,
+    expiresAt,
+  });
 }
 
 export async function approveUser(req: Request, res: Response) {
