@@ -24,6 +24,7 @@ import 'features/parent/parent_matches_page.dart';
 import 'features/organization/organization_page.dart';
 import 'features/players/player_profile_page.dart';
 import 'features/matches/matchday_page.dart';
+import 'features/matches/bfv_competition_page.dart';
 import 'features/statistics/statistics_page.dart';
 import 'features/training/training_pages.dart';
 import 'features/communications/communications_page.dart';
@@ -430,6 +431,13 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   section: ShellSection.schedule,
                   hint: 'Spieltage, Kader und Liveticker'),
               const ShellDestination(
+                  label: 'Tabelle & Ergebnisse',
+                  icon: Icons.emoji_events_rounded,
+                  route: '/trainer/bfv',
+                  section: ShellSection.schedule,
+                  hint: 'Offizielle BfV-Ligaübersicht',
+                  showOnMobile: false),
+              const ShellDestination(
                   label: 'Training & Platzplanung',
                   icon: Icons.fitness_center_rounded,
                   route: '/trainer/training',
@@ -527,6 +535,11 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               builder: (context, state) => const TrainerMatchesPage(),
             ),
             GoRoute(
+              path: '/trainer/bfv',
+              builder: (context, state) =>
+                  const BfvCompetitionPage(staffView: true),
+            ),
+            GoRoute(
               path: '/trainer/matches/:matchId',
               builder: (context, state) => MatchdayPage(
                 matchId: state.pathParameters['matchId']!,
@@ -619,6 +632,13 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   section: ShellSection.schedule,
                   hint: 'Kader, Ergebnisse und Liveticker'),
               ShellDestination(
+                  label: 'Tabelle & Ergebnisse',
+                  icon: Icons.emoji_events_rounded,
+                  route: '/parent/bfv',
+                  section: ShellSection.schedule,
+                  hint: 'Offizielle BfV-Ligaübersicht',
+                  showOnMobile: false),
+              ShellDestination(
                   label: 'Statistiken & Auswertungen',
                   icon: Icons.query_stats_rounded,
                   route: '/parent/statistics',
@@ -689,6 +709,11 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
             GoRoute(
               path: '/parent/matches',
               builder: (context, state) => const ParentMatchesPage(),
+            ),
+            GoRoute(
+              path: '/parent/bfv',
+              builder: (context, state) =>
+                  const BfvCompetitionPage(staffView: false),
             ),
             GoRoute(
               path: '/parent/matches/:matchId',

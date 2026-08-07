@@ -1098,6 +1098,32 @@ const helpArticles = <HelpArticle>[
   ),
   HelpArticle(
     category: HelpCategory.matchday,
+    title: 'Wo finde ich Tabelle und Ergebnisse des BfV?',
+    summary:
+        'Ein eigener Menübereich öffnet die offiziellen Liga-Informationen passend zur ausgewählten Mannschaft.',
+    keywords: [
+      'Tabelle',
+      'Ergebnisse',
+      'Gegnerspiele',
+      'Ligaspiele',
+      'BfV',
+      'Eltern',
+      'Mannschaft auswählen',
+    ],
+    route: '/bfv',
+    routeLabel: 'Tabelle & Ergebnisse öffnen',
+    steps: [
+      'Öffne im App-Menü unter „Training & Spieltag“ den Bereich „Tabelle & Ergebnisse“.',
+      'Wähle oben die gewünschte Mannschaft. Eltern und Spieler sehen dabei nur die Mannschaften, denen sie zugeordnet sind.',
+      'Tippe auf „Offizielle BfV-Ansicht öffnen“. Dort findest du den amtlichen Tabellenstand, Liga-Ergebnisse, Spieltage und Gegnerpartien.',
+      'Über „Unsere Spiele“ gelangst du zurück zu den in der FC-Teugn-App selbst gepflegten Spieltagen, Kadern und Livetickern.',
+      'Beim ersten Öffnen bestätigst du einmalig, dass offizielle Inhalte vom BfV nachgeladen werden dürfen.',
+    ],
+    tip:
+        'Die offiziellen BfV-Daten werden nicht verändert oder in die Vereinsdatenbank kopiert. Dadurch bleiben sie aktuell, während eigene Spiele unabhängig gepflegt werden können.',
+  ),
+  HelpArticle(
+    category: HelpCategory.matchday,
     title: 'Wie veröffentliche ich ein Spiel intern oder für Familien?',
     summary:
         'Die interne Information des Trainerteams und die Freigabe für Eltern und Spieler sind bewusst getrennte Schritte.',
