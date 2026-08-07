@@ -22,7 +22,7 @@ class BfvSyncTab extends StatefulWidget {
 class _BfvSyncTabState extends State<BfvSyncTab> {
   final teamPageController = TextEditingController();
   final icalController = TextEditingController();
-  final viewController = TextEditingController();
+  final widgetTeamIdController = TextEditingController();
   String? teamId;
   BfvSyncConfigModel? config;
   bool enabled = true;
@@ -50,7 +50,7 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
   void dispose() {
     teamPageController.dispose();
     icalController.dispose();
-    viewController.dispose();
+    widgetTeamIdController.dispose();
     super.dispose();
   }
 
@@ -79,7 +79,7 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
     interval = value.syncIntervalMinutes;
     teamPageController.text = value.teamPageUrl ?? '';
     icalController.text = value.icalUrl ?? '';
-    viewController.text = value.officialViewUrl ?? value.teamPageUrl ?? '';
+    widgetTeamIdController.text = value.widgetTeamId ?? '';
     setState(() {});
   }
 
@@ -92,7 +92,8 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
         teamId: selected,
         teamPageUrl: teamPageController.text.trim(),
         icalUrl: icalController.text.trim(),
-        officialViewUrl: viewController.text.trim(),
+        officialViewUrl: teamPageController.text.trim(),
+        widgetTeamId: widgetTeamIdController.text.trim(),
         enabled: enabled,
         syncIntervalMinutes: interval,
       );
@@ -155,10 +156,17 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
   }
 
   Future<void> _openOfficialView() async {
-    final raw = viewController.text.trim().isNotEmpty
-        ? viewController.text.trim()
-        : teamPageController.text.trim();
-    final uri = Uri.tryParse(raw);
+    final widgetTeamId = widgetTeamIdController.text.trim();
+    final selectedTeam = widget.teams
+        .where((team) => team.id == teamId)
+        .map((team) => team.name)
+        .firstOrNull;
+    final uri = widgetTeamId.isNotEmpty
+        ? Uri.https('fcteugnapp.vercel.app', '/bfv-widget.html', {
+            'teamId': widgetTeamId,
+            if (selectedTeam != null) 'teamName': selectedTeam,
+          })
+        : Uri.tryParse(teamPageController.text.trim());
     if (uri == null ||
         !await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
       if (mounted) {
@@ -195,7 +203,7 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
       children: [
         _IntroCard(
             onOpen: _openOfficialView,
-            canOpen: viewController.text.trim().isNotEmpty ||
+            canOpen: widgetTeamIdController.text.trim().isNotEmpty ||
                 teamPageController.text.trim().isNotEmpty),
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
@@ -226,7 +234,7 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
                     style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 6),
                 const Text(
-                    'Die Adressen kopierst du auf der BfV-Mannschaftsseite über „iCal“ beziehungsweise „Widget“. Es werden ausschließlich offizielle bfv.de-Adressen akzeptiert.'),
+                    'Die iCal-Adresse importiert eure eigenen Spiele. Die Widget-Mannschaftskennung zeigt zusätzlich die offizielle Tabelle und sämtliche Ligaspiele direkt in einer eigenen App-Ansicht.'),
                 const SizedBox(height: 16),
                 TextField(
                   controller: teamPageController,
@@ -249,15 +257,17 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  controller: viewController,
+                  controller: widgetTeamIdController,
                   onChanged: (_) => setState(() {}),
-                  keyboardType: TextInputType.url,
                   decoration: const InputDecoration(
-                    labelText: 'Offizielle Liga-/Widget-Ansicht',
+                    labelText: 'BfV-Widget-Mannschaftskennung',
+                    hintText: 'z. B. 011MI…',
                     helperText:
-                        'Optional – sonst wird die Mannschaftsseite geöffnet.',
+                        'Steht im Widget-Code direkt hinter zeigeMannschaftKomplett(…).',
                   ),
                 ),
+                const SizedBox(height: 8),
+                const _WidgetDomainHint(),
                 const SizedBox(height: 12),
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
@@ -344,7 +354,7 @@ class _IntroCard extends StatelessWidget {
                             fontWeight: FontWeight.w800, fontSize: 18)),
                     SizedBox(height: 6),
                     Text(
-                        'Eigene Spiele landen aus dem offiziellen iCal direkt im Spielbetrieb. Tabelle und sämtliche Ligaspiele öffnest du in der offiziellen BfV-Ansicht – eine manuelle Liga ist dafür nicht mehr nötig.'),
+                        'Eigene Spiele landen aus dem offiziellen iCal direkt im Spielbetrieb. Tabelle und sämtliche Ligaspiele zeigt das offizielle BfV-Widget in einer modernen App-Ansicht – eine manuelle Liga ist dafür nicht mehr nötig.'),
                   ],
                 ),
               ),
@@ -355,6 +365,33 @@ class _IntroCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      );
+}
+
+class _WidgetDomainHint extends StatelessWidget {
+  const _WidgetDomainHint();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.verified_user_outlined, size: 20),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Einmalig im BfV-Widgetgenerator die Domain '
+                'fcteugnapp.vercel.app freigeben. Beim ersten Öffnen bestätigt '
+                'der Anwender das Laden der offiziellen BfV-Inhalte.',
+              ),
+            ),
+          ],
         ),
       );
 }

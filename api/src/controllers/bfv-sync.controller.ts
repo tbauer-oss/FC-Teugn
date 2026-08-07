@@ -13,6 +13,14 @@ function optionalText(value: unknown, max = 1000) {
   return normalized ? normalized.slice(0, max) : null;
 }
 
+function validatedWidgetTeamId(value: unknown) {
+  const teamId = optionalText(value, 160);
+  if (teamId && !/^[A-Za-z0-9_-]{6,160}$/.test(teamId)) {
+    throw new Error('Die BfV-Widget-Mannschaftskennung ist ungültig.');
+  }
+  return teamId;
+}
+
 async function requireTeamAccess(req: Request, res: Response) {
   const teamId = optionalText(req.query.teamId ?? req.params.teamId ?? req.body?.teamId, 100);
   if (!teamId) {
@@ -31,10 +39,16 @@ export async function getBfvSyncConfig(req: Request, res: Response) {
   if (!teamId) return;
   const team = await prisma.team.findUnique({
     where: { id: teamId },
-    select: { id: true, name: true, bfvTeamUrl: true, bfvSyncConfig: true },
+    select: {
+      id: true,
+      name: true,
+      bfvTeamId: true,
+      bfvTeamUrl: true,
+      bfvSyncConfig: true,
+    },
   });
   if (!team) return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
-  return res.json(team.bfvSyncConfig ?? {
+  const config = team.bfvSyncConfig ?? {
     teamId,
     teamPageUrl: team.bfvTeamUrl,
     icalUrl: null,
@@ -47,7 +61,8 @@ export async function getBfvSyncConfig(req: Request, res: Response) {
     lastUpdatedCount: 0,
     lastSkippedCount: 0,
     lastConflictCount: 0,
-  });
+  };
+  return res.json({ ...config, widgetTeamId: team.bfvTeamId });
 }
 
 export async function saveBfvSyncConfig(req: Request, res: Response) {
@@ -56,7 +71,9 @@ export async function saveBfvSyncConfig(req: Request, res: Response) {
   const teamPageUrl = optionalText(req.body?.teamPageUrl, 1000);
   const icalUrl = optionalText(req.body?.icalUrl, 1500);
   const officialViewUrl = optionalText(req.body?.officialViewUrl, 1500) ?? teamPageUrl;
+  let widgetTeamId: string | null = null;
   try {
+    widgetTeamId = validatedWidgetTeamId(req.body?.widgetTeamId);
     if (teamPageUrl) validatedBfvViewUrl(teamPageUrl);
     if (icalUrl) validatedBfvIcalUrl(icalUrl);
     if (officialViewUrl) validatedBfvViewUrl(officialViewUrl);
@@ -70,7 +87,10 @@ export async function saveBfvSyncConfig(req: Request, res: Response) {
     Math.min(1440, Number(req.body?.syncIntervalMinutes) || 30),
   );
   const config = await prisma.$transaction(async (tx) => {
-    await tx.team.update({ where: { id: teamId }, data: { bfvTeamUrl: teamPageUrl } });
+    await tx.team.update({
+      where: { id: teamId },
+      data: { bfvTeamId: widgetTeamId, bfvTeamUrl: teamPageUrl },
+    });
     return tx.bfvTeamSync.upsert({
       where: { teamId },
       update: {
@@ -100,16 +120,25 @@ export async function saveBfvSyncConfig(req: Request, res: Response) {
       action: 'BFV_SYNC_CONFIG_UPDATED',
       entityType: 'BfvTeamSync',
       entityId: config.id,
-      metadata: { enabled: config.enabled, syncIntervalMinutes, hasIcalUrl: Boolean(icalUrl) },
+      metadata: {
+        enabled: config.enabled,
+        syncIntervalMinutes,
+        hasIcalUrl: Boolean(icalUrl),
+        hasWidgetTeamId: Boolean(widgetTeamId),
+      },
     },
   });
-  return res.json(config);
+  return res.json({ ...config, widgetTeamId });
 }
 
 export async function runBfvSync(req: Request, res: Response) {
   const teamId = await requireTeamAccess(req, res);
   if (!teamId) return;
   const config = await runBfvTeamSync(teamId);
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { bfvTeamId: true },
+  });
   await prisma.auditLog.create({
     data: {
       actorId: req.user!.id,
@@ -125,5 +154,5 @@ export async function runBfvSync(req: Request, res: Response) {
       },
     },
   });
-  return res.json(config);
+  return res.json({ ...config, widgetTeamId: team?.bfvTeamId ?? null });
 }

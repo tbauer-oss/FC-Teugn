@@ -1089,10 +1089,12 @@ const helpArticles = <HelpArticle>[
       'Beim Anlegen oder Bearbeiten eines Spiels wählst du den Gegner aus dem Dropdown oder legst ihn direkt über das Plus neu an. Alternativ kannst du einen geeigneten Spielplan importieren und vor der Übernahme prüfen.',
       'Für den automatischen BfV-Abgleich öffnest du den Reiter „BfV“, wählst die konkrete Mannschaft und hinterlegst deren offizielle BfV-Mannschaftsseite sowie die iCal-Adresse.',
       'Nach „Speichern“ kannst du sofort synchronisieren. Danach gleicht die Vereinsverwaltung die eigenen Spiele automatisch ab; neue Spiele werden angelegt und lokale Änderungen bei Konflikten geschützt.',
-      'Über „Tabelle & Ligaspiele“ öffnest du die offizielle BfV-Ansicht mit Tabellenstand und sämtlichen Partien. Dafür muss keine Liga mehr manuell gepflegt werden.',
+      'Erzeuge im offiziellen BfV-Widgetgenerator ein Mannschafts-Komplett-Widget. Registriere dort einmalig fcteugnapp.vercel.app als erlaubte Domain und kopiere die Mannschaftskennung aus zeigeMannschaftKomplett(…) in das gleichnamige Feld der App.',
+      'Über „Tabelle & Ligaspiele“ öffnest du anschließend die moderne App-Ansicht mit dem offiziellen BfV-Widget. Beim ersten Aufruf muss das Nachladen der BfV-Inhalte aus Datenschutzgründen einmal bestätigt werden.',
+      'Die Ansicht enthält den offiziellen Tabellenstand und sämtliche Ligapartien. Dafür muss keine Liga mehr manuell gepflegt werden.',
     ],
     tip:
-        'Das FC-Teugn-Wappen wird automatisch verwendet. Gegnerwappen erscheinen im Spieltag und Liveticker, sobald sie im Gegner-Pool gespeichert sind. Die automatische BfV-Verknüpfung wird je Mannschaft und damit passend zur Saison gespeichert.',
+        'Das FC-Teugn-Wappen wird automatisch verwendet. Gegnerwappen erscheinen im Spieltag und Liveticker, sobald sie im Gegner-Pool gespeichert sind. iCal- und Widget-Verknüpfung werden je Mannschaft und damit passend zur Saison gespeichert.',
   ),
   HelpArticle(
     category: HelpCategory.matchday,

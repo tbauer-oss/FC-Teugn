@@ -194,6 +194,7 @@ class BfvSyncConfigModel {
     this.teamPageUrl,
     this.icalUrl,
     this.officialViewUrl,
+    this.widgetTeamId,
     this.lastAttemptAt,
     this.lastSuccessAt,
     this.lastMessage,
@@ -204,6 +205,7 @@ class BfvSyncConfigModel {
   final String? teamPageUrl;
   final String? icalUrl;
   final String? officialViewUrl;
+  final String? widgetTeamId;
   final bool enabled;
   final int syncIntervalMinutes;
   final DateTime? lastAttemptAt;
@@ -222,6 +224,7 @@ class BfvSyncConfigModel {
         teamPageUrl: json['teamPageUrl'] as String?,
         icalUrl: json['icalUrl'] as String?,
         officialViewUrl: json['officialViewUrl'] as String?,
+        widgetTeamId: json['widgetTeamId'] as String?,
         enabled: json['enabled'] as bool? ?? true,
         syncIntervalMinutes: json['syncIntervalMinutes'] as int? ?? 30,
         lastAttemptAt: _optionalDate(json['lastAttemptAt']),

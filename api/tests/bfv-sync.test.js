@@ -12,6 +12,7 @@ const service = read('src/services/bfv-sync.service.ts');
 const routes = read('src/routes/competitions.routes.ts');
 const cron = read('src/controllers/cron.controller.ts');
 const flutterTab = read('../fc_teugn_app/lib/features/matches/bfv_sync_tab.dart');
+const widgetPage = read('../fc_teugn_app/web/bfv-widget.html');
 
 test('BfV sync is stored per season-specific team', () => {
   assert.match(schema, /model BfvTeamSync[\s\S]*teamId\s+String\s+@unique/);
@@ -32,4 +33,6 @@ test('BfV sync is permission guarded, scheduled and exposed in the app', () => {
   assert.match(cron, /processDueBfvSyncs/);
   assert.match(flutterTab, /Jetzt synchronisieren/);
   assert.match(flutterTab, /Tabelle & Ligaspiele/);
+  assert.match(widgetPage, /zeigeMannschaftKomplett/);
+  assert.match(widgetPage, /fcTeugnBfvWidgetConsent/);
 });

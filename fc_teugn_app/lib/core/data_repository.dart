@@ -196,6 +196,7 @@ class DataRepository {
     String? teamPageUrl,
     String? icalUrl,
     String? officialViewUrl,
+    String? widgetTeamId,
     required bool enabled,
     required int syncIntervalMinutes,
   }) async {
@@ -205,6 +206,7 @@ class DataRepository {
         'teamPageUrl': teamPageUrl,
         'icalUrl': icalUrl,
         'officialViewUrl': officialViewUrl,
+        'widgetTeamId': widgetTeamId,
         'enabled': enabled,
         'syncIntervalMinutes': syncIntervalMinutes,
       },
