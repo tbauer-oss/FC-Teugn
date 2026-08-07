@@ -124,6 +124,31 @@ void main() {
     expect(defenderChange.playerOutId, anyOf('left', 'right'));
   });
 
+  test('führt Startspieler optional auf ihren ursprünglichen Stammplatz zurück',
+      () {
+    final plan = buildMatchdayAutopilotPlan(
+      match: _match(),
+      allPlayers: _players(),
+      strategy: AutopilotStrategy.positionFidelity,
+      restoreStartersToStartingPositions: true,
+    );
+
+    final starterIds = plan.positions.map((position) => position.player.id);
+    final returns = plan.substitutions.where(
+      (substitution) =>
+          substitution.note?.contains('Rückkehr auf Stammposition') ?? false,
+    );
+
+    expect(plan.restoreStartersToStartingPositions, isTrue);
+    expect(returns, isNotEmpty);
+    expect(
+      returns.every(
+        (substitution) => starterIds.contains(substitution.playerInId),
+      ),
+      isTrue,
+    );
+  });
+
   test('kommt ohne Wechselplan aus wenn keine Ersatzspieler vorhanden sind',
       () {
     final plan = buildMatchdayAutopilotPlan(

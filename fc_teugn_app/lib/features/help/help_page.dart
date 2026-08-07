@@ -1187,6 +1187,7 @@ const helpArticles = <HelpArticle>[
       'Markiere Torhüter und Kapitän und passe Positionsbezeichnungen bei Bedarf an.',
       'Wähle im Autopiloten „Ausgewogen“, „Einsatzzeit“ oder „Positionstreu“. Die Erklärung unter der Auswahl zeigt den Schwerpunkt.',
       '„Einsatzzeit“ bevorzugt wenig eingesetzte Spieler, „Positionstreu“ Haupt-, Neben- und taktische Positionsgruppen; „Ausgewogen“ verbindet beide Ziele.',
+      'Bei „Positionstreu“ kannst du zusätzlich „Stammspieler auf Stammplätze zurückführen“ aktivieren. Dann setzt der Plan einen ausgewechselten Startspieler bei seiner späteren Rückkehr bevorzugt wieder auf den ursprünglichen Platz der Startelf.',
       'Fehlt ein exakter Ersatz, bleiben defensive, zentrale und offensive Positionsgruppen möglichst erhalten.',
       'Veröffentliche die Aufstellung erst, wenn sie für Eltern und Spieler sichtbar werden soll.',
     ],

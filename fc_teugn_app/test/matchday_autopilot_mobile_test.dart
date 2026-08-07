@@ -62,6 +62,15 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(
+      find.text('Stammspieler auf Stammplätze zurückführen'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('autopilot-restore-starters-switch')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Stammplätze aktiv'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.scrollUntilVisible(

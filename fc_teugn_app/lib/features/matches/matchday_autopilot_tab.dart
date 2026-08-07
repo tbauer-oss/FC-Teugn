@@ -33,6 +33,7 @@ class MatchdayAutopilotTab extends ConsumerStatefulWidget {
 class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
   late MatchdayAutopilotPlan _plan;
   AutopilotStrategy _strategy = AutopilotStrategy.balanced;
+  bool _restoreStartersToStartingPositions = false;
   bool _saving = false;
 
   @override
@@ -55,6 +56,7 @@ class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
       match: widget.match,
       allPlayers: widget.allPlayers,
       strategy: _strategy,
+      restoreStartersToStartingPositions: _restoreStartersToStartingPositions,
     );
   }
 
@@ -100,8 +102,10 @@ class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
         status: status,
         positions: _plan.positions,
         plannedSubstitutions: _plan.substitutions,
-        tacticalNote:
-            'Vom Spieltags-Autopilot vorgeschlagen. Trainerfreigabe am Spieltag erforderlich.',
+        tacticalNote: 'Vom Spieltags-Autopilot vorgeschlagen · '
+            '${_plan.strategy.label}'
+            '${_plan.restoreStartersToStartingPositions ? ' · Stammplätze wiederherstellen' : ''}. '
+            'Trainerfreigabe am Spieltag erforderlich.',
       );
       await widget.onLineupSaved(lineup);
       if (!mounted) return;
@@ -110,6 +114,8 @@ class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
           match: widget.match,
           allPlayers: widget.allPlayers,
           strategy: _strategy,
+          restoreStartersToStartingPositions:
+              _restoreStartersToStartingPositions,
         );
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -148,9 +154,17 @@ class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
           const SizedBox(height: 10),
           _StrategySelector(
             value: _strategy,
+            restoreStartersToStartingPositions:
+                _restoreStartersToStartingPositions,
             onChanged: (value) {
               setState(() {
                 _strategy = value;
+                _recalculate();
+              });
+            },
+            onRestoreStartersChanged: (value) {
+              setState(() {
+                _restoreStartersToStartingPositions = value;
                 _recalculate();
               });
             },
@@ -337,6 +351,11 @@ class _AutopilotHero extends StatelessWidget {
                 icon: Icons.tune_rounded,
                 label: plan.strategy.label,
               ),
+              if (plan.restoreStartersToStartingPositions)
+                const _HeroChip(
+                  icon: Icons.settings_backup_restore_rounded,
+                  label: 'Stammplätze aktiv',
+                ),
               _HeroChip(
                 icon: missing == 0
                     ? Icons.check_circle_rounded
@@ -353,10 +372,17 @@ class _AutopilotHero extends StatelessWidget {
 }
 
 class _StrategySelector extends StatelessWidget {
-  const _StrategySelector({required this.value, required this.onChanged});
+  const _StrategySelector({
+    required this.value,
+    required this.restoreStartersToStartingPositions,
+    required this.onChanged,
+    required this.onRestoreStartersChanged,
+  });
 
   final AutopilotStrategy value;
+  final bool restoreStartersToStartingPositions;
   final ValueChanged<AutopilotStrategy> onChanged;
+  final ValueChanged<bool> onRestoreStartersChanged;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -411,6 +437,41 @@ class _StrategySelector extends StatelessWidget {
                     child: segments,
                   );
                 },
+              ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: value == AutopilotStrategy.positionFidelity
+                    ? Padding(
+                        key: const ValueKey(
+                            'restore-starters-to-starting-positions'),
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Material(
+                          color: AppColors.yellowSoft.withValues(alpha: .55),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: const BorderSide(color: AppColors.line),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: SwitchListTile.adaptive(
+                            key: const ValueKey(
+                                'autopilot-restore-starters-switch'),
+                            value: restoreStartersToStartingPositions,
+                            onChanged: onRestoreStartersChanged,
+                            secondary: const Icon(
+                              Icons.settings_backup_restore_rounded,
+                              color: AppColors.gold,
+                            ),
+                            title: const Text(
+                              'Stammspieler auf Stammplätze zurückführen',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            subtitle: const Text(
+                              'Bei späteren Wechseln kehren Startspieler bevorzugt auf ihren ursprünglichen Platz in der Startelf zurück.',
+                            ),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
             ],
           ),

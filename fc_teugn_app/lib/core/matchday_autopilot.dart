@@ -40,6 +40,7 @@ class AutopilotReadinessItem {
 class MatchdayAutopilotPlan {
   const MatchdayAutopilotPlan({
     required this.strategy,
+    required this.restoreStartersToStartingPositions,
     required this.formation,
     required this.fieldSize,
     required this.periodCount,
@@ -53,6 +54,7 @@ class MatchdayAutopilotPlan {
   });
 
   final AutopilotStrategy strategy;
+  final bool restoreStartersToStartingPositions;
   final String formation;
   final int fieldSize;
   final int periodCount;
@@ -94,6 +96,7 @@ MatchdayAutopilotPlan buildMatchdayAutopilotPlan({
   required MatchdayModel match,
   required List<PlayerModel> allPlayers,
   AutopilotStrategy strategy = AutopilotStrategy.balanced,
+  bool restoreStartersToStartingPositions = false,
 }) {
   final fieldSize = match.gameFormat.playerCount;
   final details = match.details;
@@ -185,6 +188,7 @@ MatchdayAutopilotPlan buildMatchdayAutopilotPlan({
     periodMinutes: periodMinutes,
     history: history,
     strategy: strategy,
+    restoreStartersToStartingPositions: restoreStartersToStartingPositions,
   );
   final positionMatches = positions.where((position) {
     final primary = position.player.position?.toUpperCase();
@@ -195,6 +199,9 @@ MatchdayAutopilotPlan buildMatchdayAutopilotPlan({
 
   return MatchdayAutopilotPlan(
     strategy: strategy,
+    restoreStartersToStartingPositions:
+        strategy == AutopilotStrategy.positionFidelity &&
+            restoreStartersToStartingPositions,
     formation: formation,
     fieldSize: fieldSize,
     periodCount: periodCount,
@@ -255,8 +262,13 @@ _RotationPlan _planRotation({
   required int periodMinutes,
   required Map<String, int> history,
   required AutopilotStrategy strategy,
+  required bool restoreStartersToStartingPositions,
 }) {
   final onField = positions.toList();
+  final startingSlots = {
+    for (final position in positions)
+      if (position.isStarter) position.player.id: position,
+  };
   final startingIds = onField.map((position) => position.player.id).toSet();
   final bench =
       players.where((player) => !startingIds.contains(player.id)).toList();
@@ -297,6 +309,10 @@ _RotationPlan _planRotation({
     final outgoingPlayers = <MatchPlayer>[];
 
     for (final incoming in incomingPlayers) {
+      final startingSlot = strategy == AutopilotStrategy.positionFidelity &&
+              restoreStartersToStartingPositions
+          ? startingSlots[incoming.id]
+          : null;
       var candidates = List.generate(onField.length, (index) => index)
           .where((index) => !outgoingIndices.contains(index))
           .where((index) {
@@ -334,6 +350,13 @@ _RotationPlan _planRotation({
             .toList();
       }
       candidates.sort((a, b) {
+        final returnsToStartingSlotA = startingSlot != null &&
+            _isSameTacticalSlot(onField[a], startingSlot);
+        final returnsToStartingSlotB = startingSlot != null &&
+            _isSameTacticalSlot(onField[b], startingSlot);
+        if (returnsToStartingSlotA != returnsToStartingSlotB) {
+          return returnsToStartingSlotB ? 1 : -1;
+        }
         final fitA = lineupFitScore(
           incoming.position,
           incoming.secondaryPosition,
@@ -375,7 +398,12 @@ _RotationPlan _planRotation({
           minute: minute,
           playerInId: incoming.id,
           playerOutId: outgoing.player.id,
-          note: _rotationNote(incoming, outgoing.positionCode),
+          note: _rotationNote(
+            incoming,
+            outgoing.positionCode,
+            returnsToStartingPosition: startingSlot != null &&
+                _isSameTacticalSlot(outgoing, startingSlot),
+          ),
         ),
       );
       onField[outgoingIndex] = LineupPositionModel(
@@ -401,6 +429,14 @@ _RotationPlan _planRotation({
   }
   return _RotationPlan(minutes, substitutions);
 }
+
+bool _isSameTacticalSlot(
+  LineupPositionModel current,
+  LineupPositionModel starting,
+) =>
+    current.positionCode == starting.positionCode &&
+    current.x == starting.x &&
+    current.y == starting.y;
 
 int _compareIncomingPlayers(
   MatchPlayer a,
@@ -460,7 +496,14 @@ int _bestAvailableFit(
   return scores.reduce((a, b) => a > b ? a : b);
 }
 
-String _rotationNote(MatchPlayer incoming, String slot) {
+String _rotationNote(
+  MatchPlayer incoming,
+  String slot, {
+  bool returnsToStartingPosition = false,
+}) {
+  if (returnsToStartingPosition) {
+    return '$slot · Rückkehr auf Stammposition';
+  }
   final primary = incoming.position?.trim().toUpperCase();
   final secondary = incoming.secondaryPosition?.trim().toUpperCase();
   if (primary == slot) return '$slot · Hauptposition';
