@@ -64,7 +64,7 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
         'Prüfe zuerst Gegner, Anstoß sowie Treffpunktzeit und Treffpunktort.',
         'Die Erinnerung 24 Stunden vor dem Spiel ist standardmäßig aktiv und kann in den Spieldaten für dieses Spiel ausgeschaltet werden.',
         '„Mit Trainerteam teilen“ informiert ausgewählte Berechtigte; „Für Eltern & Spieler freigeben“ macht das Spiel für Familien sichtbar.',
-        'Speichere danach den Kader. Im Autopiloten wählst du „Ausgewogen“, „Einsatzzeit“ oder „Positionstreu“ und prüfst anschließend den Wechselplan. Bei „Positionstreu“ kannst du zusätzlich festlegen, dass ausgewechselte Startspieler später bevorzugt auf ihren ursprünglichen Stammplatz zurückkehren.',
+        'Speichere danach den Kader. Im Autopiloten wählst du „Ausgewogen“, „Einsatzzeit“ oder „Positionstreu“ und prüfst anschließend den Wechselplan. Unter jedem eingewechselten Spieler steht seine geplante Zielposition. Bei „Positionstreu“ kannst du zusätzlich festlegen, dass ausgewechselte Startspieler später bevorzugt auf ihren ursprünglichen Stammplatz zurückkehren.',
         'Am Spieltag steuerst du Uhr, Tore und Wechsel. Nach Abpfiff bewertest du die nominierten Spieler im trainerinternen Reiter „Bewertung“.',
       ],
       searchQuery: 'Spiel Erinnerung 24 Stunden Trainerteam teilen Treffpunkt',

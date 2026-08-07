@@ -77,6 +77,7 @@ void main() {
       expect(substitution.period, inInclusiveRange(1, 4));
       expect(substitution.minute, inInclusiveRange(0, 15));
       expect(substitution.playerInId, isNot(substitution.playerOutId));
+      expect(substitution.targetPositionCode, isNotEmpty);
     }
   });
 
@@ -96,6 +97,7 @@ void main() {
     final first = plan.substitutions.first;
     expect(first.playerInId, 'bench-striker');
     expect(first.playerOutId, 'striker');
+    expect(first.targetPositionCode, 'ST');
     expect(first.note, contains('Hauptposition'));
   });
 

@@ -1449,6 +1449,7 @@ class DataRepository {
               'minute': substitution.minute,
               'playerInId': substitution.playerInId,
               'playerOutId': substitution.playerOutId,
+              'positionCode': substitution.positionCode,
               'note': substitution.note,
             },
           )

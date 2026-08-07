@@ -398,6 +398,7 @@ _RotationPlan _planRotation({
           minute: minute,
           playerInId: incoming.id,
           playerOutId: outgoing.player.id,
+          positionCode: outgoing.positionCode,
           note: _rotationNote(
             incoming,
             outgoing.positionCode,

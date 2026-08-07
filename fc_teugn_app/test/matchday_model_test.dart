@@ -60,6 +60,17 @@ void main() {
             'formation': '2-3-1',
             'fieldSize': 7,
             'status': 'PUBLISHED',
+            'substitutions': [
+              {
+                'id': 'substitution-1',
+                'period': 2,
+                'minute': 5,
+                'playerInId': 'player-2',
+                'playerOutId': 'player-1',
+                'positionCode': 'ST',
+                'note': 'ST · Hauptposition',
+              },
+            ],
             'positions': [
               {
                 'player': {
@@ -136,6 +147,10 @@ void main() {
     expect(match.teamFormationOptions, ['1-2-1', '3-1']);
     expect(match.squad?.lineup?.status, LineupStatus.published);
     expect(match.squad?.lineup?.positions.single.player.name, 'Max Muster');
+    expect(
+      match.squad?.lineup?.substitutions.single.targetPositionCode,
+      'ST',
+    );
     expect(match.ticker?.events.single.type, TickerEventType.homeGoal);
     expect(match.ticker?.events.single.period, 1);
     expect(match.ticker?.events.single.scorer?.name, 'Max Muster');

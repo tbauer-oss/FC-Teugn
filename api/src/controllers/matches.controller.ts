@@ -1987,6 +1987,7 @@ export async function updateLineup(req: Request, res: Response) {
               : integer(substitution.minute, 0, periodMinutes, 0),
           playerInId: String(substitution.playerInId),
           playerOutId: String(substitution.playerOutId),
+          positionCode: text(substitution.positionCode, 30),
           note: text(substitution.note, 500),
         })),
       });

@@ -45,6 +45,13 @@ void main() {
     expect(find.text('Positionstreu'), findsOneWidget);
     expect(find.text('Startformation'), findsOneWidget);
     expect(find.text('Fairer Wechselplan'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Text && (widget.data?.startsWith('auf ') ?? false),
+      ),
+      findsWidgets,
+    );
     expect(tester.takeException(), isNull);
 
     final horizontalStrategyScroll = find.byWidgetPredicate(

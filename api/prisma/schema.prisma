@@ -1558,15 +1558,16 @@ model LineupPosition {
 }
 
 model PlannedSubstitution {
-  id          String   @id @default(cuid())
-  lineupId    String
-  period      Int
-  minute      Int?
-  playerInId  String
-  playerOutId String
-  note        String?
-  createdAt   DateTime @default(now())
-  lineup      Lineup   @relation(fields: [lineupId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  lineupId     String
+  period       Int
+  minute       Int?
+  playerInId   String
+  playerOutId  String
+  positionCode String?
+  note         String?
+  createdAt    DateTime @default(now())
+  lineup       Lineup   @relation(fields: [lineupId], references: [id], onDelete: Cascade)
 
   @@index([lineupId, period])
 }

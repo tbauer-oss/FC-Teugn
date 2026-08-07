@@ -459,6 +459,7 @@ class PlannedSubstitutionModel {
     required this.playerOutId,
     this.id,
     this.minute,
+    this.positionCode,
     this.note,
   });
 
@@ -467,7 +468,20 @@ class PlannedSubstitutionModel {
   final int? minute;
   final String playerInId;
   final String playerOutId;
+  final String? positionCode;
   final String? note;
+
+  String? get targetPositionCode {
+    final explicit = positionCode?.trim().toUpperCase();
+    if (explicit?.isNotEmpty == true) return explicit;
+    final legacy = note?.split('·').first.trim().toUpperCase();
+    if (legacy == null ||
+        legacy.isEmpty ||
+        !RegExp(r'^[A-ZÄÖÜ0-9]{1,8}$').hasMatch(legacy)) {
+      return null;
+    }
+    return legacy;
+  }
 
   factory PlannedSubstitutionModel.fromJson(Map<String, dynamic> json) =>
       PlannedSubstitutionModel(
@@ -476,6 +490,7 @@ class PlannedSubstitutionModel {
         minute: (json['minute'] as num?)?.toInt(),
         playerInId: json['playerInId'] as String? ?? '',
         playerOutId: json['playerOutId'] as String? ?? '',
+        positionCode: json['positionCode'] as String?,
         note: json['note'] as String?,
       );
 }

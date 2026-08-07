@@ -906,67 +906,93 @@ class _SubstitutionRow extends StatelessWidget {
   final String playerOut;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 7),
-        child: Row(
-          children: [
-            Container(
-              width: 33,
-              height: 33,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.yellowSoft,
-                borderRadius: BorderRadius.circular(10),
+  Widget build(BuildContext context) {
+    final positionCode = substitution.targetPositionCode;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        children: [
+          Container(
+            width: 33,
+            height: 33,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.yellowSoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '${substitution.period}.${substitution.minute}',
+              style: const TextStyle(
+                color: AppColors.gold,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
               ),
-              child: Text(
-                '${substitution.period}.${substitution.minute}',
-                style: const TextStyle(
-                  color: AppColors.gold,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        playerIn,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.success,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (positionCode != null)
+                        Text(
+                          'auf $positionCode',
+                          key: ValueKey(
+                            'substitution-position-'
+                            '${substitution.period}-'
+                            '${substitution.minute}-'
+                            '${substitution.playerInId}',
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      playerIn,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.success,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 5),
+                  child: Icon(Icons.swap_horiz_rounded,
+                      color: AppColors.muted, size: 17),
+                ),
+                Expanded(
+                  child: Text(
+                    playerOut,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 5),
-                    child: Icon(Icons.swap_horiz_rounded,
-                        color: AppColors.muted, size: 17),
-                  ),
-                  Expanded(
-                    child: Text(
-                      playerOut,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.end,
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ApprovalCard extends StatelessWidget {
