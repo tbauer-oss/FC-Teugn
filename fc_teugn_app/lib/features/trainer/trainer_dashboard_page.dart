@@ -7,6 +7,7 @@ import '../../core/models/event.dart';
 import '../../core/models/player.dart';
 import '../../core/models/organization.dart';
 import '../../core/models/team_operations.dart';
+import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/regular_training_schedule.dart';
 import '../../core/widgets/adaptive_layout.dart';
@@ -94,6 +95,14 @@ class TrainerDashboardPage extends ConsumerWidget {
             notifications: notifications,
             isTrainer: true,
           ),
+          if (user?.role == UserRole.superAdmin) ...[
+            AdminMemberRequestsCard(
+              pending: approvals,
+              onOpen: () => context.go('/trainer/approvals'),
+              onRefresh: () => ref.invalidate(pendingUsersProvider),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (user?.parentPlayers.isNotEmpty == true) ...[
             const PersonalResponsesCard(isTrainer: true),
             const SizedBox(height: 12),
@@ -240,6 +249,130 @@ class TrainerDashboardPage extends ConsumerWidget {
         < 18 => 'Guten Tag',
         _ => 'Guten Abend',
       };
+}
+
+class AdminMemberRequestsCard extends StatelessWidget {
+  const AdminMemberRequestsCard({
+    super.key,
+    required this.pending,
+    required this.onOpen,
+    required this.onRefresh,
+  });
+
+  final AsyncValue<List<AppUser>> pending;
+  final VoidCallback onOpen;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final users = pending.valueOrNull;
+    final count = users?.length ?? 0;
+    final hasRequests = count > 0;
+    final failed = pending.hasError;
+    final loading = pending.isLoading && users == null;
+    final color = failed
+        ? Theme.of(context).colorScheme.error
+        : hasRequests
+            ? AppColors.gold
+            : AppColors.success;
+    final title = failed
+        ? 'Mitgliedsanfragen konnten nicht geladen werden'
+        : loading
+            ? 'Mitgliedsanfragen werden geprüft …'
+            : hasRequests
+                ? '$count offene Mitgliedsanfrage${count == 1 ? '' : 'n'}'
+                : 'Keine offenen Mitgliedsanfragen';
+    final subtitle = failed
+        ? 'Status erneut abrufen'
+        : loading
+            ? 'Der aktuelle Freigabestatus wird geladen.'
+            : hasRequests
+                ? 'Neue Registrierungen warten auf Prüfung und Freigabe.'
+                : 'Aktuell ist keine Freigabe erforderlich.';
+
+    return Material(
+      key: const ValueKey('admin-member-requests-card'),
+      color: color.withValues(alpha: hasRequests ? .13 : .08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: color.withValues(alpha: .32)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: failed ? onRefresh : onOpen,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: loading
+                    ? Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: color,
+                        ),
+                      )
+                    : Icon(
+                        failed
+                            ? Icons.sync_problem_rounded
+                            : hasRequests
+                                ? Icons.person_add_alt_1_rounded
+                                : Icons.verified_user_outlined,
+                        color: color,
+                        size: 21,
+                      ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                tooltip: failed ? 'Erneut laden' : 'Anfragen prüfen',
+                visualDensity: VisualDensity.compact,
+                onPressed: failed ? onRefresh : onOpen,
+                icon: Icon(
+                  failed ? Icons.refresh_rounded : Icons.arrow_forward_rounded,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _NextEventHero extends StatelessWidget {

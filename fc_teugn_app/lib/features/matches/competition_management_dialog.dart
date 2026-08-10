@@ -140,7 +140,7 @@ class _CompetitionManagementDialogState
                           )
                         : TabBarView(
                             children: [
-                              _opponentTab(height),
+                              _opponentTab(),
                               _leagueTab(height),
                               BfvSyncTab(
                                 key: ValueKey(ageGroupId),
@@ -164,33 +164,48 @@ class _CompetitionManagementDialogState
     );
   }
 
-  Widget _opponentTab(double height) => ListView(
-        padding: const EdgeInsets.all(16),
+  Widget _opponentTab() => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
         children: [
           Card(
             color: Theme.of(context).colorScheme.primaryContainer,
-            child: const ListTile(
-              leading: Icon(Icons.account_tree_outlined),
-              title: Text(
-                'Verein einmal zentral – Mannschaften je Jugend',
-                style: TextStyle(fontWeight: FontWeight.w900),
-              ),
-              subtitle: Text(
-                'Alle Trainer sehen dieselben Vereine, Wappen und Spielstätten. '
-                'Hier verwaltest du ausschließlich die Mannschaften der oben gewählten Jugend.',
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 9, 9, 9),
+              child: Row(
+                children: [
+                  const Icon(Icons.account_tree_outlined, size: 21),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Vereine zentral · Mannschaften je Jugend',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          'Alle Trainer sehen dieselben Vereine. Du verwaltest hier die Mannschaften der gewählten Jugend.',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: () => _editClub(),
+                    icon: const Icon(Icons.add_business_rounded, size: 18),
+                    label: const Text('Verein'),
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: () => _editClub(),
-              icon: const Icon(Icons.add_business_rounded),
-              label: const Text('Verein hinzufügen'),
-            ),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 7),
           if (clubs!.isEmpty)
             const _CompetitionEmpty(
               icon: Icons.shield_outlined,
@@ -198,86 +213,17 @@ class _CompetitionManagementDialogState
             )
           else
             for (final club in clubs!)
-              Card(
-                clipBehavior: Clip.antiAlias,
-                child: ExpansionTile(
-                  initiallyExpanded:
-                      opponents!.any((item) => item.opponentClubId == club.id),
-                  leading: _Logo(url: club.logoUrl, label: club.name),
-                  title: Text(
-                    club.name,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  subtitle: Text(
-                    [club.venue, club.address]
-                            .whereType<String>()
-                            .where((item) => item.isNotEmpty)
-                            .join(' · ')
-                            .isEmpty
-                        ? 'Vereinsdaten zentral verfügbar'
-                        : [club.venue, club.address]
-                            .whereType<String>()
-                            .where((item) => item.isNotEmpty)
-                            .join(' · '),
-                  ),
-                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                  children: [
-                    Wrap(
-                      alignment: WrapAlignment.start,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        Text(
-                          'Mannschaften in ${_selectedAgeGroup.name}',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () => _uploadClubLogo(club),
-                          icon: const Icon(Icons.add_photo_alternate_outlined),
-                          label: const Text('Wappen'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () => _editClub(club),
-                          icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Verein'),
-                        ),
-                        FilledButton.tonalIcon(
-                          onPressed: () => _editOpponentTeam(club),
-                          icon: const Icon(Icons.add_rounded),
-                          label: Text('$_agePrefix‑Mannschaft'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    if (!opponents!
-                        .any((item) => item.opponentClubId == club.id))
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                            'Für diese Jugend noch keine Mannschaft angelegt.'),
-                      )
-                    else
-                      for (final opponent in opponents!
-                          .where((item) => item.opponentClubId == club.id))
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.groups_2_outlined),
-                          title: Text(
-                            _canonicalDesignation(opponent.teamDesignation),
-                          ),
-                          subtitle: Text(
-                            '${club.name} '
-                            '${_canonicalDesignation(opponent.teamDesignation)}',
-                          ),
-                          trailing: IconButton(
-                            tooltip: 'Mannschaft bearbeiten',
-                            onPressed: () => _editOpponentTeam(club, opponent),
-                            icon: const Icon(Icons.edit_outlined),
-                          ),
-                        ),
-                  ],
-                ),
+              _CompactOpponentClubTile(
+                club: club,
+                opponents: opponents!
+                    .where((item) => item.opponentClubId == club.id)
+                    .toList(),
+                canonicalDesignation: _canonicalDesignation,
+                agePrefix: _agePrefix,
+                onUploadLogo: () => _uploadClubLogo(club),
+                onEditClub: () => _editClub(club),
+                onAddTeam: () => _editOpponentTeam(club),
+                onEditTeam: (opponent) => _editOpponentTeam(club, opponent),
               ),
         ],
       );
@@ -966,6 +912,176 @@ class _StandingsTable extends StatelessWidget {
           ],
         ),
       );
+}
+
+class _CompactOpponentClubTile extends StatelessWidget {
+  const _CompactOpponentClubTile({
+    required this.club,
+    required this.opponents,
+    required this.canonicalDesignation,
+    required this.agePrefix,
+    required this.onUploadLogo,
+    required this.onEditClub,
+    required this.onAddTeam,
+    required this.onEditTeam,
+  });
+
+  final OpponentClubModel club;
+  final List<OpponentModel> opponents;
+  final String Function(String value) canonicalDesignation;
+  final String agePrefix;
+  final VoidCallback onUploadLogo;
+  final VoidCallback onEditClub;
+  final VoidCallback onAddTeam;
+  final ValueChanged<OpponentModel> onEditTeam;
+
+  @override
+  Widget build(BuildContext context) {
+    final details = [club.venue, club.address]
+        .whereType<String>()
+        .where((item) => item.trim().isNotEmpty)
+        .join(' · ');
+
+    return Card(
+      key: ValueKey('opponent-club-${club.id}'),
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      clipBehavior: Clip.antiAlias,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 720;
+          final identity = Row(
+            children: [
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: _Logo(url: club.logoUrl, label: club.name),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      club.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      details.isEmpty
+                          ? 'Vereinsdaten zentral verfügbar'
+                          : details,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          final teams = Wrap(
+            spacing: 5,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (opponents.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 3),
+                  child: Text(
+                    'Noch keine Mannschaft',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  ),
+                )
+              else
+                for (final opponent in opponents)
+                  ActionChip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: const Icon(Icons.groups_2_outlined, size: 15),
+                    label: Text(
+                      canonicalDesignation(opponent.teamDesignation),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    tooltip: 'Mannschaft bearbeiten',
+                    onPressed: () => onEditTeam(opponent),
+                  ),
+              Tooltip(
+                message: '$agePrefix-Mannschaft hinzufügen',
+                child: IconButton.filledTonal(
+                  visualDensity: VisualDensity.compact,
+                  constraints:
+                      const BoxConstraints.tightFor(width: 34, height: 34),
+                  padding: EdgeInsets.zero,
+                  onPressed: onAddTeam,
+                  icon: const Icon(Icons.add_rounded, size: 19),
+                ),
+              ),
+            ],
+          );
+          final actions = Wrap(
+            spacing: 1,
+            children: [
+              IconButton(
+                tooltip: 'Wappen ändern',
+                visualDensity: VisualDensity.compact,
+                constraints:
+                    const BoxConstraints.tightFor(width: 36, height: 36),
+                onPressed: onUploadLogo,
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 19),
+              ),
+              IconButton(
+                tooltip: 'Verein bearbeiten',
+                visualDensity: VisualDensity.compact,
+                constraints:
+                    const BoxConstraints.tightFor(width: 36, height: 36),
+                onPressed: onEditClub,
+                icon: const Icon(Icons.edit_outlined, size: 19),
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 6, 7),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: identity),
+                      actions,
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Align(alignment: Alignment.centerLeft, child: teams),
+                ],
+              ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
+            child: Row(
+              children: [
+                Expanded(flex: 5, child: identity),
+                const SizedBox(width: 12),
+                Flexible(flex: 4, child: teams),
+                const SizedBox(width: 5),
+                actions,
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _Logo extends StatelessWidget {
