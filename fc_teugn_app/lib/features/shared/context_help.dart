@@ -33,13 +33,14 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
   if (title.contains('liga') || title.contains('gegner')) {
     return const ContextHelpInfo(
       summary:
-          'Hier pflegst du den Gegner-Pool und die Ligen getrennt für jede Jugend.',
+          'Vereine werden einmal gemeinsam gepflegt; die gegnerischen Mannschaften verwaltest du nur für deine Jugend.',
       steps: [
-        'Wähle oben die richtige Jugend und öffne anschließend „Gegner anlegen“.',
-        'Fülle „Verein“ und „Jugend / Mannschaft“ aus. Erst dann ist „Speichern“ aktiv; Spielstätte und Adresse sind freiwillig.',
-        'Nutze das Bildsymbol für das Wappen und den Stift, um einen Gegner später dauerhaft zu bearbeiten.',
+        'Alle Trainer sehen denselben Vereins-Pool mit Vereinsname, Wappen, Spielstätte und Adresse.',
+        'Wähle oben deine Jugend. Öffne einen Verein und füge dort nur die passende Mannschaft wie E1, E2 oder E3 hinzu.',
+        'Beim Anlegen eines Spiels wählst du zuerst den Verein und danach die Jugendmannschaft. Fehlt sie, wird sie im berechtigten Jugendbereich automatisch angelegt.',
+        'Vereinsdaten und Wappen gelten zentral; Jugendmannschaften können ausschließlich Trainer der jeweiligen Jugend verwalten.',
       ],
-      searchQuery: 'Gegner Speichern Pflichtfelder',
+      searchQuery: 'Verein Gegner Jugendmannschaft E1 E2 verwalten',
     );
   }
   if (title.contains('kalender') || title.contains('termin')) {

@@ -18,7 +18,11 @@ void main() {
       'Liga & Gegner',
       'Gegner verwalten.',
     );
-    expect(opponents.steps.join(' '), contains('„Speichern“ aktiv'));
+    expect(opponents.steps.join(' '), contains('Vereins-Pool'));
+    expect(
+      opponents.steps.join(' '),
+      contains('ausschließlich Trainer der jeweiligen Jugend'),
+    );
 
     final matchday = contextHelpFor(
       'FC Teugn · SV Saal E1',

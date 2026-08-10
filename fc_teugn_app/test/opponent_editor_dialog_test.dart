@@ -8,14 +8,14 @@ Finder _field(String label) => find.byWidgetPredicate(
     );
 
 void main() {
-  testWidgets('opponent save activates after both required fields are entered',
+  testWidgets('shared club save activates after the club name is entered',
       (tester) async {
     tester.view.physicalSize = const Size(800, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    OpponentEditorDraft? result;
+    OpponentClubEditorDraft? result;
     await tester.pumpWidget(
       MaterialApp(
         theme: buildAppTheme(),
@@ -23,9 +23,9 @@ void main() {
           body: Builder(
             builder: (context) => FilledButton(
               onPressed: () async {
-                result = await showDialog<OpponentEditorDraft>(
+                result = await showDialog<OpponentClubEditorDraft>(
                   context: context,
-                  builder: (context) => const OpponentEditorDialog(),
+                  builder: (context) => const OpponentClubEditorDialog(),
                 );
               },
               child: const Text('Dialog öffnen'),
@@ -43,11 +43,7 @@ void main() {
 
     expect(saveButton().onPressed, isNull);
 
-    await tester.enterText(_field('Verein *'), 'SC Kelheim');
-    await tester.pump();
-    expect(saveButton().onPressed, isNull);
-
-    await tester.enterText(_field('Jugend / Mannschaft *'), 'E1');
+    await tester.enterText(_field('Vereinsname *'), 'SC Kelheim');
     await tester.pump();
     expect(saveButton().onPressed, isNotNull);
 
@@ -55,11 +51,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(result, isNotNull);
-    expect(result!.clubName, 'SC Kelheim');
-    expect(result!.teamDesignation, 'E1');
+    expect(result!.name, 'SC Kelheim');
   });
 
-  testWidgets('opponent editor trims values and stays usable on a phone',
+  testWidgets('shared club editor trims values and stays usable on a phone',
       (tester) async {
     tester.view.physicalSize = const Size(320, 568);
     tester.view.devicePixelRatio = 1;
@@ -69,11 +64,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildAppTheme(),
-        home: const Scaffold(body: OpponentEditorDialog()),
+        home: const Scaffold(body: OpponentClubEditorDialog()),
       ),
     );
-    await tester.enterText(_field('Verein *'), '  SC Kelheim  ');
-    await tester.enterText(_field('Jugend / Mannschaft *'), '  E1  ');
+    await tester.enterText(_field('Vereinsname *'), '  SC Kelheim  ');
     await tester.pump();
 
     expect(

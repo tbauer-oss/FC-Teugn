@@ -9,8 +9,11 @@ const source = fs.readFileSync(
 );
 
 test('matchday responses resolve the crest from the saved opponent pool', () => {
-  assert.match(source, /opponentRecord:\s*\{[\s\S]*logoAsset:\s*true/);
-  assert.match(source, /matchDetails\.opponentRecord\?\.logoAsset/);
+  assert.match(
+    source,
+    /opponentRecord:\s*\{[\s\S]*opponentClub:[\s\S]*logoAsset:\s*true/,
+  );
+  assert.match(source, /matchDetails\.opponentRecord\?\.opponentClub\.logoAsset/);
   assert.match(source, /mediaAssetUrl\([\s\S]*logoAsset\.id/);
   assert.match(source, /opponentRecord:\s*undefined/);
 });

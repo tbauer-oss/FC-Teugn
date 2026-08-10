@@ -4122,6 +4122,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   late DateTime startAt;
   String? selectedOpponentId;
   String? selectedOpponentName;
+  String? selectedOpponentClubId;
+  String? selectedOpponentDesignation;
   DateTime? endAt;
   DateTime? meetingAt;
   late _MeetingTimeMode meetingTimeMode;
@@ -4141,8 +4143,12 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   String? lastAutomaticLocation;
   late final TextEditingController customReminderMinutes;
   late final Future<List<PlayerModel>> participantPlayers;
-  late Future<List<OpponentModel>> availableOpponents;
+  List<OpponentClubModel> availableOpponentClubs = const [];
+  List<OpponentModel> availableOpponents = const [];
+  bool loadingOpponentChoices = false;
+  bool savingOpponent = false;
   late String opponentAgeGroupId;
+  AgeGroupSummary? opponentAgeGroup;
   final participantPlayerIds = <String>{};
   bool limitParticipants = false;
   String selectedPitch = 'Platz noch offen / unklar';
@@ -4242,9 +4248,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     }
     participantPlayers = widget.repository.players();
     opponentAgeGroupId = initialTeam?.ageGroup.id ?? '';
-    availableOpponents = opponentAgeGroupId.isEmpty
-        ? Future.value(const <OpponentModel>[])
-        : widget.repository.opponents(opponentAgeGroupId);
+    opponentAgeGroup = initialTeam?.ageGroup;
+    _loadOpponentChoices();
     participantPlayerIds.addAll(event?.participantPlayerIds ?? const []);
     limitParticipants = participantPlayerIds.isNotEmpty;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -4280,6 +4285,112 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _loadOpponentChoices() async {
+    if (opponentAgeGroupId.isEmpty) return;
+    if (mounted) setState(() => loadingOpponentChoices = true);
+    try {
+      final values = await Future.wait([
+        widget.repository.opponentClubs(),
+        widget.repository.opponents(opponentAgeGroupId),
+      ]);
+      if (!mounted) return;
+      final clubs = values[0] as List<OpponentClubModel>;
+      final teams = values[1] as List<OpponentModel>;
+      final stored =
+          teams.where((item) => item.id == selectedOpponentId).firstOrNull;
+      final byName = stored ??
+          teams
+              .where((item) => item.displayName == opponent.text.trim())
+              .firstOrNull;
+      OpponentClubModel? legacyClub;
+      String? legacyDesignation;
+      if (byName == null && opponent.text.trim().isNotEmpty) {
+        final matches = clubs
+            .where((item) => opponent.text.trim().startsWith(item.name))
+            .toList()
+          ..sort((a, b) => b.name.length.compareTo(a.name.length));
+        if (matches.isNotEmpty) {
+          legacyClub = matches.first;
+          final suffix =
+              opponent.text.trim().substring(legacyClub.name.length).trim();
+          legacyDesignation =
+              suffix.isEmpty ? null : _canonicalOpponentDesignation(suffix);
+        }
+      }
+      setState(() {
+        availableOpponentClubs = clubs;
+        availableOpponents = teams;
+        if (byName != null) {
+          selectedOpponentId = byName.id;
+          selectedOpponentName = byName.displayName;
+          selectedOpponentClubId = byName.opponentClubId;
+          selectedOpponentDesignation = byName.teamDesignation;
+          opponent.text = byName.displayName;
+        } else if (legacyClub != null) {
+          selectedOpponentClubId = legacyClub.id;
+          selectedOpponentDesignation = legacyDesignation;
+        }
+        loadingOpponentChoices = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => loadingOpponentChoices = false);
+    }
+  }
+
+  String get _opponentAgePrefix {
+    final source = opponentAgeGroup?.code.trim().toUpperCase() ?? '';
+    return RegExp(r'[A-Z]').firstMatch(source)?.group(0) ?? 'E';
+  }
+
+  String _canonicalOpponentDesignation(String value) {
+    final raw = value.trim().toUpperCase();
+    final legacyNumber =
+        RegExp(r'^[A-ZÄÖÜ]+\d+\s+(\d{1,2})$').firstMatch(raw)?.group(1);
+    if (legacyNumber != null) return '$_opponentAgePrefix$legacyNumber';
+    final compact = raw.replaceAll(' ', '');
+    if (<String>{'E7', 'D9', 'C11', 'B11', 'A11', 'F5', 'F7', 'G3', 'G5'}
+        .contains(compact)) {
+      return '${_opponentAgePrefix}1';
+    }
+    return compact;
+  }
+
+  List<String> get _opponentDesignationOptions {
+    final values = <String>{
+      for (var number = 1; number <= 9; number++) '$_opponentAgePrefix$number',
+      for (final item in availableOpponents)
+        _canonicalOpponentDesignation(item.teamDesignation),
+    }.toList()
+      ..sort((a, b) {
+        final aNumber = int.tryParse(a.replaceAll(RegExp(r'\D'), '')) ?? 99;
+        final bNumber = int.tryParse(b.replaceAll(RegExp(r'\D'), '')) ?? 99;
+        return aNumber.compareTo(bNumber);
+      });
+    return values;
+  }
+
+  void _applyOpponentClubDefaults(String? clubId) {
+    final club =
+        availableOpponentClubs.where((item) => item.id == clubId).firstOrNull;
+    if (club == null || homeAway != HomeAway.away) return;
+    final automatic = club.venue?.trim().isNotEmpty == true
+        ? club.venue!
+        : (club.address ?? '');
+    if (automatic.isEmpty ||
+        !(location.text.trim().isEmpty ||
+            location.text.trim() == homeMatchVenue ||
+            location.text.trim() == lastAutomaticLocation)) {
+      return;
+    }
+    location.text = automatic;
+    lastAutomaticLocation = automatic;
+    if (address.text.trim().isEmpty &&
+        club.address?.trim().isNotEmpty == true) {
+      address.text = club.address!;
+    }
   }
 
   Widget _categoryInput() => DropdownButtonFormField<EventCategory>(
@@ -4566,84 +4677,133 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       ),
                       if (category.isMatch) ...[
                         const SizedBox(height: 12),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: FutureBuilder<List<OpponentModel>>(
-                                future: availableOpponents,
-                                builder: (context, snapshot) => LayoutBuilder(
-                                  builder: (context, constraints) =>
-                                      DropdownMenu<String>(
-                                    controller: opponent,
-                                    width: constraints.maxWidth,
-                                    label: const Text('Gegner'),
-                                    hintText: 'Gespeichert oder frei eingeben',
-                                    enableFilter: true,
-                                    enableSearch: true,
-                                    dropdownMenuEntries: [
-                                      for (final item in snapshot.data ??
-                                          const <OpponentModel>[])
-                                        DropdownMenuEntry(
-                                          value: item.displayName,
-                                          label: item.displayName,
-                                          leadingIcon: _OpponentLogo(
-                                            url: item.logoUrl,
-                                            label: item.clubName,
+                        if (loadingOpponentChoices)
+                          const LinearProgressIndicator(minHeight: 3)
+                        else
+                          ResponsiveFormRow(
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: DropdownButtonFormField<String>(
+                                      initialValue: availableOpponentClubs.any(
+                                        (item) =>
+                                            item.id == selectedOpponentClubId,
+                                      )
+                                          ? selectedOpponentClubId
+                                          : null,
+                                      isExpanded: true,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Verein *',
+                                        helperText:
+                                            'Vereine sind jugendübergreifend sichtbar.',
+                                      ),
+                                      items: [
+                                        for (final club
+                                            in availableOpponentClubs)
+                                          DropdownMenuItem(
+                                            value: club.id,
+                                            child: Row(
+                                              children: [
+                                                _OpponentLogo(
+                                                  url: club.logoUrl,
+                                                  label: club.name,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    club.name,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                    ],
-                                    onSelected: (value) {
-                                      selectedOpponentName = value;
-                                      final selected = (snapshot.data ??
-                                              const <OpponentModel>[])
-                                          .where((item) =>
-                                              item.displayName == value)
-                                          .firstOrNull;
-                                      selectedOpponentId = selected?.id;
-                                      if (selected != null &&
-                                          homeAway == HomeAway.away &&
-                                          (location.text.trim().isEmpty ||
-                                              location.text.trim() ==
-                                                  homeMatchVenue ||
-                                              location.text.trim() ==
-                                                  lastAutomaticLocation)) {
-                                        final automatic = (selected.venue
-                                                        ?.trim()
-                                                        .isNotEmpty ==
-                                                    true
-                                                ? selected.venue
-                                                : selected.address) ??
-                                            '';
-                                        if (automatic.isNotEmpty) {
-                                          setState(() {
-                                            location.text = automatic;
-                                            lastAutomaticLocation = automatic;
-                                            if (address.text.trim().isEmpty &&
-                                                selected.address
-                                                        ?.trim()
-                                                        .isNotEmpty ==
-                                                    true) {
-                                              address.text = selected.address!;
-                                            }
-                                          });
-                                        }
-                                      }
-                                    },
+                                      ],
+                                      onChanged: (value) => setState(() {
+                                        selectedOpponentClubId = value;
+                                        selectedOpponentDesignation = null;
+                                        selectedOpponentId = null;
+                                        selectedOpponentName = null;
+                                        opponent.clear();
+                                        _applyOpponentClubDefaults(value);
+                                      }),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 8),
+                                  IconButton.filledTonal(
+                                    tooltip: 'Verein hinzufügen',
+                                    onPressed: _quickAddOpponentClub,
+                                    icon: const Icon(Icons.add_rounded),
+                                  ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton.filledTonal(
-                              tooltip: 'Gegner fest hinzufügen',
-                              onPressed: opponentAgeGroupId.isEmpty
-                                  ? null
-                                  : _quickAddOpponent,
-                              icon: const Icon(Icons.add_rounded),
-                            ),
-                          ],
-                        ),
+                              DropdownButtonFormField<String>(
+                                key: ValueKey(
+                                  '$selectedOpponentClubId:'
+                                  '$selectedOpponentDesignation',
+                                ),
+                                initialValue: _opponentDesignationOptions
+                                        .contains(selectedOpponentDesignation
+                                            ?.toUpperCase()
+                                            .replaceAll(' ', ''))
+                                    ? selectedOpponentDesignation
+                                        ?.toUpperCase()
+                                        .replaceAll(' ', '')
+                                    : null,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  labelText: 'Jugendmannschaft *',
+                                  helperText:
+                                      'Nur $_opponentAgePrefix-Mannschaften '
+                                      'werden in dieser Jugend verwaltet.',
+                                ),
+                                items: [
+                                  for (final value
+                                      in _opponentDesignationOptions)
+                                    DropdownMenuItem(
+                                      value: value,
+                                      child: Text(value),
+                                    ),
+                                ],
+                                onChanged: selectedOpponentClubId == null
+                                    ? null
+                                    : (value) => setState(() {
+                                          selectedOpponentDesignation = value;
+                                          final selected = availableOpponents
+                                              .where(
+                                                (item) =>
+                                                    item.opponentClubId ==
+                                                        selectedOpponentClubId &&
+                                                    item.teamDesignation
+                                                            .toUpperCase()
+                                                            .replaceAll(
+                                                                ' ', '') ==
+                                                        value,
+                                              )
+                                              .firstOrNull;
+                                          selectedOpponentId = selected?.id;
+                                          selectedOpponentName =
+                                              selected?.displayName;
+                                          if (selected != null) {
+                                            opponent.text =
+                                                selected.displayName;
+                                          } else {
+                                            final club = availableOpponentClubs
+                                                .where((item) =>
+                                                    item.id ==
+                                                    selectedOpponentClubId)
+                                                .firstOrNull;
+                                            opponent.text = club == null
+                                                ? ''
+                                                : '${club.name} $value';
+                                          }
+                                        }),
+                              ),
+                            ],
+                          ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<HomeAway>(
                           initialValue: homeAway,
@@ -5284,7 +5444,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                 children: [
                   Flexible(
                     child: TextButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed:
+                          savingOpponent ? null : () => Navigator.pop(context),
                       child: const Text('Abbrechen'),
                     ),
                   ),
@@ -5292,15 +5453,24 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                   if (mobile)
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: _save,
-                        icon: const Icon(Icons.check_rounded, size: 19),
-                        label: const Text('Termin speichern'),
+                        onPressed: savingOpponent ? null : _save,
+                        icon: savingOpponent
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded, size: 19),
+                        label: Text(savingOpponent
+                            ? 'Gegner wird gespeichert …'
+                            : 'Termin speichern'),
                       ),
                     )
                   else
                     FilledButton(
-                      onPressed: _save,
-                      child: const Text('Speichern'),
+                      onPressed: savingOpponent ? null : _save,
+                      child: Text(savingOpponent ? 'Speichert …' : 'Speichern'),
                     ),
                 ],
               ),
@@ -5335,7 +5505,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     return value.isEmpty ? null : value;
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (savingOpponent) return;
     if (!(formKey.currentState?.validate() ?? false)) return;
     if (_usesClubPitch &&
         selectedPitch != 'Platz noch offen / unklar' &&
@@ -5398,14 +5569,50 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       );
       return;
     }
-    if (category.isMatch && opponent.text.trim().isEmpty) {
+    if (category.isMatch &&
+        (selectedOpponentClubId == null ||
+            selectedOpponentDesignation == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text(
-                'Bitte eine gegnerische Mannschaft auswählen oder eingeben.')),
+          content: Text('Bitte Verein und Jugendmannschaft auswählen.'),
+        ),
       );
       return;
     }
+    if (category.isMatch) {
+      setState(() => savingOpponent = true);
+      try {
+        var selected = availableOpponents
+            .where(
+              (item) =>
+                  item.opponentClubId == selectedOpponentClubId &&
+                  item.teamDesignation.toUpperCase().replaceAll(' ', '') ==
+                      selectedOpponentDesignation,
+            )
+            .firstOrNull;
+        selected ??= await widget.repository.saveOpponent(
+          ageGroupId: opponentAgeGroupId,
+          opponentClubId: selectedOpponentClubId,
+          teamDesignation: selectedOpponentDesignation!,
+        );
+        selectedOpponentId = selected.id;
+        selectedOpponentName = selected.displayName;
+        opponent.text = selected.displayName;
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => savingOpponent = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Die gegnerische Jugendmannschaft konnte nicht gespeichert '
+              'werden. Bitte erneut versuchen.',
+            ),
+          ),
+        );
+        return;
+      }
+    }
+    if (!mounted) return;
     Navigator.pop(
       context,
       EventWriteData(
@@ -5428,9 +5635,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         mapUrl: _optional(mapUrl),
         homeAway: homeAway,
         opponent: _optional(opponent),
-        opponentId: opponent.text.trim() == selectedOpponentName
-            ? selectedOpponentId
-            : null,
+        opponentId: selectedOpponentId,
         periodCount: matchPeriodCount,
         periodMinutes: matchPeriodMinutes,
         venue: _usesClubPitch ? selectedPitch : _optional(venue),
@@ -5526,13 +5731,14 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     }
   }
 
-  Future<void> _quickAddOpponent() async {
+  Future<void> _quickAddOpponentClub() async {
     final club = TextEditingController();
-    final designation = TextEditingController();
+    final venue = TextEditingController();
+    final clubAddress = TextEditingController();
     final save = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Gegner fest hinzufügen'),
+        title: const Text('Verein hinzufügen'),
         content: SizedBox(
           width: 480,
           child: Column(
@@ -5544,10 +5750,16 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
               ),
               const SizedBox(height: 10),
               TextField(
-                controller: designation,
+                controller: venue,
                 decoration: const InputDecoration(
-                  labelText: 'Jugend / Mannschaft *',
-                  hintText: 'z. B. E1',
+                  labelText: 'Spielstätte (optional)',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: clubAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Adresse (optional)',
                 ),
               ),
             ],
@@ -5566,26 +5778,29 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       ),
     );
     try {
-      if (save != true ||
-          club.text.trim().isEmpty ||
-          designation.text.trim().isEmpty) {
+      if (save != true || club.text.trim().isEmpty) {
         return;
       }
-      final created = await widget.repository.saveOpponent(
-        ageGroupId: opponentAgeGroupId,
-        clubName: club.text.trim(),
-        teamDesignation: designation.text.trim(),
+      final created = await widget.repository.saveOpponentClub(
+        name: club.text.trim(),
+        venue: venue.text.trim().isEmpty ? null : venue.text.trim(),
+        address:
+            clubAddress.text.trim().isEmpty ? null : clubAddress.text.trim(),
       );
       if (!mounted) return;
       setState(() {
-        opponent.text = created.displayName;
-        selectedOpponentId = created.id;
-        selectedOpponentName = created.displayName;
-        availableOpponents = widget.repository.opponents(opponentAgeGroupId);
+        availableOpponentClubs = [...availableOpponentClubs, created]
+          ..sort((a, b) => a.name.compareTo(b.name));
+        selectedOpponentClubId = created.id;
+        selectedOpponentDesignation = null;
+        selectedOpponentId = null;
+        selectedOpponentName = null;
+        opponent.clear();
       });
     } finally {
       club.dispose();
-      designation.dispose();
+      venue.dispose();
+      clubAddress.dispose();
     }
   }
 }

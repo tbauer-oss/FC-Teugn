@@ -2,6 +2,7 @@ class OpponentModel {
   const OpponentModel({
     required this.id,
     required this.ageGroupId,
+    required this.opponentClubId,
     required this.clubName,
     required this.teamDesignation,
     required this.displayName,
@@ -14,6 +15,7 @@ class OpponentModel {
 
   final String id;
   final String ageGroupId;
+  final String opponentClubId;
   final String? teamId;
   final String clubName;
   final String teamDesignation;
@@ -26,6 +28,7 @@ class OpponentModel {
   factory OpponentModel.fromJson(Map<String, dynamic> json) => OpponentModel(
         id: json['id'] as String,
         ageGroupId: json['ageGroupId'] as String,
+        opponentClubId: json['opponentClubId'] as String? ?? '',
         teamId: json['teamId'] as String?,
         clubName: json['clubName'] as String? ?? '',
         teamDesignation: json['teamDesignation'] as String? ?? '',
@@ -34,6 +37,65 @@ class OpponentModel {
         venue: json['venue'] as String?,
         address: json['address'] as String?,
         logoUrl: json['logoUrl'] as String?,
+      );
+}
+
+class OpponentClubModel {
+  const OpponentClubModel({
+    required this.id,
+    required this.name,
+    required this.teams,
+    this.shortName,
+    this.venue,
+    this.address,
+    this.logoUrl,
+  });
+
+  final String id;
+  final String name;
+  final String? shortName;
+  final String? venue;
+  final String? address;
+  final String? logoUrl;
+  final List<OpponentClubTeamModel> teams;
+
+  factory OpponentClubModel.fromJson(Map<String, dynamic> json) =>
+      OpponentClubModel(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? '',
+        shortName: json['shortName'] as String?,
+        venue: json['venue'] as String?,
+        address: json['address'] as String?,
+        logoUrl: json['logoUrl'] as String?,
+        teams: (json['teams'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(OpponentClubTeamModel.fromJson)
+            .toList(),
+      );
+}
+
+class OpponentClubTeamModel {
+  const OpponentClubTeamModel({
+    required this.id,
+    required this.ageGroupId,
+    required this.teamDesignation,
+    this.teamId,
+    this.shortName,
+  });
+
+  final String id;
+  final String ageGroupId;
+  final String? teamId;
+  final String teamDesignation;
+  final String? shortName;
+
+  factory OpponentClubTeamModel.fromJson(Map<String, dynamic> json) =>
+      OpponentClubTeamModel(
+        id: json['id'] as String,
+        ageGroupId: json['ageGroupId'] as String? ?? '',
+        teamId: json['teamId'] as String?,
+        teamDesignation: json['teamDesignation'] as String? ?? '',
+        shortName: json['shortName'] as String?,
       );
 }
 

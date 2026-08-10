@@ -31,6 +31,7 @@ class CompetitionManagementDialog extends StatefulWidget {
 class _CompetitionManagementDialogState
     extends State<CompetitionManagementDialog> {
   late String ageGroupId;
+  List<OpponentClubModel>? clubs;
   List<OpponentModel>? opponents;
   List<LeagueModel>? leagues;
   String? error;
@@ -45,18 +46,21 @@ class _CompetitionManagementDialogState
   Future<void> _load() async {
     setState(() {
       opponents = null;
+      clubs = null;
       leagues = null;
       error = null;
     });
     try {
       final values = await Future.wait([
+        widget.repository.opponentClubs(),
         widget.repository.opponents(ageGroupId),
         widget.repository.leagues(ageGroupId),
       ]);
       if (!mounted) return;
       setState(() {
-        opponents = values[0] as List<OpponentModel>;
-        leagues = values[1] as List<LeagueModel>;
+        clubs = values[0] as List<OpponentClubModel>;
+        opponents = values[1] as List<OpponentModel>;
+        leagues = values[2] as List<LeagueModel>;
       });
     } catch (_) {
       if (mounted) {
@@ -127,7 +131,7 @@ class _CompetitionManagementDialogState
                           label: Text(error!),
                         ),
                       )
-                    : opponents == null || leagues == null
+                    : clubs == null || opponents == null || leagues == null
                         ? const Center(
                             child: LogoLoadingPanel(
                               message: 'Ligadaten werden geladen …',
@@ -163,52 +167,204 @@ class _CompetitionManagementDialogState
   Widget _opponentTab(double height) => ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: () => _editOpponent(),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Gegner anlegen'),
+          Card(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            child: const ListTile(
+              leading: Icon(Icons.account_tree_outlined),
+              title: Text(
+                'Verein einmal zentral – Mannschaften je Jugend',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text(
+                'Alle Trainer sehen dieselben Vereine, Wappen und Spielstätten. '
+                'Hier verwaltest du ausschließlich die Mannschaften der oben gewählten Jugend.',
+              ),
             ),
           ),
           const SizedBox(height: 12),
-          if (opponents!.isEmpty)
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: () => _editClub(),
+              icon: const Icon(Icons.add_business_rounded),
+              label: const Text('Verein hinzufügen'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (clubs!.isEmpty)
             const _CompetitionEmpty(
               icon: Icons.shield_outlined,
-              text: 'Noch keine Gegner für diese Jugend gespeichert.',
+              text: 'Noch kein gegnerischer Verein gespeichert.',
             )
           else
-            for (final opponent in opponents!)
+            for (final club in clubs!)
               Card(
-                child: ListTile(
-                  leading:
-                      _Logo(url: opponent.logoUrl, label: opponent.clubName),
-                  title: Text(opponent.displayName),
+                clipBehavior: Clip.antiAlias,
+                child: ExpansionTile(
+                  initiallyExpanded:
+                      opponents!.any((item) => item.opponentClubId == club.id),
+                  leading: _Logo(url: club.logoUrl, label: club.name),
+                  title: Text(
+                    club.name,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
                   subtitle: Text(
-                    [opponent.venue, opponent.address]
-                        .whereType<String>()
-                        .where((item) => item.isNotEmpty)
-                        .join(' · '),
+                    [club.venue, club.address]
+                            .whereType<String>()
+                            .where((item) => item.isNotEmpty)
+                            .join(' · ')
+                            .isEmpty
+                        ? 'Vereinsdaten zentral verfügbar'
+                        : [club.venue, club.address]
+                            .whereType<String>()
+                            .where((item) => item.isNotEmpty)
+                            .join(' · '),
                   ),
-                  trailing: Wrap(
-                    spacing: 4,
-                    children: [
-                      IconButton(
-                        tooltip: 'Wappen hochladen',
-                        onPressed: () => _uploadLogo(opponent),
-                        icon: const Icon(Icons.add_photo_alternate_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Bearbeiten',
-                        onPressed: () => _editOpponent(opponent),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                    ],
-                  ),
+                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                  children: [
+                    Wrap(
+                      alignment: WrapAlignment.start,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Text(
+                          'Mannschaften in ${_selectedAgeGroup.name}',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _uploadClubLogo(club),
+                          icon: const Icon(Icons.add_photo_alternate_outlined),
+                          label: const Text('Wappen'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _editClub(club),
+                          icon: const Icon(Icons.edit_outlined),
+                          label: const Text('Verein'),
+                        ),
+                        FilledButton.tonalIcon(
+                          onPressed: () => _editOpponentTeam(club),
+                          icon: const Icon(Icons.add_rounded),
+                          label: Text('$_agePrefix‑Mannschaft'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    if (!opponents!
+                        .any((item) => item.opponentClubId == club.id))
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                            'Für diese Jugend noch keine Mannschaft angelegt.'),
+                      )
+                    else
+                      for (final opponent in opponents!
+                          .where((item) => item.opponentClubId == club.id))
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.groups_2_outlined),
+                          title: Text(
+                            _canonicalDesignation(opponent.teamDesignation),
+                          ),
+                          subtitle: Text(
+                            '${club.name} '
+                            '${_canonicalDesignation(opponent.teamDesignation)}',
+                          ),
+                          trailing: IconButton(
+                            tooltip: 'Mannschaft bearbeiten',
+                            onPressed: () => _editOpponentTeam(club, opponent),
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                        ),
+                  ],
                 ),
               ),
         ],
       );
+
+  AgeGroupSummary get _selectedAgeGroup =>
+      widget.organization.ageGroups.firstWhere((item) => item.id == ageGroupId);
+
+  String get _agePrefix {
+    final compact = _selectedAgeGroup.code
+        .toUpperCase()
+        .replaceAll(RegExp(r'[^A-ZÄÖÜ]'), '');
+    return compact.isEmpty ? _selectedAgeGroup.code.toUpperCase() : compact[0];
+  }
+
+  String _canonicalDesignation(String value) {
+    final raw = value.trim().toUpperCase();
+    final legacyNumber =
+        RegExp(r'^[A-ZÄÖÜ]+\d+\s+(\d{1,2})$').firstMatch(raw)?.group(1);
+    if (legacyNumber != null) return '$_agePrefix$legacyNumber';
+    final compact = raw.replaceAll(' ', '');
+    if (<String>{'E7', 'D9', 'C11', 'B11', 'A11', 'F5', 'F7', 'G3', 'G5'}
+        .contains(compact)) {
+      return '${_agePrefix}1';
+    }
+    return compact;
+  }
+
+  List<String> get _designationOptions {
+    final values = <String>{
+      for (var number = 1; number <= 9; number++) '$_agePrefix$number',
+      ...opponents!.map((item) => _canonicalDesignation(item.teamDesignation)),
+    }.toList()
+      ..sort((a, b) => a.compareTo(b));
+    return values;
+  }
+
+  Future<void> _editClub([OpponentClubModel? value]) async {
+    final draft = await showDialog<OpponentClubEditorDraft>(
+      context: context,
+      builder: (context) => OpponentClubEditorDialog(value: value),
+    );
+    if (draft == null) return;
+    await widget.repository.saveOpponentClub(
+      id: value?.id,
+      name: draft.name,
+      venue: draft.venue,
+      address: draft.address,
+    );
+    await _load();
+  }
+
+  Future<void> _editOpponentTeam(
+    OpponentClubModel club, [
+    OpponentModel? value,
+  ]) async {
+    final designation = await showDialog<String>(
+      context: context,
+      builder: (context) => OpponentTeamEditorDialog(
+        clubName: club.name,
+        ageGroupName: _selectedAgeGroup.name,
+        options: _designationOptions,
+        initialValue: value?.teamDesignation,
+      ),
+    );
+    if (designation == null) return;
+    await widget.repository.saveOpponent(
+      id: value?.id,
+      ageGroupId: ageGroupId,
+      opponentClubId: club.id,
+      clubName: club.name,
+      teamDesignation: designation,
+    );
+    await _load();
+  }
+
+  Future<void> _uploadClubLogo(OpponentClubModel club) async {
+    final picked =
+        await FilePicker.pickFiles(type: FileType.image, withData: true);
+    final file = picked?.files.single;
+    if (file?.bytes == null) return;
+    await widget.repository.uploadOpponentClubLogo(
+      opponentClubId: club.id,
+      bytes: file!.bytes!,
+      fileName: file.name,
+    );
+    await _load();
+  }
 
   Widget _leagueTab(double height) => ListView(
         padding: const EdgeInsets.all(16),
@@ -306,40 +462,6 @@ class _CompetitionManagementDialogState
               ),
         ],
       );
-
-  Future<void> _editOpponent([OpponentModel? value]) async {
-    final draft = await showDialog<OpponentEditorDraft>(
-      context: context,
-      builder: (context) => OpponentEditorDialog(
-        value: value,
-      ),
-    );
-    if (draft == null) return;
-    await widget.repository.saveOpponent(
-      id: value?.id,
-      ageGroupId: ageGroupId,
-      clubName: draft.clubName,
-      teamDesignation: draft.teamDesignation,
-      venue: draft.venue,
-      address: draft.address,
-    );
-    await _load();
-  }
-
-  Future<void> _uploadLogo(OpponentModel opponent) async {
-    final picked = await FilePicker.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    final file = picked?.files.single;
-    if (file?.bytes == null) return;
-    await widget.repository.uploadOpponentLogo(
-      opponentId: opponent.id,
-      bytes: file!.bytes!,
-      fileName: file.name,
-    );
-    await _load();
-  }
 
   Future<void> _createLeague() async {
     final name = TextEditingController();
@@ -617,43 +739,39 @@ class _CompetitionManagementDialogState
   }
 }
 
-class OpponentEditorDraft {
-  const OpponentEditorDraft({
-    required this.clubName,
-    required this.teamDesignation,
+class OpponentClubEditorDraft {
+  const OpponentClubEditorDraft({
+    required this.name,
     required this.venue,
     required this.address,
   });
 
-  final String clubName;
-  final String teamDesignation;
+  final String name;
   final String venue;
   final String address;
 }
 
-class OpponentEditorDialog extends StatefulWidget {
-  const OpponentEditorDialog({super.key, this.value});
+class OpponentClubEditorDialog extends StatefulWidget {
+  const OpponentClubEditorDialog({super.key, this.value});
 
-  final OpponentModel? value;
+  final OpponentClubModel? value;
 
   @override
-  State<OpponentEditorDialog> createState() => _OpponentEditorDialogState();
+  State<OpponentClubEditorDialog> createState() =>
+      _OpponentClubEditorDialogState();
 }
 
-class _OpponentEditorDialogState extends State<OpponentEditorDialog> {
+class _OpponentClubEditorDialogState extends State<OpponentClubEditorDialog> {
   late final TextEditingController club;
-  late final TextEditingController designation;
   late final TextEditingController venue;
   late final TextEditingController address;
 
-  bool get canSave =>
-      club.text.trim().isNotEmpty && designation.text.trim().isNotEmpty;
+  bool get canSave => club.text.trim().isNotEmpty;
 
   @override
   void initState() {
     super.initState();
-    club = TextEditingController(text: widget.value?.clubName);
-    designation = TextEditingController(text: widget.value?.teamDesignation);
+    club = TextEditingController(text: widget.value?.name);
     venue = TextEditingController(text: widget.value?.venue);
     address = TextEditingController(text: widget.value?.address);
   }
@@ -661,7 +779,6 @@ class _OpponentEditorDialogState extends State<OpponentEditorDialog> {
   @override
   void dispose() {
     club.dispose();
-    designation.dispose();
     venue.dispose();
     address.dispose();
     super.dispose();
@@ -673,9 +790,8 @@ class _OpponentEditorDialogState extends State<OpponentEditorDialog> {
     if (!canSave) return;
     Navigator.pop(
       context,
-      OpponentEditorDraft(
-        clubName: club.text.trim(),
-        teamDesignation: designation.text.trim(),
+      OpponentClubEditorDraft(
+        name: club.text.trim(),
         venue: venue.text.trim(),
         address: address.text.trim(),
       ),
@@ -685,7 +801,7 @@ class _OpponentEditorDialogState extends State<OpponentEditorDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
         title: Text(
-          widget.value == null ? 'Gegner anlegen' : 'Gegner bearbeiten',
+          widget.value == null ? 'Verein hinzufügen' : 'Verein bearbeiten',
         ),
         content: SizedBox(
           width: 520,
@@ -698,17 +814,9 @@ class _OpponentEditorDialogState extends State<OpponentEditorDialog> {
                   onChanged: refreshValidation,
                   textCapitalization: TextCapitalization.words,
                   textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(labelText: 'Verein *'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: designation,
-                  onChanged: refreshValidation,
-                  textCapitalization: TextCapitalization.characters,
-                  textInputAction: TextInputAction.next,
                   decoration: const InputDecoration(
-                    labelText: 'Jugend / Mannschaft *',
-                    hintText: 'z. B. E1',
+                    labelText: 'Vereinsname *',
+                    hintText: 'z. B. ATSV Kelheim',
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -735,6 +843,84 @@ class _OpponentEditorDialogState extends State<OpponentEditorDialog> {
           ),
           FilledButton(
             onPressed: canSave ? save : null,
+            child: const Text('Speichern'),
+          ),
+        ],
+      );
+}
+
+class OpponentTeamEditorDialog extends StatefulWidget {
+  const OpponentTeamEditorDialog({
+    super.key,
+    required this.clubName,
+    required this.ageGroupName,
+    required this.options,
+    this.initialValue,
+  });
+
+  final String clubName;
+  final String ageGroupName;
+  final List<String> options;
+  final String? initialValue;
+
+  @override
+  State<OpponentTeamEditorDialog> createState() =>
+      _OpponentTeamEditorDialogState();
+}
+
+class _OpponentTeamEditorDialogState extends State<OpponentTeamEditorDialog> {
+  late String value;
+
+  @override
+  void initState() {
+    super.initState();
+    value = widget.initialValue ?? widget.options.first;
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Jugendmannschaft festlegen'),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.clubName,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Nur Mannschaften der ${widget.ageGroupName} können hier verwaltet werden.',
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: value,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Mannschaft *',
+                ),
+                items: [
+                  for (final option in widget.options)
+                    DropdownMenuItem(value: option, child: Text(option)),
+                ],
+                onChanged: (next) {
+                  if (next != null) setState(() => value = next);
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, value),
             child: const Text('Speichern'),
           ),
         ],

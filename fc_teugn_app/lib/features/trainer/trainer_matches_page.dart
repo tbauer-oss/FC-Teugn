@@ -363,29 +363,26 @@ class TrainerMatchesPage extends ConsumerWidget {
     }
   }
 
-  Future<OpponentModel?> _createOpponent(
+  Future<OpponentClubModel?> _createOpponentClub(
     BuildContext context,
     DataRepository repository,
-    String ageGroupId,
-    String? teamId,
   ) async {
     final club = TextEditingController();
-    final designation = TextEditingController();
     final venue = TextEditingController();
     final address = TextEditingController();
     try {
       final save = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => ResponsiveFormDialog(
-          title: 'Gegner fest hinzufügen',
+          title: 'Gegnerischen Verein hinzufügen',
           subtitle:
-              'Die Mannschaft steht anschließend für weitere Spiele dieser Jugend bereit.',
+              'Vereinsdaten, Wappen und Spielstätte sind anschließend für alle Jugenden verfügbar.',
           maxWidth: 560,
           onSave: () {
-            if (club.text.trim().isEmpty || designation.text.trim().isEmpty) {
+            if (club.text.trim().isEmpty) {
               ScaffoldMessenger.of(dialogContext).showSnackBar(
                 const SnackBar(
-                  content: Text('Bitte Verein und Mannschaft angeben.'),
+                  content: Text('Bitte den Vereinsnamen angeben.'),
                 ),
               );
               return;
@@ -397,15 +394,6 @@ class TrainerMatchesPage extends ConsumerWidget {
               controller: club,
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'Verein *'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: designation,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'Jugend / Mannschaft *',
-                hintText: 'z. B. E1',
-              ),
             ),
             const SizedBox(height: 12),
             ResponsiveFormRow(
@@ -424,17 +412,13 @@ class TrainerMatchesPage extends ConsumerWidget {
         ),
       );
       if (save != true) return null;
-      return repository.saveOpponent(
-        ageGroupId: ageGroupId,
-        teamId: teamId,
-        clubName: club.text.trim(),
-        teamDesignation: designation.text.trim(),
+      return repository.saveOpponentClub(
+        name: club.text.trim(),
         venue: venue.text.trim(),
         address: address.text.trim(),
       );
     } finally {
       club.dispose();
-      designation.dispose();
       venue.dispose();
       address.dispose();
     }
@@ -854,11 +838,39 @@ class TrainerMatchesPage extends ConsumerWidget {
         : await repository.opponents(ageGroupId).catchError(
               (_) => <OpponentModel>[],
             );
+    var opponentClubs = ageGroupId == null
+        ? <OpponentClubModel>[]
+        : await repository.opponentClubs().catchError(
+              (_) => <OpponentClubModel>[],
+            );
     if (!context.mounted) {
       opponent.dispose();
       return null;
     }
     String? selectedOpponentId = details?.opponentId;
+    final storedOpponent =
+        opponents.where((item) => item.id == selectedOpponentId).firstOrNull;
+    String? selectedOpponentClubId = storedOpponent?.opponentClubId;
+    String? selectedTeamDesignation = storedOpponent == null
+        ? null
+        : _canonicalOpponentDesignation(
+            storedOpponent.teamDesignation,
+            team?.ageGroup,
+          );
+    if (selectedOpponentClubId == null && opponent.text.trim().isNotEmpty) {
+      final legacyClub = opponentClubs
+          .where((item) => opponent.text.trim().startsWith(item.name))
+          .toList()
+        ..sort((a, b) => b.name.length.compareTo(a.name.length));
+      if (legacyClub.isNotEmpty) {
+        selectedOpponentClubId = legacyClub.first.id;
+        final suffix =
+            opponent.text.trim().substring(legacyClub.first.name.length).trim();
+        selectedTeamDesignation = suffix.isEmpty
+            ? null
+            : _canonicalOpponentDesignation(suffix, team?.ageGroup);
+      }
+    }
     String? competition = footballCompetitionForEvent(
       category: event.category,
       storedCompetition: details?.competition,
@@ -877,15 +889,20 @@ class TrainerMatchesPage extends ConsumerWidget {
     var isHome = details?.isHome ?? true;
     var reminder24hEnabled =
         event.reminderPushEnabled && event.reminderMinutes.contains(1440);
+    var savingOpponent = false;
 
     final result = await showDialog<_MatchDraft>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          void save() {
-            if (opponent.text.trim().isEmpty) {
+          Future<void> save() async {
+            if (ageGroupId == null ||
+                selectedOpponentClubId == null ||
+                selectedTeamDesignation == null) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Bitte einen Gegner eintragen.')),
+                const SnackBar(
+                  content: Text('Bitte Verein und Jugendmannschaft auswählen.'),
+                ),
               );
               return;
             }
@@ -908,27 +925,61 @@ class TrainerMatchesPage extends ConsumerWidget {
               );
               return;
             }
-            final selectedOpponent = opponents
-                .where((item) => item.id == selectedOpponentId)
-                .firstOrNull;
-            if (selectedOpponent?.displayName != opponent.text.trim()) {
-              selectedOpponentId = null;
+            if (savingOpponent) return;
+            setState(() => savingOpponent = true);
+            try {
+              var selectedOpponent = opponents
+                  .where(
+                    (item) =>
+                        item.opponentClubId == selectedOpponentClubId &&
+                        _canonicalOpponentDesignation(
+                              item.teamDesignation,
+                              team?.ageGroup,
+                            ) ==
+                            selectedTeamDesignation,
+                  )
+                  .firstOrNull;
+              if (selectedOpponent == null) {
+                final club = opponentClubs
+                    .where((item) => item.id == selectedOpponentClubId)
+                    .first;
+                selectedOpponent = await repository.saveOpponent(
+                  ageGroupId: ageGroupId,
+                  teamId: team?.id,
+                  opponentClubId: club.id,
+                  clubName: club.name,
+                  teamDesignation: selectedTeamDesignation!,
+                );
+                opponents = [...opponents, selectedOpponent];
+              }
+              selectedOpponentId = selectedOpponent.id;
+              opponent.text = selectedOpponent.displayName;
+              if (!context.mounted) return;
+              Navigator.pop(
+                context,
+                _MatchDraft(
+                  opponent: opponent.text.trim(),
+                  opponentId: selectedOpponentId,
+                  isHome: isHome,
+                  competition: competition ?? '',
+                  notes: notes.text.trim(),
+                  ourGoals: int.tryParse(ourGoals.text),
+                  theirGoals: int.tryParse(theirGoals.text),
+                  periodCount: count,
+                  periodMinutes: minutes,
+                  reminder24hEnabled: reminder24hEnabled,
+                ),
+              );
+            } catch (error) {
+              if (!context.mounted) return;
+              setState(() => savingOpponent = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content:
+                      Text('Gegner konnte nicht gespeichert werden: $error'),
+                ),
+              );
             }
-            Navigator.pop(
-              context,
-              _MatchDraft(
-                opponent: opponent.text.trim(),
-                opponentId: selectedOpponentId,
-                isHome: isHome,
-                competition: competition ?? '',
-                notes: notes.text.trim(),
-                ourGoals: int.tryParse(ourGoals.text),
-                theirGoals: int.tryParse(theirGoals.text),
-                periodCount: count,
-                periodMinutes: minutes,
-                reminder24hEnabled: reminder24hEnabled,
-              ),
-            );
           }
 
           return ResponsiveFormDialog(
@@ -989,62 +1040,100 @@ class TrainerMatchesPage extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) =>
-                              DropdownMenu<String>(
-                            controller: opponent,
-                            width: constraints.maxWidth,
-                            label: const Text('Gegner'),
-                            hintText:
-                                'Gespeichert auswählen oder frei eingeben',
-                            enableFilter: true,
-                            enableSearch: true,
-                            dropdownMenuEntries: [
-                              for (final item in opponents)
-                                DropdownMenuEntry(
-                                  value: item.id,
-                                  label: item.displayName,
-                                  leadingIcon: TeamCrest.opponent(
-                                    size: 24,
-                                    logoUrl: item.logoUrl,
-                                  ),
-                                ),
-                            ],
-                            onSelected: (id) {
-                              final selected = opponents
-                                  .where((item) => item.id == id)
-                                  .firstOrNull;
-                              if (selected == null) return;
-                              selectedOpponentId = selected.id;
-                              opponent.text = selected.displayName;
-                            },
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedOpponentClubId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Verein *',
+                            helperText: 'Jugendübergreifender Vereins-Pool',
                           ),
+                          items: [
+                            for (final club in opponentClubs)
+                              DropdownMenuItem(
+                                value: club.id,
+                                child: Row(
+                                  children: [
+                                    TeamCrest.opponent(
+                                      size: 24,
+                                      logoUrl: club.logoUrl,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        club.name,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              selectedOpponentClubId = value;
+                              final existing = opponents
+                                  .where((item) => item.opponentClubId == value)
+                                  .toList();
+                              selectedTeamDesignation = existing.length == 1
+                                  ? existing.first.teamDesignation
+                                  : null;
+                              selectedOpponentId = null;
+                            });
+                          },
                         ),
                       ),
                       const SizedBox(width: 8),
                       IconButton.filledTonal(
-                        tooltip: 'Gegner fest hinzufügen',
-                        onPressed: ageGroupId == null
-                            ? null
-                            : () async {
-                                final created = await _createOpponent(
-                                  context,
-                                  repository,
-                                  ageGroupId,
-                                  team?.id,
-                                );
-                                if (created == null) return;
-                                setState(() {
-                                  opponents = [...opponents, created]
-                                    ..sort((a, b) =>
-                                        a.displayName.compareTo(b.displayName));
-                                  selectedOpponentId = created.id;
-                                  opponent.text = created.displayName;
-                                });
-                              },
-                        icon: const Icon(Icons.add_rounded),
+                        tooltip: 'Verein zum gemeinsamen Pool hinzufügen',
+                        onPressed: () async {
+                          final created = await _createOpponentClub(
+                            context,
+                            repository,
+                          );
+                          if (created == null) return;
+                          setState(() {
+                            opponentClubs = [...opponentClubs, created]
+                              ..sort((a, b) => a.name.compareTo(b.name));
+                            selectedOpponentClubId = created.id;
+                            selectedTeamDesignation = null;
+                          });
+                        },
+                        icon: const Icon(Icons.add_business_rounded),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      '$selectedOpponentClubId:$selectedTeamDesignation',
+                    ),
+                    initialValue: selectedTeamDesignation,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText:
+                          '${team?.ageGroup.name ?? 'Jugend'}‑Mannschaft *',
+                      helperText:
+                          'Nur diese Jugend wird angelegt und von ihrem Trainerteam verwaltet.',
+                    ),
+                    items: [
+                      for (final designation in _opponentDesignationOptions(
+                        team?.ageGroup,
+                        opponents.where(
+                          (item) =>
+                              item.opponentClubId == selectedOpponentClubId,
+                        ),
+                      ))
+                        DropdownMenuItem(
+                          value: designation,
+                          child: Text(designation),
+                        ),
+                    ],
+                    onChanged: selectedOpponentClubId == null
+                        ? null
+                        : (value) => setState(() {
+                              selectedTeamDesignation = value;
+                              selectedOpponentId = null;
+                            }),
                   ),
                   const SizedBox(height: 12),
                   Card(
@@ -1395,6 +1484,44 @@ class _MatchLogos extends StatelessWidget {
       ],
     );
   }
+}
+
+List<String> _opponentDesignationOptions(
+  AgeGroupSummary? ageGroup,
+  Iterable<OpponentModel> existing,
+) {
+  if (ageGroup == null) return const [];
+  final prefixSource =
+      ageGroup.code.toUpperCase().replaceAll(RegExp(r'[^A-ZÄÖÜ]'), '');
+  final prefix =
+      prefixSource.isEmpty ? ageGroup.code.toUpperCase() : prefixSource[0];
+  final values = <String>{
+    for (var number = 1; number <= 9; number++) '$prefix$number',
+    ...existing.map(
+      (item) => _canonicalOpponentDesignation(item.teamDesignation, ageGroup),
+    ),
+  }.where((item) => item.isNotEmpty).toList()
+    ..sort((a, b) => a.compareTo(b));
+  return values;
+}
+
+String _canonicalOpponentDesignation(
+  String value,
+  AgeGroupSummary? ageGroup,
+) {
+  final prefixSource =
+      ageGroup?.code.toUpperCase().replaceAll(RegExp(r'[^A-ZÄÖÜ]'), '') ?? '';
+  final prefix = prefixSource.isEmpty ? '' : prefixSource[0];
+  final raw = value.trim().toUpperCase();
+  final legacyNumber =
+      RegExp(r'^[A-ZÄÖÜ]+\d+\s+(\d{1,2})$').firstMatch(raw)?.group(1);
+  if (prefix.isNotEmpty && legacyNumber != null) return '$prefix$legacyNumber';
+  final compact = raw.replaceAll(' ', '');
+  if (<String>{'E7', 'D9', 'C11', 'B11', 'A11', 'F5', 'F7', 'G3', 'G5'}
+      .contains(compact)) {
+    return '${prefix.isEmpty ? compact[0] : prefix}1';
+  }
+  return compact;
 }
 
 class _MatchDraft {

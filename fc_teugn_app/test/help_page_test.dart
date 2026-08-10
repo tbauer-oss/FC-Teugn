@@ -79,8 +79,15 @@ void main() {
     final opponentArticle = helpArticles.singleWhere(
       (article) => article.title == 'Wie lege ich Gegner, Liga und Spiel an?',
     );
-    expect(opponentArticle.steps.join(' '), contains('Pflichtfelder'));
-    expect(opponentArticle.steps.join(' '), contains('„Speichern“ aktiv'));
+    expect(
+      opponentArticle.steps.join(' '),
+      contains('gemeinsamen Vereins-Pool'),
+    );
+    expect(
+      opponentArticle.steps.join(' '),
+      contains('zuerst den Verein und danach die Jugendmannschaft'),
+    );
+    expect(opponentArticle.steps.join(' '), contains('ausschließlich'));
 
     final publicationArticle = helpArticles.singleWhere(
       (article) =>

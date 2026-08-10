@@ -9,7 +9,7 @@ import {
   Role,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { accessibleTeamIds } from '../services/team-access';
+import { accessibleTeamIds, clubIdForTeam } from '../services/team-access';
 import { mediaAssetUrl } from '../services/media-access';
 import { objectStorage } from '../services/object-storage';
 import { hasEffectivePermission, Permission } from '../security/permissions';
@@ -33,6 +33,22 @@ function normalized(value: string) {
     .trim();
 }
 
+export function canonicalTeamDesignation(value: string, ageCode: string) {
+  const prefix = ageCode
+    .toLocaleUpperCase('de-DE')
+    .replace(/[^A-ZÄÖÜ]/g, '')
+    .slice(0, 1);
+  const raw = value.toLocaleUpperCase('de-DE').trim();
+  const legacyNumber = raw.match(/^[A-ZÄÖÜ]+\d+\s+(\d{1,2})$/)?.[1];
+  if (prefix && legacyNumber) return `${prefix}${legacyNumber}`;
+  const compact = raw.replace(/\s+/g, '');
+  if (['E7', 'D9', 'C11', 'B11', 'A11', 'F5', 'F7', 'G3', 'G5']
+      .includes(compact)) {
+    return `${prefix || compact.slice(0, 1)}1`;
+  }
+  return compact;
+}
+
 function validScore(value: unknown) {
   if (value === null || value === undefined || value === '') return null;
   const score = Number(value);
@@ -51,19 +67,131 @@ async function accessibleAgeGroup(req: Request, ageGroupId: string) {
 const opponentInclude = {
   ageGroup: { select: { id: true, name: true, code: true } },
   logoAsset: { select: { id: true, deletedAt: true } },
+  opponentClub: {
+    include: { logoAsset: { select: { id: true, deletedAt: true } } },
+  },
 } as const;
+
+const opponentClubInclude = {
+  logoAsset: { select: { id: true, deletedAt: true } },
+  teams: {
+    where: { archivedAt: null },
+    select: {
+      id: true,
+      ageGroupId: true,
+      teamId: true,
+      teamDesignation: true,
+      shortName: true,
+    },
+    orderBy: { teamDesignation: 'asc' },
+  },
+} satisfies Prisma.OpponentClubInclude;
+
+async function organizationClubId(req: Request) {
+  return clubIdForTeam(req.user!.teamId);
+}
+
+function serializeOpponentClub<
+  T extends Prisma.OpponentClubGetPayload<{ include: typeof opponentClubInclude }>,
+>(club: T) {
+  return {
+    ...club,
+    logoAsset: undefined,
+    logoUrl: club.logoAsset && club.logoAsset.deletedAt === null
+      ? mediaAssetUrl(club.logoAsset.id, '12h')
+      : null,
+  };
+}
 
 function serializeOpponent<T extends Prisma.OpponentGetPayload<{ include: typeof opponentInclude }>>(
   opponent: T,
 ) {
+  const teamDesignation = canonicalTeamDesignation(
+    opponent.teamDesignation,
+    opponent.ageGroup.code,
+  );
   return {
     ...opponent,
     logoAsset: undefined,
-    logoUrl: opponent.logoAsset && opponent.logoAsset.deletedAt === null
-      ? mediaAssetUrl(opponent.logoAsset.id, '12h')
+    opponentClub: undefined,
+    clubName: opponent.opponentClub.name,
+    shortName: opponent.opponentClub.shortName ?? opponent.shortName,
+    venue: opponent.opponentClub.venue,
+    address: opponent.opponentClub.address,
+    teamDesignation,
+    logoUrl: opponent.opponentClub.logoAsset &&
+      opponent.opponentClub.logoAsset.deletedAt === null
+      ? mediaAssetUrl(opponent.opponentClub.logoAsset.id, '12h')
+      : opponent.logoAsset && opponent.logoAsset.deletedAt === null
+        ? mediaAssetUrl(opponent.logoAsset.id, '12h')
       : null,
-    displayName: `${opponent.clubName} ${opponent.teamDesignation}`.trim(),
+    displayName: `${opponent.opponentClub.name} ${teamDesignation}`.trim(),
   };
+}
+
+export async function listOpponentClubs(req: Request, res: Response) {
+  const clubId = await organizationClubId(req);
+  if (!clubId) return res.status(403).json({ message: 'Vereinskontext fehlt.' });
+  const clubs = await prisma.opponentClub.findMany({
+    where: { organizationClubId: clubId, archivedAt: null },
+    include: opponentClubInclude,
+    orderBy: { name: 'asc' },
+  });
+  return res.json(clubs.map(serializeOpponentClub));
+}
+
+export async function saveOpponentClub(req: Request, res: Response) {
+  const organizationId = await organizationClubId(req);
+  if (!organizationId) {
+    return res.status(403).json({ message: 'Vereinskontext fehlt.' });
+  }
+  const name = text(req.body?.name ?? req.body?.clubName, 120);
+  if (!name) return res.status(400).json({ message: 'Vereinsname fehlt.' });
+  const normalizedName = normalized(name);
+  const duplicate = await prisma.opponentClub.findFirst({
+    where: {
+      organizationClubId: organizationId,
+      normalizedName,
+      archivedAt: null,
+      ...(req.params.id ? { id: { not: req.params.id } } : {}),
+    },
+    select: { id: true },
+  });
+  if (duplicate) {
+    return res.status(409).json({ message: 'Dieser Verein ist bereits vorhanden.' });
+  }
+  const data = {
+    name,
+    normalizedName,
+    shortName: text(req.body?.shortName, 40),
+    venue: text(req.body?.venue, 160),
+    address: text(req.body?.address, 240),
+  };
+  const club = req.params.id
+    ? await prisma.opponentClub.update({
+        where: { id: req.params.id, organizationClubId: organizationId },
+        data,
+        include: opponentClubInclude,
+      })
+    : await prisma.opponentClub.create({
+        data: {
+          ...data,
+          organizationClubId: organizationId,
+          createdById: req.user!.id,
+        },
+        include: opponentClubInclude,
+      });
+  // Legacy-Spalten bleiben synchron, damit ältere App-Versionen und bereits
+  // gespeicherte Spiele während der Umstellung weiterhin korrekt arbeiten.
+  await prisma.opponent.updateMany({
+    where: { opponentClubId: club.id },
+    data: {
+      clubName: club.name,
+      venue: club.venue,
+      address: club.address,
+    },
+  });
+  return res.status(req.params.id ? 200 : 201).json(serializeOpponentClub(club));
 }
 
 export async function listOpponents(req: Request, res: Response) {
@@ -83,10 +211,9 @@ export async function listOpponents(req: Request, res: Response) {
 
 export async function saveOpponent(req: Request, res: Response) {
   const ageGroupId = text(req.body?.ageGroupId, 100);
-  const clubName = text(req.body?.clubName, 120);
   const teamDesignation = text(req.body?.teamDesignation, 40);
-  if (!ageGroupId || !clubName || !teamDesignation) {
-    return res.status(400).json({ message: 'Jugend, Verein und Mannschaft sind erforderlich.' });
+  if (!ageGroupId || !teamDesignation) {
+    return res.status(400).json({ message: 'Jugend und Mannschaft sind erforderlich.' });
   }
   const access = await accessibleAgeGroup(req, ageGroupId);
   if (!access.ageGroupTeamIds.length) {
@@ -96,28 +223,84 @@ export async function saveOpponent(req: Request, res: Response) {
   if (teamId && !access.ageGroupTeamIds.includes(teamId)) {
     return res.status(403).json({ message: 'Mannschaft gehört nicht zur ausgewählten Jugend.' });
   }
-  const normalizedKey = normalized(`${clubName} ${teamDesignation}`);
-  const duplicate = await prisma.opponent.findFirst({
+  const ageGroup = await prisma.ageGroup.findUnique({
+    where: { id: ageGroupId },
+    select: { code: true, season: { select: { clubId: true } } },
+  });
+  if (!ageGroup) return res.status(404).json({ message: 'Jugend nicht gefunden.' });
+  const designation = canonicalTeamDesignation(teamDesignation, ageGroup.code);
+  const ageCode = ageGroup.code
+    .toLocaleUpperCase('de-DE')
+    .replace(/[^A-ZÄÖÜ]/g, '')
+    .slice(0, 1);
+  if (ageCode && !new RegExp(`^${ageCode}\\d{1,2}$`).test(designation)) {
+    return res.status(400).json({
+      message: `Bitte eine Mannschaft der ${ageGroup.code}-Jugend wählen, z. B. ${ageGroup.code}1.`,
+    });
+  }
+  let opponentClubId = text(req.body?.opponentClubId, 100);
+  let club = opponentClubId
+    ? await prisma.opponentClub.findFirst({
+        where: {
+          id: opponentClubId,
+          organizationClubId: ageGroup.season.clubId,
+          archivedAt: null,
+        },
+      })
+    : null;
+  // Übergangskompatibilität für ältere Clients: Ein übermittelter Vereinsname
+  // wird einmalig in den zentralen Vereins-Pool übernommen.
+  if (!club) {
+    const legacyClubName = text(req.body?.clubName, 120);
+    if (!legacyClubName) {
+      return res.status(400).json({ message: 'Bitte einen Verein auswählen.' });
+    }
+    const normalizedName = normalized(legacyClubName);
+    club = await prisma.opponentClub.upsert({
+      where: {
+        organizationClubId_normalizedName: {
+          organizationClubId: ageGroup.season.clubId,
+          normalizedName,
+        },
+      },
+      update: {},
+      create: {
+        organizationClubId: ageGroup.season.clubId,
+        name: legacyClubName,
+        normalizedName,
+        venue: text(req.body?.venue, 160),
+        address: text(req.body?.address, 240),
+        createdById: req.user!.id,
+      },
+    });
+    opponentClubId = club.id;
+  }
+  const normalizedKey = normalized(`${club.id} ${designation}`);
+  const existingTeams = await prisma.opponent.findMany({
     where: {
       ageGroupId,
-      normalizedKey,
+      opponentClubId: club.id,
       archivedAt: null,
       ...(req.params.id ? { id: { not: req.params.id } } : {}),
     },
-    select: { id: true },
+    select: { id: true, teamDesignation: true },
   });
+  const duplicate = existingTeams.find(
+    (item) => canonicalTeamDesignation(item.teamDesignation, ageGroup.code) === designation,
+  );
   if (duplicate) {
     return res.status(409).json({ message: 'Dieser Gegner ist in der Jugend bereits vorhanden.' });
   }
   const data = {
     ageGroupId,
     teamId,
-    clubName,
-    teamDesignation,
+    opponentClubId: club.id,
+    clubName: club.name,
+    teamDesignation: designation,
     normalizedKey,
-    shortName: text(req.body?.shortName, 40),
-    venue: text(req.body?.venue, 160),
-    address: text(req.body?.address, 240),
+    shortName: text(req.body?.shortName, 40) ?? club.shortName,
+    venue: club.venue,
+    address: club.address,
   };
   const opponent = req.params.id
     ? await prisma.opponent.update({
@@ -159,22 +342,46 @@ export async function archiveOpponent(req: Request, res: Response) {
 export async function uploadOpponentLogo(req: Request, res: Response) {
   const opponent = await prisma.opponent.findUnique({
     where: { id: req.params.id },
-    include: { logoAsset: true },
+    include: { opponentClub: { include: { logoAsset: true } } },
   });
   if (!opponent) return res.status(404).json({ message: 'Gegner nicht gefunden.' });
   const access = await accessibleAgeGroup(req, opponent.ageGroupId);
   if (!access.ageGroupTeamIds.length) return res.status(403).json({ message: 'Kein Zugriff.' });
+  return storeOpponentClubLogo(req, res, opponent.opponentClub, opponent.id);
+}
+
+export async function uploadOpponentClubLogo(req: Request, res: Response) {
+  const organizationId = await organizationClubId(req);
+  if (!organizationId) return res.status(403).json({ message: 'Vereinskontext fehlt.' });
+  const club = await prisma.opponentClub.findFirst({
+    where: {
+      id: req.params.id,
+      organizationClubId: organizationId,
+      archivedAt: null,
+    },
+    include: { logoAsset: true },
+  });
+  if (!club) return res.status(404).json({ message: 'Verein nicht gefunden.' });
+  return storeOpponentClubLogo(req, res, club);
+}
+
+async function storeOpponentClubLogo(
+  req: Request,
+  res: Response,
+  club: Prisma.OpponentClubGetPayload<{ include: { logoAsset: true } }>,
+  legacyOpponentId?: string,
+) {
   if (!req.file || !imageTypes.has(req.file.mimetype)) {
     return res.status(400).json({ message: 'Bitte ein JPEG-, PNG- oder WebP-Bild auswählen.' });
   }
   const extension = req.file.mimetype === 'image/png' ? 'png'
     : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg';
   const stored = await objectStorage.uploadPrivate(
-    `opponents/${opponent.id}/${randomUUID()}.${extension}`,
+    `opponent-clubs/${club.id}/${randomUUID()}.${extension}`,
     req.file.buffer,
     req.file.mimetype,
   );
-  const previousPath = opponent.logoAsset?.pathname;
+  const previousPath = club.logoAsset?.pathname;
   const updated = await prisma.$transaction(async (tx) => {
     const asset = await tx.fileAsset.create({
       data: {
@@ -189,42 +396,71 @@ export async function uploadOpponentLogo(req: Request, res: Response) {
         isPrivate: true,
       },
     });
-    const saved = await tx.opponent.update({
-      where: { id: opponent.id },
+    const saved = await tx.opponentClub.update({
+      where: { id: club.id },
       data: { logoAssetId: asset.id },
-      include: opponentInclude,
+      include: opponentClubInclude,
     });
-    if (opponent.logoAsset) {
+    if (club.logoAsset) {
       await tx.fileAsset.update({
-        where: { id: opponent.logoAsset.id },
+        where: { id: club.logoAsset.id },
         data: { deletedAt: new Date() },
       });
     }
     return saved;
   });
   if (previousPath) objectStorage.delete(previousPath).catch(() => undefined);
-  return res.status(201).json(serializeOpponent(updated));
+  if (legacyOpponentId) {
+    const refreshed = await prisma.opponent.findUnique({
+      where: { id: legacyOpponentId },
+      include: opponentInclude,
+    });
+    if (refreshed) return res.status(201).json(serializeOpponent(refreshed));
+  }
+  return res.status(201).json(serializeOpponentClub(updated));
 }
 
 export async function removeOpponentLogo(req: Request, res: Response) {
   const opponent = await prisma.opponent.findUnique({
     where: { id: req.params.id },
-    include: { logoAsset: true },
+    include: { opponentClub: { include: { logoAsset: true } } },
   });
   if (!opponent) return res.status(404).json({ message: 'Gegner nicht gefunden.' });
   const access = await accessibleAgeGroup(req, opponent.ageGroupId);
   if (!access.ageGroupTeamIds.length) return res.status(403).json({ message: 'Kein Zugriff.' });
+  return removeClubLogo(res, opponent.opponentClub);
+}
+
+export async function removeOpponentClubLogo(req: Request, res: Response) {
+  const organizationId = await organizationClubId(req);
+  if (!organizationId) return res.status(403).json({ message: 'Vereinskontext fehlt.' });
+  const club = await prisma.opponentClub.findFirst({
+    where: {
+      id: req.params.id,
+      organizationClubId: organizationId,
+      archivedAt: null,
+    },
+    include: { logoAsset: true },
+  });
+  if (!club) return res.status(404).json({ message: 'Verein nicht gefunden.' });
+  return removeClubLogo(res, club);
+}
+
+async function removeClubLogo(
+  res: Response,
+  club: Prisma.OpponentClubGetPayload<{ include: { logoAsset: true } }>,
+) {
   await prisma.$transaction(async (tx) => {
-    await tx.opponent.update({ where: { id: opponent.id }, data: { logoAssetId: null } });
-    if (opponent.logoAsset) {
+    await tx.opponentClub.update({ where: { id: club.id }, data: { logoAssetId: null } });
+    if (club.logoAsset) {
       await tx.fileAsset.update({
-        where: { id: opponent.logoAsset.id },
+        where: { id: club.logoAsset.id },
         data: { deletedAt: new Date() },
       });
     }
   });
-  if (opponent.logoAsset) {
-    objectStorage.delete(opponent.logoAsset.pathname).catch(() => undefined);
+  if (club.logoAsset) {
+    objectStorage.delete(club.logoAsset.pathname).catch(() => undefined);
   }
   return res.status(204).send();
 }
@@ -315,7 +551,14 @@ const leagueInclude = {
   entries: {
     orderBy: [{ sortOrder: 'asc' as const }, { displayName: 'asc' as const }],
     include: {
-      opponent: { include: { logoAsset: { select: { id: true, deletedAt: true } } } },
+      opponent: {
+        include: {
+          logoAsset: { select: { id: true, deletedAt: true } },
+          opponentClub: {
+            include: { logoAsset: { select: { id: true, deletedAt: true } } },
+          },
+        },
+      },
       ownTeam: { select: { id: true, name: true, shortName: true } },
     },
   },
@@ -333,8 +576,11 @@ function serializeLeague<T extends Prisma.LeagueGetPayload<{ include: typeof lea
     ...league,
     entries: league.entries.map((entry) => ({
       ...entry,
-      logoUrl: entry.opponent?.logoAsset && entry.opponent.logoAsset.deletedAt === null
-        ? mediaAssetUrl(entry.opponent.logoAsset.id, '12h')
+      logoUrl: entry.opponent?.opponentClub.logoAsset &&
+        entry.opponent.opponentClub.logoAsset.deletedAt === null
+        ? mediaAssetUrl(entry.opponent.opponentClub.logoAsset.id, '12h')
+        : entry.opponent?.logoAsset && entry.opponent.logoAsset.deletedAt === null
+          ? mediaAssetUrl(entry.opponent.logoAsset.id, '12h')
         : entry.ownTeamId
           ? league.season.club.logoUrl
           : null,

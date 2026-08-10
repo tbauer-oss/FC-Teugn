@@ -10,8 +10,10 @@ void main() {
   final outbox = File('lib/core/offline_outbox.dart').readAsStringSync();
 
   test('match editor provides opponent pool, quick add and friendly badge', () {
-    expect(page, contains("title: 'Gegner fest hinzufügen'"));
-    expect(page, contains('DropdownMenu<String>'));
+    expect(page, contains("title: 'Gegnerischen Verein hinzufügen'"));
+    expect(page, contains('DropdownButtonFormField<String>'));
+    expect(page, contains('selectedOpponentClubId'));
+    expect(page, contains('selectedTeamDesignation'));
     expect(page, contains("? 'Freundschaftsspiel'"));
   });
 

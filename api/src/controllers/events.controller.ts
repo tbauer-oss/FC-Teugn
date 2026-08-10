@@ -119,7 +119,12 @@ const eventInclude = {
   matchDetails: {
     include: {
       opponentRecord: {
-        include: { logoAsset: { select: { id: true, deletedAt: true } } },
+        include: {
+          logoAsset: { select: { id: true, deletedAt: true } },
+          opponentClub: {
+            include: { logoAsset: { select: { id: true, deletedAt: true } } },
+          },
+        },
       },
     },
   },
@@ -382,7 +387,13 @@ async function serializeEvent(
           ...event.matchDetails,
           opponentRecord: undefined,
           opponentLogoUrl:
-            event.matchDetails.opponentRecord?.logoAsset &&
+            event.matchDetails.opponentRecord?.opponentClub.logoAsset &&
+            event.matchDetails.opponentRecord.opponentClub.logoAsset.deletedAt === null
+              ? mediaAssetUrl(
+                  event.matchDetails.opponentRecord.opponentClub.logoAsset.id,
+                  '12h',
+                )
+              : event.matchDetails.opponentRecord?.logoAsset &&
             event.matchDetails.opponentRecord.logoAsset.deletedAt === null
               ? mediaAssetUrl(event.matchDetails.opponentRecord.logoAsset.id, '12h')
               : event.matchDetails.opponentLogoUrl,
@@ -929,7 +940,14 @@ export async function listPersonalResponses(req: Request, res: Response) {
       matchDetails: {
         include: {
           opponentRecord: {
-            include: { logoAsset: { select: { id: true, deletedAt: true } } },
+            include: {
+              logoAsset: { select: { id: true, deletedAt: true } },
+              opponentClub: {
+                include: {
+                  logoAsset: { select: { id: true, deletedAt: true } },
+                },
+              },
+            },
           },
         },
       },
@@ -991,7 +1009,13 @@ export async function listPersonalResponses(req: Request, res: Response) {
           deadlinePassed &&
           (!response || response.status === AttendanceStatus.UNKNOWN),
         opponentLogoUrl:
-          event.matchDetails?.opponentRecord?.logoAsset &&
+          event.matchDetails?.opponentRecord?.opponentClub.logoAsset &&
+          event.matchDetails.opponentRecord.opponentClub.logoAsset.deletedAt === null
+            ? mediaAssetUrl(
+                event.matchDetails.opponentRecord.opponentClub.logoAsset.id,
+                '12h',
+              )
+            : event.matchDetails?.opponentRecord?.logoAsset &&
           event.matchDetails.opponentRecord.logoAsset.deletedAt === null
             ? mediaAssetUrl(event.matchDetails.opponentRecord.logoAsset.id, '12h')
             : event.matchDetails?.opponentLogoUrl ?? null,

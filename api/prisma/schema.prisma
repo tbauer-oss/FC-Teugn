@@ -533,6 +533,7 @@ model Club {
   seasons           Season[]
   seasonTransitions SeasonTransition[]
   players           Player[]
+  opponentClubs     OpponentClub[]     @relation("OrganizationOpponentClubs")
 }
 
 model Season {
@@ -671,6 +672,7 @@ model User {
   changedPermissionOverrides   UserPermissionOverride[] @relation("PermissionOverrideActor")
   eventParticipantAssignments  EventParticipant[]
   createdOpponents             Opponent[]               @relation("OpponentCreator")
+  createdOpponentClubs         OpponentClub[]           @relation("OpponentClubCreator")
   createdLeagues               League[]                 @relation("LeagueCreator")
   reminderJobs                 ScheduledReminder[]
   idempotencyRecords           IdempotencyRecord[]
@@ -914,6 +916,7 @@ model FileAsset {
   ownerTeam         Team?           @relation("TeamFileOwner", fields: [ownerTeamId], references: [id], onDelete: SetNull)
   teamPhoto         Team?           @relation("TeamPhotoAsset")
   opponentLogo      Opponent?       @relation("OpponentLogoAsset")
+  opponentClubLogo  OpponentClub?   @relation("OpponentClubLogoAsset")
   document          PlayerDocument?
   supportAttachment SupportTicket?  @relation("SupportAttachment")
 
@@ -1269,6 +1272,7 @@ model Opponent {
   id              String         @id @default(cuid())
   ageGroupId      String
   teamId          String?
+  opponentClubId  String
   clubName        String
   teamDesignation String
   shortName       String?
@@ -1284,11 +1288,36 @@ model Opponent {
   team            Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
   logoAsset       FileAsset?     @relation("OpponentLogoAsset", fields: [logoAssetId], references: [id], onDelete: SetNull)
   createdBy       User           @relation("OpponentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  opponentClub    OpponentClub   @relation(fields: [opponentClubId], references: [id], onDelete: Restrict)
   matchDetails    MatchDetails[]
   leagueEntries   LeagueEntry[]
 
   @@unique([ageGroupId, normalizedKey])
+  @@unique([ageGroupId, opponentClubId, teamDesignation])
   @@index([ageGroupId, archivedAt, clubName])
+  @@index([opponentClubId, ageGroupId, archivedAt])
+}
+
+model OpponentClub {
+  id                 String      @id @default(cuid())
+  organizationClubId String
+  name               String
+  shortName          String?
+  normalizedName     String
+  venue              String?
+  address            String?
+  logoAssetId        String?     @unique
+  createdById        String
+  archivedAt         DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  organizationClub   Club        @relation("OrganizationOpponentClubs", fields: [organizationClubId], references: [id], onDelete: Cascade)
+  logoAsset          FileAsset?  @relation("OpponentClubLogoAsset", fields: [logoAssetId], references: [id], onDelete: SetNull)
+  createdBy          User        @relation("OpponentClubCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  teams              Opponent[]
+
+  @@unique([organizationClubId, normalizedName])
+  @@index([organizationClubId, archivedAt, name])
 }
 
 model League {

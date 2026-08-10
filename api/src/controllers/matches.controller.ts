@@ -76,7 +76,10 @@ const matchInclude = {
   matchDetails: {
     include: {
       opponentRecord: {
-        include: { logoAsset: true },
+        include: {
+          logoAsset: true,
+          opponentClub: { include: { logoAsset: true } },
+        },
       },
     },
   },
@@ -353,7 +356,13 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
           ...match.matchDetails,
           opponentRecord: undefined,
           opponentLogoUrl:
-            match.matchDetails.opponentRecord?.logoAsset &&
+            match.matchDetails.opponentRecord?.opponentClub.logoAsset &&
+            match.matchDetails.opponentRecord.opponentClub.logoAsset.deletedAt === null
+              ? mediaAssetUrl(
+                  match.matchDetails.opponentRecord.opponentClub.logoAsset.id,
+                  '12h',
+                )
+              : match.matchDetails.opponentRecord?.logoAsset &&
             match.matchDetails.opponentRecord.logoAsset.deletedAt === null
               ? mediaAssetUrl(
                   match.matchDetails.opponentRecord.logoAsset.id,

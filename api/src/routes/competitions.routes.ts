@@ -2,15 +2,19 @@ import { asyncRouter } from '../middleware/async-handler';
 import {
   archiveLeague,
   archiveOpponent,
+  listOpponentClubs,
   cancelLeagueMatch,
   deleteLeagueMatch,
   listLeagues,
   listOpponents,
   removeOpponentLogo,
+  removeOpponentClubLogo,
   saveLeague,
   saveLeagueMatch,
   saveOpponent,
+  saveOpponentClub,
   uploadOpponentLogo,
+  uploadOpponentClubLogo,
 } from '../controllers/competitions.controller';
 import { requireApproved, requireAuth, requirePermission, requireRoles } from '../middleware/auth';
 import { idempotencyMiddleware } from '../middleware/idempotency';
@@ -29,6 +33,28 @@ const router = asyncRouter();
 router.use(requireAuth);
 router.use(requireApproved);
 router.use(idempotencyMiddleware);
+router.get('/opponent-clubs', listOpponentClubs);
+router.post(
+  '/opponent-clubs',
+  requirePermission(Permission.MANAGE_EVENTS),
+  saveOpponentClub,
+);
+router.put(
+  '/opponent-clubs/:id',
+  requirePermission(Permission.MANAGE_EVENTS),
+  saveOpponentClub,
+);
+router.post(
+  '/opponent-clubs/:id/logo',
+  requirePermission(Permission.MANAGE_EVENTS),
+  playerFileUpload.single('file'),
+  uploadOpponentClubLogo,
+);
+router.delete(
+  '/opponent-clubs/:id/logo',
+  requirePermission(Permission.MANAGE_EVENTS),
+  removeOpponentClubLogo,
+);
 router.get('/opponents', listOpponents);
 router.post('/opponents', requirePermission(Permission.MANAGE_EVENTS), saveOpponent);
 router.put('/opponents/:id', requirePermission(Permission.MANAGE_EVENTS), saveOpponent);

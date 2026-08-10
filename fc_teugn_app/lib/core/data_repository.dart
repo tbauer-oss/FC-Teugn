@@ -95,11 +95,42 @@ class DataRepository {
         .toList();
   }
 
+  Future<List<OpponentClubModel>> opponentClubs() async {
+    final res = await client.dio.get('/competitions/opponent-clubs');
+    return (res.data as List<dynamic>)
+        .whereType<Map<String, dynamic>>()
+        .map(OpponentClubModel.fromJson)
+        .toList();
+  }
+
+  Future<OpponentClubModel> saveOpponentClub({
+    String? id,
+    required String name,
+    String? shortName,
+    String? venue,
+    String? address,
+  }) async {
+    final path = id == null
+        ? '/competitions/opponent-clubs'
+        : '/competitions/opponent-clubs/$id';
+    final data = {
+      'name': name,
+      'shortName': shortName,
+      'venue': venue,
+      'address': address,
+    };
+    final res = id == null
+        ? await client.dio.post(path, data: data)
+        : await client.dio.put(path, data: data);
+    return OpponentClubModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<OpponentModel> saveOpponent({
     String? id,
     required String ageGroupId,
     String? teamId,
-    required String clubName,
+    String? opponentClubId,
+    String? clubName,
     required String teamDesignation,
     String? shortName,
     String? venue,
@@ -110,6 +141,7 @@ class DataRepository {
     final data = {
       'ageGroupId': ageGroupId,
       'teamId': teamId,
+      'opponentClubId': opponentClubId,
       'clubName': clubName,
       'teamDesignation': teamDesignation,
       'shortName': shortName,
@@ -120,6 +152,20 @@ class DataRepository {
         ? await client.dio.post(path, data: data)
         : await client.dio.put(path, data: data);
     return OpponentModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<OpponentClubModel> uploadOpponentClubLogo({
+    required String opponentClubId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final res = await client.dio.post(
+      '/competitions/opponent-clubs/$opponentClubId/logo',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: fileName),
+      }),
+    );
+    return OpponentClubModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   Future<OpponentModel> uploadOpponentLogo({

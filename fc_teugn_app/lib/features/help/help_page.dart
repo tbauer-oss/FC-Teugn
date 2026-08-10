@@ -1061,7 +1061,7 @@ const helpArticles = <HelpArticle>[
     category: HelpCategory.matchday,
     title: 'Wie lege ich Gegner, Liga und Spiel an?',
     summary:
-        'Gegner werden je Jugend gespeichert und können mit Vereinswappen wiederverwendet werden.',
+        'Vereine werden gemeinsam genutzt, ihre einzelnen Jugendmannschaften aber nur in der zuständigen Jugend verwaltet.',
     audience: HelpAudience.staff,
     keywords: [
       'Gegner',
@@ -1082,11 +1082,12 @@ const helpArticles = <HelpArticle>[
     route: '/matches',
     routeLabel: 'Spielbetrieb öffnen',
     steps: [
-      'Öffne im Spielbetrieb „Liga & Gegner“, wechsle zum Reiter „Gegner“ und wähle oben zuerst die richtige Jugend.',
-      'Tippe auf „Gegner anlegen“ und fülle die beiden Pflichtfelder „Verein“ und „Jugend / Mannschaft“ aus. Sobald beide Angaben vorhanden sind, wird „Speichern“ aktiv.',
-      'Spielstätte und Adresse sind optional. Nach dem Speichern steht die Mannschaft im Gegner-Pool dieser Jugend zur Verfügung.',
-      'Über das Bildsymbol lädst du ein gut zugeschnittenes Vereinswappen hoch; mit dem Stift bearbeitest du Namen, Mannschaft, Spielstätte oder Adresse später dauerhaft.',
-      'Beim Anlegen oder Bearbeiten eines Spiels wählst du den Gegner aus dem Dropdown oder legst ihn direkt über das Plus neu an. Alternativ kannst du einen geeigneten Spielplan importieren und vor der Übernahme prüfen.',
+      'Öffne im Spielbetrieb „Liga & Gegner“ und den Reiter „Gegner“. Alle Trainer sehen hier denselben gemeinsamen Vereins-Pool.',
+      'Fehlt ein Verein, tippe auf „Verein hinzufügen“. Vereinsname ist Pflicht; Spielstätte und Adresse sind optional und werden zentral für alle Jugenden genutzt.',
+      'Wähle oben deine Jugend. Öffne danach den gewünschten Verein und füge über „Mannschaft“ nur die Bezeichnung E1, E2, E3 beziehungsweise D1, D2, D3 usw. hinzu.',
+      'Du kannst Mannschaften ausschließlich in einer Jugend verwalten, für die du als Trainer oder Funktionär berechtigt bist. Andere Trainer sehen denselben Verein, pflegen aber ihre eigenen Jugendmannschaften.',
+      'Das Wappen wird einmal am Verein hochgeladen und dadurch bei allen zugehörigen Mannschaften, Spielen und im Liveticker verwendet.',
+      'Beim Anlegen oder Bearbeiten eines Spiels wählst du zuerst den Verein und danach die Jugendmannschaft. Fehlt diese Kombination, legt die App sie beim Speichern automatisch in deiner Jugend an.',
       'Für den automatischen BfV-Abgleich öffnest du den Reiter „BfV“, wählst die konkrete Mannschaft und hinterlegst deren offizielle BfV-Mannschaftsseite sowie die iCal-Adresse.',
       'Nach „Speichern“ kannst du sofort synchronisieren. Danach gleicht die Vereinsverwaltung die eigenen Spiele automatisch ab; neue Spiele werden angelegt und lokale Änderungen bei Konflikten geschützt.',
       'Erzeuge im offiziellen BfV-Widgetgenerator ein Mannschafts-Komplett-Widget. Registriere dort einmalig fcteugnapp.vercel.app als erlaubte Domain und kopiere die Mannschaftskennung aus zeigeMannschaftKomplett(…) in das gleichnamige Feld der App.',
@@ -1095,7 +1096,7 @@ const helpArticles = <HelpArticle>[
       'Die Ansicht enthält den offiziellen Tabellenstand und sämtliche Ligapartien. Dafür muss keine Liga mehr manuell gepflegt werden.',
     ],
     tip:
-        'Das FC-Teugn-Wappen wird automatisch verwendet. Gegnerwappen erscheinen im Spieltag und Liveticker, sobald sie im Gegner-Pool gespeichert sind. iCal- und Widget-Verknüpfung werden je Mannschaft und damit passend zur Saison gespeichert.',
+        'Das FC-Teugn-Wappen wird automatisch verwendet. Gegnerwappen erscheinen im Spieltag und Liveticker, sobald sie einmal am gemeinsamen Verein gespeichert sind. iCal- und Widget-Verknüpfung werden je Mannschaft und damit passend zur Saison gespeichert.',
   ),
   HelpArticle(
     category: HelpCategory.matchday,
