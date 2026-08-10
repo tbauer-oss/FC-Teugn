@@ -626,12 +626,24 @@ class TrainerApprovalsPage extends ConsumerWidget {
                     label: 'Beziehung',
                     value: guardianRelationshipLabel(request!.relationship!),
                   ),
-                _DetailRow(
-                  label: 'Mannschaften',
-                  value: (request?.requestedTeams ?? user.memberships)
-                      .map((item) => '${item.ageGroupCode} · ${item.teamName}')
-                      .join(', '),
-                ),
+                if (request != null && request.requestedTeams.isNotEmpty)
+                  _DetailRow(
+                    label: 'Beantragt (unverbindlich)',
+                    value: request.requestedTeams
+                        .map(
+                            (item) => '${item.ageGroupCode} · ${item.teamName}')
+                        .join(', '),
+                  ),
+                if (user.status != AccountStatus.pending)
+                  _DetailRow(
+                    label: 'Verbindlich freigegeben',
+                    value: user.memberships.isEmpty
+                        ? 'Keine Mannschaft zugeordnet'
+                        : user.memberships
+                            .map((item) =>
+                                '${item.ageGroupCode} · ${item.teamName}')
+                            .join(', '),
+                  ),
                 _DetailRow(
                   label: 'Push-Einwilligung',
                   value:
@@ -2125,11 +2137,11 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
     super.initState();
     role = widget.user.role;
     status = widget.editing ? widget.user.status : AccountStatus.approved;
-    teamIds = widget.user.memberships.isEmpty
+    teamIds = widget.user.assignedTeams.isEmpty
         ? {widget.organization.currentTeam.id}
-        : widget.user.memberships.map((item) => item.teamId).toSet();
+        : widget.user.assignedTeams.map((item) => item.teamId).toSet();
     teamRoles = {
-      for (final membership in widget.user.memberships)
+      for (final membership in widget.user.assignedTeams)
         membership.teamId: _teamFunction(membership.role),
     };
     for (final teamId in teamIds) {
@@ -2243,8 +2255,10 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
               ),
               const SizedBox(height: 5),
               const Text(
-                'Mindestens eine Mannschaft auswählen. Die erste Auswahl wird '
-                'zum Standardteam. Systemadministratoren besitzen unabhängig '
+                'Die Registrierung ist nur ein unverbindlicher Wunsch. '
+                'Ausschließlich die hier bestätigten Mannschaften werden '
+                'verbindlich zugeordnet; die erste Auswahl wird zum '
+                'Standardteam. Systemadministratoren besitzen unabhängig '
                 'davon systemweiten Zugriff.',
               ),
               const SizedBox(height: 10),

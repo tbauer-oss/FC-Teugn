@@ -38,19 +38,14 @@ List<AppUser> filterMembersForOverview(
 }) {
   final normalizedQuery = query.trim().toLowerCase();
   final filtered = users.where((user) {
-    final requestedTeams = user.registrationRequest?.requestedTeams ??
-        const <UserTeamMembership>[];
-    final allTeams = <UserTeamMembership>[
-      ...user.memberships,
-      ...requestedTeams,
-    ];
+    final assignedTeams = user.assignedTeams;
     final searchable = <String>[
       user.name,
       user.email,
       user.phone ?? '',
       user.roleLabel,
       user.registrationRequest?.childName ?? '',
-      ...allTeams.expand(
+      ...assignedTeams.expand(
         (membership) => [
           membership.ageGroupCode,
           membership.teamName,
@@ -68,10 +63,10 @@ List<AppUser> filterMembersForOverview(
     final matchesQuery =
         normalizedQuery.isEmpty || searchable.contains(normalizedQuery);
     final matchesAgeGroup = ageGroupCode == null ||
-        allTeams.any((team) => team.ageGroupCode == ageGroupCode) ||
+        assignedTeams.any((team) => team.ageGroupCode == ageGroupCode) ||
         user.parentPlayers.any((link) => link.ageGroupCode == ageGroupCode);
     final matchesTeam = teamId == null ||
-        allTeams.any((team) => team.teamId == teamId) ||
+        assignedTeams.any((team) => team.teamId == teamId) ||
         user.parentPlayers.any((link) => link.teamId == teamId);
     final matchesType = switch (type) {
       MemberTypeFilter.all => true,
@@ -98,7 +93,7 @@ List<AppUser> filterMembersForOverview(
     final matchesStatus = status == null || user.status == status;
     final matchesReviewStatus = reviewStatus == null ||
         user.registrationRequest?.reviewStatus == reviewStatus;
-    final hasTeam = allTeams.isNotEmpty;
+    final hasTeam = assignedTeams.isNotEmpty;
     final hasChild = user.parentPlayers.isNotEmpty;
     final matchesAssignment = switch (assignment) {
       MemberAssignmentFilter.all => true,

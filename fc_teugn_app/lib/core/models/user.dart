@@ -95,6 +95,20 @@ class AppUser {
         _ => false,
       };
 
+  /// Teams that are relevant for the current account state.
+  ///
+  /// During registration, the selected teams are only a request and help the
+  /// administration review the account. As soon as that review is finished,
+  /// only the memberships saved by the approving person are authoritative.
+  List<UserTeamMembership> get assignedTeams {
+    final requestedTeams =
+        registrationRequest?.requestedTeams ?? const <UserTeamMembership>[];
+    if (status == AccountStatus.pending && requestedTeams.isNotEmpty) {
+      return requestedTeams;
+    }
+    return memberships;
+  }
+
   String get roleLabel => switch (role) {
         UserRole.superAdmin => 'Systemadministration',
         UserRole.clubAdmin => 'Vereinsadministration',

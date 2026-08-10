@@ -778,7 +778,10 @@ export async function approveUser(req: Request, res: Response) {
         },
       },
     });
-    return member;
+    return tx.user.findUniqueOrThrow({
+      where: { id: member.id },
+      select: memberSelect,
+    });
   });
 
   return res.json(updated);

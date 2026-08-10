@@ -17,6 +17,13 @@ void main() {
     role: UserRole.coach,
     status: AccountStatus.approved,
   );
+  const f1Request = UserTeamMembership(
+    teamId: 'f1',
+    teamName: 'F1',
+    ageGroupCode: 'F',
+    role: UserRole.coach,
+    status: AccountStatus.pending,
+  );
   final users = <AppUser>[
     AppUser(
       id: 'parent',
@@ -59,6 +66,14 @@ void main() {
       teamId: 'e2',
       memberships: [e2],
       createdAt: DateTime(2026, 8, 1),
+      registrationRequest: const RegistrationRequestInfo(
+        id: 'old-request',
+        requestedRole: UserRole.coach,
+        reviewStatus: RegistrationReviewStatus.completed,
+        requestedTeams: [f1Request, e2],
+        history: [],
+        pushOptIn: true,
+      ),
     ),
     AppUser(
       id: 'admin',
@@ -92,6 +107,21 @@ void main() {
       reviewStatus: RegistrationReviewStatus.needsInfo,
     );
     expect(result.map((user) => user.id), ['parent']);
+  });
+
+  test('approved assignments override the original registration request', () {
+    expect(
+      filterMembersForOverview(users, ageGroupCode: 'F').map((user) => user.id),
+      isEmpty,
+    );
+    expect(
+      filterMembersForOverview(users, ageGroupCode: 'E').map((user) => user.id),
+      ['coach', 'parent'],
+    );
+    expect(
+      filterMembersForOverview(users, query: 'F1').map((user) => user.id),
+      isEmpty,
+    );
   });
 
   test('finds accounts without team or child assignment', () {
