@@ -36,6 +36,8 @@ test('BfV sync is permission guarded, scheduled and exposed in the app', () => {
   assert.match(flutterTab, /Tabelle & Ligaspiele/);
   assert.match(widgetPage, /zeigeMannschaftKomplett/);
   assert.match(widgetPage, /fcTeugnBfvWidgetConsent/);
+  assert.match(widgetPage, /colorResults:\s*'#11150f'/);
+  assert.doesNotMatch(widgetPage, /colorResults:\s*'#fff4a8'/);
 });
 
 test('system administrators can save all widget team identifiers centrally', () => {
