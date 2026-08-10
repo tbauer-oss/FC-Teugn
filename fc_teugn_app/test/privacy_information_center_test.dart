@@ -25,6 +25,8 @@ void main() {
       find.text('Verantwortlicher & Datenschutzkontakt'),
       findsOneWidget,
     );
+    expect(find.textContaining('info@fc-teugn.de'), findsOneWidget);
+    expect(find.textContaining('fcteugn@web.de'), findsNothing);
     expect(
       find.text('Ihre Rechte nach der DSGVO', skipOffstage: false),
       findsOneWidget,

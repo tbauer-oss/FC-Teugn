@@ -363,7 +363,7 @@ export async function buildConsentPdf(data: ConsentPdfData) {
     `${data.template.retention} Empfänger sind nur die jeweils ausgewählten Stellen und hierfür berechtigte Vereinsverantwortliche beziehungsweise eingesetzte Dienstleister. Es findet keine automatisierte Entscheidungsfindung statt.`,
   );
   text(
-    'Die Einwilligung ist freiwillig. Aus einer Ablehnung entstehen keine Nachteile für die sportliche Teilnahme. Sie kann jederzeit mit Wirkung für die Zukunft in der App oder gegenüber dem FC Teugn e.V., Kreutweg 14, 93356 Teugn, E-Mail: fcteugn@web.de, widerrufen werden. Die Rechtmäßigkeit der bis zum Widerruf erfolgten Verarbeitung bleibt unberührt. Es bestehen insbesondere die Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung und Beschwerde bei einer Datenschutzaufsichtsbehörde.',
+    'Die Einwilligung ist freiwillig. Aus einer Ablehnung entstehen keine Nachteile für die sportliche Teilnahme. Sie kann jederzeit mit Wirkung für die Zukunft in der App oder gegenüber dem FC Teugn e.V., Kreutweg 14, 93356 Teugn, E-Mail: info@fc-teugn.de, widerrufen werden. Die Rechtmäßigkeit der bis zum Widerruf erfolgten Verarbeitung bleibt unberührt. Es bestehen insbesondere die Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung und Beschwerde bei einer Datenschutzaufsichtsbehörde.',
   );
 
   ensure(230);

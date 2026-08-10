@@ -454,7 +454,7 @@ class PrivacyInformationCenter extends StatelessWidget {
   Future<void> _contactClub() => launchUrl(
         Uri(
           scheme: 'mailto',
-          path: 'fcteugn@web.de',
+          path: 'info@fc-teugn.de',
           queryParameters: const {
             'subject': 'Datenschutzanfrage · FC Teugn Talents',
           },
@@ -492,7 +492,7 @@ class PrivacyInformationCenter extends StatelessWidget {
             _PrivacyParagraph(
               title: 'Kontakt für Datenschutzanliegen',
               text:
-                  'E-Mail: fcteugn@web.de. Bitte keine Gesundheitsdaten oder Ausweiskopien unverschlüsselt per E-Mail senden.',
+                  'E-Mail: info@fc-teugn.de. Bitte keine Gesundheitsdaten oder Ausweiskopien unverschlüsselt per E-Mail senden.',
             ),
             _PrivacyParagraph(
               title: 'Bearbeitungsfrist',
