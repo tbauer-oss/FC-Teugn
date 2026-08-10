@@ -510,6 +510,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         widget.matchId,
         fullTeam: requiresFullTeam,
       );
+      ref.invalidate(personalResponsesProvider);
+      ref.invalidate(eventsProvider);
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -533,6 +535,11 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(manualDataRefreshProvider, (previous, next) {
+      if (previous != null && previous != next && mounted) {
+        unawaited(_load(refreshPlayers: widget.staffView));
+      }
+    });
     if (_loading) {
       return const PageScaffold(
         title: 'Spieltag',
@@ -2439,6 +2446,8 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
         pushEnabled: pushEnabled,
       );
       if (!mounted) return;
+      ref.invalidate(personalResponsesProvider);
+      ref.invalidate(eventsProvider);
       await widget.onReload();
       if (mounted) {
         final publication = result['publication'] as Map<String, dynamic>?;

@@ -76,6 +76,7 @@ void main() {
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1100, 720));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    var refreshCount = 0;
 
     final destinations = <ShellDestination>[
       const ShellDestination(
@@ -173,6 +174,7 @@ void main() {
                 seasonLabel: '2026/27',
                 onSelect: (_) {},
                 onLogout: () {},
+                onRefresh: () async => refreshCount++,
               ),
               const Expanded(child: SizedBox()),
             ],
@@ -185,6 +187,11 @@ void main() {
     expect(find.text('ÜBERSICHT'), findsOneWidget);
     expect(find.text('MEINE MANNSCHAFT'), findsOneWidget);
     expect(find.text('TRAINING & SPIELTAG'), findsOneWidget);
+    expect(find.byTooltip('Daten aktualisieren'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Daten aktualisieren'));
+    await tester.pumpAndSettle();
+    expect(refreshCount, 1);
   });
 
   testWidgets('Mobiles App-Menü ist kompakt und nach Bereichen gegliedert',

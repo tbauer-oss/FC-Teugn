@@ -38,6 +38,20 @@ final repositoryProvider = Provider<DataRepository>((ref) {
   return DataRepository(client);
 });
 
+/// A lightweight signal for user-initiated refreshes. Data providers watch
+/// this value, so only providers that are currently in use are fetched again.
+/// This avoids rebuilding the session or restarting the whole application.
+final manualDataRefreshProvider = StateProvider<int>((ref) => 0);
+
+void _watchManualRefresh(Ref ref) {
+  ref.watch(manualDataRefreshProvider);
+}
+
+void _scheduleLiveRefresh(Ref ref, Duration interval) {
+  final timer = Timer(interval, ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+}
+
 /// Keeps the FCM token for an approved, opted-in Android account registered.
 final nativePushRegistrationProvider = FutureProvider<void>((ref) async {
   final authState = ref.watch(authProvider);
@@ -74,12 +88,17 @@ final nativePushRegistrationProvider = FutureProvider<void>((ref) async {
   ref.onDispose(() => unawaited(refreshSubscription.cancel()));
 });
 
-final playersProvider = FutureProvider<List<PlayerModel>>((ref) async {
+final playersProvider =
+    FutureProvider.autoDispose<List<PlayerModel>>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 60));
   return ref.watch(repositoryProvider).players();
 });
 
-final playerProvider =
-    FutureProvider.family<PlayerModel, String>((ref, playerId) async {
+final playerProvider = FutureProvider.autoDispose
+    .family<PlayerModel, String>((ref, playerId) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 60));
   return ref.watch(repositoryProvider).player(playerId);
 });
 
@@ -88,43 +107,65 @@ final consentTemplatesProvider =
   return ref.watch(repositoryProvider).consentTemplates();
 });
 
-final eventsProvider = FutureProvider<List<EventModel>>((ref) async {
+final eventsProvider =
+    FutureProvider.autoDispose<List<EventModel>>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 30));
   return ref.watch(repositoryProvider).events();
 });
 
 final personalResponsesProvider =
-    FutureProvider<List<PersonalResponseModel>>((ref) async {
+    FutureProvider.autoDispose<List<PersonalResponseModel>>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 20));
   return ref.watch(repositoryProvider).personalResponses();
 });
 
 final supportTicketsProvider =
-    FutureProvider<List<SupportTicketModel>>((ref) async {
+    FutureProvider.autoDispose<List<SupportTicketModel>>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 45));
   return ref.watch(repositoryProvider).supportTickets();
 });
 
-final trainingsProvider = FutureProvider<List<TrainingModel>>((ref) async {
+final trainingsProvider =
+    FutureProvider.autoDispose<List<TrainingModel>>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 60));
   return ref.watch(repositoryProvider).trainings();
 });
 
 final outdoorPitchOccupancyProvider =
-    FutureProvider<PitchOccupancyPlan>((ref) async {
+    FutureProvider.autoDispose<PitchOccupancyPlan>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 45));
   return ref.watch(repositoryProvider).pitchOccupancy();
 });
 
 final indoorPitchOccupancyProvider =
-    FutureProvider<PitchOccupancyPlan>((ref) async {
+    FutureProvider.autoDispose<PitchOccupancyPlan>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 45));
   return ref.watch(repositoryProvider).pitchOccupancy(indoor: true);
 });
 
-final pendingUsersProvider = FutureProvider<List<AppUser>>((ref) async {
+final pendingUsersProvider =
+    FutureProvider.autoDispose<List<AppUser>>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 30));
   return ref.watch(repositoryProvider).pendingUsers();
 });
 
-final membersProvider = FutureProvider<List<AppUser>>((ref) async {
+final membersProvider = FutureProvider.autoDispose<List<AppUser>>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 60));
   return ref.watch(repositoryProvider).members();
 });
 
-final organizationProvider = FutureProvider<OrganizationContext>((ref) async {
+final organizationProvider =
+    FutureProvider.autoDispose<OrganizationContext>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 90));
   return ref.watch(repositoryProvider).organizationContext();
 });
 
@@ -146,6 +187,7 @@ final offlineOutboxCountProvider =
 /// moderaten Intervall dauerhafte Datenbanklast durch jede offene Sitzung.
 final liveNotificationsProvider =
     StreamProvider.autoDispose<List<AppNotificationModel>>((ref) async* {
+  _watchManualRefresh(ref);
   while (true) {
     yield await ref.read(repositoryProvider).notifications();
     await Future<void>.delayed(const Duration(seconds: 10));
@@ -242,8 +284,10 @@ final sessionBootstrapProvider =
   },
 );
 
-final teamOperationsProvider =
-    FutureProvider.family<TeamOperationsOverview, String>((ref, teamId) async {
+final teamOperationsProvider = FutureProvider.autoDispose
+    .family<TeamOperationsOverview, String>((ref, teamId) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 45));
   return ref.watch(repositoryProvider).teamOperations(teamId);
 });
 

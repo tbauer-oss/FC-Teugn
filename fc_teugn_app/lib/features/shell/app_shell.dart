@@ -12,6 +12,7 @@ import '../shared/pwa_install_prompt.dart';
 import '../shared/app_about_sheet.dart';
 
 void _noOp() {}
+Future<void> _noOpAsync() async {}
 
 enum ShellSection {
   overview(
@@ -108,13 +109,11 @@ class AppShell extends ConsumerWidget {
   }
 
   Future<void> _refreshApp(WidgetRef ref) async {
-    ref.invalidate(repositoryProvider);
-    ref.invalidate(organizationProvider);
-    try {
-      await ref.read(organizationProvider.future);
-    } catch (_) {
-      // Die aktuell sichtbare Seite zeigt ihren eigenen Ladefehler an.
-    }
+    ref.read(manualDataRefreshProvider.notifier).state++;
+    // Active providers reload themselves through the generation signal. A
+    // short minimum duration keeps the compact progress ring understandable
+    // without blocking on unrelated APIs.
+    await Future<void>.delayed(const Duration(milliseconds: 450));
   }
 
   void _navigateContextBack(
@@ -376,6 +375,7 @@ class AppShell extends ConsumerWidget {
                         ? _noOp
                         : () => context.go(helpDestination.route),
                     onAbout: () => showAppAboutSheet(context),
+                    onRefresh: () => _refreshApp(ref),
                   ),
                 Expanded(
                   child: Column(
@@ -408,6 +408,7 @@ class AppShell extends ConsumerWidget {
                               ? _noOp
                               : () => context.go(helpDestination.route),
                           onAbout: () => showAppAboutSheet(context),
+                          onRefresh: () => _refreshApp(ref),
                         ),
                       if (showContextBack)
                         _ContextBackBar(
@@ -590,6 +591,7 @@ class DesktopSidebar extends StatelessWidget {
     required this.onLogout,
     this.onHelp = _noOp,
     this.onAbout = _noOp,
+    this.onRefresh = _noOpAsync,
   });
 
   final String title;
@@ -604,6 +606,7 @@ class DesktopSidebar extends StatelessWidget {
   final VoidCallback onLogout;
   final VoidCallback onHelp;
   final VoidCallback onAbout;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -621,9 +624,17 @@ class DesktopSidebar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: _ClubBrand(light: true),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                children: [
+                  const Expanded(child: _ClubBrand(light: true)),
+                  _RefreshIconButton(
+                    onRefresh: onRefresh,
+                    color: Colors.white70,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             Material(
@@ -1352,6 +1363,7 @@ class _MobileHeader extends StatelessWidget {
     required this.onPrivacy,
     required this.onHelp,
     required this.onAbout,
+    required this.onRefresh,
   });
 
   final String title;
@@ -1362,6 +1374,7 @@ class _MobileHeader extends StatelessWidget {
   final VoidCallback onPrivacy;
   final VoidCallback onHelp;
   final VoidCallback onAbout;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -1429,6 +1442,11 @@ class _MobileHeader extends StatelessWidget {
                     ),
                   ),
                 ),
+                _RefreshIconButton(
+                  onRefresh: onRefresh,
+                  color: AppColors.muted,
+                  compact: true,
+                ),
                 _Avatar(name: userName, small: true),
                 const SizedBox(width: 2),
                 PopupMenuButton<_MobileAccountAction>(
@@ -1486,6 +1504,56 @@ class _MobileHeader extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _RefreshIconButton extends StatefulWidget {
+  const _RefreshIconButton({
+    required this.onRefresh,
+    required this.color,
+    this.compact = false,
+  });
+
+  final Future<void> Function() onRefresh;
+  final Color color;
+  final bool compact;
+
+  @override
+  State<_RefreshIconButton> createState() => _RefreshIconButtonState();
+}
+
+class _RefreshIconButtonState extends State<_RefreshIconButton> {
+  bool _refreshing = false;
+
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      await widget.onRefresh();
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.compact ? 18.0 : 19.0;
+    return IconButton(
+      tooltip: 'Daten aktualisieren',
+      visualDensity: widget.compact ? VisualDensity.compact : null,
+      onPressed: _refreshing ? null : _refresh,
+      color: widget.color,
+      disabledColor: widget.color.withValues(alpha: .72),
+      icon: _refreshing
+          ? SizedBox.square(
+              dimension: size,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: widget.color,
+              ),
+            )
+          : Icon(Icons.refresh_rounded, size: size + 1),
     );
   }
 }

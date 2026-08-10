@@ -1,4 +1,6 @@
 import 'package:fc_teugn_app/core/app_theme.dart';
+import 'package:fc_teugn_app/core/api_client.dart';
+import 'package:fc_teugn_app/core/data_repository.dart';
 import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/models/personal_response.dart';
 import 'package:fc_teugn_app/core/providers.dart';
@@ -6,6 +8,23 @@ import 'package:fc_teugn_app/features/shared/family_responses.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _RefreshingRepository extends DataRepository {
+  _RefreshingRepository() : super(ApiClient(baseUrl: 'http://localhost'));
+
+  var calls = 0;
+
+  @override
+  Future<List<PersonalResponseModel>> personalResponses() async {
+    calls++;
+    return [
+      _response(
+        eventId: 'event-$calls',
+        title: calls == 1 ? 'Training' : 'Freundschaftsspiel',
+      ),
+    ];
+  }
+}
 
 PersonalResponseModel _response({
   String eventId = 'event-1',
@@ -116,5 +135,31 @@ void main() {
     );
     expect(find.text('Freundschaftsspiel'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('manual refresh signal reloads visible family responses',
+      (tester) async {
+    final repository = _RefreshingRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [repositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const FamilyResponsesPage(isTrainer: false),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Training'), findsOneWidget);
+    expect(repository.calls, 1);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(FamilyResponsesPage)),
+    );
+    container.read(manualDataRefreshProvider.notifier).state++;
+    await tester.pumpAndSettle();
+
+    expect(find.text('Freundschaftsspiel'), findsOneWidget);
+    expect(repository.calls, 2);
   });
 }
