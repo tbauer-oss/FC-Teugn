@@ -1477,7 +1477,9 @@ const helpArticles = <HelpArticle>[
     route: '/trainer/approvals',
     routeLabel: 'Mitglieder & Freigaben öffnen',
     steps: [
-      'Öffne „Mitglieder & Berechtigungen“ und prüfe neue Registrierungen.',
+      'Öffne „Mitglieder & Freigaben“. Die Register trennen offene Anfragen von der vollständigen Kontenübersicht.',
+      'Filtere die Konten nach Name, Jugend, Mannschaft, Mitgliedstyp, Kontostatus, Prüfstand oder Zuordnung. Statuschips zeigen offene, freigegebene, blockierte, abgelehnte und archivierte Konten direkt an.',
+      'Nutze die Sortierung für Namen, Anlagedatum, Mitgliedstyp oder Kontostatus. „Filter zurücksetzen“ stellt jederzeit die vollständige Übersicht wieder her.',
       'Wähle eine zulässige Rolle und die Mannschaftszuordnungen innerhalb der vorgesehenen Jugend.',
       'Trainer und Co-Trainer können dadurch zwischen ihren freigegebenen Mannschaften wechseln.',
       'Vereinsweite Rollen und sensible Rechte dürfen nur mit entsprechender Organisationsberechtigung vergeben werden.',

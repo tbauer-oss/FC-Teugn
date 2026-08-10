@@ -138,6 +138,7 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
           'Prüfe Registrierungen, Rollen, Mannschaftszugriffe und bestehende Konten zentral.',
       steps: [
         'Neue Registrierungen werden vor der Freigabe einer Rolle und Mannschaft zugeordnet.',
+        'In der Kontenübersicht kannst du nach Jugend, Mannschaft, Mitgliedstyp, Status, Prüfstand und Zuordnung filtern sowie die Treffer sortieren.',
         'Systemadministratoren verwalten individuelle Rechte und sichere Zugangslinks.',
         'Ein Konto lässt sich über das rote Löschsymbol dauerhaft entfernen; dafür muss ausdrücklich „LÖSCHEN“ eingegeben werden.',
       ],

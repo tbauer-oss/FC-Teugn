@@ -13,6 +13,7 @@ import '../../core/role_permissions.dart';
 import '../../core/widgets/adaptive_layout.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
+import 'member_overview_filter.dart';
 
 class TrainerApprovalsPage extends ConsumerWidget {
   const TrainerApprovalsPage({super.key});
@@ -107,7 +108,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
                         ),
                         Tab(
                           text:
-                              'Mitglieder (${members.valueOrNull?.length ?? '–'})',
+                              'Mitglieder & Konten (${members.valueOrNull?.length ?? '–'})',
                         ),
                       ],
                     ),
@@ -148,6 +149,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
                         ),
                         _MemberList(
                           value: members,
+                          organization: organization,
                           onRetry: () => ref.invalidate(membersProvider),
                           onEdit: organization == null
                               ? null
@@ -744,7 +746,7 @@ class _MobileMemberTabsState extends State<_MobileMemberTabs> {
             ButtonSegment(
               value: 1,
               label: Text(
-                'Mitglieder (${widget.members.valueOrNull?.length ?? '–'})',
+                'Konten (${widget.members.valueOrNull?.length ?? '–'})',
               ),
             ),
           ],
@@ -768,6 +770,7 @@ class _MobileMemberTabsState extends State<_MobileMemberTabs> {
         else
           _MemberList(
             value: widget.members,
+            organization: widget.organization,
             onRetry: widget.onRetryMembers,
             onEdit: widget.onEdit,
             onPermissions: widget.onPermissions,
@@ -1115,9 +1118,10 @@ class _PendingListState extends State<_PendingList> {
   }
 }
 
-class _MemberList extends StatelessWidget {
+class _MemberList extends StatefulWidget {
   const _MemberList({
     required this.value,
+    required this.organization,
     required this.onRetry,
     required this.onEdit,
     required this.onPermissions,
@@ -1128,6 +1132,7 @@ class _MemberList extends StatelessWidget {
   });
 
   final AsyncValue<List<AppUser>> value;
+  final OrganizationContext? organization;
   final VoidCallback onRetry;
   final ValueChanged<AppUser>? onEdit;
   final ValueChanged<AppUser>? onPermissions;
@@ -1137,8 +1142,53 @@ class _MemberList extends StatelessWidget {
   final bool embedded;
 
   @override
+  State<_MemberList> createState() => _MemberListState();
+}
+
+class _MemberListState extends State<_MemberList> {
+  final _queryController = TextEditingController();
+  String? _ageGroupCode;
+  String? _teamId;
+  MemberTypeFilter _type = MemberTypeFilter.all;
+  AccountStatus? _status;
+  RegistrationReviewStatus? _reviewStatus;
+  MemberAssignmentFilter _assignment = MemberAssignmentFilter.all;
+  MemberSortOrder _sort = MemberSortOrder.nameAscending;
+  bool _filtersExpanded = false;
+
+  int get _activeFilterCount => [
+        _queryController.text.trim().isNotEmpty,
+        _ageGroupCode != null,
+        _teamId != null,
+        _type != MemberTypeFilter.all,
+        _status != null,
+        _reviewStatus != null,
+        _assignment != MemberAssignmentFilter.all,
+        _sort != MemberSortOrder.nameAscending,
+      ].where((active) => active).length;
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
+
+  void _resetFilters() {
+    _queryController.clear();
+    setState(() {
+      _ageGroupCode = null;
+      _teamId = null;
+      _type = MemberTypeFilter.all;
+      _status = null;
+      _reviewStatus = null;
+      _assignment = MemberAssignmentFilter.all;
+      _sort = MemberSortOrder.nameAscending;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return value.when(
+    return widget.value.when(
       loading: () => const Center(
         child: LogoLoadingPanel(message: 'Mitglieder werden geladen …'),
       ),
@@ -1147,7 +1197,7 @@ class _MemberList extends StatelessWidget {
         title: 'Mitglieder nicht erreichbar',
         message: 'Die Mitgliederliste konnte nicht geladen werden.',
         action: FilledButton.icon(
-          onPressed: onRetry,
+          onPressed: widget.onRetry,
           icon: const Icon(Icons.refresh_rounded),
           label: const Text('Erneut laden'),
         ),
@@ -1157,216 +1207,533 @@ class _MemberList extends StatelessWidget {
           return const EmptyState(
             icon: Icons.group_off_outlined,
             title: 'Noch keine Mitglieder',
-            message: 'Freigegebene Mitglieder werden hier angezeigt.',
+            message: 'Alle vorhandenen Konten werden hier angezeigt.',
           );
         }
+        final filtered = filterMembersForOverview(
+          users,
+          query: _queryController.text,
+          ageGroupCode: _ageGroupCode,
+          teamId: _teamId,
+          type: _type,
+          status: _status,
+          reviewStatus: _reviewStatus,
+          assignment: _assignment,
+          sort: _sort,
+        );
         return ListView.separated(
-          shrinkWrap: embedded,
-          physics: embedded ? const NeverScrollableScrollPhysics() : null,
-          itemCount: users.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          shrinkWrap: widget.embedded,
+          physics:
+              widget.embedded ? const NeverScrollableScrollPhysics() : null,
+          itemCount: 1 + (filtered.isEmpty ? 1 : filtered.length),
+          separatorBuilder: (_, __) => const SizedBox(height: 7),
           itemBuilder: (context, index) {
-            final user = users[index];
-            final approved = user.status == AccountStatus.approved;
-            return Card(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 620;
-                  final status = Chip(
-                    avatar: Icon(
-                      approved
-                          ? Icons.check_circle_rounded
-                          : Icons.block_rounded,
-                      size: 16,
-                      color: approved ? AppColors.teal : Colors.redAccent,
-                    ),
-                    label: Text(
-                      approved ? 'Freigegeben' : _status(user.status),
-                    ),
-                  );
-                  final edit = IconButton.filledTonal(
-                    tooltip: 'Rolle, Mannschaften und Rechte bearbeiten',
-                    onPressed: onEdit == null ? null : () => onEdit!(user),
-                    icon: const Icon(Icons.manage_accounts_outlined),
-                  );
-                  final permissions = IconButton.filledTonal(
-                    tooltip: 'Individuelle Rechte festlegen',
-                    onPressed: onPermissions == null
-                        ? null
-                        : () => onPermissions!(user),
-                    icon: const Icon(Icons.security_rounded),
-                  );
-                  final passwordHelp = IconButton.filledTonal(
-                    tooltip: 'Sicheren Zugangslink erstellen',
-                    onPressed: onPasswordHelp == null
-                        ? null
-                        : () => onPasswordHelp!(user),
-                    icon: const Icon(Icons.key_rounded),
-                  );
-                  final canDelete =
-                      onDelete != null && user.id != currentUserId;
-                  final deleteAccount = IconButton.filledTonal(
-                    tooltip: 'Konto dauerhaft löschen',
-                    color: Theme.of(context).colorScheme.error,
-                    onPressed: canDelete ? () => onDelete!(user) : null,
-                    icon: const Icon(Icons.delete_forever_rounded),
-                  );
-                  final memberships = Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      Chip(
-                        visualDensity: VisualDensity.compact,
-                        avatar: const Icon(Icons.badge_outlined, size: 15),
-                        label: Text(user.roleLabel),
-                      ),
-                      for (final membership in user.memberships)
-                        Chip(
-                          visualDensity: VisualDensity.compact,
-                          avatar: const Icon(Icons.groups_outlined, size: 15),
-                          label: Text(
-                            '${membership.ageGroupCode} · '
-                            '${membership.teamName} · '
-                            '${_teamRoleLabel(membership.role)}',
-                          ),
-                        ),
-                      for (final link in user.parentPlayers)
-                        Chip(
-                          visualDensity: VisualDensity.compact,
-                          avatar: const Icon(
-                            Icons.family_restroom_rounded,
-                            size: 15,
-                          ),
-                          label: Text(
-                            '${guardianRelationshipLabel(link.relationship)} von '
-                            '${link.playerName}'
-                            '${link.ageGroupCode.isEmpty ? '' : ' · ${link.ageGroupCode}'}',
-                          ),
-                        ),
-                    ],
-                  );
-                  return Padding(
-                    padding: EdgeInsets.all(compact ? 14 : 10),
-                    child: compact
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  CircleAvatar(
-                                    child: Text(_initials(user.name)),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          user.name,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                        ),
-                                        Text(
-                                          user.email,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: AppColors.muted,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              memberships,
-                              const SizedBox(height: 8),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: status,
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                alignment: WrapAlignment.end,
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  if (onPermissions != null) permissions,
-                                  if (onPasswordHelp != null) passwordHelp,
-                                  edit,
-                                  if (canDelete) deleteAccount,
-                                ],
-                              ),
-                            ],
-                          )
-                        : ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            leading: CircleAvatar(
-                              child: Text(_initials(user.name)),
-                            ),
-                            title: Text(user.name),
-                            subtitle: Text(
-                              [
-                                user.roleLabel,
-                                if (user.memberships.isNotEmpty)
-                                  user.memberships
-                                      .map(
-                                        (item) =>
-                                            '${item.ageGroupCode}-Jugend ${item.teamName} (${_teamRoleLabel(item.role)})',
-                                      )
-                                      .join(', '),
-                              ].join(' · '),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                status,
-                                const SizedBox(width: 8),
-                                if (onPermissions != null) ...[
-                                  permissions,
-                                  const SizedBox(width: 8),
-                                ],
-                                if (onPasswordHelp != null) ...[
-                                  passwordHelp,
-                                  const SizedBox(width: 8),
-                                ],
-                                edit,
-                                if (canDelete) ...[
-                                  const SizedBox(width: 8),
-                                  deleteAccount,
-                                ],
-                              ],
-                            ),
-                          ),
-                  );
-                },
-              ),
-            );
+            if (index == 0) {
+              return _buildFilterPanel(context, users, filtered.length);
+            }
+            if (filtered.isEmpty) {
+              return EmptyState(
+                icon: Icons.filter_alt_off_rounded,
+                title: 'Keine passenden Mitglieder',
+                message: 'Die gewählten Filter ergeben aktuell keine Treffer.',
+                action: OutlinedButton.icon(
+                  onPressed: _resetFilters,
+                  icon: const Icon(Icons.restart_alt_rounded),
+                  label: const Text('Filter zurücksetzen'),
+                ),
+              );
+            }
+            return _buildMemberCard(context, filtered[index - 1]);
           },
         );
       },
     );
   }
 
-  String _status(AccountStatus value) => switch (value) {
+  Widget _buildFilterPanel(
+    BuildContext context,
+    List<AppUser> users,
+    int filteredCount,
+  ) {
+    final organization = widget.organization;
+    final statusCounts = {
+      for (final status in AccountStatus.values)
+        status: users.where((user) => user.status == status).length,
+    };
+    return Card(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final mobile = constraints.maxWidth < 700;
+          final showAdvanced = !mobile || _filtersExpanded;
+          final teams = (organization?.teams ?? const <TeamSummary>[])
+              .where(
+                (team) =>
+                    _ageGroupCode == null ||
+                    team.ageGroup.code == _ageGroupCode,
+              )
+              .toList();
+          return Padding(
+            padding: EdgeInsets.all(mobile ? 10 : 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.tune_rounded, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Mitglieder filtern',
+                            style: TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          Text(
+                            '$filteredCount von ${users.length} Konten',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (mobile)
+                      TextButton.icon(
+                        onPressed: () => setState(
+                          () => _filtersExpanded = !_filtersExpanded,
+                        ),
+                        icon: Icon(
+                          _filtersExpanded
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                        ),
+                        label: Text(
+                          _activeFilterCount == 0
+                              ? 'Filter'
+                              : 'Filter ($_activeFilterCount)',
+                        ),
+                      ),
+                    IconButton(
+                      tooltip: 'Alle Filter zurücksetzen',
+                      onPressed: _activeFilterCount == 0 ? null : _resetFilters,
+                      icon: const Icon(Icons.restart_alt_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const ValueKey('member-search-field'),
+                  controller: _queryController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name, E-Mail, Kind oder Mannschaft',
+                    prefixIcon: Icon(Icons.search_rounded),
+                    isDense: true,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _statusChoice(
+                        label: 'Alle',
+                        count: users.length,
+                        value: null,
+                      ),
+                      for (final status in AccountStatus.values) ...[
+                        const SizedBox(width: 6),
+                        _statusChoice(
+                          label: _accountStatusLabel(status),
+                          count: statusCounts[status] ?? 0,
+                          value: status,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (showAdvanced) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _filterDropdown<String?>(
+                        width: mobile ? constraints.maxWidth : 180,
+                        key: ValueKey('member-age-$_ageGroupCode'),
+                        label: 'Jugend',
+                        value: _ageGroupCode,
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text('Alle Jugenden'),
+                          ),
+                          for (final ageGroup in organization?.ageGroups ??
+                              const <AgeGroupSummary>[])
+                            DropdownMenuItem(
+                              value: ageGroup.code,
+                              child: Text('${ageGroup.code}-Jugend'),
+                            ),
+                        ],
+                        onChanged: (value) => setState(() {
+                          _ageGroupCode = value;
+                          _teamId = null;
+                        }),
+                      ),
+                      _filterDropdown<String?>(
+                        width: mobile ? constraints.maxWidth : 210,
+                        key: ValueKey('member-team-$_teamId-$_ageGroupCode'),
+                        label: 'Mannschaft',
+                        value: _teamId,
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text('Alle Mannschaften'),
+                          ),
+                          for (final team in teams)
+                            DropdownMenuItem(
+                              value: team.id,
+                              child: Text(
+                                team.displayName,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (value) => setState(() => _teamId = value),
+                      ),
+                      _filterDropdown<MemberTypeFilter>(
+                        width: mobile ? constraints.maxWidth : 205,
+                        key: ValueKey('member-type-${_type.name}'),
+                        label: 'Mitgliedstyp',
+                        value: _type,
+                        items: [
+                          for (final type in MemberTypeFilter.values)
+                            DropdownMenuItem(
+                              value: type,
+                              child: Text(_memberTypeLabel(type)),
+                            ),
+                        ],
+                        onChanged: (value) => setState(
+                          () => _type = value ?? MemberTypeFilter.all,
+                        ),
+                      ),
+                      _filterDropdown<MemberAssignmentFilter>(
+                        width: mobile ? constraints.maxWidth : 210,
+                        key: ValueKey(
+                          'member-assignment-${_assignment.name}',
+                        ),
+                        label: 'Zuordnung',
+                        value: _assignment,
+                        items: [
+                          for (final assignment
+                              in MemberAssignmentFilter.values)
+                            DropdownMenuItem(
+                              value: assignment,
+                              child: Text(_assignmentLabel(assignment)),
+                            ),
+                        ],
+                        onChanged: (value) => setState(
+                          () =>
+                              _assignment = value ?? MemberAssignmentFilter.all,
+                        ),
+                      ),
+                      _filterDropdown<RegistrationReviewStatus?>(
+                        width: mobile ? constraints.maxWidth : 195,
+                        key: ValueKey('member-review-$_reviewStatus'),
+                        label: 'Prüfstatus',
+                        value: _reviewStatus,
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text('Alle Prüfstände'),
+                          ),
+                          for (final status in RegistrationReviewStatus.values)
+                            DropdownMenuItem(
+                              value: status,
+                              child: Text(_reviewStatusLabel(status)),
+                            ),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _reviewStatus = value),
+                      ),
+                      _filterDropdown<MemberSortOrder>(
+                        width: mobile ? constraints.maxWidth : 190,
+                        key: ValueKey('member-sort-${_sort.name}'),
+                        label: 'Sortierung',
+                        value: _sort,
+                        items: [
+                          for (final sort in MemberSortOrder.values)
+                            DropdownMenuItem(
+                              value: sort,
+                              child: Text(_sortLabel(sort)),
+                            ),
+                        ],
+                        onChanged: (value) => setState(
+                          () => _sort = value ?? MemberSortOrder.nameAscending,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _filterDropdown<T>({
+    required double width,
+    required Key key,
+    required String label,
+    required T value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) =>
+      SizedBox(
+        width: width,
+        child: DropdownButtonFormField<T>(
+          key: key,
+          initialValue: value,
+          isExpanded: true,
+          decoration: InputDecoration(labelText: label, isDense: true),
+          items: items,
+          onChanged: onChanged,
+        ),
+      );
+
+  Widget _statusChoice({
+    required String label,
+    required int count,
+    required AccountStatus? value,
+  }) =>
+      ChoiceChip(
+        visualDensity: VisualDensity.compact,
+        selected: _status == value,
+        label: Text('$label ($count)'),
+        onSelected: (_) => setState(() => _status = value),
+      );
+
+  Widget _buildMemberCard(BuildContext context, AppUser user) {
+    final currentUserId = widget.currentUserId;
+    return Card(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 700;
+          final details = <String>[
+            user.roleLabel,
+            for (final membership in user.memberships.take(3))
+              '${membership.ageGroupCode}-Jugend ${membership.teamName} '
+                  '(${_teamRoleLabel(membership.role)})',
+            for (final link in user.parentPlayers.take(2))
+              '${guardianRelationshipLabel(link.relationship)} von '
+                  '${link.playerName}',
+          ];
+          final hiddenDetails =
+              user.memberships.length > 3 ? user.memberships.length - 3 : 0;
+          final statusChip = Chip(
+            visualDensity: VisualDensity.compact,
+            avatar: Icon(
+              _accountStatusIcon(user.status),
+              size: 15,
+              color: _accountStatusColor(context, user.status),
+            ),
+            label: Text(_accountStatusLabel(user.status)),
+          );
+          final canDelete =
+              widget.onDelete != null && user.id != currentUserId;
+          final actions = <Widget>[
+            if (widget.onPermissions != null)
+              _memberActionButton(
+                tooltip: 'Individuelle Rechte festlegen',
+                icon: Icons.security_rounded,
+                onPressed: () => widget.onPermissions!(user),
+              ),
+            if (widget.onPasswordHelp != null)
+              _memberActionButton(
+                tooltip: 'Sicheren Zugangslink erstellen',
+                icon: Icons.key_rounded,
+                onPressed: () => widget.onPasswordHelp!(user),
+              ),
+            _memberActionButton(
+              tooltip: 'Rolle und Zuordnungen bearbeiten',
+              icon: Icons.manage_accounts_outlined,
+              onPressed:
+                  widget.onEdit == null ? null : () => widget.onEdit!(user),
+            ),
+            if (canDelete)
+              _memberActionButton(
+                tooltip: 'Konto dauerhaft löschen',
+                icon: Icons.delete_forever_rounded,
+                color: Theme.of(context).colorScheme.error,
+                onPressed: () => widget.onDelete!(user),
+              ),
+          ];
+          final identity = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: compact ? 19 : 20,
+                backgroundColor: AppColors.orange.withValues(alpha: .2),
+                child: Text(
+                  _initials(user.name),
+                  style: const TextStyle(
+                    color: AppColors.navy,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    Text(
+                      user.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.muted,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      [
+                        ...details,
+                        if (hiddenDetails > 0) '+$hiddenDetails weitere',
+                      ].join(' · '),
+                      maxLines: compact ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          return Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 10 : 12,
+              vertical: compact ? 9 : 7,
+            ),
+            child: compact
+                ? Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: identity),
+                          const SizedBox(width: 6),
+                          statusChip,
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Wrap(
+                          spacing: 5,
+                          runSpacing: 5,
+                          children: actions,
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(child: identity),
+                      const SizedBox(width: 10),
+                      statusChip,
+                      const SizedBox(width: 6),
+                      ...actions,
+                    ],
+                  ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _memberActionButton({
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback? onPressed,
+    Color? color,
+  }) =>
+      IconButton.filledTonal(
+        tooltip: tooltip,
+        style: IconButton.styleFrom(
+          minimumSize: const Size(36, 36),
+          maximumSize: const Size(36, 36),
+          padding: const EdgeInsets.all(7),
+          foregroundColor: color,
+        ),
+        onPressed: onPressed,
+        icon: Icon(icon, size: 19),
+      );
+
+  String _accountStatusLabel(AccountStatus value) => switch (value) {
         AccountStatus.pending => 'Ausstehend',
         AccountStatus.approved => 'Freigegeben',
         AccountStatus.rejected => 'Abgelehnt',
         AccountStatus.blocked => 'Blockiert',
         AccountStatus.archived => 'Archiviert',
+      };
+
+  IconData _accountStatusIcon(AccountStatus value) => switch (value) {
+        AccountStatus.pending => Icons.schedule_rounded,
+        AccountStatus.approved => Icons.check_circle_rounded,
+        AccountStatus.rejected => Icons.cancel_rounded,
+        AccountStatus.blocked => Icons.block_rounded,
+        AccountStatus.archived => Icons.archive_rounded,
+      };
+
+  Color _accountStatusColor(BuildContext context, AccountStatus value) =>
+      switch (value) {
+        AccountStatus.pending => Colors.orange.shade800,
+        AccountStatus.approved => AppColors.teal,
+        AccountStatus.rejected || AccountStatus.blocked =>
+          Theme.of(context).colorScheme.error,
+        AccountStatus.archived => AppColors.muted,
+      };
+
+  String _memberTypeLabel(MemberTypeFilter value) => switch (value) {
+        MemberTypeFilter.all => 'Alle Mitgliedstypen',
+        MemberTypeFilter.administration => 'Administration & Leitung',
+        MemberTypeFilter.trainerTeam => 'Trainer- & Organisationsteam',
+        MemberTypeFilter.parents => 'Eltern',
+        MemberTypeFilter.players => 'Spieler',
+        MemberTypeFilter.readOnly => 'Nur lesender Zugriff',
+      };
+
+  String _assignmentLabel(MemberAssignmentFilter value) => switch (value) {
+        MemberAssignmentFilter.all => 'Alle Zuordnungen',
+        MemberAssignmentFilter.team => 'Mit Mannschaft',
+        MemberAssignmentFilter.child => 'Mit Kind-Zuordnung',
+        MemberAssignmentFilter.withoutAssignment => 'Ohne Zuordnung',
+      };
+
+  String _reviewStatusLabel(RegistrationReviewStatus value) => switch (value) {
+        RegistrationReviewStatus.newRequest => 'Neu',
+        RegistrationReviewStatus.inReview => 'In Prüfung',
+        RegistrationReviewStatus.needsInfo => 'Rückfrage offen',
+        RegistrationReviewStatus.completed => 'Prüfung abgeschlossen',
+      };
+
+  String _sortLabel(MemberSortOrder value) => switch (value) {
+        MemberSortOrder.nameAscending => 'Name A–Z',
+        MemberSortOrder.nameDescending => 'Name Z–A',
+        MemberSortOrder.newest => 'Neueste zuerst',
+        MemberSortOrder.oldest => 'Älteste zuerst',
+        MemberSortOrder.role => 'Mitgliedstyp',
+        MemberSortOrder.status => 'Kontostatus',
       };
 }
 
