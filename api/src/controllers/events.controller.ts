@@ -223,6 +223,18 @@ function titleForCategory(category: EventCategory) {
   return titles[category];
 }
 
+function competitionForCategory(category: EventCategory) {
+  const competitions: Partial<Record<EventCategory, string>> = {
+    [EventCategory.LEAGUE_MATCH]: 'Liga',
+    [EventCategory.FRIENDLY_MATCH]: 'Freundschaftsspiel',
+    [EventCategory.CUP_MATCH]: 'Pokal',
+    [EventCategory.TOURNAMENT]: 'Turnier',
+    [EventCategory.INDOOR_TOURNAMENT]: 'Hallenturnier',
+    [EventCategory.FOOTBALL_FESTIVAL]: 'Fußballfestival',
+  };
+  return competitions[category] ?? null;
+}
+
 function eventScope(teamIds: string[]): Prisma.EventWhereInput {
   return {
     OR: [{ teamId: { in: teamIds } }, { targetTeams: { some: { teamId: { in: teamIds } } } }],
@@ -1293,6 +1305,7 @@ export async function createEvent(req: Request, res: Response) {
           opponent: data.opponent!,
           opponentId: opponentRecord?.id,
           isHome: data.homeAway !== HomeAway.AWAY,
+          competition: competitionForCategory(data.category),
           pitch: data.venue,
           ...timing,
         })),
@@ -1524,6 +1537,8 @@ export async function updateEvent(req: Request, res: Response) {
               opponent: parsed.opponent!,
               opponentId: opponentRecord?.id ?? null,
               isHome: parsed.homeAway !== HomeAway.AWAY,
+              competition:
+                existing.matchDetails?.competition ?? competitionForCategory(parsed.category),
               pitch: parsed.venue,
               ...timing,
             },
@@ -1532,6 +1547,7 @@ export async function updateEvent(req: Request, res: Response) {
               opponent: parsed.opponent!,
               opponentId: opponentRecord?.id ?? null,
               isHome: parsed.homeAway !== HomeAway.AWAY,
+              competition: competitionForCategory(parsed.category),
               pitch: parsed.venue,
               ...timing,
             },
@@ -1561,6 +1577,8 @@ export async function updateEvent(req: Request, res: Response) {
             opponent: parsed.opponent!,
             opponentId: opponentRecord?.id ?? null,
             isHome: parsed.homeAway !== HomeAway.AWAY,
+            competition:
+              existing.matchDetails?.competition ?? competitionForCategory(parsed.category),
             pitch: parsed.venue,
             ...timing,
           },
@@ -1569,6 +1587,7 @@ export async function updateEvent(req: Request, res: Response) {
             opponent: parsed.opponent!,
             opponentId: opponentRecord?.id ?? null,
             isHome: parsed.homeAway !== HomeAway.AWAY,
+            competition: competitionForCategory(parsed.category),
             pitch: parsed.venue,
             ...timing,
           },

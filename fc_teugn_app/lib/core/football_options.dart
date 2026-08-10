@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'models/event.dart';
+
 typedef FootballOption = ({String value, String label});
 
 const footballPositions = <FootballOption>[
@@ -27,6 +29,24 @@ const footballCompetitions = <FootballOption>[
   (value: 'Fußballfestival', label: 'Fußballfestival'),
   (value: 'Testspiel', label: 'Testspiel'),
 ];
+
+String? footballCompetitionForEvent({
+  required EventCategory category,
+  String? storedCompetition,
+}) {
+  final stored = storedCompetition?.trim();
+  if (stored != null && stored.isNotEmpty) return stored;
+
+  return switch (category) {
+    EventCategory.leagueMatch => 'Liga',
+    EventCategory.friendlyMatch => 'Freundschaftsspiel',
+    EventCategory.cupMatch => 'Pokal',
+    EventCategory.tournament => 'Turnier',
+    EventCategory.indoorTournament => 'Hallenturnier',
+    EventCategory.footballFestival => 'Fußballfestival',
+    _ => null,
+  };
+}
 
 List<DropdownMenuItem<String?>> footballOptionItems({
   required List<FootballOption> options,

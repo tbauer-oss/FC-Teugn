@@ -859,7 +859,10 @@ class TrainerMatchesPage extends ConsumerWidget {
       return null;
     }
     String? selectedOpponentId = details?.opponentId;
-    String? competition = details?.competition ?? 'Liga';
+    String? competition = footballCompetitionForEvent(
+      category: event.category,
+      storedCompetition: details?.competition,
+    );
     final notes = TextEditingController(text: details?.notes ?? '');
     final ourGoals =
         TextEditingController(text: details?.ourGoals?.toString() ?? '');

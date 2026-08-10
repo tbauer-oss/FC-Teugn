@@ -55,6 +55,13 @@ test('server enforces Teugn venue defaults and checks conflicts before moving', 
   assert.match(matches, /MATCH_RESCHEDULED/);
 });
 
+test('match creation persists the competition that belongs to its event category', () => {
+  const events = source('src/controllers/events.controller.ts');
+  assert.match(events, /FRIENDLY_MATCH\]: 'Freundschaftsspiel'/);
+  assert.match(events, /competition:\s*competitionForCategory\(data\.category\)/);
+  assert.match(events, /competition:\s*competitionForCategory\(parsed\.category\)/);
+});
+
 test('permanent deletion supports series scope, audit and optional league removal', () => {
   const events = source('src/controllers/events.controller.ts');
   assert.match(events, /\['future', 'series', 'all'\]/);
