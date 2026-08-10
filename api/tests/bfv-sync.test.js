@@ -45,8 +45,15 @@ test('system administrators can save all widget team identifiers centrally', () 
     routes,
     /bfv-widget-teams[\s\S]*Role\.SUPER_ADMIN[\s\S]*saveBfvWidgetTeamIds/,
   );
+  assert.match(
+    routes,
+    /bfv-widget-teams[\s\S]*Role\.SUPER_ADMIN[\s\S]*listBfvWidgetTeamIds/,
+  );
   assert.match(controller, /BFV_WIDGET_TEAM_IDS_UPDATED/);
   assert.match(controller, /prisma\.\$transaction/);
+  assert.match(controller, /persistedBfvWidgetTeamIds/);
+  assert.match(flutterTab, /_loadPersistedValues/);
+  assert.match(flutterTab, /persisted\.containsKey/);
   assert.match(flutterTab, /Alle Mannschaftskennungen zentral verwalten/);
   assert.match(flutterTab, /Alle Kennungen speichern/);
 });

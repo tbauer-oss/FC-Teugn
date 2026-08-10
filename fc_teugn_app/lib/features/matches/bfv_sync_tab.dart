@@ -444,6 +444,8 @@ class _BfvWidgetTeamManagerDialogState
   late final List<TeamSummary> teams;
   final controllers = <String, TextEditingController>{};
   final originalValues = <String, String?>{};
+  bool loading = true;
+  bool loadFailed = false;
   bool busy = false;
   String? error;
 
@@ -460,6 +462,7 @@ class _BfvWidgetTeamManagerDialogState
       originalValues[team.id] = value;
       controllers[team.id] = TextEditingController(text: value ?? '');
     }
+    _loadPersistedValues();
   }
 
   @override
@@ -486,6 +489,37 @@ class _BfvWidgetTeamManagerDialogState
       )
       .length;
 
+  Future<void> _loadPersistedValues() async {
+    if (mounted) {
+      setState(() {
+        loading = true;
+        loadFailed = false;
+        error = null;
+      });
+    }
+    try {
+      final persisted = await widget.repository.bfvWidgetTeamIds();
+      if (!mounted) return;
+      setState(() {
+        for (final team in teams) {
+          final value = persisted[team.id];
+          originalValues[team.id] = value;
+          controllers[team.id]!.text = value ?? '';
+        }
+        loading = false;
+        loadFailed = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        loadFailed = true;
+        error = 'Die gespeicherten Kennungen konnten nicht geladen werden. '
+            'Bitte erneut versuchen.';
+      });
+    }
+  }
+
   Future<void> _save() async {
     final values = <String, String?>{};
     final ownersByWidgetId = <String, TeamSummary>{};
@@ -504,22 +538,32 @@ class _BfvWidgetTeamManagerDialogState
         return;
       }
       if (value != null) ownersByWidgetId[value] = team;
-      values[team.id] = value;
+      if (value != originalValues[team.id]) values[team.id] = value;
     }
+
+    if (values.isEmpty) return;
 
     setState(() {
       busy = true;
       error = null;
     });
     try {
-      await widget.repository.saveBfvWidgetTeamIds(values);
+      final persisted = await widget.repository.saveBfvWidgetTeamIds(values);
       if (!mounted) return;
-      Navigator.of(context).pop(configuredCount);
+      for (final entry in values.entries) {
+        if (!persisted.containsKey(entry.key) ||
+            persisted[entry.key] != entry.value) {
+          throw StateError('Die Speicherung wurde nicht bestätigt.');
+        }
+      }
+      final count = teams.where((team) => persisted[team.id] != null).length;
+      Navigator.of(context).pop(count);
     } catch (exception) {
       if (!mounted) return;
       setState(() {
         busy = false;
-        error = 'Die Mannschaftskennungen konnten nicht gespeichert werden.';
+        error = 'Die Mannschaftskennungen konnten nicht verbindlich '
+            'gespeichert werden. Bitte erneut versuchen.';
       });
     }
   }
@@ -586,6 +630,20 @@ class _BfvWidgetTeamManagerDialogState
                 ),
               ],
               const SizedBox(height: 16),
+              if (loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (loadFailed)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _loadPersistedValues,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Erneut laden'),
+                  ),
+                ),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final cardWidth = constraints.maxWidth >= 900
@@ -595,13 +653,13 @@ class _BfvWidgetTeamManagerDialogState
                     spacing: 14,
                     runSpacing: 14,
                     children: [
-                      for (final team in teams)
+                      for (final team in loading ? <TeamSummary>[] : teams)
                         SizedBox(
                           width: cardWidth,
                           child: _BfvWidgetTeamField(
                             team: team,
                             controller: controllers[team.id]!,
-                            enabled: !busy,
+                            enabled: !busy && !loading && !loadFailed,
                             onChanged: () => setState(() => error = null),
                           ),
                         ),
@@ -631,7 +689,9 @@ class _BfvWidgetTeamManagerDialogState
                     child: const Text('Abbrechen'),
                   ),
                   FilledButton.icon(
-                    onPressed: busy || !changed ? null : _save,
+                    onPressed: busy || loading || loadFailed || !changed
+                        ? null
+                        : _save,
                     icon: busy
                         ? const SizedBox.square(
                             dimension: 18,

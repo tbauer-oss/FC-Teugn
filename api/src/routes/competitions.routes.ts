@@ -18,6 +18,7 @@ import { playerFileUpload } from '../middleware/player-files';
 import { Permission } from '../security/permissions';
 import {
   getBfvSyncConfig,
+  listBfvWidgetTeamIds,
   runBfvSync,
   saveBfvSyncConfig,
   saveBfvWidgetTeamIds,
@@ -71,6 +72,11 @@ router.get(
   '/bfv-sync',
   requirePermission(Permission.MANAGE_IMPORTS),
   getBfvSyncConfig,
+);
+router.get(
+  '/bfv-widget-teams',
+  requireRoles([Role.SUPER_ADMIN]),
+  listBfvWidgetTeamIds,
 );
 router.put(
   '/bfv-widget-teams',

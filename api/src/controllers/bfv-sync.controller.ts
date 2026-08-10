@@ -131,6 +131,27 @@ export async function saveBfvSyncConfig(req: Request, res: Response) {
   return res.json({ ...config, widgetTeamId });
 }
 
+async function persistedBfvWidgetTeamIds() {
+  const teams = await prisma.team.findMany({
+    where: {
+      deletedAt: null,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      bfvTeamId: true,
+    },
+  });
+  return teams.map((team) => ({
+    teamId: team.id,
+    widgetTeamId: team.bfvTeamId,
+  }));
+}
+
+export async function listBfvWidgetTeamIds(_req: Request, res: Response) {
+  return res.json({ teams: await persistedBfvWidgetTeamIds() });
+}
+
 export async function saveBfvWidgetTeamIds(req: Request, res: Response) {
   const rawTeams = req.body?.teams;
   if (!Array.isArray(rawTeams) || rawTeams.length > 100) {
@@ -199,7 +220,10 @@ export async function saveBfvWidgetTeamIds(req: Request, res: Response) {
     },
   });
 
-  return res.json({ teams });
+  // Return the authoritative persisted state, not merely the submitted body.
+  // The central editor can therefore confirm the assignment and never falls
+  // back to a stale organization snapshot after saving.
+  return res.json({ teams: await persistedBfvWidgetTeamIds() });
 }
 
 export async function runBfvSync(req: Request, res: Response) {

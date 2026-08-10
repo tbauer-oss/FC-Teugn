@@ -23,6 +23,23 @@ import 'models/support.dart';
 import 'team_game_format.dart';
 import 'date_only.dart';
 
+Map<String, String?> _bfvWidgetTeamIdsFromResponse(dynamic data) {
+  if (data is! Map || data['teams'] is! List) {
+    throw const FormatException('Ungültige BfV-Mannschaftsantwort.');
+  }
+  final result = <String, String?>{};
+  for (final item in data['teams'] as List<dynamic>) {
+    if (item is! Map) continue;
+    final teamId = item['teamId'];
+    final widgetTeamId = item['widgetTeamId'];
+    if (teamId is! String || teamId.trim().isEmpty) continue;
+    result[teamId] = widgetTeamId is String && widgetTeamId.trim().isNotEmpty
+        ? widgetTeamId.trim()
+        : null;
+  }
+  return result;
+}
+
 class DataRepository {
   final ApiClient client;
 
@@ -219,18 +236,28 @@ class DataRepository {
     return BfvSyncConfigModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<void> saveBfvWidgetTeamIds(
+  Future<Map<String, String?>> bfvWidgetTeamIds() async {
+    final res = await client.dio.get('/competitions/bfv-widget-teams');
+    return _bfvWidgetTeamIdsFromResponse(res.data);
+  }
+
+  Future<Map<String, String?>> saveBfvWidgetTeamIds(
     Map<String, String?> widgetTeamIds,
   ) async {
-    await client.dio.put('/competitions/bfv-widget-teams', data: {
-      'teams': [
-        for (final entry in widgetTeamIds.entries)
-          {
-            'teamId': entry.key,
-            'widgetTeamId': entry.value,
-          },
-      ],
-    });
+    final res = await client.dio.put(
+      '/competitions/bfv-widget-teams',
+      data: {
+        'teams': [
+          for (final entry in widgetTeamIds.entries)
+            {
+              'teamId': entry.key,
+              'widgetTeamId': entry.value,
+            },
+        ],
+      },
+      options: Options(extra: const {'requireOnline': true}),
+    );
+    return _bfvWidgetTeamIdsFromResponse(res.data);
   }
 
   Future<OrganizationContext> organizationContext() async {
