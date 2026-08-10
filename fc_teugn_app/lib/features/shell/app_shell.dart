@@ -771,7 +771,7 @@ class DesktopSidebar extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Hilfe & FAQ',
+                  tooltip: 'Hilfe-Center',
                   onPressed: onHelp,
                   color: Colors.white70,
                   icon: const Icon(Icons.help_outline_rounded, size: 20),
@@ -1470,7 +1470,7 @@ class _MobileHeader extends StatelessWidget {
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(Icons.help_center_rounded),
-                        title: Text('Hilfe & FAQ'),
+                        title: Text('Hilfe-Center'),
                       ),
                     ),
                     PopupMenuItem(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/loading/loading_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/providers.dart';
@@ -220,6 +221,8 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const _PrivacyOverviewHero(),
+          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth >= 720
@@ -234,10 +237,10 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
                     child: _PrivacyActionCard(
                       icon: Icons.download_for_offline_outlined,
                       color: AppColors.blue,
-                      title: 'Datenexport',
+                      title: 'Auskunft & Datenkopie',
                       description:
-                          'Alle Daten Ihres Kontos und rechtmäßig verknüpfter Kinder als strukturiertes JSON einsehen und kopieren.',
-                      buttonLabel: 'Daten jetzt exportieren',
+                          'Die gespeicherten Kontodaten und rechtmäßig verknüpften Kinderdaten als strukturierte Kopie einsehen.',
+                      buttonLabel: 'Datenkopie erstellen',
                       onPressed: _export,
                     ),
                   ),
@@ -248,7 +251,7 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
                       color: AppColors.orange,
                       title: 'Löschung beantragen',
                       description:
-                          'Der Verein prüft gesetzliche Aufbewahrungspflichten und anonymisiert das Konto anschließend nachvollziehbar.',
+                          'Der Verein prüft den Antrag, bestehende Aufbewahrungspflichten und Rechte Dritter und dokumentiert das Ergebnis.',
                       buttonLabel: openRequest
                           ? 'Antrag wird geprüft'
                           : 'Löschung beantragen',
@@ -314,29 +317,499 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
             ),
             const SizedBox(height: 22),
           ],
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.shield_outlined, color: AppColors.teal),
-                  SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      'FC Teugn verwendet keine Werbe- oder Tracking-SDKs für Kinder. '
-                      'Medizinische Hinweise, Kontaktdaten und Fotos sind nicht öffentlich. '
-                      'Audit- und Vereinshistorie werden bei einer Löschung nur in anonymisierter Form erhalten.',
-                    ),
-                  ),
-                ],
+          const PrivacyInformationCenter(),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrivacyOverviewHero extends StatelessWidget {
+  const _PrivacyOverviewHero();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF171A18), Color(0xFF4D4300)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppColors.yellow,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(Icons.privacy_tip_outlined, size: 28),
               ),
-            ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'DATENSCHUTZ-CENTER · FC TEUGN TALENTS',
+                      style: TextStyle(
+                        color: AppColors.yellow,
+                        fontSize: 10,
+                        letterSpacing: 1.05,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Ihre Daten. Ihre Rechte. Klar erklärt.',
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(color: Colors.white),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Informationen in verständlicher Form sowie direkter Zugriff auf Datenkopie und Löschantrag.',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: .72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _PrivacyHeroBadge(
+                icon: Icons.block_rounded,
+                label: 'Keine Werbung',
+              ),
+              _PrivacyHeroBadge(
+                icon: Icons.lock_person_outlined,
+                label: 'Rollenbasierter Zugriff',
+              ),
+              _PrivacyHeroBadge(
+                icon: Icons.child_care_rounded,
+                label: 'Schutz Minderjähriger',
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+}
+
+class _PrivacyHeroBadge extends StatelessWidget {
+  const _PrivacyHeroBadge({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: .14)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: AppColors.yellow, size: 17),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class PrivacyInformationCenter extends StatelessWidget {
+  const PrivacyInformationCenter({super.key});
+
+  static final Uri _complaintUri =
+      Uri.parse('https://www.lda.bayern.de/de/beschwerde.html');
+
+  Future<void> _contactClub() => launchUrl(
+        Uri(
+          scheme: 'mailto',
+          path: 'fcteugn@web.de',
+          queryParameters: const {
+            'subject': 'Datenschutzanfrage · FC Teugn Talents',
+          },
+        ),
+      );
+
+  Future<void> _openComplaint() => launchUrl(
+        _complaintUri,
+        mode: LaunchMode.externalApplication,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Transparenz & Betroffenenrechte',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Die folgenden Informationen ergänzen die zweckbezogenen Einwilligungen und Datenschutzhinweise in der App.',
+        ),
+        const SizedBox(height: 10),
+        const _PrivacyDisclosure(
+          icon: Icons.account_balance_outlined,
+          title: 'Verantwortlicher & Datenschutzkontakt',
+          initiallyExpanded: true,
+          children: [
+            _PrivacyParagraph(
+              title: 'Verantwortlicher',
+              text: 'FC Teugn e.V. · Kreutweg 14 · 93356 Teugn',
+            ),
+            _PrivacyParagraph(
+              title: 'Kontakt für Datenschutzanliegen',
+              text:
+                  'E-Mail: fcteugn@web.de. Bitte keine Gesundheitsdaten oder Ausweiskopien unverschlüsselt per E-Mail senden.',
+            ),
+            _PrivacyParagraph(
+              title: 'Bearbeitungsfrist',
+              text:
+                  'Anträge werden grundsätzlich innerhalb eines Monats beantwortet. Bei komplexen oder zahlreichen Anträgen kann die Frist begründet um bis zu zwei Monate verlängert werden. Zur sicheren Zuordnung darf ein Identitätsnachweis verlangt werden.',
+            ),
+          ],
+        ),
+        const _PrivacyDisclosure(
+          icon: Icons.hub_outlined,
+          title: 'Welche Daten werden wofür verarbeitet?',
+          children: [
+            _PrivacyParagraph(
+              title: 'Zwecke',
+              text:
+                  'Kontoverwaltung, Mannschafts- und Saisonorganisation, Termine und Rückmeldungen, Trainings- und Spielbetrieb, Kommunikation, Pushbenachrichtigungen, Berechtigungen, Einwilligungsnachweise, Support sowie IT-Sicherheit und Missbrauchsprävention.',
+            ),
+            _PrivacyParagraph(
+              title: 'Datenkategorien',
+              text:
+                  'Stamm- und Kontaktdaten, Rollen und Teamzuordnungen, sportliche Daten, Termine und Rückmeldungen, Kommunikations- und Supportinhalte, Geräte- und Pushkennungen, Einwilligungen, hochgeladene Dateien sowie sicherheitsrelevante Protokolldaten.',
+            ),
+            _PrivacyParagraph(
+              title: 'Rechtsgrundlagen',
+              text:
+                  'Je nach Verarbeitung: Vertrag beziehungsweise vereinsbezogene Durchführung (Art. 6 Abs. 1 b DSGVO), rechtliche Pflichten (c), berechtigte Interessen an sicherem und geordnetem Vereinsbetrieb (f) oder freiwillige Einwilligung (a). Besondere Kategorien wie Gesundheitsangaben werden nur mit einer einschlägigen Grundlage, regelmäßig ausdrücklicher Einwilligung nach Art. 9 Abs. 2 a DSGVO, verarbeitet.',
+            ),
+          ],
+        ),
+        const _PrivacyDisclosure(
+          icon: Icons.storage_outlined,
+          title: 'Empfänger, Hosting & Speicherdauer',
+          children: [
+            _PrivacyParagraph(
+              title: 'Interne Empfänger',
+              text:
+                  'Nur berechtigte Personen erhalten entsprechend ihrer Rolle und Mannschaft Zugriff, zum Beispiel Trainerteam, zuständige Funktionäre oder Systemadministration. Eltern und Spieler sehen ausschließlich freigegebene Inhalte.',
+            ),
+            _PrivacyParagraph(
+              title: 'Technische Empfänger',
+              text:
+                  'Für Hosting, Datenbank, private Dateien und Pushzustellung können vertraglich eingebundene technische Dienstleister eingesetzt werden. Eine Weitergabe zu Werbung oder ein Verkauf personenbezogener Daten findet nicht statt.',
+            ),
+            _PrivacyParagraph(
+              title: 'Drittlandverarbeitung',
+              text:
+                  'Soweit ein technischer Dienst eine Verarbeitung außerhalb des Europäischen Wirtschaftsraums erfordert, erfolgt sie nur unter den Voraussetzungen der Art. 44 ff. DSGVO, etwa auf Grundlage eines Angemessenheitsbeschlusses oder geeigneter Garantien. Einzelheiten können beim Verein angefragt werden.',
+            ),
+            _PrivacyParagraph(
+              title: 'Lösch- und Speicherkriterien',
+              text:
+                  'Daten werden nur so lange gespeichert, wie sie für den jeweiligen Vereins- und Appzweck, Nachweise, IT-Sicherheit oder gesetzliche Pflichten benötigt werden. Danach werden sie gelöscht oder, wenn eine weitere Zuordnung nicht erforderlich ist, anonymisiert. Löschanträge können wegen zwingender Aufbewahrungspflichten oder Rechte Dritter teilweise eingeschränkt sein.',
+            ),
+          ],
+        ),
+        const _PrivacyDisclosure(
+          icon: Icons.child_friendly_outlined,
+          title: 'Kinder, Fotos & sensible Angaben',
+          children: [
+            _PrivacyParagraph(
+              title: 'Besonderer Schutz',
+              text:
+                  'Informationen für Kinder werden klar und verständlich bereitgestellt. Soweit eine Einwilligung für einen direkt an Kinder gerichteten digitalen Dienst erforderlich ist, wird die Zustimmung der sorgeberechtigten Person entsprechend Art. 8 DSGVO berücksichtigt.',
+            ),
+            _PrivacyParagraph(
+              title: 'Fotos und Gesundheitsangaben',
+              text:
+                  'Fotos, medizinische Hinweise und Kontaktdaten sind nicht öffentlich. Freiwillige Einwilligungen sind einzeln wählbar und können jederzeit mit Wirkung für die Zukunft widerrufen werden. Eine Ablehnung darf die sportliche Teilnahme nicht benachteiligen.',
+            ),
+            _PrivacyParagraph(
+              title: 'Pushnachrichten',
+              text:
+                  'Push ist freiwillig und gerätebezogen deaktivierbar. Benachrichtigungen werden nur für relevante Vereins- und Appvorgänge versendet; Gerätekennungen können in den Push-Einstellungen entfernt werden.',
+            ),
+          ],
+        ),
+        const _PrivacyDisclosure(
+          icon: Icons.gavel_outlined,
+          title: 'Ihre Rechte nach der DSGVO',
+          children: [
+            _PrivacyRight(
+              article: 'Art. 15',
+              title: 'Auskunft & Datenkopie',
+              text:
+                  'Erfahren, ob und welche personenbezogenen Daten verarbeitet werden, einschließlich Zwecke, Kategorien, Empfänger und Speicherkriterien.',
+            ),
+            _PrivacyRight(
+              article: 'Art. 16',
+              title: 'Berichtigung',
+              text: 'Unrichtige oder unvollständige Daten korrigieren lassen.',
+            ),
+            _PrivacyRight(
+              article: 'Art. 17/18',
+              title: 'Löschung oder Einschränkung',
+              text:
+                  'Unter den gesetzlichen Voraussetzungen Löschung verlangen oder die Verarbeitung vorübergehend begrenzen lassen.',
+            ),
+            _PrivacyRight(
+              article: 'Art. 20',
+              title: 'Datenübertragbarkeit',
+              text:
+                  'Bereitgestellte Daten bei automatisierter Verarbeitung auf Grundlage von Einwilligung oder Vertrag in einem strukturierten Format erhalten.',
+            ),
+            _PrivacyRight(
+              article: 'Art. 21',
+              title: 'Widerspruch',
+              text:
+                  'Einer Verarbeitung aus berechtigtem Interesse aus Gründen der eigenen Situation widersprechen.',
+            ),
+            _PrivacyRight(
+              article: 'Art. 7 Abs. 3',
+              title: 'Einwilligung widerrufen',
+              text:
+                  'Eine Einwilligung jederzeit für die Zukunft widerrufen; die vorherige Verarbeitung bleibt rechtmäßig.',
+            ),
+          ],
+        ),
+        const _PrivacyDisclosure(
+          icon: Icons.smart_toy_outlined,
+          title: 'Automatisierung, Sicherheit & Protokolle',
+          children: [
+            _PrivacyParagraph(
+              title: 'Keine ausschließlich automatisierte Entscheidung',
+              text:
+                  'Sportliche Vorschläge wie Autopilot oder Auswertungen entscheiden nicht verbindlich über Personen. Die Entscheidung und Freigabe bleiben beim Trainerteam. Profiling mit rechtlicher oder ähnlich erheblicher Wirkung findet nicht statt.',
+            ),
+            _PrivacyParagraph(
+              title: 'Schutzmaßnahmen',
+              text:
+                  'Zugriffe werden durch Anmeldung, Rollen, Mannschaftsgrenzen, private Dateifreigaben und sicherheitsrelevante Protokolle begrenzt. Erforderliche Sitzungs- und Gerätespeicher dienen der Anmeldung und Appfunktion, nicht der Werbung.',
+            ),
+            _PrivacyParagraph(
+              title: 'Anonymisierte Historie',
+              text:
+                  'Wo Vereins-, Sicherheits- oder Nachweishistorien erhalten bleiben müssen, wird die unmittelbare Identität nach Abschluss einer zulässigen Löschung entfernt oder ersetzt.',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Card(
+          color: AppColors.yellowSoft.withValues(alpha: .45),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 680;
+                final content = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Beschwerde bei der Datenschutzaufsicht',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Sie können sich nach Art. 77 DSGVO beim Bayerischen Landesamt für Datenschutzaufsicht (BayLDA), Promenade 18, 91522 Ansbach, beschweren. Ein vorheriger Kontakt mit dem Verein ist nicht verpflichtend.',
+                    ),
+                  ],
+                );
+                final actions = Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _contactClub,
+                      icon: const Icon(Icons.mail_outline_rounded),
+                      label: const Text('Verein kontaktieren'),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: _openComplaint,
+                      icon: const Icon(Icons.open_in_new_rounded),
+                      label: const Text('BayLDA öffnen'),
+                    ),
+                  ],
+                );
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      content,
+                      const SizedBox(height: 14),
+                      actions,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: content),
+                    const SizedBox(width: 18),
+                    actions,
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Rechts- und Informationsstand: August 2026 · DSGVO und BDSG in der jeweils geltenden Fassung. Maßgeblich sind zusätzlich die konkreten Einwilligungs- und Verarbeitungshinweise zum jeweiligen Vorgang.',
+          style: TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+
+class _PrivacyDisclosure extends StatelessWidget {
+  const _PrivacyDisclosure({
+    required this.icon,
+    required this.title,
+    required this.children,
+    this.initiallyExpanded = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+  final bool initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: ExpansionTile(
+          initiallyExpanded: initiallyExpanded,
+          leading: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.yellowSoft,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(icon, color: AppColors.gold),
+          ),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Divider(),
+            ...children,
+          ],
+        ),
+      );
+}
+
+class _PrivacyParagraph extends StatelessWidget {
+  const _PrivacyParagraph({required this.title, required this.text});
+
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 3),
+            Text(text),
+          ],
+        ),
+      );
+}
+
+class _PrivacyRight extends StatelessWidget {
+  const _PrivacyRight({
+    required this.article,
+    required this.title,
+    required this.text,
+  });
+
+  final String article;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 11),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              constraints: const BoxConstraints(minWidth: 70),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.yellowSoft,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                article,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.gold,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  Text(text),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _AdminRequestTile extends StatelessWidget {

@@ -185,7 +185,7 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
     steps: const [
       'Prüfe oben den aktuell ausgewählten Jugend- und Mannschaftskontext.',
       'Öffne Einträge für Details oder nutze die hervorgehobenen Aktionen.',
-      'Weitere Schritt-für-Schritt-Anleitungen findest du in Hilfe & FAQ.',
+      'Weitere Schritt-für-Schritt-Anleitungen findest du im Hilfe-Center.',
     ],
     searchQuery: pageTitle,
   );
@@ -318,7 +318,7 @@ class _ContextHelpSheet extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: () => Navigator.pop(context, true),
                   icon: const Icon(Icons.menu_book_rounded),
-                  label: const Text('Ausführliche Hilfe & FAQ öffnen'),
+                  label: const Text('Ausführliches Hilfe-Center öffnen'),
                 ),
               ],
             ),

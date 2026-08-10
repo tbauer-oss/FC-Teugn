@@ -39,11 +39,31 @@ void main() {
     await tester.pumpWidget(_app(staffView: false));
     await tester.pumpAndSettle();
 
-    expect(find.text('Hilfe & FAQ'), findsOneWidget);
+    expect(find.text('Hilfe-Center'), findsOneWidget);
     expect(find.byKey(const ValueKey('help-search-field')), findsOneWidget);
     expect(find.text('Wie gebe ich eine Rückmeldung ab?'), findsOneWidget);
     expect(find.text('Wie führe ich einen sicheren Saisonwechsel durch?'),
         findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('unresolved questions lead directly to technical support',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(_app(staffView: true));
+    await tester.pumpAndSettle();
+    final supportButton =
+        find.byKey(const ValueKey('help-technical-support-button'));
+    await tester.drag(
+      find.byType(CustomScrollView),
+      const Offset(0, -6000),
+    );
+    await tester.pumpAndSettle();
+
+    expect(supportButton, findsOneWidget);
+    expect(find.text('Nachrichten öffnen'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

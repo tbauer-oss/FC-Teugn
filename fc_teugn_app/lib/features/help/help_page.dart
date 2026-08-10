@@ -133,11 +133,11 @@ class _HelpPageState extends State<HelpPage> {
     };
 
     return PageScaffold(
-      title: 'Hilfe & FAQ',
+      title: 'Hilfe-Center',
       showContextHelp: false,
       subtitle: widget.staffView
-          ? 'Anleitungen für Trainer, Betreuung und Vereinsverwaltung.'
-          : 'Schnelle Antworten für Eltern und Spieler.',
+          ? 'Verlässliche Schritt-für-Schritt-Anleitungen für Trainerteam und Vereinsverwaltung.'
+          : 'Verständliche Schritt-für-Schritt-Hilfe für Familien und Spieler.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -149,8 +149,10 @@ class _HelpPageState extends State<HelpPage> {
             onChanged: (value) => setState(() => _query = value),
             onClear: _clearSearch,
           ),
+          const SizedBox(height: 12),
+          const _HelpTrustStrip(),
           const SizedBox(height: 18),
-          Text('Direkt loslegen',
+          Text('Beliebte Aufgaben',
               style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 10),
           _QuickHelpGrid(
@@ -179,10 +181,10 @@ class _HelpPageState extends State<HelpPage> {
                       onTap: () => context.go('/trainer/matches'),
                     ),
                     _QuickHelpAction(
-                      icon: Icons.forum_rounded,
-                      title: 'Nachrichten',
-                      caption: 'Mitteilung versenden',
-                      onTap: () => context.go('/trainer/messages'),
+                      icon: Icons.support_agent_rounded,
+                      title: 'Technischer Support',
+                      caption: 'Problem sicher melden',
+                      onTap: () => context.go('/trainer/support'),
                     ),
                   ]
                 : [
@@ -220,7 +222,7 @@ class _HelpPageState extends State<HelpPage> {
             children: [
               Expanded(
                 child: Text(
-                  'Themen durchsuchen',
+                  'Alle Schritt-für-Schritt-Anleitungen',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
@@ -287,7 +289,7 @@ class _HelpPageState extends State<HelpPage> {
           const SizedBox(height: 20),
           _ContactCard(
             staffView: widget.staffView,
-            onOpenMessages: () => context.go(_roleRoute('/messages')),
+            onOpenSupport: () => context.go(_roleRoute('/support')),
           ),
         ],
       ),
@@ -451,6 +453,80 @@ class _QuickHelpAction {
   final String title;
   final String caption;
   final VoidCallback onTap;
+}
+
+class _HelpTrustStrip extends StatelessWidget {
+  const _HelpTrustStrip();
+
+  @override
+  Widget build(BuildContext context) {
+    const entries = [
+      (
+        Icons.format_list_numbered_rounded,
+        'Schritt für Schritt',
+        'Klare Abläufe statt langer Handbücher'
+      ),
+      (
+        Icons.person_search_rounded,
+        'Passend zur Rolle',
+        'Nur relevante Funktionen und Rechte'
+      ),
+      (
+        Icons.devices_rounded,
+        'Für App und Web',
+        'Hinweise für Smartphone, Tablet und PC'
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 760 ? 3 : 1;
+        final width = (constraints.maxWidth - (columns - 1) * 10) / columns;
+        return Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          children: [
+            for (final entry in entries)
+              SizedBox(
+                width: width,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 11,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.yellowSoft.withValues(alpha: .52),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(entry.$1, size: 21, color: AppColors.gold),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.$2,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            Text(
+                              entry.$3,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _QuickHelpGrid extends StatelessWidget {
@@ -698,11 +774,11 @@ class _ArticleContent extends StatelessWidget {
 class _ContactCard extends StatelessWidget {
   const _ContactCard({
     required this.staffView,
-    required this.onOpenMessages,
+    required this.onOpenSupport,
   });
 
   final bool staffView;
-  final VoidCallback onOpenMessages;
+  final VoidCallback onOpenSupport;
 
   @override
   Widget build(BuildContext context) {
@@ -729,16 +805,17 @@ class _ContactCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 staffView
-                    ? 'Nutze das Mitteilungscenter für die Abstimmung mit Vereinsleitung oder Trainerteam.'
-                    : 'Schreibe deinem Trainerteam direkt über das Mitteilungscenter.',
+                    ? 'Melde technische Fehler mit Seite, Beschreibung und optionalem Screenshot direkt an den Support.'
+                    : 'Melde ein technisches Problem direkt an den Support. Deine Anfrage bleibt nachvollziehbar.',
                 style: TextStyle(color: Colors.white.withValues(alpha: .7)),
               ),
             ],
           );
           final button = FilledButton.icon(
-            onPressed: onOpenMessages,
-            icon: const Icon(Icons.forum_rounded),
-            label: const Text('Nachrichten öffnen'),
+            key: const ValueKey('help-technical-support-button'),
+            onPressed: onOpenSupport,
+            icon: const Icon(Icons.support_agent_rounded),
+            label: const Text('Technischen Support öffnen'),
           );
           if (compact) {
             return Column(

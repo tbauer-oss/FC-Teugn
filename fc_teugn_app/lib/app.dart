@@ -500,7 +500,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   hint: 'Daten, Dokumente und Zustimmungen',
                   showOnMobile: false),
               const ShellDestination(
-                  label: 'Hilfe & FAQ',
+                  label: 'Hilfe-Center',
                   icon: Icons.help_center_rounded,
                   route: '/trainer/help',
                   section: ShellSection.support,
@@ -687,7 +687,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   hint: 'Daten, Dokumente und Zustimmungen',
                   showOnMobile: false),
               ShellDestination(
-                  label: 'Hilfe & FAQ',
+                  label: 'Hilfe-Center',
                   icon: Icons.help_center_rounded,
                   route: '/parent/help',
                   section: ShellSection.support,

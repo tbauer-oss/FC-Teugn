@@ -239,16 +239,7 @@ class _CompetitionManagementDialogState
   }
 
   String _canonicalDesignation(String value) {
-    final raw = value.trim().toUpperCase();
-    final legacyNumber =
-        RegExp(r'^[A-ZÄÖÜ]+\d+\s+(\d{1,2})$').firstMatch(raw)?.group(1);
-    if (legacyNumber != null) return '$_agePrefix$legacyNumber';
-    final compact = raw.replaceAll(' ', '');
-    if (<String>{'E7', 'D9', 'C11', 'B11', 'A11', 'F5', 'F7', 'G3', 'G5'}
-        .contains(compact)) {
-      return '${_agePrefix}1';
-    }
-    return compact;
+    return canonicalYouthTeamDesignation(value, ageCode: _agePrefix);
   }
 
   List<String> get _designationOptions {

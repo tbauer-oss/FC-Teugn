@@ -16,15 +16,30 @@ const schema = fs.readFileSync(
   path.join(root, 'prisma/schema.prisma'),
   'utf8',
 );
+const normalizationMigration = fs.readFileSync(
+  path.join(
+    root,
+    'prisma/migrations/20260810160000_normalize_legacy_team_designations/migration.sql',
+  ),
+  'utf8',
+);
 const {
   canonicalTeamDesignation,
 } = require('../dist/src/controllers/competitions.controller');
 
 test('legacy game-format labels are converted to youth team labels', () => {
   assert.equal(canonicalTeamDesignation('E7 2', 'E'), 'E2');
+  assert.equal(canonicalTeamDesignation('E7 1', 'E'), 'E1');
   assert.equal(canonicalTeamDesignation('E7', 'E'), 'E1');
   assert.equal(canonicalTeamDesignation('D9 3', 'D'), 'D3');
   assert.equal(canonicalTeamDesignation('E2', 'E'), 'E2');
+});
+
+test('existing E7 labels are permanently migrated in teams and match data', () => {
+  assert.match(normalizationMigration, /UPDATE "Opponent"/);
+  assert.match(normalizationMigration, /"teamDesignation" = n\.designation/);
+  assert.match(normalizationMigration, /UPDATE "MatchDetails"/);
+  assert.match(normalizationMigration, /UPDATE "Event"/);
 });
 
 test('opponent clubs are shared while youth teams remain age-group scoped', () => {

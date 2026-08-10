@@ -82,6 +82,7 @@ const opponentClubInclude = {
       teamId: true,
       teamDesignation: true,
       shortName: true,
+      ageGroup: { select: { code: true } },
     },
     orderBy: { teamDesignation: 'asc' },
   },
@@ -96,6 +97,14 @@ function serializeOpponentClub<
 >(club: T) {
   return {
     ...club,
+    teams: club.teams.map((team) => ({
+      ...team,
+      ageGroup: undefined,
+      teamDesignation: canonicalTeamDesignation(
+        team.teamDesignation,
+        team.ageGroup.code,
+      ),
+    })),
     logoAsset: undefined,
     logoUrl: club.logoAsset && club.logoAsset.deletedAt === null
       ? mediaAssetUrl(club.logoAsset.id, '12h')

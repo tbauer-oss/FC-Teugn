@@ -69,7 +69,7 @@ void main() {
     expect(find.text('Vereinskalender'), findsWidgets);
     expect(find.textContaining('Plane Termine'), findsOneWidget);
 
-    await tester.tap(find.text('Ausführliche Hilfe & FAQ öffnen'));
+    await tester.tap(find.text('Ausführliches Hilfe-Center öffnen'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('FAQ: Termin Kalender anlegen'), findsOneWidget);

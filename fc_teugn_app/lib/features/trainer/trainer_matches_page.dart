@@ -1509,19 +1509,7 @@ String _canonicalOpponentDesignation(
   String value,
   AgeGroupSummary? ageGroup,
 ) {
-  final prefixSource =
-      ageGroup?.code.toUpperCase().replaceAll(RegExp(r'[^A-ZÄÖÜ]'), '') ?? '';
-  final prefix = prefixSource.isEmpty ? '' : prefixSource[0];
-  final raw = value.trim().toUpperCase();
-  final legacyNumber =
-      RegExp(r'^[A-ZÄÖÜ]+\d+\s+(\d{1,2})$').firstMatch(raw)?.group(1);
-  if (prefix.isNotEmpty && legacyNumber != null) return '$prefix$legacyNumber';
-  final compact = raw.replaceAll(' ', '');
-  if (<String>{'E7', 'D9', 'C11', 'B11', 'A11', 'F5', 'F7', 'G3', 'G5'}
-      .contains(compact)) {
-    return '${prefix.isEmpty ? compact[0] : prefix}1';
-  }
-  return compact;
+  return canonicalYouthTeamDesignation(value, ageCode: ageGroup?.code);
 }
 
 class _MatchDraft {

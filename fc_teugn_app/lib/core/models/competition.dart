@@ -1,3 +1,25 @@
+String canonicalYouthTeamDesignation(
+  String value, {
+  String? ageCode,
+}) {
+  final raw = value.trim().toUpperCase();
+  if (raw.isEmpty) return '';
+  final prefixSource = (ageCode?.trim().toUpperCase() ?? raw)
+      .replaceAll(RegExp(r'[^A-ZÄÖÜ]'), '');
+  final prefix = prefixSource.isEmpty ? '' : prefixSource[0];
+  final legacyNumber =
+      RegExp(r'^[A-ZÄÖÜ]+\d+\s+(\d{1,2})$').firstMatch(raw)?.group(1);
+  if (prefix.isNotEmpty && legacyNumber != null) {
+    return '$prefix$legacyNumber';
+  }
+  final compact = raw.replaceAll(RegExp(r'\s+'), '');
+  if (<String>{'E7', 'D9', 'C11', 'B11', 'A11', 'F5', 'F7', 'G3', 'G5'}
+      .contains(compact)) {
+    return '${prefix.isEmpty ? compact[0] : prefix}1';
+  }
+  return compact;
+}
+
 class OpponentModel {
   const OpponentModel({
     required this.id,
@@ -25,19 +47,25 @@ class OpponentModel {
   final String? address;
   final String? logoUrl;
 
-  factory OpponentModel.fromJson(Map<String, dynamic> json) => OpponentModel(
-        id: json['id'] as String,
-        ageGroupId: json['ageGroupId'] as String,
-        opponentClubId: json['opponentClubId'] as String? ?? '',
-        teamId: json['teamId'] as String?,
-        clubName: json['clubName'] as String? ?? '',
-        teamDesignation: json['teamDesignation'] as String? ?? '',
-        displayName: json['displayName'] as String? ?? '',
-        shortName: json['shortName'] as String?,
-        venue: json['venue'] as String?,
-        address: json['address'] as String?,
-        logoUrl: json['logoUrl'] as String?,
-      );
+  factory OpponentModel.fromJson(Map<String, dynamic> json) {
+    final clubName = json['clubName'] as String? ?? '';
+    final teamDesignation = canonicalYouthTeamDesignation(
+      json['teamDesignation'] as String? ?? '',
+    );
+    return OpponentModel(
+      id: json['id'] as String,
+      ageGroupId: json['ageGroupId'] as String,
+      opponentClubId: json['opponentClubId'] as String? ?? '',
+      teamId: json['teamId'] as String?,
+      clubName: clubName,
+      teamDesignation: teamDesignation,
+      displayName: '$clubName $teamDesignation'.trim(),
+      shortName: json['shortName'] as String?,
+      venue: json['venue'] as String?,
+      address: json['address'] as String?,
+      logoUrl: json['logoUrl'] as String?,
+    );
+  }
 }
 
 class OpponentClubModel {
@@ -94,7 +122,11 @@ class OpponentClubTeamModel {
         id: json['id'] as String,
         ageGroupId: json['ageGroupId'] as String? ?? '',
         teamId: json['teamId'] as String?,
-        teamDesignation: json['teamDesignation'] as String? ?? '',
+        teamDesignation: canonicalYouthTeamDesignation(
+          json['teamDesignation'] as String? ?? '',
+          ageCode:
+              (json['ageGroup'] as Map<String, dynamic>?)?['code'] as String?,
+        ),
         shortName: json['shortName'] as String?,
       );
 }
