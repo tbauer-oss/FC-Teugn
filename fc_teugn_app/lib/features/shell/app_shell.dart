@@ -1380,6 +1380,10 @@ class _MobileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final showDecorativeIdentity =
+            constraints.maxWidth >= 360 && textScale < 1.5;
+        final allowHeaderWrap = constraints.maxWidth < 360 || textScale >= 1.3;
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -1390,18 +1394,20 @@ class _MobileHeader extends StatelessWidget {
             bottom: false,
             child: Row(
               children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(13),
-                    border: Border.all(color: AppColors.line),
+                if (showDecorativeIdentity) ...[
+                  Container(
+                    width: 42,
+                    height: 42,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(color: AppColors.line),
+                    ),
+                    child: const ClubLogo(size: 36),
                   ),
-                  child: const ClubLogo(size: 36),
-                ),
-                const SizedBox(width: 10),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: InkWell(
                     onTap: onContextTap,
@@ -1416,8 +1422,10 @@ class _MobileHeader extends StatelessWidget {
                             children: [
                               Text(
                                 title.toUpperCase(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                maxLines: allowHeaderWrap ? 2 : 1,
+                                overflow: allowHeaderWrap
+                                    ? TextOverflow.visible
+                                    : TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: AppColors.gold,
                                   fontSize: 9,
@@ -1427,8 +1435,10 @@ class _MobileHeader extends StatelessWidget {
                               ),
                               Text(
                                 contextLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                maxLines: allowHeaderWrap ? 2 : 1,
+                                overflow: allowHeaderWrap
+                                    ? TextOverflow.visible
+                                    : TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: AppColors.navy,
                                   fontWeight: FontWeight.w800,
@@ -1447,8 +1457,10 @@ class _MobileHeader extends StatelessWidget {
                   color: AppColors.muted,
                   compact: true,
                 ),
-                _Avatar(name: userName, small: true),
-                const SizedBox(width: 2),
+                if (showDecorativeIdentity) ...[
+                  _Avatar(name: userName, small: true),
+                  const SizedBox(width: 2),
+                ],
                 PopupMenuButton<_MobileAccountAction>(
                   tooltip: 'Konto und Einstellungen',
                   icon: const Icon(Icons.more_vert_rounded),

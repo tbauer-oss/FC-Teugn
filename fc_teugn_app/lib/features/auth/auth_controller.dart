@@ -54,7 +54,7 @@ class AuthController extends StateNotifier<AuthState> {
   bool _refreshFailureInvalidatesSession = false;
   bool _refreshTokenReadFailed = false;
 
-  Future<void> login(String email, String password) async {
+  Future<bool> login(String email, String password) async {
     state = state.copyWith(loading: true, error: null);
     try {
       final res = await _client.dio.post('/auth/login', data: {
@@ -66,11 +66,13 @@ class AuthController extends StateNotifier<AuthState> {
       final token = data['accessToken'] as String;
       await _storeRefreshToken(data['refreshToken'] as String);
       state = AuthState(user: user, accessToken: token, loading: false);
+      return true;
     } catch (e) {
       state = state.copyWith(
         loading: false,
         error: _messageFromError(e, fallback: 'Login fehlgeschlagen'),
       );
+      return false;
     }
   }
 

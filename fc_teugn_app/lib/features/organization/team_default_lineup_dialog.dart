@@ -1121,25 +1121,32 @@ class _FormationPitch extends StatelessWidget {
                         _pitchMarkerWidth(compact, playerView) / 2,
                     top: slots[index].y * constraints.maxHeight -
                         _pitchMarkerHeight(compact, playerView) / 2,
-                    child: GestureDetector(
-                      onTap: () => onSelected(index),
-                      onPanUpdate: (details) {
-                        final x = (slots[index].x +
-                                details.delta.dx / constraints.maxWidth)
-                            .clamp(.07, .93);
-                        final y = (slots[index].y +
-                                details.delta.dy / constraints.maxHeight)
-                            .clamp(.07, .93);
-                        onMoved(index, x, y);
-                      },
-                      child: _PitchMarker(
-                        key: ValueKey(
-                          'slot-marker-$index-${slots[index].positionCode}',
+                    child: Semantics(
+                      button: true,
+                      label: slots[index].player == null
+                          ? 'Freie Position ${slots[index].positionCode}'
+                          : '${slots[index].player!.fullName}, Position ${slots[index].positionCode}',
+                      hint: 'Antippen, um Spieler und Position zu bearbeiten.',
+                      child: GestureDetector(
+                        onTap: () => onSelected(index),
+                        onPanUpdate: (details) {
+                          final x = (slots[index].x +
+                                  details.delta.dx / constraints.maxWidth)
+                              .clamp(.07, .93);
+                          final y = (slots[index].y +
+                                  details.delta.dy / constraints.maxHeight)
+                              .clamp(.07, .93);
+                          onMoved(index, x, y);
+                        },
+                        child: _PitchMarker(
+                          key: ValueKey(
+                            'slot-marker-$index-${slots[index].positionCode}',
+                          ),
+                          slot: slots[index],
+                          selected: selectedIndex == index,
+                          compact: compact,
+                          playerView: playerView,
                         ),
-                        slot: slots[index],
-                        selected: selectedIndex == index,
-                        compact: compact,
-                        playerView: playerView,
                       ),
                     ),
                   ),

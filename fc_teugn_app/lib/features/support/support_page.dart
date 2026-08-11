@@ -53,6 +53,7 @@ class _SupportPageState extends ConsumerState<SupportPage> {
                     'Support-Anfragen konnten nicht geladen werden.'),
                 subtitle: Text('$error'),
                 trailing: IconButton(
+                  tooltip: 'Erneut laden',
                   onPressed: () => ref.invalidate(supportTicketsProvider),
                   icon: const Icon(Icons.refresh_rounded),
                 ),

@@ -15,6 +15,7 @@ import '../../core/widgets/team_crest.dart';
 import '../shared/page_scaffold.dart';
 import '../imports/competition_import_dialog.dart';
 import '../matches/competition_management_dialog.dart';
+import '../matches/tournament_opponent_picker.dart';
 import '../auth/auth_controller.dart';
 import '../../core/models/user.dart';
 import '../../core/widgets/adaptive_layout.dart';
@@ -28,55 +29,48 @@ class TrainerMatchesPage extends ConsumerWidget {
     final repository = ref.watch(repositoryProvider);
     final organization = ref.watch(organizationProvider).valueOrNull;
 
+    Future<void> openCompetitionManagement() async {
+      final organization = await ref.read(organizationProvider.future);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => CompetitionManagementDialog(
+          repository: repository,
+          organization: organization,
+          isSystemAdmin:
+              ref.read(authProvider).user?.role == UserRole.superAdmin,
+          onOrganizationChanged: () {
+            ref.invalidate(organizationProvider);
+          },
+        ),
+      );
+    }
+
+    Future<void> importSchedule() async {
+      final organization = await ref.read(organizationProvider.future);
+      if (!context.mounted) return;
+      final imported = await showDialog<bool>(
+        context: context,
+        builder: (context) =>
+            CompetitionImportDialog(organization: organization),
+      );
+      if (imported == true) {
+        ref.invalidate(eventsProvider);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Spielplan wurde importiert.')),
+          );
+        }
+      }
+    }
+
     return PageScaffold(
       title: 'Spieltage',
       subtitle: 'Gegner, Wettbewerb und Ergebnisse zentral verwalten.',
-      action: Wrap(
-        spacing: 8,
-        children: [
-          OutlinedButton.icon(
-            onPressed: () async {
-              final organization = await ref.read(organizationProvider.future);
-              if (!context.mounted) return;
-              await showDialog<void>(
-                context: context,
-                builder: (context) => CompetitionManagementDialog(
-                  repository: repository,
-                  organization: organization,
-                  isSystemAdmin:
-                      ref.read(authProvider).user?.role == UserRole.superAdmin,
-                  onOrganizationChanged: () {
-                    ref.invalidate(organizationProvider);
-                  },
-                ),
-              );
-            },
-            icon: const Icon(Icons.emoji_events_outlined),
-            label: const Text('Liga & Gegner'),
-          ),
-          FilledButton.icon(
-            onPressed: () async {
-              final organization = await ref.read(organizationProvider.future);
-              if (!context.mounted) return;
-              final imported = await showDialog<bool>(
-                context: context,
-                builder: (context) =>
-                    CompetitionImportDialog(organization: organization),
-              );
-              if (imported == true) {
-                ref.invalidate(eventsProvider);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Spielplan wurde importiert.')),
-                  );
-                }
-              }
-            },
-            icon: const Icon(Icons.upload_file_rounded),
-            label: const Text('Spielplan importieren'),
-          ),
-        ],
+      denseMobileHeader: true,
+      action: _MatchesPageActions(
+        onManageOpponents: openCompetitionManagement,
+        onImport: importSchedule,
       ),
       child: events.when(
         data: (items) {
@@ -100,7 +94,7 @@ class TrainerMatchesPage extends ConsumerWidget {
             children: [
               for (final match in matches)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: _MatchCard(
                     event: match,
                     onOpen: match.category.isTournament
@@ -445,6 +439,80 @@ class TrainerMatchesPage extends ConsumerWidget {
       club.dispose();
       venue.dispose();
       address.dispose();
+    }
+  }
+
+  Future<OpponentModel?> _createTournamentOpponent(
+    BuildContext context,
+    DataRepository repository,
+    TeamSummary team,
+    List<OpponentModel> opponents,
+    List<OpponentClubModel> clubs,
+  ) async {
+    final draft = await showDialog<_TournamentOpponentDraft>(
+      context: context,
+      builder: (context) => _TournamentOpponentEditorDialog(
+        ageGroup: team.ageGroup,
+      ),
+    );
+    if (draft == null || !context.mounted) return null;
+
+    final designation = _canonicalOpponentDesignation(
+      draft.teamDesignation,
+      team.ageGroup,
+    );
+    var clubName = draft.clubName.trim();
+    clubName = clubName.replaceFirst(
+      RegExp(
+        '\\s+${RegExp.escape(designation)}' r'$',
+        caseSensitive: false,
+      ),
+      '',
+    );
+    if (clubName.isEmpty) clubName = draft.clubName.trim();
+
+    try {
+      var club = clubs
+          .where(
+            (item) =>
+                _normalizedOpponentClubName(item.name) ==
+                _normalizedOpponentClubName(clubName),
+          )
+          .firstOrNull;
+      if (club == null) {
+        club = await repository.saveOpponentClub(name: clubName);
+        clubs.add(club);
+        clubs.sort((a, b) => a.name.compareTo(b.name));
+      }
+
+      final existing = opponents
+          .where(
+            (item) =>
+                item.opponentClubId == club!.id &&
+                _canonicalOpponentDesignation(
+                      item.teamDesignation,
+                      team.ageGroup,
+                    ) ==
+                    designation,
+          )
+          .firstOrNull;
+      if (existing != null) return existing;
+
+      return await repository.saveOpponent(
+        ageGroupId: team.ageGroup.id,
+        teamId: team.id,
+        opponentClubId: club.id,
+        clubName: club.name,
+        teamDesignation: designation,
+      );
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Gegner konnte nicht angelegt werden: $error')),
+        );
+      }
+      return null;
     }
   }
 
@@ -1328,8 +1396,11 @@ class TrainerMatchesPage extends ConsumerWidget {
       );
       return;
     }
-    final opponents = await repository.opponents(team.ageGroup.id).catchError(
+    var opponents = await repository.opponents(team.ageGroup.id).catchError(
           (_) => <OpponentModel>[],
+        );
+    final opponentClubs = await repository.opponentClubs().catchError(
+          (_) => <OpponentClubModel>[],
         );
     if (!context.mounted) return;
     final rows = tournament.tournamentFixtures.map((fixture) {
@@ -1468,6 +1539,23 @@ class TrainerMatchesPage extends ConsumerWidget {
                   index: index,
                   row: rows[index],
                   opponents: opponents,
+                  onAddOpponent: () async {
+                    final created = await _createTournamentOpponent(
+                      dialogContext,
+                      repository,
+                      team,
+                      opponents,
+                      opponentClubs,
+                    );
+                    if (created != null && dialogContext.mounted) {
+                      setDialogState(() {
+                        opponents = [...opponents, created]..sort(
+                            (a, b) => a.displayName.compareTo(b.displayName),
+                          );
+                      });
+                    }
+                    return created;
+                  },
                   onChanged: () => setDialogState(() {}),
                   onChooseStart: () => chooseStart(rows[index]),
                   onOpen: rows[index].id == null
@@ -1496,6 +1584,195 @@ class TrainerMatchesPage extends ConsumerWidget {
       }
     }
   }
+}
+
+class _MatchesPageActions extends StatelessWidget {
+  const _MatchesPageActions({
+    required this.onManageOpponents,
+    required this.onImport,
+  });
+
+  final VoidCallback onManageOpponents;
+  final VoidCallback onImport;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < AppBreakpoints.compact;
+          final veryNarrow = constraints.maxWidth < AppBreakpoints.veryNarrow;
+          final narrow = constraints.maxWidth < AppBreakpoints.narrow;
+          return Row(
+            key: const ValueKey('matches-page-actions'),
+            mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              if (compact)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onManageOpponents,
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    icon: const Icon(Icons.emoji_events_outlined, size: 18),
+                    label: AdaptiveButtonLabel(
+                      narrow ? 'Gegner' : 'Liga & Gegner',
+                      maxLines: 1,
+                    ),
+                  ),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: onManageOpponents,
+                  icon: const Icon(Icons.emoji_events_outlined),
+                  label: const Text('Liga & Gegner'),
+                ),
+              const SizedBox(width: 8),
+              if (compact)
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onImport,
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    icon: const Icon(Icons.upload_file_rounded, size: 18),
+                    label: AdaptiveButtonLabel(
+                      veryNarrow
+                          ? 'Import'
+                          : narrow
+                              ? 'Importieren'
+                              : 'Spielplan importieren',
+                      maxLines: 1,
+                    ),
+                  ),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: onImport,
+                  icon: const Icon(Icons.upload_file_rounded),
+                  label: const Text('Spielplan importieren'),
+                ),
+            ],
+          );
+        },
+      );
+}
+
+class _TournamentOpponentDraft {
+  const _TournamentOpponentDraft({
+    required this.clubName,
+    required this.teamDesignation,
+  });
+
+  final String clubName;
+  final String teamDesignation;
+}
+
+class _TournamentOpponentEditorDialog extends StatefulWidget {
+  const _TournamentOpponentEditorDialog({required this.ageGroup});
+
+  final AgeGroupSummary ageGroup;
+
+  @override
+  State<_TournamentOpponentEditorDialog> createState() =>
+      _TournamentOpponentEditorDialogState();
+}
+
+class _TournamentOpponentEditorDialogState
+    extends State<_TournamentOpponentEditorDialog> {
+  late final TextEditingController club;
+  late final TextEditingController designation;
+
+  String get agePrefix {
+    final compact = widget.ageGroup.code
+        .trim()
+        .toUpperCase()
+        .replaceAll(RegExp(r'[^A-ZÄÖÜ]'), '');
+    return compact.isEmpty ? '' : compact[0];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    club = TextEditingController();
+    designation = TextEditingController(text: '${agePrefix}1');
+  }
+
+  @override
+  void dispose() {
+    club.dispose();
+    designation.dispose();
+    super.dispose();
+  }
+
+  void save() {
+    final clubName = club.text.trim();
+    final teamDesignation = canonicalYouthTeamDesignation(
+      designation.text,
+      ageCode: widget.ageGroup.code,
+    );
+    final designationValid = agePrefix.isNotEmpty &&
+        RegExp('^${RegExp.escape(agePrefix)}[1-9][0-9]?' r'$')
+            .hasMatch(teamDesignation);
+    if (clubName.isEmpty || !designationValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            clubName.isEmpty
+                ? 'Bitte den Vereinsnamen angeben.'
+                : 'Bitte eine Mannschaft wie ${agePrefix}1 angeben.',
+          ),
+        ),
+      );
+      return;
+    }
+    Navigator.pop(
+      context,
+      _TournamentOpponentDraft(
+        clubName: clubName,
+        teamDesignation: teamDesignation,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => ResponsiveFormDialog(
+        title: 'Gegner hinzufügen',
+        subtitle:
+            'Neue Mannschaft direkt für die ${widget.ageGroup.name} anlegen und auswählen.',
+        maxWidth: 560,
+        preferInlineActions: true,
+        saveLabel: 'Hinzufügen',
+        saveIcon: Icons.add_rounded,
+        onSave: save,
+        children: [
+          TextField(
+            key: const ValueKey('tournament-opponent-club-name'),
+            controller: club,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'Verein *',
+              hintText: 'z. B. ATSV Kelheim',
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            key: const ValueKey('tournament-opponent-designation'),
+            controller: designation,
+            textCapitalization: TextCapitalization.characters,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => save(),
+            decoration: InputDecoration(
+              labelText: '${widget.ageGroup.name}-Mannschaft *',
+              hintText: '${agePrefix}1',
+              helperText:
+                  'Nur die Mannschaftsbezeichnung, z. B. ${agePrefix}1 oder ${agePrefix}2.',
+            ),
+          ),
+        ],
+      );
 }
 
 class _TournamentFixtureDraftState {
@@ -1562,8 +1839,8 @@ class _TournamentPlanToolbar extends StatelessWidget {
                       ),
                       Text(
                         compact
-                            ? 'Gegner fehlen? Unter „Liga & Gegner“ anlegen.'
-                            : 'Fehlende Gegner unter „Liga & Gegner“ für diese Jugend anlegen.',
+                            ? 'Gegner suchen oder direkt neu anlegen.'
+                            : 'Gegner durchsuchen oder direkt in der Auswahl neu anlegen.',
                         maxLines: compact ? 1 : 2,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -1655,6 +1932,7 @@ class _TournamentFixtureEditor extends StatelessWidget {
     required this.index,
     required this.row,
     required this.opponents,
+    required this.onAddOpponent,
     required this.onChanged,
     required this.onChooseStart,
     required this.onRemove,
@@ -1664,6 +1942,7 @@ class _TournamentFixtureEditor extends StatelessWidget {
   final int index;
   final _TournamentFixtureDraftState row;
   final List<OpponentModel> opponents;
+  final TournamentOpponentCreator onAddOpponent;
   final VoidCallback onChanged;
   final VoidCallback onChooseStart;
   final VoidCallback onRemove;
@@ -1761,8 +2040,8 @@ class _TournamentFixtureEditor extends StatelessWidget {
                         tooltip: 'Kader, Aufstellung und Liveticker öffnen',
                         visualDensity: VisualDensity.compact,
                         constraints: const BoxConstraints(
-                          minWidth: 38,
-                          minHeight: 38,
+                          minWidth: 44,
+                          minHeight: 44,
                         ),
                         onPressed: onOpen,
                         icon: const Icon(Icons.stadium_rounded, size: 21),
@@ -1771,8 +2050,8 @@ class _TournamentFixtureEditor extends StatelessWidget {
                       tooltip: 'Partie entfernen',
                       visualDensity: VisualDensity.compact,
                       constraints: const BoxConstraints(
-                        minWidth: 38,
-                        minHeight: 38,
+                        minWidth: 44,
+                        minHeight: 44,
                       ),
                       onPressed: onRemove,
                       icon: const Icon(Icons.delete_outline_rounded, size: 21),
@@ -1780,23 +2059,11 @@ class _TournamentFixtureEditor extends StatelessWidget {
                   ],
                 ),
                 SizedBox(height: compact ? 6 : 8),
-                DropdownButtonFormField<String>(
-                  initialValue:
-                      opponents.any((item) => item.id == row.opponentId)
-                          ? row.opponentId
-                          : null,
-                  isExpanded: true,
-                  decoration: compactDecoration.copyWith(labelText: 'Gegner *'),
-                  items: [
-                    for (final opponent in opponents)
-                      DropdownMenuItem(
-                        value: opponent.id,
-                        child: Text(
-                          opponent.displayName,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
+                TournamentOpponentPickerField(
+                  key: ValueKey('tournament-opponent-field-$index'),
+                  opponentId: row.opponentId,
+                  opponents: opponents,
+                  onAddOpponent: onAddOpponent,
                   onChanged: (value) {
                     row.opponentId = value;
                     onChanged();
@@ -1880,12 +2147,18 @@ class _MatchCard extends StatelessWidget {
     final isFriendly = event.category == EventCategory.friendlyMatch ||
         (details?.competition ?? '').toLowerCase().contains('freundschaft');
     return Card(
+      key: ValueKey('match-card-${event.id}'),
+      margin: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 680;
           final title = details == null
               ? event.title
               : 'FC Teugn ${details.isHome ? '–' : '@'} ${details.opponent}';
+          final dateLocation = [
+            '${date.day}.${date.month}.${date.year}',
+            if (event.location.trim().isNotEmpty) event.location.trim(),
+          ].join(' · ');
           final information = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1893,17 +2166,25 @@ class _MatchCard extends StatelessWidget {
                 title,
                 maxLines: compact ? 2 : 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleLarge,
+                style: (compact
+                        ? Theme.of(context).textTheme.titleMedium
+                        : Theme.of(context).textTheme.titleLarge)
+                    ?.copyWith(fontWeight: FontWeight.w900),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: compact ? 1 : 4),
               Text(
-                '${date.day}.${date.month}.${date.year} · ${event.location}',
-                maxLines: 2,
+                dateLocation,
+                maxLines: compact ? 1 : 2,
                 overflow: TextOverflow.ellipsis,
+                style: compact
+                    ? Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.muted,
+                        )
+                    : null,
               ),
               if (details?.competition?.isNotEmpty == true)
                 Padding(
-                  padding: const EdgeInsets.only(top: 5),
+                  padding: EdgeInsets.only(top: compact ? 3 : 5),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: isFriendly
@@ -1918,8 +2199,8 @@ class _MatchCard extends StatelessWidget {
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 4,
+                        horizontal: 7,
+                        vertical: 2,
                       ),
                       child: Text(
                         isFriendly
@@ -1928,13 +2209,50 @@ class _MatchCard extends StatelessWidget {
                         style: TextStyle(
                           color: isFriendly ? AppColors.gold : AppColors.blue,
                           fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                          fontSize: compact ? 11 : 12,
                         ),
                       ),
                     ),
                   ),
                 ),
-              if (isTournament) ...[
+              if (isTournament && compact) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.emoji_events_rounded,
+                      size: 15,
+                      color: AppColors.gold,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        '${event.category.label} · '
+                        '${event.tournamentFixtures.length} '
+                        '${event.tournamentFixtures.length == 1 ? 'Partie' : 'Partien'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (event.tournamentFixtures.isNotEmpty)
+                  Text(
+                    event.tournamentFixtures.take(2).map((fixture) {
+                      final time = fixture.startAt.toLocal();
+                      final opponent =
+                          fixture.matchDetails?.opponent ?? 'Gegner offen';
+                      return '${time.hour.toString().padLeft(2, '0')}:'
+                          '${time.minute.toString().padLeft(2, '0')} $opponent';
+                    }).join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+              ] else if (isTournament) ...[
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
@@ -1973,6 +2291,9 @@ class _MatchCard extends StatelessWidget {
                 Text(
                   '${details.periodCount} × ${details.periodMinutes} Min. '
                   '· ${details.durationMinutes} Min. gesamt',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: compact ? Theme.of(context).textTheme.bodySmall : null,
                 ),
             ],
           );
@@ -2022,7 +2343,7 @@ class _MatchCard extends StatelessWidget {
             ],
           );
           return Padding(
-            padding: EdgeInsets.all(compact ? 14 : 20),
+            padding: EdgeInsets.all(compact ? 10 : 20),
             child: compact
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2035,7 +2356,7 @@ class _MatchCard extends StatelessWidget {
                             compact: true,
                             tournament: isTournament,
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 9),
                           Expanded(child: information),
                           if (hasResult) ...[
                             const SizedBox(width: 8),
@@ -2046,8 +2367,15 @@ class _MatchCard extends StatelessWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 14),
-                      Align(alignment: Alignment.centerLeft, child: actions),
+                      const SizedBox(height: 7),
+                      _CompactMatchActions(
+                        isTournament: isTournament,
+                        onEdit: onEdit,
+                        onOpen: onOpen,
+                        onDelete: onDelete,
+                        onCancel: onCancel,
+                        onReschedule: onReschedule,
+                      ),
                     ],
                   )
                 : Row(
@@ -2077,6 +2405,152 @@ class _MatchCard extends StatelessWidget {
   }
 }
 
+class _CompactMatchActions extends StatelessWidget {
+  const _CompactMatchActions({
+    required this.isTournament,
+    required this.onEdit,
+    required this.onOpen,
+    this.onDelete,
+    this.onCancel,
+    this.onReschedule,
+  });
+
+  final bool isTournament;
+  final VoidCallback onEdit;
+  final VoidCallback onOpen;
+  final VoidCallback? onDelete;
+  final VoidCallback? onCancel;
+  final VoidCallback? onReschedule;
+
+  bool get hasMenuActions =>
+      !isTournament ||
+      onReschedule != null ||
+      onCancel != null ||
+      onDelete != null;
+
+  void _select(String action) {
+    switch (action) {
+      case 'edit':
+        onEdit();
+        return;
+      case 'reschedule':
+        onReschedule?.call();
+        return;
+      case 'cancel':
+        onCancel?.call();
+        return;
+      case 'delete':
+        onDelete?.call();
+        return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final textScale = MediaQuery.textScalerOf(context).scale(1);
+          final showTournamentActions = isTournament &&
+              constraints.maxWidth >= AppBreakpoints.veryNarrow &&
+              textScale < 1.35;
+          return Row(
+            children: [
+              if (showTournamentActions && onCancel != null)
+                TextButton.icon(
+                  onPressed: onCancel,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  icon: const Icon(Icons.event_busy_rounded, size: 17),
+                  label: const Text('Absagen'),
+                ),
+              if (showTournamentActions && onDelete != null)
+                IconButton(
+                  onPressed: onDelete,
+                  color: Theme.of(context).colorScheme.error,
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Spiel endgültig löschen',
+                  icon: const Icon(Icons.delete_forever_rounded, size: 20),
+                ),
+              if (!showTournamentActions && hasMenuActions)
+                PopupMenuButton<String>(
+                  tooltip: 'Weitere Aktionen',
+                  onSelected: _select,
+                  itemBuilder: (context) => [
+                    if (!isTournament)
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.edit_rounded),
+                          title: Text('Daten bearbeiten'),
+                        ),
+                      ),
+                    if (onReschedule != null)
+                      const PopupMenuItem(
+                        value: 'reschedule',
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.event_repeat_rounded),
+                          title: Text('Verlegen'),
+                        ),
+                      ),
+                    if (onCancel != null)
+                      const PopupMenuItem(
+                        value: 'cancel',
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            Icons.event_busy_rounded,
+                            color: Colors.redAccent,
+                          ),
+                          title: Text('Absagen'),
+                        ),
+                      ),
+                    if (onDelete != null)
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            Icons.delete_forever_rounded,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                          title: const Text('Endgültig löschen'),
+                        ),
+                      ),
+                  ],
+                  icon: const Icon(Icons.more_horiz_rounded),
+                ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: onOpen,
+                style: FilledButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 8,
+                  ),
+                ),
+                icon: Icon(
+                  isTournament
+                      ? Icons.account_tree_rounded
+                      : Icons.stadium_rounded,
+                  size: 17,
+                ),
+                label: Text(isTournament ? 'Planen' : 'Spieltag'),
+              ),
+            ],
+          );
+        },
+      );
+}
+
 class _MatchLogos extends StatelessWidget {
   const _MatchLogos({
     required this.opponentLogoUrl,
@@ -2089,7 +2563,7 @@ class _MatchLogos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = compact ? 34.0 : 42.0;
+    final size = compact ? 30.0 : 42.0;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -2141,6 +2615,9 @@ String _canonicalOpponentDesignation(
 ) {
   return canonicalYouthTeamDesignation(value, ageCode: ageGroup?.code);
 }
+
+String _normalizedOpponentClubName(String value) =>
+    value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
 class _MatchDraft {
   const _MatchDraft({

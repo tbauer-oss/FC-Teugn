@@ -309,45 +309,50 @@ class _SignaturePadState extends State<_SignaturePad> {
     return LayoutBuilder(
       builder: (context, constraints) {
         size = Size(constraints.maxWidth, constraints.maxHeight);
-        return GestureDetector(
-          key: const ValueKey('digital-signature-pad'),
-          behavior: HitTestBehavior.opaque,
-          onPanStart: (details) => setState(() {
-            strokes.add([_inside(details.localPosition)]);
-          }),
-          onPanUpdate: (details) => setState(() {
-            if (strokes.isEmpty) strokes.add([]);
-            strokes.last.add(_inside(details.localPosition));
-          }),
-          child: CustomPaint(
-            painter: _SignaturePainter(strokes),
-            size: size,
-            child: strokes.isEmpty
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.gesture_rounded,
-                            size: 42,
-                            color: AppColors.muted,
-                          ),
-                          SizedBox(height: 10),
-                          Text(
-                            'Hier unterschreiben',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
+        return Semantics(
+          label: 'Unterschriftsfeld',
+          value: strokes.isEmpty ? 'leer' : 'Unterschrift erfasst',
+          hint: 'Mit Finger, Eingabestift oder Maus unterschreiben.',
+          child: GestureDetector(
+            key: const ValueKey('digital-signature-pad'),
+            behavior: HitTestBehavior.opaque,
+            onPanStart: (details) => setState(() {
+              strokes.add([_inside(details.localPosition)]);
+            }),
+            onPanUpdate: (details) => setState(() {
+              if (strokes.isEmpty) strokes.add([]);
+              strokes.last.add(_inside(details.localPosition));
+            }),
+            child: CustomPaint(
+              painter: _SignaturePainter(strokes),
+              size: size,
+              child: strokes.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.gesture_rounded,
+                              size: 42,
                               color: AppColors.muted,
-                              fontWeight: FontWeight.w700,
                             ),
-                          ),
-                        ],
+                            SizedBox(height: 10),
+                            Text(
+                              'Hier unterschreiben',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  )
-                : null,
+                    )
+                  : null,
+            ),
           ),
         );
       },

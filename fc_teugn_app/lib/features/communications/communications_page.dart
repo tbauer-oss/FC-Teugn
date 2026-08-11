@@ -11,6 +11,7 @@ import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/push/native_push_service.dart';
 import '../../core/push/push_client.dart';
+import '../../core/widgets/adaptive_layout.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 
@@ -2728,36 +2729,53 @@ class _ComposeAnnouncementDialogState
       AnnouncementStatus.scheduled => 'Mitteilung einplanen',
       _ => 'Jetzt veröffentlichen',
     };
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      child: Row(
-        children: [
-          if (MediaQuery.sizeOf(context).width >= 700)
-            Expanded(
-              child: Text(
-                'Pflichtfelder: Titel, Nachricht und mindestens eine Mannschaft',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppColors.muted),
-              ),
-            )
-          else
-            const Spacer(),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Abbrechen'),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackActions = constraints.maxWidth < 520 ||
+            MediaQuery.textScalerOf(context).scale(1) >= 1.4;
+        final cancel = TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        );
+        final submit = FilledButton.icon(
+          onPressed: _canSubmit ? _submit : null,
+          icon: Icon(_status == AnnouncementStatus.draft
+              ? Icons.save_outlined
+              : Icons.send_rounded),
+          label: AdaptiveButtonLabel(actionLabel),
+        );
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: stackActions ? 12 : 20,
+            vertical: stackActions ? 10 : 14,
           ),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            onPressed: _canSubmit ? _submit : null,
-            icon: Icon(_status == AnnouncementStatus.draft
-                ? Icons.save_outlined
-                : Icons.send_rounded),
-            label: Text(actionLabel),
-          ),
-        ],
-      ),
+          child: stackActions
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    submit,
+                    const SizedBox(height: 6),
+                    cancel,
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Pflichtfelder: Titel, Nachricht und mindestens eine Mannschaft',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.muted),
+                      ),
+                    ),
+                    cancel,
+                    const SizedBox(width: 8),
+                    submit,
+                  ],
+                ),
+        );
+      },
     );
   }
 

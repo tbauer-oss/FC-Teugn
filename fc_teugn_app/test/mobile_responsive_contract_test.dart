@@ -42,12 +42,15 @@ void main() {
   });
 
   test('the complete app surface is constrained to a foldable pane', () {
+    final app = File('lib/app.dart').readAsStringSync();
     final shell = File('lib/features/shell/app_shell.dart').readAsStringSync();
     final adaptive = File(
       'lib/core/widgets/adaptive_layout.dart',
     ).readAsStringSync();
 
     expect(shell, contains('AdaptiveHingePane('));
+    expect(app, contains('child: AdaptiveHingePane('));
+    expect(app, contains('AdaptiveHingePane(child: child'));
     expect(adaptive, contains('class AdaptiveHingePane'));
     expect(adaptive, contains('separatesHorizontally'));
     expect(adaptive, contains('separatesVertically'));

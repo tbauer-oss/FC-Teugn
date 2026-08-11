@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -58,99 +59,109 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                 child: Card(
                   child: Padding(
                     padding: const EdgeInsets.all(26),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: ClubLogo(size: 74),
-                          ),
-                          const SizedBox(height: 24),
-                          Text(
-                            'Neues Passwort festlegen',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Der sichere Link ist 15 Minuten und nur einmal gültig. Nach dem Speichern meldest du dich auf allen Geräten neu an.',
-                            style: TextStyle(color: AppColors.muted),
-                          ),
-                          const SizedBox(height: 22),
-                          if (_exchanging)
-                            const Center(
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24),
-                                child: CircularProgressIndicator(),
-                              ),
-                            )
-                          else if (_token.isEmpty)
-                            _ResetError(
-                              message: _error ??
-                                  'Der sichere Gerätezugriff konnte nicht bestätigt werden. Bitte öffne die Pushnachricht erneut oder wende dich an die Systemadministration.',
-                            )
-                          else ...[
-                            TextFormField(
-                              controller: _password,
-                              obscureText: !_showPassword,
-                              autofillHints: const [AutofillHints.newPassword],
-                              decoration: InputDecoration(
-                                labelText: 'Neues Passwort',
-                                prefixIcon:
-                                    const Icon(Icons.lock_outline_rounded),
-                                helperText: 'Mindestens 10 Zeichen',
-                                suffixIcon: IconButton(
-                                  onPressed: () => setState(
-                                    () => _showPassword = !_showPassword,
-                                  ),
-                                  icon: Icon(_showPassword
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined),
-                                ),
-                              ),
-                              validator: (value) => (value?.length ?? 0) < 10
-                                  ? 'Mindestens 10 Zeichen eingeben'
-                                  : null,
+                    child: AutofillGroup(
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Align(
+                              alignment: Alignment.centerLeft,
+                              child: ClubLogo(size: 74),
                             ),
-                            const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _confirmation,
-                              obscureText: !_showPassword,
-                              autofillHints: const [AutofillHints.newPassword],
-                              decoration: const InputDecoration(
-                                labelText: 'Passwort wiederholen',
-                                prefixIcon: Icon(Icons.verified_user_outlined),
-                              ),
-                              validator: (value) => value != _password.text
-                                  ? 'Die Passwörter stimmen nicht überein'
-                                  : null,
+                            const SizedBox(height: 24),
+                            Text(
+                              'Neues Passwort festlegen',
+                              style: Theme.of(context).textTheme.headlineSmall,
                             ),
-                            if (_error != null) ...[
-                              const SizedBox(height: 14),
-                              _ResetError(message: _error!),
-                            ],
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Der sichere Link ist 15 Minuten und nur einmal gültig. Nach dem Speichern meldest du dich auf allen Geräten neu an.',
+                              style: TextStyle(color: AppColors.muted),
+                            ),
                             const SizedBox(height: 22),
-                            FilledButton.icon(
-                              onPressed: _saving ? null : _save,
-                              icon: _saving
-                                  ? const SizedBox.square(
-                                      dimension: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.lock_reset_rounded),
-                              label: const Text('Passwort speichern'),
+                            if (_exchanging)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 24),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              )
+                            else if (_token.isEmpty)
+                              _ResetError(
+                                message: _error ??
+                                    'Der sichere Gerätezugriff konnte nicht bestätigt werden. Bitte öffne die Pushnachricht erneut oder wende dich an die Systemadministration.',
+                              )
+                            else ...[
+                              TextFormField(
+                                controller: _password,
+                                obscureText: !_showPassword,
+                                autofillHints: const [
+                                  AutofillHints.newPassword
+                                ],
+                                decoration: InputDecoration(
+                                  labelText: 'Neues Passwort',
+                                  prefixIcon:
+                                      const Icon(Icons.lock_outline_rounded),
+                                  helperText: 'Mindestens 10 Zeichen',
+                                  suffixIcon: IconButton(
+                                    tooltip: _showPassword
+                                        ? 'Passwort verbergen'
+                                        : 'Passwort anzeigen',
+                                    onPressed: () => setState(
+                                      () => _showPassword = !_showPassword,
+                                    ),
+                                    icon: Icon(_showPassword
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined),
+                                  ),
+                                ),
+                                validator: (value) => (value?.length ?? 0) < 10
+                                    ? 'Mindestens 10 Zeichen eingeben'
+                                    : null,
+                              ),
+                              const SizedBox(height: 14),
+                              TextFormField(
+                                controller: _confirmation,
+                                obscureText: !_showPassword,
+                                autofillHints: const [
+                                  AutofillHints.newPassword
+                                ],
+                                decoration: const InputDecoration(
+                                  labelText: 'Passwort wiederholen',
+                                  prefixIcon:
+                                      Icon(Icons.verified_user_outlined),
+                                ),
+                                validator: (value) => value != _password.text
+                                    ? 'Die Passwörter stimmen nicht überein'
+                                    : null,
+                              ),
+                              if (_error != null) ...[
+                                const SizedBox(height: 14),
+                                _ResetError(message: _error!),
+                              ],
+                              const SizedBox(height: 22),
+                              FilledButton.icon(
+                                onPressed: _saving ? null : _save,
+                                icon: _saving
+                                    ? const SizedBox.square(
+                                        dimension: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.lock_reset_rounded),
+                                label: const Text('Passwort speichern'),
+                              ),
+                            ],
+                            const SizedBox(height: 10),
+                            TextButton.icon(
+                              onPressed: () => context.go('/login'),
+                              icon: const Icon(Icons.arrow_back_rounded),
+                              label: const Text('Zur Anmeldung'),
                             ),
                           ],
-                          const SizedBox(height: 10),
-                          TextButton.icon(
-                            onPressed: () => context.go('/login'),
-                            icon: const Icon(Icons.arrow_back_rounded),
-                            label: const Text('Zur Anmeldung'),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -174,6 +185,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                 password: _password.text,
               );
       if (!mounted) return;
+      TextInput.finishAutofillContext(shouldSave: true);
       context.go('/login');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),

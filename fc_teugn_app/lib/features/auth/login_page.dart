@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -112,160 +113,162 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   child: SafeArea(
                     child: Center(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(28),
+                        padding: EdgeInsets.all(
+                          constraints.maxWidth < 360 ? 16 : 28,
+                        ),
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 430),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                if (!wide) ...[
-                                  const _LoginBrand(dark: true, logoSize: 82),
-                                  const SizedBox(height: 42),
-                                ],
-                                Text('Willkommen zurück',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .displaySmall),
-                                const SizedBox(height: 8),
-                                const Text(
-                                    'Melde dich an, um dein Team zu organisieren.'),
-                                const SizedBox(height: 30),
-                                TextFormField(
-                                  controller: _emailController,
-                                  keyboardType: TextInputType.emailAddress,
-                                  autofillHints: const [AutofillHints.email],
-                                  decoration: const InputDecoration(
-                                    labelText: 'E-Mail-Adresse',
-                                    prefixIcon:
-                                        Icon(Icons.mail_outline_rounded),
-                                  ),
-                                  validator: (value) {
-                                    final email = value?.trim() ?? '';
-                                    if (email.isEmpty || !email.contains('@')) {
-                                      return 'Bitte eine gültige E-Mail eingeben';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 14),
-                                TextFormField(
-                                  controller: _passwordController,
-                                  obscureText: !_showPassword,
-                                  autofillHints: const [AutofillHints.password],
-                                  onFieldSubmitted: (_) => _submit(),
-                                  decoration: InputDecoration(
-                                    labelText: 'Passwort',
-                                    prefixIcon:
-                                        const Icon(Icons.lock_outline_rounded),
-                                    suffixIcon: IconButton(
-                                      tooltip: _showPassword
-                                          ? 'Passwort verbergen'
-                                          : 'Passwort anzeigen',
-                                      onPressed: () => setState(
-                                          () => _showPassword = !_showPassword),
-                                      icon: Icon(_showPassword
-                                          ? Icons.visibility_off_outlined
-                                          : Icons.visibility_outlined),
+                          child: AutofillGroup(
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (!wide) ...[
+                                    const _LoginBrand(dark: true, logoSize: 82),
+                                    const SizedBox(height: 42),
+                                  ],
+                                  Text('Willkommen zurück',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .displaySmall),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                      'Melde dich an, um dein Team zu organisieren.'),
+                                  const SizedBox(height: 30),
+                                  TextFormField(
+                                    controller: _emailController,
+                                    keyboardType: TextInputType.emailAddress,
+                                    autofillHints: const [AutofillHints.email],
+                                    decoration: const InputDecoration(
+                                      labelText: 'E-Mail-Adresse',
+                                      prefixIcon:
+                                          Icon(Icons.mail_outline_rounded),
                                     ),
+                                    validator: (value) {
+                                      final email = value?.trim() ?? '';
+                                      if (email.isEmpty ||
+                                          !email.contains('@')) {
+                                        return 'Bitte eine gültige E-Mail eingeben';
+                                      }
+                                      return null;
+                                    },
                                   ),
-                                  validator: (value) => (value?.isEmpty ?? true)
-                                      ? 'Bitte Passwort eingeben'
-                                      : null,
-                                ),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton.icon(
-                                    onPressed: authState.loading
-                                        ? null
-                                        : _showForgotPassword,
-                                    icon: const Icon(Icons.key_rounded),
-                                    label: const Text('Passwort vergessen?'),
-                                  ),
-                                ),
-                                if (authState.error != null) ...[
                                   const SizedBox(height: 14),
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .errorContainer,
-                                      borderRadius: BorderRadius.circular(12),
+                                  TextFormField(
+                                    controller: _passwordController,
+                                    obscureText: !_showPassword,
+                                    autofillHints: const [
+                                      AutofillHints.password
+                                    ],
+                                    onFieldSubmitted: (_) => _submit(),
+                                    decoration: InputDecoration(
+                                      labelText: 'Passwort',
+                                      prefixIcon: const Icon(
+                                          Icons.lock_outline_rounded),
+                                      suffixIcon: IconButton(
+                                        tooltip: _showPassword
+                                            ? 'Passwort verbergen'
+                                            : 'Passwort anzeigen',
+                                        onPressed: () => setState(() =>
+                                            _showPassword = !_showPassword),
+                                        icon: Icon(_showPassword
+                                            ? Icons.visibility_off_outlined
+                                            : Icons.visibility_outlined),
+                                      ),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.error_outline_rounded,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .error,
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(child: Text(authState.error!)),
-                                      ],
+                                    validator: (value) =>
+                                        (value?.isEmpty ?? true)
+                                            ? 'Bitte Passwort eingeben'
+                                            : null,
+                                  ),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton.icon(
+                                      onPressed: authState.loading
+                                          ? null
+                                          : _showForgotPassword,
+                                      icon: const Icon(Icons.key_rounded),
+                                      label: const Text('Passwort vergessen?'),
                                     ),
                                   ),
-                                ],
-                                const SizedBox(height: 20),
-                                FilledButton(
-                                  onPressed: authState.loading ? null : _submit,
-                                  child: authState.loading
-                                      ? const LogoLoadingIndicator(
-                                          size: 24,
-                                          semanticsLabel:
-                                              'Anmeldung wird geprüft',
-                                        )
-                                      : const Text('Anmelden'),
-                                ),
-                                const SizedBox(height: 10),
-                                const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.lock_clock_outlined,
-                                      size: 17,
-                                      color: AppColors.muted,
-                                    ),
-                                    SizedBox(width: 7),
-                                    Flexible(
-                                      child: Text(
-                                        'Du bleibst auf diesem Gerät automatisch angemeldet.',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: AppColors.muted,
-                                          fontSize: 12,
-                                        ),
+                                  if (authState.error != null) ...[
+                                    const SizedBox(height: 14),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .errorContainer,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.error_outline_rounded,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .error,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                              child: Text(authState.error!)),
+                                        ],
                                       ),
                                     ),
                                   ],
-                                ),
-                                const SizedBox(height: 18),
-                                Row(
-                                  children: [
-                                    const Expanded(child: Divider()),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12),
-                                      child: Text('Noch nicht dabei?',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall),
-                                    ),
-                                    const Expanded(child: Divider()),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-                                OutlinedButton(
-                                  onPressed: authState.loading
-                                      ? null
-                                      : () => context.go('/register'),
-                                  child: const Text('Account registrieren'),
-                                ),
-                                const SizedBox(height: 12),
-                                const PwaInstallButton(),
-                              ],
+                                  const SizedBox(height: 20),
+                                  FilledButton(
+                                    onPressed:
+                                        authState.loading ? null : _submit,
+                                    child: authState.loading
+                                        ? const LogoLoadingIndicator(
+                                            size: 24,
+                                            semanticsLabel:
+                                                'Anmeldung wird geprüft',
+                                          )
+                                        : const Text('Anmelden'),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.lock_clock_outlined,
+                                        size: 17,
+                                        color: AppColors.muted,
+                                      ),
+                                      SizedBox(width: 7),
+                                      Flexible(
+                                        child: Text(
+                                          'Du bleibst auf diesem Gerät automatisch angemeldet.',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: AppColors.muted,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 18),
+                                  Text(
+                                    'Noch nicht dabei?',
+                                    textAlign: TextAlign.center,
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                  const SizedBox(height: 14),
+                                  OutlinedButton(
+                                    onPressed: authState.loading
+                                        ? null
+                                        : () => context.go('/register'),
+                                    child: const Text('Account registrieren'),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const PwaInstallButton(),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -281,12 +284,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    ref.read(authProvider.notifier).login(
+    final signedIn = await ref.read(authProvider.notifier).login(
           _emailController.text.trim(),
           _passwordController.text,
         );
+    if (signedIn) {
+      TextInput.finishAutofillContext(shouldSave: true);
+    }
   }
 
   Future<void> _showForgotPassword() async {
@@ -300,6 +306,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, setDialogState) => AlertDialog(
+            scrollable: true,
             icon: Icon(sent
                 ? Icons.mark_email_read_rounded
                 : Icons.lock_reset_rounded),
@@ -323,6 +330,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           controller: email,
                           autofocus: true,
                           keyboardType: TextInputType.emailAddress,
+                          autofillHints: const [AutofillHints.email],
                           decoration: const InputDecoration(
                             labelText: 'E-Mail-Adresse des Zugangs',
                             prefixIcon: Icon(Icons.person_outline_rounded),
@@ -412,27 +420,33 @@ class _LoginBrand extends StatelessWidget {
       children: [
         ClubLogo(size: logoSize),
         const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'FC TEUGN',
-              style: TextStyle(
-                color: dark ? AppColors.navy : Colors.white,
-                fontWeight: FontWeight.w900,
-                fontSize: 19,
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'FC TEUGN',
+                maxLines: 2,
+                softWrap: true,
+                style: TextStyle(
+                  color: dark ? AppColors.navy : Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 19,
+                ),
               ),
-            ),
-            Text(
-              'TALENTS',
-              style: TextStyle(
-                color: dark ? AppColors.muted : Colors.white60,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.25,
+              Text(
+                'TALENTS',
+                maxLines: 2,
+                softWrap: true,
+                style: TextStyle(
+                  color: dark ? AppColors.muted : Colors.white60,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.25,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );

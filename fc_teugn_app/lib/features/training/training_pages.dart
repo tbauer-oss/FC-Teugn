@@ -2666,7 +2666,22 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 10),
-                        actions,
+                        AdaptiveActionBar(
+                          actions: [
+                            AdaptiveActionSpec(
+                              label: 'Freier Baustein',
+                              icon: Icons.add_rounded,
+                              onPressed: _addCustomItem,
+                            ),
+                            AdaptiveActionSpec(
+                              label: 'Aus Bibliothek',
+                              icon: Icons.library_add_outlined,
+                              onPressed:
+                                  _exercises.isEmpty ? null : _addFromLibrary,
+                              primary: true,
+                            ),
+                          ],
+                        ),
                       ],
                     );
                   }
@@ -2722,6 +2737,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                         title: Text(item.title),
                         subtitle: Text(_phaseLabel(item.phase)),
                         trailing: IconButton(
+                          tooltip: 'Übung entfernen',
                           onPressed: () =>
                               setState(() => _items.removeAt(index)),
                           icon: const Icon(Icons.close_rounded),
@@ -2910,19 +2926,25 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
     final exercise = await showModalBottomSheet<TrainingExerciseModel>(
       context: context,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: ListView(
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .78,
+        ),
+        child: ListView.builder(
           shrinkWrap: true,
-          children: [
-            for (final exercise in _exercises)
-              ListTile(
-                leading: const Icon(Icons.sports_soccer_rounded),
-                title: Text(exercise.title),
-                subtitle: Text(
-                    '${exercise.category} · ${exercise.durationMinutes} Min.'),
-                onTap: () => Navigator.pop(context, exercise),
-              ),
-          ],
+          itemCount: _exercises.length,
+          itemBuilder: (context, index) {
+            final exercise = _exercises[index];
+            return ListTile(
+              leading: const Icon(Icons.sports_soccer_rounded),
+              title: Text(exercise.title),
+              subtitle: Text(
+                  '${exercise.category} · ${exercise.durationMinutes} Min.'),
+              onTap: () => Navigator.pop(context, exercise),
+            );
+          },
         ),
       ),
     );

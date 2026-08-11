@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:dio/dio.dart';
 import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -381,6 +382,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
+          scrollable: true,
           title: const Text('Zugangslink bereit'),
           content: SizedBox(
             width: 580,
@@ -434,11 +436,19 @@ class TrainerApprovalsPage extends ConsumerWidget {
           ],
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (context.mounted) {
+        final response = error is DioException ? error.response?.data : null;
+        final serverMessage = response is Map<String, dynamic>
+            ? response['message']?.toString().trim()
+            : null;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Der Zugangslink konnte nicht erstellt werden.'),
+          SnackBar(
+            content: Text(
+              serverMessage?.isNotEmpty == true
+                  ? serverMessage!
+                  : 'Der Zugangslink konnte nicht erstellt werden.',
+            ),
           ),
         );
       }
@@ -1552,8 +1562,7 @@ class _MemberListState extends State<_MemberList> {
             ),
             label: Text(_accountStatusLabel(user.status)),
           );
-          final canDelete =
-              widget.onDelete != null && user.id != currentUserId;
+          final canDelete = widget.onDelete != null && user.id != currentUserId;
           final actions = <Widget>[
             if (widget.onPermissions != null)
               _memberActionButton(
@@ -1711,7 +1720,8 @@ class _MemberListState extends State<_MemberList> {
       switch (value) {
         AccountStatus.pending => Colors.orange.shade800,
         AccountStatus.approved => AppColors.teal,
-        AccountStatus.rejected || AccountStatus.blocked =>
+        AccountStatus.rejected ||
+        AccountStatus.blocked =>
           Theme.of(context).colorScheme.error,
         AccountStatus.archived => AppColors.muted,
       };
@@ -2702,6 +2712,9 @@ class _CreateMemberDialogState extends State<_CreateMemberDialog> {
                         'Mindestens 10 Zeichen; sicher an das Mitglied übermitteln.',
                     prefixIcon: const Icon(Icons.lock_outline_rounded),
                     suffixIcon: IconButton(
+                      tooltip: _obscurePassword
+                          ? 'Passwort anzeigen'
+                          : 'Passwort verbergen',
                       onPressed: () => setState(
                         () => _obscurePassword = !_obscurePassword,
                       ),

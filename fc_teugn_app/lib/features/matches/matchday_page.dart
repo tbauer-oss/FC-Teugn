@@ -3083,42 +3083,51 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                 Positioned(
                   left: _positions[index].x * (width - markerWidth),
                   top: _positions[index].y * (height - markerHeight),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: widget.editable
-                        ? () async {
-                            await _editPosition(index);
-                            if (fullscreenSetState != null) {
-                              fullscreenSetState(() {});
+                  child: Semantics(
+                    button: widget.editable,
+                    label:
+                        '${_positions[index].player.name}, Position ${_positions[index].positionCode}',
+                    hint: widget.editable
+                        ? 'Antippen, um Spieler und Position zu bearbeiten.'
+                        : null,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: widget.editable
+                          ? () async {
+                              await _editPosition(index);
+                              if (fullscreenSetState != null) {
+                                fullscreenSetState(() {});
+                              }
                             }
-                          }
-                        : null,
-                    onPanUpdate: widget.editable
-                        ? (details) {
-                            setState(() {
-                              final item = _positions[index];
-                              _positions[index] = _copyPosition(
-                                item,
-                                x: (item.x +
-                                        details.delta.dx /
-                                            max(1, width - markerWidth))
-                                    .clamp(0, 1)
-                                    .toDouble(),
-                                y: (item.y +
-                                        details.delta.dy /
-                                            max(1, height - markerHeight))
-                                    .clamp(0, 1)
-                                    .toDouble(),
-                              );
-                            });
-                            fullscreenSetState?.call(() {});
-                          }
-                        : null,
-                    onPanEnd:
-                        widget.editable ? (_) => _schedulePositionSave() : null,
-                    child: _PlayerMarker(
-                      position: _positions[index],
-                      width: markerWidth,
+                          : null,
+                      onPanUpdate: widget.editable
+                          ? (details) {
+                              setState(() {
+                                final item = _positions[index];
+                                _positions[index] = _copyPosition(
+                                  item,
+                                  x: (item.x +
+                                          details.delta.dx /
+                                              max(1, width - markerWidth))
+                                      .clamp(0, 1)
+                                      .toDouble(),
+                                  y: (item.y +
+                                          details.delta.dy /
+                                              max(1, height - markerHeight))
+                                      .clamp(0, 1)
+                                      .toDouble(),
+                                );
+                              });
+                              fullscreenSetState?.call(() {});
+                            }
+                          : null,
+                      onPanEnd: widget.editable
+                          ? (_) => _schedulePositionSave()
+                          : null,
+                      child: _PlayerMarker(
+                        position: _positions[index],
+                        width: markerWidth,
+                      ),
                     ),
                   ),
                 ),

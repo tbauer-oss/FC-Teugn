@@ -5,6 +5,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/widgets/adaptive_layout.dart';
+
 import 'features/auth/auth_controller.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
@@ -943,12 +945,14 @@ const _localizationsDelegates = [
 
 Widget _buildAppContent(BuildContext context, Widget? child) => MediaQuery(
       data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-      child: AppLoadingHost(child: child ?? const SizedBox.shrink()),
+      child: AdaptiveHingePane(
+        child: AppLoadingHost(child: child ?? const SizedBox.shrink()),
+      ),
     );
 
 @visibleForTesting
 Widget buildLaunchScreenContent(BuildContext context, Widget? child) =>
     MediaQuery(
       data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-      child: child ?? const SizedBox.shrink(),
+      child: AdaptiveHingePane(child: child ?? const SizedBox.shrink()),
     );

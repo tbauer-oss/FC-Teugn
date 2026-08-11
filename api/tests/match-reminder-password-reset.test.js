@@ -40,6 +40,8 @@ test('password reset uses hashed expiring one-time tokens and push delivery', ()
   assert.match(auth, /deviceEndpoint/);
   assert.match(auth, /expiresAt: \{ gt: now \}/);
   assert.match(auth, /refreshToken\.updateMany/);
+  assert.match(auth, /delivery\.sent > 0/);
+  assert.match(auth, /notifyPasswordResetAdministrators\(user\)/);
 });
 
 test('reset request does not disclose whether an account exists', () => {

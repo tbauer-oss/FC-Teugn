@@ -87,6 +87,7 @@ class _CompetitionManagementDialogState
               SizedBox(width: 8),
             ],
             leading: IconButton(
+              tooltip: 'Schließen',
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.close_rounded),
             ),

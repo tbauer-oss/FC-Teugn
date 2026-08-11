@@ -1338,9 +1338,14 @@ class _MobileMonthView extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(sheetContext).height * .82,
+        ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1350,21 +1355,29 @@ class _MobileMonthView extends StatelessWidget {
                 style: Theme.of(sheetContext).textTheme.headlineSmall,
               ),
               const SizedBox(height: 10),
-              for (final event in dayEvents)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    Icons.event_rounded,
-                    color: _categoryColor(event.category),
-                  ),
-                  title: Text(event.title),
-                  subtitle:
-                      Text('${_time(event.startAt)} Uhr · ${event.location}'),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    onOpen(event);
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: dayEvents.length,
+                  itemBuilder: (context, index) {
+                    final event = dayEvents[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.event_rounded,
+                        color: _categoryColor(event.category),
+                      ),
+                      title: Text(event.title),
+                      subtitle: Text(
+                          '${_time(event.startAt)} Uhr · ${event.location}'),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        onOpen(event);
+                      },
+                    );
                   },
                 ),
+              ),
             ],
           ),
         ),
@@ -4672,6 +4685,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Schließen',
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded),
                   ),
@@ -6375,6 +6389,7 @@ class _DateTimeField extends StatelessWidget {
               compact ? const EdgeInsets.fromLTRB(12, 12, 6, 9) : null,
           suffixIcon: allowClear && value != null
               ? IconButton(
+                  tooltip: 'Auswahl löschen',
                   onPressed: () => onChanged(null),
                   visualDensity: compact ? VisualDensity.compact : null,
                   icon: Icon(Icons.clear_rounded, size: compact ? 18 : 24),

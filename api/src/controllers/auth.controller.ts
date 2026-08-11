@@ -445,6 +445,18 @@ export async function login(req: Request, res: Response) {
 
   const ok = await comparePassword(password, user.password);
   if (!ok) {
+    await prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: user.teamId,
+        action: 'LOGIN_REJECTED_INVALID_PASSWORD',
+        entityType: 'User',
+        entityId: user.id,
+        metadata: {
+          userAgent: req.get('user-agent')?.slice(0, 240) ?? null,
+        },
+      },
+    }).catch(() => undefined);
     return res.status(400).json({ message: 'Ungültige Zugangsdaten' });
   }
 
@@ -453,7 +465,23 @@ export async function login(req: Request, res: Response) {
     user.status === AccountStatus.REJECTED ||
     user.status === AccountStatus.ARCHIVED
   ) {
-    return res.status(403).json({ message: 'Dieser Account ist nicht aktiv.' });
+    await prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: user.teamId,
+        action: 'LOGIN_REJECTED_ACCOUNT_STATUS',
+        entityType: 'User',
+        entityId: user.id,
+        metadata: { status: user.status },
+      },
+    }).catch(() => undefined);
+    return res.status(403).json({
+      code: 'ACCOUNT_INACTIVE',
+      accountStatus: user.status,
+      message: user.status === AccountStatus.BLOCKED
+        ? 'Dieser Account ist gesperrt. Eine Passwortänderung hebt die Sperre nicht auf. Bitte wende dich an die Systemadministration.'
+        : 'Dieser Account ist nicht aktiv. Eine Passwortänderung aktiviert ihn nicht. Bitte wende dich an die Systemadministration.',
+    });
   }
 
   const tokens = await issueSession(user, req);
@@ -478,8 +506,32 @@ export async function login(req: Request, res: Response) {
 const passwordResetLifetimeMs = 15 * 60 * 1000;
 const passwordResetResponse = {
   message:
-    'Wenn der Zugang existiert, erhältst du auf einem bereits registrierten Gerät eine sichere Pushnachricht. Der Link ist 15 Minuten gültig.',
+    'Wenn der Zugang existiert, erhältst du auf einem registrierten Gerät eine sichere Pushnachricht. Kommt keine Nachricht an, wird die Systemadministration um Hilfe gebeten.',
 };
+
+async function notifyPasswordResetAdministrators(user: {
+  id: string;
+  name: string;
+}) {
+  const administrators = await prisma.user.findMany({
+    where: { role: Role.SUPER_ADMIN, status: AccountStatus.APPROVED },
+    select: { id: true },
+  });
+  await notifyUsers(
+    administrators.map((administrator) => administrator.id),
+    {
+      category: NotificationCategory.SYSTEM,
+      title: 'Passwort-Hilfe angefragt',
+      body: `${user.name} konnte keinen Reset-Link auf einem registrierten Gerät empfangen. Öffne die Mitgliederverwaltung und erstelle dort über das Schlüsselsymbol einen sicheren Einmal-Link.`,
+      actionUrl: '/trainer/approvals',
+      entityType: 'User',
+      entityId: user.id,
+      forcePush: true,
+      forceInApp: true,
+      dedupeKey: `password-reset-help:${user.id}:${new Date().toISOString().slice(0, 13)}`,
+    },
+  );
+}
 
 export async function requestPasswordReset(req: Request, res: Response) {
   const normalizedEmail =
@@ -523,25 +575,8 @@ export async function requestPasswordReset(req: Request, res: Response) {
   });
 
   if (user.pushSubscriptions.length === 0) {
-    const administrators = await prisma.user.findMany({
-      where: { role: Role.SUPER_ADMIN, status: AccountStatus.APPROVED },
-      select: { id: true },
-    });
     try {
-      await notifyUsers(
-        administrators.map((administrator) => administrator.id),
-        {
-          category: NotificationCategory.SYSTEM,
-          title: 'Passwort-Hilfe angefragt',
-          body: `${user.name} hat kein aktives Push-Gerät. Öffne die Mitgliederverwaltung und erstelle dort über das Schlüsselsymbol einen sicheren Einmal-Link.`,
-          actionUrl: '/trainer/approvals',
-          entityType: 'User',
-          entityId: user.id,
-          forcePush: true,
-          forceInApp: true,
-          dedupeKey: `password-reset-help:${user.id}:${new Date().toISOString().slice(0, 10)}`,
-        },
-      );
+      await notifyPasswordResetAdministrators(user);
     } catch (error) {
       console.error('[password-reset] admin fallback notification failed', error);
     }
@@ -556,8 +591,9 @@ export async function requestPasswordReset(req: Request, res: Response) {
       expiresAt: new Date(Date.now() + passwordResetLifetimeMs),
     },
   });
+  let resetDelivered = false;
   try {
-    await notifyUsers([user.id], {
+    const delivery = await notifyUsers([user.id], {
       category: NotificationCategory.SYSTEM,
       title: 'Passwort sicher zurücksetzen',
       body:
@@ -570,8 +606,16 @@ export async function requestPasswordReset(req: Request, res: Response) {
       forceInApp: true,
       dedupeKey: `password-reset:${reset.id}`,
     });
+    resetDelivered = delivery.sent > 0;
   } catch (error) {
     console.error('[password-reset] push delivery failed', error);
+  }
+  if (!resetDelivered) {
+    try {
+      await notifyPasswordResetAdministrators(user);
+    } catch (error) {
+      console.error('[password-reset] admin fallback notification failed', error);
+    }
   }
   return res.status(202).json(passwordResetResponse);
 }
