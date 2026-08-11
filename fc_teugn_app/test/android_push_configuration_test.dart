@@ -47,6 +47,13 @@ void main() {
     }
   });
 
+  test('launcher artwork is not hidden behind excessive technical padding', () {
+    final generator = File('tool/generate_app_icons.dart').readAsStringSync();
+
+    expect(generator, contains('const _launcherArtworkSize = 1000;'));
+    expect(generator, contains('const _maskableArtworkSize = 960;'));
+  });
+
   test('Android push uses the FC Teugn crest for every notification path', () {
     final icon = File(
       'android/app/src/main/res/drawable/ic_stat_fc_teugn.xml',

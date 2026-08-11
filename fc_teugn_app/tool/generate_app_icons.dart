@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:image/image.dart' as image;
 
 const _canvasSize = 1024;
-const _launcherArtworkSize = 860;
-const _maskableArtworkSize = 820;
+const _launcherArtworkSize = 1000;
+const _maskableArtworkSize = 960;
 
 void main() {
   final source = _readPng('assets/branding/fc_teugn_talents_icon.png');

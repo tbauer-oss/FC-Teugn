@@ -9,8 +9,8 @@ self.addEventListener('push', (event) => {
   const tasks = [
     self.registration.showNotification(data.title || 'FC Teugn Talents', {
       body: data.body || 'Es gibt eine neue Nachricht.',
-      icon: '/icons/Icon-192.png?v=fctt-1',
-      badge: '/icons/Icon-192.png?v=fctt-1',
+      icon: '/icons/Icon-192.png?v=fctt-2',
+      badge: '/icons/Icon-192.png?v=fctt-2',
       data: { actionUrl },
       tag: data.notificationId || undefined,
       lang: 'de-DE',

@@ -72,8 +72,8 @@ def main() -> None:
     share_background = Image.open(SHARE_BACKGROUND).convert("RGBA")
 
     standard = flatten(source)
-    launcher = padded(source, 860)
-    maskable = padded(source, 820)
+    launcher = padded(source, 1000)
+    maskable = padded(source, 960)
 
     save_png(standard, APP / "assets/branding/app_icon_master.png")
     save_png(maskable, APP / "assets/branding/app_icon_maskable_master.png")

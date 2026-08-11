@@ -29,7 +29,7 @@ void main() {
         hasLength(2),
       );
       expect(
-        icons.every((entry) => (entry['src'] as String).contains('fctt-1')),
+        icons.every((entry) => (entry['src'] as String).contains('fctt-2')),
         isTrue,
       );
     });
@@ -40,12 +40,12 @@ void main() {
       expect(index, contains('apple-mobile-web-app-capable'));
       expect(index, contains('apple-mobile-web-app-title'));
       expect(index, contains('apple-touch-icon'));
-      expect(index, contains('apple-touch-icon.png?v=fctt-1'));
-      expect(index, contains('favicon-16.png?v=fctt-1'));
-      expect(index, contains('favicon-32.png?v=fctt-1'));
-      expect(index, contains('favicon-48.png?v=fctt-1'));
-      expect(index, contains('favicon.png?v=fctt-1'));
-      expect(index, contains('og.png?v=fctt-1'));
+      expect(index, contains('apple-touch-icon.png?v=fctt-2'));
+      expect(index, contains('favicon-16.png?v=fctt-2'));
+      expect(index, contains('favicon-32.png?v=fctt-2'));
+      expect(index, contains('favicon-48.png?v=fctt-2'));
+      expect(index, contains('favicon.png?v=fctt-2'));
+      expect(index, contains('og.png?v=fctt-2'));
       expect(index, contains('pwa_install.js'));
       expect(
         index.indexOf('pwa_install.js'),
@@ -84,7 +84,7 @@ void main() {
       expect(serviceWorker, contains('client.navigate(url)'));
       expect(serviceWorker, contains('client.focus()'));
       expect(serviceWorker, contains('clients.openWindow(url)'));
-      expect(serviceWorker, contains('/icons/Icon-192.png?v=fctt-1'));
+      expect(serviceWorker, contains('/icons/Icon-192.png?v=fctt-2'));
     });
   });
 }
