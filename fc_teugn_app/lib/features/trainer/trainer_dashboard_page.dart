@@ -103,7 +103,7 @@ class TrainerDashboardPage extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
           ],
-          if (user?.parentPlayers.isNotEmpty == true) ...[
+          if (user?.canUsePersonalResponses == true) ...[
             const PersonalResponsesCard(isTrainer: true),
             const SizedBox(height: 12),
           ],

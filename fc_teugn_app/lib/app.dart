@@ -514,7 +514,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   section: ShellSection.support,
                   hint: 'Anleitungen und schnelle Antworten',
                   showOnMobile: false),
-              if (authState.user?.parentPlayers.isNotEmpty == true)
+              if (authState.user?.canUsePersonalResponses == true)
                 const ShellDestination(
                   label: 'Meine Kinder & Rückmeldungen',
                   icon: Icons.family_restroom_rounded,

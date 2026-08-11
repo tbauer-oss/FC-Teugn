@@ -95,6 +95,18 @@ class AppUser {
         _ => false,
       };
 
+  /// Whether this account may open its personal response inbox.
+  ///
+  /// Staff accounts can also be linked to their own children. The server
+  /// resolves those guardian links again when the inbox is opened, so the
+  /// navigation must not disappear just because the user snapshot obtained
+  /// during session restoration has no `parentLinks` yet.
+  bool get canUsePersonalResponses =>
+      isTrainer ||
+      role == UserRole.parent ||
+      role == UserRole.player ||
+      parentPlayers.isNotEmpty;
+
   /// Teams that are relevant for the current account state.
   ///
   /// During registration, the selected teams are only a request and help the
