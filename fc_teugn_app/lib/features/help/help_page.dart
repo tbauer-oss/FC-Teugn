@@ -1282,6 +1282,33 @@ const helpArticles = <HelpArticle>[
   ),
   HelpArticle(
     category: HelpCategory.matchday,
+    title: 'Wie binde ich einen Turnierplan von MeinTurnierplan ein?',
+    summary:
+        'Zeitplan, Spiele, Tabellen und Platzierungen lassen sich als stets aktuelle Live-Ansicht direkt im Turniertermin öffnen.',
+    audience: HelpAudience.everyone,
+    keywords: [
+      'MeinTurnierplan',
+      'Turnierlink',
+      'Turnier importieren',
+      'Spielplan',
+      'Turniertabelle',
+      'Ergebnisse',
+      'Live-Turnierplan'
+    ],
+    route: '/events',
+    routeLabel: 'Kalender öffnen',
+    steps: [
+      'Trainer öffnen im Kalender „Termin anlegen“ und wählen als Kategorie „Turnier“ oder „Hallenturnier“.',
+      'Im Abschnitt „Live-Turnierplan für Eltern & Trainer“ den öffentlichen Link im Format https://www.meinturnierplan.de/showit.php?id=… einfügen.',
+      'Turnierdaten wie Datum, Beginn, Ende, Ort, Mannschaft und Rückmeldungen weiterhin im FC-Teugn-Termin pflegen und anschließend speichern.',
+      'Im Termindetail erscheint „Turnierplan & Ergebnisse“. Über „Live-Turnierplan öffnen“ werden Zeitplan, Spiele, Gruppen, Tabellen und Platzierungen in einer Vollbildansicht innerhalb der App angezeigt.',
+      'Vor dem ersten Laden weist die App auf den externen Inhalt hin. Erst nach Bestätigung wird eine Verbindung zu MeinTurnierplan hergestellt. Über den Zurückpfeil gelangt man direkt wieder zum Termin.',
+    ],
+    tip:
+        'Die Turnierdaten werden nicht kopiert. Deshalb sind nach Änderungen durch den Veranstalter beim erneuten Öffnen beziehungsweise Aktualisieren automatisch die neuesten Angaben sichtbar.',
+  ),
+  HelpArticle(
+    category: HelpCategory.matchday,
     title: 'Wie speichere und veröffentliche ich den Kader?',
     summary:
         'Auswahl, Speicherung und Veröffentlichung sind getrennt, damit keine Person versehentlich angefragt wird.',

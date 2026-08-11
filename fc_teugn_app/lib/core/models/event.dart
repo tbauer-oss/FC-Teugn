@@ -262,6 +262,29 @@ class EventAttachment {
   }
 }
 
+const meinTurnierplanAttachmentName = 'MeinTurnierplan · Live-Turnierplan';
+
+bool isMeinTurnierplanUrl(String? value) {
+  final uri = Uri.tryParse(value?.trim() ?? '');
+  if (uri == null || uri.scheme != 'https') return false;
+  if (uri.host.toLowerCase() != 'www.meinturnierplan.de') return false;
+  if (uri.path != '/showit.php') return false;
+  final id = uri.queryParameters['id'] ?? '';
+  return RegExp(r'^[a-zA-Z0-9_-]{6,64}$').hasMatch(id);
+}
+
+extension EventTournamentPlanX on EventModel {
+  EventAttachment? get meinTurnierplanAttachment {
+    for (final attachment in attachments) {
+      if (attachment.name == meinTurnierplanAttachmentName ||
+          isMeinTurnierplanUrl(attachment.url)) {
+        return attachment;
+      }
+    }
+    return null;
+  }
+}
+
 class MatchDetails {
   const MatchDetails({
     required this.opponent,
@@ -876,6 +899,7 @@ class EventWriteData {
     this.reminderPushEnabled = true,
     this.attachmentName,
     this.attachmentUrl,
+    this.meinTurnierplanUrl,
     this.recurrence,
     this.requestPitchConflictApprovals = false,
     this.pitchConflictMessage,
@@ -915,6 +939,7 @@ class EventWriteData {
   final List<String> teamIds;
   final String? attachmentName;
   final String? attachmentUrl;
+  final String? meinTurnierplanUrl;
   final EventRecurrenceDraft? recurrence;
   final bool requestPitchConflictApprovals;
   final String? pitchConflictMessage;
@@ -959,6 +984,12 @@ class EventWriteData {
             {
               'name': attachmentName,
               'url': attachmentUrl,
+            },
+          if (meinTurnierplanUrl?.isNotEmpty == true)
+            {
+              'name': meinTurnierplanAttachmentName,
+              'url': meinTurnierplanUrl,
+              'mimeType': 'text/html',
             },
         ],
         if (recurrence != null) 'recurrence': recurrence!.toJson(),

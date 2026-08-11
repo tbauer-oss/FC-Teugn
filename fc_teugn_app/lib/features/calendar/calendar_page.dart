@@ -19,6 +19,7 @@ import '../../core/regular_training_schedule.dart';
 import '../../core/widgets/adaptive_layout.dart';
 import '../../core/widgets/responsive_form_dialog.dart';
 import '../shared/page_scaffold.dart';
+import 'tournament_plan_browser_page.dart';
 
 enum CalendarView { day, week, month, year, agenda }
 
@@ -2257,6 +2258,10 @@ class _EventDetailsDialogState extends ConsumerState<EventDetailsDialog> {
                         child: Text(event.description!),
                       ),
                     ],
+                    if (event.meinTurnierplanAttachment != null) ...[
+                      const SizedBox(height: 20),
+                      _TournamentPlanCard(event: event),
+                    ],
                     if (event.equipment != null ||
                         event.clothing != null ||
                         event.catering != null) ...[
@@ -2313,6 +2318,84 @@ class _EventDetailsDialogState extends ConsumerState<EventDetailsDialog> {
             if (event.capabilities.canManage && organization != null)
               _ManagementBar(event: event, organization: organization),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TournamentPlanCard extends StatelessWidget {
+  const _TournamentPlanCard({required this.event});
+
+  final EventModel event;
+
+  @override
+  Widget build(BuildContext context) {
+    final attachment = event.meinTurnierplanAttachment!;
+    return _Section(
+      title: 'Turnierplan & Ergebnisse',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppColors.yellowSoft,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.gold.withValues(alpha: .28)),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 520;
+            final button = FilledButton.icon(
+              onPressed: () {
+                final uri = Uri.tryParse(attachment.url);
+                if (uri == null || !isMeinTurnierplanUrl(attachment.url)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Der hinterlegte Turnierlink ist ungültig.'),
+                  ));
+                  return;
+                }
+                Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => TournamentPlanBrowserPage(
+                    uri: uri,
+                    tournamentName: event.title,
+                  ),
+                ));
+              },
+              icon: const Icon(Icons.open_in_browser_rounded),
+              label: const Text('Live-Turnierplan öffnen'),
+            );
+            final info = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Zeitplan, Spiele, Tabellen und Platzierungen',
+                    style: TextStyle(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text(
+                  'Die Ansicht bleibt in der App und zeigt immer den aktuellen '
+                  'Stand von MeinTurnierplan.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.muted),
+                ),
+              ],
+            );
+            return compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [info, const SizedBox(height: 14), button],
+                  )
+                : Row(
+                    children: [
+                      const Icon(Icons.emoji_events_rounded,
+                          color: AppColors.gold, size: 34),
+                      const SizedBox(width: 14),
+                      Expanded(child: info),
+                      const SizedBox(width: 14),
+                      button,
+                    ],
+                  );
+          },
         ),
       ),
     );
@@ -4115,6 +4198,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   late final TextEditingController internalNote;
   late final TextEditingController attachmentName;
   late final TextEditingController attachmentUrl;
+  late final TextEditingController meinTurnierplanUrl;
   late final TextEditingController pitchConflictMessage;
   late EventCategory category;
   late EventVisibility visibility;
@@ -4197,8 +4281,13 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     maxParticipants =
         TextEditingController(text: event?.maxParticipants?.toString());
     internalNote = TextEditingController(text: event?.internalNote);
-    attachmentName = TextEditingController();
-    attachmentUrl = TextEditingController();
+    final tournamentAttachment = event?.meinTurnierplanAttachment;
+    final regularAttachment = event?.attachments
+        .where((item) => item != tournamentAttachment)
+        .firstOrNull;
+    attachmentName = TextEditingController(text: regularAttachment?.name);
+    attachmentUrl = TextEditingController(text: regularAttachment?.url);
+    meinTurnierplanUrl = TextEditingController(text: tournamentAttachment?.url);
     pitchConflictMessage = TextEditingController();
     customReminderMinutes = TextEditingController();
     category = event?.category ?? EventCategory.training;
@@ -4279,6 +4368,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       internalNote,
       attachmentName,
       attachmentUrl,
+      meinTurnierplanUrl,
       pitchConflictMessage,
       customReminderMinutes,
     ]) {
@@ -5338,6 +5428,58 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             decoration: const InputDecoration(
                                 labelText: 'Anhang: sichere URL'),
                           ),
+                          if (category == EventCategory.tournament ||
+                              category == EventCategory.indoorTournament) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.yellowSoft,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: AppColors.gold.withValues(alpha: .25),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Live-Turnierplan für Eltern & Trainer',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w900),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  const Text(
+                                    'Füge den öffentlichen Link aus '
+                                    'www.meinturnierplan.de ein. Zeitplan, '
+                                    'Spiele und Ergebnisse bleiben dadurch '
+                                    'direkt in der App aktuell.',
+                                  ),
+                                  const SizedBox(height: 10),
+                                  TextFormField(
+                                    controller: meinTurnierplanUrl,
+                                    keyboardType: TextInputType.url,
+                                    autocorrect: false,
+                                    decoration: const InputDecoration(
+                                      labelText: 'MeinTurnierplan-Link',
+                                      hintText:
+                                          'https://www.meinturnierplan.de/showit.php?id=…',
+                                      prefixIcon:
+                                          Icon(Icons.emoji_events_rounded),
+                                    ),
+                                    validator: (value) {
+                                      final normalized = value?.trim() ?? '';
+                                      if (normalized.isEmpty) return null;
+                                      return isMeinTurnierplanUrl(normalized)
+                                          ? null
+                                          : 'Bitte einen gültigen öffentlichen '
+                                              'MeinTurnierplan-Link einfügen.';
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       if (widget.event == null) ...[
@@ -5654,6 +5796,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         reminderPushEnabled: reminderPushEnabled,
         attachmentName: _optional(attachmentName),
         attachmentUrl: _optional(attachmentUrl),
+        meinTurnierplanUrl: _optional(meinTurnierplanUrl),
         recurrence: recurring
             ? EventRecurrenceDraft(
                 frequency: frequency,

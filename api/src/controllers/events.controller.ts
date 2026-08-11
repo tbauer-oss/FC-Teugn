@@ -512,6 +512,40 @@ function parseStringList(value: unknown) {
     : [];
 }
 
+const MEIN_TURNIERPLAN_ATTACHMENT = 'MeinTurnierplan · Live-Turnierplan';
+
+function isMeinTurnierplanUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' &&
+      url.hostname.toLowerCase() === 'www.meinturnierplan.de' &&
+      url.pathname === '/showit.php' &&
+      /^[a-zA-Z0-9_-]{6,64}$/.test(url.searchParams.get('id') ?? '');
+  } catch {
+    return false;
+  }
+}
+
+function parseEventAttachments(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const attachments: Array<{
+    name: string;
+    url: string;
+    mimeType: string | null;
+  }> = [];
+  for (const entry of value) {
+    const item = entry as Record<string, unknown>;
+    const name = clean(item.name);
+    const url = safeHttpUrl(item.url);
+    if (!name || !url) continue;
+    if (name === MEIN_TURNIERPLAN_ATTACHMENT && !isMeinTurnierplanUrl(url)) {
+      return null;
+    }
+    attachments.push({ name, url, mimeType: clean(item.mimeType) });
+  }
+  return attachments;
+}
+
 function berlinDateParts(value: Date) {
   const parts = new Intl.DateTimeFormat('de-DE', {
     timeZone: 'Europe/Berlin',
@@ -1178,24 +1212,12 @@ export async function createEvent(req: Request, res: Response) {
   if (!data.location && !(data.type === EventType.MATCH && data.homeAway === HomeAway.AWAY)) {
     return res.status(400).json({ message: 'Bitte einen Spiel- oder Veranstaltungsort angeben.' });
   }
-  const attachments: Array<{
-    name: string;
-    url: string;
-    mimeType: string | null;
-  }> = Array.isArray(req.body.attachments)
-    ? req.body.attachments
-        .map((value: unknown) => {
-          const item = value as Record<string, unknown>;
-          const name = clean(item.name);
-          const url = safeHttpUrl(item.url);
-          return name && url ? { name, url, mimeType: clean(item.mimeType) } : null;
-        })
-        .filter(
-          (
-            item: { name: string; url: string; mimeType: string | null } | null,
-          ): item is { name: string; url: string; mimeType: string | null } => Boolean(item),
-        )
-    : [];
+  const attachments = parseEventAttachments(req.body.attachments);
+  if (!attachments) {
+    return res.status(400).json({
+      message: 'Bitte einen gültigen öffentlichen MeinTurnierplan-Link verwenden.',
+    });
+  }
   const recurrence = req.body.recurrence as Record<string, unknown> | undefined;
   let recurrenceUntil = validDate(recurrence?.until);
   const frequency = recurrence
@@ -1437,6 +1459,12 @@ export async function updateEvent(req: Request, res: Response) {
   if (!parsed.startAt) {
     return res.status(400).json({ message: 'Beginn ist erforderlich.' });
   }
+  const attachments = parseEventAttachments(req.body.attachments);
+  if (!attachments) {
+    return res.status(400).json({
+      message: 'Bitte einen gültigen öffentlichen MeinTurnierplan-Link verwenden.',
+    });
+  }
   if (parsed.endAt && parsed.endAt < parsed.startAt) {
     return res.status(400).json({ message: 'Das Ende darf nicht vor dem Beginn liegen.' });
   }
@@ -1551,6 +1579,15 @@ export async function updateEvent(req: Request, res: Response) {
             },
           },
         });
+        await tx.eventAttachment.deleteMany({ where: { eventId: occurrence.id } });
+        if (attachments.length) {
+          await tx.eventAttachment.createMany({
+            data: attachments.map((attachment) => ({
+              eventId: occurrence.id,
+              ...attachment,
+            })),
+          });
+        }
         if (participants) {
           await syncEventParticipants(tx, occurrence.id, participants);
         }
@@ -1591,6 +1628,15 @@ export async function updateEvent(req: Request, res: Response) {
           },
         },
       });
+      await tx.eventAttachment.deleteMany({ where: { eventId: existing.id } });
+      if (attachments.length) {
+        await tx.eventAttachment.createMany({
+          data: attachments.map((attachment) => ({
+            eventId: existing.id,
+            ...attachment,
+          })),
+        });
+      }
       if (participants) {
         await syncEventParticipants(tx, existing.id, participants);
       }

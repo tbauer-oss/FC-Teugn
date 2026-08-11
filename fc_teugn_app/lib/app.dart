@@ -470,22 +470,22 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         ShellRoute(
           builder: (context, state, child) => AppShell(
             title: 'Trainer & Verwaltung',
-            destinations: [
-              const ShellDestination(
+            destinations: const [
+              ShellDestination(
                   label: 'Startseite',
                   mobileLabel: 'Start',
                   icon: Icons.grid_view_rounded,
                   route: '/trainer',
                   section: ShellSection.overview,
                   hint: 'Das Wichtigste auf einen Blick'),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Mitglieder & Berechtigungen',
                   icon: Icons.manage_accounts_rounded,
                   route: '/trainer/approvals',
                   section: ShellSection.administration,
                   hint: 'Zugänge, Rollen und Freigaben',
                   showOnMobile: false),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Team-Zentrale',
                   mobileLabel: 'Team',
                   icon: Icons.groups_rounded,
@@ -493,89 +493,88 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   section: ShellSection.team,
                   hint: 'Mannschaft zentral verwalten',
                   relatedRoutes: ['/trainer/players']),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Spieler & Kader',
                   icon: Icons.badge_rounded,
                   route: '/trainer/players',
                   section: ShellSection.team,
                   hint: 'Profile, Nummern und Positionen',
                   showOnMobile: false),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Kalender',
                   icon: Icons.calendar_month_rounded,
                   route: '/trainer/events',
                   section: ShellSection.schedule,
                   hint: 'Termine, Serien und Rückmeldungen'),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Spielbetrieb',
                   mobileLabel: 'Spiele',
                   icon: Icons.sports_soccer_rounded,
                   route: '/trainer/matches',
                   section: ShellSection.schedule,
                   hint: 'Spieltage, Kader und Liveticker'),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Tabelle & Ergebnisse',
                   icon: Icons.emoji_events_rounded,
                   route: '/trainer/bfv',
                   section: ShellSection.schedule,
                   hint: 'Offizielle BfV-Ligaübersicht',
                   showOnMobile: false),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Training & Platzplanung',
                   icon: Icons.fitness_center_rounded,
                   route: '/trainer/training',
                   section: ShellSection.schedule,
                   hint: 'Einheiten, Übungen und Belegung',
                   showOnMobile: false),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Statistiken & Auswertungen',
                   icon: Icons.query_stats_rounded,
                   route: '/trainer/statistics',
                   section: ShellSection.schedule,
                   hint: 'Leistung und Saisonstatistik',
                   showOnMobile: false),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Nachrichten & Abstimmung',
                   icon: Icons.forum_rounded,
                   route: '/trainer/messages',
                   section: ShellSection.communication,
                   hint: 'Absprachen im Verein'),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Aufgaben & Ausrüstung',
                   icon: Icons.assignment_turned_in_rounded,
                   route: '/trainer/operations',
                   section: ShellSection.communication,
                   hint: 'Aufgaben, Listen und Ausrüstung'),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Mannschaften & Verein',
                   icon: Icons.account_tree_rounded,
                   route: '/trainer/organization',
                   section: ShellSection.administration,
                   hint: 'Mannschaften und Strukturen',
                   showOnMobile: false),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Datenschutz & Einwilligungen',
                   icon: Icons.shield_outlined,
                   route: '/trainer/privacy',
                   section: ShellSection.administration,
                   hint: 'Daten, Dokumente und Zustimmungen',
                   showOnMobile: false),
-              const ShellDestination(
+              ShellDestination(
                   label: 'Hilfe-Center',
                   icon: Icons.help_center_rounded,
                   route: '/trainer/help',
                   section: ShellSection.support,
                   hint: 'Anleitungen und schnelle Antworten',
                   showOnMobile: false),
-              if (authState.user?.canUsePersonalResponses == true)
-                const ShellDestination(
-                  label: 'Meine Kinder & Rückmeldungen',
-                  icon: Icons.family_restroom_rounded,
-                  route: '/trainer/family',
-                  section: ShellSection.overview,
-                  hint: 'Zu- und Absagen für eigene Kinder',
-                ),
-              const ShellDestination(
+              ShellDestination(
+                label: 'Meine Kinder & Rückmeldungen',
+                icon: Icons.family_restroom_rounded,
+                route: '/trainer/family',
+                section: ShellSection.overview,
+                hint: 'Zu- und Absagen für eigene Kinder',
+              ),
+              ShellDestination(
                 label: 'Technischer Support',
                 icon: Icons.support_agent_rounded,
                 route: '/trainer/support',
