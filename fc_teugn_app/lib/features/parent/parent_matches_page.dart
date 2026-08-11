@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/team_crest.dart';
 import '../shared/page_scaffold.dart';
 
 class ParentMatchesPage extends ConsumerWidget {
@@ -20,7 +21,11 @@ class ParentMatchesPage extends ConsumerWidget {
       child: events.when(
         data: (items) {
           final matches = items
-              .where((event) => event.type == EventType.match)
+              .where(
+                (event) =>
+                    event.type == EventType.match &&
+                    event.parentTournamentId == null,
+              )
               .toList()
             ..sort((a, b) => b.startAt.compareTo(a.startAt));
           if (matches.isEmpty) {
@@ -36,10 +41,17 @@ class ParentMatchesPage extends ConsumerWidget {
               for (final match in matches)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 14),
-                  child: _PublicMatchCard(
-                    event: match,
-                    onOpen: () => context.push('/parent/matches/${match.id}'),
-                  ),
+                  child: match.category.isTournament
+                      ? _PublicTournamentCard(
+                          event: match,
+                          onOpenFixture: (fixtureId) =>
+                              context.push('/parent/matches/$fixtureId'),
+                        )
+                      : _PublicMatchCard(
+                          event: match,
+                          onOpen: () =>
+                              context.push('/parent/matches/${match.id}'),
+                        ),
                 ),
             ],
           );
@@ -53,6 +65,151 @@ class ParentMatchesPage extends ConsumerWidget {
           message: 'Bitte versuche es in einem Moment erneut.',
         ),
       ),
+    );
+  }
+}
+
+class _PublicTournamentCard extends StatelessWidget {
+  const _PublicTournamentCard({
+    required this.event,
+    required this.onOpenFixture,
+  });
+
+  final EventModel event;
+  final ValueChanged<String> onOpenFixture;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = event.startAt.toLocal();
+    final fixtures = event.tournamentFixtures;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.navy, AppColors.gold],
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.emoji_events_rounded,
+                  color: AppColors.yellow,
+                  size: 34,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        event.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${event.category.label} · ${date.day}.${date.month}.${date.year}',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      if (event.location.trim().isNotEmpty)
+                        Text(
+                          event.location,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                    ],
+                  ),
+                ),
+                Chip(
+                  label: Text(
+                    '${fixtures.length} ${fixtures.length == 1 ? 'Partie' : 'Partien'}',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (fixtures.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(18),
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.schedule_rounded),
+                title: Text('Turnierpartien werden vorbereitet'),
+                subtitle: Text(
+                  'Sobald das Trainerteam einzelne Partien freigibt, erscheinen sie hier.',
+                ),
+              ),
+            )
+          else
+            for (var index = 0; index < fixtures.length; index++) ...[
+              _PublicTournamentFixtureTile(
+                fixture: fixtures[index],
+                onOpen: () => onOpenFixture(fixtures[index].id),
+              ),
+              if (index < fixtures.length - 1) const Divider(height: 1),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PublicTournamentFixtureTile extends StatelessWidget {
+  const _PublicTournamentFixtureTile({
+    required this.fixture,
+    required this.onOpen,
+  });
+
+  final TournamentFixtureModel fixture;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final details = fixture.matchDetails;
+    final time = fixture.startAt.toLocal();
+    final hasResult = details?.ourGoals != null && details?.theirGoals != null;
+    final score = hasResult
+        ? '${details!.ourGoals}:${details.theirGoals}'
+        : '${time.hour.toString().padLeft(2, '0')}:'
+            '${time.minute.toString().padLeft(2, '0')}';
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+      leading: TeamCrest.opponent(
+        size: 38,
+        logoUrl: details?.opponentLogoUrl,
+      ),
+      title: Text(
+        details?.opponent ?? 'Gegner noch offen',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: Text(hasResult ? 'Ergebnis' : 'Anstoß'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            score,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.chevron_right_rounded),
+        ],
+      ),
+      onTap: onOpen,
     );
   }
 }

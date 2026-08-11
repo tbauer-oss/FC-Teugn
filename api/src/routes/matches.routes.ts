@@ -21,6 +21,7 @@ import {
   updateMatch,
   updateSquad,
   updateTickerDelegation,
+  syncTournamentFixtures,
 } from '../controllers/matches.controller';
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
 import { idempotencyMiddleware } from '../middleware/idempotency';
@@ -34,6 +35,11 @@ router.use(requireApproved);
 router.use(idempotencyMiddleware);
 
 router.get('/', listMatches);
+router.put(
+  '/:id/tournament-fixtures',
+  requirePermission(Permission.MANAGE_EVENTS),
+  syncTournamentFixtures,
+);
 router.get('/:id', getMatch);
 router.get(
   '/:id/cancel-preview',

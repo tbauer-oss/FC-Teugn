@@ -100,6 +100,14 @@ extension EventCategoryX on EventCategory {
         EventCategory.footballFestival,
       }.contains(this);
 
+  bool get isTournament => const {
+        EventCategory.tournament,
+        EventCategory.indoorTournament,
+        EventCategory.footballFestival,
+      }.contains(this);
+
+  bool get isSingleMatch => isMatch && !isTournament;
+
   List<String> get titleSuggestions => switch (this) {
         EventCategory.training => const [
             'Training',
@@ -330,6 +338,85 @@ class MatchDetails {
       leagueId: json['leagueId'] as String?,
     );
   }
+}
+
+class TournamentFixtureModel {
+  const TournamentFixtureModel({
+    required this.id,
+    required this.title,
+    required this.startAt,
+    required this.location,
+    required this.status,
+    required this.communicationStatus,
+    this.endAt,
+    this.familyReleasedAt,
+    this.matchDetails,
+  });
+
+  final String id;
+  final String title;
+  final DateTime startAt;
+  final DateTime? endAt;
+  final String location;
+  final EventStatus status;
+  final EventCommunicationStatus communicationStatus;
+  final DateTime? familyReleasedAt;
+  final MatchDetails? matchDetails;
+
+  factory TournamentFixtureModel.fromJson(Map<String, dynamic> json) =>
+      TournamentFixtureModel(
+        id: json['id'] as String,
+        title: json['title'] as String? ?? 'Turnierspiel',
+        startAt: _localDate(json['startAt'] as String),
+        endAt:
+            json['endAt'] == null ? null : _localDate(json['endAt'] as String),
+        location: json['location'] as String? ?? '',
+        status: _enumFromApi(
+          json['status'] as String?,
+          EventStatus.values,
+          EventStatus.scheduled,
+        ),
+        communicationStatus: _enumFromApi(
+          json['communicationStatus'] as String?,
+          EventCommunicationStatus.values,
+          EventCommunicationStatus.draft,
+        ),
+        familyReleasedAt: json['familyReleasedAt'] == null
+            ? null
+            : _localDate(json['familyReleasedAt'] as String),
+        matchDetails: json['matchDetails'] == null
+            ? null
+            : MatchDetails.fromJson(
+                json['matchDetails'] as Map<String, dynamic>,
+              ),
+      );
+}
+
+class TournamentFixtureWriteData {
+  const TournamentFixtureWriteData({
+    required this.opponentId,
+    required this.startAt,
+    required this.periodCount,
+    required this.periodMinutes,
+    this.id,
+    this.isHome = true,
+  });
+
+  final String? id;
+  final String opponentId;
+  final DateTime startAt;
+  final bool isHome;
+  final int periodCount;
+  final int periodMinutes;
+
+  Map<String, dynamic> toJson() => {
+        if (id != null) 'id': id,
+        'opponentId': opponentId,
+        'startAt': startAt.toUtc().toIso8601String(),
+        'isHome': isHome,
+        'periodCount': periodCount,
+        'periodMinutes': periodMinutes,
+      };
 }
 
 class EventAttendance {
@@ -653,6 +740,8 @@ class EventModel {
     this.familyReleaseAudience,
     this.cancellationReason,
     this.matchDetails,
+    this.parentTournamentId,
+    this.tournamentFixtures = const [],
   });
 
   final String id;
@@ -698,6 +787,8 @@ class EventModel {
   final List<EventTeam> targetTeams;
   final List<EventAttachment> attachments;
   final MatchDetails? matchDetails;
+  final String? parentTournamentId;
+  final List<TournamentFixtureModel> tournamentFixtures;
   final List<EventAttendance> attendance;
   final AttendanceSummary attendanceSummary;
   final List<MissingAttendance> missingAttendance;
@@ -811,6 +902,15 @@ class EventModel {
           : MatchDetails.fromJson(
               json['matchDetails'] as Map<String, dynamic>,
             ),
+      parentTournamentId: json['parentTournamentId'] as String?,
+      tournamentFixtures:
+          (json['tournamentFixtures'] as List<dynamic>? ?? const [])
+              .map(
+                (item) => TournamentFixtureModel.fromJson(
+                  item as Map<String, dynamic>,
+                ),
+              )
+              .toList(),
       attendance: (json['attendance'] as List<dynamic>? ?? [])
           .map((item) => EventAttendance.fromJson(item as Map<String, dynamic>))
           .toList(),

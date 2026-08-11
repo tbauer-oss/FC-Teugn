@@ -80,7 +80,11 @@ class TrainerMatchesPage extends ConsumerWidget {
       child: events.when(
         data: (items) {
           final matches = items
-              .where((event) => event.type == EventType.match)
+              .where(
+                (event) =>
+                    event.type == EventType.match &&
+                    event.parentTournamentId == null,
+              )
               .toList()
             ..sort((a, b) => b.startAt.compareTo(a.startAt));
           if (matches.isEmpty) {
@@ -98,17 +102,36 @@ class TrainerMatchesPage extends ConsumerWidget {
                   padding: const EdgeInsets.only(bottom: 14),
                   child: _MatchCard(
                     event: match,
-                    onOpen: () => context.push('/trainer/matches/${match.id}'),
+                    onOpen: match.category.isTournament
+                        ? () => _manageTournament(
+                              context,
+                              ref,
+                              match,
+                              repository,
+                              organization,
+                            )
+                        : () => context.push('/trainer/matches/${match.id}'),
                     onDelete: match.capabilities.canDelete
                         ? () => _deleteMatch(context, ref, match)
                         : null,
                     onCancel: match.capabilities.canCancel && !match.isCancelled
                         ? () => _cancelMatch(context, ref, match)
                         : null,
-                    onReschedule: match.capabilities.canReschedule
+                    onReschedule: match.capabilities.canReschedule &&
+                            !match.category.isTournament
                         ? () => _rescheduleMatch(context, ref, match)
                         : null,
                     onEdit: () async {
+                      if (match.category.isTournament) {
+                        await _manageTournament(
+                          context,
+                          ref,
+                          match,
+                          repository,
+                          organization,
+                        );
+                        return;
+                      }
                       final draft = await _openMatchDialog(
                         context,
                         match,
@@ -1286,6 +1309,363 @@ class TrainerMatchesPage extends ConsumerWidget {
     periodMinutes.dispose();
     return result;
   }
+
+  Future<void> _manageTournament(
+    BuildContext context,
+    WidgetRef ref,
+    EventModel tournament,
+    DataRepository repository,
+    OrganizationContext? organization,
+  ) async {
+    final team = organization?.teams
+        .where((item) => item.id == tournament.teamId)
+        .firstOrNull;
+    if (team == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Mannschaftsdaten sind noch nicht geladen.')),
+      );
+      return;
+    }
+    final opponents = await repository.opponents(team.ageGroup.id).catchError(
+          (_) => <OpponentModel>[],
+        );
+    if (!context.mounted) return;
+    final rows = tournament.tournamentFixtures.map((fixture) {
+      final details = fixture.matchDetails;
+      final stored = opponents
+          .where((opponent) => opponent.id == details?.opponentId)
+          .firstOrNull;
+      final byName = stored ??
+          opponents
+              .where((opponent) => opponent.displayName == details?.opponent)
+              .firstOrNull;
+      return _TournamentFixtureDraftState(
+        id: fixture.id,
+        opponentId: byName?.id,
+        startAt: fixture.startAt,
+        isHome: details?.isHome ?? true,
+        periodCount: details?.periodCount ?? 1,
+        periodMinutes: details?.periodMinutes ?? 10,
+      );
+    }).toList();
+    var saving = false;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          Future<void> chooseStart(_TournamentFixtureDraftState row) async {
+            final date = await showDatePicker(
+              context: dialogContext,
+              initialDate: row.startAt,
+              firstDate: DateTime(
+                tournament.startAt.year,
+                tournament.startAt.month,
+                tournament.startAt.day,
+              ),
+              lastDate: DateTime(
+                (tournament.endAt ?? tournament.startAt).year,
+                (tournament.endAt ?? tournament.startAt).month,
+                (tournament.endAt ?? tournament.startAt).day,
+              ),
+            );
+            if (date == null || !dialogContext.mounted) return;
+            final time = await showTimePicker(
+              context: dialogContext,
+              initialTime: TimeOfDay.fromDateTime(row.startAt),
+            );
+            if (time == null) return;
+            setDialogState(() {
+              row.startAt = DateTime(
+                date.year,
+                date.month,
+                date.day,
+                time.hour,
+                time.minute,
+              );
+            });
+          }
+
+          Future<void> save() async {
+            if (rows.any((row) => row.opponentId == null)) {
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                const SnackBar(
+                  content:
+                      Text('Bitte für jede Partie einen Gegner auswählen.'),
+                ),
+              );
+              return;
+            }
+            if (saving) return;
+            setDialogState(() => saving = true);
+            try {
+              await repository.syncTournamentFixtures(
+                tournamentId: tournament.id,
+                fixtures: rows
+                    .map(
+                      (row) => TournamentFixtureWriteData(
+                        id: row.id,
+                        opponentId: row.opponentId!,
+                        startAt: row.startAt,
+                        isHome: row.isHome,
+                        periodCount: row.periodCount,
+                        periodMinutes: row.periodMinutes,
+                      ),
+                    )
+                    .toList(),
+              );
+              if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+            } on DioException catch (error) {
+              if (!dialogContext.mounted) return;
+              setDialogState(() => saving = false);
+              final data = error.response?.data;
+              final message = data is Map<String, dynamic>
+                  ? data['message'] as String?
+                  : null;
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                SnackBar(
+                  content: Text(message ??
+                      'Turnierplan konnte nicht gespeichert werden.'),
+                ),
+              );
+            }
+          }
+
+          return ResponsiveFormDialog(
+            title: 'Turnierpartien planen',
+            subtitle:
+                '${tournament.title}: Gegner und Anstoßzeiten vorab festlegen. '
+                'Jede Partie erhält anschließend Kader, Aufstellung und Liveticker.',
+            maxWidth: 760,
+            saveLabel: saving ? 'Speichert …' : 'Turnierplan speichern',
+            onSave: saving ? null : save,
+            children: [
+              Card(
+                color: AppColors.yellowSoft,
+                child: ListTile(
+                  leading: const Icon(Icons.emoji_events_rounded),
+                  title: Text('${rows.length} Partien geplant'),
+                  subtitle: const Text(
+                    'Fehlende Gegner zuerst unter „Liga & Gegner“ für diese Jugend anlegen.',
+                  ),
+                  trailing: FilledButton.tonalIcon(
+                    onPressed: () {
+                      var startAt = tournament.startAt.add(
+                        Duration(minutes: rows.length * 20),
+                      );
+                      final latest = tournament.endAt ??
+                          tournament.startAt.add(const Duration(hours: 24));
+                      if (startAt.isAfter(latest)) startAt = tournament.startAt;
+                      setDialogState(() {
+                        rows.add(
+                          _TournamentFixtureDraftState(
+                            startAt: startAt,
+                            periodCount: 1,
+                            periodMinutes: 10,
+                          ),
+                        );
+                      });
+                    },
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Partie'),
+                  ),
+                ),
+              ),
+              if (rows.isEmpty)
+                const EmptyState(
+                  icon: Icons.sports_soccer_outlined,
+                  title: 'Noch keine Partie geplant',
+                  message:
+                      'Füge die Begegnungen hinzu, die FC Teugn bei diesem Turnier spielt.',
+                ),
+              for (var index = 0; index < rows.length; index++) ...[
+                _TournamentFixtureEditor(
+                  key: ValueKey(rows[index].id ?? 'new-$index'),
+                  index: index,
+                  row: rows[index],
+                  opponents: opponents,
+                  onChanged: () => setDialogState(() {}),
+                  onChooseStart: () => chooseStart(rows[index]),
+                  onOpen: rows[index].id == null
+                      ? null
+                      : () {
+                          final fixtureId = rows[index].id!;
+                          Navigator.pop(dialogContext, false);
+                          context.push('/trainer/matches/$fixtureId');
+                        },
+                  onRemove: () => setDialogState(() => rows.removeAt(index)),
+                ),
+                if (index < rows.length - 1) const SizedBox(height: 10),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+    if (saved == true) {
+      ref.invalidate(eventsProvider);
+      await ref.read(eventsProvider.future);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Turnierpartien wurden gespeichert.')),
+        );
+      }
+    }
+  }
+}
+
+class _TournamentFixtureDraftState {
+  _TournamentFixtureDraftState({
+    required this.startAt,
+    required this.periodCount,
+    required this.periodMinutes,
+    this.id,
+    this.opponentId,
+    this.isHome = true,
+  });
+
+  final String? id;
+  String? opponentId;
+  DateTime startAt;
+  bool isHome;
+  int periodCount;
+  int periodMinutes;
+}
+
+class _TournamentFixtureEditor extends StatelessWidget {
+  const _TournamentFixtureEditor({
+    super.key,
+    required this.index,
+    required this.row,
+    required this.opponents,
+    required this.onChanged,
+    required this.onChooseStart,
+    required this.onRemove,
+    this.onOpen,
+  });
+
+  final int index;
+  final _TournamentFixtureDraftState row;
+  final List<OpponentModel> opponents;
+  final VoidCallback onChanged;
+  final VoidCallback onChooseStart;
+  final VoidCallback onRemove;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final local = row.startAt.toLocal();
+    final startLabel =
+        '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}. '
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')} Uhr';
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(child: Text('${index + 1}')),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Turnierspiel ${index + 1}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (onOpen != null)
+                  IconButton(
+                    tooltip: 'Kader, Aufstellung und Liveticker öffnen',
+                    onPressed: onOpen,
+                    icon: const Icon(Icons.stadium_rounded),
+                  ),
+                IconButton(
+                  tooltip: 'Partie entfernen',
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: opponents.any((item) => item.id == row.opponentId)
+                  ? row.opponentId
+                  : null,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Gegner *'),
+              items: [
+                for (final opponent in opponents)
+                  DropdownMenuItem(
+                    value: opponent.id,
+                    child: Text(
+                      opponent.displayName,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (value) {
+                row.opponentId = value;
+                onChanged();
+              },
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onChooseStart,
+                  icon: const Icon(Icons.schedule_rounded),
+                  label: Text(startLabel),
+                ),
+                DropdownButton<int>(
+                  value: row.periodCount,
+                  items: [
+                    for (var value = 1; value <= 4; value++)
+                      DropdownMenuItem(
+                          value: value, child: Text('$value Abschn.')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    row.periodCount = value;
+                    onChanged();
+                  },
+                ),
+                DropdownButton<int>(
+                  value: row.periodMinutes,
+                  items: const [
+                    DropdownMenuItem(value: 8, child: Text('8 Min.')),
+                    DropdownMenuItem(value: 10, child: Text('10 Min.')),
+                    DropdownMenuItem(value: 12, child: Text('12 Min.')),
+                    DropdownMenuItem(value: 15, child: Text('15 Min.')),
+                    DropdownMenuItem(value: 20, child: Text('20 Min.')),
+                    DropdownMenuItem(value: 25, child: Text('25 Min.')),
+                    DropdownMenuItem(value: 30, child: Text('30 Min.')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    row.periodMinutes = value;
+                    onChanged();
+                  },
+                ),
+                ChoiceChip(
+                  selected: row.isHome,
+                  onSelected: (value) {
+                    row.isHome = value;
+                    onChanged();
+                  },
+                  label: Text(row.isHome ? 'FC Teugn zuerst' : 'Gegner zuerst'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _MatchCard extends StatelessWidget {
@@ -1308,6 +1688,7 @@ class _MatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final details = event.matchDetails;
     final date = event.startAt.toLocal();
+    final isTournament = event.category.isTournament;
     final hasResult = details?.ourGoals != null && details?.theirGoals != null;
     final isFriendly = event.category == EventCategory.friendlyMatch ||
         (details?.competition ?? '').toLowerCase().contains('freundschaft');
@@ -1366,6 +1747,41 @@ class _MatchCard extends StatelessWidget {
                     ),
                   ),
                 ),
+              if (isTournament) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Chip(
+                      avatar: const Icon(Icons.emoji_events_rounded, size: 16),
+                      label: Text(event.category.label),
+                    ),
+                    Text(
+                      '${event.tournamentFixtures.length} '
+                      '${event.tournamentFixtures.length == 1 ? 'Partie' : 'Partien'}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ],
+                ),
+                if (event.tournamentFixtures.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    event.tournamentFixtures.take(3).map((fixture) {
+                      final time = fixture.startAt.toLocal();
+                      final opponent =
+                          fixture.matchDetails?.opponent ?? 'Gegner offen';
+                      return '${time.hour.toString().padLeft(2, '0')}:'
+                          '${time.minute.toString().padLeft(2, '0')} $opponent';
+                    }).join('  ·  '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
               if (details != null)
                 Text(
                   '${details.periodCount} × ${details.periodMinutes} Min. '
@@ -1377,11 +1793,12 @@ class _MatchCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              OutlinedButton.icon(
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_rounded, size: 18),
-                label: const Text('Daten'),
-              ),
+              if (!isTournament)
+                OutlinedButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  label: const Text('Daten'),
+                ),
               if (onReschedule != null)
                 OutlinedButton.icon(
                   onPressed: onReschedule,
@@ -1405,8 +1822,15 @@ class _MatchCard extends StatelessWidget {
                 ),
               FilledButton.icon(
                 onPressed: onOpen,
-                icon: const Icon(Icons.stadium_rounded, size: 18),
-                label: const Text('Spieltag'),
+                icon: Icon(
+                  isTournament
+                      ? Icons.account_tree_rounded
+                      : Icons.stadium_rounded,
+                  size: 18,
+                ),
+                label: Text(
+                  isTournament ? 'Partien planen' : 'Spieltag',
+                ),
               ),
             ],
           );
@@ -1422,6 +1846,7 @@ class _MatchCard extends StatelessWidget {
                           _MatchLogos(
                             opponentLogoUrl: details?.opponentLogoUrl,
                             compact: true,
+                            tournament: isTournament,
                           ),
                           const SizedBox(width: 12),
                           Expanded(child: information),
@@ -1443,6 +1868,7 @@ class _MatchCard extends StatelessWidget {
                       _MatchLogos(
                         opponentLogoUrl: details?.opponentLogoUrl,
                         compact: false,
+                        tournament: isTournament,
                       ),
                       const SizedBox(width: 16),
                       Expanded(child: information),
@@ -1465,9 +1891,14 @@ class _MatchCard extends StatelessWidget {
 }
 
 class _MatchLogos extends StatelessWidget {
-  const _MatchLogos({required this.opponentLogoUrl, required this.compact});
+  const _MatchLogos({
+    required this.opponentLogoUrl,
+    required this.compact,
+    this.tournament = false,
+  });
   final String? opponentLogoUrl;
   final bool compact;
+  final bool tournament;
 
   @override
   Widget build(BuildContext context) {
@@ -1477,10 +1908,22 @@ class _MatchLogos extends StatelessWidget {
       children: [
         TeamCrest.club(size: size),
         const SizedBox(width: 5),
-        TeamCrest.opponent(
-          size: size,
-          logoUrl: opponentLogoUrl,
-        ),
+        if (tournament)
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: AppColors.yellowSoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child:
+                const Icon(Icons.emoji_events_rounded, color: AppColors.gold),
+          )
+        else
+          TeamCrest.opponent(
+            size: size,
+            logoUrl: opponentLogoUrl,
+          ),
       ],
     );
   }

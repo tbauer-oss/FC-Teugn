@@ -1282,6 +1282,34 @@ const helpArticles = <HelpArticle>[
   ),
   HelpArticle(
     category: HelpCategory.matchday,
+    title: 'Wie plane ich mehrere eigene Spiele bei einem Turnier?',
+    summary:
+        'Der Turniertermin bündelt Organisation und Rückmeldungen; jede eigene Partie erhält danach Gegner, Uhrzeit und einen separaten Liveticker.',
+    audience: HelpAudience.staff,
+    keywords: [
+      'Turnierpartien',
+      'mehrere Gegner',
+      'Turnierspiel',
+      'Liveticker Turnier',
+      'Hallenturnier',
+      'Fußballfestival',
+    ],
+    route: '/matches',
+    routeLabel: 'Spielbetrieb öffnen',
+    steps: [
+      'Lege im Kalender einen Turnier-, Hallenturnier- oder Fußballfestival-Termin an. Dabei wird bewusst kein einzelner Gegner ausgewählt, weil der Termin das gesamte Turnier beschreibt.',
+      'Öffne anschließend im Spielbetrieb das Turnier und wähle „Partien planen“.',
+      'Füge für jedes eigene Spiel eine Partie hinzu. Wähle jeweils Gegner, Anstoßzeit, Spielabschnitte, Minuten und bei Bedarf die Reihenfolge der Mannschaften.',
+      'Speichere den Turnierplan. Jede Partie erscheint nun innerhalb des Turniers und besitzt einen eigenen Kader, eine eigene Aufstellung, einen eigenen Spielstand und Liveticker.',
+      'Öffne eine gespeicherte Partie direkt aus dem Turnierplan, um Kader und Aufstellung vorzubereiten oder den Liveticker zu starten.',
+      'Gib die einzelnen Partien erst für Eltern und Spieler frei, wenn Gegner und Anstoßzeit feststehen. Familien sehen danach im Turnier kompakt alle freigegebenen Begegnungen und können jede Partie öffnen.',
+      'Ändert sich der Spielplan, öffne „Partien planen“ erneut. Noch unbenutzte Partien können angepasst oder entfernt werden; bereits gespielte beziehungsweise vorbereitete Partien schützt die App vor versehentlichem Löschen.',
+    ],
+    tip:
+        'Die allgemeine Zu- oder Absage gehört zum Turniertermin. Die einzelnen Turnierspiele erzeugen keine zusätzlichen Kalenderabfragen.',
+  ),
+  HelpArticle(
+    category: HelpCategory.matchday,
     title: 'Wie binde ich einen Turnierplan von MeinTurnierplan ein?',
     summary:
         'Zeitplan, Spiele, Tabellen und Platzierungen lassen sich als stets aktuelle Live-Ansicht direkt im Turniertermin öffnen.',

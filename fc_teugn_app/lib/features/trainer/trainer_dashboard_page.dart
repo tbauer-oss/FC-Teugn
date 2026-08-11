@@ -503,7 +503,9 @@ class _NextEventContent extends StatelessWidget {
           children: [
             Text(
               event.type == EventType.match
-                  ? 'Spieltag öffnen'
+                  ? event.category.isTournament
+                      ? 'Turnier öffnen'
+                      : 'Spieltag öffnen'
                   : event.type == EventType.training
                       ? 'Training öffnen'
                       : 'Termin öffnen',
@@ -1154,7 +1156,9 @@ class _PlayerLoadFailure extends StatelessWidget {
 }
 
 String _eventRoute(EventModel event) => switch (event.type) {
-      EventType.match => '/trainer/matches/${event.id}',
+      EventType.match => event.category.isTournament
+          ? '/trainer/matches'
+          : '/trainer/matches/${event.id}',
       EventType.training => event.id.startsWith('training-plan:')
           ? '/trainer/events'
           : '/trainer/training/${event.id}',

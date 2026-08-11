@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import {
+  EventCategory,
   EventType,
   EventCommunicationStatus,
   AttendanceStatus,
@@ -49,7 +51,16 @@ import {
   resolveMeetingPoint,
 } from '../services/match-publication.service';
 
+const tournamentCategories = new Set<EventCategory>([
+  EventCategory.TOURNAMENT,
+  EventCategory.INDOOR_TOURNAMENT,
+  EventCategory.FOOTBALL_FESTIVAL,
+]);
+
 const matchInclude = {
+  parentTournament: {
+    select: { id: true, title: true, startAt: true, endAt: true },
+  },
   team: {
     select: {
       id: true,
@@ -171,6 +182,15 @@ const matchInclude = {
   },
   leagueMatch: true,
 } as const;
+
+type TournamentFixtureInput = {
+  id?: string;
+  opponentId: string;
+  startAt: Date;
+  isHome: boolean;
+  periodCount: number;
+  periodMinutes: number;
+};
 
 const eligiblePlayerSelect = {
   id: true,
@@ -424,6 +444,210 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       : null,
     playerRatings: canRatePlayers ? match.playerRatings : undefined,
   };
+}
+
+export async function syncTournamentFixtures(req: Request, res: Response) {
+  const user = req.user!;
+  const teamIds = await accessibleTeamIds(user);
+  const tournament = await prisma.event.findFirst({
+    where: {
+      id: req.params.id,
+      parentTournamentId: null,
+      category: { in: [...tournamentCategories] },
+      ...scope(teamIds),
+    },
+    include: {
+      targetTeams: { select: { teamId: true } },
+      tournamentFixtures: {
+        include: {
+          matchDetails: { select: { status: true } },
+          liveTicker: { select: { id: true, events: { select: { id: true }, take: 1 } } },
+          squads: { select: { id: true }, take: 1 },
+        },
+      },
+    },
+  });
+  if (!tournament) {
+    return res.status(404).json({ message: 'Turnier nicht gefunden.' });
+  }
+
+  const rawFixtures = Array.isArray(req.body?.fixtures) ? req.body.fixtures : null;
+  if (!rawFixtures || rawFixtures.length > 30) {
+    return res.status(400).json({
+      message: 'Bitte höchstens 30 Turnierpartien angeben.',
+    });
+  }
+  const maximumStart = tournament.endAt ??
+    new Date(tournament.startAt.getTime() + 24 * 60 * 60 * 1000);
+  const inputs: TournamentFixtureInput[] = [];
+  for (const raw of rawFixtures) {
+    const item = raw as Record<string, unknown>;
+    const opponentId = text(item.opponentId, 100);
+    const startAt = item.startAt ? new Date(String(item.startAt)) : null;
+    const periodCount = integer(item.periodCount, 1, 8, 2);
+    const periodMinutes = integer(item.periodMinutes, 1, 90, 15);
+    if (
+      !opponentId ||
+      !startAt ||
+      Number.isNaN(startAt.getTime()) ||
+      startAt < tournament.startAt ||
+      startAt > maximumStart ||
+      periodCount * periodMinutes > 180
+    ) {
+      return res.status(400).json({
+        message:
+          'Jede Partie benötigt einen Gegner, eine Uhrzeit innerhalb des Turniers und eine gültige Spielzeit.',
+      });
+    }
+    inputs.push({
+      id: text(item.id, 100) ?? undefined,
+      opponentId,
+      startAt,
+      isHome: item.isHome !== false,
+      periodCount,
+      periodMinutes,
+    });
+  }
+  const suppliedIds = inputs.map((item) => item.id).filter(Boolean) as string[];
+  if (new Set(suppliedIds).size !== suppliedIds.length) {
+    return res.status(400).json({ message: 'Eine Turnierpartie wurde doppelt übermittelt.' });
+  }
+  const existingById = new Map(
+    tournament.tournamentFixtures.map((fixture) => [fixture.id, fixture]),
+  );
+  if (suppliedIds.some((id) => !existingById.has(id))) {
+    return res.status(400).json({ message: 'Mindestens eine Turnierpartie gehört nicht zu diesem Turnier.' });
+  }
+  const removed = tournament.tournamentFixtures.filter(
+    (fixture) => !suppliedIds.includes(fixture.id),
+  );
+  const protectedFixture = removed.find(
+    (fixture) =>
+      fixture.liveTicker?.events.length ||
+      fixture.squads.length ||
+      (fixture.matchDetails?.status && fixture.matchDetails.status !== MatchStatus.PLANNED),
+  );
+  if (protectedFixture) {
+    return res.status(409).json({
+      message:
+        'Eine bereits verwendete Turnierpartie kann nicht aus dem Plan entfernt werden. Bitte lösche sie gezielt im Spielbetrieb.',
+      fixtureId: protectedFixture.id,
+    });
+  }
+
+  const opponentIds = [...new Set(inputs.map((item) => item.opponentId))];
+  const opponents = await prisma.opponent.findMany({
+    where: {
+      id: { in: opponentIds },
+      archivedAt: null,
+      ageGroup: { teams: { some: { id: tournament.teamId } } },
+    },
+    include: { opponentClub: true },
+  });
+  if (opponents.length !== opponentIds.length) {
+    return res.status(400).json({
+      message: 'Mindestens eine gegnerische Mannschaft ist für diese Jugend nicht verfügbar.',
+    });
+  }
+  const opponentsById = new Map(opponents.map((opponent) => [opponent.id, opponent]));
+  const targetIds = tournament.targetTeams.length
+    ? tournament.targetTeams.map((target) => target.teamId)
+    : [tournament.teamId];
+
+  await prisma.$transaction(async (tx) => {
+    if (removed.length) {
+      await tx.event.deleteMany({ where: { id: { in: removed.map((item) => item.id) } } });
+    }
+    for (const input of inputs) {
+      const opponent = opponentsById.get(input.opponentId)!;
+      const opponentName = [opponent.opponentClub.name, opponent.teamDesignation]
+        .filter(Boolean)
+        .join(' ');
+      const durationMinutes = input.periodCount * input.periodMinutes;
+      const endAt = new Date(input.startAt.getTime() + durationMinutes * 60_000);
+      const eventData = {
+        teamId: tournament.teamId,
+        parentTournamentId: tournament.id,
+        type: EventType.MATCH,
+        category: tournament.category,
+        title: `${tournament.title} · ${opponentName}`,
+        startAt: input.startAt,
+        endAt,
+        location: tournament.location,
+        address: tournament.address,
+        mapUrl: tournament.mapUrl,
+        homeAway: input.isHome ? HomeAway.HOME : HomeAway.AWAY,
+        opponent: opponentName,
+        venue: tournament.venue,
+        visibility: tournament.visibility,
+        carpoolRequired: false,
+        reminderMinutes: [] as number[],
+        reminderPushEnabled: false,
+      } as const;
+      const fixtureId = input.id ?? randomUUID();
+      if (input.id) {
+        await tx.event.update({ where: { id: input.id }, data: eventData });
+        await tx.eventTargetTeam.deleteMany({ where: { eventId: input.id } });
+      } else {
+        await tx.event.create({ data: { id: fixtureId, ...eventData } });
+      }
+      await tx.eventTargetTeam.createMany({
+        data: targetIds.map((teamId) => ({ eventId: fixtureId, teamId })),
+        skipDuplicates: true,
+      });
+      await tx.matchDetails.upsert({
+        where: { eventId: fixtureId },
+        update: {
+          opponent: opponentName,
+          opponentId: opponent.id,
+          isHome: input.isHome,
+          competition: 'Turnierspiel',
+          durationMinutes,
+          periodCount: input.periodCount,
+          periodMinutes: input.periodMinutes,
+          pitch: tournament.venue,
+        },
+        create: {
+          eventId: fixtureId,
+          opponent: opponentName,
+          opponentId: opponent.id,
+          isHome: input.isHome,
+          competition: 'Turnierspiel',
+          durationMinutes,
+          periodCount: input.periodCount,
+          periodMinutes: input.periodMinutes,
+          pitch: tournament.venue,
+        },
+      });
+    }
+    // Legacy tournament records used to carry one opponent directly. From now
+    // on only the child fixtures are playable matches.
+    await tx.matchDetails.deleteMany({ where: { eventId: tournament.id } });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: tournament.teamId,
+        action: 'TOURNAMENT_FIXTURES_SYNCED',
+        entityType: 'Event',
+        entityId: tournament.id,
+        metadata: {
+          fixtureCount: inputs.length,
+          opponentIds,
+          removedFixtureIds: removed.map((item) => item.id),
+        },
+      },
+    });
+  });
+
+  const fixtures = await prisma.event.findMany({
+    where: { parentTournamentId: tournament.id },
+    include: matchInclude,
+    orderBy: { startAt: 'asc' },
+  });
+  return res.json({
+    tournamentId: tournament.id,
+    fixtures: fixtures.map((fixture) => serializeMatch(fixture, true)),
+  });
 }
 
 export async function listMatches(req: Request, res: Response) {

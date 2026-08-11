@@ -1382,6 +1382,19 @@ class DataRepository {
     return MatchdayModel.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<void> syncTournamentFixtures({
+    required String tournamentId,
+    required List<TournamentFixtureWriteData> fixtures,
+  }) async {
+    await client.dio.put(
+      '/matches/$tournamentId/tournament-fixtures',
+      data: {
+        'fixtures': fixtures.map((fixture) => fixture.toJson()).toList(),
+      },
+      options: Options(extra: const {'retryTransientWrite': true}),
+    );
+  }
+
   Future<MatchSquadModel> saveMatchSquad({
     required String eventId,
     required List<

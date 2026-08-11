@@ -1092,6 +1092,7 @@ model Event {
   id                        String                   @id @default(cuid())
   teamId                    String
   seriesId                  String?
+  parentTournamentId        String?
   type                      EventType
   category                  EventCategory            @default(SPECIAL_EVENT)
   status                    EventStatus              @default(SCHEDULED)
@@ -1133,6 +1134,8 @@ model Event {
   updatedAt                 DateTime                 @updatedAt
   team                      Team                     @relation(fields: [teamId], references: [id])
   series                    EventSeries?             @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  parentTournament          Event?                   @relation("TournamentFixtures", fields: [parentTournamentId], references: [id], onDelete: Cascade)
+  tournamentFixtures        Event[]                  @relation("TournamentFixtures")
   targetTeams               EventTargetTeam[]
   attachments               EventAttachment[]
   attendance                Attendance[]
@@ -1154,6 +1157,7 @@ model Event {
 
   @@index([teamId, startAt])
   @@index([seriesId, startAt])
+  @@index([parentTournamentId, startAt])
   @@index([status, startAt])
   @@index([reminderSyncPendingAt])
 }

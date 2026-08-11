@@ -162,4 +162,56 @@ void main() {
     expect(details.opponentId, 'opponent-1');
     expect(details.leagueId, 'league-1');
   });
+
+  test('parses a tournament container with independent fixtures', () {
+    final event = EventModel.fromJson({
+      'id': 'tournament-1',
+      'teamId': 'team-1',
+      'type': 'MATCH',
+      'category': 'TOURNAMENT',
+      'status': 'SCHEDULED',
+      'communicationStatus': 'FAMILY_RELEASED',
+      'visibility': 'TEAM',
+      'title': 'Sommercup',
+      'startAt': '2026-08-22T08:00:00.000Z',
+      'endAt': '2026-08-22T15:00:00.000Z',
+      'location': 'Kelheim',
+      'targetTeams': [],
+      'attachments': [],
+      'attendance': [],
+      'missingAttendance': [],
+      'carpoolOffers': [],
+      'carpoolNeeds': [],
+      'tournamentFixtures': [
+        {
+          'id': 'fixture-1',
+          'parentTournamentId': 'tournament-1',
+          'title': 'Sommercup · ATSV Kelheim E1',
+          'startAt': '2026-08-22T08:30:00.000Z',
+          'endAt': '2026-08-22T08:40:00.000Z',
+          'location': 'Kelheim',
+          'status': 'SCHEDULED',
+          'communicationStatus': 'FAMILY_RELEASED',
+          'familyReleasedAt': '2026-08-20T12:00:00.000Z',
+          'matchDetails': {
+            'opponent': 'ATSV Kelheim E1',
+            'isHome': true,
+            'competition': 'Turnierspiel',
+            'periodCount': 1,
+            'periodMinutes': 10,
+            'durationMinutes': 10,
+          },
+        },
+      ],
+      'capabilities': <String, dynamic>{},
+    });
+
+    expect(event.category.isTournament, isTrue);
+    expect(event.matchDetails, isNull);
+    expect(event.tournamentFixtures, hasLength(1));
+    expect(
+      event.tournamentFixtures.single.matchDetails?.opponent,
+      'ATSV Kelheim E1',
+    );
+  });
 }

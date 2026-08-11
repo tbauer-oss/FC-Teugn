@@ -53,6 +53,26 @@ import {
 
 const eventInclude = {
   series: true,
+  parentTournament: {
+    select: { id: true, title: true, startAt: true, endAt: true },
+  },
+  tournamentFixtures: {
+    orderBy: { startAt: 'asc' as const },
+    include: {
+      matchDetails: {
+        include: {
+          opponentRecord: {
+            include: {
+              logoAsset: { select: { id: true, deletedAt: true } },
+              opponentClub: {
+                include: { logoAsset: { select: { id: true, deletedAt: true } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   targetTeams: {
     include: {
       team: {
@@ -228,6 +248,17 @@ function titleForCategory(category: EventCategory) {
   return titles[category];
 }
 
+function isTournamentCategory(category: EventCategory) {
+  return category === EventCategory.TOURNAMENT ||
+    category === EventCategory.INDOOR_TOURNAMENT ||
+    category === EventCategory.FOOTBALL_FESTIVAL;
+}
+
+function isSingleMatchCategory(category: EventCategory) {
+  return typeForCategory(category) === EventType.MATCH &&
+    !isTournamentCategory(category);
+}
+
 function competitionForCategory(category: EventCategory) {
   const competitions: Partial<Record<EventCategory, string>> = {
     [EventCategory.LEAGUE_MATCH]: 'Liga',
@@ -382,6 +413,36 @@ async function serializeEvent(
 
   return {
     ...event,
+    tournamentFixtures: event.tournamentFixtures
+      .filter((fixture) => staff || fixture.familyReleasedAt !== null)
+      .map((fixture) => ({
+        id: fixture.id,
+        parentTournamentId: fixture.parentTournamentId,
+        title: fixture.title,
+        startAt: fixture.startAt,
+        endAt: fixture.endAt,
+        location: fixture.location,
+        status: fixture.status,
+        communicationStatus: fixture.communicationStatus,
+        familyReleasedAt: fixture.familyReleasedAt,
+        matchDetails: fixture.matchDetails
+          ? {
+              ...fixture.matchDetails,
+              opponentRecord: undefined,
+              opponentLogoUrl:
+                fixture.matchDetails.opponentRecord?.opponentClub.logoAsset &&
+                fixture.matchDetails.opponentRecord.opponentClub.logoAsset.deletedAt === null
+                  ? mediaAssetUrl(
+                      fixture.matchDetails.opponentRecord.opponentClub.logoAsset.id,
+                      '12h',
+                    )
+                  : fixture.matchDetails.opponentRecord?.logoAsset &&
+                    fixture.matchDetails.opponentRecord.logoAsset.deletedAt === null
+                    ? mediaAssetUrl(fixture.matchDetails.opponentRecord.logoAsset.id, '12h')
+                    : fixture.matchDetails.opponentLogoUrl,
+            }
+          : null,
+      })),
     matchDetails: event.matchDetails
       ? {
           ...event.matchDetails,
@@ -956,6 +1017,7 @@ export async function listPersonalResponses(req: Request, res: Response) {
   const to = validDate(req.query.to) ?? new Date(now.getTime() + 370 * 86_400_000);
   const events = await prisma.event.findMany({
     where: {
+      parentTournamentId: null,
       status: { in: [EventStatus.SCHEDULED, EventStatus.CANCELLED] },
       visibility: { not: EventVisibility.STAFF_ONLY },
       startAt: { gte: from, lte: to },
@@ -1079,6 +1141,7 @@ export async function listEvents(req: Request, res: Response) {
 
   const events = await prisma.event.findMany({
     where: {
+      parentTournamentId: null,
       ...eventScope(effectiveTeams),
       ...(from || to
         ? {
@@ -1120,6 +1183,7 @@ export async function getEvent(req: Request, res: Response) {
 export async function createEvent(req: Request, res: Response) {
   const user = req.user!;
   const data = eventData(req.body);
+  const singleMatch = isSingleMatchCategory(data.category);
   const notificationMode = ['NONE', 'IN_APP', 'PUSH'].includes(
     String(req.body.notificationMode ?? 'NONE').toUpperCase(),
   )
@@ -1149,8 +1213,8 @@ export async function createEvent(req: Request, res: Response) {
   if (data.endAt && data.endAt < data.startAt) {
     return res.status(400).json({ message: 'Das Ende darf nicht vor dem Beginn liegen.' });
   }
-  const timing = data.type === EventType.MATCH ? matchTiming(req.body) : null;
-  if (data.type === EventType.MATCH && !timing) {
+  const timing = singleMatch ? matchTiming(req.body) : null;
+  if (singleMatch && !timing) {
     return res.status(400).json({
       message:
         'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).',
@@ -1181,7 +1245,7 @@ export async function createEvent(req: Request, res: Response) {
   const hasExplicitParticipants =
     Object.prototype.hasOwnProperty.call(req.body, 'participantPlayerIds') ||
     Object.prototype.hasOwnProperty.call(req.body, 'participantUserIds');
-  const opponentRecord = data.type === EventType.MATCH && req.body.opponentId
+  const opponentRecord = singleMatch && req.body.opponentId
     ? await prisma.opponent.findFirst({
         where: {
           id: String(req.body.opponentId),
@@ -1198,7 +1262,7 @@ export async function createEvent(req: Request, res: Response) {
         },
       })
     : null;
-  if (data.type === EventType.MATCH) {
+  if (singleMatch) {
     data.opponent = data.opponent ?? opponentRecord?.shortName ??
       [opponentRecord?.clubName, opponentRecord?.teamDesignation].filter(Boolean).join(' ');
     if (!data.opponent) {
@@ -1209,7 +1273,7 @@ export async function createEvent(req: Request, res: Response) {
       data.address = data.address ?? opponentRecord?.address ?? null;
     }
   }
-  if (!data.location && !(data.type === EventType.MATCH && data.homeAway === HomeAway.AWAY)) {
+  if (!data.location && !(singleMatch && data.homeAway === HomeAway.AWAY)) {
     return res.status(400).json({ message: 'Bitte einen Spiel- oder Veranstaltungsort angeben.' });
   }
   const attachments = parseEventAttachments(req.body.attachments);
@@ -1344,7 +1408,7 @@ export async function createEvent(req: Request, res: Response) {
         ),
       });
     }
-    if (data.type === EventType.MATCH && timing) {
+    if (singleMatch && timing) {
       await tx.matchDetails.createMany({
         data: events.map((event) => ({
           eventId: event.id!,
@@ -1456,6 +1520,7 @@ export async function updateEvent(req: Request, res: Response) {
   }
   const scope = req.query.scope === 'series' ? 'series' : 'single';
   const parsed = eventData({ ...existing, ...req.body });
+  const singleMatch = isSingleMatchCategory(parsed.category);
   if (!parsed.startAt) {
     return res.status(400).json({ message: 'Beginn ist erforderlich.' });
   }
@@ -1469,10 +1534,10 @@ export async function updateEvent(req: Request, res: Response) {
     return res.status(400).json({ message: 'Das Ende darf nicht vor dem Beginn liegen.' });
   }
   const timing =
-    parsed.type === EventType.MATCH
+    singleMatch
       ? matchTiming(req.body, existing.matchDetails ?? undefined)
       : null;
-  if (parsed.type === EventType.MATCH && !timing) {
+  if (singleMatch && !timing) {
     return res.status(400).json({
       message:
         'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).',
@@ -1499,7 +1564,7 @@ export async function updateEvent(req: Request, res: Response) {
       message: 'Mindestens eine ausgewählte Person gehört nicht zum Terminkontext.',
     });
   }
-  const opponentRecord = parsed.type === EventType.MATCH && req.body.opponentId
+  const opponentRecord = singleMatch && req.body.opponentId
     ? await prisma.opponent.findFirst({
         where: {
           id: String(req.body.opponentId),
@@ -1516,7 +1581,7 @@ export async function updateEvent(req: Request, res: Response) {
         },
       })
     : null;
-  if (parsed.type === EventType.MATCH) {
+  if (singleMatch) {
     parsed.opponent = parsed.opponent ?? opponentRecord?.shortName ??
       [opponentRecord?.clubName, opponentRecord?.teamDesignation].filter(Boolean).join(' ');
     if (!parsed.opponent) {
@@ -1527,7 +1592,7 @@ export async function updateEvent(req: Request, res: Response) {
       parsed.address = parsed.address ?? opponentRecord?.address ?? null;
     }
   }
-  if (!parsed.location && !(parsed.type === EventType.MATCH && parsed.homeAway === HomeAway.AWAY)) {
+  if (!parsed.location && !(singleMatch && parsed.homeAway === HomeAway.AWAY)) {
     return res.status(400).json({ message: 'Bitte einen Spiel- oder Veranstaltungsort angeben.' });
   }
   const updateStartAt = parsed.startAt;
@@ -1591,7 +1656,7 @@ export async function updateEvent(req: Request, res: Response) {
         if (participants) {
           await syncEventParticipants(tx, occurrence.id, participants);
         }
-        if (parsed.type === EventType.MATCH && timing) {
+        if (singleMatch && timing) {
           await tx.matchDetails.upsert({
             where: { eventId: occurrence.id },
             update: {
@@ -1613,6 +1678,8 @@ export async function updateEvent(req: Request, res: Response) {
               ...timing,
             },
           });
+        } else if (isTournamentCategory(parsed.category)) {
+          await tx.matchDetails.deleteMany({ where: { eventId: occurrence.id } });
         }
       }
     } else {
@@ -1640,7 +1707,7 @@ export async function updateEvent(req: Request, res: Response) {
       if (participants) {
         await syncEventParticipants(tx, existing.id, participants);
       }
-      if (parsed.type === EventType.MATCH && timing) {
+      if (singleMatch && timing) {
         await tx.matchDetails.upsert({
           where: { eventId: existing.id },
           update: {
@@ -1662,6 +1729,8 @@ export async function updateEvent(req: Request, res: Response) {
             ...timing,
           },
         });
+      } else if (isTournamentCategory(parsed.category)) {
+        await tx.matchDetails.deleteMany({ where: { eventId: existing.id } });
       }
     }
     await tx.auditLog.create({

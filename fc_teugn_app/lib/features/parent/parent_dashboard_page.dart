@@ -185,7 +185,9 @@ class _ParentEventRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final date = event.startAt.toLocal();
     final route = event.type == EventType.match
-        ? '/parent/matches/${event.id}'
+        ? event.category.isTournament
+            ? '/parent/matches'
+            : '/parent/matches/${event.id}'
         : '/parent/events';
     final details = [
       '${date.day}.${date.month}.${date.year}',

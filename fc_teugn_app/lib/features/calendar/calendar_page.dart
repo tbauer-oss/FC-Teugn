@@ -3836,7 +3836,9 @@ class _ManagementBar extends ConsumerWidget {
               icon: const Icon(Icons.edit_rounded),
               label: const Text('Bearbeiten'),
             ),
-          if (event.type == EventType.match && event.capabilities.canReschedule)
+          if (event.type == EventType.match &&
+              !event.category.isTournament &&
+              event.capabilities.canReschedule)
             OutlinedButton.icon(
               onPressed: () => _edit(context, ref),
               icon: const Icon(Icons.event_repeat_rounded),
@@ -4292,13 +4294,18 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     customReminderMinutes = TextEditingController();
     category = event?.category ?? EventCategory.training;
     visibility = event?.visibility ?? EventVisibility.team;
-    homeAway = event?.homeAway ?? (category.isMatch ? HomeAway.home : null);
-    if (category.isMatch &&
+    homeAway = event?.homeAway ??
+        (category.isSingleMatch
+            ? HomeAway.home
+            : category.isTournament
+                ? HomeAway.neutral
+                : null);
+    if (category.isSingleMatch &&
         homeAway == HomeAway.home &&
         location.text.trim().isEmpty) {
       location.text = homeMatchVenue;
       lastAutomaticLocation = homeMatchVenue;
-    } else if (category.isMatch && homeAway == HomeAway.away) {
+    } else if (category.isSingleMatch && homeAway == HomeAway.away) {
       meetingLocation.text = meetingLocation.text.trim().isEmpty
           ? awayMeetingLocation
           : meetingLocation.text;
@@ -4500,8 +4507,14 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
             final wasMatch = category.isMatch;
             category = value ?? category;
             if (category.isMatch) {
-              homeAway ??= HomeAway.home;
-              if (homeAway == HomeAway.home) location.text = homeMatchVenue;
+              if (category.isTournament) {
+                homeAway = HomeAway.neutral;
+              } else {
+                homeAway ??= HomeAway.home;
+              }
+              if (category.isSingleMatch && homeAway == HomeAway.home) {
+                location.text = homeMatchVenue;
+              }
               if (homeAway == HomeAway.away &&
                   meetingLocation.text.trim().isEmpty) {
                 meetingLocation.text = awayMeetingLocation;
@@ -4759,7 +4772,22 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                         decoration: const InputDecoration(
                             labelText: 'Adresse (optional)'),
                       ),
-                      if (category.isMatch) ...[
+                      if (category.isTournament) ...[
+                        const SizedBox(height: 12),
+                        const Card(
+                          color: AppColors.yellowSoft,
+                          child: ListTile(
+                            leading: Icon(Icons.account_tree_rounded),
+                            title: Text('Turnier mit mehreren Partien'),
+                            subtitle: Text(
+                              'Hier wird nur der gemeinsame Turniertermin angelegt. '
+                              'Gegner und einzelne Anstoßzeiten wählst du danach im '
+                              'Spielbetrieb; jede Partie erhält einen eigenen Liveticker.',
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (category.isSingleMatch) ...[
                         const SizedBox(height: 12),
                         if (loadingOpponentChoices)
                           const LinearProgressIndicator(minHeight: 3)
@@ -5621,7 +5649,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       value == null || value.trim().isEmpty ? 'Pflichtfeld' : null;
 
   String? _matchNumber(String? value, int minimum, int maximum) {
-    if (!category.isMatch) return null;
+    if (!category.isSingleMatch) return null;
     final parsed = int.tryParse(value?.trim() ?? '');
     if (parsed == null || parsed < minimum || parsed > maximum) {
       return '$minimum bis $maximum eingeben';
@@ -5696,7 +5724,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     }
     final matchPeriodCount = int.tryParse(periodCount.text.trim()) ?? 2;
     final matchPeriodMinutes = int.tryParse(periodMinutes.text.trim()) ?? 30;
-    if (category.isMatch && matchPeriodCount * matchPeriodMinutes > 180) {
+    if (category.isSingleMatch && matchPeriodCount * matchPeriodMinutes > 180) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content:
@@ -5705,7 +5733,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       );
       return;
     }
-    if (category.isMatch &&
+    if (category.isSingleMatch &&
         (selectedOpponentClubId == null ||
             selectedOpponentDesignation == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -5715,7 +5743,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
       );
       return;
     }
-    if (category.isMatch) {
+    if (category.isSingleMatch) {
       setState(() => savingOpponent = true);
       try {
         var selected = availableOpponents
