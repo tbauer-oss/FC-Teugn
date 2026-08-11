@@ -24,7 +24,21 @@ Future<void> showPwaInstallPrompt(BuildContext context) async {
   await showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      icon: const Icon(Icons.install_mobile_rounded),
+      icon: Semantics(
+        label: 'FC Teugn Talents App-Icon',
+        image: true,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Image.asset(
+            AppIdentity.appIconAsset,
+            key: const ValueKey('pwa-install-app-icon'),
+            width: 72,
+            height: 72,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
+      ),
       title: Text(
         pwaIsIos ? 'Auf dem iPhone installieren' : 'Als App installieren',
       ),

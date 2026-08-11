@@ -23,9 +23,28 @@ void main() {
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
     expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
+    expect(manifest, contains('android:icon="@mipmap/ic_launcher"'));
+    expect(manifest, contains('android:roundIcon="@mipmap/ic_launcher_round"'));
     expect(manifest, contains('fc_teugn_important'));
     expect(manifest, contains('@drawable/ic_stat_fc_teugn'));
     expect(manifest, contains('FLUTTER_NOTIFICATION_CLICK'));
+  });
+
+  test('Android launcher provides the FCTT icon for every density', () {
+    for (final density in ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
+      expect(
+        File(
+          'android/app/src/main/res/mipmap-$density/ic_launcher.png',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          'android/app/src/main/res/mipmap-$density/ic_launcher_round.png',
+        ).existsSync(),
+        isTrue,
+      );
+    }
   });
 
   test('Android push uses the FC Teugn crest for every notification path', () {
