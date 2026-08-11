@@ -30,7 +30,7 @@ final repositoryProvider = Provider<DataRepository>((ref) {
   final client = ApiClient(
     accessToken: authState.accessToken,
     refreshAccessToken: controller.refreshAccessToken,
-    onSessionExpired: controller.clearSession,
+    onSessionExpired: controller.clearSessionAfterRefreshFailure,
     offlineOutbox: ref.watch(offlineOutboxProvider),
     userId: authState.user?.id,
     loadingController: ref.read(appLoadingProvider),

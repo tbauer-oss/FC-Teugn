@@ -219,6 +219,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                         )
                                       : const Text('Anmelden'),
                                 ),
+                                const SizedBox(height: 10),
+                                const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.lock_clock_outlined,
+                                      size: 17,
+                                      color: AppColors.muted,
+                                    ),
+                                    SizedBox(width: 7),
+                                    Flexible(
+                                      child: Text(
+                                        'Du bleibst auf diesem Gerät automatisch angemeldet.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: AppColors.muted,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                                 const SizedBox(height: 18),
                                 Row(
                                   children: [

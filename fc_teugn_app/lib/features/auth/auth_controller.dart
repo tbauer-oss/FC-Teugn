@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/api_client.dart';
@@ -47,6 +48,8 @@ class AuthController extends StateNotifier<AuthState> {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final AppLoadingController? _loadingController;
   Future<String?>? _refreshing;
+  String? _refreshTokenCache;
+  bool _refreshFailureInvalidatesSession = false;
 
   Future<void> login(String email, String password) async {
     state = state.copyWith(loading: true, error: null);
@@ -182,10 +185,7 @@ class AuthController extends StateNotifier<AuthState> {
     }
     await nativePushService.disable(forgetPreference: false);
 
-    String? refreshToken;
-    try {
-      refreshToken = await _storage.read(key: _refreshTokenKey);
-    } catch (_) {}
+    final refreshToken = await _readRefreshToken();
     if (refreshToken != null) {
       try {
         await ApiClient(loadingController: _loadingController).dio.post(
@@ -204,6 +204,10 @@ class AuthController extends StateNotifier<AuthState> {
     state = AuthState();
   }
 
+  void clearSessionAfterRefreshFailure() {
+    if (_refreshFailureInvalidatesSession) clearSession();
+  }
+
   Future<String?> refreshAccessToken() {
     return _refreshing ??= _refreshAccessToken().whenComplete(
       () => _refreshing = null,
@@ -211,9 +215,12 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<String?> _refreshAccessToken() async {
+    final refreshToken = await _readRefreshToken();
+    if (refreshToken == null) {
+      _refreshFailureInvalidatesSession = true;
+      return null;
+    }
     try {
-      final refreshToken = await _storage.read(key: _refreshTokenKey);
-      if (refreshToken == null) return null;
       final res =
           await ApiClient(loadingController: _loadingController).dio.post(
         '/auth/refresh',
@@ -226,9 +233,18 @@ class AuthController extends StateNotifier<AuthState> {
         user: AppUser.fromJson(data['user'] as Map<String, dynamic>),
         accessToken: accessToken,
       );
+      _refreshFailureInvalidatesSession = false;
       return accessToken;
-    } catch (_) {
-      await _deleteStoredToken();
+    } catch (error) {
+      // Eine kurzzeitig unterbrochene Verbindung oder ein Serverfehler darf
+      // die dauerhaft gespeicherte Anmeldung nicht löschen. Nur eine
+      // eindeutige Ablehnung des Refresh-Tokens beendet die Sitzung.
+      if (discardStoredSessionAfterRefreshFailure(error)) {
+        _refreshFailureInvalidatesSession = true;
+        await _deleteStoredToken();
+      } else {
+        _refreshFailureInvalidatesSession = false;
+      }
       return null;
     }
   }
@@ -239,12 +255,28 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> _storeRefreshToken(String token) async {
+    _refreshTokenCache = token;
+    _refreshFailureInvalidatesSession = false;
     try {
       await _storage.write(key: _refreshTokenKey, value: token);
     } catch (_) {}
   }
 
+  Future<String?> _readRefreshToken() async {
+    final cached = _refreshTokenCache;
+    if (cached != null && cached.isNotEmpty) return cached;
+    try {
+      final stored = await _storage.read(key: _refreshTokenKey);
+      if (stored != null && stored.isNotEmpty) {
+        _refreshTokenCache = stored;
+        return stored;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _deleteStoredToken() async {
+    _refreshTokenCache = null;
     try {
       await _storage.delete(key: _refreshTokenKey);
     } catch (_) {}
@@ -271,3 +303,12 @@ class AuthController extends StateNotifier<AuthState> {
 final authProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
   return AuthController(loadingController: ref.read(appLoadingProvider));
 });
+
+@visibleForTesting
+bool discardStoredSessionAfterRefreshFailure(Object error) {
+  if (error is! DioException) return false;
+  return switch (error.response?.statusCode) {
+    400 || 401 || 403 => true,
+    _ => false,
+  };
+}
