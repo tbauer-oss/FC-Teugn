@@ -48,6 +48,7 @@ import {
 import {
   buildFamilyReleaseMessage,
   buildInternalPublicationMessage,
+  matchCategoryLabel,
   resolveMeetingPoint,
 } from '../services/match-publication.service';
 
@@ -1794,6 +1795,11 @@ function publicationTeam(match: {
     match.team.ageGroup.code;
 }
 
+function publicationActionUrl(match: { id: string; category: EventCategory }) {
+  const tournament = tournamentCategories.has(match.category);
+  return `/matches/${match.id}${tournament ? '?planning=tournament' : ''}`;
+}
+
 export async function internalPublicationPreview(req: Request, res: Response) {
   const match = await findMatch(req.params.id, req.user!);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
@@ -1802,6 +1808,7 @@ export async function internalPublicationPreview(req: Request, res: Response) {
     category: match.category,
     team: publicationTeam(match),
     opponent: publicationOpponent(match),
+    title: match.title,
   });
   return res.json({
     recipients: recipients.map((recipient) => ({
@@ -1895,12 +1902,13 @@ export async function publishMatchInternally(req: Request, res: Response) {
     category: match.category,
     team: publicationTeam(match),
     opponent: publicationOpponent(match),
+    title: match.title,
   });
   const delivery = await notifyUsers(recipientIds, {
     category: NotificationCategory.MATCH,
     title: 'Kader und Aufstellung mit Trainerteam geteilt',
     body: message,
-    actionUrl: `/matches/${match.id}`,
+    actionUrl: publicationActionUrl(match),
     entityType: 'MatchInternalPublication',
     entityId: match.id,
     dedupeKey: `match-internal:${match.id}:${squad?.updatedAt.getTime() ?? 0}:${lineup?.updatedAt.getTime() ?? 0}`,
@@ -1983,10 +1991,13 @@ export async function familyReleasePreview(req: Request, res: Response) {
   const messagePreview = buildFamilyReleaseMessage({
     category: match.category,
     opponent: publicationOpponent(match),
+    title: match.title,
     startAt: match.startAt,
     meeting,
   });
   return res.json({
+    title: match.title,
+    isTournament: tournamentCategories.has(match.category),
     team: match.targetTeams[0]?.team.name ?? match.team.ageGroup.code,
     category: match.category,
     opponent: match.matchDetails?.opponent ?? match.opponent,
@@ -2028,14 +2039,17 @@ export async function releaseMatchToFamilies(req: Request, res: Response) {
   const message = buildFamilyReleaseMessage({
     category: match.category,
     opponent: publicationOpponent(match),
+    title: match.title,
     startAt: match.startAt,
     meeting,
   });
   const delivery = await notifyUsers(recipientIds, {
     category: NotificationCategory.MATCH,
-    title: 'Spiel freigegeben',
+    title: tournamentCategories.has(match.category)
+      ? `${matchCategoryLabel(match.category)} freigegeben`
+      : 'Spiel freigegeben',
     body: message,
-    actionUrl: `/matches/${match.id}`,
+    actionUrl: publicationActionUrl(match),
     entityType: 'MatchFamilyRelease',
     entityId: match.id,
     dedupeKey: `match-family-release:${match.id}`,

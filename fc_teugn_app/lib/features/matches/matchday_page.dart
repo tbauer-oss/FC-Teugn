@@ -442,7 +442,11 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Spiel für Eltern und Spieler freigeben?'),
+          title: Text(
+            widget.tournamentPlanning
+                ? 'Turnier für Eltern und Spieler freigeben?'
+                : 'Spiel für Eltern und Spieler freigeben?',
+          ),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: SingleChildScrollView(
@@ -452,15 +456,26 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                 children: [
                   _ReleasePreviewRow('Mannschaft', '${preview['team'] ?? '–'}'),
                   _ReleasePreviewRow(
-                      'Spielart', '${preview['category'] ?? '–'}'),
-                  _ReleasePreviewRow('Gegner', '${preview['opponent'] ?? '–'}'),
-                  _ReleasePreviewRow('Anstoß', _dateLine(_match!)),
+                    widget.tournamentPlanning ? 'Turnierart' : 'Spielart',
+                    '${preview['category'] ?? '–'}',
+                  ),
+                  if (!widget.tournamentPlanning)
+                    _ReleasePreviewRow(
+                      'Gegner',
+                      '${preview['opponent'] ?? '–'}',
+                    ),
+                  _ReleasePreviewRow(
+                    widget.tournamentPlanning ? 'Beginn' : 'Anstoß',
+                    _dateLine(_match!),
+                  ),
                   _ReleasePreviewRow(
                     'Treffpunkt',
                     '${preview['meetingSummary'] ?? 'Treffpunkt noch offen'}',
                   ),
                   _ReleasePreviewRow(
-                    'Spielstätte',
+                    widget.tournamentPlanning
+                        ? 'Austragungsort'
+                        : 'Spielstätte',
                     '${preview['location'] ?? 'Noch offen'}',
                   ),
                   _ReleasePreviewRow(
@@ -528,8 +543,12 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           SnackBar(
             content: Text(
               result['alreadyReleased'] == true
-                  ? 'Das Spiel war bereits freigegeben; keine doppelte Nachricht wurde versendet.'
-                  : 'Spiel wurde für Eltern und Spieler freigegeben.',
+                  ? widget.tournamentPlanning
+                      ? 'Das Turnier war bereits freigegeben; keine doppelte Nachricht wurde versendet.'
+                      : 'Das Spiel war bereits freigegeben; keine doppelte Nachricht wurde versendet.'
+                  : widget.tournamentPlanning
+                      ? 'Turnier wurde für Eltern und Spieler freigegeben.'
+                      : 'Spiel wurde für Eltern und Spieler freigegeben.',
             ),
           ),
         );
@@ -537,7 +556,11 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Spielfreigabe fehlgeschlagen: $error')),
+          SnackBar(
+            content: Text(
+              '${widget.tournamentPlanning ? 'Turnierfreigabe' : 'Spielfreigabe'} fehlgeschlagen: $error',
+            ),
+          ),
         );
       }
     }
@@ -599,6 +622,15 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
               const SizedBox(height: 8),
             ],
             const _TournamentPlanningNotice(),
+            if (widget.staffView &&
+                (match.canPublishInternal || match.canReleaseFamily)) ...[
+              const SizedBox(height: 8),
+              MatchCommunicationActions(
+                match: match,
+                onPublishInternal: _publishInternally,
+                onReleaseFamily: _releaseForFamilies,
+              ),
+            ],
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,

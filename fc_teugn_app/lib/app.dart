@@ -832,6 +832,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               builder: (context, state) => MatchdayPage(
                 matchId: state.pathParameters['matchId']!,
                 staffView: false,
+                tournamentPlanning:
+                    state.uri.queryParameters['planning'] == 'tournament',
               ),
             ),
             GoRoute(
@@ -949,9 +951,11 @@ String normalizePushActionRoute(
   if (path.startsWith('/matches/')) {
     final matchId = path.substring('/matches/'.length).split('/').first;
     if (matchId.isNotEmpty) {
-      return isTrainer
-          ? '/trainer/matches/$matchId'
-          : '/parent/matches/$matchId';
+      final destination =
+          isTrainer ? '/trainer/matches/$matchId' : '/parent/matches/$matchId';
+      return parsed?.hasQuery == true
+          ? '$destination?${parsed!.query}'
+          : destination;
     }
   }
   if (path.startsWith('/trainer/') && !isTrainer) return '/parent';

@@ -91,6 +91,41 @@ test('internal publication message names match type, team and opponent', () => {
   );
 });
 
+test('tournament publications name the tournament and do not invent an opponent', () => {
+  const meeting = resolveMeetingPoint({
+    startAt: new Date('2026-09-12T13:00:00.000Z'),
+    meetingAt: new Date('2026-09-12T12:00:00.000Z'),
+    meetingLocation: 'Hopfenbach-Arena',
+  });
+  assert.equal(
+    buildFamilyReleaseMessage({
+      category: EventCategory.TOURNAMENT,
+      title: '3. Hopfenbach-Cup',
+      opponent: 'den Gegner',
+      startAt: new Date('2026-09-12T13:00:00.000Z'),
+      meeting,
+    }),
+    'Das Turnier „3. Hopfenbach-Cup“ wurde für Samstag, 12. September 2026 um 15:00 Uhr freigegeben. Treffpunkt: 14:00 Uhr am Hopfenbach-Arena.',
+  );
+  assert.equal(
+    buildInternalPublicationMessage({
+      category: EventCategory.TOURNAMENT,
+      title: '3. Hopfenbach-Cup',
+      team: 'E1',
+      opponent: 'den Gegner',
+    }),
+    'Kader und Aufstellung für das Turnier „3. Hopfenbach-Cup“ der E1 wurden mit dem Trainerteam geteilt.',
+  );
+});
+
+test('tournament publications open the dedicated tournament planning view', () => {
+  const controller = source('src/controllers/matches.controller.ts');
+  assert.match(
+    controller,
+    /publicationActionUrl[\s\S]*planning=tournament[\s\S]*actionUrl: publicationActionUrl\(match\)/,
+  );
+});
+
 test('internal publication endpoint only accepts assigned team staff and selected recipients', () => {
   const controller = source('src/controllers/matches.controller.ts');
   assert.match(controller, /Role\.COACH[\s\S]*Role\.TRAINER[\s\S]*Role\.ASSISTANT_COACH[\s\S]*Role\.TEAM_MANAGER/);

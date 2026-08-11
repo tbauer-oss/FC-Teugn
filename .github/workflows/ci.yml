@@ -11,9 +11,18 @@ on:
       - master
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     services:
       postgres:
         image: postgres:16
@@ -28,9 +37,11 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
     defaults:
       run:
         working-directory: api
+
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/fc_teugn
       ACCESS_TOKEN_SECRET: ci-access-token-secret-at-least-32-characters
@@ -38,60 +49,90 @@ jobs:
       EMERGENCY_ACCESS_SECRET: ci-emergency-secret-at-least-32-characters
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
           node-version: 24
+          package-manager-cache: false
 
-      - name: Install dependencies
-        run: npx -y pnpm@10.13.1 install --frozen-lockfile
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.13.1
+          cache: true
+          cache_dependency_path: api/pnpm-lock.yaml
+          package_json_file: api/package.json
+
+      - name: Install backend dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Validate Prisma schema
-        run: npx prisma validate
+        run: pnpm exec prisma validate
 
       - name: Run backend tests
-        run: npm test
+        run: pnpm test
 
       - name: Prepare E2E database
         run: |
-          npx prisma migrate deploy
-          npm run prisma:seed
+          pnpm exec prisma migrate deploy
+          pnpm run prisma:seed
 
       - name: Run complete HTTP E2E acceptance
         run: |
-          npm start &
+          pnpm start &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
           for attempt in {1..30}; do
             if curl --fail --silent http://localhost:4000/ > /dev/null; then
               break
             fi
             sleep 1
           done
+
           curl --fail --silent http://localhost:4000/ > /dev/null
-          npm run test:e2e
+          pnpm run test:e2e
 
   flutter:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     defaults:
       run:
         working-directory: fc_teugn_app
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: '3.44.8'
           cache: true
+          pub-cache: true
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
 
       - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Format sources for validation
-        run: dart format --output=none lib test
+      - name: Validate source formatting
+        run: dart format --output=none --set-exit-if-changed lib test
 
       - name: Analyze
         run: flutter analyze
@@ -100,9 +141,42 @@ jobs:
         run: flutter test
 
       - name: Build Flutter web
-        run: flutter build web --release
+        run: flutter build web --release --no-pub
 
+      # Pull Requests:
+      # Android wird vollständig kompiliert, aber ohne permanenten Release-Key.
+      - name: Build Android APK for pull request validation
+        if: github.event_name == 'pull_request'
+        run: flutter build apk --debug --no-pub
+
+      # Release-Metadaten nur für produktive Builds vorbereiten.
+      - name: Prepare Android release metadata
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          app_version="$(awk '/^version:/ { print $2 }' pubspec.yaml)"
+          version_name="${app_version%%+*}"
+          build_number="${app_version##*+}"
+
+          if [[ -z "$version_name" || \
+                -z "$build_number" || \
+                "$app_version" != *"+"* ]]; then
+            echo "::error::Ungültige Flutter-Version in pubspec.yaml: ${app_version}"
+            exit 1
+          fi
+
+          echo "FC_TEUGN_VERSION_NAME=${version_name}" >> "$GITHUB_ENV"
+          echo "FC_TEUGN_BUILD_NUMBER=${build_number}" >> "$GITHUB_ENV"
+
+          echo "FC_TEUGN_APK_FILE_NAME=FC-Teugn-Talents-v${version_name}-build-${build_number}.apk" \
+            >> "$GITHUB_ENV"
+
+          echo "FC_TEUGN_AAB_FILE_NAME=FC-Teugn-Talents-v${version_name}-build-${build_number}.aab" \
+            >> "$GITHUB_ENV"
+
+      # Der permanente Signaturschlüssel wird niemals für Pull Requests geladen.
       - name: Restore permanent Android release signing key
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -117,9 +191,11 @@ jobs:
             echo "::error::Die dauerhaften Android-Signatur-Secrets fehlen."
             exit 1
           fi
+
           printf '%s' "$ANDROID_KEYSTORE_BASE64" \
             | base64 --decode \
             > android/app/fc-teugn-talents-release.jks
+
           printf '%s\n' \
             "storePassword=$ANDROID_KEYSTORE_PASSWORD" \
             "keyPassword=$ANDROID_KEY_PASSWORD" \
@@ -127,30 +203,60 @@ jobs:
             'storeFile=fc-teugn-talents-release.jks' \
             > android/key.properties
 
+      # AAB wird nur bei einem bewusst manuell gestarteten Release erzeugt.
       - name: Build signed Android App Bundle
         if: github.event_name == 'workflow_dispatch'
         env:
           FC_TEUGN_REQUIRE_RELEASE_SIGNING: 'true'
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --no-pub
 
-      - name: Build signed installable Android APK
-        env:
-          FC_TEUGN_REQUIRE_RELEASE_SIGNING: 'true'
-        run: flutter build apk --release
-
-      - name: Prepare professionally named Android APK
+      - name: Prepare professionally named Android App Bundle
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
-          app_version="$(awk '/^version:/ { print $2 }' pubspec.yaml)"
-          version_name="${app_version%%+*}"
-          build_number="${app_version##*+}"
-          apk_file_name="FC-Teugn-Talents-v${version_name}-build-${build_number}.apk"
+          cp build/app/outputs/bundle/release/app-release.aab \
+            "build/app/outputs/bundle/release/${FC_TEUGN_AAB_FILE_NAME}"
+
+      - name: Upload Android App Bundle
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: fc-teugn-talents-android-aab
+          path: fc_teugn_app/build/app/outputs/bundle/release/${{ env.FC_TEUGN_AAB_FILE_NAME }}
+          if-no-files-found: error
+          retention-days: 30
+
+      # Produktive APK nur für Push auf main/master oder manuellen Workflow.
+      - name: Build signed installable Android APK
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          FC_TEUGN_REQUIRE_RELEASE_SIGNING: 'true'
+        run: flutter build apk --release --no-pub
+
+      - name: Prepare professionally named Android APK
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
           cp build/app/outputs/flutter-apk/app-release.apk \
-            "build/app/outputs/flutter-apk/${apk_file_name}"
-          echo "FC_TEUGN_APK_FILE_NAME=${apk_file_name}" >> "$GITHUB_ENV"
+            "build/app/outputs/flutter-apk/${FC_TEUGN_APK_FILE_NAME}"
+
+      # Zeigt künftig exakt, was Flutter mit build.gradle.kts /
+      # gradle.properties usw. während des Builds verändert.
+      - name: Report Flutter Android project migrations
+        if: always()
+        shell: bash
+        run: |
+          if git diff --quiet -- android; then
+            echo "Keine von Flutter erzeugten Änderungen an versionierten Android-Projektdateien erkannt."
+          else
+            echo "::warning::Flutter hat versionierte Android-Projektdateien während des Builds geändert."
+            echo "::warning::Diese Migration sollte lokal übernommen, geprüft und anschließend committed werden."
+            git diff -- android
+          fi
 
       - name: Upload Android APK
-        uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
         with:
           name: fc-teugn-talents-android-apk
           path: fc_teugn_app/build/app/outputs/flutter-apk/${{ env.FC_TEUGN_APK_FILE_NAME }}
@@ -175,9 +281,17 @@ jobs:
           (github.event_name == 'push' &&
           (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
           github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fc-teugn-talents-update-manifest
           path: fc_teugn_app/build/app/outputs/flutter-apk/latest.json
           if-no-files-found: error
           retention-days: 30
+
+      # Signaturmaterial nach dem Build explizit wieder entfernen.
+      - name: Remove Android release signing material
+        if: ${{ always() && github.event_name != 'pull_request' }}
+        shell: bash
+        run: |
+          rm -f android/app/fc-teugn-talents-release.jks
+          rm -f android/key.properties

@@ -22,7 +22,12 @@ const _player = PlayerModel(
   teamNumber: 1,
 );
 
-MatchdayModel _tournament({MatchSquadModel? squad}) => MatchdayModel(
+MatchdayModel _tournament({
+  MatchSquadModel? squad,
+  DateTime? internalPublishedAt,
+  DateTime? familyReleasedAt,
+}) =>
+    MatchdayModel(
       id: 'tournament-1',
       title: '3. Hopfenbach-Cup',
       startAt: DateTime(2026, 9, 12, 15),
@@ -31,7 +36,11 @@ MatchdayModel _tournament({MatchSquadModel? squad}) => MatchdayModel(
       squad: squad,
       eligiblePlayers: const [_player],
       playerPoolAgeGroupCode: 'E',
+      canPublishInternal: true,
       canNominateSquad: true,
+      canReleaseFamily: true,
+      internalPublishedAt: internalPublishedAt,
+      familyReleasedAt: familyReleasedAt,
     );
 
 class _TournamentPlanningRepository extends DataRepository {
@@ -42,6 +51,9 @@ class _TournamentPlanningRepository extends DataRepository {
   MatchdayModel current;
   String? savedSquadEventId;
   String? savedLineupEventId;
+  List<String>? internalRecipientIds;
+  bool? internalPushEnabled;
+  String? familyReleaseEventId;
 
   @override
   Future<MatchdayModel> match(String eventId) async => current;
@@ -110,6 +122,59 @@ class _TournamentPlanningRepository extends DataRepository {
     );
     return lineup;
   }
+
+  @override
+  Future<Map<String, dynamic>> internalPublicationPreview(
+    String eventId,
+  ) async =>
+      {
+        'recipients': [
+          {
+            'id': 'trainer-1',
+            'name': 'Trainer Beispiel',
+            'functions': ['Trainer'],
+            'teams': ['E1-Jugend'],
+            'isSender': false,
+          },
+        ],
+        'messagePreview':
+            'Kader und Aufstellung für das Turnier werden geteilt.',
+      };
+
+  @override
+  Future<Map<String, dynamic>> publishMatchInternally(
+    String eventId, {
+    required List<String> recipientIds,
+    bool pushEnabled = true,
+  }) async {
+    internalRecipientIds = recipientIds;
+    internalPushEnabled = pushEnabled;
+    return {'recipients': recipientIds.length};
+  }
+
+  @override
+  Future<Map<String, dynamic>> familyReleasePreview(String eventId) async => {
+        'title': '3. Hopfenbach-Cup',
+        'isTournament': true,
+        'team': 'E1-Jugend',
+        'category': 'Turnier',
+        'startAt': '2026-09-12T13:00:00.000Z',
+        'meetingSummary': 'Treffpunkt: 14:00 Uhr',
+        'location': 'Hopfenbach-Arena',
+        'audienceMode': 'NOMINATED_SQUAD',
+        'recipients': 2,
+        'messagePreview':
+            'Das Turnier wird für Eltern und Spieler freigegeben.',
+      };
+
+  @override
+  Future<Map<String, dynamic>> releaseMatchToFamilies(
+    String eventId, {
+    bool fullTeam = false,
+  }) async {
+    familyReleaseEventId = eventId;
+    return {'alreadyReleased': false, 'recipients': 2};
+  }
 }
 
 Widget _planningPage(_TournamentPlanningRepository repository) => ProviderScope(
@@ -157,6 +222,8 @@ void main() {
         expect(find.text('Kader'), findsOneWidget);
         expect(find.text('Aufstellung'), findsOneWidget);
         expect(find.text('Kader speichern'), findsOneWidget);
+        expect(find.text('Mit Trainerteam teilen'), findsOneWidget);
+        expect(find.text('Für Eltern & Spieler freigeben'), findsOneWidget);
         expect(find.text('Übersicht'), findsNothing);
         expect(find.text('Liveticker'), findsNothing);
         expect(tester.takeException(), isNull);
@@ -196,6 +263,53 @@ void main() {
 
     expect(repository.savedLineupEventId, 'tournament-1');
     expect(repository.current.squad?.lineup?.positions, hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'tournament plan can be shared internally and released to families',
+      (tester) async {
+    tester.view.physicalSize = const Size(673, 841);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _TournamentPlanningRepository();
+
+    await tester.pumpWidget(_planningPage(repository));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Mit Trainerteam teilen'),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Kader und Aufstellung für das Turnier werden geteilt.'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Mit Trainerteam teilen'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.internalRecipientIds, ['trainer-1']);
+    expect(repository.internalPushEnabled, isTrue);
+
+    await tester.tap(
+      find.widgetWithText(
+        FilledButton,
+        'Für Eltern & Spieler freigeben',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Turnier für Eltern und Spieler freigeben?'),
+      findsOneWidget,
+    );
+    expect(find.text('Gegner'), findsNothing);
+    await tester.tap(find.text('Jetzt freigeben'));
+    await tester.pumpAndSettle();
+
+    expect(repository.familyReleaseEventId, 'tournament-1');
     expect(tester.takeException(), isNull);
   });
 }

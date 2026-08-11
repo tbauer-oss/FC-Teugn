@@ -28,6 +28,18 @@ function cleaned(value: string | null | undefined) {
   return result || null;
 }
 
+function isTournamentCategory(category: EventCategory) {
+  return category === EventCategory.TOURNAMENT ||
+    category === EventCategory.INDOOR_TOURNAMENT ||
+    category === EventCategory.FOOTBALL_FESTIVAL;
+}
+
+function tournamentDescription(category: EventCategory, title?: string | null) {
+  const label = matchCategoryLabel(category);
+  const tournamentTitle = cleaned(title);
+  return tournamentTitle ? `${label} „${tournamentTitle}“` : label;
+}
+
 export function matchCategoryLabel(category: EventCategory) {
   switch (category) {
     case EventCategory.FRIENDLY_MATCH:
@@ -75,11 +87,15 @@ export function resolveMeetingPoint(input: {
 export function buildFamilyReleaseMessage(input: {
   category: EventCategory;
   opponent: string;
+  title?: string | null;
   startAt: Date;
   meeting: ResolvedMeetingPoint;
 }) {
   const date = berlinDateFormatter.format(input.startAt);
   const time = berlinTimeFormatter.format(input.startAt);
+  if (isTournamentCategory(input.category)) {
+    return `Das ${tournamentDescription(input.category, input.title)} wurde für ${date} um ${time} Uhr freigegeben. ${input.meeting.summary}.`;
+  }
   return `Das ${matchCategoryLabel(input.category)} gegen ${input.opponent} wurde für ${date} um ${time} Uhr freigegeben. ${input.meeting.summary}.`;
 }
 
@@ -87,6 +103,10 @@ export function buildInternalPublicationMessage(input: {
   category: EventCategory;
   team: string;
   opponent: string;
+  title?: string | null;
 }) {
+  if (isTournamentCategory(input.category)) {
+    return `Kader und Aufstellung für das ${tournamentDescription(input.category, input.title)} der ${input.team} wurden mit dem Trainerteam geteilt.`;
+  }
   return `Kader und Aufstellung für das ${matchCategoryLabel(input.category)} der ${input.team} gegen ${input.opponent} wurden mit dem Trainerteam geteilt.`;
 }
