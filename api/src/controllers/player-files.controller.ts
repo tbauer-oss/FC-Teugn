@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import {
   ConsentStatus,
+  ConsentType,
   PlayerDocumentType,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
@@ -10,6 +11,7 @@ import { Role } from '../types/enums';
 import { objectStorage } from '../services/object-storage';
 import { mediaAssetUrl } from '../services/media-access';
 import { canAccessPlayer } from './players.controller';
+import { playerHasActiveConsent } from '../services/consent-policy';
 
 const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -66,6 +68,13 @@ export async function uploadPlayerPhoto(req: Request, res: Response) {
   const capabilities = await fileCapabilities(req, playerId);
   if (!capabilities?.canManagePhoto) {
     return res.status(403).json({ message: 'Spielerfoto darf nicht geändert werden.' });
+  }
+  if (!(await playerHasActiveConsent(playerId, ConsentType.PHOTO, 'APP_INTERNAL'))) {
+    return res.status(409).json({
+      message:
+        'Vor dem Hochladen ist eine gültige Einwilligung für Einzelfotos im geschützten App-Bereich erforderlich.',
+      code: 'PHOTO_CONSENT_REQUIRED',
+    });
   }
   if (!req.file || !imageTypes.has(req.file.mimetype)) {
     return res.status(400).json({ message: 'Bitte ein JPEG-, PNG- oder WebP-Bild auswählen.' });

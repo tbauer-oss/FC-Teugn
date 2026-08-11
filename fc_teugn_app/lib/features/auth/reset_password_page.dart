@@ -7,9 +7,14 @@ import '../../core/club_logo.dart';
 import 'auth_controller.dart';
 
 class ResetPasswordPage extends ConsumerStatefulWidget {
-  const ResetPasswordPage({super.key, required this.token});
+  const ResetPasswordPage({
+    super.key,
+    required this.token,
+    required this.requestId,
+  });
 
   final String token;
+  final String requestId;
 
   @override
   ConsumerState<ResetPasswordPage> createState() => _ResetPasswordPageState();
@@ -21,7 +26,19 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
   final _confirmation = TextEditingController();
   bool _showPassword = false;
   bool _saving = false;
+  bool _exchanging = false;
   String? _error;
+  late String _token;
+
+  @override
+  void initState() {
+    super.initState();
+    _token = widget.token;
+    if (_token.isEmpty && widget.requestId.isNotEmpty) {
+      _exchanging = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _exchange());
+    }
+  }
 
   @override
   void dispose() {
@@ -61,9 +78,17 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                             style: TextStyle(color: AppColors.muted),
                           ),
                           const SizedBox(height: 22),
-                          if (widget.token.isEmpty)
-                            const _ResetError(
-                              message: 'Der Reset-Link ist unvollständig.',
+                          if (_exchanging)
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 24),
+                                child: CircularProgressIndicator(),
+                              ),
+                            )
+                          else if (_token.isEmpty)
+                            _ResetError(
+                              message: _error ??
+                                  'Der sichere Gerätezugriff konnte nicht bestätigt werden. Bitte öffne die Pushnachricht erneut oder wende dich an die Systemadministration.',
                             )
                           else ...[
                             TextFormField(
@@ -145,7 +170,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
     try {
       final message =
           await ref.read(authProvider.notifier).confirmPasswordReset(
-                token: widget.token,
+                token: _token,
                 password: _password.text,
               );
       if (!mounted) return;
@@ -157,6 +182,26 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
       if (!mounted) return;
       setState(() {
         _saving = false;
+        _error = exception.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _exchange() async {
+    try {
+      final token = await ref
+          .read(authProvider.notifier)
+          .exchangePasswordReset(widget.requestId);
+      if (!mounted) return;
+      setState(() {
+        _token = token;
+        _exchanging = false;
+        _error = null;
+      });
+    } catch (exception) {
+      if (!mounted) return;
+      setState(() {
+        _exchanging = false;
         _error = exception.toString().replaceFirst('Exception: ', '');
       });
     }

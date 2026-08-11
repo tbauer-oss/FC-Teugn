@@ -2,6 +2,8 @@ import { createHash, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import {
   AccountStatus,
+  ConsentStatus,
+  ConsentType,
   EventType,
   PlayerStatus,
   Prisma,
@@ -25,6 +27,7 @@ import {
   fieldSizeForGameFormat,
   syncSquadWithTeamDefaultLineup,
 } from '../services/default-lineup.service';
+import { teamPhotoConsentStatus } from '../services/consent-policy';
 
 const staffRoles: Role[] = [
   Role.SUPER_ADMIN,
@@ -1224,6 +1227,15 @@ export async function uploadTeamPhoto(req: Request, res: Response) {
   if (!req.file || !imageTypes.has(req.file.mimetype)) {
     return res.status(400).json({ message: 'Bitte ein JPEG-, PNG- oder WebP-Bild auswählen.' });
   }
+  const consentStatus = await teamPhotoConsentStatus(teamId);
+  if (!consentStatus.allowed) {
+    return res.status(409).json({
+      message:
+        'Das Mannschaftsfoto kann erst gespeichert werden, wenn für alle aktiven Spieler die Einwilligung für Mannschaftsfotos im geschützten App-Bereich vorliegt.',
+      code: 'TEAM_PHOTO_CONSENT_REQUIRED',
+      missingPlayers: consentStatus.missing,
+    });
+  }
   const extension = req.file.mimetype === 'image/png' ? 'png'
     : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg';
   const stored = await objectStorage.uploadPrivate(
@@ -1402,6 +1414,9 @@ async function serializeTeam(team: {
   const teamCount = ageGroupTeamCount ?? await prisma.team.count({
     where: { ageGroupId: team.ageGroupId, deletedAt: null },
   });
+  const teamPhotoAllowed = team.photoAsset
+    ? (await teamPhotoConsentStatus(team.id)).allowed
+    : false;
   return {
     id: team.id,
     teamNumber: team.teamNumber,
@@ -1447,7 +1462,7 @@ async function serializeTeam(team: {
     dfbnetTeamId: team.dfbnetTeamId,
     bfvTeamUrl: team.bfvTeamUrl,
     isActive: team.isActive,
-    photoUrl: includePrivate && team.photoAsset
+    photoUrl: includePrivate && team.photoAsset && teamPhotoAllowed
       ? mediaAssetUrl(team.photoAsset.id)
       : null,
     staff: team.memberships.map((membership) => ({

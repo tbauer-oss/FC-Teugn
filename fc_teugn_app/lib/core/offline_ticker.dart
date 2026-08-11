@@ -114,13 +114,15 @@ class TickerOfflineQueue {
 
   static const _maximumActions = 100;
   static const _maximumAge = Duration(hours: 48);
-  static const _cacheAge = Duration(days: 7);
+  static const _cacheAge = Duration(hours: 48);
 
   final TickerOfflineStore _store;
 
   String _queueKey(String userId) => 'fc_teugn_ticker_queue_v1_$userId';
   String _cacheKey(String userId, String eventId) =>
       'fc_teugn_match_cache_v1_${userId}_$eventId';
+  String _cacheRegistryKey(String userId) =>
+      'fc_teugn_match_cache_registry_v1_$userId';
 
   Future<List<QueuedTickerAction>> pending({
     required String userId,
@@ -198,12 +200,15 @@ class TickerOfflineQueue {
   Future<void> cacheMatch({
     required String userId,
     required MatchdayModel match,
-  }) {
+  }) async {
     final snapshot = CachedMatchdaySnapshot.fromMatch(match);
-    return _store.write(
+    final registry = (await _readCacheRegistry(userId))..add(match.id);
+    await _store.write(
       _cacheKey(userId, match.id),
       jsonEncode(snapshot.toJson()),
     );
+    await _store.write(
+        _cacheRegistryKey(userId), jsonEncode(registry.toList()));
   }
 
   Future<MatchdayModel?> cachedMatch({
@@ -218,12 +223,44 @@ class TickerOfflineQueue {
       );
       if (snapshot.cachedAt.isBefore(DateTime.now().subtract(_cacheAge))) {
         await _store.delete(_cacheKey(userId, eventId));
+        await _removeFromCacheRegistry(userId, eventId);
         return null;
       }
       return snapshot.toMatch();
     } catch (_) {
       await _store.delete(_cacheKey(userId, eventId));
+      await _removeFromCacheRegistry(userId, eventId);
       return null;
+    }
+  }
+
+  Future<void> clearUser(String userId) async {
+    await _store.delete(_queueKey(userId));
+    final registry = await _readCacheRegistry(userId);
+    for (final eventId in registry) {
+      await _store.delete(_cacheKey(userId, eventId));
+    }
+    await _store.delete(_cacheRegistryKey(userId));
+  }
+
+  Future<Set<String>> _readCacheRegistry(String userId) async {
+    final raw = await _store.read(_cacheRegistryKey(userId));
+    if (raw == null) return <String>{};
+    try {
+      return (jsonDecode(raw) as List<dynamic>).whereType<String>().toSet();
+    } catch (_) {
+      await _store.delete(_cacheRegistryKey(userId));
+      return <String>{};
+    }
+  }
+
+  Future<void> _removeFromCacheRegistry(String userId, String eventId) async {
+    final registry = (await _readCacheRegistry(userId))..remove(eventId);
+    if (registry.isEmpty) {
+      await _store.delete(_cacheRegistryKey(userId));
+    } else {
+      await _store.write(
+          _cacheRegistryKey(userId), jsonEncode(registry.toList()));
     }
   }
 

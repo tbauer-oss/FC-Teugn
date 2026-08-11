@@ -25,8 +25,8 @@ void main() {
     expect(dashboard, contains('_locallyReadIds.add(item.id)'));
   });
 
-  test('password reset push keeps its public one-time link', () {
-    const action = '/reset-password?token=sicheres-token';
+  test('password reset push keeps only its device-bound request id', () {
+    const action = '/reset-password?requestId=reset-anfrage';
     expect(
       normalizePushActionRoute(action, isTrainer: false),
       action,

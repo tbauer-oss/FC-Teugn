@@ -546,6 +546,17 @@ class DataRepository {
     return Map<String, dynamic>.from(res.data as Map);
   }
 
+  Future<Map<String, dynamic>> requestDataSubjectRight({
+    required String type,
+    String? reason,
+  }) async {
+    final res = await client.dio.post(
+      '/auth/privacy/requests',
+      data: {'type': type, 'reason': reason},
+    );
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
   Future<List<Map<String, dynamic>>> adminPrivacyRequests() async {
     final res = await client.dio.get('/admin/privacy-requests');
     return (res.data as List<dynamic>)

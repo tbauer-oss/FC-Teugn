@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import {
   AttendanceStatus,
+  ConsentStatus,
+  ConsentType,
   Prisma,
   Role as PrismaRole,
 } from '@prisma/client';
@@ -13,6 +15,12 @@ import {
 import { hasPermission, Permission } from '../security/permissions';
 import { Role } from '../types/enums';
 import { accessibleTeamIds } from '../services/team-access';
+import {
+  ConsentSnapshot,
+  hasActiveConsent,
+  medicalProfileForConsent,
+} from '../services/consent-policy';
+import { mediaAssetUrl } from '../services/media-access';
 
 const EMERGENCY_ACCESS_MS = 5 * 60 * 1000;
 
@@ -168,6 +176,25 @@ export async function getEmergencyView(req: Request, res: Response) {
               lastName: true,
               preferredName: true,
               photoUrl: true,
+              photoAsset: { select: { id: true, deletedAt: true } },
+              consents: {
+                where: {
+                  type: {
+                    in: [ConsentType.PHOTO, ConsentType.MEDICAL_DATA] as ConsentType[],
+                  },
+                },
+                select: {
+                  type: true,
+                  status: true,
+                  expiresAt: true,
+                  evidence: {
+                    where: { action: ConsentStatus.GRANTED },
+                    orderBy: { createdAt: 'desc' },
+                    take: 1,
+                    select: { action: true, statement: true, createdAt: true },
+                  },
+                },
+              },
               parentLinks: {
                 orderBy: { createdAt: 'asc' },
                 select: {
@@ -195,6 +222,8 @@ export async function getEmergencyView(req: Request, res: Response) {
                   allergies: true,
                   medications: true,
                   conditions: true,
+                  physicianName: true,
+                  physicianPhone: true,
                   emergencyNotes: true,
                 },
               },
@@ -243,7 +272,15 @@ export async function getEmergencyView(req: Request, res: Response) {
       firstName: player.firstName,
       lastName: player.lastName,
       preferredName: player.preferredName,
-      photoUrl: player.photoUrl,
+      photoUrl: hasActiveConsent(
+        player.consents as ConsentSnapshot[],
+        ConsentType.PHOTO,
+        'APP_INTERNAL',
+      )
+        ? player.photoAsset && player.photoAsset.deletedAt === null
+          ? mediaAssetUrl(player.photoAsset.id, '5m')
+          : player.photoUrl
+        : null,
       guardians: player.parentLinks.map((link) => ({
         id: link.parent.id,
         name: link.parent.name,
@@ -253,7 +290,11 @@ export async function getEmergencyView(req: Request, res: Response) {
         canPickup: link.canPickup,
       })),
       emergencyContacts: player.emergencyContacts,
-      medical: player.medicalProfile,
+      medical: medicalProfileForConsent(
+        player.medicalProfile,
+        player.consents as ConsentSnapshot[],
+        true,
+      ),
     })),
   });
 }

@@ -7,6 +7,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/api_client.dart';
 import '../../core/loading/loading_controller.dart';
 import '../../core/models/user.dart';
+import '../../core/offline_outbox.dart';
+import '../../core/offline_ticker.dart';
 import '../../core/push/native_push_service.dart';
 
 class AuthState {
@@ -113,6 +115,41 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  Future<String> exchangePasswordReset(String requestId) async {
+    final deviceEndpoint = await nativePushService.currentTokenIfEnabled();
+    if (deviceEndpoint == null || deviceEndpoint.trim().isEmpty) {
+      throw Exception(
+        'Auf diesem Gerät ist kein aktiver Push-Zugang registriert. Bitte öffne die Nachricht auf dem zuvor angemeldeten Gerät oder wende dich an die Systemadministration.',
+      );
+    }
+    try {
+      final response = await ApiClient(
+        loadingController: _loadingController,
+      ).dio.post(
+            '/auth/password-reset/exchange',
+            data: {
+              'requestId': requestId,
+              'deviceEndpoint': deviceEndpoint,
+            },
+            options: Options(extra: const {
+              'loadingMessage': 'Sicherheitsanfrage wird geprüft …',
+              'loadingMode': 'background',
+            }),
+          );
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['token'] is String) {
+        return data['token'] as String;
+      }
+      throw Exception('Die Sicherheitsanfrage konnte nicht bestätigt werden.');
+    } catch (error) {
+      if (error is Exception && error is! DioException) rethrow;
+      throw Exception(_messageFromError(
+        error,
+        fallback: 'Die Sicherheitsanfrage konnte nicht bestätigt werden.',
+      ));
+    }
+  }
+
   Future<void> register({
     required String firstName,
     required String lastName,
@@ -170,6 +207,7 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    final userId = state.user?.id;
     final accessToken = state.accessToken;
     final nativeToken = await nativePushService.currentTokenIfEnabled();
     if (accessToken != null && nativeToken != null) {
@@ -195,12 +233,21 @@ class AuthController extends StateNotifier<AuthState> {
       } catch (_) {}
     }
     await _deleteStoredToken();
+    if (userId != null) {
+      await GeneralOfflineOutbox().clearUser(userId);
+      await TickerOfflineQueue().clearUser(userId);
+    }
     state = AuthState();
   }
 
   void clearSession() {
+    final userId = state.user?.id;
     unawaited(_deleteStoredToken());
     unawaited(nativePushService.disable(forgetPreference: false));
+    if (userId != null) {
+      unawaited(GeneralOfflineOutbox().clearUser(userId));
+      unawaited(TickerOfflineQueue().clearUser(userId));
+    }
     state = AuthState();
   }
 

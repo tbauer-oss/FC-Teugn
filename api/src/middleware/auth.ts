@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import { AccountStatus, Role } from '../types/enums';
 import {
   effectivePermissionsForUser,
@@ -7,9 +6,7 @@ import {
   Permission,
 } from '../security/permissions';
 import { prisma } from '../lib/prisma';
-
-const ACCESS_SECRET =
-  process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || 'access_secret';
+import { verifyAccessToken } from '../lib/jwt';
 
 export interface AuthUser {
   id: string;
@@ -35,7 +32,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
   const token = header.substring(7);
   try {
-    const decoded = jwt.verify(token, ACCESS_SECRET) as AuthUser;
+    const decoded = verifyAccessToken(token) as AuthUser;
     req.user = decoded;
     return next();
   } catch (err) {

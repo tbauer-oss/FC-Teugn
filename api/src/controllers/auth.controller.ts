@@ -9,6 +9,7 @@ import {
 } from '../lib/jwt';
 import { AccountStatus, Role } from '../types/enums';
 import {
+  ConsentRecordKind,
   ConsentDocumentType,
   GuardianRelationship,
   NotificationCategory,
@@ -305,11 +306,15 @@ export async function register(req: Request, res: Response) {
           userId: created.id,
           consentTextVersionId: privacyVersion.id,
           granted: true,
+          recordKind: ConsentRecordKind.ACKNOWLEDGEMENT,
+          source: 'REGISTRATION_NOTICE_ACKNOWLEDGEMENT',
         },
         {
           userId: created.id,
           consentTextVersionId: termsVersion.id,
           granted: true,
+          recordKind: ConsentRecordKind.AGREEMENT,
+          source: 'REGISTRATION_TERMS_AGREEMENT',
         },
         ...(pushVersion
           ? [
@@ -317,6 +322,8 @@ export async function register(req: Request, res: Response) {
                 userId: created.id,
                 consentTextVersionId: pushVersion.id,
                 granted: pushOptIn,
+                recordKind: ConsentRecordKind.CONSENT,
+                source: 'REGISTRATION_OPTIONAL_CONSENT',
               },
             ]
           : []),
@@ -554,7 +561,7 @@ export async function requestPasswordReset(req: Request, res: Response) {
       title: 'Passwort sicher zurücksetzen',
       body:
         'Tippe hier, um innerhalb von 15 Minuten ein neues Passwort festzulegen.',
-      actionUrl: `/reset-password?token=${encodeURIComponent(token)}`,
+      actionUrl: `/reset-password?requestId=${encodeURIComponent(reset.id)}`,
       entityType: 'PasswordReset',
       entityId: reset.id,
       expiresAt: reset.expiresAt,
@@ -566,6 +573,83 @@ export async function requestPasswordReset(req: Request, res: Response) {
     console.error('[password-reset] push delivery failed', error);
   }
   return res.status(202).json(passwordResetResponse);
+}
+
+export async function exchangePasswordReset(req: Request, res: Response) {
+  const requestId =
+    typeof req.body.requestId === 'string' ? req.body.requestId.trim() : '';
+  const deviceEndpoint =
+    typeof req.body.deviceEndpoint === 'string'
+      ? req.body.deviceEndpoint.trim()
+      : '';
+  if (!requestId || !deviceEndpoint || deviceEndpoint.length > 4096) {
+    return res.status(400).json({
+      message:
+        'Die Sicherheitsanfrage ist unvollständig. Bitte öffne die Pushnachricht auf dem registrierten Gerät erneut.',
+    });
+  }
+
+  const now = new Date();
+  const reset = await prisma.passwordResetToken.findUnique({
+    where: { id: requestId },
+    include: { user: { select: { status: true } } },
+  });
+  if (
+    !reset ||
+    reset.consumedAt ||
+    reset.expiresAt <= now ||
+    reset.user.status === AccountStatus.BLOCKED ||
+    reset.user.status === AccountStatus.REJECTED ||
+    reset.user.status === AccountStatus.ARCHIVED
+  ) {
+    return res.status(400).json({
+      message: 'Die Sicherheitsanfrage ist ungültig oder abgelaufen.',
+    });
+  }
+  const subscription = await prisma.pushSubscription.findFirst({
+    where: {
+      userId: reset.userId,
+      endpoint: deviceEndpoint,
+      isActive: true,
+      administrativelyDisabledAt: null,
+    },
+    select: { id: true },
+  });
+  if (
+    !subscription ||
+    (reset.claimedBySubscriptionId &&
+      reset.claimedBySubscriptionId !== subscription.id)
+  ) {
+    return res.status(403).json({
+      message:
+        'Der Passwortwechsel darf nur auf dem registrierten Gerät fortgesetzt werden, das die Anfrage zuerst geöffnet hat.',
+    });
+  }
+
+  const token = randomBytes(32).toString('base64url');
+  const claimed = await prisma.passwordResetToken.updateMany({
+    where: {
+      id: reset.id,
+      consumedAt: null,
+      expiresAt: { gt: now },
+      OR: [
+        { claimedBySubscriptionId: null },
+        { claimedBySubscriptionId: subscription.id },
+      ],
+    },
+    data: {
+      tokenHash: tokenHash(token),
+      exchangedAt: now,
+      claimedBySubscriptionId: subscription.id,
+    },
+  });
+  if (claimed.count !== 1) {
+    return res.status(409).json({
+      message:
+        'Die Sicherheitsanfrage wurde bereits auf einem anderen Gerät geöffnet.',
+    });
+  }
+  return res.json({ token, expiresAt: reset.expiresAt });
 }
 
 export async function confirmPasswordReset(req: Request, res: Response) {

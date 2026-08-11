@@ -13,6 +13,7 @@ export function authRateLimit(req: Request, res: Response, next: NextFunction) {
       '/login',
       '/register',
       '/password-reset/request',
+      '/password-reset/exchange',
       '/password-reset/confirm',
     ].includes(req.path)
   ) {

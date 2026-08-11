@@ -2682,7 +2682,7 @@ export async function publicCalendarSubscription(req: Request, res: Response) {
   lines.push('END:VCALENDAR');
   res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
   res.setHeader('Content-Disposition', 'inline; filename="fc-teugn-kalender.ics"');
-  res.setHeader('Cache-Control', 'private, max-age=300');
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   return res.send(`${lines.join('\r\n')}\r\n`);
 }
 

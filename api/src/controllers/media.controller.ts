@@ -33,7 +33,7 @@ export async function readMediaAsset(req: Request, res: Response) {
   res.set({
     'Content-Type': stored.contentType || asset.contentType,
     'Content-Length': String(stored.size || asset.size),
-    'Cache-Control': 'private, max-age=300',
+    'Cache-Control': 'private, no-store, max-age=0',
     ETag: stored.etag,
     'X-Content-Type-Options': 'nosniff',
   });

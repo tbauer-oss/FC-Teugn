@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import {
+  ConsentStatus,
+  ConsentType,
   DominantFoot,
   MatchStatus,
   PlayerGender,
@@ -18,6 +20,11 @@ import {
   youthPlayerPoolTeamIds,
 } from '../services/team-access';
 import { mediaAssetUrl } from '../services/media-access';
+import {
+  ConsentSnapshot,
+  hasActiveConsent,
+  medicalProfileForConsent,
+} from '../services/consent-policy';
 
 const statisticGoalTypes: TickerEventType[] = [
   TickerEventType.HOME_GOAL,
@@ -47,6 +54,24 @@ const publicPlayerSelect = {
     select: { id: true, deletedAt: true },
   },
   photoUrl: true,
+  consents: {
+    where: {
+      type: {
+        in: [ConsentType.PHOTO, ConsentType.MEDICAL_DATA] as ConsentType[],
+      },
+    },
+    select: {
+      type: true,
+      status: true,
+      expiresAt: true,
+      evidence: {
+        where: { action: ConsentStatus.GRANTED },
+        orderBy: { createdAt: 'desc' as const },
+        take: 1,
+        select: { action: true, statement: true, createdAt: true },
+      },
+    },
+  },
   team: {
     select: {
       id: true,
@@ -189,6 +214,7 @@ function withCareerStatistics<T extends {
   tickerAssists: PlayerTickerStatisticForCareer[];
   photoAsset?: { id: string; deletedAt: Date | null } | null;
   photoUrl?: string | null;
+  consents?: ConsentSnapshot[];
   position?: string | null;
   secondaryPosition?: string | null;
 }>(player: T) {
@@ -198,6 +224,7 @@ function withCareerStatistics<T extends {
     tickerAssists,
     photoAsset,
     photoUrl,
+    consents,
     ...data
   } = player;
   const bySeason = new Map<
@@ -261,10 +288,11 @@ function withCareerStatistics<T extends {
   }
   return {
     ...data,
-    photoUrl:
-      photoAsset && photoAsset.deletedAt === null
+    photoUrl: hasActiveConsent(consents, ConsentType.PHOTO, 'APP_INTERNAL')
+      ? photoAsset && photoAsset.deletedAt === null
         ? mediaAssetUrl(photoAsset.id, '12h')
-        : photoUrl ?? null,
+        : photoUrl ?? null
+      : null,
     statistics: {
       goals: tickerGoals.length,
       assists: tickerAssists.length,
@@ -441,6 +469,7 @@ export async function getPlayer(req: Request, res: Response) {
                   templateVersion: true,
                   signerName: true,
                   documentHash: true,
+                  statement: true,
                   createdAt: true,
                 },
               },
@@ -459,26 +488,42 @@ export async function getPlayer(req: Request, res: Response) {
     },
   });
 
+  const photoConsent = hasActiveConsent(
+    player?.consents as ConsentSnapshot[] | undefined,
+    ConsentType.PHOTO,
+    'APP_INTERNAL',
+  );
+  const medicalConsent = hasActiveConsent(
+    player?.consents as ConsentSnapshot[] | undefined,
+    ConsentType.MEDICAL_DATA,
+  );
+  const serialized = player ? withCareerStatistics(player) : player;
   return res.json({
-    ...(player ? withCareerStatistics(player) : player),
+    ...serialized,
     photoAsset: undefined,
-    photoUrl:
-      player?.photoAsset && player.photoAsset.deletedAt === null
-        ? mediaAssetUrl(player.photoAsset.id)
-        : player?.photoUrl ?? null,
+    consents: canViewSensitive ? player?.consents : undefined,
+    medicalProfile: canViewSensitive
+      ? medicalProfileForConsent(
+          player?.medicalProfile,
+          player?.consents as ConsentSnapshot[] | undefined,
+          guardian?.isLegalGuardian !== true && !isPlayerRole(user.role),
+        )
+      : undefined,
     capabilities: {
       canEdit: hasPermission(user.role, Permission.MANAGE_PLAYERS),
       canViewSensitive,
       canEditSensitive:
-        hasPermission(user.role, Permission.MANAGE_SENSITIVE_PLAYER) ||
-        guardian?.isLegalGuardian === true,
+        medicalConsent &&
+        (hasPermission(user.role, Permission.MANAGE_SENSITIVE_PLAYER) ||
+          guardian?.isLegalGuardian === true),
       canDigitallyConsent: guardian?.isLegalGuardian === true,
       canManageDocuments:
         hasPermission(user.role, Permission.MANAGE_DOCUMENTS) ||
         guardian?.isLegalGuardian === true,
       canManagePhoto:
-        hasPermission(user.role, Permission.MANAGE_PLAYERS) ||
-        guardian?.isLegalGuardian === true,
+        photoConsent &&
+        (hasPermission(user.role, Permission.MANAGE_PLAYERS) ||
+          guardian?.isLegalGuardian === true),
       canAddDevelopment: hasPermission(user.role, Permission.MANAGE_DEVELOPMENT),
     },
   });
@@ -627,6 +672,50 @@ export async function upsertMedicalProfile(req: Request, res: Response) {
   const data = Object.fromEntries(
     fields.map((field) => [field, cleanOptionalString(req.body[field])]),
   );
+  const requiredSelections = new Set<string>();
+  if (data.allergies) requiredSelections.add('ALLERGIES');
+  if (data.medications) requiredSelections.add('MEDICATION');
+  if (data.conditions) requiredSelections.add('CONDITIONS');
+  if (data.physicianName || data.physicianPhone || data.emergencyNotes) {
+    requiredSelections.add('EMERGENCY');
+  }
+  const consent = await prisma.playerConsent.findUnique({
+    where: { playerId_type: { playerId: id, type: ConsentType.MEDICAL_DATA } },
+    select: {
+      type: true,
+      status: true,
+      expiresAt: true,
+      evidence: {
+        where: { action: ConsentStatus.GRANTED },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { action: true, statement: true, createdAt: true },
+      },
+    },
+  });
+  const consentList = consent ? [consent] : [];
+  const missingSelection = [...requiredSelections].find(
+    (selection) =>
+      !hasActiveConsent(consentList, ConsentType.MEDICAL_DATA, selection),
+  );
+  if (missingSelection) {
+    return res.status(409).json({
+      message:
+        'Diese Gesundheitsangabe ist nicht vom aktuell unterschriebenen Einwilligungsumfang abgedeckt.',
+      code: 'MEDICAL_CONSENT_REQUIRED',
+    });
+  }
+  if (
+    requiredSelections.size > 0 &&
+    guardian?.isLegalGuardian !== true &&
+    !hasActiveConsent(consentList, ConsentType.MEDICAL_DATA, 'AUTHORIZED_STAFF')
+  ) {
+    return res.status(409).json({
+      message:
+        'Die Einwilligung erlaubt aktuell keinen Zugriff durch Trainer oder Vereinsverantwortliche.',
+      code: 'MEDICAL_STAFF_CONSENT_REQUIRED',
+    });
+  }
   const medical = await prisma.$transaction(async (tx) => {
     const result = await tx.playerMedicalProfile.upsert({
       where: { playerId: id },
@@ -724,15 +813,26 @@ export async function upsertConsent(req: Request, res: Response) {
     return res.status(400).json({ message: 'Unbekannte Einwilligungsart.' });
   }
   const status = validConsentStatus(req.body.status);
+  if (status === 'GRANTED') {
+    return res.status(409).json({
+      message:
+        'Eine Einwilligung kann nur über die aktuelle Vorlage und eine digitale Unterschrift erteilt werden.',
+      code: 'DIGITAL_CONSENT_REQUIRED',
+    });
+  }
+  if (status === 'REVOKED') {
+    return res.status(409).json({
+      message: 'Bitte den dokumentierten Widerruf verwenden.',
+      code: 'DOCUMENTED_REVOCATION_REQUIRED',
+    });
+  }
   const now = new Date();
   const consent = await prisma.$transaction(async (tx) => {
     const result = await tx.playerConsent.upsert({
       where: { playerId_type: { playerId: id, type: consentType } },
       update: {
         status,
-        grantedBy: status === 'GRANTED' ? user.id : undefined,
-        grantedAt: status === 'GRANTED' ? now : undefined,
-        revokedAt: status === 'REVOKED' ? now : null,
+        revokedAt: null,
         expiresAt: validDate(req.body.expiresAt),
         note: cleanOptionalString(req.body.note),
       },
@@ -740,9 +840,9 @@ export async function upsertConsent(req: Request, res: Response) {
         playerId: id,
         type: consentType,
         status,
-        grantedBy: status === 'GRANTED' ? user.id : null,
-        grantedAt: status === 'GRANTED' ? now : null,
-        revokedAt: status === 'REVOKED' ? now : null,
+        grantedBy: null,
+        grantedAt: null,
+        revokedAt: null,
         expiresAt: validDate(req.body.expiresAt),
         note: cleanOptionalString(req.body.note),
       },

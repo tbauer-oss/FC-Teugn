@@ -79,6 +79,7 @@ export function androidPushMessage(
   token: string,
   notification: {
     id: string;
+    category?: NotificationCategory;
     title: string;
     body: string;
     actionUrl?: string | null;
@@ -86,15 +87,16 @@ export function androidPushMessage(
     entityId?: string | null;
   },
 ) {
+  const preview = externalPushPreview(notification);
   return {
     token,
     notification: {
-      title: notification.title,
-      body: notification.body,
+      title: preview.title,
+      body: preview.body,
     },
     data: {
-      title: notification.title,
-      body: notification.body,
+      title: preview.title,
+      body: preview.body,
       actionUrl: notification.actionUrl ?? '',
       notificationId: notification.id,
       entityType: notification.entityType ?? '',
@@ -220,6 +222,26 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
     deliveries: deliveryCount,
     ...deliverySummary,
   };
+}
+
+export function externalPushPreview(notification: {
+  category?: NotificationCategory;
+  entityType?: string | null;
+}) {
+  const category = notification.category;
+  const body = category === NotificationCategory.EVENT_REMINDER
+    ? 'Eine neue Terminerinnerung ist in der App verfügbar.'
+    : category === NotificationCategory.MATCH ||
+        category === NotificationCategory.NOMINATION ||
+        category === NotificationCategory.LINEUP ||
+        category === NotificationCategory.LIVE_TICKER
+      ? 'Eine neue Spielinformation ist in der App verfügbar.'
+      : category === NotificationCategory.SUPPORT
+        ? 'Eine neue Supportinformation ist in der App verfügbar.'
+        : notification.entityType === 'PasswordReset'
+          ? 'Eine Sicherheitsinformation ist in der App verfügbar.'
+          : 'Eine neue Vereinsinformation ist in der App verfügbar.';
+  return { title: 'FC Teugn Talents', body };
 }
 
 export async function sendAdminTestPush(actorName: string) {
@@ -355,8 +377,7 @@ export async function deliverPush(deliveryId: string) {
         },
       },
       JSON.stringify({
-        title: delivery.notification.title,
-        body: delivery.notification.body,
+        ...externalPushPreview(delivery.notification),
         actionUrl: delivery.notification.actionUrl,
         notificationId: delivery.notification.id,
       }),

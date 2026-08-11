@@ -61,6 +61,10 @@ test('Android notification uses the app channel and retains navigation data', ()
   );
   assert.equal(message.data.actionUrl, '/messages/announcement-1');
   assert.equal(message.data.notificationId, 'notification-1');
+  assert.equal(message.notification.title, 'FC Teugn Talents');
+  assert.equal(message.data.title, 'FC Teugn Talents');
+  assert.doesNotMatch(message.notification.body, /18:00/);
+  assert.doesNotMatch(message.data.body, /Training geändert/);
   assert.equal(message.android.priority, 'high');
 });
 

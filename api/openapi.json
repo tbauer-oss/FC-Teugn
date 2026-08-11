@@ -91,6 +91,13 @@
         "summary": "Eigene Datenschutzanträge",
         "security": [{"bearerAuth": []}],
         "responses": {"200": {"description": "Antragsverlauf"}}
+      },
+      "post": {
+        "tags": ["Datenschutz"],
+        "summary": "Betroffenenrecht beantragen",
+        "description": "Erfasst Auskunft, Datenübertragbarkeit, Berichtigung, Einschränkung, Widerspruch oder Widerruf auditierbar.",
+        "security": [{"bearerAuth": []}],
+        "responses": {"201": {"description": "Antrag erfasst"}, "409": {"description": "Offener gleichartiger Antrag existiert"}}
       }
     },
     "/auth/privacy/erasure-requests": {

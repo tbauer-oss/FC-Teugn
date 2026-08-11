@@ -104,6 +104,8 @@ class GeneralOfflineOutbox {
     ]);
   }
 
+  Future<void> clearUser(String userId) => _storage.delete(key: _key(userId));
+
   Future<int> synchronize(Dio dio, String userId) async {
     if (_syncing) return 0;
     _syncing = true;

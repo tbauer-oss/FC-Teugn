@@ -29,10 +29,15 @@ test('password reset uses hashed expiring one-time tokens and push delivery', ()
   assert.match(schema, /tokenHash\s+String\s+@unique/);
   assert.match(schema, /expiresAt\s+DateTime/);
   assert.match(authRoutes, /password-reset\/request/);
+  assert.match(authRoutes, /password-reset\/exchange/);
   assert.match(authRoutes, /password-reset\/confirm/);
   assert.match(auth, /randomBytes\(32\)/);
   assert.match(auth, /tokenHash: tokenHash\(token\)/);
   assert.match(auth, /forcePush: true/);
+  assert.match(auth, /reset-password\?requestId=/);
+  assert.doesNotMatch(auth, /reset-password\?token=/);
+  assert.match(auth, /claimedBySubscriptionId/);
+  assert.match(auth, /deviceEndpoint/);
   assert.match(auth, /expiresAt: \{ gt: now \}/);
   assert.match(auth, /refreshToken\.updateMany/);
 });

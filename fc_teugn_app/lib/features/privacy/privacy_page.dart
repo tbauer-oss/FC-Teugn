@@ -56,12 +56,15 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
     String action,
   ) async {
     final user = request['user'] as Map<String, dynamic>? ?? const {};
+    final erasure = request['type'] == 'ERASURE';
     final controller = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(action == 'complete'
-            ? '${user['name']} anonymisieren?'
+            ? erasure
+                ? '${user['name']} anonymisieren?'
+                : 'Antrag abschließen'
             : action == 'reject'
                 ? 'Antrag ablehnen'
                 : 'Prüfung beginnen'),
@@ -70,7 +73,7 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (action == 'complete')
+              if (action == 'complete' && erasure)
                 const Padding(
                   padding: EdgeInsets.only(bottom: 14),
                   child: Text(
@@ -104,7 +107,7 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
     }
     try {
       final repository = ref.read(repositoryProvider);
-      if (action == 'complete') {
+      if (action == 'complete' && erasure) {
         await repository.completeAccountErasure(
           requestId: request['id'] as String,
           reviewNote: controller.text.trim(),
@@ -112,7 +115,11 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
       } else {
         await repository.reviewPrivacyRequest(
           requestId: request['id'] as String,
-          status: action == 'reject' ? 'REJECTED' : 'IN_REVIEW',
+          status: action == 'reject'
+              ? 'REJECTED'
+              : action == 'complete'
+                  ? 'COMPLETED'
+                  : 'IN_REVIEW',
           reviewNote: controller.text.trim(),
         );
       }
@@ -197,6 +204,24 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
     }
   }
 
+  Future<void> _requestRight() async {
+    final result = await showDialog<_RightRequestDraft>(
+      context: context,
+      builder: (_) => const _RightRequestDialog(),
+    );
+    if (result == null) return;
+    try {
+      await ref.read(repositoryProvider).requestDataSubjectRight(
+            type: result.type,
+            reason: result.reason,
+          );
+      await _load();
+      _message('Ihr Datenschutzantrag wurde nachvollziehbar erfasst.');
+    } on DioException catch (error) {
+      _message(_apiMessage(error) ?? 'Der Antrag konnte nicht erfasst werden.');
+    }
+  }
+
   String? _apiMessage(DioException error) {
     final data = error.response?.data;
     return data is Map<String, dynamic> ? data['message'] as String? : null;
@@ -256,6 +281,18 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
                           ? 'Antrag wird geprüft'
                           : 'Löschung beantragen',
                       onPressed: openRequest ? null : _requestErasure,
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _PrivacyActionCard(
+                      icon: Icons.rule_folder_outlined,
+                      color: AppColors.success,
+                      title: 'Weitere Betroffenenrechte',
+                      description:
+                          'Berichtigung, Einschränkung, Widerspruch, Datenübertragbarkeit oder Widerruf nachvollziehbar beantragen.',
+                      buttonLabel: 'Antrag auswählen',
+                      onPressed: _requestRight,
                     ),
                   ),
                 ],
@@ -477,7 +514,7 @@ class PrivacyInformationCenter extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Die folgenden Informationen ergänzen die zweckbezogenen Einwilligungen und Datenschutzhinweise in der App.',
+          'Die folgenden Informationen ergänzen die zweckbezogenen Einwilligungen und Datenschutzhinweise in der App. Stand: 11.08.2026.',
         ),
         const SizedBox(height: 10),
         const _PrivacyDisclosure(
@@ -534,12 +571,12 @@ class PrivacyInformationCenter extends StatelessWidget {
             _PrivacyParagraph(
               title: 'Technische Empfänger',
               text:
-                  'Für Hosting, Datenbank, private Dateien und Pushzustellung können vertraglich eingebundene technische Dienstleister eingesetzt werden. Eine Weitergabe zu Werbung oder ein Verkauf personenbezogener Daten findet nicht statt.',
+                  'Aktuell werden Vercel für App-/API-Hosting und private Dateispeicherung, Neon für die PostgreSQL-Datenbank sowie Google Firebase Cloud Messaging für freiwillige Pushzustellung eingesetzt. Das BfV-Widget lädt offizielle Verbandsinhalte erst beim Öffnen der entsprechenden Ansicht. Eine Weitergabe zu Werbung oder ein Verkauf personenbezogener Daten findet nicht statt.',
             ),
             _PrivacyParagraph(
               title: 'Drittlandverarbeitung',
               text:
-                  'Soweit ein technischer Dienst eine Verarbeitung außerhalb des Europäischen Wirtschaftsraums erfordert, erfolgt sie nur unter den Voraussetzungen der Art. 44 ff. DSGVO, etwa auf Grundlage eines Angemessenheitsbeschlusses oder geeigneter Garantien. Einzelheiten können beim Verein angefragt werden.',
+                  'Bei Anbietern mit möglicher Verarbeitung außerhalb des Europäischen Wirtschaftsraums werden die Voraussetzungen der Art. 44 ff. DSGVO geprüft und vertraglich abgesichert, etwa durch einen Angemessenheitsbeschluss und/oder EU-Standardvertragsklauseln einschließlich erforderlicher Zusatzmaßnahmen. Die konkrete eingesetzte Region und Vertragsgrundlage dokumentiert der Verein im Verzeichnis der Verarbeitungstätigkeiten.',
             ),
             _PrivacyParagraph(
               title: 'Lösch- und Speicherkriterien',
@@ -828,6 +865,7 @@ class _AdminRequestTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = request['user'] as Map<String, dynamic>? ?? const {};
     final status = request['status'] as String? ?? 'RECEIVED';
+    final type = request['type'] as String? ?? 'ERASURE';
     final closed = status == 'COMPLETED' || status == 'REJECTED';
     return Padding(
       padding: const EdgeInsets.all(14),
@@ -841,7 +879,8 @@ class _AdminRequestTile extends StatelessWidget {
               children: [
                 Text(user['name'] as String? ?? 'Unbekannt',
                     style: Theme.of(context).textTheme.titleMedium),
-                Text('${user['email'] ?? ''} · $status'),
+                Text(
+                    '${_privacyRequestLabel(type)} · ${user['email'] ?? ''} · $status'),
                 if (request['reason'] != null)
                   Text(request['reason'] as String,
                       style: const TextStyle(color: AppColors.muted)),
@@ -862,8 +901,11 @@ class _AdminRequestTile extends StatelessWidget {
                       value: 'review', child: Text('Prüfung beginnen')),
                 const PopupMenuItem(
                     value: 'reject', child: Text('Antrag ablehnen')),
-                const PopupMenuItem(
-                    value: 'complete', child: Text('Konto anonymisieren')),
+                PopupMenuItem(
+                    value: 'complete',
+                    child: Text(type == 'ERASURE'
+                        ? 'Konto anonymisieren'
+                        : 'Antrag abschließen')),
               ],
             ),
         ],
@@ -922,6 +964,7 @@ class _RequestTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = request['status'] as String? ?? 'RECEIVED';
+    final type = request['type'] as String? ?? 'ERASURE';
     final label = switch (status) {
       'IN_REVIEW' => 'In Prüfung',
       'COMPLETED' => 'Abgeschlossen',
@@ -931,7 +974,7 @@ class _RequestTile extends StatelessWidget {
     final createdAt = DateTime.tryParse(request['createdAt'] as String? ?? '');
     return ListTile(
       leading: const Icon(Icons.description_outlined),
-      title: const Text('Antrag auf Kontolöschung'),
+      title: Text(_privacyRequestLabel(type)),
       subtitle: Text(
         '${createdAt == null ? '' : '${createdAt.day}.${createdAt.month}.${createdAt.year} · '}$label'
         '${request['reviewNote'] == null ? '' : '\n${request['reviewNote']}'}',
@@ -939,6 +982,108 @@ class _RequestTile extends StatelessWidget {
       trailing: Chip(label: Text(label)),
     );
   }
+}
+
+String _privacyRequestLabel(String type) => switch (type) {
+      'ACCESS' => 'Auskunftsantrag',
+      'PORTABILITY' => 'Datenübertragbarkeit',
+      'RECTIFICATION' => 'Berichtigungsantrag',
+      'RESTRICTION' => 'Einschränkung der Verarbeitung',
+      'OBJECTION' => 'Widerspruch gegen Verarbeitung',
+      'CONSENT_WITHDRAWAL' => 'Widerruf einer Einwilligung',
+      _ => 'Antrag auf Kontolöschung',
+    };
+
+class _RightRequestDialog extends StatefulWidget {
+  const _RightRequestDialog();
+
+  @override
+  State<_RightRequestDialog> createState() => _RightRequestDialogState();
+}
+
+class _RightRequestDialogState extends State<_RightRequestDialog> {
+  String _type = 'RECTIFICATION';
+  final _reason = TextEditingController();
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Betroffenenrecht ausüben'),
+        content: SizedBox(
+          width: 540,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: _type,
+                decoration: const InputDecoration(labelText: 'Art des Antrags'),
+                items: const [
+                  DropdownMenuItem(value: 'ACCESS', child: Text('Auskunft')),
+                  DropdownMenuItem(
+                      value: 'PORTABILITY',
+                      child: Text('Datenübertragbarkeit')),
+                  DropdownMenuItem(
+                      value: 'RECTIFICATION', child: Text('Berichtigung')),
+                  DropdownMenuItem(
+                      value: 'RESTRICTION',
+                      child: Text('Verarbeitung einschränken')),
+                  DropdownMenuItem(
+                      value: 'OBJECTION', child: Text('Widerspruch')),
+                  DropdownMenuItem(
+                      value: 'CONSENT_WITHDRAWAL',
+                      child: Text('Einwilligung widerrufen')),
+                ],
+                onChanged: (value) => setState(() => _type = value ?? _type),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _reason,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Betroffene Daten / Erläuterung',
+                  helperText: 'Bei Auskunft und Datenübertragbarkeit optional.',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final reason = _reason.text.trim();
+              if (!['ACCESS', 'PORTABILITY'].contains(_type) &&
+                  reason.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Bitte den Antrag kurz erläutern.')),
+                );
+                return;
+              }
+              Navigator.pop(
+                context,
+                _RightRequestDraft(
+                    type: _type, reason: reason.isEmpty ? null : reason),
+              );
+            },
+            child: const Text('Antrag senden'),
+          ),
+        ],
+      );
+}
+
+class _RightRequestDraft {
+  const _RightRequestDraft({required this.type, this.reason});
+  final String type;
+  final String? reason;
 }
 
 class _ErasureDialog extends StatefulWidget {

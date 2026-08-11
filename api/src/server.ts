@@ -21,11 +21,14 @@ import { authRateLimit } from './middleware/rate-limit';
 import openApiDocument from '../openapi.json';
 import { readMediaAsset } from './controllers/media.controller';
 import { asyncHandler } from './middleware/async-handler';
+import { securityHeaders } from './middleware/security-headers';
 
 dotenv.config();
 
 const app = express();
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use(securityHeaders);
 
 const defaultAllowedOrigins = [
   'https://fcteugnapp.vercel.app',
@@ -37,7 +40,8 @@ const defaultAllowedOrigins = [
 const envAllowedOrigins = process.env.CORS_ORIGINS?.split(',')
   .map((o) => o.trim())
   .filter(Boolean);
-const allowAllOrigins = envAllowedOrigins?.includes('*') ?? false;
+const allowAllOrigins =
+  process.env.NODE_ENV !== 'production' && (envAllowedOrigins?.includes('*') ?? false);
 const allowedOrigins = Array.from(
   new Set([...(envAllowedOrigins ?? []).filter((origin) => origin !== '*'), ...defaultAllowedOrigins]),
 );
@@ -68,7 +72,7 @@ app.use(
         return;
       }
 
-      if (allowAllOrigins || allowedOrigins.length === 0 || isAllowedFrontendOrigin(origin)) {
+      if (allowAllOrigins || isAllowedFrontendOrigin(origin)) {
         callback(null, true);
         return;
       }
@@ -78,7 +82,6 @@ app.use(
     credentials: true,
   }),
 );
-app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/', (_req, res) => res.json({ status: 'ok' }));

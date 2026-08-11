@@ -408,8 +408,19 @@ enum TeamGameFormat {
 }
 
 enum DataSubjectRequestType {
+  ACCESS
+  PORTABILITY
   ERASURE
   RECTIFICATION
+  RESTRICTION
+  OBJECTION
+  CONSENT_WITHDRAWAL
+}
+
+enum ConsentRecordKind {
+  ACKNOWLEDGEMENT
+  AGREEMENT
+  CONSENT
 }
 
 enum DataSubjectRequestStatus {
@@ -626,7 +637,7 @@ model User {
   attendanceReplies            Attendance[]             @relation("AttendanceResponder")
   carpoolOffers                CarpoolOffer[]           @relation("CarpoolDriver")
   carpoolRequests              CarpoolPassenger[]       @relation("CarpoolRequester")
-  carpoolNeeds                 CarpoolNeed[]             @relation("CarpoolNeedRequester")
+  carpoolNeeds                 CarpoolNeed[]            @relation("CarpoolNeedRequester")
   eventReminders               EventReminder[]          @relation("EventReminderRecipient")
   calendarToken                String?                  @unique
   tickerEvents                 LiveTickerEvent[]        @relation("TickerEventAuthor")
@@ -643,7 +654,7 @@ model User {
   notificationPreferences      NotificationPreference[]
   notificationDeliveries       NotificationDelivery[]
   importJobs                   ImportJob[]
-  createdBfvSyncConfigs        BfvTeamSync[]             @relation("BfvSyncCreator")
+  createdBfvSyncConfigs        BfvTeamSync[]            @relation("BfvSyncCreator")
   seasonTransitions            SeasonTransition[]       @relation("SeasonTransitionActor")
   createdRuleProfiles          RuleProfile[]            @relation("RuleProfileCreator")
   approvedRuleProfiles         RuleProfile[]            @relation("RuleProfileApprover")
@@ -733,15 +744,18 @@ model RefreshToken {
 }
 
 model PasswordResetToken {
-  id         String    @id @default(cuid())
-  userId     String
-  tokenHash  String    @unique
-  expiresAt  DateTime
-  consumedAt DateTime?
-  createdAt  DateTime  @default(now())
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                      String    @id @default(cuid())
+  userId                  String
+  tokenHash               String    @unique
+  expiresAt               DateTime
+  consumedAt              DateTime?
+  exchangedAt             DateTime?
+  claimedBySubscriptionId String?
+  createdAt               DateTime  @default(now())
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, consumedAt, expiresAt])
+  @@index([claimedBySubscriptionId, exchangedAt])
 }
 
 model ConsentTextVersion {
@@ -767,6 +781,7 @@ model UserConsent {
   granted              Boolean
   grantedAt            DateTime           @default(now())
   revokedAt            DateTime?
+  recordKind           ConsentRecordKind  @default(CONSENT)
   source               String             @default("REGISTRATION")
   createdAt            DateTime           @default(now())
   user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1074,68 +1089,68 @@ model PlayerConsentEvidence {
 }
 
 model Event {
-  id                    String                 @id @default(cuid())
-  teamId                String
-  seriesId              String?
-  type                  EventType
-  category              EventCategory          @default(SPECIAL_EVENT)
-  status                EventStatus            @default(SCHEDULED)
-  communicationStatus   EventCommunicationStatus @default(DRAFT)
-  visibility            EventVisibility        @default(TEAM)
-  title                 String
-  startAt               DateTime
-  endAt                 DateTime?
-  meetingAt             DateTime?
-  meetingLocation       String?
-  location              String
-  address               String?
-  mapUrl                String?
-  homeAway              HomeAway?
-  opponent              String?
-  venue                 String?
-  contactName           String?
-  contactPhone          String?
-  description           String?
-  equipment             String?
-  clothing              String?
-  catering              String?
-  carpoolRequired       Boolean                @default(false)
-  maxParticipants       Int?
-  responseDeadline      DateTime?
-  internalNote          String?
-  reminderMinutes       Int[]                  @default([])
-  reminderPushEnabled   Boolean                @default(true)
-  isSeriesException     Boolean                @default(false)
-  isHiddenRegularOccurrence Boolean            @default(false)
-  internalPublishedAt   DateTime?
-  familyReleasedAt      DateTime?
-  familyReleaseAudience String?
-  cancellationReason    String?
-  cancelledAt           DateTime?
-  attendanceFinalized   Boolean                @default(false)
-  reminderSyncPendingAt DateTime?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  team                  Team                   @relation(fields: [teamId], references: [id])
-  series                EventSeries?           @relation(fields: [seriesId], references: [id], onDelete: SetNull)
-  targetTeams           EventTargetTeam[]
-  attachments           EventAttachment[]
-  attendance            Attendance[]
-  carpoolOffers         CarpoolOffer[]
-  carpoolNeeds          CarpoolNeed[]
-  reminders             EventReminder[]
-  matchDetails          MatchDetails?
-  squads                Squad[]
-  liveTicker            LiveTicker?
-  trainingPlan          TrainingPlan?
-  teamMatchStatistic    TeamMatchStatistic?
-  playerMatchStats      PlayerMatchStatistic[]
-  tickerDelegate        MatchTickerDelegate?
-  pitchConflictRequests PitchConflictRequest[]
-  participants          EventParticipant[]
-  scheduledReminders    ScheduledReminder[]
-  leagueMatch           LeagueMatch?
-  playerRatings         PlayerMatchRating[]
+  id                        String                   @id @default(cuid())
+  teamId                    String
+  seriesId                  String?
+  type                      EventType
+  category                  EventCategory            @default(SPECIAL_EVENT)
+  status                    EventStatus              @default(SCHEDULED)
+  communicationStatus       EventCommunicationStatus @default(DRAFT)
+  visibility                EventVisibility          @default(TEAM)
+  title                     String
+  startAt                   DateTime
+  endAt                     DateTime?
+  meetingAt                 DateTime?
+  meetingLocation           String?
+  location                  String
+  address                   String?
+  mapUrl                    String?
+  homeAway                  HomeAway?
+  opponent                  String?
+  venue                     String?
+  contactName               String?
+  contactPhone              String?
+  description               String?
+  equipment                 String?
+  clothing                  String?
+  catering                  String?
+  carpoolRequired           Boolean                  @default(false)
+  maxParticipants           Int?
+  responseDeadline          DateTime?
+  internalNote              String?
+  reminderMinutes           Int[]                    @default([])
+  reminderPushEnabled       Boolean                  @default(true)
+  isSeriesException         Boolean                  @default(false)
+  isHiddenRegularOccurrence Boolean                  @default(false)
+  internalPublishedAt       DateTime?
+  familyReleasedAt          DateTime?
+  familyReleaseAudience     String?
+  cancellationReason        String?
+  cancelledAt               DateTime?
+  attendanceFinalized       Boolean                  @default(false)
+  reminderSyncPendingAt     DateTime?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  team                      Team                     @relation(fields: [teamId], references: [id])
+  series                    EventSeries?             @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  targetTeams               EventTargetTeam[]
+  attachments               EventAttachment[]
+  attendance                Attendance[]
+  carpoolOffers             CarpoolOffer[]
+  carpoolNeeds              CarpoolNeed[]
+  reminders                 EventReminder[]
+  matchDetails              MatchDetails?
+  squads                    Squad[]
+  liveTicker                LiveTicker?
+  trainingPlan              TrainingPlan?
+  teamMatchStatistic        TeamMatchStatistic?
+  playerMatchStats          PlayerMatchStatistic[]
+  tickerDelegate            MatchTickerDelegate?
+  pitchConflictRequests     PitchConflictRequest[]
+  participants              EventParticipant[]
+  scheduledReminders        ScheduledReminder[]
+  leagueMatch               LeagueMatch?
+  playerRatings             PlayerMatchRating[]
 
   @@index([teamId, startAt])
   @@index([seriesId, startAt])
@@ -1299,21 +1314,21 @@ model Opponent {
 }
 
 model OpponentClub {
-  id                 String      @id @default(cuid())
+  id                 String     @id @default(cuid())
   organizationClubId String
   name               String
   shortName          String?
   normalizedName     String
   venue              String?
   address            String?
-  logoAssetId        String?     @unique
+  logoAssetId        String?    @unique
   createdById        String
   archivedAt         DateTime?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
-  organizationClub   Club        @relation("OrganizationOpponentClubs", fields: [organizationClubId], references: [id], onDelete: Cascade)
-  logoAsset          FileAsset?  @relation("OpponentClubLogoAsset", fields: [logoAssetId], references: [id], onDelete: SetNull)
-  createdBy          User        @relation("OpponentClubCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  organizationClub   Club       @relation("OrganizationOpponentClubs", fields: [organizationClubId], references: [id], onDelete: Cascade)
+  logoAsset          FileAsset? @relation("OpponentClubLogoAsset", fields: [logoAssetId], references: [id], onDelete: SetNull)
+  createdBy          User       @relation("OpponentClubCreator", fields: [createdById], references: [id], onDelete: Restrict)
   teams              Opponent[]
 
   @@unique([organizationClubId, normalizedName])
@@ -2002,9 +2017,9 @@ model NotificationDelivery {
   subscription   PushSubscription?          @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([notificationId, subscriptionId])
   @@index([status, createdAt])
   @@index([userId, createdAt])
-  @@unique([notificationId, subscriptionId])
 }
 
 model ImportJob {
@@ -2068,26 +2083,26 @@ model ExternalReference {
 }
 
 model BfvTeamSync {
-  id                   String   @id @default(cuid())
-  teamId               String   @unique
-  teamPageUrl          String?
-  icalUrl              String?
-  officialViewUrl      String?
-  enabled              Boolean  @default(true)
-  syncIntervalMinutes  Int      @default(30)
-  lastAttemptAt        DateTime?
-  lastSuccessAt        DateTime?
-  lastStatus           String   @default("NOT_CONFIGURED")
-  lastMessage          String?
-  lastCreatedCount     Int      @default(0)
-  lastUpdatedCount     Int      @default(0)
-  lastSkippedCount     Int      @default(0)
-  lastConflictCount    Int      @default(0)
-  createdById          String
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  createdBy            User     @relation("BfvSyncCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  id                  String    @id @default(cuid())
+  teamId              String    @unique
+  teamPageUrl         String?
+  icalUrl             String?
+  officialViewUrl     String?
+  enabled             Boolean   @default(true)
+  syncIntervalMinutes Int       @default(30)
+  lastAttemptAt       DateTime?
+  lastSuccessAt       DateTime?
+  lastStatus          String    @default("NOT_CONFIGURED")
+  lastMessage         String?
+  lastCreatedCount    Int       @default(0)
+  lastUpdatedCount    Int       @default(0)
+  lastSkippedCount    Int       @default(0)
+  lastConflictCount   Int       @default(0)
+  createdById         String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  team                Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy           User      @relation("BfvSyncCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([enabled, lastAttemptAt])
 }

@@ -96,11 +96,18 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
     if (action == null || router == null) return;
     final parsedAction = Uri.tryParse(action.trim());
     if (parsedAction?.path == '/reset-password' &&
-        (parsedAction?.queryParameters['token']?.isNotEmpty ?? false)) {
+        ((parsedAction?.queryParameters['token']?.isNotEmpty ?? false) ||
+            (parsedAction?.queryParameters['requestId']?.isNotEmpty ??
+                false))) {
       _pendingPushAction = null;
       final route = Uri(
         path: '/reset-password',
-        queryParameters: {'token': parsedAction!.queryParameters['token']!},
+        queryParameters: {
+          if (parsedAction!.queryParameters['token']?.isNotEmpty ?? false)
+            'token': parsedAction.queryParameters['token']!,
+          if (parsedAction.queryParameters['requestId']?.isNotEmpty ?? false)
+            'requestId': parsedAction.queryParameters['requestId']!,
+        },
       ).toString();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) router.go(route);
@@ -379,6 +386,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
           path: '/reset-password',
           builder: (context, state) => ResetPasswordPage(
             token: state.uri.queryParameters['token'] ?? '',
+            requestId: state.uri.queryParameters['requestId'] ?? '',
           ),
         ),
         GoRoute(
@@ -817,10 +825,16 @@ String normalizePushActionRoute(
   final parsed = Uri.tryParse(action.trim());
   final path = parsed?.path ?? '';
   if (path == '/reset-password' &&
-      (parsed?.queryParameters['token']?.isNotEmpty ?? false)) {
+      ((parsed?.queryParameters['token']?.isNotEmpty ?? false) ||
+          (parsed?.queryParameters['requestId']?.isNotEmpty ?? false))) {
     return Uri(
       path: '/reset-password',
-      queryParameters: {'token': parsed!.queryParameters['token']!},
+      queryParameters: {
+        if (parsed!.queryParameters['token']?.isNotEmpty ?? false)
+          'token': parsed.queryParameters['token']!,
+        if (parsed.queryParameters['requestId']?.isNotEmpty ?? false)
+          'requestId': parsed.queryParameters['requestId']!,
+      },
     ).toString();
   }
   if (path == '/messages' || path.startsWith('/messages/')) {
