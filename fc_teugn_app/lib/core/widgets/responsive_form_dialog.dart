@@ -19,6 +19,7 @@ class ResponsiveFormDialog extends StatelessWidget {
     this.saveIcon = Icons.save_outlined,
     this.maxWidth = 720,
     this.saving = false,
+    this.preferInlineActions = false,
   });
 
   final String title;
@@ -29,6 +30,7 @@ class ResponsiveFormDialog extends StatelessWidget {
   final IconData saveIcon;
   final double maxWidth;
   final bool saving;
+  final bool preferInlineActions;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +39,7 @@ class ResponsiveFormDialog extends StatelessWidget {
       title: title,
       subtitle: subtitle,
       maxWidth: maxWidth,
+      preferInlineActions: preferInlineActions,
       content: Theme(
         data: theme.copyWith(
           inputDecorationTheme: theme.inputDecorationTheme.copyWith(

@@ -90,4 +90,44 @@ void main() {
     expect(end.dy, greaterThan(begin.dy));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('compact editor can keep short actions next to each other',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: FilledButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => ResponsiveFormDialog(
+                  title: 'Turnierplan',
+                  subtitle: 'Hopfenbach-Cup · Gegner und Anstoßzeit festlegen.',
+                  saveLabel: 'Speichern',
+                  preferInlineActions: true,
+                  onSave: () {},
+                  children: const [Text('Kompakter Inhalt')],
+                ),
+              ),
+              child: const Text('Öffnen'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Öffnen'));
+    await tester.pumpAndSettle();
+
+    final cancelCenter = tester.getCenter(find.text('Abbrechen'));
+    final saveCenter = tester.getCenter(find.text('Speichern'));
+    expect(cancelCenter.dy, moreOrLessEquals(saveCenter.dy));
+    expect(cancelCenter.dx, lessThan(saveCenter.dx));
+    expect(tester.takeException(), isNull);
+  });
 }

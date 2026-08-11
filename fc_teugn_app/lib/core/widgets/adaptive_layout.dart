@@ -177,6 +177,7 @@ class AdaptiveDialogScaffold extends StatelessWidget {
     this.subtitle,
     this.maxWidth = 760,
     this.contentPadding,
+    this.preferInlineActions = false,
   });
 
   final String title;
@@ -185,6 +186,7 @@ class AdaptiveDialogScaffold extends StatelessWidget {
   final List<Widget> actions;
   final double maxWidth;
   final EdgeInsetsGeometry? contentPadding;
+  final bool preferInlineActions;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -254,7 +256,10 @@ class AdaptiveDialogScaffold extends StatelessWidget {
                         ),
                       ),
                       const Divider(height: 1),
-                      _AdaptiveDialogActions(actions: actions),
+                      _AdaptiveDialogActions(
+                        actions: actions,
+                        preferInline: preferInlineActions,
+                      ),
                     ],
                   ),
                 ),
@@ -358,16 +363,23 @@ class _AdaptiveDialogHeader extends StatelessWidget {
 }
 
 class _AdaptiveDialogActions extends StatelessWidget {
-  const _AdaptiveDialogActions({required this.actions});
+  const _AdaptiveDialogActions({
+    required this.actions,
+    required this.preferInline,
+  });
 
   final List<Widget> actions;
+  final bool preferInline;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
           final textScale = MediaQuery.textScalerOf(context).scale(1);
-          final stacked =
-              constraints.maxWidth < AppBreakpoints.narrow || textScale >= 1.4;
+          final stacked = preferInline
+              ? constraints.maxWidth < AppBreakpoints.veryNarrow ||
+                  textScale >= 1.7
+              : constraints.maxWidth < AppBreakpoints.narrow ||
+                  textScale >= 1.4;
           final padding = EdgeInsets.fromLTRB(
             constraints.maxWidth < AppBreakpoints.veryNarrow ? 12 : 16,
             10,
@@ -390,12 +402,22 @@ class _AdaptiveDialogActions extends StatelessWidget {
           }
           return Padding(
             padding: padding,
-            child: Wrap(
-              alignment: WrapAlignment.end,
-              spacing: 10,
-              runSpacing: 8,
-              children: actions,
-            ),
+            child: preferInline
+                ? Row(
+                    children: [
+                      for (var index = 0; index < actions.length; index++) ...[
+                        Expanded(child: actions[index]),
+                        if (index != actions.length - 1)
+                          const SizedBox(width: 8),
+                      ],
+                    ],
+                  )
+                : Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: actions,
+                  ),
           );
         },
       );

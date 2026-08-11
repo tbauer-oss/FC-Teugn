@@ -17,6 +17,7 @@ import '../imports/competition_import_dialog.dart';
 import '../matches/competition_management_dialog.dart';
 import '../auth/auth_controller.dart';
 import '../../core/models/user.dart';
+import '../../core/widgets/adaptive_layout.dart';
 
 class TrainerMatchesPage extends ConsumerWidget {
   const TrainerMatchesPage({super.key});
@@ -1432,52 +1433,35 @@ class TrainerMatchesPage extends ConsumerWidget {
           }
 
           return ResponsiveFormDialog(
-            title: 'Turnierpartien planen',
+            title: 'Turnierplan',
             subtitle:
-                '${tournament.title}: Gegner und Anstoßzeiten vorab festlegen. '
-                'Jede Partie erhält anschließend Kader, Aufstellung und Liveticker.',
+                '${tournament.title} · Gegner und Anstoßzeit je Partie festlegen.',
             maxWidth: 760,
-            saveLabel: saving ? 'Speichert …' : 'Turnierplan speichern',
+            saveLabel: saving ? 'Speichert …' : 'Speichern',
+            preferInlineActions: true,
             onSave: saving ? null : save,
             children: [
-              Card(
-                color: AppColors.yellowSoft,
-                child: ListTile(
-                  leading: const Icon(Icons.emoji_events_rounded),
-                  title: Text('${rows.length} Partien geplant'),
-                  subtitle: const Text(
-                    'Fehlende Gegner zuerst unter „Liga & Gegner“ für diese Jugend anlegen.',
-                  ),
-                  trailing: FilledButton.tonalIcon(
-                    onPressed: () {
-                      var startAt = tournament.startAt.add(
-                        Duration(minutes: rows.length * 20),
-                      );
-                      final latest = tournament.endAt ??
-                          tournament.startAt.add(const Duration(hours: 24));
-                      if (startAt.isAfter(latest)) startAt = tournament.startAt;
-                      setDialogState(() {
-                        rows.add(
-                          _TournamentFixtureDraftState(
-                            startAt: startAt,
-                            periodCount: 1,
-                            periodMinutes: 10,
-                          ),
-                        );
-                      });
-                    },
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Partie'),
-                  ),
-                ),
+              _TournamentPlanToolbar(
+                count: rows.length,
+                onAdd: () {
+                  var startAt = tournament.startAt.add(
+                    Duration(minutes: rows.length * 20),
+                  );
+                  final latest = tournament.endAt ??
+                      tournament.startAt.add(const Duration(hours: 24));
+                  if (startAt.isAfter(latest)) startAt = tournament.startAt;
+                  setDialogState(() {
+                    rows.add(
+                      _TournamentFixtureDraftState(
+                        startAt: startAt,
+                        periodCount: 1,
+                        periodMinutes: 10,
+                      ),
+                    );
+                  });
+                },
               ),
-              if (rows.isEmpty)
-                const EmptyState(
-                  icon: Icons.sports_soccer_outlined,
-                  title: 'Noch keine Partie geplant',
-                  message:
-                      'Füge die Begegnungen hinzu, die FC Teugn bei diesem Turnier spielt.',
-                ),
+              if (rows.isEmpty) const _CompactTournamentEmptyState(),
               for (var index = 0; index < rows.length; index++) ...[
                 _TournamentFixtureEditor(
                   key: ValueKey(rows[index].id ?? 'new-$index'),
@@ -1532,6 +1516,139 @@ class _TournamentFixtureDraftState {
   int periodMinutes;
 }
 
+class _TournamentPlanToolbar extends StatelessWidget {
+  const _TournamentPlanToolbar({
+    required this.count,
+    required this.onAdd,
+  });
+
+  final int count;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < AppBreakpoints.compact;
+          return Container(
+            key: const ValueKey('tournament-plan-toolbar'),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 10 : 14,
+              vertical: compact ? 9 : 12,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.yellowSoft,
+              borderRadius: BorderRadius.circular(compact ? 14 : 18),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.emoji_events_rounded,
+                  size: compact ? 20 : 24,
+                  color: AppColors.gold,
+                ),
+                SizedBox(width: compact ? 8 : 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$count ${count == 1 ? 'Partie' : 'Partien'}',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                      ),
+                      Text(
+                        compact
+                            ? 'Gegner fehlen? Unter „Liga & Gegner“ anlegen.'
+                            : 'Fehlende Gegner unter „Liga & Gegner“ für diese Jugend anlegen.',
+                        maxLines: compact ? 1 : 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.muted,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                  onPressed: onAdd,
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 10 : 14,
+                      vertical: compact ? 8 : 10,
+                    ),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 19),
+                  label: Text(compact ? 'Partie' : 'Partie hinzufügen'),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+}
+
+class _CompactTournamentEmptyState extends StatelessWidget {
+  const _CompactTournamentEmptyState();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        key: const ValueKey('tournament-plan-empty-state'),
+        margin: const EdgeInsets.only(top: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.blue.withValues(alpha: .08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.sports_soccer_outlined,
+                size: 21,
+                color: AppColors.blue,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Noch keine Partie',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  Text(
+                    'Über „+ Partie“ die erste Begegnung hinzufügen.',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.muted,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
 class _TournamentFixtureEditor extends StatelessWidget {
   const _TournamentFixtureEditor({
     super.key,
@@ -1558,112 +1675,182 @@ class _TournamentFixtureEditor extends StatelessWidget {
     final startLabel =
         '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}. '
         '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')} Uhr';
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+    const compactDecoration = InputDecoration(
+      isDense: true,
+      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    );
+    final periodCountField = DropdownButtonFormField<int>(
+      initialValue: row.periodCount,
+      isExpanded: true,
+      decoration: compactDecoration.copyWith(labelText: 'Abschnitte'),
+      items: [
+        for (var value = 1; value <= 4; value++)
+          DropdownMenuItem(value: value, child: Text('$value')),
+      ],
+      onChanged: (value) {
+        if (value == null) return;
+        row.periodCount = value;
+        onChanged();
+      },
+    );
+    final periodMinutesField = DropdownButtonFormField<int>(
+      initialValue: row.periodMinutes,
+      isExpanded: true,
+      decoration: compactDecoration.copyWith(labelText: 'Min./Abschnitt'),
+      items: const [
+        DropdownMenuItem(value: 8, child: Text('8 Min.')),
+        DropdownMenuItem(value: 10, child: Text('10 Min.')),
+        DropdownMenuItem(value: 12, child: Text('12 Min.')),
+        DropdownMenuItem(value: 15, child: Text('15 Min.')),
+        DropdownMenuItem(value: 20, child: Text('20 Min.')),
+        DropdownMenuItem(value: 25, child: Text('25 Min.')),
+        DropdownMenuItem(value: 30, child: Text('30 Min.')),
+      ],
+      onChanged: (value) {
+        if (value == null) return;
+        row.periodMinutes = value;
+        onChanged();
+      },
+    );
+    final orderField = DropdownButtonFormField<bool>(
+      initialValue: row.isHome,
+      isExpanded: true,
+      decoration: compactDecoration.copyWith(labelText: 'Anzeige'),
+      items: const [
+        DropdownMenuItem(value: true, child: Text('FC Teugn zuerst')),
+        DropdownMenuItem(value: false, child: Text('Gegner zuerst')),
+      ],
+      onChanged: (value) {
+        if (value == null) return;
+        row.isHome = value;
+        onChanged();
+      },
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        return Card(
+          key: ValueKey('tournament-fixture-$index'),
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: EdgeInsets.all(compact ? 9 : 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                CircleAvatar(child: Text('${index + 1}')),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Turnierspiel ${index + 1}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: compact ? 15 : 20,
+                      child: Text('${index + 1}'),
+                    ),
+                    SizedBox(width: compact ? 8 : 10),
+                    Expanded(
+                      child: Text(
+                        compact
+                            ? 'Partie ${index + 1}'
+                            : 'Turnierspiel ${index + 1}',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                      ),
+                    ),
+                    if (onOpen != null)
+                      IconButton(
+                        tooltip: 'Kader, Aufstellung und Liveticker öffnen',
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                          minWidth: 38,
+                          minHeight: 38,
+                        ),
+                        onPressed: onOpen,
+                        icon: const Icon(Icons.stadium_rounded, size: 21),
+                      ),
+                    IconButton(
+                      tooltip: 'Partie entfernen',
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(
+                        minWidth: 38,
+                        minHeight: 38,
+                      ),
+                      onPressed: onRemove,
+                      icon: const Icon(Icons.delete_outline_rounded, size: 21),
+                    ),
+                  ],
                 ),
-                if (onOpen != null)
-                  IconButton(
-                    tooltip: 'Kader, Aufstellung und Liveticker öffnen',
-                    onPressed: onOpen,
-                    icon: const Icon(Icons.stadium_rounded),
-                  ),
-                IconButton(
-                  tooltip: 'Partie entfernen',
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.delete_outline_rounded),
+                SizedBox(height: compact ? 6 : 8),
+                DropdownButtonFormField<String>(
+                  initialValue:
+                      opponents.any((item) => item.id == row.opponentId)
+                          ? row.opponentId
+                          : null,
+                  isExpanded: true,
+                  decoration: compactDecoration.copyWith(labelText: 'Gegner *'),
+                  items: [
+                    for (final opponent in opponents)
+                      DropdownMenuItem(
+                        value: opponent.id,
+                        child: Text(
+                          opponent.displayName,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    row.opponentId = value;
+                    onChanged();
+                  },
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: opponents.any((item) => item.id == row.opponentId)
-                  ? row.opponentId
-                  : null,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Gegner *'),
-              items: [
-                for (final opponent in opponents)
-                  DropdownMenuItem(
-                    value: opponent.id,
-                    child: Text(
-                      opponent.displayName,
+                SizedBox(height: compact ? 8 : 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: onChooseStart,
+                    style: OutlinedButton.styleFrom(
+                      alignment: Alignment.centerLeft,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 11,
+                      ),
+                    ),
+                    icon: const Icon(Icons.schedule_rounded, size: 20),
+                    label: Text(
+                      startLabel,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-              ],
-              onChanged: (value) {
-                row.opponentId = value;
-                onChanged();
-              },
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: onChooseStart,
-                  icon: const Icon(Icons.schedule_rounded),
-                  label: Text(startLabel),
                 ),
-                DropdownButton<int>(
-                  value: row.periodCount,
-                  items: [
-                    for (var value = 1; value <= 4; value++)
-                      DropdownMenuItem(
-                          value: value, child: Text('$value Abschn.')),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    row.periodCount = value;
-                    onChanged();
-                  },
-                ),
-                DropdownButton<int>(
-                  value: row.periodMinutes,
-                  items: const [
-                    DropdownMenuItem(value: 8, child: Text('8 Min.')),
-                    DropdownMenuItem(value: 10, child: Text('10 Min.')),
-                    DropdownMenuItem(value: 12, child: Text('12 Min.')),
-                    DropdownMenuItem(value: 15, child: Text('15 Min.')),
-                    DropdownMenuItem(value: 20, child: Text('20 Min.')),
-                    DropdownMenuItem(value: 25, child: Text('25 Min.')),
-                    DropdownMenuItem(value: 30, child: Text('30 Min.')),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    row.periodMinutes = value;
-                    onChanged();
-                  },
-                ),
-                ChoiceChip(
-                  selected: row.isHome,
-                  onSelected: (value) {
-                    row.isHome = value;
-                    onChanged();
-                  },
-                  label: Text(row.isHome ? 'FC Teugn zuerst' : 'Gegner zuerst'),
-                ),
+                const SizedBox(height: 8),
+                if (compact) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: periodCountField),
+                      const SizedBox(width: 8),
+                      Expanded(child: periodMinutesField),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  orderField,
+                ] else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: periodCountField),
+                      const SizedBox(width: 10),
+                      Expanded(child: periodMinutesField),
+                      const SizedBox(width: 10),
+                      Expanded(flex: 2, child: orderField),
+                    ],
+                  ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
