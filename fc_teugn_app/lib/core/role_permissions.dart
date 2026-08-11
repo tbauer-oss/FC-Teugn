@@ -170,6 +170,7 @@ const _coachPermissions = <String>{
 
 const _assistantPermissions = <String>{
   'VIEW_TEAM',
+  'MANAGE_MEMBERS',
   'MANAGE_PLAYERS',
   'VIEW_SENSITIVE_PLAYER',
   'MANAGE_DOCUMENTS',

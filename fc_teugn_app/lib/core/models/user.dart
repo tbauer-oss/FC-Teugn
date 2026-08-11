@@ -59,6 +59,8 @@ class AppUser {
   final String id;
   final String email;
   final String name;
+  final String? firstName;
+  final String? lastName;
   final String? phone;
   final UserRole role;
   final AccountStatus status;
@@ -72,6 +74,8 @@ class AppUser {
     required this.id,
     required this.email,
     required this.name,
+    this.firstName,
+    this.lastName,
     this.phone,
     required this.role,
     required this.status,
@@ -81,6 +85,41 @@ class AppUser {
     this.parentPlayers = const [],
     this.registrationRequest,
   });
+
+  String get resolvedFirstName {
+    final stored = firstName?.trim();
+    if (stored != null && stored.isNotEmpty) return stored;
+    return name.trim().split(RegExp(r'\s+')).firstOrNull ?? '';
+  }
+
+  String get resolvedLastName {
+    final stored = lastName?.trim();
+    if (stored != null && stored.isNotEmpty) return stored;
+    final parts = name.trim().split(RegExp(r'\s+'));
+    return parts.length > 1 ? parts.skip(1).join(' ') : '';
+  }
+
+  AppUser copyWithProfile({
+    required String email,
+    required String firstName,
+    required String lastName,
+    String? phone,
+  }) =>
+      AppUser(
+        id: id,
+        email: email,
+        name: '$firstName $lastName'.trim(),
+        firstName: firstName,
+        lastName: lastName,
+        phone: phone,
+        role: role,
+        status: status,
+        teamId: teamId,
+        createdAt: createdAt,
+        memberships: memberships,
+        parentPlayers: parentPlayers,
+        registrationRequest: registrationRequest,
+      );
 
   bool get isTrainer => switch (role) {
         UserRole.superAdmin ||
@@ -141,6 +180,8 @@ class AppUser {
       id: json['id'] as String,
       email: json['email'] as String,
       name: json['name'] as String,
+      firstName: json['firstName'] as String?,
+      lastName: json['lastName'] as String?,
       phone: json['phone'] as String?,
       teamId: json['teamId'] as String? ?? '',
       createdAt: json['createdAt'] == null

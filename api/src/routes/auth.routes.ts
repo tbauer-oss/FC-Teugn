@@ -5,13 +5,16 @@ import {
   logout,
   logoutAll,
   me,
+  updateOwnProfile,
+  changeOwnPassword,
   refresh,
   register,
   requestPasswordReset,
   exchangePasswordReset,
   confirmPasswordReset,
 } from '../controllers/auth.controller';
-import { requireAuth } from '../middleware/auth';
+import { requireApproved, requireAuth } from '../middleware/auth';
+import { sensitiveActionRateLimit } from '../middleware/rate-limit';
 import {
   exportPersonalData,
   listOwnPrivacyRequests,
@@ -31,6 +34,14 @@ router.post('/logout', logout);
 router.post('/logout-all', requireAuth, logoutAll);
 router.get('/consent-texts', activeConsentTexts);
 router.get('/me', requireAuth, me);
+router.patch('/me', requireAuth, requireApproved, updateOwnProfile);
+router.put(
+  '/me/password',
+  requireAuth,
+  requireApproved,
+  sensitiveActionRateLimit,
+  changeOwnPassword,
+);
 router.get('/privacy/export', requireAuth, exportPersonalData);
 router.get('/privacy/requests', requireAuth, listOwnPrivacyRequests);
 router.post('/privacy/requests', requireAuth, requestDataSubjectRight);

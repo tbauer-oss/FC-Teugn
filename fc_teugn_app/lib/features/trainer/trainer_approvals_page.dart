@@ -28,25 +28,29 @@ class TrainerApprovalsPage extends ConsumerWidget {
         ref.watch(playersProvider).valueOrNull ?? const <PlayerModel>[];
     final currentUser = ref.watch(authProvider).user;
     final mobile = MediaQuery.sizeOf(context).width < 600;
+    final fullMemberAdministration = currentUser?.role == UserRole.superAdmin ||
+        organization?.can('MANAGE_ORGANIZATION') == true;
 
     return PageScaffold(
       title: 'Mitglieder & Freigaben',
       subtitle:
           'Anfragen prüfen, Rollen festlegen und Zugriffe gezielt Mannschaften zuordnen.',
       denseMobileHeader: true,
-      action: FilledButton.icon(
-        onPressed: organization == null
-            ? null
-            : () => _createMember(
-                  context,
-                  ref,
-                  organization,
-                  players,
-                  currentUser?.role == UserRole.superAdmin,
-                ),
-        icon: const Icon(Icons.person_add_alt_1_rounded),
-        label: const Text('Mitglied anlegen'),
-      ),
+      action: fullMemberAdministration
+          ? FilledButton.icon(
+              onPressed: organization == null
+                  ? null
+                  : () => _createMember(
+                        context,
+                        ref,
+                        organization,
+                        players,
+                        currentUser?.role == UserRole.superAdmin,
+                      ),
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              label: const Text('Mitglied anlegen'),
+            )
+          : null,
       child: mobile
           ? _MobileMemberTabs(
               pending: pending,
@@ -54,22 +58,26 @@ class TrainerApprovalsPage extends ConsumerWidget {
               organization: organization,
               onApprove: (user) =>
                   _approve(context, ref, user, organization, players),
-              onNeedsInfo: (user) => _reviewWithoutApproval(
-                context,
-                ref,
-                user,
-                status: AccountStatus.pending,
-                reviewStatus: RegistrationReviewStatus.needsInfo,
-                title: 'Rückfrage markieren',
-              ),
-              onReject: (user) => _reviewWithoutApproval(
-                context,
-                ref,
-                user,
-                status: AccountStatus.rejected,
-                reviewStatus: RegistrationReviewStatus.completed,
-                title: 'Registrierung ablehnen',
-              ),
+              onNeedsInfo: fullMemberAdministration
+                  ? (user) => _reviewWithoutApproval(
+                        context,
+                        ref,
+                        user,
+                        status: AccountStatus.pending,
+                        reviewStatus: RegistrationReviewStatus.needsInfo,
+                        title: 'Rückfrage markieren',
+                      )
+                  : null,
+              onReject: fullMemberAdministration
+                  ? (user) => _reviewWithoutApproval(
+                        context,
+                        ref,
+                        user,
+                        status: AccountStatus.rejected,
+                        reviewStatus: RegistrationReviewStatus.completed,
+                        title: 'Registrierung ablehnen',
+                      )
+                  : null,
               onDetails: (user) => _showDetails(context, user),
               onRetryPending: () => ref.invalidate(pendingUsersProvider),
               onRetryMembers: () => ref.invalidate(membersProvider),
@@ -129,22 +137,28 @@ class TrainerApprovalsPage extends ConsumerWidget {
                             organization,
                             players,
                           ),
-                          onNeedsInfo: (user) => _reviewWithoutApproval(
-                            context,
-                            ref,
-                            user,
-                            status: AccountStatus.pending,
-                            reviewStatus: RegistrationReviewStatus.needsInfo,
-                            title: 'Rückfrage markieren',
-                          ),
-                          onReject: (user) => _reviewWithoutApproval(
-                            context,
-                            ref,
-                            user,
-                            status: AccountStatus.rejected,
-                            reviewStatus: RegistrationReviewStatus.completed,
-                            title: 'Registrierung ablehnen',
-                          ),
+                          onNeedsInfo: fullMemberAdministration
+                              ? (user) => _reviewWithoutApproval(
+                                    context,
+                                    ref,
+                                    user,
+                                    status: AccountStatus.pending,
+                                    reviewStatus:
+                                        RegistrationReviewStatus.needsInfo,
+                                    title: 'Rückfrage markieren',
+                                  )
+                              : null,
+                          onReject: fullMemberAdministration
+                              ? (user) => _reviewWithoutApproval(
+                                    context,
+                                    ref,
+                                    user,
+                                    status: AccountStatus.rejected,
+                                    reviewStatus:
+                                        RegistrationReviewStatus.completed,
+                                    title: 'Registrierung ablehnen',
+                                  )
+                              : null,
                           onDetails: (user) => _showDetails(context, user),
                           onRetry: () => ref.invalidate(pendingUsersProvider),
                         ),
@@ -732,8 +746,8 @@ class _MobileMemberTabs extends StatefulWidget {
   final AsyncValue<List<AppUser>> members;
   final OrganizationContext? organization;
   final ValueChanged<AppUser> onApprove;
-  final ValueChanged<AppUser> onNeedsInfo;
-  final ValueChanged<AppUser> onReject;
+  final ValueChanged<AppUser>? onNeedsInfo;
+  final ValueChanged<AppUser>? onReject;
   final ValueChanged<AppUser> onDetails;
   final VoidCallback onRetryPending;
   final VoidCallback onRetryMembers;
@@ -821,8 +835,8 @@ class _PendingList extends StatefulWidget {
   final AsyncValue<List<AppUser>> value;
   final OrganizationContext? organization;
   final ValueChanged<AppUser> onApprove;
-  final ValueChanged<AppUser> onNeedsInfo;
-  final ValueChanged<AppUser> onReject;
+  final ValueChanged<AppUser>? onNeedsInfo;
+  final ValueChanged<AppUser>? onReject;
   final ValueChanged<AppUser> onDetails;
   final VoidCallback onRetry;
   final bool embedded;
@@ -1073,22 +1087,26 @@ class _PendingListState extends State<_PendingList> {
                         tooltip: 'Aktionen',
                         onSelected: (value) {
                           if (value == 'details') widget.onDetails(user);
-                          if (value == 'question') widget.onNeedsInfo(user);
-                          if (value == 'reject') widget.onReject(user);
+                          if (value == 'question') {
+                            widget.onNeedsInfo?.call(user);
+                          }
+                          if (value == 'reject') widget.onReject?.call(user);
                         },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
                             value: 'details',
                             child: Text('Details & Historie'),
                           ),
-                          PopupMenuItem(
-                            value: 'question',
-                            child: Text('Rückfrage markieren'),
-                          ),
-                          PopupMenuItem(
-                            value: 'reject',
-                            child: Text('Ablehnen'),
-                          ),
+                          if (widget.onNeedsInfo != null)
+                            const PopupMenuItem(
+                              value: 'question',
+                              child: Text('Rückfrage markieren'),
+                            ),
+                          if (widget.onReject != null)
+                            const PopupMenuItem(
+                              value: 'reject',
+                              child: Text('Ablehnen'),
+                            ),
                         ],
                       ),
                       FilledButton.icon(
@@ -2148,7 +2166,13 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
     role = widget.user.role;
     status = widget.editing ? widget.user.status : AccountStatus.approved;
     teamIds = widget.user.assignedTeams.isEmpty
-        ? {widget.organization.currentTeam.id}
+        ? {
+            widget.organization.teams.any(
+              (team) => team.id == widget.user.teamId,
+            )
+                ? widget.user.teamId
+                : widget.organization.currentTeam.id,
+          }
         : widget.user.assignedTeams.map((item) => item.teamId).toSet();
     teamRoles = {
       for (final membership in widget.user.assignedTeams)
@@ -2173,6 +2197,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
   Widget build(BuildContext context) {
     final canManageOrganization =
         widget.organization.can('MANAGE_ORGANIZATION');
+    final limitedManager = !widget.actorIsSuperAdmin && !canManageOrganization;
     final roles = canManageOrganization
         ? [
             if (widget.actorIsSuperAdmin) UserRole.superAdmin,
@@ -2186,12 +2211,16 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
             UserRole.readOnly,
           ]
         : const [UserRole.parent, UserRole.player, UserRole.readOnly];
-    if (!roles.contains(role)) role = roles.first;
+    if (!limitedManager && !widget.editing && !roles.contains(role)) {
+      role = roles.first;
+    }
 
     return AlertDialog(
       title: Text(
         widget.editing
-            ? '${widget.user.name} verwalten'
+            ? limitedManager
+                ? 'Eltern-Kind-Zuordnung'
+                : '${widget.user.name} verwalten'
             : '${widget.user.name} freigeben',
       ),
       content: SizedBox(
@@ -2208,23 +2237,33 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                     ),
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<UserRole>(
-                initialValue: role,
-                decoration: const InputDecoration(
-                  labelText: 'Systemweite Hauptrolle',
-                  helperText:
-                      'Sie bestimmt die grundlegenden Rechte des Kontos.',
+              if (limitedManager)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.badge_outlined),
+                  title: Text(_roleLabel(role)),
+                  subtitle: const Text(
+                    'Die beantragte Rolle, der Kontostatus und die Mannschaften können von Trainern nicht geändert werden.',
+                  ),
+                )
+              else
+                DropdownButtonFormField<UserRole>(
+                  initialValue: role,
+                  decoration: const InputDecoration(
+                    labelText: 'Systemweite Hauptrolle',
+                    helperText:
+                        'Sie bestimmt die grundlegenden Rechte des Kontos.',
+                  ),
+                  items: [
+                    for (final item in roles)
+                      DropdownMenuItem(
+                        value: item,
+                        child: Text(_roleLabel(item)),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => role = value!),
                 ),
-                items: [
-                  for (final item in roles)
-                    DropdownMenuItem(
-                      value: item,
-                      child: Text(_roleLabel(item)),
-                    ),
-                ],
-                onChanged: (value) => setState(() => role = value!),
-              ),
-              if (widget.editing) ...[
+              if (widget.editing && !limitedManager) ...[
                 const SizedBox(height: 14),
                 DropdownButtonFormField<AccountStatus>(
                   initialValue: status,
@@ -2264,12 +2303,14 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                     ),
               ),
               const SizedBox(height: 5),
-              const Text(
-                'Die Registrierung ist nur ein unverbindlicher Wunsch. '
-                'Ausschließlich die hier bestätigten Mannschaften werden '
-                'verbindlich zugeordnet; die erste Auswahl wird zum '
-                'Standardteam. Systemadministratoren besitzen unabhängig '
-                'davon systemweiten Zugriff.',
+              Text(
+                limitedManager
+                    ? 'Du siehst nur die gewählte Jugend. Die beantragte oder vorhandene Mannschaftszuordnung bleibt unverändert.'
+                    : 'Die Registrierung ist nur ein unverbindlicher Wunsch. '
+                        'Ausschließlich die hier bestätigten Mannschaften werden '
+                        'verbindlich zugeordnet; die erste Auswahl wird zum '
+                        'Standardteam. Systemadministratoren besitzen unabhängig '
+                        'davon systemweiten Zugriff.',
               ),
               const SizedBox(height: 10),
               Wrap(
@@ -2280,18 +2321,20 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                     FilterChip(
                       selected: teamIds.contains(team.id),
                       label: Text(team.displayName),
-                      onSelected: (selected) => setState(() {
-                        if (selected) {
-                          teamIds.add(team.id);
-                          teamRoles.putIfAbsent(
-                            team.id,
-                            () => _teamFunction(role),
-                          );
-                        } else if (teamIds.length > 1) {
-                          teamIds.remove(team.id);
-                          teamRoles.remove(team.id);
-                        }
-                      }),
+                      onSelected: limitedManager
+                          ? null
+                          : (selected) => setState(() {
+                                if (selected) {
+                                  teamIds.add(team.id);
+                                  teamRoles.putIfAbsent(
+                                    team.id,
+                                    () => _teamFunction(role),
+                                  );
+                                } else if (teamIds.length > 1) {
+                                  teamIds.remove(team.id);
+                                  teamRoles.remove(team.id);
+                                }
+                              }),
                     ),
                 ],
               ),
@@ -2447,14 +2490,15 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                 ],
               ],
               const SizedBox(height: 16),
-              TextField(
-                controller: adminNote,
-                minLines: 2,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Interne Prüfnotiz',
+              if (!limitedManager || !widget.editing)
+                TextField(
+                  controller: adminNote,
+                  minLines: 2,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: 'Interne Prüfnotiz',
+                  ),
                 ),
-              ),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(14),
@@ -2462,14 +2506,17 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                   color: AppColors.blue.withValues(alpha: .07),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Row(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline_rounded, color: AppColors.blue),
-                    SizedBox(width: 10),
+                    const Icon(Icons.info_outline_rounded,
+                        color: AppColors.blue),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Rolle und Mannschaftszugriffe werden serverseitig geprüft und im Audit-Log dokumentiert.',
+                        limitedManager
+                            ? 'Trainer dürfen Konten freigeben und Eltern zuweisen. Sperren, Deaktivieren, Löschen sowie Rollen- und Mannschaftsänderungen sind serverseitig ausgeschlossen.'
+                            : 'Rolle und Mannschaftszugriffe werden serverseitig geprüft und im Audit-Log dokumentiert.',
                       ),
                     ),
                   ],
@@ -2486,6 +2533,9 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
         ),
         FilledButton.icon(
           onPressed: teamIds.isEmpty ||
+                  (limitedManager &&
+                      widget.editing &&
+                      role == UserRole.player) ||
                   (role == UserRole.player &&
                       playerId == null &&
                       !widget.editing)
@@ -2508,7 +2558,11 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                     ),
                   ),
           icon: const Icon(Icons.verified_user_rounded),
-          label: Text(widget.editing ? 'Änderungen speichern' : 'Freigeben'),
+          label: Text(widget.editing
+              ? limitedManager
+                  ? 'Zuordnung speichern'
+                  : 'Änderungen speichern'
+              : 'Freigeben'),
         ),
       ],
     );

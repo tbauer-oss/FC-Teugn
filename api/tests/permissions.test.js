@@ -100,6 +100,7 @@ const {
 } = require('../dist/src/controllers/emergency.controller');
 const {
   canHaveParentPlayerLinks,
+  canLimitedManagerUpdateMember,
 } = require('../dist/src/controllers/admin.controller');
 
 test('access and refresh tokens use separate verifiable token classes', () => {
@@ -327,6 +328,58 @@ test('assistant coaches can document development but not edit medical data', () 
   );
   assert.equal(
     hasPermission(Role.ASSISTANT_COACH, Permission.MANAGE_SENSITIVE_PLAYER),
+    false,
+  );
+  assert.equal(
+    hasPermission(Role.ASSISTANT_COACH, Permission.MANAGE_MEMBERS),
+    true,
+  );
+});
+
+test('trainers can approve requested accounts but cannot disable or re-role them', () => {
+  assert.equal(
+    canLimitedManagerUpdateMember(
+      AccountStatus.PENDING,
+      Role.PARENT,
+      AccountStatus.APPROVED,
+      Role.PARENT,
+    ),
+    true,
+  );
+  assert.equal(
+    canLimitedManagerUpdateMember(
+      AccountStatus.APPROVED,
+      Role.PARENT,
+      AccountStatus.BLOCKED,
+      Role.PARENT,
+    ),
+    false,
+  );
+  assert.equal(
+    canLimitedManagerUpdateMember(
+      AccountStatus.APPROVED,
+      Role.PARENT,
+      AccountStatus.APPROVED,
+      Role.COACH,
+    ),
+    false,
+  );
+  assert.equal(
+    canLimitedManagerUpdateMember(
+      AccountStatus.PENDING,
+      Role.COACH,
+      AccountStatus.APPROVED,
+      Role.COACH,
+    ),
+    true,
+  );
+  assert.equal(
+    canLimitedManagerUpdateMember(
+      AccountStatus.PENDING,
+      Role.PARENT,
+      AccountStatus.APPROVED,
+      Role.COACH,
+    ),
     false,
   );
 });

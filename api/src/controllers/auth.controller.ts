@@ -388,6 +388,8 @@ export async function register(req: Request, res: Response) {
       id: user.id,
       email: user.email,
       name: user.name,
+      firstName: user.firstName,
+      lastName: user.lastName,
       phone: user.phone,
       role: user.role,
       status: user.status,
@@ -880,6 +882,143 @@ export async function logout(req: Request, res: Response) {
   return res.status(204).send();
 }
 
+export async function updateOwnProfile(req: Request, res: Response) {
+  const actor = req.user!;
+  const firstName = typeof req.body?.firstName === 'string'
+    ? req.body.firstName.trim()
+    : '';
+  const lastName = typeof req.body?.lastName === 'string'
+    ? req.body.lastName.trim()
+    : '';
+  const email = typeof req.body?.email === 'string'
+    ? req.body.email.trim().toLowerCase()
+    : '';
+  const phone = typeof req.body?.phone === 'string' && req.body.phone.trim()
+    ? req.body.phone.trim()
+    : null;
+  if (!firstName || !lastName || !/^\S+@\S+\.\S+$/.test(email)) {
+    return res.status(400).json({
+      message: 'Vorname, Nachname und eine gültige E-Mail-Adresse sind erforderlich.',
+    });
+  }
+  if (firstName.length > 80 || lastName.length > 80 || email.length > 254 || (phone?.length ?? 0) > 60) {
+    return res.status(400).json({ message: 'Mindestens eine Eingabe ist zu lang.' });
+  }
+  const current = await prisma.user.findUnique({
+    where: { id: actor.id },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      teamId: true,
+    },
+  });
+  if (!current) return res.status(404).json({ message: 'Konto nicht gefunden.' });
+  const duplicate = await prisma.user.findFirst({
+    where: { email, id: { not: actor.id }, accountDeletedAt: null },
+    select: { id: true },
+  });
+  if (duplicate) {
+    return res.status(409).json({ message: 'Diese E-Mail-Adresse wird bereits verwendet.' });
+  }
+  const changedFields = [
+    current.firstName !== firstName || current.lastName !== lastName ? 'name' : null,
+    current.email !== email ? 'email' : null,
+    current.phone !== phone ? 'phone' : null,
+  ].filter((value): value is string => value !== null);
+  const updated = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: actor.id },
+      data: {
+        firstName,
+        lastName,
+        name: `${firstName} ${lastName}`,
+        email,
+        phone,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        status: true,
+        teamId: true,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        teamId: current.teamId,
+        action: 'USER_PROFILE_UPDATED',
+        entityType: 'User',
+        entityId: actor.id,
+        metadata: { changedFields },
+      },
+    });
+    return user;
+  });
+  return res.json(updated);
+}
+
+export async function changeOwnPassword(req: Request, res: Response) {
+  const actor = req.user!;
+  const currentPassword = typeof req.body?.currentPassword === 'string'
+    ? req.body.currentPassword
+    : '';
+  const newPassword = typeof req.body?.newPassword === 'string'
+    ? req.body.newPassword
+    : '';
+  if (!currentPassword || newPassword.length < 10) {
+    return res.status(400).json({
+      message: 'Das aktuelle Passwort und ein neues Passwort mit mindestens 10 Zeichen sind erforderlich.',
+    });
+  }
+  if (currentPassword === newPassword) {
+    return res.status(400).json({ message: 'Das neue Passwort muss sich vom aktuellen unterscheiden.' });
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: actor.id },
+    select: { id: true, password: true, teamId: true },
+  });
+  if (!user || !await comparePassword(currentPassword, user.password)) {
+    return res.status(400).json({ message: 'Das aktuelle Passwort ist nicht korrekt.' });
+  }
+  const passwordHash = await hashPassword(newPassword);
+  const changedAt = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: actor.id },
+      data: { password: passwordHash },
+    });
+    await tx.refreshToken.updateMany({
+      where: { userId: actor.id, revokedAt: null },
+      data: { revokedAt: changedAt },
+    });
+    await tx.passwordResetToken.updateMany({
+      where: { userId: actor.id, consumedAt: null },
+      data: { consumedAt: changedAt },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        teamId: user.teamId,
+        action: 'PASSWORD_CHANGED_BY_USER',
+        entityType: 'User',
+        entityId: actor.id,
+      },
+    });
+  });
+  return res.json({
+    message: 'Dein Passwort wurde geändert. Bitte melde dich erneut an.',
+    reauthenticate: true,
+  });
+}
+
 export async function logoutAll(req: Request, res: Response) {
   await prisma.refreshToken.updateMany({
     where: { userId: req.user!.id, revokedAt: null },
@@ -916,6 +1055,8 @@ export async function me(req: Request, res: Response) {
     id: user.id,
     email: user.email,
     name: user.name,
+    firstName: user.firstName,
+    lastName: user.lastName,
     phone: user.phone,
     role: user.role,
     status: user.status,
@@ -929,6 +1070,8 @@ function userResponse(user: {
   id: string;
   email: string;
   name: string;
+  firstName: string | null;
+  lastName: string | null;
   phone: string | null;
   role: Role;
   status: AccountStatus;
@@ -938,6 +1081,8 @@ function userResponse(user: {
     id: user.id,
     email: user.email,
     name: user.name,
+    firstName: user.firstName,
+    lastName: user.lastName,
     phone: user.phone,
     role: user.role,
     status: user.status,

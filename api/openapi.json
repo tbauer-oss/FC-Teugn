@@ -74,6 +74,60 @@
         "summary": "Eigenes Konto",
         "security": [{"bearerAuth": []}],
         "responses": {"200": {"description": "Benutzerkonto"}, "401": {"$ref": "#/components/responses/Unauthorized"}}
+      },
+      "patch": {
+        "tags": ["Auth"],
+        "summary": "Eigene persönliche Daten ändern",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["firstName", "lastName", "email"],
+                "properties": {
+                  "firstName": {"type": "string"},
+                  "lastName": {"type": "string"},
+                  "email": {"type": "string", "format": "email"},
+                  "phone": {"type": ["string", "null"]}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Kontodaten aktualisiert"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"description": "E-Mail wird bereits verwendet"}
+        }
+      }
+    },
+    "/auth/me/password": {
+      "put": {
+        "tags": ["Auth"],
+        "summary": "Eigenes Passwort ändern",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword", "newPassword"],
+                "properties": {
+                  "currentPassword": {"type": "string", "format": "password"},
+                  "newPassword": {"type": "string", "format": "password", "minLength": 10}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Passwort geändert; alle Sitzungen widerrufen"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "429": {"description": "Zu viele Versuche"}
+        }
       }
     },
     "/auth/privacy/export": {

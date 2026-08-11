@@ -493,7 +493,7 @@ export async function organizationContext(req: Request, res: Response) {
   const serializedTeams = await Promise.all(
     teams.map((team) => serializeTeam(
       team,
-      canViewAllTeams || team.id === contextTeamId,
+      canViewAllTeams || visibleTeamIds.includes(team.id),
       teamCountByAgeGroup.get(team.ageGroupId),
     )),
   );

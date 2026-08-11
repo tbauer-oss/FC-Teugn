@@ -11,11 +11,15 @@ import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import {
   effectivePermissionsForUser,
+  hasEffectivePermission,
   hasPermission,
   Permission,
   permissionsForRole,
 } from '../security/permissions';
-import { accessibleTeamIds } from '../services/team-access';
+import {
+  accessibleTeamIds,
+  memberManagementTeamIds,
+} from '../services/team-access';
 import { hashPassword } from '../lib/password';
 
 const adminPasswordResetLifetimeMs = 60 * 60 * 1000;
@@ -130,6 +134,17 @@ export function canHaveParentPlayerLinks(role: Role) {
   return role !== Role.PLAYER;
 }
 
+export function canLimitedManagerUpdateMember(
+  targetStatus: AccountStatus,
+  targetRole: Role,
+  nextStatus: AccountStatus,
+  nextRole: Role,
+) {
+  if (nextStatus !== AccountStatus.APPROVED) return false;
+  if (targetStatus === AccountStatus.APPROVED) return nextRole === targetRole;
+  return targetStatus === AccountStatus.PENDING && nextRole === targetRole;
+}
+
 const singleYouthRoles = new Set<Role>([
   Role.COACH,
   Role.TRAINER,
@@ -188,21 +203,99 @@ function teamFunctionMap(
   );
 }
 
-function userScope(
-  actor: { teamId: string; role: Role },
+function teamMemberScope(teamIds: string[]): Prisma.UserWhereInput {
+  return {
+    OR: [
+      { teamId: { in: teamIds } },
+      { memberships: { some: { teamId: { in: teamIds } } } },
+      {
+        registrationRequest: {
+          requestedTeams: { some: { teamId: { in: teamIds } } },
+        },
+      },
+      { parentLinks: { some: { player: { teamId: { in: teamIds } } } } },
+      { playerProfile: { teamId: { in: teamIds } } },
+    ],
+  };
+}
+
+async function userScope(
+  actor: { id: string; teamId: string; role: Role; permissions?: string[] },
   clubId: string | undefined,
-): Prisma.UserWhereInput {
+): Promise<Prisma.UserWhereInput> {
   if (isSuperAdmin(actor.role)) return {};
-  if (hasPermission(actor.role, Permission.MANAGE_ORGANIZATION) && clubId) {
-    return { team: { ageGroup: { season: { clubId } } } };
+  if (
+    hasEffectivePermission(
+      actor.role,
+      Permission.MANAGE_ORGANIZATION,
+      actor.permissions,
+    ) &&
+    clubId
+  ) {
+    return {
+      OR: [
+        { team: { ageGroup: { season: { clubId } } } },
+        {
+          memberships: {
+            some: { team: { ageGroup: { season: { clubId } } } },
+          },
+        },
+        {
+          registrationRequest: {
+            requestedTeams: {
+              some: { team: { ageGroup: { season: { clubId } } } },
+            },
+          },
+        },
+        {
+          parentLinks: {
+            some: { player: { team: { ageGroup: { season: { clubId } } } } },
+          },
+        },
+      ],
+    };
   }
-  return { teamId: actor.teamId };
+  return teamMemberScope(await memberManagementTeamIds(actor));
+}
+
+function scopedMemberView<T extends {
+  memberships: Array<{ team: { id: string } }>;
+  parentLinks: Array<{ player: { teamId: string | null } }>;
+  registrationRequest: null | {
+    requestedTeams: Array<{ team: { id: string } }>;
+  };
+}>(member: T, teamIds: string[]) {
+  const allowed = new Set(teamIds);
+  return {
+    ...member,
+    memberships: member.memberships.filter((item) => allowed.has(item.team.id)),
+    parentLinks: member.parentLinks.filter(
+      (item) => item.player.teamId !== null && allowed.has(item.player.teamId),
+    ),
+    registrationRequest: member.registrationRequest
+      ? {
+          ...member.registrationRequest,
+          requestedTeams: member.registrationRequest.requestedTeams.filter(
+            (item) => allowed.has(item.team.id),
+          ),
+        }
+      : null,
+  };
 }
 
 export async function pendingUsers(req: Request, res: Response) {
   const user = req.user!;
   const clubId = await actorClubId(user.teamId);
+  const managementTeamIds = await memberManagementTeamIds(user);
+  const limited = !isSuperAdmin(user.role) && !hasEffectivePermission(
+    user.role,
+    Permission.MANAGE_ORGANIZATION,
+    user.permissions,
+  );
   const teamId = typeof req.query.teamId === 'string' ? req.query.teamId : undefined;
+  if (limited && teamId && !managementTeamIds.includes(teamId)) {
+    return res.status(403).json({ message: 'Diese Jugend darf nicht verwaltet werden.' });
+  }
   const role = typeof req.query.role === 'string' ? req.query.role as Role : undefined;
   const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   const users = await prisma.user.findMany({
@@ -230,30 +323,49 @@ export async function pendingUsers(req: Request, res: Response) {
             },
           }
         : {}),
-      ...userScope(user, clubId),
+      ...(await userScope(user, clubId)),
     },
     orderBy: { createdAt: 'asc' },
     select: memberSelect,
   });
-  return res.json(users);
+  return res.json(limited
+    ? users.map((member) => scopedMemberView(member, managementTeamIds))
+    : users);
 }
 
 export async function listMembers(req: Request, res: Response) {
   const user = req.user!;
   const clubId = await actorClubId(user.teamId);
+  const managementTeamIds = await memberManagementTeamIds(user);
+  const limited = !isSuperAdmin(user.role) && !hasEffectivePermission(
+    user.role,
+    Permission.MANAGE_ORGANIZATION,
+    user.permissions,
+  );
   const users = await prisma.user.findMany({
     where: {
       accountDeletedAt: null,
-      ...userScope(user, clubId),
+      ...(await userScope(user, clubId)),
     },
     orderBy: [{ status: 'asc' }, { name: 'asc' }],
     select: memberSelect,
   });
-  return res.json(users);
+  return res.json(limited
+    ? users.map((member) => scopedMemberView(member, managementTeamIds))
+    : users);
 }
 
 export async function createMember(req: Request, res: Response) {
   const actor = req.user!;
+  if (!isSuperAdmin(actor.role) && !hasEffectivePermission(
+    actor.role,
+    Permission.MANAGE_ORGANIZATION,
+    actor.permissions,
+  )) {
+    return res.status(403).json({
+      message: 'Trainer dürfen Konten freigeben und Eltern zuweisen, aber keine neuen Konten anlegen.',
+    });
+  }
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
   const email =
     typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
@@ -551,11 +663,23 @@ export async function approveUser(req: Request, res: Response) {
   }
 
   const clubId = await actorClubId(actor.teamId);
-  const canManageOrganization = hasPermission(actor.role, Permission.MANAGE_ORGANIZATION);
+  const canManageOrganization = hasEffectivePermission(
+    actor.role,
+    Permission.MANAGE_ORGANIZATION,
+    actor.permissions,
+  );
+  const managementTeamIds = await memberManagementTeamIds(actor);
+  const limitedManager = !isSuperAdmin(actor.role) && !canManageOrganization;
   const target = await prisma.user.findFirst({
     where: {
       id: userId,
-      ...userScope(actor, clubId),
+      ...(await userScope(actor, clubId)),
+    },
+    include: {
+      memberships: { select: { teamId: true, role: true } },
+      registrationRequest: {
+        select: { requestedTeams: { select: { teamId: true } } },
+      },
     },
   });
   if (!target) {
@@ -590,6 +714,18 @@ export async function approveUser(req: Request, res: Response) {
   if (!nextRole) {
     return res.status(403).json({ message: 'Diese Rolle darf nicht vergeben werden.' });
   }
+  if (limitedManager) {
+    if (!canLimitedManagerUpdateMember(
+      target.status,
+      target.role as Role,
+      nextStatus,
+      nextRole,
+    )) {
+      return res.status(403).json({
+        message: 'Trainer dürfen beantragte Konten freigeben sowie Eltern zuweisen, aber Konten weder sperren, deaktivieren noch in Rolle oder Mannschaft verändern.',
+      });
+    }
+  }
   if (
     target.role === Role.SUPER_ADMIN &&
     (nextRole !== Role.SUPER_ADMIN || nextStatus !== AccountStatus.APPROVED)
@@ -617,12 +753,32 @@ export async function approveUser(req: Request, res: Response) {
         ? { isActive: true }
         : canManageOrganization && clubId
         ? { ageGroup: { season: { clubId, isActive: true } } }
-        : { id: actor.teamId }),
+        : { id: { in: managementTeamIds }, isActive: true }),
     },
     select: { id: true, ageGroupId: true },
   });
   if (allowedTeams.length !== requestedTeamIds.length) {
     return res.status(400).json({ message: 'Mindestens eine Mannschaft ist nicht zulässig.' });
+  }
+  if (limitedManager) {
+    const currentScopedTeamIds = target.status === AccountStatus.PENDING
+      ? target.registrationRequest?.requestedTeams
+          .map((item) => item.teamId)
+          .filter((id) => managementTeamIds.includes(id)) ?? []
+      : [...new Set([
+          ...(managementTeamIds.includes(target.teamId) ? [target.teamId] : []),
+          ...target.memberships
+            .map((membership) => membership.teamId)
+            .filter((id) => managementTeamIds.includes(id)),
+        ])];
+    if (
+      requestedTeamIds.length !== currentScopedTeamIds.length ||
+      !requestedTeamIds.every((id) => currentScopedTeamIds.includes(id))
+    ) {
+      return res.status(403).json({
+        message: 'Trainer dürfen Mannschaftszuordnungen nicht ändern.',
+      });
+    }
   }
   if (await violatesSingleYouthAssignment(
     nextRole,
@@ -664,7 +820,11 @@ export async function approveUser(req: Request, res: Response) {
     });
   }
 
-  const primaryTeamId = allowedTeams[0].id;
+  const preserveAccountAssignment =
+    limitedManager && target.status === AccountStatus.APPROVED;
+  const primaryTeamId = preserveAccountAssignment
+    ? target.teamId
+    : allowedTeams[0].id;
   const membershipFunctions = teamFunctionMap(
     teamRoles,
     allowedTeams.map((team) => team.id),
@@ -672,36 +832,49 @@ export async function approveUser(req: Request, res: Response) {
     actor.role,
   );
   const updated = await prisma.$transaction(async (tx) => {
-    const member = await tx.user.update({
-      where: { id: target.id },
-      data: { status: nextStatus, role: nextRole, teamId: primaryTeamId },
-      select: memberSelect,
-    });
-    await tx.teamMembership.deleteMany({
-      where: {
-        userId: target.id,
-        ...(clubId ? { team: { ageGroup: { season: { clubId } } } } : {}),
-      },
-    });
-    await tx.teamMembership.createMany({
-      data: allowedTeams.map((team) => ({
-        userId: target.id,
-        teamId: team.id,
-        role: membershipFunctions.get(team.id)!,
-        status: nextStatus,
-      })),
-      skipDuplicates: true,
-    });
-    if (nextStatus === AccountStatus.APPROVED) {
-      await tx.player.updateMany({
-        where: { userId: target.id },
-        data: { userId: null },
-      });
-      if (linkedPlayer && nextRole === Role.PLAYER) {
-        await tx.player.update({
-          where: { id: linkedPlayer.id },
-          data: { userId: target.id },
+    const member = preserveAccountAssignment
+      ? await tx.user.findUniqueOrThrow({
+          where: { id: target.id },
+          select: memberSelect,
+        })
+      : await tx.user.update({
+          where: { id: target.id },
+          data: { status: nextStatus, role: nextRole, teamId: primaryTeamId },
+          select: memberSelect,
         });
+    if (!preserveAccountAssignment) {
+      await tx.teamMembership.deleteMany({
+        where: {
+          userId: target.id,
+          ...(limitedManager
+            ? { teamId: { in: managementTeamIds } }
+            : clubId
+              ? { team: { ageGroup: { season: { clubId } } } }
+              : {}),
+        },
+      });
+      await tx.teamMembership.createMany({
+        data: allowedTeams.map((team) => ({
+          userId: target.id,
+          teamId: team.id,
+          role: membershipFunctions.get(team.id)!,
+          status: nextStatus,
+        })),
+        skipDuplicates: true,
+      });
+    }
+    if (nextStatus === AccountStatus.APPROVED) {
+      if (!preserveAccountAssignment) {
+        await tx.player.updateMany({
+          where: { userId: target.id },
+          data: { userId: null },
+        });
+        if (linkedPlayer && nextRole === Role.PLAYER) {
+          await tx.player.update({
+            where: { id: linkedPlayer.id },
+            data: { userId: target.id },
+          });
+        }
       }
       if (linkedPlayer && canHaveParentPlayerLinks(nextRole)) {
         await tx.parentPlayerLink.upsert({
@@ -784,7 +957,9 @@ export async function approveUser(req: Request, res: Response) {
     });
   });
 
-  return res.json(updated);
+  return res.json(limitedManager
+    ? scopedMemberView(updated, managementTeamIds)
+    : updated);
 }
 
 export async function assignParentPlayer(req: Request, res: Response) {
@@ -808,14 +983,24 @@ export async function assignParentPlayer(req: Request, res: Response) {
   }
 
   const actor = req.user!;
-  const teamIds = await accessibleTeamIds(actor);
+  const teamIds = await memberManagementTeamIds(actor);
   const [parent, player] = await Promise.all([
     prisma.user.findFirst({
       where: {
         id: parentId,
         ...(isSuperAdmin(actor.role)
           ? {}
-          : { OR: [{ teamId: { in: teamIds } }, { memberships: { some: { teamId: { in: teamIds } } } }] }),
+          : {
+              OR: [
+                { teamId: { in: teamIds } },
+                { memberships: { some: { teamId: { in: teamIds } } } },
+                {
+                  parentLinks: {
+                    some: { player: { teamId: { in: teamIds } } },
+                  },
+                },
+              ],
+            }),
       },
     }),
     prisma.player.findFirst({ where: { id: playerId, teamId: { in: teamIds } } }),

@@ -75,9 +75,8 @@ class _InitialPushPromptDialogState extends State<InitialPushPromptDialog> {
       actionsAlignment: MainAxisAlignment.center,
       actions: [
         TextButton(
-          onPressed:
-              _activating ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Jetzt nicht'),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(_activating ? 'Abbrechen' : 'Jetzt nicht'),
         ),
         FilledButton.icon(
           onPressed: _activating ? null : _activate,

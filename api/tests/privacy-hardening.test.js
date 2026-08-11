@@ -42,6 +42,31 @@ test('team photo responses distinguish deletion from consent-based hiding', () =
   assert.match(organization, /blockedByConsent/);
   assert.match(organization, /blockingConsentCount/);
   assert.match(organization, /photoUrl:\s*teamPhotoVisible/);
+  assert.match(
+    organization,
+    /canViewAllTeams\s*\|\|\s*visibleTeamIds\.includes\(team\.id\)/,
+  );
+});
+
+test('users can update their own profile and password through protected routes', () => {
+  const routes = read('src/routes/auth.routes.ts');
+  const auth = read('src/controllers/auth.controller.ts');
+  assert.match(routes, /patch\('\/me',\s*requireAuth,\s*requireApproved,\s*updateOwnProfile/);
+  assert.match(routes, /put\([\s\S]*'\/me\/password'[\s\S]*sensitiveActionRateLimit[\s\S]*changeOwnPassword/);
+  assert.match(auth, /comparePassword\(currentPassword,\s*user\.password\)/);
+  assert.match(auth, /PASSWORD_CHANGED_BY_USER/);
+  assert.match(auth, /USER_PROFILE_UPDATED/);
+  assert.match(auth, /refreshToken\.updateMany/);
+});
+
+test('trainer member administration is narrowed to the selected youth', () => {
+  const access = read('src/services/team-access.ts');
+  const admin = read('src/controllers/admin.controller.ts');
+  assert.match(access, /memberManagementTeamIds/);
+  assert.match(access, /userContextPreference\.findUnique/);
+  assert.match(access, /ageGroupId:\s*selectedAgeGroupId/);
+  assert.match(admin, /memberManagementTeamIds\(user\)/);
+  assert.match(admin, /memberManagementTeamIds\(actor\)/);
 });
 
 test('team photo is blocked only by a documented refusal or restriction', () => {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
 
@@ -18,13 +19,19 @@ external void _markInitialPromptHandled();
 Future<Map<String, dynamic>> subscribeToWebPush(
   String vapidPublicKey,
 ) async {
-  final raw = (await _subscribe(vapidPublicKey.toJS).toDart).toDart;
+  final raw = (await _subscribe(vapidPublicKey.toJS)
+          .toDart
+          .timeout(const Duration(seconds: 25)))
+      .toDart;
   return jsonDecode(raw) as Map<String, dynamic>;
 }
 
 Future<WebPushStatus> getWebPushStatus([String? vapidPublicKey]) async {
   try {
-    final raw = (await _status(vapidPublicKey?.toJS).toDart).toDart;
+    final raw = (await _status(vapidPublicKey?.toJS)
+            .toDart
+            .timeout(const Duration(seconds: 12)))
+        .toDart;
     return WebPushStatus.fromJson(
       jsonDecode(raw) as Map<String, dynamic>,
     );
@@ -35,7 +42,10 @@ Future<WebPushStatus> getWebPushStatus([String? vapidPublicKey]) async {
 
 Future<bool> shouldShowInitialWebPushPrompt() async {
   try {
-    final raw = (await _shouldShowInitialPrompt().toDart).toDart;
+    final raw = (await _shouldShowInitialPrompt()
+            .toDart
+            .timeout(const Duration(seconds: 12)))
+        .toDart;
     final value = jsonDecode(raw) as Map<String, dynamic>;
     return value['show'] as bool? ?? false;
   } catch (_) {

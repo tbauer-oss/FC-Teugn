@@ -344,6 +344,9 @@ class AppShell extends ConsumerWidget {
     final helpDestination = destinations
         .where((destination) => destination.route.endsWith('/help'))
         .firstOrNull;
+    final accountRoute = authState.user?.isTrainer == true
+        ? '/trainer/account'
+        : '/parent/account';
 
     return AdaptiveHingePane(
       child: LayoutBuilder(
@@ -370,6 +373,7 @@ class AppShell extends ConsumerWidget {
                               organization,
                             ),
                     onSelect: (index) => context.go(destinations[index].route),
+                    onAccount: () => context.go(accountRoute),
                     onLogout: () => ref.read(authProvider.notifier).logout(),
                     onHelp: helpDestination == null
                         ? _noOp
@@ -394,6 +398,7 @@ class AppShell extends ConsumerWidget {
                                   ),
                           onLogout: () =>
                               ref.read(authProvider.notifier).logout(),
+                          onAccount: () => context.go(accountRoute),
                           onPrivacy: () {
                             ShellDestination? privacy;
                             for (final item in destinations) {
@@ -588,6 +593,7 @@ class DesktopSidebar extends StatelessWidget {
     required this.seasonLabel,
     this.onContextTap = _noOp,
     required this.onSelect,
+    this.onAccount = _noOp,
     required this.onLogout,
     this.onHelp = _noOp,
     this.onAbout = _noOp,
@@ -603,6 +609,7 @@ class DesktopSidebar extends StatelessWidget {
   final String seasonLabel;
   final VoidCallback onContextTap;
   final ValueChanged<int> onSelect;
+  final VoidCallback onAccount;
   final VoidCallback onLogout;
   final VoidCallback onHelp;
   final VoidCallback onAbout;
@@ -745,29 +752,48 @@ class DesktopSidebar extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                _Avatar(name: userName),
-                const SizedBox(width: 11),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        userName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
+                  child: Tooltip(
+                    message: 'Mein Konto',
+                    child: InkWell(
+                      onTap: onAccount,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            _Avatar(name: userName),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    userName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    userRole,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color:
+                                          Colors.white.withValues(alpha: .52),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      Text(
-                        userRole,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: .52),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
                 IconButton(
@@ -1359,6 +1385,7 @@ class _MobileHeader extends StatelessWidget {
     required this.userName,
     required this.contextLabel,
     required this.onLogout,
+    required this.onAccount,
     required this.onContextTap,
     required this.onPrivacy,
     required this.onHelp,
@@ -1370,6 +1397,7 @@ class _MobileHeader extends StatelessWidget {
   final String userName;
   final String contextLabel;
   final VoidCallback onLogout;
+  final VoidCallback onAccount;
   final VoidCallback onContextTap;
   final VoidCallback onPrivacy;
   final VoidCallback onHelp;
@@ -1466,6 +1494,8 @@ class _MobileHeader extends StatelessWidget {
                   icon: const Icon(Icons.more_vert_rounded),
                   onSelected: (action) {
                     switch (action) {
+                      case _MobileAccountAction.account:
+                        onAccount();
                       case _MobileAccountAction.privacy:
                         onPrivacy();
                       case _MobileAccountAction.help:
@@ -1477,6 +1507,14 @@ class _MobileHeader extends StatelessWidget {
                     }
                   },
                   itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: _MobileAccountAction.account,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.manage_accounts_outlined),
+                        title: Text('Mein Konto'),
+                      ),
+                    ),
                     PopupMenuItem(
                       value: _MobileAccountAction.help,
                       child: ListTile(
@@ -1570,7 +1608,7 @@ class _RefreshIconButtonState extends State<_RefreshIconButton> {
   }
 }
 
-enum _MobileAccountAction { help, privacy, about, logout }
+enum _MobileAccountAction { account, help, privacy, about, logout }
 
 class _ClubBrand extends StatelessWidget {
   const _ClubBrand({required this.light});

@@ -146,6 +146,73 @@ export async function selectedContextTeamIds(user: TeamScopedUser) {
   return teams.length ? teams.map((team) => team.id) : [accessibleIds[0]];
 }
 
+/**
+ * Teams whose members the current staff account may administer.
+ *
+ * Member administration deliberately ignores family links: being a parent in
+ * another youth must never grant staff access there. Staff memberships are
+ * then narrowed to the youth selected in the working-context switcher. The
+ * complete selected youth remains manageable, even when its UI context shows
+ * only one of several squads.
+ */
+export async function memberManagementTeamIds(user: TeamScopedUser) {
+  if (
+    String(user.role) === Role.SUPER_ADMIN ||
+    permitted(user, Permission.MANAGE_ORGANIZATION)
+  ) {
+    return accessibleTeamIds(user);
+  }
+  if (!permitted(user, Permission.MANAGE_MEMBERS)) return [];
+
+  const [memberships, currentTeam, preference] = await Promise.all([
+    prisma.teamMembership.findMany({
+      where: {
+        userId: user.id,
+        status: AccountStatus.APPROVED,
+        team: { deletedAt: null, isActive: true },
+      },
+      select: { teamId: true, role: true },
+    }),
+    prisma.team.findFirst({
+      where: { id: user.teamId, deletedAt: null, isActive: true },
+      select: { id: true, ageGroupId: true },
+    }),
+    prisma.userContextPreference.findUnique({
+      where: { userId: user.id },
+      select: { ageGroupId: true },
+    }),
+  ]);
+  const manageableIds = new Set<string>();
+  if (currentTeam) manageableIds.add(currentTeam.id);
+  for (const membership of memberships) {
+    if (hasPermissionForMembership(membership.role, Permission.MANAGE_MEMBERS)) {
+      manageableIds.add(membership.teamId);
+    }
+  }
+  if (!manageableIds.size) return [];
+
+  const selectedAgeGroupId = preference?.ageGroupId ?? currentTeam?.ageGroupId;
+  if (!selectedAgeGroupId) return [];
+  const teams = await prisma.team.findMany({
+    where: {
+      id: { in: [...manageableIds] },
+      ageGroupId: selectedAgeGroupId,
+      deletedAt: null,
+      isActive: true,
+    },
+    orderBy: { teamNumber: 'asc' },
+    select: { id: true },
+  });
+  return teams.map((team) => team.id);
+}
+
+function hasPermissionForMembership(
+  role: PrismaRole,
+  permission: Permission,
+) {
+  return hasEffectivePermission(role as Role, permission);
+}
+
 export async function contextualTeamIds(user: TeamScopedUser) {
   const contextRoles = new Set<string>([
     Role.SUPER_ADMIN,

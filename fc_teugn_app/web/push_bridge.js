@@ -2,6 +2,16 @@
   const pushScopePath = '/fc-teugn-push/';
   const initialPromptKey = 'fc-teugn-web-push-prompt-v1';
 
+  function withTimeout(promise, timeoutMs, code) {
+    let timer;
+    return Promise.race([
+      Promise.resolve(promise),
+      new Promise((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error(code)), timeoutMs);
+      }),
+    ]).finally(() => window.clearTimeout(timer));
+  }
+
   function urlBase64ToUint8Array(value) {
     const padding = '='.repeat((4 - (value.length % 4)) % 4);
     const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -36,7 +46,11 @@
 
   async function findPushRegistration() {
     if (!('serviceWorker' in navigator)) return null;
-    const registrations = await navigator.serviceWorker.getRegistrations();
+    const registrations = await withTimeout(
+      navigator.serviceWorker.getRegistrations(),
+      8000,
+      'PUSH_SERVICE_WORKER_TIMEOUT',
+    );
     return registrations.find(
       (item) => new URL(item.scope).pathname === pushScopePath,
     ) || null;
@@ -94,7 +108,11 @@
     }
     const permission = Notification.permission === 'granted'
       ? 'granted'
-      : await Notification.requestPermission();
+      : await withTimeout(
+          Notification.requestPermission(),
+          20000,
+          'PUSH_PERMISSION_TIMEOUT',
+        );
     if (permission !== 'granted') {
       throw new Error('PUSH_PERMISSION_DENIED');
     }
@@ -102,20 +120,36 @@
     // registrierte Root-Service-Worker für Offline-Cache und App-Updates aktiv.
     let registration = await findPushRegistration();
     if (!registration) {
-      registration = await navigator.serviceWorker.register('/push-sw.js', {
-        scope: pushScopePath,
-      });
+      registration = await withTimeout(
+        navigator.serviceWorker.register('/push-sw.js', {
+          scope: pushScopePath,
+        }),
+        15000,
+        'PUSH_SERVICE_WORKER_TIMEOUT',
+      );
     }
-    let subscription = await registration.pushManager.getSubscription();
+    let subscription = await withTimeout(
+      registration.pushManager.getSubscription(),
+      10000,
+      'PUSH_SUBSCRIPTION_TIMEOUT',
+    );
     if (subscription && !usesVapidKey(subscription, vapidPublicKey)) {
-      await subscription.unsubscribe();
+      await withTimeout(
+        subscription.unsubscribe(),
+        10000,
+        'PUSH_UNSUBSCRIBE_TIMEOUT',
+      );
       subscription = null;
     }
     if (!subscription) {
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-      });
+      subscription = await withTimeout(
+        registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        }),
+        20000,
+        'PUSH_SUBSCRIPTION_TIMEOUT',
+      );
     }
     const json = subscription.toJSON();
     return JSON.stringify({

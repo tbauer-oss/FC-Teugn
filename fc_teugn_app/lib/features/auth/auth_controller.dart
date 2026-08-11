@@ -243,6 +243,63 @@ class AuthController extends StateNotifier<AuthState> {
     state = AuthState();
   }
 
+  Future<String> updateOwnProfile({
+    required String firstName,
+    required String lastName,
+    required String email,
+    String? phone,
+  }) async {
+    try {
+      final response = await _client.dio.patch('/auth/me', data: {
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': email,
+        'phone': phone,
+      });
+      final data = response.data as Map<String, dynamic>;
+      final current = state.user;
+      if (current != null) {
+        state = state.copyWith(
+          user: current.copyWithProfile(
+            firstName: data['firstName'] as String? ?? firstName,
+            lastName: data['lastName'] as String? ?? lastName,
+            email: data['email'] as String? ?? email,
+            phone: data['phone'] as String?,
+          ),
+          error: null,
+        );
+      }
+      return 'Deine persönlichen Daten wurden gespeichert.';
+    } catch (error) {
+      throw Exception(_messageFromError(
+        error,
+        fallback: 'Deine Daten konnten nicht gespeichert werden.',
+      ));
+    }
+  }
+
+  Future<String> changeOwnPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _client.dio.put('/auth/me/password', data: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      });
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['message'] is String) {
+        return data['message'] as String;
+      }
+      return 'Dein Passwort wurde geändert. Bitte melde dich erneut an.';
+    } catch (error) {
+      throw Exception(_messageFromError(
+        error,
+        fallback: 'Das Passwort konnte nicht geändert werden.',
+      ));
+    }
+  }
+
   void clearSession() {
     final userId = state.user?.id;
     unawaited(_deleteStoredToken());

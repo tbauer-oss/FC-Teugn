@@ -39,6 +39,20 @@ void main() {
     expect(canSelectStatisticsTeam(UserRole.player), isFalse);
   });
 
+  test('all trainer functions can manage members in their selected youth', () {
+    for (final role in [
+      UserRole.coach,
+      UserRole.trainer,
+      UserRole.assistantCoach,
+      UserRole.teamManager,
+    ]) {
+      final codes = permissionsForUserRole(role)
+          .map((permission) => permission.code)
+          .toSet();
+      expect(codes, contains('MANAGE_MEMBERS'), reason: role.name);
+    }
+  });
+
   test('staff lifecycle presets include delete and reschedule rights', () {
     const lifecycle = {
       'EVENT_DELETE',

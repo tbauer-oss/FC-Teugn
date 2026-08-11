@@ -120,6 +120,7 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
   ],
   [Role.ASSISTANT_COACH]: [
     Permission.VIEW_TEAM,
+    Permission.MANAGE_MEMBERS,
     Permission.MANAGE_PLAYERS,
     Permission.VIEW_SENSITIVE_PLAYER,
     Permission.MANAGE_DOCUMENTS,

@@ -12,6 +12,7 @@ import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
 import 'features/auth/reset_password_page.dart';
 import 'features/auth/pending_page.dart';
+import 'features/auth/account_settings_page.dart';
 import 'features/shell/app_shell.dart';
 import 'features/trainer/trainer_dashboard_page.dart';
 import 'features/trainer/trainer_team_page.dart';
@@ -493,6 +494,13 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   hint: 'Zugänge, Rollen und Freigaben',
                   showOnMobile: false),
               ShellDestination(
+                  label: 'Mein Konto',
+                  icon: Icons.manage_accounts_outlined,
+                  route: '/trainer/account',
+                  section: ShellSection.administration,
+                  hint: 'Persönliche Daten und Passwort ändern',
+                  showOnMobile: false),
+              ShellDestination(
                   label: 'Team-Zentrale',
                   mobileLabel: 'Team',
                   icon: Icons.groups_rounded,
@@ -599,6 +607,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
             GoRoute(
               path: '/trainer/approvals',
               builder: (context, state) => const TrainerApprovalsPage(),
+            ),
+            GoRoute(
+              path: '/trainer/account',
+              builder: (context, state) => const AccountSettingsPage(),
             ),
             GoRoute(
               path: '/trainer/team',
@@ -755,6 +767,13 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   hint: 'Daten, Dokumente und Zustimmungen',
                   showOnMobile: false),
               ShellDestination(
+                  label: 'Mein Konto',
+                  icon: Icons.manage_accounts_outlined,
+                  route: '/parent/account',
+                  section: ShellSection.administration,
+                  hint: 'Persönliche Daten und Passwort ändern',
+                  showOnMobile: false),
+              ShellDestination(
                   label: 'Hilfe-Center',
                   icon: Icons.help_center_rounded,
                   route: '/parent/help',
@@ -829,6 +848,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
             GoRoute(
               path: '/parent/privacy',
               builder: (context, state) => const PrivacyPage(),
+            ),
+            GoRoute(
+              path: '/parent/account',
+              builder: (context, state) => const AccountSettingsPage(),
             ),
             GoRoute(
               path: '/parent/help',
