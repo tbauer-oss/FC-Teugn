@@ -45,6 +45,13 @@ void main() {
       'dfbnetTeamId': 'dfb-1',
       'bfvTeamUrl': 'https://www.bfv.de/team/e1',
       'photoUrl': 'https://blob.example/signed',
+      'photoStatus': {
+        'stored': true,
+        'visible': true,
+        'blockedByConsent': false,
+        'missingConsentCount': 0,
+        'playerCount': 12,
+      },
       'isActive': true,
       'staff': [
         {
@@ -71,6 +78,9 @@ void main() {
     expect(team.staff.single.name, 'Max Trainer');
     expect(team.staff.single.role, 'COACH');
     expect(team.photoUrl, isNotNull);
+    expect(team.photoStatus.stored, isTrue);
+    expect(team.photoStatus.visible, isTrue);
+    expect(team.photoStatus.playerCount, 12);
     expect(team.customFormations, ['3-1']);
     expect(team.formationTemplates.single.name, '3-1 · offensiv');
     expect(
@@ -94,5 +104,29 @@ void main() {
     expect(team.trainingTimes, isEmpty);
     expect(team.staff, isEmpty);
     expect(team.displayName, 'F1-Jugend');
+    expect(team.photoStatus.stored, isFalse);
+    expect(team.photoStatus.blockedByConsent, isFalse);
+  });
+
+  test('team photo consent block is distinguishable from deletion', () {
+    final team = TeamSummary.fromJson({
+      'id': 'team-1',
+      'name': 'E1',
+      'photoUrl': null,
+      'photoStatus': {
+        'stored': true,
+        'visible': false,
+        'blockedByConsent': true,
+        'missingConsentCount': 2,
+        'playerCount': 12,
+      },
+      'ageGroup': {'id': 'age-1', 'name': 'E-Jugend', 'code': 'E'},
+      'season': {'id': 'season-1', 'name': '2026/27'},
+    });
+
+    expect(team.photoUrl, isNull);
+    expect(team.photoStatus.stored, isTrue);
+    expect(team.photoStatus.blockedByConsent, isTrue);
+    expect(team.photoStatus.missingConsentCount, 2);
   });
 }

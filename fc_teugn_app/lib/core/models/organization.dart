@@ -111,6 +111,7 @@ class TeamSummary {
     this.dfbnetTeamId,
     this.bfvTeamUrl,
     this.photoUrl,
+    this.photoStatus = const TeamPhotoStatus(),
     this.staff = const [],
   });
 
@@ -150,6 +151,7 @@ class TeamSummary {
   final String? dfbnetTeamId;
   final String? bfvTeamUrl;
   final String? photoUrl;
+  final TeamPhotoStatus photoStatus;
   final List<TeamStaffMember> staff;
   final AgeGroupSummary ageGroup;
   final String seasonName;
@@ -245,6 +247,9 @@ class TeamSummary {
         dfbnetTeamId: json['dfbnetTeamId'] as String?,
         bfvTeamUrl: json['bfvTeamUrl'] as String?,
         photoUrl: json['photoUrl'] as String?,
+        photoStatus: TeamPhotoStatus.fromJson(
+          json['photoStatus'] as Map<String, dynamic>?,
+        ),
         staff: (json['staff'] as List<dynamic>? ?? [])
             .map((item) =>
                 TeamStaffMember.fromJson(item as Map<String, dynamic>))
@@ -254,6 +259,32 @@ class TeamSummary {
         ),
         seasonName:
             (json['season'] as Map<String, dynamic>?)?['name'] as String? ?? '',
+      );
+}
+
+class TeamPhotoStatus {
+  const TeamPhotoStatus({
+    this.stored = false,
+    this.visible = false,
+    this.blockedByConsent = false,
+    this.missingConsentCount = 0,
+    this.playerCount = 0,
+  });
+
+  final bool stored;
+  final bool visible;
+  final bool blockedByConsent;
+  final int missingConsentCount;
+  final int playerCount;
+
+  factory TeamPhotoStatus.fromJson(Map<String, dynamic>? json) =>
+      TeamPhotoStatus(
+        stored: json?['stored'] as bool? ?? false,
+        visible: json?['visible'] as bool? ?? false,
+        blockedByConsent: json?['blockedByConsent'] as bool? ?? false,
+        missingConsentCount:
+            (json?['missingConsentCount'] as num?)?.toInt() ?? 0,
+        playerCount: (json?['playerCount'] as num?)?.toInt() ?? 0,
       );
 }
 

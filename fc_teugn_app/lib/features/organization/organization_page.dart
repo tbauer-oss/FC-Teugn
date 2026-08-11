@@ -676,16 +676,21 @@ class _TeamCard extends StatelessWidget {
             width: double.infinity,
             child: team.photoUrl != null
                 ? Image.network(team.photoUrl!, fit: BoxFit.cover)
-                : DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [
-                        AppColors.navy,
-                        AppColors.blue.withValues(alpha: .75),
-                      ]),
-                    ),
-                    child: const Icon(Icons.groups_rounded,
-                        size: 58, color: Colors.white70),
-                  ),
+                : team.photoStatus.blockedByConsent
+                    ? _ProtectedTeamPhotoPlaceholder(
+                        status: team.photoStatus,
+                        compact: compact,
+                      )
+                    : DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(colors: [
+                            AppColors.navy,
+                            AppColors.blue.withValues(alpha: .75),
+                          ]),
+                        ),
+                        child: const Icon(Icons.groups_rounded,
+                            size: 58, color: Colors.white70),
+                      ),
           ),
           Padding(
             padding: EdgeInsets.all(compact ? 14 : 16),
@@ -782,6 +787,37 @@ class _TeamCard extends StatelessWidget {
                         .join('\n'),
                   ),
                 ],
+                if (team.photoStatus.blockedByConsent) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.yellow.withValues(alpha: .16),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.yellow.withValues(alpha: .45),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.privacy_tip_outlined,
+                            color: AppColors.gold),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Das gespeicherte Mannschaftsfoto ist nicht gelöscht. '
+                            'Es bleibt ausgeblendet, bis für alle aktiven Spieler '
+                            'die Einwilligung „Mannschaftsfotos · geschützter '
+                            'App-Bereich“ vorliegt.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (canEdit) ...[
                   const SizedBox(height: 14),
                   Wrap(
@@ -841,6 +877,73 @@ class _TeamCard extends StatelessWidget {
       ? null
       : '${value.day.toString().padLeft(2, '0')}.'
           '${value.month.toString().padLeft(2, '0')}.${value.year}';
+}
+
+class _ProtectedTeamPhotoPlaceholder extends StatelessWidget {
+  const _ProtectedTeamPhotoPlaceholder({
+    required this.status,
+    required this.compact,
+  });
+
+  final TeamPhotoStatus status;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = status.missingConsentCount;
+    final countText = missing == 1
+        ? 'Einwilligung fehlt bei 1 aktivem Spieler'
+        : 'Einwilligung fehlt bei $missing aktiven Spielern';
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          AppColors.navy,
+          AppColors.gold.withValues(alpha: .88),
+        ]),
+      ),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.privacy_tip_outlined,
+                size: compact ? 30 : 38,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mannschaftsfoto geschützt',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    Text(
+                      countText,
+                      maxLines: compact ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.white70,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _InfoLine extends StatelessWidget {

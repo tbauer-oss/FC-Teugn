@@ -1120,6 +1120,30 @@ const helpArticles = <HelpArticle>[
   ),
   HelpArticle(
     category: HelpCategory.team,
+    title: 'Warum wird ein Mannschaftsfoto nicht mehr angezeigt?',
+    summary:
+        'Ein gespeichertes Mannschaftsfoto wird automatisch geschützt ausgeblendet, wenn eine erforderliche Einwilligung fehlt.',
+    audience: HelpAudience.staff,
+    keywords: [
+      'Mannschaftsfoto',
+      'Foto fehlt',
+      'Bild weg',
+      'Einwilligung',
+      'Datenschutz',
+    ],
+    route: '/organization',
+    routeLabel: 'Verein & Mannschaften öffnen',
+    steps: [
+      'Öffne „Verein & Mannschaften“. Die betroffene Mannschaft zeigt, ob das Foto weiterhin gespeichert und nur geschützt ausgeblendet ist.',
+      'Die Anzeige nennt die Anzahl aktiver Spieler, für die die Einwilligung „Mannschaftsfotos · geschützter App-Bereich“ fehlt oder nicht mehr gültig ist.',
+      'Öffne die jeweiligen Spielerprofile und dokumentiere die freiwillige Einwilligung nur dann, wenn sie tatsächlich vorliegt.',
+      'Sobald die letzte erforderliche Einwilligung gültig ist, erscheint das bereits gespeicherte Foto nach der nächsten Aktualisierung automatisch wieder.',
+    ],
+    tip:
+        'Ein Widerruf blendet das Foto sofort erneut aus. Das ist beabsichtigt und schützt die Bilddaten der Kinder.',
+  ),
+  HelpArticle(
+    category: HelpCategory.team,
     title: 'Wie verwalte ich Stammformationen?',
     summary:
         'Grundformationen können angepasst und mit einem verständlichen Suffix als Variante gespeichert werden.',

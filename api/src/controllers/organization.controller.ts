@@ -1414,9 +1414,13 @@ async function serializeTeam(team: {
   const teamCount = ageGroupTeamCount ?? await prisma.team.count({
     where: { ageGroupId: team.ageGroupId, deletedAt: null },
   });
-  const teamPhotoAllowed = team.photoAsset
-    ? (await teamPhotoConsentStatus(team.id)).allowed
-    : false;
+  const teamPhotoConsent = team.photoAsset
+    ? await teamPhotoConsentStatus(team.id)
+    : { allowed: false, playerCount: 0, missing: [] };
+  const teamPhotoAllowed = teamPhotoConsent.allowed;
+  const teamPhotoVisible = Boolean(
+    includePrivate && team.photoAsset && teamPhotoAllowed,
+  );
   return {
     id: team.id,
     teamNumber: team.teamNumber,
@@ -1462,9 +1466,18 @@ async function serializeTeam(team: {
     dfbnetTeamId: team.dfbnetTeamId,
     bfvTeamUrl: team.bfvTeamUrl,
     isActive: team.isActive,
-    photoUrl: includePrivate && team.photoAsset && teamPhotoAllowed
-      ? mediaAssetUrl(team.photoAsset.id)
+    photoUrl: teamPhotoVisible
+      ? mediaAssetUrl(team.photoAsset!.id)
       : null,
+    photoStatus: {
+      stored: Boolean(team.photoAsset),
+      visible: teamPhotoVisible,
+      blockedByConsent: Boolean(
+        includePrivate && team.photoAsset && !teamPhotoAllowed,
+      ),
+      missingConsentCount: includePrivate ? teamPhotoConsent.missing.length : 0,
+      playerCount: includePrivate ? teamPhotoConsent.playerCount : 0,
+    },
     staff: team.memberships.map((membership) => ({
       id: membership.user.id,
       name: membership.user.name,

@@ -31,6 +31,15 @@ test('photo use requires a current signed scope for the protected app', () => {
   assert.equal(hasActiveConsent([consent('PHOTO', ['APP_INTERNAL'], { expiresAt: new Date(0) })], 'PHOTO', 'APP_INTERNAL'), false);
 });
 
+test('team photo responses distinguish deletion from consent-based hiding', () => {
+  const organization = read('src/controllers/organization.controller.ts');
+  assert.match(organization, /photoStatus:\s*\{/);
+  assert.match(organization, /stored:\s*Boolean\(team\.photoAsset\)/);
+  assert.match(organization, /blockedByConsent/);
+  assert.match(organization, /missingConsentCount/);
+  assert.match(organization, /photoUrl:\s*teamPhotoVisible/);
+});
+
 test('medical fields are reduced to the explicitly selected scope', () => {
   const profile = {
     allergies: 'Nüsse',

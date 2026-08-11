@@ -151,10 +151,11 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
           'Verwalte Vereinsstruktur, Mannschaften, Rollen und Saisonkontext.',
       steps: [
         'Prüfe vor Änderungen immer die aktuell ausgewählte Jugend und Saison.',
+        'Ein gespeichertes Mannschaftsfoto wird aus Datenschutzgründen ausgeblendet, sobald bei einem aktiven Spieler die Einwilligung für Mannschaftsfotos im geschützten App-Bereich fehlt. Die Mannschaftskarte zeigt den Grund und die Anzahl fehlender Einwilligungen.',
         'Berechtigungen begrenzen, welche Verwaltungsbereiche sichtbar sind.',
         'Größere Saisonänderungen zeigen vor dem Speichern eine Vorschau.',
       ],
-      searchQuery: 'Verein Mannschaft Rolle Saison',
+      searchQuery: 'Verein Mannschaft Mannschaftsfoto Einwilligung Saison',
     );
   }
   if (title.contains('aufgabe') || title.contains('ausrüstung')) {
