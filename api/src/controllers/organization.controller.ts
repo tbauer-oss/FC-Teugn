@@ -18,6 +18,7 @@ import {
   accessibleTeamIds,
   canManageFormation,
   canManageTeam,
+  hasOrganizationWideTeamScope,
   resolveContextTeamId,
   selectedContextTeamIds,
 } from '../services/team-access';
@@ -417,7 +418,7 @@ export async function organizationContext(req: Request, res: Response) {
 
   const clubId = currentTeam.ageGroup.season.clubId;
   const permissions = user.permissions ?? await effectivePermissionsForUser(user.id, user.role);
-  const canViewAllTeams = permissions.includes(Permission.MANAGE_ORGANIZATION);
+  const canViewAllTeams = hasOrganizationWideTeamScope(user.role);
   const visibleTeamIds = await accessibleTeamIds(user);
   const contextTeamIds = selectedIds.length ? selectedIds : [contextTeamId];
   const seasonScope =
@@ -426,7 +427,10 @@ export async function organizationContext(req: Request, res: Response) {
       : { clubId, isActive: true };
   const [ageGroups, teams, players, members, upcomingEvents, pendingApprovals] = await Promise.all([
     prisma.ageGroup.findMany({
-      where: { season: seasonScope },
+      where: {
+        season: seasonScope,
+        ...(canViewAllTeams ? {} : { id: currentTeam.ageGroupId }),
+      },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: { id: true, name: true, code: true, sortOrder: true },
     }),
@@ -435,7 +439,7 @@ export async function organizationContext(req: Request, res: Response) {
         ageGroup: { season: seasonScope },
         deletedAt: null,
         ...(canViewAllTeams ? {} : {
-          id: { in: visibleTeamIds.length > 0 ? visibleTeamIds : [contextTeamId] },
+          id: { in: contextTeamIds },
         }),
       },
       orderBy: [
@@ -446,7 +450,11 @@ export async function organizationContext(req: Request, res: Response) {
       include: hierarchyInclude,
     }),
     prisma.player.count({
-      where: user.role === Role.SUPER_ADMIN ? {} : { clubId },
+      where: user.role === Role.SUPER_ADMIN
+        ? {}
+        : canViewAllTeams
+          ? { clubId }
+          : { teamId: { in: contextTeamIds } },
     }),
     prisma.user.count({
       where: {

@@ -18,6 +18,22 @@ function permitted(user: TeamScopedUser, permission: Permission) {
   );
 }
 
+/**
+ * Roles whose responsibilities inherently span the complete youth club.
+ *
+ * A trainer administrator may have additional editing permissions, but still
+ * works inside the youth selected in the app-wide context switcher. View scope
+ * and edit permissions must therefore remain separate concerns.
+ */
+export function hasOrganizationWideTeamScope(role: Role | PrismaRole) {
+  const organizationWideRoles: ReadonlySet<string> = new Set([
+    Role.SUPER_ADMIN,
+    Role.CLUB_ADMIN,
+    Role.YOUTH_DIRECTOR,
+  ]);
+  return organizationWideRoles.has(String(role));
+}
+
 export async function clubIdForTeam(teamId: string) {
   const team = await prisma.team.findUnique({
     where: { id: teamId },
@@ -156,10 +172,7 @@ export async function selectedContextTeamIds(user: TeamScopedUser) {
  * only one of several squads.
  */
 export async function memberManagementTeamIds(user: TeamScopedUser) {
-  if (
-    String(user.role) === Role.SUPER_ADMIN ||
-    permitted(user, Permission.MANAGE_ORGANIZATION)
-  ) {
+  if (hasOrganizationWideTeamScope(user.role)) {
     return accessibleTeamIds(user);
   }
   if (!permitted(user, Permission.MANAGE_MEMBERS)) return [];

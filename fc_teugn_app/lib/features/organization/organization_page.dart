@@ -17,6 +17,7 @@ import '../../core/team_game_format.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import 'organization_admin_tools.dart';
+import 'organization_structure_scope.dart';
 import 'team_default_lineup_dialog.dart';
 
 class OrganizationPage extends ConsumerWidget {
@@ -60,11 +61,15 @@ class _OrganizationContent extends ConsumerWidget {
     TeamSummary? team,
     required AgeGroupSummary initialAgeGroup,
   }) async {
+    final structure = organizationStructureScope(
+      data,
+      ref.read(authProvider).user?.role,
+    );
     final draft = await showDialog<_TeamDraft>(
       context: context,
       builder: (_) => _TeamEditorDialog(
-        ageGroups: data.ageGroups,
-        teams: data.teams,
+        ageGroups: structure.ageGroups,
+        teams: structure.teams,
         initialAgeGroup: initialAgeGroup,
         team: team,
         canCustomizeMatchRules:
@@ -370,12 +375,17 @@ class _OrganizationContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final structure = organizationStructureScope(
+      data,
+      ref.watch(authProvider).user?.role,
+    );
     final canDeleteTeams =
         ref.watch(authProvider).user?.role == UserRole.superAdmin;
     final grouped = <String, List<TeamSummary>>{};
-    for (final ageGroup in data.ageGroups) {
-      grouped[ageGroup.id] =
-          data.teams.where((team) => team.ageGroup.id == ageGroup.id).toList();
+    for (final ageGroup in structure.ageGroups) {
+      grouped[ageGroup.id] = structure.teams
+          .where((team) => team.ageGroup.id == ageGroup.id)
+          .toList();
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,7 +400,7 @@ class _OrganizationContent extends ConsumerWidget {
                     style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 4),
                 Text(
-                  '${data.ageGroups.length} Altersklassen · ${data.teams.where((team) => team.isActive).length} aktive Mannschaften',
+                  '${structure.ageGroups.length} Altersklassen · ${structure.teams.where((team) => team.isActive).length} aktive Mannschaften',
                 ),
               ],
             );
@@ -425,7 +435,7 @@ class _OrganizationContent extends ConsumerWidget {
           },
         ),
         const SizedBox(height: 16),
-        for (final ageGroup in data.ageGroups)
+        for (final ageGroup in structure.ageGroups)
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child: _AgeGroupSection(

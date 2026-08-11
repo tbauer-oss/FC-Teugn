@@ -65,8 +65,26 @@ test('trainer member administration is narrowed to the selected youth', () => {
   assert.match(access, /memberManagementTeamIds/);
   assert.match(access, /userContextPreference\.findUnique/);
   assert.match(access, /ageGroupId:\s*selectedAgeGroupId/);
+  assert.match(access, /hasOrganizationWideTeamScope\(user\.role\)/);
   assert.match(admin, /memberManagementTeamIds\(user\)/);
   assert.match(admin, /memberManagementTeamIds\(actor\)/);
+});
+
+test('organization structure is narrowed to the selected trainer context', () => {
+  const organization = read('src/controllers/organization.controller.ts');
+  assert.match(
+    organization,
+    /canViewAllTeams\s*=\s*hasOrganizationWideTeamScope\(user\.role\)/,
+  );
+  assert.match(
+    organization,
+    /canViewAllTeams\s*\?\s*\{\}\s*:\s*\{\s*id:\s*currentTeam\.ageGroupId\s*\}/,
+  );
+  assert.match(organization, /id:\s*\{\s*in:\s*contextTeamIds\s*\}/);
+  assert.match(
+    organization,
+    /teamId:\s*\{\s*in:\s*contextTeamIds\s*\}/,
+  );
 });
 
 test('team photo is blocked only by a documented refusal or restriction', () => {

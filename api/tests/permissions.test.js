@@ -94,6 +94,7 @@ const {
 } = require('../dist/src/controllers/organization.controller');
 const {
   canManageFormationRole,
+  hasOrganizationWideTeamScope,
 } = require('../dist/src/services/team-access');
 const {
   selectPresentAttendance,
@@ -204,6 +205,17 @@ test('system administrators always receive every defined permission', () => {
   for (const permission of Object.values(Permission)) {
     assert.equal(hasPermission(Role.SUPER_ADMIN, permission), true);
   }
+});
+
+test('only club-wide roles see the complete organization structure', () => {
+  assert.equal(hasOrganizationWideTeamScope(Role.SUPER_ADMIN), true);
+  assert.equal(hasOrganizationWideTeamScope(Role.CLUB_ADMIN), true);
+  assert.equal(hasOrganizationWideTeamScope(Role.YOUTH_DIRECTOR), true);
+  assert.equal(hasOrganizationWideTeamScope(Role.TRAINER_ADMIN), false);
+  assert.equal(hasOrganizationWideTeamScope(Role.COACH), false);
+  assert.equal(hasOrganizationWideTeamScope(Role.TRAINER), false);
+  assert.equal(hasOrganizationWideTeamScope(Role.ASSISTANT_COACH), false);
+  assert.equal(hasOrganizationWideTeamScope(Role.TEAM_MANAGER), false);
 });
 
 test('individual permission overrides deny first and can add missing rights', () => {
