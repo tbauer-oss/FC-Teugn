@@ -348,6 +348,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         : ref.watch(sessionBootstrapProvider(bootstrapSession));
     final bootstrapLoading = bootstrap?.isLoading == true;
     final bootstrapError = bootstrap?.error;
+    final authRestoreError =
+        authState.user == null && authState.loading ? authState.error : null;
     if (!_minimumLaunchComplete ||
         (authState.loading && authState.user == null) ||
         bootstrapLoading ||
@@ -368,15 +370,18 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
           waitingForData: bootstrapLoading,
           statusMessage: bootstrapLoading
               ? 'Vereinsdaten werden geladen...'
-              : bootstrapError != null
+              : authRestoreError != null || bootstrapError != null
                   ? 'Start konnte noch nicht abgeschlossen werden'
                   : 'App wird vorbereitet …',
-          errorMessage: bootstrapError == null
-              ? null
-              : _bootstrapErrorMessage(bootstrapError),
-          onRetry: bootstrapSession == null || bootstrapError == null
-              ? null
-              : () => _retryBootstrap(bootstrapSession),
+          errorMessage: authRestoreError ??
+              (bootstrapError == null
+                  ? null
+                  : _bootstrapErrorMessage(bootstrapError)),
+          onRetry: authRestoreError != null
+              ? () => ref.read(authProvider.notifier).retryStoredSession()
+              : bootstrapSession == null || bootstrapError == null
+                  ? null
+                  : () => _retryBootstrap(bootstrapSession),
         ),
       ));
     }

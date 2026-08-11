@@ -15,6 +15,7 @@ import {
   NotificationCategory,
 } from '@prisma/client';
 import { notifyUsers } from '../services/notification.service';
+import { isRecentRefreshRotation } from '../lib/session-refresh';
 
 const refreshLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 
@@ -747,6 +748,12 @@ export async function refresh(req: Request, res: Response) {
     session?.revokedAt != null &&
     session.tokenHash === tokenHash(refreshToken);
   if (reused) {
+    if (isRecentRefreshRotation(session.revokedAt)) {
+      return res.status(409).json({
+        code: 'REFRESH_TOKEN_ROTATED',
+        message: 'Sitzung wurde bereits in einem anderen App-Fenster erneuert.',
+      });
+    }
     await prisma.refreshToken.updateMany({
       where: { familyId: session.familyId, revokedAt: null },
       data: { revokedAt: new Date() },
@@ -780,6 +787,19 @@ export async function refresh(req: Request, res: Response) {
     data: { revokedAt: new Date(), lastUsedAt: new Date() },
   });
   if (consumed.count !== 1) {
+    const concurrentRotation = await prisma.refreshToken.findUnique({
+      where: { id: session.id },
+      select: { revokedAt: true, tokenHash: true },
+    });
+    if (
+      concurrentRotation?.tokenHash === tokenHash(refreshToken) &&
+      isRecentRefreshRotation(concurrentRotation.revokedAt)
+    ) {
+      return res.status(409).json({
+        code: 'REFRESH_TOKEN_ROTATED',
+        message: 'Sitzung wurde bereits in einem anderen App-Fenster erneuert.',
+      });
+    }
     await prisma.refreshToken.updateMany({
       where: { familyId: session.familyId, revokedAt: null },
       data: { revokedAt: new Date() },

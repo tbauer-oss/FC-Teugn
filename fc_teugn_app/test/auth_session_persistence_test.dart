@@ -28,7 +28,7 @@ void main() {
   });
 
   test('only definitively invalid sessions remove the stored login', () {
-    for (final statusCode in [400, 401, 403]) {
+    for (final statusCode in [401, 403]) {
       expect(
         discardStoredSessionAfterRefreshFailure(
           failure(statusCode: statusCode),
@@ -37,5 +37,31 @@ void main() {
         reason: 'HTTP $statusCode muss eine ungültige Sitzung beenden.',
       );
     }
+  });
+
+  test('validation and refresh races preserve the stored login', () {
+    expect(
+      discardStoredSessionAfterRefreshFailure(failure(statusCode: 400)),
+      isFalse,
+    );
+    expect(
+      discardStoredSessionAfterRefreshFailure(failure(statusCode: 409)),
+      isFalse,
+    );
+  });
+
+  test('rotated refresh token conflicts are recognized explicitly', () {
+    final request = RequestOptions(path: '/auth/refresh');
+    final conflict = DioException(
+      requestOptions: request,
+      response: Response<Map<String, dynamic>>(
+        requestOptions: request,
+        statusCode: 409,
+        data: const {'code': 'REFRESH_TOKEN_ROTATED'},
+      ),
+      type: DioExceptionType.badResponse,
+    );
+    expect(isRefreshRotationConflict(conflict), isTrue);
+    expect(isRefreshRotationConflict(failure(statusCode: 409)), isFalse);
   });
 }

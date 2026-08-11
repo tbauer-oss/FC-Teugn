@@ -52,6 +52,7 @@ class AuthController extends StateNotifier<AuthState> {
   Future<String?>? _refreshing;
   String? _refreshTokenCache;
   bool _refreshFailureInvalidatesSession = false;
+  bool _refreshTokenReadFailed = false;
 
   Future<void> login(String email, String password) async {
     state = state.copyWith(loading: true, error: null);
@@ -262,64 +263,124 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<String?> _refreshAccessToken() async {
-    final refreshToken = await _readRefreshToken();
+    var refreshToken = await _readRefreshToken();
     if (refreshToken == null) {
-      _refreshFailureInvalidatesSession = true;
+      // Ein nicht lesbarer Browser-/Gerätespeicher ist kein Beweis für eine
+      // abgelaufene Sitzung. In diesem Fall bleibt die Startansicht aktiv und
+      // bietet eine erneute Wiederherstellung an.
+      _refreshFailureInvalidatesSession = !_refreshTokenReadFailed;
       return null;
     }
-    try {
-      final res =
-          await ApiClient(loadingController: _loadingController).dio.post(
-        '/auth/refresh',
-        data: {'refreshToken': refreshToken},
-      );
-      final data = res.data as Map<String, dynamic>;
-      final accessToken = data['accessToken'] as String;
-      await _storeRefreshToken(data['refreshToken'] as String);
-      state = AuthState(
-        user: AppUser.fromJson(data['user'] as Map<String, dynamic>),
-        accessToken: accessToken,
-      );
-      _refreshFailureInvalidatesSession = false;
-      return accessToken;
-    } catch (error) {
-      // Eine kurzzeitig unterbrochene Verbindung oder ein Serverfehler darf
-      // die dauerhaft gespeicherte Anmeldung nicht löschen. Nur eine
-      // eindeutige Ablehnung des Refresh-Tokens beendet die Sitzung.
-      if (discardStoredSessionAfterRefreshFailure(error)) {
-        _refreshFailureInvalidatesSession = true;
-        await _deleteStoredToken();
-      } else {
+    for (var attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        final res =
+            await ApiClient(loadingController: _loadingController).dio.post(
+          '/auth/refresh',
+          data: {'refreshToken': refreshToken},
+        );
+        final data = res.data as Map<String, dynamic>;
+        final accessToken = data['accessToken'] as String;
+        await _storeRefreshToken(data['refreshToken'] as String);
+        state = AuthState(
+          user: AppUser.fromJson(data['user'] as Map<String, dynamic>),
+          accessToken: accessToken,
+        );
         _refreshFailureInvalidatesSession = false;
+        return accessToken;
+      } catch (error) {
+        if (isRefreshRotationConflict(error) && attempt < 2) {
+          // Ein anderer Tab oder ein nahezu gleichzeitiger App-Start hat den
+          // Token bereits erneuert. Kurz warten und anschließend zwingend den
+          // neuesten Wert aus dem gemeinsamen sicheren Speicher lesen.
+          await Future<void>.delayed(
+            Duration(milliseconds: 250 * (attempt + 1)),
+          );
+          final latest = await _readRefreshToken(preferStored: true);
+          if (latest != null && latest.isNotEmpty) refreshToken = latest;
+          continue;
+        }
+        // Eine kurzzeitig unterbrochene Verbindung oder ein Serverfehler darf
+        // die dauerhaft gespeicherte Anmeldung nicht löschen. Nur eine
+        // eindeutige Ablehnung des Refresh-Tokens beendet die Sitzung.
+        if (discardStoredSessionAfterRefreshFailure(error)) {
+          _refreshFailureInvalidatesSession = true;
+          await _deleteStoredToken();
+        } else {
+          _refreshFailureInvalidatesSession = false;
+        }
+        return null;
       }
-      return null;
     }
+    _refreshFailureInvalidatesSession = false;
+    return null;
   }
 
   Future<void> _restore() async {
-    final token = await refreshAccessToken();
-    if (token == null && mounted) state = AuthState();
+    for (var attempt = 0; attempt < 3; attempt += 1) {
+      final token = await refreshAccessToken();
+      if (token != null || !mounted) return;
+      if (_refreshFailureInvalidatesSession) {
+        state = AuthState();
+        return;
+      }
+      if (attempt < 2) {
+        await Future<void>.delayed(
+          Duration(milliseconds: 500 * (attempt + 1)),
+        );
+      }
+    }
+    if (mounted) {
+      state = AuthState(
+        loading: true,
+        error:
+            'Die gespeicherte Anmeldung konnte gerade nicht wiederhergestellt werden. Deine Sitzung bleibt erhalten.',
+      );
+    }
+  }
+
+  Future<void> retryStoredSession() async {
+    if (state.user != null) return;
+    state = AuthState(loading: true);
+    await _restore();
   }
 
   Future<void> _storeRefreshToken(String token) async {
     _refreshTokenCache = token;
     _refreshFailureInvalidatesSession = false;
-    try {
-      await _storage.write(key: _refreshTokenKey, value: token);
-    } catch (_) {}
+    for (var attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        await _storage.write(key: _refreshTokenKey, value: token);
+        final persisted = await _storage.read(key: _refreshTokenKey);
+        if (persisted == token) return;
+      } catch (_) {
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+      }
+    }
   }
 
-  Future<String?> _readRefreshToken() async {
+  Future<String?> _readRefreshToken({bool preferStored = false}) async {
     final cached = _refreshTokenCache;
-    if (cached != null && cached.isNotEmpty) return cached;
+    // Browser-Tabs teilen sich den sicheren Web-Speicher, besitzen aber je
+    // Tab einen eigenen Arbeitsspeicher. Deshalb darf ein alter Tab-Cache den
+    // inzwischen rotierten, neueren Token nicht überstimmen.
+    if (!kIsWeb && !preferStored && cached != null && cached.isNotEmpty) {
+      _refreshTokenReadFailed = false;
+      return cached;
+    }
     try {
       final stored = await _storage.read(key: _refreshTokenKey);
+      _refreshTokenReadFailed = false;
       if (stored != null && stored.isNotEmpty) {
         _refreshTokenCache = stored;
         return stored;
       }
-    } catch (_) {}
-    return null;
+    } catch (_) {
+      _refreshTokenReadFailed = true;
+      return cached;
+    }
+    return cached;
   }
 
   Future<void> _deleteStoredToken() async {
@@ -355,7 +416,17 @@ final authProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
 bool discardStoredSessionAfterRefreshFailure(Object error) {
   if (error is! DioException) return false;
   return switch (error.response?.statusCode) {
-    400 || 401 || 403 => true,
+    401 || 403 => true,
     _ => false,
   };
+}
+
+@visibleForTesting
+bool isRefreshRotationConflict(Object error) {
+  if (error is! DioException || error.response?.statusCode != 409) {
+    return false;
+  }
+  final data = error.response?.data;
+  return data is Map<String, dynamic> &&
+      data['code'] == 'REFRESH_TOKEN_ROTATED';
 }
