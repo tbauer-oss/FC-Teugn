@@ -609,6 +609,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     }
     final match = _match!;
     if (widget.tournamentPlanning) {
+      final compactTournament =
+          MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
       return PageScaffold(
         title: 'Turnier-Kader & Aufstellung',
         subtitle: '${match.title} · ${_dateLine(match)}',
@@ -619,19 +621,20 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           children: [
             if (!_online || _usingOfflineSnapshot) ...[
               _OfflineBanner(cached: _usingOfflineSnapshot),
-              const SizedBox(height: 8),
+              SizedBox(height: compactTournament ? 5 : 8),
             ],
             const _TournamentPlanningNotice(),
             if (widget.staffView &&
                 (match.canPublishInternal || match.canReleaseFamily)) ...[
-              const SizedBox(height: 8),
+              SizedBox(height: compactTournament ? 5 : 8),
               MatchCommunicationActions(
                 match: match,
                 onPublishInternal: _publishInternally,
                 onReleaseFamily: _releaseForFamilies,
+                denseMobile: true,
               ),
             ],
-            const SizedBox(height: 8),
+            SizedBox(height: compactTournament ? 5 : 8),
             SizedBox(
               width: double.infinity,
               child: SegmentedButton<int>(
@@ -653,9 +656,17 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                 onSelectionChanged: (selection) {
                   setState(() => _tournamentPlanningTab = selection.first);
                 },
+                style: compactTournament
+                    ? const ButtonStyle(
+                        minimumSize:
+                            WidgetStatePropertyAll(Size.fromHeight(44)),
+                        visualDensity: VisualDensity.compact,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      )
+                    : null,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: compactTournament ? 3 : 6),
             Expanded(
               child: IndexedStack(
                 index: _tournamentPlanningTab,
@@ -770,44 +781,45 @@ class _TournamentPlanningNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
-          const icon = Icon(
-            Icons.emoji_events_rounded,
-            color: AppColors.gold,
-            size: 22,
-          );
-          const message = Text(
-            'Kader und Aufstellung gelten für das gesamte Turnier. '
-            'Eine abweichende Planung je Partie bleibt in der '
-            'Turnierplanung optional möglich.',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          );
+          final compact = constraints.maxWidth < AppBreakpoints.compact;
+          final message = compact
+              ? 'Kader & Aufstellung gelten fürs ganze Turnier. '
+                  'Eine Planung je Partie bleibt optional.'
+              : 'Kader und Aufstellung gelten für das gesamte Turnier. '
+                  'Eine abweichende Planung je Partie bleibt in der '
+                  'Turnierplanung optional möglich.';
           return Container(
             key: const ValueKey('tournament-planning-notice'),
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 9 : 12,
+              vertical: compact ? 7 : 10,
+            ),
             decoration: BoxDecoration(
               color: AppColors.yellowSoft,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(compact ? 12 : 14),
               border: Border.all(color: AppColors.line),
             ),
-            child: constraints.maxWidth < 720
-                ? const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      icon,
-                      SizedBox(height: 5),
-                      message,
-                    ],
-                  )
-                : const Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      icon,
-                      SizedBox(width: 10),
-                      Expanded(child: message),
-                    ],
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.emoji_events_rounded,
+                  color: AppColors.gold,
+                  size: compact ? 18 : 22,
+                ),
+                SizedBox(width: compact ? 7 : 10),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: (compact
+                            ? Theme.of(context).textTheme.bodySmall
+                            : Theme.of(context).textTheme.bodyMedium)
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
+                ),
+              ],
+            ),
           );
         },
       );
@@ -1285,11 +1297,13 @@ class MatchCommunicationActions extends StatelessWidget {
     required this.match,
     required this.onPublishInternal,
     required this.onReleaseFamily,
+    this.denseMobile = false,
   });
 
   final MatchdayModel match;
   final VoidCallback onPublishInternal;
   final VoidCallback onReleaseFamily;
+  final bool denseMobile;
 
   @override
   Widget build(BuildContext context) {
@@ -1310,11 +1324,76 @@ class MatchCommunicationActions extends StatelessWidget {
         )
     ];
     final releaseStatus = match.familyReleasedAt != null
-        ? const Chip(
-            avatar: Icon(Icons.verified_rounded, size: 17),
-            label: Text('Familien freigegeben'),
+        ? Chip(
+            avatar: const Icon(Icons.verified_rounded, size: 17),
+            label: const Text('Familien freigegeben'),
+            visualDensity:
+                denseMobile ? VisualDensity.compact : VisualDensity.standard,
           )
         : null;
+    if (compact && denseMobile) {
+      final buttons = <Widget>[
+        if (match.canPublishInternal)
+          Tooltip(
+            message: 'Mit Trainerteam teilen',
+            child: OutlinedButton.icon(
+              key: const ValueKey('compact-internal-publication-action'),
+              onPressed: onPublishInternal,
+              icon: const Icon(Icons.admin_panel_settings_outlined, size: 17),
+              label: const Text(
+                'Trainerteam',
+                maxLines: 1,
+                semanticsLabel: 'Mit Trainerteam teilen',
+              ),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        if (match.canReleaseFamily && match.familyReleasedAt == null)
+          Tooltip(
+            message: 'Für Eltern & Spieler freigeben',
+            child: FilledButton.icon(
+              key: const ValueKey('compact-family-release-action'),
+              onPressed: onReleaseFamily,
+              icon: const Icon(Icons.family_restroom_rounded, size: 17),
+              label: const Text(
+                'Familien',
+                maxLines: 1,
+                semanticsLabel: 'Für Eltern und Spieler freigeben',
+              ),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+      ];
+      return Column(
+        key: const ValueKey('match-communication-dense-mobile-actions'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (buttons.isNotEmpty)
+            Row(
+              children: [
+                for (var index = 0; index < buttons.length; index++) ...[
+                  Expanded(child: buttons[index]),
+                  if (index != buttons.length - 1) const SizedBox(width: 6),
+                ],
+              ],
+            ),
+          if (buttons.isNotEmpty && releaseStatus != null)
+            const SizedBox(height: 4),
+          if (releaseStatus != null)
+            Align(alignment: Alignment.center, child: releaseStatus),
+        ],
+      );
+    }
     if (compact) {
       return Column(
         key: const ValueKey('match-communication-mobile-actions'),
@@ -2343,58 +2422,138 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                   ),
                 const SizedBox(height: 10),
               ],
-              Text(
-                '${_selected.length} ausgewählt · ${visiblePlayers.length} sichtbar',
-                key: const ValueKey('squad-selection-summary'),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 10),
-              AdaptiveActionBar(
-                key: const ValueKey('squad-adaptive-actions'),
-                actions: [
-                  AdaptiveActionSpec(
-                    label: 'Alle auswählen',
-                    icon: Icons.select_all_rounded,
-                    onPressed:
-                        _saving || visiblePlayers.isEmpty ? null : _selectAll,
-                  ),
-                  AdaptiveActionSpec(
-                    label: 'Alle abwählen',
-                    icon: Icons.deselect_rounded,
-                    onPressed:
-                        _saving || _selected.isEmpty ? null : _deselectAll,
-                  ),
-                  AdaptiveActionSpec(
-                    label: widget.tournamentPlanning
-                        ? 'Turnier-Kader nominieren'
-                        : 'Kader verbindlich nominieren',
-                    icon: Icons.campaign_outlined,
-                    onPressed: _saving || !widget.match.canNominateSquad
-                        ? null
-                        : _publish,
-                  ),
-                  AdaptiveActionSpec(
-                    label: _saving ? 'Wird gespeichert …' : 'Kader speichern',
-                    icon: Icons.save_outlined,
-                    onPressed: _saving ? null : _save,
-                    primary: true,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  widget.tournamentPlanning
-                      ? 'Diese Auswahl gilt für das gesamte Turnier. '
-                          'Rückmeldungen können hier direkt korrigiert werden.'
-                      : 'Die automatische Startelf berücksichtigt nur zugesagte Spieler. '
-                          'Trainer können Rückmeldungen hier direkt korrigieren.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.muted,
+              if (compact && widget.tournamentPlanning) ...[
+                Row(
+                  key: const ValueKey('tournament-squad-compact-summary'),
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_selected.length}/${visiblePlayers.length} im Kader',
+                        key: const ValueKey('squad-selection-summary'),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
                       ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('tournament-squad-select-all'),
+                      tooltip: 'Alle auswählen',
+                      onPressed:
+                          _saving || visiblePlayers.isEmpty ? null : _selectAll,
+                      icon: const Icon(Icons.select_all_rounded, size: 20),
+                      visualDensity: VisualDensity.compact,
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size.square(44),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('tournament-squad-deselect-all'),
+                      tooltip: 'Alle abwählen',
+                      onPressed:
+                          _saving || _selected.isEmpty ? null : _deselectAll,
+                      icon: const Icon(Icons.deselect_rounded, size: 20),
+                      visualDensity: VisualDensity.compact,
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size.square(44),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 3),
+                Row(
+                  key: const ValueKey('tournament-squad-compact-actions'),
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        key: const ValueKey(
+                          'tournament-squad-nominate-action',
+                        ),
+                        onPressed: _saving || !widget.match.canNominateSquad
+                            ? null
+                            : _publish,
+                        icon: const Icon(Icons.campaign_outlined, size: 17),
+                        label: const Text('Nominieren'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          visualDensity: VisualDensity.compact,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: const ValueKey('tournament-squad-save-action'),
+                        onPressed: _saving ? null : _save,
+                        icon: const Icon(Icons.save_outlined, size: 17),
+                        label: Text(_saving ? 'Speichert …' : 'Speichern'),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          visualDensity: VisualDensity.compact,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                Text(
+                  '${_selected.length} ausgewählt · ${visiblePlayers.length} sichtbar',
+                  key: const ValueKey('squad-selection-summary'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 10),
+                AdaptiveActionBar(
+                  key: const ValueKey('squad-adaptive-actions'),
+                  actions: [
+                    AdaptiveActionSpec(
+                      label: 'Alle auswählen',
+                      icon: Icons.select_all_rounded,
+                      onPressed:
+                          _saving || visiblePlayers.isEmpty ? null : _selectAll,
+                    ),
+                    AdaptiveActionSpec(
+                      label: 'Alle abwählen',
+                      icon: Icons.deselect_rounded,
+                      onPressed:
+                          _saving || _selected.isEmpty ? null : _deselectAll,
+                    ),
+                    AdaptiveActionSpec(
+                      label: widget.tournamentPlanning
+                          ? 'Turnier-Kader nominieren'
+                          : 'Kader verbindlich nominieren',
+                      icon: Icons.campaign_outlined,
+                      onPressed: _saving || !widget.match.canNominateSquad
+                          ? null
+                          : _publish,
+                    ),
+                    AdaptiveActionSpec(
+                      label: _saving ? 'Wird gespeichert …' : 'Kader speichern',
+                      icon: Icons.save_outlined,
+                      onPressed: _saving ? null : _save,
+                      primary: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    widget.tournamentPlanning
+                        ? 'Diese Auswahl gilt für das gesamte Turnier. '
+                            'Rückmeldungen können hier direkt korrigiert werden.'
+                        : 'Die automatische Startelf berücksichtigt nur zugesagte Spieler. '
+                            'Trainer können Rückmeldungen hier direkt korrigieren.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.muted,
+                        ),
+                  ),
+                ),
+              ],
               SizedBox(height: compact ? 6 : 12),
               if (widget.allPlayers.isEmpty)
                 EmptyState(

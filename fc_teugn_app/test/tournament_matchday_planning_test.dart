@@ -177,13 +177,23 @@ class _TournamentPlanningRepository extends DataRepository {
   }
 }
 
-Widget _planningPage(_TournamentPlanningRepository repository) => ProviderScope(
+Widget _planningPage(
+  _TournamentPlanningRepository repository, {
+  double textScale = 1,
+}) =>
+    ProviderScope(
       overrides: [
         repositoryProvider.overrideWithValue(repository),
         playersProvider.overrideWith((ref) async => const [_player]),
       ],
       child: MaterialApp(
         theme: buildAppTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(textScale),
+          ),
+          child: child!,
+        ),
         home: const Scaffold(
           body: MatchdayPage(
             matchId: 'tournament-1',
@@ -221,9 +231,39 @@ void main() {
         );
         expect(find.text('Kader'), findsOneWidget);
         expect(find.text('Aufstellung'), findsOneWidget);
-        expect(find.text('Kader speichern'), findsOneWidget);
-        expect(find.text('Mit Trainerteam teilen'), findsOneWidget);
-        expect(find.text('Für Eltern & Spieler freigeben'), findsOneWidget);
+        if (viewport.width < 600) {
+          expect(
+            find.byKey(const ValueKey('tournament-squad-save-action')),
+            findsOneWidget,
+          );
+          expect(find.text('Trainerteam'), findsOneWidget);
+          expect(find.text('Familien'), findsOneWidget);
+          expect(
+            find.byKey(
+              const ValueKey('match-communication-dense-mobile-actions'),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            tester
+                .getSize(
+                  find.byKey(const ValueKey('tournament-planning-notice')),
+                )
+                .height,
+            lessThan(100),
+          );
+          final tabs = tester.getRect(
+            find.byKey(const ValueKey('tournament-planning-tabs')),
+          );
+          final summary = tester.getRect(
+            find.byKey(const ValueKey('tournament-squad-compact-summary')),
+          );
+          expect(summary.top, greaterThanOrEqualTo(tabs.bottom));
+        } else {
+          expect(find.text('Kader speichern'), findsOneWidget);
+          expect(find.text('Mit Trainerteam teilen'), findsOneWidget);
+          expect(find.text('Für Eltern & Spieler freigeben'), findsOneWidget);
+        }
         expect(find.text('Übersicht'), findsNothing);
         expect(find.text('Liveticker'), findsNothing);
         expect(tester.takeException(), isNull);
@@ -237,6 +277,37 @@ void main() {
     );
   }
 
+  testWidgets('compact tournament controls stay separated at large text scale',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _planningPage(
+        _TournamentPlanningRepository(),
+        textScale: 1.5,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final tabs = tester.getRect(
+      find.byKey(const ValueKey('tournament-planning-tabs')),
+    );
+    final summary = tester.getRect(
+      find.byKey(const ValueKey('tournament-squad-compact-summary')),
+    );
+    final actions = tester.getRect(
+      find.byKey(const ValueKey('tournament-squad-compact-actions')),
+    );
+    expect(summary.top, greaterThanOrEqualTo(tabs.bottom));
+    expect(actions.top, greaterThanOrEqualTo(summary.bottom));
+    expect(find.text('Trainerteam'), findsOneWidget);
+    expect(find.text('Familien'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('squad and lineup are saved on the tournament event',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -248,9 +319,13 @@ void main() {
     await tester.pumpWidget(_planningPage(repository));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alle auswählen'));
+    await tester.tap(
+      find.byKey(const ValueKey('tournament-squad-select-all')),
+    );
     await tester.pump();
-    await tester.tap(find.text('Kader speichern'));
+    await tester.tap(
+      find.byKey(const ValueKey('tournament-squad-save-action')),
+    );
     await tester.pumpAndSettle();
 
     expect(repository.savedSquadEventId, 'tournament-1');
