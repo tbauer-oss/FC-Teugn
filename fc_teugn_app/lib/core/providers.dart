@@ -107,6 +107,45 @@ final consentTemplatesProvider =
   return ref.watch(repositoryProvider).consentTemplates();
 });
 
+class ParentConsentAttention {
+  const ParentConsentAttention({
+    required this.playerId,
+    required this.playerName,
+    required this.openCount,
+  });
+
+  final String playerId;
+  final String playerName;
+  final int openCount;
+}
+
+final parentConsentAttentionProvider =
+    FutureProvider.autoDispose<List<ParentConsentAttention>>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null || user.status != AccountStatus.approved) return const [];
+  final links = <String, UserParentPlayerLink>{
+    for (final link in user.parentPlayers)
+      if (link.isLegalGuardian && link.playerId.isNotEmpty) link.playerId: link,
+  };
+  if (links.isEmpty) return const [];
+
+  final repository = ref.watch(repositoryProvider);
+  final templates = await ref.watch(consentTemplatesProvider.future);
+  final result = <ParentConsentAttention>[];
+  for (final link in links.values) {
+    final player = await repository.player(link.playerId);
+    final open = openConsentTemplates(player.consents, templates);
+    if (open.isNotEmpty) {
+      result.add(ParentConsentAttention(
+        playerId: player.id,
+        playerName: player.fullName,
+        openCount: open.length,
+      ));
+    }
+  }
+  return result;
+});
+
 final eventsProvider =
     FutureProvider.autoDispose<List<EventModel>>((ref) async {
   _watchManualRefresh(ref);

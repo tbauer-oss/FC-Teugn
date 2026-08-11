@@ -151,7 +151,7 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
           'Verwalte Vereinsstruktur, Mannschaften, Rollen und Saisonkontext.',
       steps: [
         'Prüfe vor Änderungen immer die aktuell ausgewählte Jugend und Saison.',
-        'Ein gespeichertes Mannschaftsfoto wird aus Datenschutzgründen ausgeblendet, sobald bei einem aktiven Spieler die Einwilligung für Mannschaftsfotos im geschützten App-Bereich fehlt. Die Mannschaftskarte zeigt den Grund und die Anzahl fehlender Einwilligungen.',
+        'Ein gespeichertes Mannschaftsfoto bleibt standardmäßig sichtbar. Es wird nur ausgeblendet, wenn eine sorgeberechtigte Person die Anzeige im geschützten App-Bereich ausdrücklich ablehnt, einschränkt oder widerruft. Offene Einwilligungen allein verstecken das Foto nicht.',
         'Berechtigungen begrenzen, welche Verwaltungsbereiche sichtbar sind.',
         'Größere Saisonänderungen zeigen vor dem Speichern eine Vorschau.',
       ],

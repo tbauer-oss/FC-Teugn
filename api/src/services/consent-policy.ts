@@ -27,6 +27,14 @@ function selectedOptions(consent: ConsentSnapshot) {
   );
 }
 
+function documentedSelections(consent: ConsentSnapshot) {
+  const evidence = consent.evidence?.find(
+    (item) => item.action === ConsentStatus.GRANTED,
+  );
+  if (!evidence) return null;
+  return selectedOptions(consent);
+}
+
 export function hasActiveConsent(
   consents: readonly ConsentSnapshot[] | null | undefined,
   type: ConsentType,
@@ -67,6 +75,25 @@ export async function playerHasActiveConsent(
   return hasActiveConsent(consent ? [consent] : [], type, requiredSelection);
 }
 
+/**
+ * Missing, pending or expired consent records are not interpreted as an
+ * objection to an internally stored team photo. The photo is blocked only by
+ * a documented withdrawal/refusal or by a signed decision that deliberately
+ * omits the protected app scope.
+ */
+export function explicitlyBlocksTeamPhoto(
+  consents: readonly ConsentSnapshot[] | null | undefined,
+) {
+  const consent = consents?.find(
+    (item) => item.type === ConsentType.TEAM_PHOTO,
+  );
+  if (!consent) return false;
+  if (consent.status === ConsentStatus.REVOKED) return true;
+  if (consent.status !== ConsentStatus.GRANTED) return false;
+  const selections = documentedSelections(consent);
+  return selections !== null && !selections.has('APP_INTERNAL');
+}
+
 export async function teamPhotoConsentStatus(teamId: string) {
   const players = await prisma.player.findMany({
     where: { teamId, status: 'ACTIVE' },
@@ -90,14 +117,13 @@ export async function teamPhotoConsentStatus(teamId: string) {
       },
     },
   });
-  const missing = players.filter(
-    (player) =>
-      !hasActiveConsent(player.consents, ConsentType.TEAM_PHOTO, 'APP_INTERNAL'),
+  const blocking = players.filter((player) =>
+    explicitlyBlocksTeamPhoto(player.consents),
   );
   return {
-    allowed: missing.length === 0,
+    allowed: blocking.length === 0,
     playerCount: players.length,
-    missing: missing.map((player) => ({
+    blocking: blocking.map((player) => ({
       id: player.id,
       name: `${player.firstName} ${player.lastName}`,
     })),

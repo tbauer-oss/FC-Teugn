@@ -6,7 +6,11 @@ const test = require('node:test');
 const read = (relativePath) =>
   fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
 
-const { hasActiveConsent, medicalProfileForConsent } = require(
+const {
+  explicitlyBlocksTeamPhoto,
+  hasActiveConsent,
+  medicalProfileForConsent,
+} = require(
   '../dist/src/services/consent-policy',
 );
 
@@ -36,8 +40,47 @@ test('team photo responses distinguish deletion from consent-based hiding', () =
   assert.match(organization, /photoStatus:\s*\{/);
   assert.match(organization, /stored:\s*Boolean\(team\.photoAsset\)/);
   assert.match(organization, /blockedByConsent/);
-  assert.match(organization, /missingConsentCount/);
+  assert.match(organization, /blockingConsentCount/);
   assert.match(organization, /photoUrl:\s*teamPhotoVisible/);
+});
+
+test('team photo is blocked only by a documented refusal or restriction', () => {
+  assert.equal(explicitlyBlocksTeamPhoto([]), false);
+  assert.equal(
+    explicitlyBlocksTeamPhoto([
+      { type: 'TEAM_PHOTO', status: 'PENDING', expiresAt: null, evidence: [] },
+    ]),
+    false,
+  );
+  assert.equal(
+    explicitlyBlocksTeamPhoto([
+      { type: 'TEAM_PHOTO', status: 'EXPIRED', expiresAt: new Date(0), evidence: [] },
+    ]),
+    false,
+  );
+  assert.equal(
+    explicitlyBlocksTeamPhoto([
+      { type: 'TEAM_PHOTO', status: 'REVOKED', expiresAt: null, evidence: [] },
+    ]),
+    true,
+  );
+  assert.equal(
+    explicitlyBlocksTeamPhoto([consent('TEAM_PHOTO', ['PRESS'])]),
+    true,
+  );
+  assert.equal(
+    explicitlyBlocksTeamPhoto([consent('TEAM_PHOTO', ['APP_INTERNAL'])]),
+    false,
+  );
+});
+
+test('guardians can explicitly decline an open consent with evidence', () => {
+  const routes = read('src/routes/players.routes.ts');
+  const controller = read('src/controllers/player-consents.controller.ts');
+  assert.match(routes, /consents\/:type\/decline/);
+  assert.match(controller, /PLAYER_CONSENT_DECLINED/);
+  assert.match(controller, /decision:\s*'DECLINED'/);
+  assert.match(controller, /guardianAuthorityConfirmed/);
 });
 
 test('medical fields are reduced to the explicitly selected scope', () => {

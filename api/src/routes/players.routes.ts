@@ -22,6 +22,7 @@ import { Permission } from '../security/permissions';
 import { playerFileUpload } from '../middleware/player-files';
 import { asyncHandler, asyncRouter } from '../middleware/async-handler';
 import {
+  declinePlayerConsent,
   downloadConsentEvidence,
   downloadConsentTemplate,
   listConsentTemplates,
@@ -71,6 +72,10 @@ router.put('/:id/consents/:type', upsertConsent);
 router.post(
   '/:id/consents/:type/sign',
   asyncHandler(signPlayerConsent),
+);
+router.post(
+  '/:id/consents/:type/decline',
+  asyncHandler(declinePlayerConsent),
 );
 router.post(
   '/:id/consents/:type/revoke',

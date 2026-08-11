@@ -267,14 +267,14 @@ class TeamPhotoStatus {
     this.stored = false,
     this.visible = false,
     this.blockedByConsent = false,
-    this.missingConsentCount = 0,
+    this.blockingConsentCount = 0,
     this.playerCount = 0,
   });
 
   final bool stored;
   final bool visible;
   final bool blockedByConsent;
-  final int missingConsentCount;
+  final int blockingConsentCount;
   final int playerCount;
 
   factory TeamPhotoStatus.fromJson(Map<String, dynamic>? json) =>
@@ -282,8 +282,8 @@ class TeamPhotoStatus {
         stored: json?['stored'] as bool? ?? false,
         visible: json?['visible'] as bool? ?? false,
         blockedByConsent: json?['blockedByConsent'] as bool? ?? false,
-        missingConsentCount:
-            (json?['missingConsentCount'] as num?)?.toInt() ?? 0,
+        blockingConsentCount:
+            (json?['blockingConsentCount'] as num?)?.toInt() ?? 0,
         playerCount: (json?['playerCount'] as num?)?.toInt() ?? 0,
       );
 }

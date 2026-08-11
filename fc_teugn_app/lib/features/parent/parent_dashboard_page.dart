@@ -9,6 +9,7 @@ import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import '../shared/dashboard_notifications.dart';
 import '../shared/family_responses.dart';
+import '../privacy/parent_consent_prompt.dart';
 
 class ParentDashboardPage extends ConsumerWidget {
   const ParentDashboardPage({super.key});
@@ -17,6 +18,8 @@ class ParentDashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).user;
     final players = ref.watch(playersProvider).valueOrNull ?? [];
+    final consentAttention =
+        ref.watch(parentConsentAttentionProvider).valueOrNull ?? const [];
     final notifications =
         ref.watch(liveNotificationsProvider).valueOrNull ?? const [];
     final events = [
@@ -37,6 +40,10 @@ class ParentDashboardPage extends ConsumerWidget {
             notifications: notifications,
             isTrainer: false,
           ),
+          if (consentAttention.isNotEmpty) ...[
+            ParentConsentReminderCard(items: consentAttention),
+            const SizedBox(height: 18),
+          ],
           const PersonalResponsesCard(isTrainer: false),
           const SizedBox(height: 18),
           Container(

@@ -333,6 +333,110 @@ export async function revokePlayerConsent(req: Request, res: Response) {
   return res.json(consent);
 }
 
+export async function declinePlayerConsent(req: Request, res: Response) {
+  const type = parsedType(req.params.type);
+  if (!type) return res.status(400).json({ message: 'Unbekannte Einwilligungsart.' });
+  const permission = await access(req, req.params.id);
+  if (!permission) return res.status(404).json({ message: 'Spielerprofil nicht gefunden.' });
+  if (!permission.canSign) {
+    return res.status(403).json({
+      message:
+        'Eine Einwilligung ablehnen darf nur eine zugeordnete sorgeberechtigte Person.',
+    });
+  }
+  if (req.body?.guardianAuthorityConfirmed !== true) {
+    return res.status(400).json({ message: 'Bitte Sorgeberechtigung bestätigen.' });
+  }
+
+  const current = await prisma.playerConsent.findUnique({
+    where: { playerId_type: { playerId: permission.player.id, type } },
+  });
+  if (current?.status === ConsentStatus.GRANTED) {
+    return res.status(409).json({
+      message:
+        'Diese Einwilligung wurde bereits erteilt. Bitte nutze dafür den dokumentierten Widerruf.',
+    });
+  }
+  const now = new Date();
+  const reason =
+    typeof req.body?.reason === 'string' && req.body.reason.trim()
+      ? req.body.reason.trim().slice(0, 1000)
+      : null;
+  const template = consentTemplate(type);
+  const statement = {
+    type,
+    decision: 'DECLINED',
+    reason,
+    playerId: permission.player.id,
+    playerName: `${permission.player.firstName} ${permission.player.lastName}`,
+    signerId: permission.currentUser.id,
+    signerName: permission.currentUser.name,
+    signerRelationship: permission.guardianRelationship,
+    guardianAuthorityConfirmed: true,
+    declinedAt: now.toISOString(),
+  };
+  const documentHash = createHash('sha256')
+    .update(JSON.stringify(statement))
+    .digest('hex');
+
+  const consent = await prisma.$transaction(async (tx) => {
+    const declined = await tx.playerConsent.upsert({
+      where: { playerId_type: { playerId: permission.player.id, type } },
+      update: {
+        status: ConsentStatus.REVOKED,
+        grantedBy: permission.currentUser.id,
+        grantedAt: null,
+        revokedAt: now,
+        expiresAt: null,
+        note: reason,
+        templateVersion: template.version,
+        currentHash: documentHash,
+      },
+      create: {
+        playerId: permission.player.id,
+        type,
+        status: ConsentStatus.REVOKED,
+        grantedBy: permission.currentUser.id,
+        revokedAt: now,
+        note: reason,
+        templateVersion: template.version,
+        currentHash: documentHash,
+      },
+    });
+    const evidence = await tx.playerConsentEvidence.create({
+      data: {
+        consentId: declined.id,
+        signerId: permission.currentUser.id,
+        action: ConsentStatus.REVOKED,
+        templateVersion: template.version,
+        statement,
+        signerName: permission.currentUser.name,
+        signerRole: permission.currentUser.role,
+        guardianAuthorityConfirmed: true,
+        documentHash,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: permission.currentUser.id,
+        teamId: req.user!.teamId,
+        action: 'PLAYER_CONSENT_DECLINED',
+        entityType: 'PlayerConsent',
+        entityId: declined.id,
+        metadata: {
+          playerId: permission.player.id,
+          type,
+          templateVersion: template.version,
+          documentHash,
+          evidenceId: evidence.id,
+        },
+      },
+    });
+    return { ...declined, evidence: [evidence] };
+  });
+  return res.status(201).json(consent);
+}
+
 export async function downloadConsentEvidence(req: Request, res: Response) {
   const type = parsedType(req.params.type);
   if (!type) return res.status(404).json({ message: 'Einwilligung nicht gefunden.' });

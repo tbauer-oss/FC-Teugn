@@ -919,6 +919,17 @@ class DataRepository {
     });
   }
 
+  Future<void> declineConsent({
+    required String playerId,
+    required String type,
+    String? reason,
+  }) async {
+    await client.dio.post('/players/$playerId/consents/$type/decline', data: {
+      'guardianAuthorityConfirmed': true,
+      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+    });
+  }
+
   Future<void> downloadConsentTemplate(ConsentTemplate template) async {
     await _downloadConsentPdf(
       '/players/consent-templates/${template.type}/pdf',

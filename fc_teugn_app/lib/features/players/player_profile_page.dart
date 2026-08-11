@@ -25,10 +25,12 @@ class PlayerProfilePage extends ConsumerWidget {
     super.key,
     required this.playerId,
     required this.staffView,
+    this.focusConsents = false,
   });
 
   final String playerId;
   final bool staffView;
+  final bool focusConsents;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -69,9 +71,11 @@ class PlayerProfilePage extends ConsumerWidget {
         ),
         data: (data) => _ProfileContent(
           player: data,
+          focusConsents: focusConsents,
           onRefresh: () {
             ref.invalidate(playerProvider(playerId));
             ref.invalidate(playersProvider);
+            ref.invalidate(parentConsentAttentionProvider);
           },
         ),
       ),
@@ -82,10 +86,12 @@ class PlayerProfilePage extends ConsumerWidget {
 class _ProfileContent extends ConsumerWidget {
   const _ProfileContent({
     required this.player,
+    required this.focusConsents,
     required this.onRefresh,
   });
 
   final PlayerModel player;
+  final bool focusConsents;
   final VoidCallback onRefresh;
 
   @override
@@ -116,6 +122,17 @@ class _ProfileContent extends ConsumerWidget {
               return Column(
                 children: [
                   _FactsCard(player: player),
+                  if (focusConsents &&
+                      player.capabilities.canViewSensitive) ...[
+                    const SizedBox(height: 12),
+                    _ConsentCard(
+                      playerId: player.id,
+                      consents: player.consents,
+                      canSign: player.capabilities.canDigitallyConsent,
+                      canManage: player.capabilities.canEditSensitive,
+                      onRefresh: onRefresh,
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   _SeasonStatisticsCard(player: player),
                   const SizedBox(height: 12),
@@ -143,14 +160,16 @@ class _ProfileContent extends ConsumerWidget {
                           ? () => _addEmergencyContact(context, ref)
                           : null,
                     ),
-                    const SizedBox(height: 12),
-                    _ConsentCard(
-                      playerId: player.id,
-                      consents: player.consents,
-                      canSign: player.capabilities.canDigitallyConsent,
-                      canManage: player.capabilities.canEditSensitive,
-                      onRefresh: onRefresh,
-                    ),
+                    if (!focusConsents) ...[
+                      const SizedBox(height: 12),
+                      _ConsentCard(
+                        playerId: player.id,
+                        consents: player.consents,
+                        canSign: player.capabilities.canDigitallyConsent,
+                        canManage: player.capabilities.canEditSensitive,
+                        onRefresh: onRefresh,
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     _DocumentsCard(
                       playerId: player.id,
@@ -193,13 +212,23 @@ class _ProfileContent extends ConsumerWidget {
             );
             final right = Column(
               children: [
+                if (focusConsents && player.capabilities.canViewSensitive) ...[
+                  _ConsentCard(
+                    playerId: player.id,
+                    consents: player.consents,
+                    canSign: player.capabilities.canDigitallyConsent,
+                    canManage: player.capabilities.canEditSensitive,
+                    onRefresh: onRefresh,
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 _DevelopmentCard(
                   notes: player.developmentNotes,
                   onAdd: player.capabilities.canAddDevelopment
                       ? () => _addDevelopment(context, ref)
                       : null,
                 ),
-                if (player.capabilities.canViewSensitive) ...[
+                if (player.capabilities.canViewSensitive && !focusConsents) ...[
                   const SizedBox(height: 16),
                   _ConsentCard(
                     playerId: player.id,
@@ -1711,6 +1740,7 @@ class _ConsentCard extends ConsumerWidget {
                 canManage: canManage,
                 onTemplate: () => _downloadTemplate(context, ref, template),
                 onSign: () => _sign(context, ref, template),
+                onDecline: () => _decline(context, ref, template),
                 onRevoke: () => _revoke(context, ref, template),
                 onEvidence: (evidence) =>
                     _downloadEvidence(context, ref, template, evidence),
@@ -1864,6 +1894,83 @@ class _ConsentCard extends ConsumerWidget {
     );
   }
 
+  Future<void> _decline(
+    BuildContext context,
+    WidgetRef ref,
+    ConsentTemplate template,
+  ) async {
+    if (!canSign) return;
+    final reason = TextEditingController();
+    var authorityConfirmed = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('${template.shortTitle} ablehnen?'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Die Entscheidung ist freiwillig und wird dokumentiert. '
+                  'Funktionen, die genau diese Einwilligung voraussetzen, '
+                  'werden anschließend nicht verwendet oder angezeigt.',
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: reason,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Grund (optional)',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: authorityConfirmed,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text(
+                    'Ich bin sorgeberechtigt oder nachweislich bevollmächtigt.',
+                  ),
+                  onChanged: (value) => setState(
+                    () => authorityConfirmed = value == true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Zurück'),
+            ),
+            FilledButton.tonal(
+              onPressed: authorityConfirmed
+                  ? () => Navigator.pop(context, true)
+                  : null,
+              child: const Text('Ablehnung bestätigen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final reasonText = reason.text.trim();
+    reason.dispose();
+    if (confirmed != true || !context.mounted) return;
+    await _action(
+      context,
+      () => ref.read(repositoryProvider).declineConsent(
+            playerId: playerId,
+            type: template.type,
+            reason: reasonText.isEmpty ? null : reasonText,
+          ),
+      'Ablehnung wurde dokumentiert.',
+      refresh: true,
+    );
+  }
+
   Future<void> _action(
     BuildContext context,
     Future<void> Function() action,
@@ -1902,6 +2009,7 @@ class _ConsentTile extends StatelessWidget {
     required this.canManage,
     required this.onTemplate,
     required this.onSign,
+    required this.onDecline,
     required this.onRevoke,
     required this.onEvidence,
   });
@@ -1912,6 +2020,7 @@ class _ConsentTile extends StatelessWidget {
   final bool canManage;
   final VoidCallback onTemplate;
   final VoidCallback onSign;
+  final VoidCallback onDecline;
   final VoidCallback onRevoke;
   final void Function(PlayerConsentEvidence evidence) onEvidence;
 
@@ -1919,6 +2028,7 @@ class _ConsentTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final granted = consent?.status == 'GRANTED';
     final revoked = consent?.status == 'REVOKED';
+    final declined = revoked && consent?.grantedAt == null;
     final evidence = consent?.latestEvidence;
     final date = consent?.grantedAt == null
         ? null
@@ -1962,7 +2072,9 @@ class _ConsentTile extends StatelessWidget {
                     granted
                         ? 'Erteilt${date == null ? '' : ' am $date'}'
                         : revoked
-                            ? 'Widerrufen'
+                            ? declined
+                                ? 'Abgelehnt'
+                                : 'Widerrufen'
                             : 'Noch nicht erteilt',
                     style: TextStyle(
                       color: granted ? AppColors.teal : AppColors.muted,
@@ -1989,6 +2101,12 @@ class _ConsentTile extends StatelessWidget {
                 onPressed: onSign,
                 icon: const Icon(Icons.draw_outlined, size: 18),
                 label: const Text('Digital ausfüllen'),
+              ),
+            if (canSign && !granted && !revoked)
+              OutlinedButton.icon(
+                onPressed: onDecline,
+                icon: const Icon(Icons.block_outlined, size: 18),
+                label: const Text('Ablehnen'),
               ),
             if (evidence != null && evidence.action == 'GRANTED')
               OutlinedButton.icon(

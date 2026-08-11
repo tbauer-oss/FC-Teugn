@@ -808,9 +808,9 @@ class _TeamCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             'Das gespeicherte Mannschaftsfoto ist nicht gelöscht. '
-                            'Es bleibt ausgeblendet, bis für alle aktiven Spieler '
-                            'die Einwilligung „Mannschaftsfotos · geschützter '
-                            'App-Bereich“ vorliegt.',
+                            'Es bleibt ausgeblendet, weil mindestens eine '
+                            'sorgeberechtigte Person die App-Anzeige ausdrücklich '
+                            'abgelehnt, eingeschränkt oder widerrufen hat.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ),
@@ -890,10 +890,10 @@ class _ProtectedTeamPhotoPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final missing = status.missingConsentCount;
-    final countText = missing == 1
-        ? 'Einwilligung fehlt bei 1 aktivem Spieler'
-        : 'Einwilligung fehlt bei $missing aktiven Spielern';
+    final blocking = status.blockingConsentCount;
+    final countText = blocking == 1
+        ? 'App-Anzeige für 1 aktiven Spieler abgelehnt'
+        : 'App-Anzeige für $blocking aktive Spieler abgelehnt';
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [

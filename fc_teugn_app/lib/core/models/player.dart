@@ -439,6 +439,32 @@ class ConsentTemplate {
       );
 }
 
+bool hasCurrentConsentDecision(
+  PlayerConsent? consent,
+  ConsentTemplate template,
+) {
+  if (consent == null || consent.templateVersion != template.version) {
+    return false;
+  }
+  return consent.status == 'GRANTED' || consent.status == 'REVOKED';
+}
+
+List<ConsentTemplate> openConsentTemplates(
+  List<PlayerConsent> consents,
+  List<ConsentTemplate> templates,
+) {
+  return templates.where((template) {
+    PlayerConsent? current;
+    for (final consent in consents) {
+      if (consent.type == template.type) {
+        current = consent;
+        break;
+      }
+    }
+    return !hasCurrentConsentDecision(current, template);
+  }).toList(growable: false);
+}
+
 class PlayerModel {
   const PlayerModel({
     required this.id,

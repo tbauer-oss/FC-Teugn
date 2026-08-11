@@ -31,6 +31,7 @@ import 'features/training/training_pages.dart';
 import 'features/communications/communications_page.dart';
 import 'features/operations/team_operations_page.dart';
 import 'features/privacy/privacy_page.dart';
+import 'features/privacy/parent_consent_prompt.dart';
 import 'features/help/help_page.dart';
 import 'features/support/support_page.dart';
 import 'features/shared/family_responses.dart';
@@ -67,6 +68,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   bool _minimumLaunchComplete = false;
   bool _initialPushPromptScheduled = false;
   bool _startupPromptsScheduled = false;
+  bool _parentConsentPromptScheduled = false;
+  String? _parentConsentPromptShownUserId;
 
   @override
   void initState() {
@@ -143,6 +146,50 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         // Die Update-Prüfung läuft bewusst im Hintergrund. Ein kurzzeitig
         // nicht erreichbarer Update-Speicher darf den App-Start nie stören.
       } finally {
+        if (mounted) _scheduleParentConsentPrompt();
+      }
+    });
+  }
+
+  void _scheduleParentConsentPrompt() {
+    final user = ref.read(authProvider).user;
+    final legalGuardianLinks = user?.parentPlayers
+            .where((link) => link.isLegalGuardian && link.playerId.isNotEmpty)
+            .toList() ??
+        const [];
+    if (user == null ||
+        user.status != AccountStatus.approved ||
+        legalGuardianLinks.isEmpty) {
+      _scheduleInitialPushPrompt();
+      return;
+    }
+    if (_parentConsentPromptScheduled ||
+        _parentConsentPromptShownUserId == user.id) {
+      _scheduleInitialPushPrompt();
+      return;
+    }
+    _parentConsentPromptScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final items = await ref.read(parentConsentAttentionProvider.future);
+        if (!mounted || items.isEmpty) return;
+        final promptContext = _rootNavigatorKey.currentContext;
+        if (promptContext == null || !promptContext.mounted) return;
+        _parentConsentPromptShownUserId = user.id;
+        final action = await showDialog<ParentConsentPromptAction>(
+          context: promptContext,
+          barrierDismissible: false,
+          builder: (_) => ParentConsentPromptDialog(items: items),
+        );
+        if (!mounted || action != ParentConsentPromptAction.review) return;
+        final target = items.first.playerId;
+        final base = user.isTrainer ? '/trainer/players' : '/parent/players';
+        _activeRouter?.go('$base/$target?consents=1');
+      } catch (_) {
+        // Der Hinweis darf den App-Start bei einer kurzzeitig nicht
+        // erreichbaren Einwilligungsübersicht nicht blockieren.
+      } finally {
+        _parentConsentPromptScheduled = false;
         if (mounted) _scheduleInitialPushPrompt();
       }
     });
@@ -275,6 +322,12 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     ref.listen<AuthState>(authProvider, (previous, next) {
+      if (previous?.user?.id != next.user?.id) {
+        _startupPromptsScheduled = false;
+        _initialPushPromptScheduled = false;
+        _parentConsentPromptScheduled = false;
+        _parentConsentPromptShownUserId = null;
+      }
       final sessionChanged = previous?.user?.id != next.user?.id ||
           previous?.user?.status != next.user?.status ||
           previous?.user?.role != next.user?.role;
@@ -554,6 +607,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               builder: (context, state) => PlayerProfilePage(
                 playerId: state.pathParameters['playerId']!,
                 staffView: true,
+                focusConsents: state.uri.queryParameters['consents'] == '1',
               ),
             ),
             GoRoute(
@@ -730,6 +784,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               builder: (context, state) => PlayerProfilePage(
                 playerId: state.pathParameters['playerId']!,
                 staffView: false,
+                focusConsents: state.uri.queryParameters['consents'] == '1',
               ),
             ),
             GoRoute(

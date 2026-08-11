@@ -1231,9 +1231,9 @@ export async function uploadTeamPhoto(req: Request, res: Response) {
   if (!consentStatus.allowed) {
     return res.status(409).json({
       message:
-        'Das Mannschaftsfoto kann erst gespeichert werden, wenn für alle aktiven Spieler die Einwilligung für Mannschaftsfotos im geschützten App-Bereich vorliegt.',
-      code: 'TEAM_PHOTO_CONSENT_REQUIRED',
-      missingPlayers: consentStatus.missing,
+        'Das Mannschaftsfoto kann nicht angezeigt werden, weil für mindestens einen aktiven Spieler eine dokumentierte Ablehnung, ein Widerruf oder eine Einschränkung der App-Anzeige vorliegt.',
+      code: 'TEAM_PHOTO_CONSENT_BLOCKED',
+      blockingPlayers: consentStatus.blocking,
     });
   }
   const extension = req.file.mimetype === 'image/png' ? 'png'
@@ -1416,7 +1416,7 @@ async function serializeTeam(team: {
   });
   const teamPhotoConsent = team.photoAsset
     ? await teamPhotoConsentStatus(team.id)
-    : { allowed: false, playerCount: 0, missing: [] };
+    : { allowed: false, playerCount: 0, blocking: [] };
   const teamPhotoAllowed = teamPhotoConsent.allowed;
   const teamPhotoVisible = Boolean(
     includePrivate && team.photoAsset && teamPhotoAllowed,
@@ -1475,7 +1475,7 @@ async function serializeTeam(team: {
       blockedByConsent: Boolean(
         includePrivate && team.photoAsset && !teamPhotoAllowed,
       ),
-      missingConsentCount: includePrivate ? teamPhotoConsent.missing.length : 0,
+      blockingConsentCount: includePrivate ? teamPhotoConsent.blocking.length : 0,
       playerCount: includePrivate ? teamPhotoConsent.playerCount : 0,
     },
     staff: team.memberships.map((membership) => ({

@@ -49,7 +49,7 @@ void main() {
         'stored': true,
         'visible': true,
         'blockedByConsent': false,
-        'missingConsentCount': 0,
+        'blockingConsentCount': 0,
         'playerCount': 12,
       },
       'isActive': true,
@@ -117,7 +117,7 @@ void main() {
         'stored': true,
         'visible': false,
         'blockedByConsent': true,
-        'missingConsentCount': 2,
+        'blockingConsentCount': 2,
         'playerCount': 12,
       },
       'ageGroup': {'id': 'age-1', 'name': 'E-Jugend', 'code': 'E'},
@@ -127,6 +127,6 @@ void main() {
     expect(team.photoUrl, isNull);
     expect(team.photoStatus.stored, isTrue);
     expect(team.photoStatus.blockedByConsent, isTrue);
-    expect(team.photoStatus.missingConsentCount, 2);
+    expect(team.photoStatus.blockingConsentCount, 2);
   });
 }
