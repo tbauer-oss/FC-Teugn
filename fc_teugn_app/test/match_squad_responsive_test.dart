@@ -80,7 +80,8 @@ void main() {
     );
     await tester.pump();
 
-    final name = find.text('Anna mit einem außergewöhnlich langen Spielernamen');
+    final name =
+        find.text('Anna mit einem außergewöhnlich langen Spielernamen');
     expect(name, findsOneWidget);
     expect(tester.getSize(name).width, greaterThan(100));
     expect(tester.takeException(), isNull);
