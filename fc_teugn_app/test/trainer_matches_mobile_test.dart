@@ -223,6 +223,17 @@ void main() {
 
     await tester.tap(find.text('Planen'));
     await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('tournament-planning-access-card')),
+      findsOneWidget,
+    );
+    expect(find.text('Turnier-Kader & Aufstellung'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('open-tournament-planning')),
+      findsOneWidget,
+    );
+
     await tester.tap(find.text('Partie'));
     await tester.pumpAndSettle();
     await tester.tap(

@@ -1532,6 +1532,15 @@ class TrainerMatchesPage extends ConsumerWidget {
                   });
                 },
               ),
+              const SizedBox(height: 10),
+              _TournamentPlanningAccessCard(
+                onOpen: () {
+                  Navigator.pop(dialogContext, false);
+                  context.push(
+                    '/trainer/matches/${tournament.id}?planning=tournament',
+                  );
+                },
+              ),
               if (rows.isEmpty) const _CompactTournamentEmptyState(),
               for (var index = 0; index < rows.length; index++) ...[
                 _TournamentFixtureEditor(
@@ -1926,6 +1935,91 @@ class _CompactTournamentEmptyState extends StatelessWidget {
       );
 }
 
+class _TournamentPlanningAccessCard extends StatelessWidget {
+  const _TournamentPlanningAccessCard({required this.onOpen});
+
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+          final description = Text(
+            'Ein Kader und eine Grundaufstellung für das gesamte Turnier. '
+            'Einzelne Partien können optional separat geplant werden.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.muted,
+                ),
+          );
+          final action = FilledButton.icon(
+            key: const ValueKey('open-tournament-planning'),
+            onPressed: onOpen,
+            icon: const Icon(Icons.arrow_forward_rounded, size: 19),
+            label: Text(compact ? 'Öffnen' : 'Kader & Aufstellung öffnen'),
+          );
+          return Container(
+            key: const ValueKey('tournament-planning-access-card'),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.groups_rounded, color: AppColors.gold),
+                          SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              'Turnier-Kader & Aufstellung',
+                              style: TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      description,
+                      const SizedBox(height: 9),
+                      action,
+                    ],
+                  )
+                : Row(
+                    children: [
+                      const Icon(
+                        Icons.groups_rounded,
+                        color: AppColors.gold,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Turnier-Kader & Aufstellung',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 3),
+                            description,
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      action,
+                    ],
+                  ),
+          );
+        },
+      );
+}
+
 class _TournamentFixtureEditor extends StatelessWidget {
   const _TournamentFixtureEditor({
     super.key,
@@ -2037,7 +2131,8 @@ class _TournamentFixtureEditor extends StatelessWidget {
                     ),
                     if (onOpen != null)
                       IconButton(
-                        tooltip: 'Kader, Aufstellung und Liveticker öffnen',
+                        tooltip:
+                            'Optional: eigenen Kader, Aufstellung und Liveticker für diese Partie öffnen',
                         visualDensity: VisualDensity.compact,
                         constraints: const BoxConstraints(
                           minWidth: 44,

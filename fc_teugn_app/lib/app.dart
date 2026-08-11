@@ -646,6 +646,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               builder: (context, state) => MatchdayPage(
                 matchId: state.pathParameters['matchId']!,
                 staffView: true,
+                tournamentPlanning:
+                    state.uri.queryParameters['planning'] == 'tournament',
               ),
             ),
             GoRoute(

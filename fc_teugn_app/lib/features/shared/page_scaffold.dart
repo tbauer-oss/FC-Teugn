@@ -14,6 +14,7 @@ class PageScaffold extends StatelessWidget {
     this.hideMobileHeader = false,
     this.hideHeader = false,
     this.fillRemaining = false,
+    this.fillRemainingScrollable = false,
     this.showContextHelp = true,
   });
 
@@ -25,6 +26,7 @@ class PageScaffold extends StatelessWidget {
   final bool hideMobileHeader;
   final bool hideHeader;
   final bool fillRemaining;
+  final bool fillRemainingScrollable;
   final bool showContextHelp;
 
   @override
@@ -80,12 +82,78 @@ class PageScaffold extends StatelessWidget {
             ],
           ],
         );
+        final showHeader = !hideHeader && !(mobile && hideMobileHeader);
+        final headerContent = ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1180),
+          child: compactHeader
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    titleBlock,
+                    if (action != null) ...[
+                      SizedBox(
+                        height: denseMobileHeader && mobile ? 8 : 16,
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: denseMobileHeader && mobile
+                            ? action!
+                            : SizedBox(
+                                width: double.infinity,
+                                child: action!,
+                              ),
+                      ),
+                    ],
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: titleBlock),
+                    if (action != null) ...[
+                      const SizedBox(width: 16),
+                      action!,
+                    ],
+                  ],
+                ),
+        );
+        if (fillRemaining && fillRemainingScrollable) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontal,
+              0,
+              horizontal,
+              mobile ? 20 : 32,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (showHeader)
+                  Padding(
+                    padding: EdgeInsets.only(
+                      top: mobile ? (denseMobileHeader ? 10 : 18) : 28,
+                      bottom: mobile ? (denseMobileHeader ? 10 : 14) : 18,
+                    ),
+                    child: headerContent,
+                  )
+                else
+                  const SizedBox(height: 6),
+                Expanded(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1180),
+                    child: child,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         return CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(
             parent: ClampingScrollPhysics(),
           ),
           slivers: [
-            if (!hideHeader && !(mobile && hideMobileHeader))
+            if (showHeader)
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(
                   horizontal,
@@ -94,40 +162,7 @@ class PageScaffold extends StatelessWidget {
                   mobile ? (denseMobileHeader ? 10 : 14) : 18,
                 ),
                 sliver: SliverToBoxAdapter(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1180),
-                    child: compactHeader
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              titleBlock,
-                              if (action != null) ...[
-                                SizedBox(
-                                  height: denseMobileHeader && mobile ? 8 : 16,
-                                ),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: denseMobileHeader && mobile
-                                      ? action!
-                                      : SizedBox(
-                                          width: double.infinity,
-                                          child: action!,
-                                        ),
-                                ),
-                              ],
-                            ],
-                          )
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: titleBlock),
-                              if (action != null) ...[
-                                const SizedBox(width: 16),
-                                action!,
-                              ],
-                            ],
-                          ),
-                  ),
+                  child: headerContent,
                 ),
               ),
             SliverPadding(
@@ -139,7 +174,7 @@ class PageScaffold extends StatelessWidget {
               ),
               sliver: fillRemaining
                   ? SliverFillRemaining(
-                      hasScrollBody: false,
+                      hasScrollBody: fillRemainingScrollable,
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 1180),
                         child: child,

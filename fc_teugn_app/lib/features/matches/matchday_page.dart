@@ -30,11 +30,13 @@ class MatchdayPage extends ConsumerStatefulWidget {
   const MatchdayPage({
     required this.matchId,
     required this.staffView,
+    this.tournamentPlanning = false,
     super.key,
   });
 
   final String matchId;
   final bool staffView;
+  final bool tournamentPlanning;
 
   @override
   ConsumerState<MatchdayPage> createState() => _MatchdayPageState();
@@ -50,6 +52,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   String? _error;
   Timer? _poller;
   int _loadRequest = 0;
+  int _tournamentPlanningTab = 0;
   DateTime? _lastTickerConnectionAt;
   int _consecutiveTickerFailures = 0;
 
@@ -57,9 +60,11 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   void initState() {
     super.initState();
     unawaited(_load());
-    _poller = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (mounted) unawaited(_refreshTicker());
-    });
+    if (!widget.tournamentPlanning) {
+      _poller = Timer.periodic(const Duration(seconds: 4), (_) {
+        if (mounted) unawaited(_refreshTicker());
+      });
+    }
   }
 
   @override
@@ -168,7 +173,12 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   }
 
   Future<void> _refreshTicker() async {
-    if (!mounted || _match == null || _refreshingTicker) return;
+    if (widget.tournamentPlanning ||
+        !mounted ||
+        _match == null ||
+        _refreshingTicker) {
+      return;
+    }
     final repository = ref.read(repositoryProvider);
     final offlineQueue = ref.read(tickerOfflineQueueProvider);
     final userId = ref.read(authProvider).user?.id;
@@ -541,26 +551,103 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       }
     });
     if (_loading) {
-      return const PageScaffold(
-        title: 'Spieltag',
-        subtitle: 'Spiel wird vorbereitet …',
+      return PageScaffold(
+        title: widget.tournamentPlanning
+            ? 'Turnier-Kader & Aufstellung'
+            : 'Spieltag',
+        subtitle: widget.tournamentPlanning
+            ? 'Turnierplanung wird vorbereitet …'
+            : 'Spiel wird vorbereitet …',
         child: Center(
-          child: LogoLoadingPanel(message: 'Spieltag wird geladen …'),
+          child: LogoLoadingPanel(
+            message: widget.tournamentPlanning
+                ? 'Turnierplanung wird geladen …'
+                : 'Spieltag wird geladen …',
+          ),
         ),
       );
     }
     if (_error != null || _match == null) {
       return PageScaffold(
-        title: 'Spieltag',
-        subtitle: 'Die Spieldaten sind gerade nicht verfügbar.',
+        title: widget.tournamentPlanning
+            ? 'Turnier-Kader & Aufstellung'
+            : 'Spieltag',
+        subtitle: widget.tournamentPlanning
+            ? 'Die Turnierplanung ist gerade nicht verfügbar.'
+            : 'Die Spieldaten sind gerade nicht verfügbar.',
         child: EmptyState(
           icon: Icons.cloud_off_rounded,
-          title: 'Spieltag nicht erreichbar',
+          title: widget.tournamentPlanning
+              ? 'Turnierplanung nicht erreichbar'
+              : 'Spieltag nicht erreichbar',
           message: _error!,
         ),
       );
     }
     final match = _match!;
+    if (widget.tournamentPlanning) {
+      return PageScaffold(
+        title: 'Turnier-Kader & Aufstellung',
+        subtitle: '${match.title} · ${_dateLine(match)}',
+        denseMobileHeader: true,
+        fillRemaining: true,
+        fillRemainingScrollable: true,
+        child: Column(
+          children: [
+            if (!_online || _usingOfflineSnapshot) ...[
+              _OfflineBanner(cached: _usingOfflineSnapshot),
+              const SizedBox(height: 8),
+            ],
+            const _TournamentPlanningNotice(),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<int>(
+                key: const ValueKey('tournament-planning-tabs'),
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                    value: 0,
+                    icon: Icon(Icons.groups_rounded),
+                    label: Text('Kader'),
+                  ),
+                  ButtonSegment(
+                    value: 1,
+                    icon: Icon(Icons.account_tree_rounded),
+                    label: Text('Aufstellung'),
+                  ),
+                ],
+                selected: {_tournamentPlanningTab},
+                onSelectionChanged: (selection) {
+                  setState(() => _tournamentPlanningTab = selection.first);
+                },
+              ),
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: IndexedStack(
+                index: _tournamentPlanningTab,
+                children: [
+                  MatchSquadTab(
+                    match: match,
+                    allPlayers: _players,
+                    editable: widget.staffView,
+                    tournamentPlanning: true,
+                    onSaved: _applySavedSquad,
+                    onReload: () => _load(refreshPlayers: true),
+                  ),
+                  _LineupTab(
+                    match: match,
+                    editable: widget.staffView,
+                    onSaved: _applySavedLineup,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final opponent = match.details?.opponent ?? 'Gegner';
     final mobile = MediaQuery.sizeOf(context).width < 600;
     final tabCount = widget.staffView ? 6 : 4;
@@ -573,6 +660,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         hideMobileHeader: true,
         hideHeader: true,
         fillRemaining: true,
+        fillRemainingScrollable: true,
         child: Column(
           children: [
             if (!_online || _usingOfflineSnapshot) ...[
@@ -642,6 +730,55 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     return '${date.day}.${date.month}.${date.year} · $time Uhr · ${match.location}';
   }
+}
+
+class _TournamentPlanningNotice extends StatelessWidget {
+  const _TournamentPlanningNotice();
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          const icon = Icon(
+            Icons.emoji_events_rounded,
+            color: AppColors.gold,
+            size: 22,
+          );
+          const message = Text(
+            'Kader und Aufstellung gelten für das gesamte Turnier. '
+            'Eine abweichende Planung je Partie bleibt in der '
+            'Turnierplanung optional möglich.',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          );
+          return Container(
+            key: const ValueKey('tournament-planning-notice'),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.yellowSoft,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: constraints.maxWidth < 720
+                ? const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      icon,
+                      SizedBox(height: 5),
+                      message,
+                    ],
+                  )
+                : const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      icon,
+                      SizedBox(width: 10),
+                      Expanded(child: message),
+                    ],
+                  ),
+          );
+        },
+      );
 }
 
 class _PlayerRatingsTab extends ConsumerStatefulWidget {
@@ -2005,10 +2142,12 @@ class MatchSquadTab extends ConsumerStatefulWidget {
     required this.editable,
     required this.onSaved,
     required this.onReload,
+    this.tournamentPlanning = false,
   });
   final MatchdayModel match;
   final List<PlayerModel> allPlayers;
   final bool editable;
+  final bool tournamentPlanning;
   final Future<void> Function(MatchSquadModel squad) onSaved;
   final Future<void> Function() onReload;
 
@@ -2194,7 +2333,9 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                         _saving || _selected.isEmpty ? null : _deselectAll,
                   ),
                   AdaptiveActionSpec(
-                    label: 'Kader verbindlich nominieren',
+                    label: widget.tournamentPlanning
+                        ? 'Turnier-Kader nominieren'
+                        : 'Kader verbindlich nominieren',
                     icon: Icons.campaign_outlined,
                     onPressed: _saving || !widget.match.canNominateSquad
                         ? null
@@ -2212,8 +2353,11 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Die automatische Startelf berücksichtigt nur zugesagte Spieler. '
-                  'Trainer können Rückmeldungen hier direkt korrigieren.',
+                  widget.tournamentPlanning
+                      ? 'Diese Auswahl gilt für das gesamte Turnier. '
+                          'Rückmeldungen können hier direkt korrigiert werden.'
+                      : 'Die automatische Startelf berücksichtigt nur zugesagte Spieler. '
+                          'Trainer können Rückmeldungen hier direkt korrigieren.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.muted,
                       ),
@@ -2389,14 +2533,20 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Kader nominieren und Rückmeldung anfordern?'),
+          title: Text(
+            widget.tournamentPlanning
+                ? 'Turnier-Kader nominieren und Rückmeldung anfordern?'
+                : 'Kader nominieren und Rückmeldung anfordern?',
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${preview['title'] ?? widget.match.title} · ${preview['opponent'] ?? widget.match.details?.opponent ?? 'Gegner'}',
+                  widget.tournamentPlanning
+                      ? '${preview['title'] ?? widget.match.title}'
+                      : '${preview['title'] ?? widget.match.title} · ${preview['opponent'] ?? widget.match.details?.opponent ?? 'Gegner'}',
                   style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 8),
@@ -2780,18 +2930,30 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
   @override
   Widget build(BuildContext context) {
     if (widget.match.squad == null) {
-      return const EmptyState(
-        icon: Icons.group_add_outlined,
-        title: 'Zuerst den Kader festlegen',
-        message: 'Die Aufstellung verwendet ausschließlich nominierte Spieler.',
+      return ListView(
+        padding: EdgeInsets.zero,
+        children: const [
+          EmptyState(
+            icon: Icons.group_add_outlined,
+            title: 'Zuerst den Kader festlegen',
+            message:
+                'Die Aufstellung verwendet ausschließlich nominierte Spieler.',
+          ),
+        ],
       );
     }
     final lineup = widget.match.squad!.lineup;
     if (!widget.editable && lineup == null) {
-      return const EmptyState(
-        icon: Icons.visibility_off_outlined,
-        title: 'Aufstellung noch nicht veröffentlicht',
-        message: 'Sobald die Aufstellung freigegeben ist, erscheint sie hier.',
+      return ListView(
+        padding: EdgeInsets.zero,
+        children: const [
+          EmptyState(
+            icon: Icons.visibility_off_outlined,
+            title: 'Aufstellung noch nicht veröffentlicht',
+            message:
+                'Sobald die Aufstellung freigegeben ist, erscheint sie hier.',
+          ),
+        ],
       );
     }
     return Column(
