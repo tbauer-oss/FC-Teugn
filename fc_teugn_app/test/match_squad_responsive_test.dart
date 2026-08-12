@@ -86,6 +86,37 @@ void main() {
     expect(tester.getSize(name).width, greaterThan(100));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('squad shows an accessible loading bar while players load',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(
+            body: MatchSquadTab(
+              match: _match(),
+              allPlayers: const [],
+              loadingPlayers: true,
+              editable: true,
+              onSaved: (_) async {},
+              onReload: () async {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('squad-player-loading')),
+      findsOneWidget,
+    );
+    expect(find.text('Kader wird geladen …'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(find.text('Noch keine Spieler verfügbar'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<void> _pumpSquad(

@@ -90,8 +90,8 @@ class ApiClient {
           onSynchronizationComplete: (count) =>
               loadingController?.showTransientStatus(
             count == 1
-                ? 'Offline-Änderung synchronisiert'
-                : '$count Offline-Änderungen synchronisiert',
+                ? 'Offline gespeicherte Änderung gesendet'
+                : '$count offline gespeicherte Änderungen gesendet',
           ),
           onQueued: () =>
               loadingController?.showTransientStatus('Offline gespeichert'),
@@ -173,13 +173,12 @@ class _AppLoadingInterceptor extends Interceptor {
 
     final method = options.method.toUpperCase();
     final path = options.path.toLowerCase();
+    // Die Outbox wird nach einer wiederhergestellten Verbindung automatisch
+    // abgespielt. Dieser technische Hintergrundlauf darf nicht wie eine vom
+    // Nutzer gestartete Aktion wirken. Sichtbares Feedback folgt nur, wenn
+    // tatsächlich mindestens ein Eintrag erfolgreich übertragen wurde.
+    if (options.extra['outboxReplay'] == true) return null;
     if (method == 'GET' || method == 'HEAD') return null;
-    if (options.extra['outboxReplay'] == true) {
-      return (
-        message: 'Offline-Änderungen werden synchronisiert …',
-        mode: AppLoadingMode.background,
-      );
-    }
     if (path.contains('/ticker') ||
         path.contains('/notifications/') && path.contains('/read')) {
       return (

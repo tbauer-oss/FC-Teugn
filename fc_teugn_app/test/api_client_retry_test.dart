@@ -148,4 +148,41 @@ void main() {
     expect(loading.blockingVisible, isFalse);
     expect(loading.backgroundVisible, isFalse);
   });
+
+  test('automatic outbox replay stays visually silent', () async {
+    final arrived = Completer<void>();
+    final release = Completer<void>();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      arrived.complete();
+      await release.future;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({'saved': true}));
+      await request.response.close();
+    });
+    final loading = AppLoadingController(
+      showDelay: Duration.zero,
+      minimumVisibleDuration: Duration.zero,
+    );
+    addTearDown(loading.dispose);
+    final client = ApiClient(
+      baseUrl: 'http://${server.address.host}:${server.port}',
+      loadingController: loading,
+    );
+
+    final request = client.dio.post<void>(
+      '/events/offline-event',
+      data: {'title': 'Offline-Training'},
+      options: Options(extra: const {'outboxReplay': true}),
+    );
+    await arrived.future;
+
+    expect(loading.hasOperations, isFalse);
+    expect(loading.backgroundVisible, isFalse);
+    expect(loading.blockingVisible, isFalse);
+
+    release.complete();
+    await request;
+  });
 }

@@ -46,6 +46,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   MatchdayModel? _match;
   List<PlayerModel> _players = const [];
   bool _loading = true;
+  bool _loadingPlayers = false;
   bool _online = true;
   bool _usingOfflineSnapshot = false;
   bool _showingCachedPreview = false;
@@ -82,6 +83,9 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     final offlineQueue = ref.read(tickerOfflineQueueProvider);
     final matchId = widget.matchId;
     final staffView = widget.staffView;
+    if (refreshPlayers && staffView && _match != null && mounted) {
+      setState(() => _loadingPlayers = true);
+    }
     if (_match == null && userId != null) {
       unawaited(
         _showCachedMatchWhileLoading(
@@ -97,9 +101,12 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       if (!mounted || request != _loadRequest) return;
       final endpointPlayers =
           staffView ? match.eligiblePlayers : const <PlayerModel>[];
+      final sharedPlayersAreLoading = staffView &&
+          (refreshPlayers || ref.read(playersProvider).asData == null);
       setState(() {
         _match = match;
         _players = endpointPlayers;
+        _loadingPlayers = sharedPlayersAreLoading;
         _loading = false;
         _online = true;
         _usingOfflineSnapshot = false;
@@ -131,6 +138,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       if (_match != null) {
         setState(() {
           _loading = false;
+          _loadingPlayers = false;
           if (_showingCachedPreview) {
             _online = false;
             _usingOfflineSnapshot = true;
@@ -164,6 +172,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       if (!mounted || request != _loadRequest) return;
       setState(() {
         _loading = false;
+        _loadingPlayers = false;
         _online = false;
         _usingOfflineSnapshot = cached != null;
         _showingCachedPreview = false;
@@ -194,6 +203,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       setState(() {
         _match = cached;
         _players = widget.staffView ? cached.eligiblePlayers : const [];
+        _loadingPlayers = widget.staffView;
         _loading = false;
         _online = true;
         _usingOfflineSnapshot = false;
@@ -239,9 +249,19 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
             )
             .toList(),
       );
-      setState(() => _players = players);
+      setState(() {
+        _players = players;
+        _loadingPlayers = false;
+      });
     } catch (_) {
       // Die Spieltag-Antwort bleibt ein vollständiger, nutzbarer Fallback.
+    } finally {
+      if (mounted &&
+          request == _loadRequest &&
+          _match?.id == match.id &&
+          _loadingPlayers) {
+        setState(() => _loadingPlayers = false);
+      }
     }
   }
 
@@ -747,6 +767,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                   MatchSquadTab(
                     match: match,
                     allPlayers: _players,
+                    loadingPlayers: _loadingPlayers,
                     editable: widget.staffView,
                     tournamentPlanning: true,
                     onSaved: _applySavedSquad,
@@ -803,6 +824,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                   MatchSquadTab(
                     match: match,
                     allPlayers: _players,
+                    loadingPlayers: _loadingPlayers,
                     editable: widget.staffView,
                     onSaved: _applySavedSquad,
                     onReload: () => _load(refreshPlayers: true),
@@ -2327,11 +2349,13 @@ class MatchSquadTab extends ConsumerStatefulWidget {
     required this.onSaved,
     required this.onReload,
     this.tournamentPlanning = false,
+    this.loadingPlayers = false,
   });
   final MatchdayModel match;
   final List<PlayerModel> allPlayers;
   final bool editable;
   final bool tournamentPlanning;
+  final bool loadingPlayers;
   final Future<void> Function(MatchSquadModel squad) onSaved;
   final Future<void> Function() onReload;
 
@@ -2447,6 +2471,10 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
               bottom: MediaQuery.paddingOf(context).bottom + 16,
             ),
             children: [
+              if (widget.loadingPlayers) ...[
+                const _SquadLoadingStatus(),
+                SizedBox(height: compact ? 8 : 12),
+              ],
               if (availableTeams.length > 1) ...[
                 if (constraints.maxWidth < AppBreakpoints.narrow)
                   DropdownButtonFormField<String?>(
@@ -2628,7 +2656,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                 ),
               ],
               SizedBox(height: compact ? 6 : 12),
-              if (widget.allPlayers.isEmpty)
+              if (widget.allPlayers.isEmpty && !widget.loadingPlayers)
                 EmptyState(
                   icon: Icons.group_off_outlined,
                   title: 'Noch keine Spieler verfügbar',
@@ -4229,6 +4257,47 @@ class _AutomaticLineupNotice extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      );
+}
+
+class _SquadLoadingStatus extends StatelessWidget {
+  const _SquadLoadingStatus();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        key: const ValueKey('squad-player-loading'),
+        label: 'Kader wird geladen',
+        liveRegion: true,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.yellow.withValues(alpha: .12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.fromLTRB(12, 9, 12, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.groups_rounded, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Kader wird geladen …',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                LinearProgressIndicator(
+                  minHeight: 4,
+                  borderRadius: BorderRadius.all(Radius.circular(99)),
+                ),
+              ],
+            ),
+          ),
         ),
       );
 }

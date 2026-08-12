@@ -68,10 +68,57 @@ void main() {
       expect(find.text('Spieltag wird geladen …'), findsNothing);
       expect(find.text('SV Schnell E1'), findsWidgets);
       expect(find.byType(TabBar), findsOneWidget);
+
       expect(tester.takeException(), isNull);
 
       players.complete(const []);
       await tester.pump();
     },
   );
+
+  testWidgets('tournament squad reports the background player load',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final players = Completer<List<PlayerModel>>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          repositoryProvider.overrideWithValue(_FastMatchRepository()),
+          playersProvider.overrideWith((ref) => players.future),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const Scaffold(
+            body: MatchdayPage(
+              matchId: 'tournament-fast',
+              staffView: true,
+              tournamentPlanning: true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+    expect(players.isCompleted, isFalse);
+    expect(
+      find.byKey(const ValueKey('squad-player-loading')),
+      findsOneWidget,
+    );
+    expect(find.text('Kader wird geladen …'), findsOneWidget);
+
+    players.complete(const []);
+    await tester.pump();
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('squad-player-loading')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
