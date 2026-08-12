@@ -353,11 +353,13 @@ async function serializeEvent(
   },
   knownAccessibleIds?: string[],
   knownRoster?: RosterPlayer[],
+  knownPersonalPlayerIds?: string[],
 ) {
   const staff = isStaff(user.role, user.permissions);
   const accessibleIds = knownAccessibleIds ?? (await accessibleTeamIds(user));
   const manageable = canManageEventWithIds(user, event, accessibleIds);
-  const personalPlayerIds = await ownPlayerIds(user);
+  const personalPlayerIds =
+    knownPersonalPlayerIds ?? (await ownPlayerIds(user));
   const eventTargetIds = targetIdsForEvent(event);
   const explicitParticipantPlayers = event.participants
     .filter((participant) => participant.responseRequired && participant.player)
@@ -1139,28 +1141,45 @@ export async function listEvents(req: Request, res: Response) {
       : req.query.categories,
   ).filter((value) => Object.values(EventCategory).includes(value as EventCategory));
 
-  const events = await prisma.event.findMany({
-    where: {
-      parentTournamentId: null,
-      ...eventScope(effectiveTeams),
-      ...(from || to
-        ? {
-            startAt: {
-              ...(from ? { gte: from } : {}),
-              ...(to ? { lte: to } : {}),
-            },
-          }
-        : {}),
-      ...(categories.length ? { category: { in: categories as EventCategory[] } } : {}),
-      ...(!isStaff(user.role) ? { visibility: { not: EventVisibility.STAFF_ONLY } } : {}),
-    },
-    orderBy: { startAt: 'asc' },
-    include: eventInclude,
-  });
-  const roster = isStaff(user.role) ? await rosterForTeamIds(effectiveTeams) : undefined;
+  const [events, roster, personalPlayerIds] = await Promise.all([
+    prisma.event.findMany({
+      where: {
+        parentTournamentId: null,
+        ...eventScope(effectiveTeams),
+        ...(from || to
+          ? {
+              startAt: {
+                ...(from ? { gte: from } : {}),
+                ...(to ? { lte: to } : {}),
+              },
+            }
+          : {}),
+        ...(categories.length
+          ? { category: { in: categories as EventCategory[] } }
+          : {}),
+        ...(!isStaff(user.role)
+          ? { visibility: { not: EventVisibility.STAFF_ONLY } }
+          : {}),
+      },
+      orderBy: { startAt: 'asc' },
+      include: eventInclude,
+    }),
+    isStaff(user.role)
+      ? rosterForTeamIds(effectiveTeams)
+      : Promise.resolve(undefined),
+    ownPlayerIds(user),
+  ]);
   return res.json(
     await Promise.all(
-      events.map((event) => serializeEvent(event, user, accessibleIds, roster)),
+      events.map((event) =>
+        serializeEvent(
+          event,
+          user,
+          accessibleIds,
+          roster,
+          personalPlayerIds,
+        ),
+      ),
     ),
   );
 }

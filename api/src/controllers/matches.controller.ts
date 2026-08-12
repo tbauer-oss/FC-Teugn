@@ -726,25 +726,29 @@ export async function getMatch(req: Request, res: Response) {
     return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   }
   const staff = isStaff(user.role, user.permissions);
-  const tickerEditable = await canManageTicker(user, match.id);
-  const rosterTeamIds = rosterTeamIdsForMatch(
-    await youthPlayerPoolTeamIdsForTeam(match.teamId),
-  );
-  const eligiblePlayers = staff
-    ? await prisma.player.findMany({
-        where: {
-          teamId: { in: rosterTeamIds },
-          status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
-        },
-        select: eligiblePlayerSelect,
-        orderBy: [{ status: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
-      })
-    : [];
-  const viewerPlayerIds = staff ? [] : await ownPlayerIds(user);
+  const eligiblePlayers = async () => {
+    if (!staff) return [];
+    const rosterTeamIds = rosterTeamIdsForMatch(
+      await youthPlayerPoolTeamIdsForTeam(match.teamId),
+    );
+    return prisma.player.findMany({
+      where: {
+        teamId: { in: rosterTeamIds },
+        status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
+      },
+      select: eligiblePlayerSelect,
+      orderBy: [{ status: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
+    });
+  };
+  const [tickerEditable, availablePlayers, viewerPlayerIds] = await Promise.all([
+    canManageTicker(user, match.id),
+    eligiblePlayers(),
+    staff ? Promise.resolve([] as string[]) : ownPlayerIds(user),
+  ]);
   return res.json(serializeMatch(
     match,
     staff,
-    eligiblePlayers,
+    availablePlayers,
     tickerEditable,
     viewerPlayerIds,
     hasEffectivePermission(user.role, Permission.MATCH_DELETE, user.permissions),

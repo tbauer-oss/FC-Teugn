@@ -48,6 +48,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   bool _loading = true;
   bool _online = true;
   bool _usingOfflineSnapshot = false;
+  bool _showingCachedPreview = false;
   bool _refreshingTicker = false;
   String? _error;
   Timer? _poller;
@@ -81,61 +82,61 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     final offlineQueue = ref.read(tickerOfflineQueueProvider);
     final matchId = widget.matchId;
     final staffView = widget.staffView;
+    if (_match == null && userId != null) {
+      unawaited(
+        _showCachedMatchWhileLoading(
+          request: request,
+          userId: userId,
+          matchId: matchId,
+          offlineQueue: offlineQueue,
+        ),
+      );
+    }
     try {
       final match = await repository.match(matchId);
-      var players = staffView ? match.eligiblePlayers : const <PlayerModel>[];
-      if (staffView) {
-        if (refreshPlayers) {
-          ref.invalidate(playersProvider);
-        }
-        try {
-          // Read the exact same Riverpod result shown on the team page. The
-          // match endpoint remains a fallback and both lists are merged, so a
-          // temporary second request can never turn ten visible players into
-          // an empty match roster.
-          final cachedPlayers = ref.read(playersProvider).asData?.value;
-          final List<PlayerModel> sharedPlayers =
-              cachedPlayers ?? await ref.read(playersProvider.future);
-          players = _mergeEligiblePlayers(
-            players,
-            sharedPlayers
-                .where(
-                  (player) =>
-                      player.ageGroupCode == match.playerPoolAgeGroupCode,
-                )
-                .toList(),
-          );
-        } catch (_) {
-          // The match response remains a usable fallback.
-        }
-      }
-      if (userId != null) {
-        try {
-          await offlineQueue.cacheMatch(
-            userId: userId,
-            match: match,
-          );
-        } catch (_) {
-          // A storage failure must never turn a successful network load into
-          // an offline error.
-        }
-      }
       if (!mounted || request != _loadRequest) return;
+      final endpointPlayers =
+          staffView ? match.eligiblePlayers : const <PlayerModel>[];
       setState(() {
         _match = match;
-        _players = players;
+        _players = endpointPlayers;
         _loading = false;
         _online = true;
         _usingOfflineSnapshot = false;
+        _showingCachedPreview = false;
         _error = null;
         _lastTickerConnectionAt = DateTime.now();
         _consecutiveTickerFailures = 0;
       });
+      if (userId != null) {
+        unawaited(
+          _cacheMatchInBackground(
+            offlineQueue: offlineQueue,
+            userId: userId,
+            match: match,
+          ),
+        );
+      }
+      if (staffView) {
+        unawaited(
+          _loadSharedPlayersInBackground(
+            request: request,
+            match: match,
+            refreshPlayers: refreshPlayers,
+          ),
+        );
+      }
     } catch (error) {
       if (!mounted || request != _loadRequest) return;
       if (_match != null) {
         setState(() {
           _loading = false;
+          if (_showingCachedPreview) {
+            _online = false;
+            _usingOfflineSnapshot = true;
+            _showingCachedPreview = false;
+            return;
+          }
           if (_isConnectivityFailure(error)) {
             _consecutiveTickerFailures += 1;
             final lastSuccess = _lastTickerConnectionAt;
@@ -165,10 +166,82 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         _loading = false;
         _online = false;
         _usingOfflineSnapshot = cached != null;
+        _showingCachedPreview = false;
         _match = cached;
         _error =
             cached == null ? 'Der Spieltag konnte nicht geladen werden.' : null;
       });
+    }
+  }
+
+  Future<void> _showCachedMatchWhileLoading({
+    required int request,
+    required String userId,
+    required String matchId,
+    required TickerOfflineQueue offlineQueue,
+  }) async {
+    try {
+      final cached = await offlineQueue.cachedMatch(
+        userId: userId,
+        eventId: matchId,
+      );
+      if (!mounted ||
+          request != _loadRequest ||
+          cached == null ||
+          _match != null) {
+        return;
+      }
+      setState(() {
+        _match = cached;
+        _players = widget.staffView ? cached.eligiblePlayers : const [];
+        _loading = false;
+        _online = true;
+        _usingOfflineSnapshot = false;
+        _showingCachedPreview = true;
+        _error = null;
+      });
+    } catch (_) {
+      // Der parallele Netzwerkabruf bleibt die verbindliche Datenquelle.
+    }
+  }
+
+  Future<void> _cacheMatchInBackground({
+    required TickerOfflineQueue offlineQueue,
+    required String userId,
+    required MatchdayModel match,
+  }) async {
+    try {
+      await offlineQueue.cacheMatch(userId: userId, match: match);
+    } catch (_) {
+      // Browser- oder Gerätespeicher darf die sichtbare Seite nie verzögern.
+    }
+  }
+
+  Future<void> _loadSharedPlayersInBackground({
+    required int request,
+    required MatchdayModel match,
+    required bool refreshPlayers,
+  }) async {
+    if (refreshPlayers) ref.invalidate(playersProvider);
+    try {
+      // Die Spieltag-Antwort enthält bereits den vollständigen zulässigen
+      // Kader. Die app-weite Spielerliste ergänzt ihn im Hintergrund, ohne
+      // den ersten sichtbaren Aufbau des Spieltags zu blockieren.
+      final cachedPlayers = ref.read(playersProvider).asData?.value;
+      final List<PlayerModel> sharedPlayers =
+          cachedPlayers ?? await ref.read(playersProvider.future);
+      if (!mounted || request != _loadRequest || _match?.id != match.id) return;
+      final players = _mergeEligiblePlayers(
+        match.eligiblePlayers,
+        sharedPlayers
+            .where(
+              (player) => player.ageGroupCode == match.playerPoolAgeGroupCode,
+            )
+            .toList(),
+      );
+      setState(() => _players = players);
+    } catch (_) {
+      // Die Spieltag-Antwort bleibt ein vollständiger, nutzbarer Fallback.
     }
   }
 
