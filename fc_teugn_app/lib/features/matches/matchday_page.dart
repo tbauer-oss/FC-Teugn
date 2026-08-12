@@ -812,6 +812,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                 match: match,
                 onPublishInternal: _publishInternally,
                 onReleaseFamily: _releaseForFamilies,
+                denseMobile: mobile,
               ),
             ],
             SizedBox(height: mobile ? 5 : 8),
@@ -2363,6 +2364,229 @@ class MatchSquadTab extends ConsumerStatefulWidget {
   ConsumerState<MatchSquadTab> createState() => _SquadTabState();
 }
 
+class _SquadTeamFilter extends StatelessWidget {
+  const _SquadTeamFilter({
+    required this.value,
+    required this.teams,
+    required this.onChanged,
+  });
+
+  static const _allTeamsValue = '__all_teams__';
+
+  final String? value;
+  final List<({String id, String name})> teams;
+  final ValueChanged<String?> onChanged;
+
+  String get _selectedLabel =>
+      teams
+          .where((team) => team.id == value)
+          .map((team) => team.name)
+          .firstOrNull ??
+      'Alle Mannschaften';
+
+  Future<void> _openPicker(BuildContext context) async {
+    final selection = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: false,
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: min(MediaQuery.sizeOf(sheetContext).height * .72, 520),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 10, 8, 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.yellowSoft,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: const Icon(
+                      Icons.groups_2_rounded,
+                      color: AppColors.gold,
+                      size: 21,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Mannschaft auswählen',
+                          style: Theme.of(sheetContext)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        Text(
+                          'Der Kader bleibt mannschaftsübergreifend erhalten.',
+                          style: Theme.of(sheetContext)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: AppColors.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Auswahl schließen',
+                    onPressed: () => Navigator.pop(sheetContext),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 16),
+                shrinkWrap: true,
+                children: [
+                  _SquadTeamFilterOption(
+                    key: const ValueKey('squad-team-filter-option-all'),
+                    label: 'Alle Mannschaften',
+                    selected: value == null,
+                    onTap: () => Navigator.pop(sheetContext, _allTeamsValue),
+                  ),
+                  for (final team in teams)
+                    _SquadTeamFilterOption(
+                      key: ValueKey('squad-team-filter-option-${team.id}'),
+                      label: team.name,
+                      selected: value == team.id,
+                      onTap: () => Navigator.pop(sheetContext, team.id),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selection == null || !context.mounted) return;
+    onChanged(selection == _allTeamsValue ? null : selection);
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+        key: const ValueKey('squad-team-filter-dropdown'),
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _openPicker(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.yellowSoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.shield_outlined,
+                    size: 20,
+                    color: AppColors.gold,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mannschaft anzeigen',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppColors.muted,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      Text(
+                        _selectedLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.expand_more_rounded, color: AppColors.muted),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _SquadTeamFilterOption extends StatelessWidget {
+  const _SquadTeamFilterOption({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Material(
+          color: selected ? AppColors.yellowSoft : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: ListTile(
+            dense: true,
+            minTileHeight: 48,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            onTap: onTap,
+            leading: Icon(
+              selected ? Icons.check_circle_rounded : Icons.shield_outlined,
+              color: selected ? AppColors.success : AppColors.muted,
+            ),
+            title: Text(
+              label,
+              style: TextStyle(
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+              ),
+            ),
+            trailing: selected
+                ? const Text(
+                    'Aktiv',
+                    style: TextStyle(
+                      color: AppColors.success,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  )
+                : null,
+          ),
+        ),
+      );
+}
+
 class _SquadTabState extends ConsumerState<MatchSquadTab> {
   late Map<String, NominationStatus> _selected;
   String? _teamFilterId;
@@ -2477,24 +2701,9 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
               ],
               if (availableTeams.length > 1) ...[
                 if (constraints.maxWidth < AppBreakpoints.narrow)
-                  DropdownButtonFormField<String?>(
-                    key: const ValueKey('squad-team-filter-dropdown'),
-                    initialValue: _teamFilterId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Mannschaft anzeigen',
-                    ),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('Alle Mannschaften'),
-                      ),
-                      for (final team in availableTeams)
-                        DropdownMenuItem<String?>(
-                          value: team.id,
-                          child: Text(team.name),
-                        ),
-                    ],
+                  _SquadTeamFilter(
+                    value: _teamFilterId,
+                    teams: availableTeams,
                     onChanged: (value) => setState(() => _teamFilterId = value),
                   )
                 else
@@ -2523,7 +2732,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                   ),
                 const SizedBox(height: 10),
               ],
-              if (compact && widget.tournamentPlanning) ...[
+              if (compact) ...[
                 Row(
                   key: const ValueKey('tournament-squad-compact-summary'),
                   children: [

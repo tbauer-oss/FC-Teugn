@@ -1420,9 +1420,11 @@ class TrainerMatchesPage extends ConsumerWidget {
         isHome: details?.isHome ?? true,
         periodCount: details?.periodCount ?? 1,
         periodMinutes: details?.periodMinutes ?? 10,
+        familyReleasedAt: fixture.familyReleasedAt,
       );
     }).toList();
     var saving = false;
+    final releasingFixtureIds = <String>{};
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -1457,6 +1459,111 @@ class TrainerMatchesPage extends ConsumerWidget {
                 time.minute,
               );
             });
+          }
+
+          Future<void> releaseFixture(
+            _TournamentFixtureDraftState row,
+          ) async {
+            final fixtureId = row.id;
+            if (fixtureId == null || releasingFixtureIds.contains(fixtureId)) {
+              return;
+            }
+            setDialogState(() => releasingFixtureIds.add(fixtureId));
+            try {
+              final preview = await repository.familyReleasePreview(fixtureId);
+              if (!dialogContext.mounted) return;
+              final requiresFullTeam =
+                  preview['audienceMode'] == 'FULL_TEAM_REQUIRED';
+              final kickoff = row.startAt.toLocal();
+              final kickoffLabel = '${kickoff.day.toString().padLeft(2, '0')}.'
+                  '${kickoff.month.toString().padLeft(2, '0')}. '
+                  '${kickoff.hour.toString().padLeft(2, '0')}:'
+                  '${kickoff.minute.toString().padLeft(2, '0')} Uhr';
+              final confirmed = await showDialog<bool>(
+                context: dialogContext,
+                builder: (confirmationContext) => AlertDialog(
+                  title: const Text('Partie für Familien freigeben?'),
+                  content: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Die Partie erscheint danach direkt in der '
+                            'Turnierübersicht von Eltern und Spielern.',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                              'Gegner: ${preview['opponent'] ?? 'Noch offen'}'),
+                          Text('Anstoß: $kickoffLabel'),
+                          Text(
+                            'Empfänger: ${preview['recipients'] ?? 0} Benutzer',
+                          ),
+                          Text(
+                            requiresFullTeam
+                                ? 'Empfängerkreis: gesamte Mannschaft'
+                                : 'Empfängerkreis: nominierter Kader',
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Es werden eine In-App- und eine Pushnachricht '
+                            'versendet.',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.pop(confirmationContext, false),
+                      child: const Text('Abbrechen'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.pop(confirmationContext, true),
+                      icon: const Icon(Icons.family_restroom_rounded),
+                      label: const Text('Jetzt freigeben'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true || !dialogContext.mounted) return;
+              await repository.releaseMatchToFamilies(
+                fixtureId,
+                fullTeam: requiresFullTeam,
+              );
+              if (!dialogContext.mounted) return;
+              setDialogState(() => row.familyReleasedAt = DateTime.now());
+              ref.invalidate(eventsProvider);
+              ref.invalidate(personalResponsesProvider);
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Partie ist jetzt für Eltern und Spieler sichtbar.',
+                  ),
+                ),
+              );
+            } on DioException catch (error) {
+              if (!dialogContext.mounted) return;
+              final data = error.response?.data;
+              final message = data is Map<String, dynamic>
+                  ? data['message'] as String?
+                  : null;
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    message ?? 'Die Partie konnte nicht freigegeben werden.',
+                  ),
+                ),
+              );
+            } finally {
+              if (dialogContext.mounted) {
+                setDialogState(() => releasingFixtureIds.remove(fixtureId));
+              }
+            }
           }
 
           Future<void> save() async {
@@ -1575,6 +1682,12 @@ class TrainerMatchesPage extends ConsumerWidget {
                           Navigator.pop(dialogContext, false);
                           context.push('/trainer/matches/$fixtureId');
                         },
+                  onRelease: rows[index].id == null ||
+                          rows[index].familyReleasedAt != null
+                      ? null
+                      : () => releaseFixture(rows[index]),
+                  releaseBusy: rows[index].id != null &&
+                      releasingFixtureIds.contains(rows[index].id),
                   onRemove: () => setDialogState(() => rows.removeAt(index)),
                 ),
                 if (index < rows.length - 1) const SizedBox(height: 10),
@@ -1793,6 +1906,7 @@ class _TournamentFixtureDraftState {
     this.id,
     this.opponentId,
     this.isHome = true,
+    this.familyReleasedAt,
   });
 
   final String? id;
@@ -1801,6 +1915,7 @@ class _TournamentFixtureDraftState {
   bool isHome;
   int periodCount;
   int periodMinutes;
+  DateTime? familyReleasedAt;
 }
 
 class _TournamentPlanToolbar extends StatelessWidget {
@@ -2032,6 +2147,8 @@ class _TournamentFixtureEditor extends StatelessWidget {
     required this.onChooseStart,
     required this.onRemove,
     this.onOpen,
+    this.onRelease,
+    this.releaseBusy = false,
   });
 
   final int index;
@@ -2042,6 +2159,8 @@ class _TournamentFixtureEditor extends StatelessWidget {
   final VoidCallback onChooseStart;
   final VoidCallback onRemove;
   final VoidCallback? onOpen;
+  final VoidCallback? onRelease;
+  final bool releaseBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -2130,18 +2249,6 @@ class _TournamentFixtureEditor extends StatelessWidget {
                                 ),
                       ),
                     ),
-                    if (onOpen != null)
-                      IconButton(
-                        tooltip:
-                            'Optional: eigenen Kader, Aufstellung und Liveticker für diese Partie öffnen',
-                        visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints(
-                          minWidth: 44,
-                          minHeight: 44,
-                        ),
-                        onPressed: onOpen,
-                        icon: const Icon(Icons.stadium_rounded, size: 21),
-                      ),
                     IconButton(
                       tooltip: 'Partie entfernen',
                       visualDensity: VisualDensity.compact,
@@ -2209,6 +2316,88 @@ class _TournamentFixtureEditor extends StatelessWidget {
                       Expanded(flex: 2, child: orderField),
                     ],
                   ),
+                if (onOpen != null) ...[
+                  SizedBox(height: compact ? 9 : 12),
+                  const Divider(height: 1),
+                  SizedBox(height: compact ? 8 : 10),
+                  if (compact) ...[
+                    if (row.familyReleasedAt != null)
+                      const _TournamentFixtureReleaseStatus(),
+                    if (onRelease != null) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.tonalIcon(
+                          key: ValueKey(
+                            'tournament-fixture-release-$index',
+                          ),
+                          onPressed: releaseBusy ? null : onRelease,
+                          icon: releaseBusy
+                              ? const SizedBox.square(
+                                  dimension: 17,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.family_restroom_rounded,
+                                  size: 18,
+                                ),
+                          label: Text(
+                            releaseBusy
+                                ? 'Wird freigegeben …'
+                                : 'Für Familien freigeben',
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        key: ValueKey('tournament-fixture-open-$index'),
+                        onPressed: onOpen,
+                        icon: const Icon(Icons.stadium_rounded, size: 18),
+                        label: const Text('Partie öffnen'),
+                      ),
+                    ),
+                  ] else
+                    Row(
+                      children: [
+                        if (row.familyReleasedAt != null)
+                          const _TournamentFixtureReleaseStatus(),
+                        if (onRelease != null)
+                          FilledButton.tonalIcon(
+                            key: ValueKey(
+                              'tournament-fixture-release-$index',
+                            ),
+                            onPressed: releaseBusy ? null : onRelease,
+                            icon: releaseBusy
+                                ? const SizedBox.square(
+                                    dimension: 17,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.family_restroom_rounded,
+                                    size: 18,
+                                  ),
+                            label: Text(
+                              releaseBusy
+                                  ? 'Wird freigegeben …'
+                                  : 'Für Familien freigeben',
+                            ),
+                          ),
+                        const Spacer(),
+                        OutlinedButton.icon(
+                          key: ValueKey('tournament-fixture-open-$index'),
+                          onPressed: onOpen,
+                          icon: const Icon(Icons.stadium_rounded, size: 18),
+                          label: const Text('Partie öffnen'),
+                        ),
+                      ],
+                    ),
+                ],
               ],
             ),
           ),
@@ -2216,6 +2405,38 @@ class _TournamentFixtureEditor extends StatelessWidget {
       },
     );
   }
+}
+
+class _TournamentFixtureReleaseStatus extends StatelessWidget {
+  const _TournamentFixtureReleaseStatus();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        key: const ValueKey('tournament-fixture-release-status'),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.success.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: AppColors.success.withValues(alpha: .35),
+          ),
+        ),
+        child: const Wrap(
+          spacing: 6,
+          runSpacing: 2,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Icon(Icons.verified_rounded, size: 18, color: AppColors.success),
+            Text(
+              'Für Familien sichtbar',
+              style: TextStyle(
+                color: AppColors.success,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _MatchCard extends StatelessWidget {

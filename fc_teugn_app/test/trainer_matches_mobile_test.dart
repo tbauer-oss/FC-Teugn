@@ -53,7 +53,10 @@ OrganizationContext _organization() => OrganizationContext(
       ),
     );
 
-EventModel _tournament() => EventModel(
+EventModel _tournament({
+  List<TournamentFixtureModel> fixtures = const [],
+}) =>
+    EventModel(
       id: 'tournament-1',
       teamId: _team.id,
       type: EventType.match,
@@ -84,13 +87,46 @@ EventModel _tournament() => EventModel(
         canDelete: true,
       ),
       reminderMinutes: const [],
+      tournamentFixtures: fixtures,
+    );
+
+TournamentFixtureModel _fixture({DateTime? familyReleasedAt}) =>
+    TournamentFixtureModel(
+      id: 'fixture-1',
+      title: 'Hopfenbach-Cup · ATSV Test E1',
+      startAt: DateTime(2026, 9, 12, 15, 20),
+      location: 'Hopfenbach-Arena',
+      status: EventStatus.scheduled,
+      communicationStatus: familyReleasedAt == null
+          ? EventCommunicationStatus.draft
+          : EventCommunicationStatus.familyReleased,
+      familyReleasedAt: familyReleasedAt,
+      matchDetails: const MatchDetails(
+        opponent: 'ATSV Test E1',
+        opponentId: 'opponent-1',
+        isHome: true,
+        periodCount: 1,
+        periodMinutes: 10,
+        durationMinutes: 10,
+      ),
     );
 
 class _TournamentRepository extends DataRepository {
   _TournamentRepository() : super(ApiClient(baseUrl: 'http://test'));
 
+  String? releasedFixtureId;
+
   @override
-  Future<List<OpponentModel>> opponents(String ageGroupId) async => [];
+  Future<List<OpponentModel>> opponents(String ageGroupId) async => const [
+        OpponentModel(
+          id: 'opponent-1',
+          ageGroupId: 'age-e',
+          opponentClubId: 'club-test',
+          clubName: 'ATSV Test',
+          teamDesignation: 'E1',
+          displayName: 'ATSV Test E1',
+        ),
+      ];
 
   @override
   Future<List<OpponentClubModel>> opponentClubs() async => [];
@@ -133,11 +169,27 @@ class _TournamentRepository extends DataRepository {
         teamDesignation: teamDesignation,
         displayName: '${clubName ?? ''} $teamDesignation'.trim(),
       );
+
+  @override
+  Future<Map<String, dynamic>> familyReleasePreview(String eventId) async => {
+        'opponent': 'ATSV Test E1',
+        'audienceMode': 'NOMINATED_SQUAD',
+        'recipients': 4,
+      };
+
+  @override
+  Future<Map<String, dynamic>> releaseMatchToFamilies(
+    String eventId, {
+    bool fullTeam = false,
+  }) async {
+    releasedFixtureId = eventId;
+    return {'alreadyReleased': false, 'recipients': 4};
+  }
 }
 
-Widget _page({DataRepository? repository}) => ProviderScope(
+Widget _page({DataRepository? repository, EventModel? event}) => ProviderScope(
       overrides: [
-        eventsProvider.overrideWith((ref) async => [_tournament()]),
+        eventsProvider.overrideWith((ref) async => [event ?? _tournament()]),
         organizationProvider.overrideWith((ref) async => _organization()),
         if (repository != null)
           repositoryProvider.overrideWithValue(repository),
@@ -266,6 +318,7 @@ void main() {
 
     await tester.tap(find.text('Planen'));
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: 'tournament plan');
 
     expect(
       find.byKey(const ValueKey('tournament-planning-access-card')),
@@ -297,5 +350,47 @@ void main() {
 
     expect(find.text('ATSV Test E1'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saved tournament fixture has a direct family release action',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repository = _TournamentRepository();
+
+    await tester.pumpWidget(
+      _page(
+        repository: repository,
+        event: _tournament(fixtures: [_fixture()]),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Planen'));
+    await tester.pumpAndSettle();
+
+    final release = find.byKey(const ValueKey('tournament-fixture-release-0'));
+    expect(release, findsOneWidget);
+    expect(find.text('Partie öffnen'), findsOneWidget);
+    await tester.ensureVisible(release);
+    await tester.tap(release);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tester.takeException(), isNull, reason: 'release confirmation');
+
+    expect(find.text('Partie für Familien freigeben?'), findsOneWidget);
+    expect(
+      find.text(
+        'Die Partie erscheint danach direkt in der Turnierübersicht von Eltern und Spielern.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Jetzt freigeben'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: 'released status');
+
+    expect(repository.releasedFixtureId, 'fixture-1');
+    expect(find.text('Für Familien sichtbar'), findsOneWidget);
+    expect(release, findsNothing);
   });
 }

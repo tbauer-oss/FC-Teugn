@@ -22,17 +22,37 @@ void main() {
 
           expect(find.byKey(const ValueKey('squad-responsive-list')),
               findsOneWidget);
-          expect(find.text('2 ausgewählt · 3 sichtbar'), findsOneWidget);
+          expect(
+            find.text(
+              viewport.width < 600
+                  ? '2/3 im Kader'
+                  : '2 ausgewählt · 3 sichtbar',
+            ),
+            findsOneWidget,
+          );
           expect(
             tester
                 .getSize(find.byKey(const ValueKey('squad-selection-summary')))
                 .width,
             greaterThan(100),
           );
-          expect(find.text('Alle auswählen'), findsOneWidget);
-          expect(find.text('Alle abwählen'), findsOneWidget);
-          expect(find.text('Kader verbindlich nominieren'), findsOneWidget);
-          expect(find.text('Kader speichern'), findsOneWidget);
+          if (viewport.width < 600) {
+            expect(
+              find.byKey(const ValueKey('tournament-squad-select-all')),
+              findsOneWidget,
+            );
+            expect(
+              find.byKey(const ValueKey('tournament-squad-deselect-all')),
+              findsOneWidget,
+            );
+            expect(find.text('Nominieren'), findsOneWidget);
+            expect(find.text('Speichern'), findsOneWidget);
+          } else {
+            expect(find.text('Alle auswählen'), findsOneWidget);
+            expect(find.text('Alle abwählen'), findsOneWidget);
+            expect(find.text('Kader verbindlich nominieren'), findsOneWidget);
+            expect(find.text('Kader speichern'), findsOneWidget);
+          }
           expect(tester.takeException(), isNull);
         },
       );
@@ -61,13 +81,17 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('squad-team-filter-dropdown')));
     await tester.pumpAndSettle();
+    expect(find.text('Mannschaft auswählen'), findsOneWidget);
+    expect(find.byTooltip('Auswahl schließen'), findsOneWidget);
     await tester.tap(find.text('Alle Mannschaften').last);
     await tester.pump();
 
-    expect(find.text('2 ausgewählt · 4 sichtbar'), findsOneWidget);
-    await tester.tap(find.text('Alle auswählen'));
+    expect(find.text('2/4 im Kader'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('tournament-squad-select-all')),
+    );
     await tester.pump();
-    expect(find.text('4 ausgewählt · 4 sichtbar'), findsOneWidget);
+    expect(find.text('4/4 im Kader'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
