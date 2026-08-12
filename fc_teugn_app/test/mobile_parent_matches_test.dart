@@ -63,4 +63,117 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'parents can open a live tournament plan directly from the overview',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final tournament = EventModel(
+        id: 'tournament-1',
+        teamId: 'team-1',
+        type: EventType.match,
+        category: EventCategory.tournament,
+        status: EventStatus.scheduled,
+        visibility: EventVisibility.team,
+        title: '3. Hopfenbach-Cup',
+        startAt: DateTime(2026, 9, 12, 15),
+        location: 'Hopfenbach-Arena',
+        attendanceFinalized: false,
+        targetTeams: const [],
+        attachments: const [
+          EventAttachment(
+            id: 'attachment-1',
+            name: meinTurnierplanAttachmentName,
+            url: 'https://www.meinturnierplan.de/showit.php?id=2acei7shc3',
+            mimeType: 'text/html',
+          ),
+        ],
+        attendance: const [],
+        attendanceSummary: const AttendanceSummary(),
+        missingAttendance: const [],
+        carpoolOffers: const [],
+        capabilities: const EventCapabilities(),
+        reminderMinutes: const [],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            eventsProvider.overrideWith((ref) async => [tournament]),
+          ],
+          child: MaterialApp(
+            theme: buildAppTheme(),
+            home: const Scaffold(body: ParentMatchesPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final planButton = find.byKey(
+        const ValueKey('parent-tournament-plan-tournament-1'),
+      );
+      expect(planButton, findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(planButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Turnierplan live öffnen'), findsOneWidget);
+      expect(find.text('Live-Turnierplan laden'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('parents do not see an invalid tournament plan link',
+      (tester) async {
+    final tournament = EventModel(
+      id: 'tournament-invalid',
+      teamId: 'team-1',
+      type: EventType.match,
+      category: EventCategory.tournament,
+      status: EventStatus.scheduled,
+      visibility: EventVisibility.team,
+      title: 'Turnier',
+      startAt: DateTime(2026, 9, 12, 15),
+      location: 'Teugn',
+      attendanceFinalized: false,
+      targetTeams: const [],
+      attachments: const [
+        EventAttachment(
+          id: 'attachment-invalid',
+          name: meinTurnierplanAttachmentName,
+          url: 'https://example.org/not-allowed',
+        ),
+      ],
+      attendance: const [],
+      attendanceSummary: const AttendanceSummary(),
+      missingAttendance: const [],
+      carpoolOffers: const [],
+      capabilities: const EventCapabilities(),
+      reminderMinutes: const [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          eventsProvider.overrideWith((ref) async => [tournament]),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const Scaffold(body: ParentMatchesPage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(
+        const ValueKey('parent-tournament-plan-tournament-invalid'),
+      ),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

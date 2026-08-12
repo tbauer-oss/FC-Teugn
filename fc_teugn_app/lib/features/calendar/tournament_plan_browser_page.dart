@@ -7,6 +7,30 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
 
+Future<void> openTournamentPlanBrowser(
+  BuildContext context, {
+  required String url,
+  required String tournamentName,
+}) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null || !isMeinTurnierplanUrl(url)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Der hinterlegte Turnierlink ist ungültig.'),
+      ),
+    );
+    return;
+  }
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => TournamentPlanBrowserPage(
+        uri: uri,
+        tournamentName: tournamentName,
+      ),
+    ),
+  );
+}
+
 class TournamentPlanBrowserPage extends StatefulWidget {
   const TournamentPlanBrowserPage({
     super.key,
@@ -123,7 +147,7 @@ class _TournamentPlanBrowserPageState extends State<TournamentPlanBrowserPage> {
         appBar: AppBar(
           automaticallyImplyLeading: false,
           leading: IconButton(
-            tooltip: 'Zurück zum Termin',
+            tooltip: 'Zurück',
             onPressed: () => Navigator.of(context).maybePop(),
             icon: const Icon(Icons.arrow_back_rounded),
           ),
@@ -215,7 +239,7 @@ class _TournamentPrivacyNotice extends StatelessWidget {
                     const SizedBox(height: 10),
                     TextButton(
                       onPressed: () => Navigator.of(context).maybePop(),
-                      child: const Text('Zurück zum Termin'),
+                      child: const Text('Zurück'),
                     ),
                   ],
                 ),

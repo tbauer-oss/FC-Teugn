@@ -2359,21 +2359,11 @@ class _TournamentPlanCard extends StatelessWidget {
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 520;
             final button = FilledButton.icon(
-              onPressed: () {
-                final uri = Uri.tryParse(attachment.url);
-                if (uri == null || !isMeinTurnierplanUrl(attachment.url)) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Der hinterlegte Turnierlink ist ungültig.'),
-                  ));
-                  return;
-                }
-                Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => TournamentPlanBrowserPage(
-                    uri: uri,
-                    tournamentName: event.title,
-                  ),
-                ));
-              },
+              onPressed: () => openTournamentPlanBrowser(
+                context,
+                url: attachment.url,
+                tournamentName: event.title,
+              ),
               icon: const Icon(Icons.open_in_browser_rounded),
               label: const Text('Live-Turnierplan öffnen'),
             );

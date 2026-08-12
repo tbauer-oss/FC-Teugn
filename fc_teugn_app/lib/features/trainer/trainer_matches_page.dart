@@ -19,6 +19,7 @@ import '../matches/tournament_opponent_picker.dart';
 import '../auth/auth_controller.dart';
 import '../../core/models/user.dart';
 import '../../core/widgets/adaptive_layout.dart';
+import '../calendar/tournament_plan_browser_page.dart';
 
 class TrainerMatchesPage extends ConsumerWidget {
   const TrainerMatchesPage({super.key});
@@ -1607,7 +1608,7 @@ class _MatchesPageActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < AppBreakpoints.compact;
+          final compact = constraints.maxWidth < AppBreakpoints.medium;
           final veryNarrow = constraints.maxWidth < AppBreakpoints.veryNarrow;
           final narrow = constraints.maxWidth < AppBreakpoints.narrow;
           return Row(
@@ -2238,6 +2239,15 @@ class _MatchCard extends StatelessWidget {
     final details = event.matchDetails;
     final date = event.startAt.toLocal();
     final isTournament = event.category.isTournament;
+    final tournamentPlan = event.meinTurnierplanAttachment;
+    final openTournamentPlan =
+        tournamentPlan == null || !isMeinTurnierplanUrl(tournamentPlan.url)
+            ? null
+            : () => openTournamentPlanBrowser(
+                  context,
+                  url: tournamentPlan.url,
+                  tournamentName: event.title,
+                );
     final hasResult = details?.ourGoals != null && details?.theirGoals != null;
     final isFriendly = event.category == EventCategory.friendlyMatch ||
         (details?.competition ?? '').toLowerCase().contains('freundschaft');
@@ -2246,7 +2256,8 @@ class _MatchCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 680;
+          final compact =
+              constraints.maxWidth < (openTournamentPlan == null ? 680 : 960);
           final title = details == null
               ? event.title
               : 'FC Teugn ${details.isHome ? '–' : '@'} ${details.opponent}';
@@ -2423,6 +2434,13 @@ class _MatchCard extends StatelessWidget {
                   tooltip: 'Spiel endgültig löschen',
                   icon: const Icon(Icons.delete_forever_rounded),
                 ),
+              if (openTournamentPlan != null)
+                OutlinedButton.icon(
+                  key: ValueKey('trainer-tournament-plan-${event.id}'),
+                  onPressed: openTournamentPlan,
+                  icon: const Icon(Icons.open_in_browser_rounded, size: 18),
+                  label: const Text('Live-Turnierplan'),
+                ),
               FilledButton.icon(
                 onPressed: onOpen,
                 icon: Icon(
@@ -2470,6 +2488,8 @@ class _MatchCard extends StatelessWidget {
                         onDelete: onDelete,
                         onCancel: onCancel,
                         onReschedule: onReschedule,
+                        onOpenTournamentPlan: openTournamentPlan,
+                        tournamentId: event.id,
                       ),
                     ],
                   )
@@ -2508,6 +2528,8 @@ class _CompactMatchActions extends StatelessWidget {
     this.onDelete,
     this.onCancel,
     this.onReschedule,
+    this.onOpenTournamentPlan,
+    this.tournamentId,
   });
 
   final bool isTournament;
@@ -2516,6 +2538,8 @@ class _CompactMatchActions extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onCancel;
   final VoidCallback? onReschedule;
+  final VoidCallback? onOpenTournamentPlan;
+  final String? tournamentId;
 
   bool get hasMenuActions =>
       !isTournament ||
@@ -2545,6 +2569,7 @@ class _CompactMatchActions extends StatelessWidget {
         builder: (context, constraints) {
           final textScale = MediaQuery.textScalerOf(context).scale(1);
           final showTournamentActions = isTournament &&
+              onOpenTournamentPlan == null &&
               constraints.maxWidth >= AppBreakpoints.veryNarrow &&
               textScale < 1.35;
           return Row(
@@ -2622,24 +2647,59 @@ class _CompactMatchActions extends StatelessWidget {
                   ],
                   icon: const Icon(Icons.more_horiz_rounded),
                 ),
-              const Spacer(),
-              FilledButton.icon(
-                onPressed: onOpen,
-                style: FilledButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 8,
+              if (onOpenTournamentPlan != null) ...[
+                const SizedBox(width: 4),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: ValueKey('trainer-tournament-plan-$tournamentId'),
+                    onPressed: onOpenTournamentPlan,
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 8,
+                      ),
+                    ),
+                    icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                    label: const Text('Live'),
                   ),
                 ),
-                icon: Icon(
-                  isTournament
-                      ? Icons.account_tree_rounded
-                      : Icons.stadium_rounded,
-                  size: 17,
+                const SizedBox(width: 8),
+              ],
+              if (onOpenTournamentPlan == null) const Spacer(),
+              if (onOpenTournamentPlan != null)
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onOpen,
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 8,
+                      ),
+                    ),
+                    icon: const Icon(Icons.account_tree_rounded, size: 17),
+                    label: const Text('Planen'),
+                  ),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: onOpen,
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 8,
+                    ),
+                  ),
+                  icon: Icon(
+                    isTournament
+                        ? Icons.account_tree_rounded
+                        : Icons.stadium_rounded,
+                    size: 17,
+                  ),
+                  label: Text(isTournament ? 'Planen' : 'Spieltag'),
                 ),
-                label: Text(isTournament ? 'Planen' : 'Spieltag'),
-              ),
             ],
           );
         },

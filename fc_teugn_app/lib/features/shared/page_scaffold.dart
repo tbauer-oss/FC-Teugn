@@ -36,7 +36,7 @@ class PageScaffold extends StatelessWidget {
         final mobile = AppBreakpoints.isCompact(constraints.maxWidth);
         final horizontal =
             constraints.maxWidth >= AppBreakpoints.medium ? 32.0 : 14.0;
-        final compactHeader = constraints.maxWidth < 640;
+        final compactHeader = constraints.maxWidth < AppBreakpoints.wide;
         final titleBlock = Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

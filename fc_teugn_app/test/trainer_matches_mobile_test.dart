@@ -66,7 +66,14 @@ EventModel _tournament() => EventModel(
       location: 'Hopfenbach-Arena mit langem Ortsnamen',
       attendanceFinalized: false,
       targetTeams: const [],
-      attachments: const [],
+      attachments: const [
+        EventAttachment(
+          id: 'attachment-1',
+          name: meinTurnierplanAttachmentName,
+          url: 'https://www.meinturnierplan.de/showit.php?id=2acei7shc3',
+          mimeType: 'text/html',
+        ),
+      ],
       attendance: const [],
       attendanceSummary: const AttendanceSummary(),
       missingAttendance: const [],
@@ -142,7 +149,16 @@ Widget _page({DataRepository? repository}) => ProviderScope(
     );
 
 void main() {
-  for (final width in const [320.0, 360.0, 390.0, 480.0, 599.0]) {
+  for (final width in const [
+    320.0,
+    360.0,
+    390.0,
+    480.0,
+    599.0,
+    700.0,
+    900.0,
+    960.0,
+  ]) {
     testWidgets('match overview is compact at ${width.toInt()} px',
         (tester) async {
       await tester.binding.setSurfaceSize(Size(width, 800));
@@ -164,6 +180,12 @@ void main() {
       );
       expect(card.height, lessThan(230));
       expect(find.text('Planen'), findsOneWidget);
+      expect(
+        find.byKey(
+          const ValueKey('trainer-tournament-plan-tournament-1'),
+        ),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const ValueKey('matches-page-actions')),
         findsOneWidget,
@@ -210,6 +232,27 @@ void main() {
     );
     expect(card.right <= 330 || card.left >= 343, isTrue);
     expect(card.height, lessThan(230));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('live tournament plan opens directly from match overview',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(_page());
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(
+        const ValueKey('trainer-tournament-plan-tournament-1'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Live-Turnierplan'), findsOneWidget);
+    expect(find.text('Turnierplan live öffnen'), findsOneWidget);
+    expect(find.text('Live-Turnierplan laden'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

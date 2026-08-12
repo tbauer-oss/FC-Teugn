@@ -7,6 +7,7 @@ import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/team_crest.dart';
+import '../calendar/tournament_plan_browser_page.dart';
 import '../shared/page_scaffold.dart';
 
 class ParentMatchesPage extends ConsumerWidget {
@@ -82,6 +83,7 @@ class _PublicTournamentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final date = event.startAt.toLocal();
     final fixtures = event.tournamentFixtures;
+    final tournamentPlan = event.meinTurnierplanAttachment;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -139,6 +141,24 @@ class _PublicTournamentCard extends StatelessWidget {
               ],
             ),
           ),
+          if (tournamentPlan != null &&
+              isMeinTurnierplanUrl(tournamentPlan.url))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonalIcon(
+                  key: ValueKey('parent-tournament-plan-${event.id}'),
+                  onPressed: () => openTournamentPlanBrowser(
+                    context,
+                    url: tournamentPlan.url,
+                    tournamentName: event.title,
+                  ),
+                  icon: const Icon(Icons.open_in_browser_rounded),
+                  label: const Text('Live-Turnierplan öffnen'),
+                ),
+              ),
+            ),
           if (fixtures.isEmpty)
             const Padding(
               padding: EdgeInsets.all(18),

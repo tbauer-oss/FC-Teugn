@@ -1329,8 +1329,8 @@ const helpArticles = <HelpArticle>[
       'Trainer öffnen im Kalender „Termin anlegen“ und wählen als Kategorie „Turnier“ oder „Hallenturnier“.',
       'Im Abschnitt „Live-Turnierplan für Eltern & Trainer“ den öffentlichen Link im Format https://www.meinturnierplan.de/showit.php?id=… einfügen.',
       'Turnierdaten wie Datum, Beginn, Ende, Ort, Mannschaft und Rückmeldungen weiterhin im FC-Teugn-Termin pflegen und anschließend speichern.',
-      'Im Termindetail erscheint „Turnierplan & Ergebnisse“. Über „Live-Turnierplan öffnen“ werden Zeitplan, Spiele, Gruppen, Tabellen und Platzierungen in einer Vollbildansicht innerhalb der App angezeigt.',
-      'Vor dem ersten Laden weist die App auf den externen Inhalt hin. Erst nach Bestätigung wird eine Verbindung zu MeinTurnierplan hergestellt. Über den Zurückpfeil gelangt man direkt wieder zum Termin.',
+      'Der Button „Live-Turnierplan“ erscheint direkt in der Spieleübersicht und zusätzlich im Termindetail unter „Turnierplan & Ergebnisse“. Darüber werden Zeitplan, Spiele, Gruppen, Tabellen und Platzierungen in einer Vollbildansicht innerhalb der App angezeigt.',
+      'Vor dem ersten Laden weist die App auf den externen Inhalt hin. Erst nach Bestätigung wird eine Verbindung zu MeinTurnierplan hergestellt. Über den Zurückpfeil gelangt man direkt wieder zur vorherigen Ansicht.',
     ],
     tip:
         'Die Turnierdaten werden nicht kopiert. Deshalb sind nach Änderungen durch den Veranstalter beim erneuten Öffnen beziehungsweise Aktualisieren automatisch die neuesten Angaben sichtbar.',
