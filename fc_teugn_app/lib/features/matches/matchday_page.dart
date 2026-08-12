@@ -5780,199 +5780,368 @@ class _TickerFocusView extends StatelessWidget {
   Widget build(BuildContext context) {
     final expired = data.clock.expired && data.status == TickerStatus.live;
     final clockColor = expired ? const Color(0xFFFFA56B) : AppColors.yellow;
+    final canRecordGoal = data.status != TickerStatus.notStarted &&
+        data.status != TickerStatus.finished;
     return Material(
       color: AppColors.black,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  const ClubLogo(size: 52),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'FC TEUGN · LIVE',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                  ),
-                  IconButton.filledTonal(
-                    onPressed: onClose,
-                    tooltip: 'Großansicht schließen',
-                    icon: const Icon(Icons.close_fullscreen_rounded),
-                  ),
-                ],
-              ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final clockSize = min(
-                      constraints.maxWidth * .2,
-                      constraints.maxHeight * .28,
-                    ).clamp(58, 128);
-                    return SingleChildScrollView(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${data.periodLabel} · ${_tickerStatus(data.status)}',
-                              style: const TextStyle(
-                                color: Colors.white60,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                              ),
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -.45),
+            radius: 1.05,
+            colors: [Color(0xFF24230C), AppColors.black],
+            stops: [0, .72],
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, pageConstraints) {
+              final compactHeight = pageConstraints.maxHeight < 700;
+              final compactWidth = pageConstraints.maxWidth < 430;
+              final pagePadding = compactWidth ? 12.0 : 20.0;
+              return Padding(
+                padding: EdgeInsets.fromLTRB(
+                  pagePadding,
+                  compactHeight ? 8 : 14,
+                  pagePadding,
+                  compactHeight ? 10 : 16,
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        ClubLogo(size: compactHeight ? 38 : 46),
+                        SizedBox(width: compactWidth ? 9 : 12),
+                        Expanded(
+                          child: Text(
+                            'FC TEUGN · LIVE',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: compactWidth ? 16 : 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .8,
                             ),
-                            const SizedBox(height: 10),
-                            Text(
-                              data.clock.countdown,
-                              style: TextStyle(
-                                color: clockColor,
-                                fontSize: clockSize.toDouble(),
-                                height: 1,
-                                letterSpacing: 4,
-                                fontWeight: FontWeight.w900,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
+                          ),
+                        ),
+                        IconButton.filledTonal(
+                          onPressed: onClose,
+                          tooltip: 'Großansicht schließen',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.close_fullscreen_rounded),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: compactHeight ? 4 : 8),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final contentCompact =
+                              compactHeight || constraints.maxHeight < 520;
+                          final clockSize = min(
+                            constraints.maxWidth * (compactWidth ? .22 : .19),
+                            constraints.maxHeight *
+                                (contentCompact ? .20 : .24),
+                          ).clamp(54, 118);
+                          return SingleChildScrollView(
+                            physics: const ClampingScrollPhysics(),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: compactWidth ? 11 : 15,
+                                      vertical: compactHeight ? 5 : 7,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          Colors.white.withValues(alpha: .07),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color:
+                                            Colors.white.withValues(alpha: .10),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '${data.periodLabel} · ${_tickerStatus(data.status)}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: compactWidth ? 14 : 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: contentCompact ? 7 : 11),
+                                  RepaintBoundary(
+                                    child: Semantics(
+                                      label:
+                                          'Verbleibende Spielzeit ${data.clock.countdown}',
+                                      child: ExcludeSemantics(
+                                        child: Text(
+                                          data.clock.countdown,
+                                          maxLines: 1,
+                                          style: TextStyle(
+                                            color: clockColor,
+                                            fontSize: clockSize.toDouble(),
+                                            height: .96,
+                                            letterSpacing: compactWidth ? 2 : 4,
+                                            fontWeight: FontWeight.w900,
+                                            fontFeatures: const [
+                                              FontFeature.tabularFigures(),
+                                            ],
+                                            shadows: [
+                                              Shadow(
+                                                color: clockColor.withValues(
+                                                  alpha: .22,
+                                                ),
+                                                blurRadius: 20,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: contentCompact ? 9 : 14),
+                                  ConstrainedBox(
+                                    constraints:
+                                        const BoxConstraints(maxWidth: 720),
+                                    child: RepaintBoundary(
+                                      child: ClipRRect(
+                                        borderRadius:
+                                            BorderRadius.circular(999),
+                                        child: _SmoothClockProgress(
+                                          value: data.clock.progress,
+                                          minHeight: contentCompact ? 6 : 8,
+                                          color: clockColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: contentCompact ? 14 : 24),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _FocusTeamScore(
+                                        team: 'FC Teugn',
+                                        goals: data.ourGoals,
+                                        isClub: true,
+                                        highlighted: true,
+                                        compact: contentCompact || compactWidth,
+                                      ),
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: compactWidth ? 12 : 26,
+                                        ),
+                                        child: Text(
+                                          ':',
+                                          style: TextStyle(
+                                            color: Colors.white38,
+                                            fontSize: compactWidth ? 42 : 54,
+                                            fontWeight: FontWeight.w300,
+                                          ),
+                                        ),
+                                      ),
+                                      _FocusTeamScore(
+                                        team: data.opponent,
+                                        goals: data.theirGoals,
+                                        logoUrl: data.opponentLogoUrl,
+                                        compact: contentCompact || compactWidth,
+                                      ),
+                                    ],
+                                  ),
+                                  if (expired) ...[
+                                    SizedBox(height: contentCompact ? 8 : 14),
+                                    const Text(
+                                      'Abschnittszeit abgelaufen',
+                                      style: TextStyle(
+                                        color: Color(0xFFFFA56B),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 18),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 720),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(999),
-                                child: _SmoothClockProgress(
-                                  value: data.clock.progress,
-                                  minHeight: 10,
-                                  color: clockColor,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 28),
+                          );
+                        },
+                      ),
+                    ),
+                    if (editable) ...[
+                      SizedBox(height: compactHeight ? 6 : 10),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                _FocusTeamScore(
-                                  team: 'FC Teugn',
-                                  goals: data.ourGoals,
-                                  isClub: true,
-                                  highlighted: true,
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 26),
-                                  child: Text(
-                                    ':',
-                                    style: TextStyle(
-                                      color: Colors.white38,
-                                      fontSize: 54,
-                                      fontWeight: FontWeight.w300,
+                                Expanded(
+                                  child: Semantics(
+                                    button: true,
+                                    label: 'Tor für FC Teugn erfassen',
+                                    child: SizedBox(
+                                      height: compactHeight ? 48 : 54,
+                                      child: FilledButton.icon(
+                                        onPressed:
+                                            canRecordGoal ? onOurGoal : null,
+                                        style: FilledButton.styleFrom(
+                                          foregroundColor: AppColors.black,
+                                          backgroundColor: AppColors.yellow,
+                                          disabledForegroundColor:
+                                              Colors.white38,
+                                          disabledBackgroundColor:
+                                              Colors.white12,
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: compactWidth ? 8 : 14,
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.add_circle_rounded,
+                                        ),
+                                        label: Text(
+                                          compactWidth
+                                              ? 'Tor FC Teugn'
+                                              : 'Tor für FC Teugn',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
-                                _FocusTeamScore(
-                                  team: data.opponent,
-                                  goals: data.theirGoals,
-                                  logoUrl: data.opponentLogoUrl,
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Semantics(
+                                    button: true,
+                                    label: 'Gegentor erfassen',
+                                    child: SizedBox(
+                                      height: compactHeight ? 48 : 54,
+                                      child: FilledButton.icon(
+                                        onPressed:
+                                            canRecordGoal ? onTheirGoal : null,
+                                        style: FilledButton.styleFrom(
+                                          foregroundColor: Colors.white,
+                                          backgroundColor:
+                                              const Color(0xFF7F1D1D),
+                                          disabledForegroundColor:
+                                              Colors.white38,
+                                          disabledBackgroundColor:
+                                              Colors.white12,
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: compactWidth ? 8 : 14,
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.sports_soccer_rounded,
+                                        ),
+                                        label: const Text(
+                                          'Gegentor',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
-                            if (expired) ...[
-                              const SizedBox(height: 22),
+                            if (!canRecordGoal &&
+                                data.status == TickerStatus.notStarted) ...[
+                              const SizedBox(height: 5),
                               const Text(
-                                'Abschnittszeit abgelaufen',
+                                'Toraktionen sind nach dem Spielstart verfügbar.',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: Color(0xFFFFA56B),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
+                            SizedBox(height: compactHeight ? 6 : 9),
+                            LayoutBuilder(
+                              builder: (context, controlConstraints) {
+                                final controlWidth = min(
+                                  (controlConstraints.maxWidth - 10) / 2,
+                                  230.0,
+                                );
+                                return Wrap(
+                                  spacing: 10,
+                                  runSpacing: 7,
+                                  alignment: WrapAlignment.center,
+                                  children: [
+                                    if (onClockControl != null)
+                                      SizedBox(
+                                        width: controlWidth,
+                                        height: compactHeight ? 42 : 46,
+                                        child: FilledButton.tonalIcon(
+                                          onPressed: onClockControl,
+                                          style: FilledButton.styleFrom(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: compactWidth ? 8 : 12,
+                                            ),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                          icon: Icon(
+                                            clockControlIcon,
+                                            size: 20,
+                                          ),
+                                          label: Text(
+                                            clockControlLabel,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                    if (onEnd != null)
+                                      SizedBox(
+                                        width: controlWidth,
+                                        height: compactHeight ? 42 : 46,
+                                        child: FilledButton.icon(
+                                          onPressed: onEnd,
+                                          style: FilledButton.styleFrom(
+                                            foregroundColor: Colors.white,
+                                            backgroundColor:
+                                                const Color(0xFFC2410C),
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: compactWidth ? 8 : 12,
+                                            ),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                          icon: const Icon(
+                                            Icons.stop_circle_outlined,
+                                            size: 20,
+                                          ),
+                                          label: const Text(
+                                            'Spiel beenden',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
                           ],
                         ),
                       ),
-                    );
-                  },
+                    ],
+                  ],
                 ),
-              ),
-              if (editable)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 840),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final narrow = constraints.maxWidth < 680;
-                      final buttonWidth = narrow
-                          ? (constraints.maxWidth - 10) / 2
-                          : (constraints.maxWidth - 30) / 4;
-                      final canRecordGoal =
-                          data.status != TickerStatus.notStarted &&
-                              data.status != TickerStatus.finished;
-                      return Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        alignment: WrapAlignment.center,
-                        children: [
-                          if (onClockControl != null)
-                            SizedBox(
-                              width: buttonWidth,
-                              child: FilledButton.tonalIcon(
-                                onPressed: onClockControl,
-                                icon: Icon(clockControlIcon),
-                                label: Text(clockControlLabel),
-                              ),
-                            ),
-                          if (canRecordGoal)
-                            SizedBox(
-                              width: buttonWidth,
-                              child: FilledButton.icon(
-                                onPressed: onOurGoal,
-                                icon: const Icon(Icons.sports_soccer_rounded),
-                                label: const Text('Tor FC Teugn'),
-                              ),
-                            ),
-                          if (canRecordGoal)
-                            SizedBox(
-                              width: buttonWidth,
-                              child: OutlinedButton.icon(
-                                onPressed: onTheirGoal,
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  side: const BorderSide(
-                                    color: Colors.white38,
-                                  ),
-                                ),
-                                icon: const Icon(Icons.sports_soccer_rounded),
-                                label: const Text('Tor Gegner'),
-                              ),
-                            ),
-                          if (onEnd != null)
-                            SizedBox(
-                              width: buttonWidth,
-                              child: FilledButton.icon(
-                                onPressed: onEnd,
-                                style: FilledButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  backgroundColor: const Color(0xFFC2410C),
-                                ),
-                                icon: const Icon(Icons.stop_circle_outlined),
-                                label: const Text('Spiel beenden'),
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-            ],
+              );
+            },
           ),
         ),
       ),
@@ -6046,6 +6215,7 @@ class _FocusTeamScore extends StatelessWidget {
     this.isClub = false,
     this.logoUrl,
     this.highlighted = false,
+    this.compact = false,
   });
 
   final String team;
@@ -6053,6 +6223,7 @@ class _FocusTeamScore extends StatelessWidget {
   final bool isClub;
   final String? logoUrl;
   final bool highlighted;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -6060,24 +6231,27 @@ class _FocusTeamScore extends StatelessWidget {
         child: Column(
           children: [
             isClub
-                ? const TeamCrest.club(size: 64, darkSurface: true)
+                ? TeamCrest.club(
+                    size: compact ? 50 : 64,
+                    darkSurface: true,
+                  )
                 : TeamCrest.opponent(
-                    size: 64,
+                    size: compact ? 50 : 64,
                     logoUrl: logoUrl,
                     darkSurface: true,
                   ),
-            const SizedBox(height: 10),
+            SizedBox(height: compact ? 6 : 10),
             Text(
               '$goals',
               style: TextStyle(
                 color: highlighted ? AppColors.yellow : Colors.white,
-                fontSize: 64,
+                fontSize: compact ? 50 : 64,
                 height: 1,
                 fontWeight: FontWeight.w900,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 5 : 8),
             Text(
               team,
               maxLines: 1,
@@ -6085,7 +6259,7 @@ class _FocusTeamScore extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white70,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w800,
               ),
             ),

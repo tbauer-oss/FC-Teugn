@@ -18,9 +18,20 @@ void main() {
     );
 
     expect(focusView, contains('clockControlLabel'));
-    expect(focusView, contains("Text('Tor FC Teugn')"));
-    expect(focusView, contains("Text('Tor Gegner')"));
-    expect(focusView, contains("Text('Spiel beenden')"));
+    expect(focusView, contains("? 'Tor FC Teugn'"));
+    expect(focusView, contains("'Tor für FC Teugn'"));
+    expect(focusView, contains("'Gegentor'"));
+    expect(focusView, contains("'Spiel beenden'"));
+    expect(
+      focusView,
+      contains('Toraktionen sind nach dem Spielstart verfügbar.'),
+    );
+    expect(focusView, contains('onOurGoal'));
+    expect(focusView, contains('onTheirGoal'));
+    expect(focusView, contains('canRecordGoal ? onOurGoal : null'));
+    expect(focusView, contains('canRecordGoal ? onTheirGoal : null'));
+    expect(focusView, contains('FontFeature.tabularFigures()'));
+    expect(focusView, contains('RepaintBoundary'));
   });
 
   test('ticker refreshes incrementally and keeps writes off the full reload',
