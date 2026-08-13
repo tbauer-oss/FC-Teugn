@@ -791,9 +791,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     final opponent = match.details?.opponent ?? 'Gegner';
     final mobile = MediaQuery.sizeOf(context).width < 600;
     final tabCount = widget.staffView ? 6 : 4;
-    final initialTabIndex = widget.initialTab == 'live'
-        ? (widget.staffView ? 4 : 3)
-        : 0;
+    final initialTabIndex =
+        widget.initialTab == 'live' ? (widget.staffView ? 4 : 3) : 0;
     return DefaultTabController(
       length: tabCount,
       initialIndex: initialTabIndex,
