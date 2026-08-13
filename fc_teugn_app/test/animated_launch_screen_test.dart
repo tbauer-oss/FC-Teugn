@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:fc_teugn_app/app.dart';
 import 'package:fc_teugn_app/core/app_identity.dart';
 import 'package:fc_teugn_app/core/club_logo.dart';
@@ -74,6 +76,7 @@ void main() {
       (image.image as AssetImage).assetName,
       AppIdentity.mobileApkSplashAsset,
     );
+    expect(image.fit, BoxFit.contain);
     expect(find.byKey(const ValueKey('mobile-launch-still-layer')),
         findsOneWidget);
     expect(completions, 1);
@@ -84,9 +87,43 @@ void main() {
       () async {
     final video = await rootBundle.load(AppIdentity.mobileIntroVideoAsset);
     final image = await rootBundle.load(AppIdentity.mobileApkSplashAsset);
+    final codec = await ui.instantiateImageCodec(
+      image.buffer.asUint8List(
+        image.offsetInBytes,
+        image.lengthInBytes,
+      ),
+    );
+    addTearDown(codec.dispose);
+    final frame = await codec.getNextFrame();
+    addTearDown(frame.image.dispose);
 
     expect(video.lengthInBytes, greaterThan(5 * 1024 * 1024));
     expect(image.lengthInBytes, greaterThan(1024 * 1024));
+    expect(frame.image.width, greaterThanOrEqualTo(800));
+    expect(frame.image.height, greaterThanOrEqualTo(1600));
+    expect(frame.image.height, greaterThan(frame.image.width));
+  });
+
+  testWidgets('APK-Startscreen bleibt auch bei 320 px vollständig sichtbar',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 568));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: AnimatedLaunchScreen(playMobileIntroVideo: true),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final image = tester.widget<Image>(
+      find.byKey(const ValueKey('fc-teugn-talents-splash-image')),
+    );
+    expect(image.fit, BoxFit.contain);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Web-Start zeigt das eigene Querformatmotiv mit Ladebalken',

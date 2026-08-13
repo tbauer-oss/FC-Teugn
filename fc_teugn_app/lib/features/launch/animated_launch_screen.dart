@@ -259,7 +259,10 @@ class _MobileLaunchStage extends StatelessWidget {
               ? AppIdentity.mobileApkSplashAsset
               : AppIdentity.splashAsset,
           key: const ValueKey('fc-teugn-talents-splash-image'),
-          fit: wideViewport ? BoxFit.contain : BoxFit.cover,
+          // Das APK-Motiv soll auf allen Handy- und Foldable-Formaten
+          // vollständig sichtbar bleiben. Die schwarzen Motivflächen bilden
+          // dabei einen natürlichen, verzerrungsfreien Rand.
+          fit: playIntroVideo || wideViewport ? BoxFit.contain : BoxFit.cover,
           alignment: Alignment.center,
           filterQuality: FilterQuality.high,
         );
@@ -293,7 +296,9 @@ class _MobileLaunchStage extends StatelessWidget {
                 opacity: introFinished ? 0 : 1,
                 duration: transitionDuration,
                 curve: Curves.easeInOutCubic,
-                child: _CoverVideo(controller: introVideoController!),
+                child: _ResponsiveIntroVideo(
+                  controller: introVideoController!,
+                ),
               ),
             if (!playIntroVideo || introFinished) ...[
               const DecoratedBox(
@@ -334,8 +339,8 @@ class _MobileLaunchStage extends StatelessWidget {
   }
 }
 
-class _CoverVideo extends StatelessWidget {
-  const _CoverVideo({required this.controller});
+class _ResponsiveIntroVideo extends StatelessWidget {
+  const _ResponsiveIntroVideo({required this.controller});
 
   final VideoPlayerController controller;
 
@@ -344,6 +349,9 @@ class _CoverVideo extends StatelessWidget {
     final size = controller.value.size;
     return ClipRect(
       child: FittedBox(
+        // Das MP4 ist technisch quer, sein eigentliches Motiv liegt aber
+        // hochkant in der Bildmitte. "cover" entfernt auf Handys nur die
+        // ungenutzten Seitenflächen und hält das Motiv groß und lesbar.
         fit: BoxFit.cover,
         alignment: Alignment.center,
         child: SizedBox(
