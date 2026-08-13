@@ -137,8 +137,9 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
   let deliveryCount = 0;
   for (const userId of uniqueIds) {
     const preference = preferenceByUser.get(userId);
-    const inApp = input.forceInApp || (preference?.inApp ?? true);
-    const push = input.forcePush || ((preference?.push ?? true) && input.pushEnabled !== false);
+    const defaults = defaultNotificationPreference(input.category);
+    const inApp = input.forceInApp || (preference?.inApp ?? defaults.inApp);
+    const push = input.forcePush || ((preference?.push ?? defaults.push) && input.pushEnabled !== false);
     if (!inApp && !push) continue;
     const notification = input.dedupeKey
       ? await prisma.notification.upsert({
@@ -227,8 +228,17 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
 export function externalPushPreview(notification: {
   category?: NotificationCategory;
   entityType?: string | null;
+  title?: string;
+  body?: string;
 }) {
   const category = notification.category;
+  if (
+    category === NotificationCategory.LIVE_TICKER &&
+    notification.title &&
+    notification.body
+  ) {
+    return { title: notification.title, body: notification.body };
+  }
   const body = category === NotificationCategory.EVENT_REMINDER
     ? 'Eine neue Terminerinnerung ist in der App verfügbar.'
     : category === NotificationCategory.MATCH ||
@@ -242,6 +252,13 @@ export function externalPushPreview(notification: {
           ? 'Eine Sicherheitsinformation ist in der App verfügbar.'
           : 'Eine neue Vereinsinformation ist in der App verfügbar.';
   return { title: 'FC Teugn Talents', body };
+}
+
+export function defaultNotificationPreference(category: NotificationCategory) {
+  return {
+    inApp: true,
+    push: category !== NotificationCategory.LIVE_TICKER,
+  };
 }
 
 export async function sendAdminTestPush(actorName: string) {

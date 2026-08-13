@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
 import '../../core/lineup_planner.dart';
+import '../../core/live_goal_sound.dart';
 import '../../core/match_clock.dart';
 import '../../core/models/matchday.dart';
 import '../../core/models/event.dart';
@@ -31,12 +32,14 @@ class MatchdayPage extends ConsumerStatefulWidget {
     required this.matchId,
     required this.staffView,
     this.tournamentPlanning = false,
+    this.initialTab,
     super.key,
   });
 
   final String matchId;
   final bool staffView;
   final bool tournamentPlanning;
+  final String? initialTab;
 
   @override
   ConsumerState<MatchdayPage> createState() => _MatchdayPageState();
@@ -788,8 +791,12 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     final opponent = match.details?.opponent ?? 'Gegner';
     final mobile = MediaQuery.sizeOf(context).width < 600;
     final tabCount = widget.staffView ? 6 : 4;
+    final initialTabIndex = widget.initialTab == 'live'
+        ? (widget.staffView ? 4 : 3)
+        : 0;
     return DefaultTabController(
       length: tabCount,
+      initialIndex: initialTabIndex,
       child: PageScaffold(
         title: 'FC Teugn · $opponent',
         subtitle: _dateLine(match),
@@ -4664,12 +4671,20 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   late final ValueNotifier<_TickerFocusData> _focusData;
   final Set<int> _warnedPeriods = {};
   LiveTickerModel? _optimisticTicker;
+  late final LiveGoalSoundTracker _goalSoundTracker;
+  late final LiveGoalSoundPlayer _goalSoundPlayer;
 
   @override
   void initState() {
     super.initState();
     _stableElapsedClock = StableElapsedClock();
     _synchronizeClock(_ticker);
+    _goalSoundTracker = LiveGoalSoundTracker(
+      fcIsHome: widget.match.details?.isHome != false,
+    );
+    _goalSoundTracker.observe(_ticker);
+    _goalSoundPlayer = LiveGoalSoundPlayer();
+    unawaited(_goalSoundPlayer.prepare());
     _focusData = ValueNotifier(_tickerFocusData(_ticker));
     unawaited(_loadPending());
     _queuePoller = Timer.periodic(
@@ -4689,6 +4704,10 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     final serverTicker = widget.match.ticker;
     final previousServerTicker = oldWidget.match.ticker;
     final previousServerSequence = oldWidget.match.ticker?.lastSequence ?? 0;
+    _goalSoundTracker.updateSide(
+      fcIsHome: widget.match.details?.isHome != false,
+    );
+    _handleGoalSoundUpdate(serverTicker);
     final serverReset = serverTicker != null &&
         isResetLiveTickerSnapshot(serverTicker) &&
         (previousServerTicker == null ||
@@ -4728,6 +4747,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     _queuePoller?.cancel();
     _clockTimer?.cancel();
     _focusData.dispose();
+    unawaited(_goalSoundPlayer.dispose());
     super.dispose();
   }
 
@@ -4827,11 +4847,19 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   void _applyServerAcknowledgement(LiveTickerModel acknowledgement) {
     if (!mounted) return;
     final merged = mergeLiveTickerSnapshot(_ticker, acknowledgement);
+    _handleGoalSoundUpdate(merged);
     setState(() => _optimisticTicker = merged);
     _synchronizeClock(merged);
     _lastRenderedElapsedSeconds = -1;
     _scheduleNextClockTick(immediate: true);
     _focusData.value = _tickerFocusData(merged);
+  }
+
+  void _handleGoalSoundUpdate(LiveTickerModel? ticker) {
+    final newOurGoals = _goalSoundTracker.observe(ticker);
+    if (newOurGoals.isNotEmpty) {
+      unawaited(_goalSoundPlayer.play());
+    }
   }
 
   void _scheduleNextClockTick({bool immediate = false}) {

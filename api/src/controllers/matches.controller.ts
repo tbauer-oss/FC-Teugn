@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
+import { waitUntil } from '@vercel/functions';
 import {
   EventCategory,
   EventType,
@@ -40,6 +41,7 @@ import {
 } from '../services/reminder.service';
 import { notifyUsers } from '../services/notification.service';
 import { settlePostCommitTasks } from '../services/post-commit.service';
+import { sendLiveTickerNotification } from '../services/live-ticker-notification.service';
 import {
   AWAY_MEETING_LOCATION,
   HOME_MATCH_VENUE,
@@ -303,7 +305,11 @@ async function findTickerCommandMatch(
     select: {
       id: true,
       teamId: true,
-      matchDetails: { select: { isHome: true, status: true } },
+      title: true,
+      familyReleasedAt: true,
+      familyReleaseAudience: true,
+      targetTeams: { select: { teamId: true } },
+      matchDetails: { select: { opponent: true, isHome: true, status: true } },
       squads: {
         take: 1,
         select: {
@@ -2554,8 +2560,21 @@ export async function tickerCommand(req: Request, res: Response) {
       },
     });
   }
+  const postCommitTasks = [];
   if (type === TickerEventType.MATCH_END) {
-    await recalculateMatchStatistics(match.id);
+    postCommitTasks.push({
+      name: 'live-ticker-statistics',
+      promise: recalculateMatchStatistics(match.id),
+    });
+  }
+  if (!result.duplicate) {
+    postCommitTasks.push({
+      name: 'live-ticker-notification',
+      promise: sendLiveTickerNotification(match, result.event),
+    });
+  }
+  if (postCommitTasks.length) {
+    waitUntil(settlePostCommitTasks(postCommitTasks));
   }
   return res.status(result.duplicate ? 200 : 201).json({
     ...result,

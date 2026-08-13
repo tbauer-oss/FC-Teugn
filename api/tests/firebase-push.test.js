@@ -6,6 +6,8 @@ const {
 } = require('../dist/src/lib/firebase-admin');
 const {
   androidPushMessage,
+  defaultNotificationPreference,
+  externalPushPreview,
   summarizePushDeliveries,
 } = require('../dist/src/services/notification.service');
 const {
@@ -66,6 +68,25 @@ test('Android notification uses the app channel and retains navigation data', ()
   assert.doesNotMatch(message.notification.body, /18:00/);
   assert.doesNotMatch(message.data.body, /Training geändert/);
   assert.equal(message.android.priority, 'high');
+});
+
+test('live ticker push is opt-in and exposes the requested score event', () => {
+  assert.deepEqual(defaultNotificationPreference('LIVE_TICKER'), {
+    inApp: true,
+    push: false,
+  });
+  assert.equal(defaultNotificationPreference('MATCH').push, true);
+  assert.deepEqual(
+    externalPushPreview({
+      category: 'LIVE_TICKER',
+      title: 'Tor für FC Teugn! 1:0',
+      body: 'FC Teugn trifft.',
+    }),
+    {
+      title: 'Tor für FC Teugn! 1:0',
+      body: 'FC Teugn trifft.',
+    },
+  );
 });
 
 test('admin push test summary exposes delivery and platform diagnostics', () => {

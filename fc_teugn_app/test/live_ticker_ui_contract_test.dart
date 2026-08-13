@@ -41,6 +41,17 @@ void main() {
     expect(source, isNot(contains('onChanged: _load,')));
   });
 
+  test('new confirmed FC Teugn goals trigger the shared live sound path', () {
+    expect(source, contains('_handleGoalSoundUpdate(serverTicker)'));
+    expect(source, contains('_handleGoalSoundUpdate(merged)'));
+    expect(source, contains('_goalSoundPlayer.play()'));
+  });
+
+  test('live ticker push deep links can open the live tab directly', () {
+    expect(source, contains("widget.initialTab == 'live'"));
+    expect(source, contains('initialIndex: initialTabIndex'));
+  });
+
   test('desktop ticker history owns a persistent scroll view', () {
     expect(source, contains("ValueKey('desktop-live-ticker-scroll-view')"));
     expect(source, contains("ValueKey('desktop-live-ticker-history-heading')"));

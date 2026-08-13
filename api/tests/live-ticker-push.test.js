@@ -1,0 +1,101 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const {
+  liveTickerNotificationCopy,
+} = require('../dist/src/services/live-ticker-notification.service');
+
+const event = (type, ourGoals = 0, theirGoals = 0) => ({
+  id: `event-${type}`,
+  type,
+  ourGoals,
+  theirGoals,
+});
+
+test('live ticker push copy exists only for start, goals and end', () => {
+  const input = { opponent: 'TSV Beispiel', fcIsHome: true };
+  assert.match(
+    liveTickerNotificationCopy({ ...input, event: event('MATCH_START') }).title,
+    /Anpfiff/,
+  );
+  assert.match(
+    liveTickerNotificationCopy({
+      ...input,
+      event: event('HOME_GOAL', 1, 0),
+    }).title,
+    /Tor für FC Teugn! 1:0/,
+  );
+  assert.match(
+    liveTickerNotificationCopy({
+      ...input,
+      event: event('AWAY_GOAL', 1, 1),
+    }).title,
+    /Gegentor · 1:1/,
+  );
+  assert.match(
+    liveTickerNotificationCopy({
+      ...input,
+      event: event('MATCH_END', 2, 1),
+    }).title,
+    /Endstand 2:1/,
+  );
+  assert.equal(
+    liveTickerNotificationCopy({ ...input, event: event('PERIOD_END') }),
+    null,
+  );
+  assert.equal(
+    liveTickerNotificationCopy({ ...input, event: event('COMMENT') }),
+    null,
+  );
+});
+
+test('away matches map FC Teugn and opponent goals correctly', () => {
+  const input = { opponent: 'TSV Beispiel', fcIsHome: false };
+  assert.match(
+    liveTickerNotificationCopy({
+      ...input,
+      event: event('AWAY_GOAL', 1, 0),
+    }).title,
+    /Tor für FC Teugn/,
+  );
+  assert.match(
+    liveTickerNotificationCopy({
+      ...input,
+      event: event('HOME_GOAL', 1, 1),
+    }).title,
+    /Gegentor/,
+  );
+});
+
+test('ticker commands notify once after the authoritative commit', () => {
+  const controller = fs.readFileSync(
+    path.join(__dirname, '../src/controllers/matches.controller.ts'),
+    'utf8',
+  );
+  const command = controller.slice(
+    controller.indexOf('export async function tickerCommand'),
+    controller.indexOf('export async function undoTickerEvent'),
+  );
+  assert.match(command, /if \(!result\.duplicate\)/);
+  assert.match(command, /sendLiveTickerNotification\(match, result\.event\)/);
+  assert.match(command, /settlePostCommitTasks\(postCommitTasks\)/);
+  assert.match(command, /waitUntil\(settlePostCommitTasks\(postCommitTasks\)\)/);
+});
+
+test('notification uses the optional live ticker preference and deep link', () => {
+  const service = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../src/services/live-ticker-notification.service.ts',
+    ),
+    'utf8',
+  );
+  assert.match(service, /category: NotificationCategory\.LIVE_TICKER/);
+  assert.match(service, /actionUrl: `\/matches\/\$\{match\.id\}\?tab=live`/);
+  assert.match(service, /dedupeKey: `live-ticker:\$\{event\.id\}`/);
+  assert.match(service, /prisma\.teamMembership\.findMany/);
+  assert.match(service, /familyReleasedAt/);
+  assert.doesNotMatch(service, /forcePush:/);
+});

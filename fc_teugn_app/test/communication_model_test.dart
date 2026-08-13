@@ -66,6 +66,20 @@ void main() {
     expect(configuration.androidConfigured, false);
   });
 
+  test('live ticker push remains opt-in when an older API omits the flag', () {
+    final liveTicker = NotificationPreferenceModel.fromJson({
+      'category': 'LIVE_TICKER',
+      'inApp': true,
+    });
+    final match = NotificationPreferenceModel.fromJson({
+      'category': 'MATCH',
+      'inApp': true,
+    });
+
+    expect(liveTicker.push, false);
+    expect(match.push, true);
+  });
+
   test('parses recreational pitch priority as information-only conflict', () {
     final conflict = PitchConflictPreview.fromJson({
       'kind': 'RECREATIONAL',

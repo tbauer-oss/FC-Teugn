@@ -31,7 +31,8 @@ test('live goal commands defer statistics until match end', () => {
   assert.doesNotMatch(tickerCommand, /findMatch\(/);
   assert.match(
     tickerCommand,
-    /if \(type === TickerEventType\.MATCH_END\) \{\s+await recalculateMatchStatistics/,
+    /if \(type === TickerEventType\.MATCH_END\) \{[\s\S]*promise: recalculateMatchStatistics/,
   );
+  assert.match(tickerCommand, /waitUntil\(settlePostCommitTasks\(postCommitTasks\)\)/);
   assert.doesNotMatch(tickerCommand, /goalTypes/);
 });

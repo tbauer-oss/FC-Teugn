@@ -8,6 +8,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import {
   deliverPush,
+  defaultNotificationPreference,
   pushConfiguration,
   sendAdminTestPush,
 } from '../services/notification.service';
@@ -122,8 +123,12 @@ export async function getNotificationPreferences(req: Request, res: Response) {
   return res.json(
     Object.values(NotificationCategory).map((category) => ({
       category,
-      inApp: byCategory.get(category)?.inApp ?? true,
-      push: byCategory.get(category)?.push ?? true,
+      inApp:
+        byCategory.get(category)?.inApp ??
+        defaultNotificationPreference(category).inApp,
+      push:
+        byCategory.get(category)?.push ??
+        defaultNotificationPreference(category).push,
     })),
   );
 }

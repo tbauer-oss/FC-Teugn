@@ -2295,33 +2295,72 @@ class _PreferenceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: Text(_category(value.category))),
-        const Text('In-App'),
-        Switch(
-          value: value.inApp,
-          onChanged: (enabled) => onChanged(
-            NotificationPreferenceModel(
-              category: value.category,
-              inApp: enabled,
-              push: value.push,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        const Text('Push'),
-        Switch(
-          value: value.push,
-          onChanged: (enabled) => onChanged(
-            NotificationPreferenceModel(
-              category: value.category,
-              inApp: value.inApp,
-              push: enabled,
-            ),
-          ),
-        ),
-      ],
+    final isLiveTicker = value.category == NotificationCategory.liveTicker;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final title = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _category(value.category),
+                style: TextStyle(
+                  fontWeight: isLiveTicker ? FontWeight.w900 : FontWeight.w600,
+                ),
+              ),
+              if (isLiveTicker)
+                const Text(
+                  'Nur Spielstart, Tore, Gegentore und Spielende',
+                  style: TextStyle(fontSize: 12, color: AppColors.muted),
+                ),
+            ],
+          );
+          final switches = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('In-App'),
+              Switch(
+                value: value.inApp,
+                onChanged: (enabled) => onChanged(
+                  NotificationPreferenceModel(
+                    category: value.category,
+                    inApp: enabled,
+                    push: value.push,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('Push'),
+              Switch(
+                value: value.push,
+                onChanged: (enabled) => onChanged(
+                  NotificationPreferenceModel(
+                    category: value.category,
+                    inApp: value.inApp,
+                    push: enabled,
+                  ),
+                ),
+              ),
+            ],
+          );
+          if (constraints.maxWidth < 520) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                title,
+                Align(alignment: Alignment.centerRight, child: switches),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: title),
+              switches,
+            ],
+          );
+        },
+      ),
     );
   }
 }

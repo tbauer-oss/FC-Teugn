@@ -182,15 +182,21 @@ class NotificationPreferenceModel {
 
   factory NotificationPreferenceModel.fromJson(Map<String, dynamic> json) =>
       NotificationPreferenceModel(
-        category: _enum(
-          NotificationCategory.values,
-          json['category'],
-          NotificationCategory.system,
-        ),
+        category: _notificationCategory(json),
         inApp: json['inApp'] as bool? ?? true,
-        push: json['push'] as bool? ?? true,
+        push: json['push'] as bool? ??
+            _defaultNotificationPush(_notificationCategory(json)),
       );
 }
+
+NotificationCategory _notificationCategory(Map<String, dynamic> json) => _enum(
+      NotificationCategory.values,
+      json['category'],
+      NotificationCategory.system,
+    );
+
+bool _defaultNotificationPush(NotificationCategory category) =>
+    category != NotificationCategory.liveTicker;
 
 class PushConfiguration {
   const PushConfiguration({

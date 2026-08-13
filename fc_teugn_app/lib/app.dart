@@ -646,6 +646,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               builder: (context, state) => MatchdayPage(
                 matchId: state.pathParameters['matchId']!,
                 staffView: true,
+                initialTab: state.uri.queryParameters['tab'],
                 tournamentPlanning:
                     state.uri.queryParameters['planning'] == 'tournament',
               ),
@@ -832,6 +833,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               builder: (context, state) => MatchdayPage(
                 matchId: state.pathParameters['matchId']!,
                 staffView: false,
+                initialTab: state.uri.queryParameters['tab'],
                 tournamentPlanning:
                     state.uri.queryParameters['planning'] == 'tournament',
               ),

@@ -52,6 +52,23 @@ void main() {
     );
   });
 
+  test('live ticker push keeps its tab target', () {
+    expect(
+      normalizePushActionRoute(
+        '/matches/match-1?tab=live',
+        isTrainer: true,
+      ),
+      '/trainer/matches/match-1?tab=live',
+    );
+    expect(
+      normalizePushActionRoute(
+        '/matches/match-1?tab=live',
+        isTrainer: false,
+      ),
+      '/parent/matches/match-1?tab=live',
+    );
+  });
+
   test('family response push keeps the exact event and child target', () {
     const action = '/family?eventId=event-1&playerId=player-2';
     expect(
