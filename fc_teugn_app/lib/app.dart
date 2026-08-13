@@ -52,7 +52,12 @@ import 'core/push/native_push_service.dart';
 import 'core/push/push_client.dart';
 
 class FCTeugnApp extends ConsumerStatefulWidget {
-  const FCTeugnApp({super.key});
+  const FCTeugnApp({
+    super.key,
+    this.playMobileIntroVideo = false,
+  });
+
+  final bool playMobileIntroVideo;
 
   @override
   ConsumerState<FCTeugnApp> createState() => _FCTeugnAppState();
@@ -82,9 +87,15 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
       _pendingPushAction = action;
       _openPendingPushAction();
     });
-    _launchTimer = Timer(_minimumLaunchDuration, () {
-      if (mounted) setState(() => _minimumLaunchComplete = true);
-    });
+    if (!widget.playMobileIntroVideo) {
+      _launchTimer = Timer(_minimumLaunchDuration, _completeLaunchIntro);
+    }
+  }
+
+  void _completeLaunchIntro() {
+    if (mounted && !_minimumLaunchComplete) {
+      setState(() => _minimumLaunchComplete = true);
+    }
   }
 
   @override
@@ -370,6 +381,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         // zweites Vereinslogo darüberlegen.
         builder: buildLaunchScreenContent,
         home: AnimatedLaunchScreen(
+          playMobileIntroVideo: widget.playMobileIntroVideo,
+          onIntroCompleted: _completeLaunchIntro,
           waitingForData: bootstrapLoading,
           statusMessage: bootstrapLoading
               ? 'Vereinsdaten werden geladen...'

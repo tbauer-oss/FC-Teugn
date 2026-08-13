@@ -41,10 +41,10 @@ void main() {
     expect(source, isNot(contains('onChanged: _load,')));
   });
 
-  test('new confirmed FC Teugn goals trigger the shared live sound path', () {
+  test('new confirmed goals trigger the matching shared live sound path', () {
     expect(source, contains('_handleGoalSoundUpdate(serverTicker)'));
     expect(source, contains('_handleGoalSoundUpdate(merged)'));
-    expect(source, contains('_goalSoundPlayer.play()'));
+    expect(source, contains('_goalSoundPlayer.play(sound)'));
   });
 
   test('live ticker push deep links can open the live tab directly', () {

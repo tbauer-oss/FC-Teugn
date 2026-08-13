@@ -4855,9 +4855,9 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
   }
 
   void _handleGoalSoundUpdate(LiveTickerModel? ticker) {
-    final newOurGoals = _goalSoundTracker.observe(ticker);
-    if (newOurGoals.isNotEmpty) {
-      unawaited(_goalSoundPlayer.play());
+    final newGoalSounds = _goalSoundTracker.observe(ticker);
+    for (final sound in newGoalSounds) {
+      unawaited(_goalSoundPlayer.play(sound));
     }
   }
 

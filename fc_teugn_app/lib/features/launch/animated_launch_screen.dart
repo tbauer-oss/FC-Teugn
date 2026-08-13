@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../core/app_identity.dart';
 import '../../core/app_theme.dart';
@@ -11,6 +14,8 @@ class AnimatedLaunchScreen extends StatefulWidget {
     this.statusMessage,
     this.errorMessage,
     this.onRetry,
+    this.playMobileIntroVideo = false,
+    this.onIntroCompleted,
   });
 
   final Duration duration;
@@ -18,22 +23,32 @@ class AnimatedLaunchScreen extends StatefulWidget {
   final String? statusMessage;
   final String? errorMessage;
   final VoidCallback? onRetry;
+  final bool playMobileIntroVideo;
+  final VoidCallback? onIntroCompleted;
 
   @override
   State<AnimatedLaunchScreen> createState() => _AnimatedLaunchScreenState();
 }
 
 class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller;
   late final Animation<double> _imageEntrance;
   late final Animation<double> _claimEntrance;
   late final Animation<double> _progress;
+  VideoPlayerController? _introVideoController;
+  Timer? _videoWatchdog;
   bool _motionPreferenceApplied = false;
+  bool _introVideoInitialized = false;
+  bool _introFinished = false;
+  bool _introCompletionReported = false;
+
+  static const _introTransitionDuration = Duration(milliseconds: 320);
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(vsync: this, duration: widget.duration);
     _imageEntrance = CurvedAnimation(
       parent: _controller,
@@ -48,6 +63,93 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
       curve: const Interval(.12, 1, curve: Curves.easeInOutCubic),
     );
     _controller.forward();
+    if (widget.playMobileIntroVideo) {
+      unawaited(_prepareIntroVideo());
+    }
+  }
+
+  Future<void> _prepareIntroVideo() async {
+    final videoController =
+        VideoPlayerController.asset(AppIdentity.mobileIntroVideoAsset);
+    _introVideoController = videoController;
+    videoController.addListener(_handleIntroVideoState);
+    try {
+      await videoController.initialize().timeout(const Duration(seconds: 8));
+      if (!mounted || _introFinished) return;
+      await videoController.setLooping(false);
+      await videoController.setVolume(1);
+      if (!mounted || _introFinished) return;
+      setState(() => _introVideoInitialized = true);
+      await videoController.play();
+      _armVideoWatchdog();
+    } catch (_) {
+      // Ein defekter Decoder oder eine nicht verfügbare Videospur darf den
+      // App-Start nie blockieren. In diesem Fall übernimmt sofort das Bild.
+      _finishIntro();
+    }
+  }
+
+  void _handleIntroVideoState() {
+    if (_introFinished) return;
+    final value = _introVideoController?.value;
+    if (value == null || !value.isInitialized) return;
+    if (value.isCompleted) _finishIntro();
+  }
+
+  void _armVideoWatchdog() {
+    _videoWatchdog?.cancel();
+    final value = _introVideoController?.value;
+    if (value == null || !value.isInitialized) return;
+    final remaining = value.duration - value.position;
+    _videoWatchdog = Timer(
+      (remaining.isNegative ? Duration.zero : remaining) +
+          const Duration(seconds: 10),
+      _finishIntro,
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final videoController = _introVideoController;
+    if (_introFinished ||
+        !widget.playMobileIntroVideo ||
+        videoController == null ||
+        !videoController.value.isInitialized) {
+      return;
+    }
+    switch (state) {
+      case AppLifecycleState.resumed:
+        unawaited(videoController.play());
+        _armVideoWatchdog();
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _videoWatchdog?.cancel();
+        unawaited(videoController.pause());
+        break;
+    }
+  }
+
+  void _finishIntro() {
+    if (_introFinished) return;
+    _videoWatchdog?.cancel();
+    _introVideoController?.removeListener(_handleIntroVideoState);
+    if (mounted) {
+      setState(() => _introFinished = true);
+    } else {
+      _introFinished = true;
+    }
+    unawaited(_reportIntroCompletion());
+  }
+
+  Future<void> _reportIntroCompletion() async {
+    final reduceMotion = mounted && MediaQuery.disableAnimationsOf(context);
+    if (!reduceMotion) await Future<void>.delayed(_introTransitionDuration);
+    if (!mounted || _introCompletionReported) return;
+    _introCompletionReported = true;
+    widget.onIntroCompleted?.call();
   }
 
   @override
@@ -57,11 +159,16 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
     _motionPreferenceApplied = true;
     if (MediaQuery.disableAnimationsOf(context)) {
       _controller.value = 1;
+      if (widget.playMobileIntroVideo) _finishIntro();
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _videoWatchdog?.cancel();
+    _introVideoController?.removeListener(_handleIntroVideoState);
+    unawaited(_introVideoController?.dispose());
     _controller.dispose();
     super.dispose();
   }
@@ -84,7 +191,7 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
                         _controller.status == AnimationStatus.completed
                     ? null
                     : _progress.value;
-                return useMobileLayout
+                return widget.playMobileIntroVideo || useMobileLayout
                     ? _MobileLaunchStage(
                         imageEntrance: _imageEntrance,
                         claimEntrance: _claimEntrance,
@@ -92,6 +199,11 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
                         statusMessage: widget.statusMessage,
                         errorMessage: widget.errorMessage,
                         onRetry: widget.onRetry,
+                        playIntroVideo: widget.playMobileIntroVideo,
+                        introVideoController: _introVideoController,
+                        introVideoInitialized: _introVideoInitialized,
+                        introFinished: _introFinished,
+                        transitionDuration: _introTransitionDuration,
                       )
                     : _DesktopLaunchStage(
                         imageEntrance: _imageEntrance,
@@ -118,6 +230,11 @@ class _MobileLaunchStage extends StatelessWidget {
     required this.statusMessage,
     required this.errorMessage,
     required this.onRetry,
+    required this.playIntroVideo,
+    required this.introVideoController,
+    required this.introVideoInitialized,
+    required this.introFinished,
+    required this.transitionDuration,
   });
 
   final Animation<double> imageEntrance;
@@ -126,57 +243,116 @@ class _MobileLaunchStage extends StatelessWidget {
   final String? statusMessage;
   final String? errorMessage;
   final VoidCallback? onRetry;
+  final bool playIntroVideo;
+  final VideoPlayerController? introVideoController;
+  final bool introVideoInitialized;
+  final bool introFinished;
+  final Duration transitionDuration;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      key: const ValueKey('mobile-launch-stage'),
-      fit: StackFit.expand,
-      children: [
-        FadeTransition(
-          opacity: Tween<double>(begin: .3, end: 1).animate(imageEntrance),
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 1.045, end: 1).animate(imageEntrance),
-            child: Image.asset(
-              AppIdentity.splashAsset,
-              key: const ValueKey('fc-teugn-talents-splash-image'),
-              fit: BoxFit.cover,
-              alignment: Alignment.center,
-              filterQuality: FilterQuality.high,
-            ),
-          ),
-        ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0x00000000),
-                Color(0x00000000),
-                Color(0xB8000000),
-              ],
-              stops: [0, .72, 1],
-            ),
-          ),
-        ),
-        SafeArea(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(28, 0, 28, 24),
-              child: _LaunchProgress(
-                entrance: claimEntrance,
-                progress: progress,
-                compact: true,
-                statusMessage: statusMessage,
-                errorMessage: errorMessage,
-                onRetry: onRetry,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wideViewport = constraints.maxWidth / constraints.maxHeight > .72;
+        final splashImage = Image.asset(
+          playIntroVideo
+              ? AppIdentity.mobileApkSplashAsset
+              : AppIdentity.splashAsset,
+          key: const ValueKey('fc-teugn-talents-splash-image'),
+          fit: wideViewport ? BoxFit.contain : BoxFit.cover,
+          alignment: Alignment.center,
+          filterQuality: FilterQuality.high,
+        );
+        return Stack(
+          key: const ValueKey('mobile-launch-stage'),
+          fit: StackFit.expand,
+          children: [
+            if (playIntroVideo)
+              AnimatedOpacity(
+                key: const ValueKey('mobile-launch-still-layer'),
+                opacity: introVideoInitialized || introFinished ? 1 : 0,
+                duration: transitionDuration,
+                curve: Curves.easeInOutCubic,
+                child: splashImage,
+              )
+            else
+              FadeTransition(
+                opacity:
+                    Tween<double>(begin: .3, end: 1).animate(imageEntrance),
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 1.045, end: 1)
+                      .animate(imageEntrance),
+                  child: splashImage,
+                ),
               ),
-            ),
-          ),
+            if (playIntroVideo &&
+                introVideoInitialized &&
+                introVideoController != null)
+              AnimatedOpacity(
+                key: const ValueKey('mobile-launch-video-layer'),
+                opacity: introFinished ? 0 : 1,
+                duration: transitionDuration,
+                curve: Curves.easeInOutCubic,
+                child: _CoverVideo(controller: introVideoController!),
+              ),
+            if (!playIntroVideo || introFinished) ...[
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x00000000),
+                      Color(0x00000000),
+                      Color(0xB8000000),
+                    ],
+                    stops: [0, .72, 1],
+                  ),
+                ),
+              ),
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(28, 0, 28, 24),
+                    child: _LaunchProgress(
+                      entrance: claimEntrance,
+                      progress: progress,
+                      compact: true,
+                      statusMessage: statusMessage,
+                      errorMessage: errorMessage,
+                      onRetry: onRetry,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CoverVideo extends StatelessWidget {
+  const _CoverVideo({required this.controller});
+
+  final VideoPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = controller.value.size;
+    return ClipRect(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
+        child: SizedBox(
+          key: const ValueKey('fc-teugn-talents-intro-video'),
+          width: size.width,
+          height: size.height,
+          child: VideoPlayer(controller),
         ),
-      ],
+      ),
     );
   }
 }

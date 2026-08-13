@@ -1,8 +1,10 @@
 import 'package:fc_teugn_app/app.dart';
+import 'package:fc_teugn_app/core/app_identity.dart';
 import 'package:fc_teugn_app/core/club_logo.dart';
 import 'package:fc_teugn_app/core/loading/loading_widgets.dart';
 import 'package:fc_teugn_app/features/launch/animated_launch_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -43,6 +45,48 @@ void main() {
     );
     expect(progress.value, 1);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'APK-Start fällt barrierefrei direkt auf den neuen Startscreen zurück',
+      (tester) async {
+    var completions = 0;
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: AnimatedLaunchScreen(
+            playMobileIntroVideo: true,
+            onIntroCompleted: () => completions++,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final image = tester.widget<Image>(
+      find.byKey(const ValueKey('fc-teugn-talents-splash-image')),
+    );
+    expect(
+      (image.image as AssetImage).assetName,
+      AppIdentity.mobileApkSplashAsset,
+    );
+    expect(find.byKey(const ValueKey('mobile-launch-still-layer')),
+        findsOneWidget);
+    expect(completions, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('APK-Startvideo und hochauflösender Startscreen sind paketiert',
+      () async {
+    final video = await rootBundle.load(AppIdentity.mobileIntroVideoAsset);
+    final image = await rootBundle.load(AppIdentity.mobileApkSplashAsset);
+
+    expect(video.lengthInBytes, greaterThan(5 * 1024 * 1024));
+    expect(image.lengthInBytes, greaterThan(1024 * 1024));
   });
 
   testWidgets('Web-Start zeigt das eigene Querformatmotiv mit Ladebalken',

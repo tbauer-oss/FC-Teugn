@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
@@ -7,8 +10,15 @@ import 'core/push/native_push_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final playMobileIntroVideo =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   await nativePushService.initialize();
-  await preloadBrandingAssets();
+  final brandingPreload = preloadBrandingAssets();
+  if (playMobileIntroVideo) {
+    unawaited(brandingPreload.catchError((_) {}));
+  } else {
+    await brandingPreload;
+  }
   ErrorWidget.builder = (details) => ColoredBox(
         color: AppColors.background,
         child: Center(
@@ -43,5 +53,9 @@ Future<void> main() async {
           ),
         ),
       );
-  runApp(const ProviderScope(child: FCTeugnApp()));
+  runApp(
+    ProviderScope(
+      child: FCTeugnApp(playMobileIntroVideo: playMobileIntroVideo),
+    ),
+  );
 }
