@@ -2,6 +2,7 @@ import { asyncRouter } from '../middleware/async-handler';
 import {
   approveUser,
   assignParentPlayer,
+  removeParentPlayer,
   getMemberPermissions,
   resetMemberPermissions,
   updateMemberPermission,
@@ -43,6 +44,11 @@ router.delete(
 );
 router.post('/approve', approveUser);
 router.post('/assign-parent-player', assignParentPlayer);
+router.delete(
+  '/parent-player-links/:parentId/:playerId',
+  requireRoles([Role.SUPER_ADMIN]),
+  removeParentPlayer,
+);
 router.get('/members/:id/permissions', requireRoles([Role.SUPER_ADMIN]), getMemberPermissions);
 router.put('/members/:id/permissions', requireRoles([Role.SUPER_ADMIN]), updateMemberPermission);
 router.delete('/members/:id/permissions', requireRoles([Role.SUPER_ADMIN]), resetMemberPermissions);

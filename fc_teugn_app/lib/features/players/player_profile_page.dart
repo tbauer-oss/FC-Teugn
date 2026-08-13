@@ -17,6 +17,7 @@ import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/responsive_form_dialog.dart';
+import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import 'widgets/digital_signature_capture.dart';
 
@@ -96,6 +97,8 @@ class _ProfileContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isSystemAdmin =
+        ref.watch(authProvider).user?.role == UserRole.superAdmin;
     return Column(
       children: [
         _ProfileHero(
@@ -148,6 +151,9 @@ class _ProfileContent extends ConsumerWidget {
                     onAdd: player.capabilities.canEdit
                         ? () => _addGuardian(context, ref)
                         : null,
+                    onRemove: isSystemAdmin
+                        ? (guardian) => _removeGuardian(context, ref, guardian)
+                        : null,
                   ),
                   if (player.capabilities.canViewSensitive) ...[
                     const SizedBox(height: 12),
@@ -189,6 +195,9 @@ class _ProfileContent extends ConsumerWidget {
                   guardians: player.guardians,
                   onAdd: player.capabilities.canEdit
                       ? () => _addGuardian(context, ref)
+                      : null,
+                  onRemove: isSystemAdmin
+                      ? (guardian) => _removeGuardian(context, ref, guardian)
                       : null,
                 ),
                 if (player.capabilities.canViewSensitive) ...[
@@ -372,7 +381,7 @@ class _ProfileContent extends ConsumerWidget {
         .where((member) =>
             member.status == AccountStatus.approved &&
             member.role != UserRole.player &&
-            !player.guardians.any((guardian) => guardian.id == member.id))
+            !player.guardians.any((guardian) => guardian.userId == member.id))
         .toList();
     if (!context.mounted) return;
     if (parents.isEmpty) {
@@ -404,6 +413,52 @@ class _ProfileContent extends ConsumerWidget {
           ),
       'Sorgeberechtigte Person zugeordnet.',
     );
+  }
+
+  Future<void> _removeGuardian(
+    BuildContext context,
+    WidgetRef ref,
+    GuardianModel guardian,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.link_off_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: const Text('Sorgeberechtigten-Zuordnung entfernen?'),
+        content: Text(
+          '${guardian.name} wird nicht mehr ${player.fullName} zugeordnet. '
+          'Der Account und das Spielerprofil bleiben vollständig erhalten; '
+          'nur der Familienzugriff auf dieses Kind endet.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.link_off_rounded),
+            label: const Text('Zuordnung entfernen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await _run(context, () async {
+      await ref.read(repositoryProvider).removeParentPlayer(
+            parentId: guardian.userId,
+            playerId: player.id,
+          );
+      ref.invalidate(membersProvider);
+    }, '${guardian.name} wurde als Sorgeberechtigte Person entfernt.');
   }
 
   Future<void> _addDevelopment(BuildContext context, WidgetRef ref) async {
@@ -1395,10 +1450,15 @@ class _Fact extends StatelessWidget {
 }
 
 class _GuardiansCard extends StatelessWidget {
-  const _GuardiansCard({required this.guardians, required this.onAdd});
+  const _GuardiansCard({
+    required this.guardians,
+    required this.onAdd,
+    required this.onRemove,
+  });
 
   final List<GuardianModel> guardians;
   final VoidCallback? onAdd;
+  final ValueChanged<GuardianModel>? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -1435,15 +1495,28 @@ class _GuardiansCard extends StatelessWidget {
                         if (guardian.phone != null) guardian.phone!,
                       ].join(' · '),
                     ),
-                    trailing: guardian.isLegalGuardian
-                        ? const Tooltip(
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (guardian.isLegalGuardian)
+                          const Tooltip(
                             message: 'Sorgeberechtigt',
                             child: Icon(
                               Icons.verified_user_rounded,
                               color: AppColors.teal,
                             ),
-                          )
-                        : null,
+                          ),
+                        if (onRemove != null)
+                          IconButton(
+                            tooltip: 'Sorgeberechtigten-Zuordnung entfernen',
+                            onPressed: () => onRemove!(guardian),
+                            icon: Icon(
+                              Icons.link_off_rounded,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
               ],
             ),

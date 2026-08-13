@@ -2096,6 +2096,15 @@ class DataRepository {
     });
   }
 
+  Future<void> removeParentPlayer({
+    required String parentId,
+    required String playerId,
+  }) async {
+    await client.dio.delete(
+      '/admin/parent-player-links/$parentId/$playerId',
+    );
+  }
+
   Future<List<AnnouncementModel>> announcements({
     bool includeDrafts = false,
   }) async {

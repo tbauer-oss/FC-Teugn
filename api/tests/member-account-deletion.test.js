@@ -21,6 +21,16 @@ test('account deletion is restricted to system administrators', () => {
   );
 });
 
+test('guardian assignments can only be removed by system administrators', () => {
+  assert.match(
+    routes,
+    /router\.delete\([\s\S]*?'\/parent-player-links\/:parentId\/:playerId'[\s\S]*?requireRoles\(\[Role\.SUPER_ADMIN\]\)[\s\S]*?removeParentPlayer/,
+  );
+  assert.match(controller, /parentPlayerLink\.findUnique/);
+  assert.match(controller, /parentPlayerLink\.delete/);
+  assert.match(controller, /GUARDIAN_ASSIGNMENT_REMOVED/);
+});
+
 test('account deletion protects the acting and final system admin accounts', () => {
   assert.match(controller, /target\.id === actor\.id/);
   assert.match(controller, /remainingSuperAdmins === 0/);

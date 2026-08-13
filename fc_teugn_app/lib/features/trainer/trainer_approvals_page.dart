@@ -311,6 +311,9 @@ class TrainerApprovalsPage extends ConsumerWidget {
         organization: organization,
         players: players,
         actorIsSuperAdmin: actorIsSuperAdmin,
+        onRemoveParentPlayer: actorIsSuperAdmin
+            ? (link) => _removeParentPlayer(context, ref, user, link)
+            : null,
         editing: true,
       ),
     );
@@ -343,6 +346,88 @@ class TrainerApprovalsPage extends ConsumerWidget {
           ),
         );
       }
+    }
+  }
+
+  Future<bool> _removeParentPlayer(
+    BuildContext context,
+    WidgetRef ref,
+    AppUser parent,
+    UserParentPlayerLink link,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.link_off_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: const Text('Sorgeberechtigten-Zuordnung entfernen?'),
+        content: Text(
+          '${parent.name} wird nicht mehr ${link.playerName} zugeordnet. '
+          'Beide Konten und alle Spieler- bzw. Vereinsdaten bleiben erhalten. '
+          'Der Familienzugriff auf dieses Kind endet sofort.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.link_off_rounded),
+            label: const Text('Zuordnung entfernen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return false;
+
+    try {
+      await ref.read(repositoryProvider).removeParentPlayer(
+            parentId: parent.id,
+            playerId: link.playerId,
+          );
+      _refresh(ref);
+      ref.invalidate(playersProvider);
+      ref.invalidate(playerProvider(link.playerId));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${parent.name} wurde von ${link.playerName} getrennt.',
+            ),
+          ),
+        );
+      }
+      return true;
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      final message =
+          data is Map<String, dynamic> ? data['message'] as String? : null;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              message ?? 'Die Zuordnung konnte nicht entfernt werden.',
+            ),
+          ),
+        );
+      }
+      return false;
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Die Zuordnung konnte nicht entfernt werden.'),
+          ),
+        );
+      }
+      return false;
     }
   }
 
@@ -2138,6 +2223,7 @@ class _ApprovalDialog extends StatefulWidget {
     required this.organization,
     required this.players,
     required this.actorIsSuperAdmin,
+    this.onRemoveParentPlayer,
     this.editing = false,
   });
 
@@ -2145,6 +2231,7 @@ class _ApprovalDialog extends StatefulWidget {
   final OrganizationContext organization;
   final List<PlayerModel> players;
   final bool actorIsSuperAdmin;
+  final Future<bool> Function(UserParentPlayerLink link)? onRemoveParentPlayer;
   final bool editing;
 
   @override
@@ -2159,6 +2246,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
   String? playerId;
   late final TextEditingController adminNote;
   late String relationship;
+  late List<UserParentPlayerLink> parentPlayers;
+  String? removingPlayerId;
 
   @override
   void initState() {
@@ -2185,6 +2274,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
       text: widget.user.registrationRequest?.adminNote,
     );
     relationship = widget.user.registrationRequest?.relationship ?? 'GUARDIAN';
+    parentPlayers = List<UserParentPlayerLink>.of(widget.user.parentPlayers);
   }
 
   @override
@@ -2429,13 +2519,13 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                   'und Trainer können Eltern eines Spielers sein. Die '
                   'Hauptrolle und sämtliche Rechte bleiben unverändert.',
                 ),
-                if (widget.user.parentPlayers.isNotEmpty) ...[
+                if (parentPlayers.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final link in widget.user.parentPlayers)
+                      for (final link in parentPlayers)
                         Chip(
                           avatar: const Icon(
                             Icons.family_restroom_rounded,
@@ -2446,6 +2536,31 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                             '${guardianRelationshipLabel(link.relationship)}'
                             '${link.ageGroupCode.isEmpty ? '' : ' · ${link.ageGroupCode}'}',
                           ),
+                          deleteIcon: removingPlayerId == link.playerId
+                              ? const SizedBox.square(
+                                  dimension: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.close_rounded, size: 18),
+                          deleteButtonTooltipMessage:
+                              'Sorgeberechtigten-Zuordnung entfernen',
+                          onDeleted: widget.onRemoveParentPlayer == null ||
+                                  removingPlayerId != null
+                              ? null
+                              : () async {
+                                  setState(
+                                    () => removingPlayerId = link.playerId,
+                                  );
+                                  final removed =
+                                      await widget.onRemoveParentPlayer!(link);
+                                  if (!mounted) return;
+                                  setState(() {
+                                    removingPlayerId = null;
+                                    if (removed) parentPlayers.remove(link);
+                                  });
+                                },
                         ),
                     ],
                   ),
@@ -2460,7 +2575,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                     for (final player in widget.players.where(
                       (player) =>
                           teamIds.contains(player.teamId) &&
-                          !widget.user.parentPlayers
+                          !parentPlayers
                               .any((link) => link.playerId == player.id),
                     ))
                       DropdownMenuItem(

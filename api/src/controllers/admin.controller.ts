@@ -1054,6 +1054,55 @@ export async function assignParentPlayer(req: Request, res: Response) {
   return res.status(201).json(link);
 }
 
+export async function removeParentPlayer(req: Request, res: Response) {
+  const actor = req.user!;
+  const { parentId, playerId } = req.params;
+  const link = await prisma.parentPlayerLink.findUnique({
+    where: { parentId_playerId: { parentId, playerId } },
+    select: {
+      id: true,
+      relationship: true,
+      isLegalGuardian: true,
+      canPickup: true,
+      receivesCommunication: true,
+      parent: { select: { id: true, name: true } },
+      player: {
+        select: { id: true, firstName: true, lastName: true, teamId: true },
+      },
+    },
+  });
+  if (!link) {
+    return res.status(404).json({
+      message: 'Diese Sorgeberechtigten-Zuordnung besteht nicht mehr.',
+    });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.parentPlayerLink.delete({ where: { id: link.id } });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        teamId: link.player.teamId ?? actor.teamId,
+        action: 'GUARDIAN_ASSIGNMENT_REMOVED',
+        entityType: 'ParentPlayerLink',
+        entityId: link.id,
+        metadata: {
+          parentId: link.parent.id,
+          parentName: link.parent.name,
+          playerId: link.player.id,
+          playerName: `${link.player.firstName} ${link.player.lastName}`.trim(),
+          relationship: link.relationship,
+          isLegalGuardian: link.isLegalGuardian,
+          canPickup: link.canPickup,
+          receivesCommunication: link.receivesCommunication,
+        },
+      },
+    });
+  });
+
+  return res.status(204).send();
+}
+
 export async function getMemberPermissions(req: Request, res: Response) {
   const target = await prisma.user.findUnique({
     where: { id: req.params.id },
