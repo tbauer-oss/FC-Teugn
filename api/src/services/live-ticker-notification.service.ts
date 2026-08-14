@@ -99,44 +99,51 @@ async function liveTickerNotificationAudience(
     ? match.targetTeams.map((target) => target.teamId)
     : [match.teamId];
   const recipients = new Set<string>();
-  if (release.audience === 'NOMINATED_SQUAD') {
-    const squad = await prisma.squad.findUnique({
-      where: { eventId: release.eventId },
-      include: {
-        members: {
-          where: { status: NominationStatus.NOMINATED },
-          include: {
-            player: {
-              include: {
-                parentLinks: {
-                  where: { receivesCommunication: true },
-                  select: { parentId: true },
-                },
+  // The ticker belongs to the whole team, not only to the match squad. Active
+  // and injured players plus their guardians may therefore follow it even if
+  // the child is ill, absent or not nominated.
+  const teamPlayers = await prisma.player.findMany({
+    where: {
+      teamId: { in: teamIds },
+      status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
+    },
+    include: {
+      parentLinks: {
+        where: { receivesCommunication: true },
+        select: { parentId: true },
+      },
+    },
+  });
+  teamPlayers.forEach((player) => {
+    if (player.userId) recipients.add(player.userId);
+    player.parentLinks.forEach((link) => recipients.add(link.parentId));
+  });
+
+  // A published squad may contain guests from another team. Their player
+  // accounts and guardians get access to this exact match as well, without
+  // receiving visibility into the rest of the host team's schedule.
+  const squad = await prisma.squad.findFirst({
+    where: { eventId: release.eventId, publishedAt: { not: null } },
+    include: {
+      members: {
+        where: { status: NominationStatus.NOMINATED },
+        include: {
+          player: {
+            include: {
+              parentLinks: {
+                where: { receivesCommunication: true },
+                select: { parentId: true },
               },
             },
           },
         },
       },
-    });
-    squad?.members.forEach((member) => {
-      if (member.player.userId) recipients.add(member.player.userId);
-      member.player.parentLinks.forEach((link) => recipients.add(link.parentId));
-    });
-  } else {
-    const players = await prisma.player.findMany({
-      where: { teamId: { in: teamIds }, status: PlayerStatus.ACTIVE },
-      include: {
-        parentLinks: {
-          where: { receivesCommunication: true },
-          select: { parentId: true },
-        },
-      },
-    });
-    players.forEach((player) => {
-      if (player.userId) recipients.add(player.userId);
-      player.parentLinks.forEach((link) => recipients.add(link.parentId));
-    });
-  }
+    },
+  });
+  squad?.members.forEach((member) => {
+    if (member.player.userId) recipients.add(member.player.userId);
+    member.player.parentLinks.forEach((link) => recipients.add(link.parentId));
+  });
   const staff = await prisma.teamMembership.findMany({
     where: {
       teamId: { in: teamIds },
@@ -158,8 +165,5 @@ async function effectiveFamilyRelease(match: LiveTickerNotificationMatch) {
   if (!match.familyReleasedAt) return null;
   return {
     eventId: match.id,
-    audience: match.familyReleaseAudience === 'NOMINATED_SQUAD'
-      ? 'NOMINATED_SQUAD'
-      : 'FULL_TEAM',
   } as const;
 }

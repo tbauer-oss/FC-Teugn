@@ -1,4 +1,9 @@
-import { AccountStatus, Prisma, Role as PrismaRole } from '@prisma/client';
+import {
+  AccountStatus,
+  NominationStatus,
+  Prisma,
+  Role as PrismaRole,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { hasEffectivePermission, Permission } from '../security/permissions';
 import { Role } from '../types/enums';
@@ -343,6 +348,61 @@ export async function canManageFormation(
 export function eventTeamScope(teamIds: string[]): Prisma.EventWhereInput {
   return {
     OR: [{ teamId: { in: teamIds } }, { targetTeams: { some: { teamId: { in: teamIds } } } }],
+  };
+}
+
+/**
+ * Read scope for family-facing event and match views.
+ *
+ * A published nomination is intentionally an event-scoped grant. It lets a
+ * player account and the linked guardians open exactly this match even when
+ * the player normally belongs to another team in the same youth. It never
+ * grants access to the nominated team's other events or member data.
+ */
+export function eventReadScope(
+  teamIds: string[],
+  identity: { userId?: string; playerIds?: string[] } = {},
+): Prisma.EventWhereInput {
+  const teams = [...new Set(teamIds)];
+  const players = [...new Set(identity.playerIds ?? [])];
+  const userId = identity.userId?.trim();
+  const memberIdentity: Prisma.SquadMemberWhereInput[] = [
+    ...(players.length ? [{ playerId: { in: players } }] : []),
+    ...(userId
+      ? [{
+          player: {
+            is: {
+              OR: [
+                { userId },
+                { parentLinks: { some: { parentId: userId } } },
+              ],
+            },
+          },
+        } satisfies Prisma.SquadMemberWhereInput]
+      : []),
+  ];
+  return {
+    OR: [
+      { teamId: { in: teams } },
+      { targetTeams: { some: { teamId: { in: teams } } } },
+      ...(memberIdentity.length
+        ? [{
+            squads: {
+              some: {
+                publishedAt: { not: null },
+                members: {
+                  some: {
+                    status: NominationStatus.NOMINATED,
+                    ...(memberIdentity.length === 1
+                      ? memberIdentity[0]
+                      : { OR: memberIdentity }),
+                  },
+                },
+              },
+            },
+          } satisfies Prisma.EventWhereInput]
+        : []),
+    ],
   };
 }
 

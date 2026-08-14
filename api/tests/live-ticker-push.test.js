@@ -99,3 +99,23 @@ test('notification uses the optional live ticker preference and deep link', () =
   assert.match(service, /familyReleasedAt/);
   assert.doesNotMatch(service, /forcePush:/);
 });
+
+test('ticker audience includes the whole team and published cross-team guests', () => {
+  const service = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../src/services/live-ticker-notification.service.ts',
+    ),
+    'utf8',
+  );
+  assert.match(
+    service,
+    /status:\s*\{\s*in:\s*\[PlayerStatus\.ACTIVE, PlayerStatus\.INJURED\]/,
+  );
+  assert.match(
+    service,
+    /eventId:\s*release\.eventId,\s*publishedAt:\s*\{\s*not:\s*null\s*\}/,
+  );
+  assert.match(service, /where:\s*\{\s*status:\s*NominationStatus\.NOMINATED\s*\}/);
+  assert.doesNotMatch(service, /if \(release\.audience === 'NOMINATED_SQUAD'\)/);
+});

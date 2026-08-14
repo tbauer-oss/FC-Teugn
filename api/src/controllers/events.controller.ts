@@ -29,6 +29,7 @@ import {
 import {
   accessibleTeamIds,
   contextualTeamIds,
+  eventReadScope,
   ownPlayerIds,
   youthPlayerPoolTeamIdsForTeam,
 } from '../services/team-access';
@@ -1125,6 +1126,7 @@ export async function listPersonalResponses(req: Request, res: Response) {
 
 export async function listEvents(req: Request, res: Response) {
   const user = req.user!;
+  const staff = isStaff(user.role, user.permissions);
   const accessibleIds = await accessibleTeamIds(user);
   const teamIds = await contextualTeamIds(user);
   const from = validDate(req.query.from);
@@ -1145,7 +1147,10 @@ export async function listEvents(req: Request, res: Response) {
     prisma.event.findMany({
       where: {
         parentTournamentId: null,
-        ...eventScope(effectiveTeams),
+        ...eventReadScope(
+          effectiveTeams,
+          staff ? {} : { userId: user.id },
+        ),
         ...(from || to
           ? {
               startAt: {
@@ -1157,17 +1162,17 @@ export async function listEvents(req: Request, res: Response) {
         ...(categories.length
           ? { category: { in: categories as EventCategory[] } }
           : {}),
-        ...(!isStaff(user.role)
+        ...(!staff
           ? { visibility: { not: EventVisibility.STAFF_ONLY } }
           : {}),
       },
       orderBy: { startAt: 'asc' },
       include: eventInclude,
     }),
-    isStaff(user.role)
+    staff
       ? rosterForTeamIds(effectiveTeams)
       : Promise.resolve(undefined),
-    ownPlayerIds(user),
+    staff ? Promise.resolve([] as string[]) : ownPlayerIds(user),
   ]);
   return res.json(
     await Promise.all(
@@ -1186,17 +1191,23 @@ export async function listEvents(req: Request, res: Response) {
 
 export async function getEvent(req: Request, res: Response) {
   const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
+  const staff = isStaff(user.role, user.permissions);
+  const [teamIds, personalPlayerIds] = await Promise.all([
+    accessibleTeamIds(user),
+    staff ? Promise.resolve([] as string[]) : ownPlayerIds(user),
+  ]);
   const event = await prisma.event.findFirst({
     where: {
       id: req.params.id,
-      ...eventScope(teamIds),
-      ...(!isStaff(user.role) ? { visibility: { not: EventVisibility.STAFF_ONLY } } : {}),
+      ...eventReadScope(teamIds, staff ? {} : { userId: user.id }),
+      ...(!staff ? { visibility: { not: EventVisibility.STAFF_ONLY } } : {}),
     },
     include: eventInclude,
   });
   if (!event) return res.status(404).json({ message: 'Termin nicht gefunden.' });
-  return res.json(await serializeEvent(event, user, teamIds));
+  return res.json(
+    await serializeEvent(event, user, teamIds, undefined, personalPlayerIds),
+  );
 }
 
 export async function createEvent(req: Request, res: Response) {

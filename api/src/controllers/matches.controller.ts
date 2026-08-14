@@ -30,6 +30,7 @@ import { rosterTeamIdsForMatch } from '../services/match-roster';
 import {
   accessibleTeamIds,
   contextualTeamIds,
+  eventReadScope,
   ownPlayerIds,
   youthPlayerPoolTeamIdsForTeam,
 } from '../services/team-access';
@@ -242,10 +243,16 @@ function enumValue<T extends Record<string, string>>(
     : fallback;
 }
 
-function scope(teamIds: string[]): Prisma.EventWhereInput {
+function scope(
+  teamIds: string[],
+  personalUserId?: string,
+): Prisma.EventWhereInput {
   return {
     type: EventType.MATCH,
-    OR: [{ teamId: { in: teamIds } }, { targetTeams: { some: { teamId: { in: teamIds } } } }],
+    ...eventReadScope(
+      teamIds,
+      personalUserId ? { userId: personalUserId } : {},
+    ),
   };
 }
 
@@ -279,18 +286,26 @@ async function canManageTicker(
   return delegation !== null;
 }
 
-async function findMatch(id: string, user: { id: string; teamId: string; role: Role }) {
+async function findMatch(
+  id: string,
+  user: { id: string; teamId: string; role: Role; permissions?: string[] },
+) {
+  const staff = isStaff(user.role, user.permissions);
   const teamIds = await accessibleTeamIds(user);
-  return prisma.event.findFirst({ where: { id, ...scope(teamIds) }, include: matchInclude });
+  return prisma.event.findFirst({
+    where: { id, ...scope(teamIds, staff ? undefined : user.id) },
+    include: matchInclude,
+  });
 }
 
 async function findAccessibleTickerMatch(
   id: string,
-  user: { id: string; teamId: string; role: Role },
+  user: { id: string; teamId: string; role: Role; permissions?: string[] },
 ) {
+  const staff = isStaff(user.role, user.permissions);
   const teamIds = await accessibleTeamIds(user);
   return prisma.event.findFirst({
-    where: { id, ...scope(teamIds) },
+    where: { id, ...scope(teamIds, staff ? undefined : user.id) },
     select: { id: true, familyReleasedAt: true },
   });
 }
@@ -659,27 +674,29 @@ export async function syncTournamentFixtures(req: Request, res: Response) {
 
 export async function listMatches(req: Request, res: Response) {
   const user = req.user!;
+  const staff = isStaff(user.role, user.permissions);
   const teamIds = await contextualTeamIds(user);
   const from = req.query.from ? new Date(String(req.query.from)) : undefined;
   const to = req.query.to ? new Date(String(req.query.to)) : undefined;
-  const matches = await prisma.event.findMany({
-    where: {
-      ...scope(teamIds),
-      ...(from || to
-        ? {
-            startAt: {
-              ...(from && !Number.isNaN(from.getTime()) ? { gte: from } : {}),
-              ...(to && !Number.isNaN(to.getTime()) ? { lte: to } : {}),
-            },
-          }
-        : {}),
-    },
-    include: matchInclude,
-    orderBy: { startAt: 'desc' },
-    take: 100,
-  });
-  const staff = isStaff(user.role, user.permissions);
-  const viewerPlayerIds = staff ? [] : await ownPlayerIds(user);
+  const [matches, viewerPlayerIds] = await Promise.all([
+    prisma.event.findMany({
+      where: {
+        ...scope(teamIds, staff ? undefined : user.id),
+        ...(from || to
+          ? {
+              startAt: {
+                ...(from && !Number.isNaN(from.getTime()) ? { gte: from } : {}),
+                ...(to && !Number.isNaN(to.getTime()) ? { lte: to } : {}),
+              },
+            }
+          : {}),
+      },
+      include: matchInclude,
+      orderBy: { startAt: 'desc' },
+      take: 100,
+    }),
+    staff ? Promise.resolve([] as string[]) : ownPlayerIds(user),
+  ]);
   const canDelete = hasEffectivePermission(
     user.role,
     Permission.MATCH_DELETE,
@@ -703,7 +720,7 @@ export async function listMatches(req: Request, res: Response) {
       hasEffectivePermission(user.role, Permission.PUBLISH_LINEUP_INTERNAL, user.permissions),
       hasEffectivePermission(user.role, Permission.NOMINATE_SQUAD, user.permissions),
       hasEffectivePermission(user.role, Permission.RELEASE_MATCH_FAMILY, user.permissions),
-      user.role === Role.PARENT,
+      !staff,
       hasEffectivePermission(user.role, Permission.MANAGE_STATISTICS, user.permissions),
     ),
   ));
@@ -711,6 +728,7 @@ export async function listMatches(req: Request, res: Response) {
 
 export async function getMatch(req: Request, res: Response) {
   const user = req.user!;
+  const staff = isStaff(user.role, user.permissions);
   const match = await findMatch(req.params.id, user);
   if (!match) {
     const tombstone = await prisma.auditLog.findFirst({
@@ -731,7 +749,6 @@ export async function getMatch(req: Request, res: Response) {
     }
     return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   }
-  const staff = isStaff(user.role, user.permissions);
   const eligiblePlayers = async () => {
     if (!staff) return [];
     const rosterTeamIds = rosterTeamIdsForMatch(
@@ -763,7 +780,7 @@ export async function getMatch(req: Request, res: Response) {
     hasEffectivePermission(user.role, Permission.PUBLISH_LINEUP_INTERNAL, user.permissions),
     hasEffectivePermission(user.role, Permission.NOMINATE_SQUAD, user.permissions),
     hasEffectivePermission(user.role, Permission.RELEASE_MATCH_FAMILY, user.permissions),
-    user.role === Role.PARENT,
+    !staff,
     hasEffectivePermission(user.role, Permission.MANAGE_STATISTICS, user.permissions),
   ));
 }

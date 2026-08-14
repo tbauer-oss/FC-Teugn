@@ -42,6 +42,33 @@ test('family response endpoint is role-independent and auditable', () => {
   assert.match(events, /responderRelationship/);
 });
 
+test('published cross-team nominations grant access to exactly that event', () => {
+  const { eventReadScope } = require('../dist/src/services/team-access');
+  const scope = eventReadScope(['team-e2'], { playerIds: ['player-e2'] });
+
+  assert.equal(scope.OR.length, 3);
+  assert.deepEqual(scope.OR[0], { teamId: { in: ['team-e2'] } });
+  assert.deepEqual(scope.OR[2], {
+    squads: {
+      some: {
+        publishedAt: { not: null },
+        members: {
+          some: {
+            playerId: { in: ['player-e2'] },
+            status: 'NOMINATED',
+          },
+        },
+      },
+    },
+  });
+
+  const events = source('src/controllers/events.controller.ts');
+  const matches = source('src/controllers/matches.controller.ts');
+  assert.match(events, /eventReadScope\([\s\S]*userId: user\.id/);
+  assert.match(matches, /scope\(teamIds, staff \? undefined : user\.id\)/);
+  assert.match(matches, /!staff,[\s\S]*MANAGE_STATISTICS/);
+});
+
 test('mandatory lifecycle notifications override disabled push preferences', () => {
   const notifications = source('src/services/notification.service.ts');
   const matches = source('src/controllers/matches.controller.ts');
