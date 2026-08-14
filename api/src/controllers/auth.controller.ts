@@ -19,6 +19,7 @@ import { notifyPendingRegistrationAdministrators } from '../services/registratio
 import { isRecentRefreshRotation } from '../lib/session-refresh';
 
 const refreshLifetimeMs = 30 * 24 * 60 * 60 * 1000;
+const biometricCredentialLifetimeMs = 180 * 24 * 60 * 60 * 1000;
 
 async function familyLinks(userId: string) {
   return prisma.parentPlayerLink.findMany({
@@ -518,6 +519,126 @@ export async function login(req: Request, res: Response) {
   });
 }
 
+export async function enrollBiometricLogin(req: Request, res: Response) {
+  const actor = req.user!;
+  const credential = randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + biometricCredentialLifetimeMs);
+  const created = await prisma.biometricCredential.create({
+    data: {
+      userId: actor.id,
+      tokenHash: tokenHash(credential),
+      expiresAt,
+      userAgent: req.get('user-agent')?.slice(0, 500) ?? null,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      actorId: actor.id,
+      teamId: actor.teamId,
+      action: 'BIOMETRIC_LOGIN_ENABLED',
+      entityType: 'BiometricCredential',
+      entityId: created.id,
+    },
+  });
+  return res.status(201).json({ credential, expiresAt });
+}
+
+export async function biometricLogin(req: Request, res: Response) {
+  const credential = typeof req.body?.credential === 'string'
+    ? req.body.credential.trim()
+    : '';
+  if (credential.length < 32 || credential.length > 512) {
+    return res.status(401).json({ message: 'Biometrische Anmeldung ist nicht gültig.' });
+  }
+  const stored = await prisma.biometricCredential.findUnique({
+    where: { tokenHash: tokenHash(credential) },
+    include: {
+      user: {
+        include: {
+          registrationRequest: {
+            select: {
+              id: true,
+              requestedRole: true,
+              childName: true,
+              relationship: true,
+              reviewStatus: true,
+              adminNote: true,
+              applicantMessage: true,
+              pushOptIn: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  const now = new Date();
+  if (!stored || stored.revokedAt || stored.expiresAt <= now) {
+    return res.status(401).json({ message: 'Biometrische Anmeldung ist abgelaufen.' });
+  }
+  const user = stored.user;
+  if (
+    user.status === AccountStatus.BLOCKED ||
+    user.status === AccountStatus.REJECTED ||
+    user.status === AccountStatus.ARCHIVED
+  ) {
+    return res.status(403).json({
+      code: 'ACCOUNT_INACTIVE',
+      accountStatus: user.status,
+      message: 'Dieser Account ist nicht aktiv. Bitte wende dich an die Systemadministration.',
+    });
+  }
+  await prisma.biometricCredential.update({
+    where: { id: stored.id },
+    data: {
+      lastUsedAt: now,
+      expiresAt: new Date(now.getTime() + biometricCredentialLifetimeMs),
+    },
+  });
+  const tokens = await issueSession(user, req);
+  const parentLinks = await familyLinks(user.id);
+  return res.json({
+    user: {
+      ...userResponse(user),
+      parentLinks,
+      registrationRequest: user.registrationRequest,
+    },
+    ...tokens,
+  });
+}
+
+export async function disableBiometricLogin(req: Request, res: Response) {
+  const credential = typeof req.body?.credential === 'string'
+    ? req.body.credential.trim()
+    : '';
+  if (!credential) return res.status(204).send();
+  const stored = await prisma.biometricCredential.findFirst({
+    where: {
+      userId: req.user!.id,
+      tokenHash: tokenHash(credential),
+      revokedAt: null,
+    },
+    select: { id: true },
+  });
+  if (stored) {
+    await prisma.$transaction([
+      prisma.biometricCredential.update({
+        where: { id: stored.id },
+        data: { revokedAt: new Date() },
+      }),
+      prisma.auditLog.create({
+        data: {
+          actorId: req.user!.id,
+          teamId: req.user!.teamId,
+          action: 'BIOMETRIC_LOGIN_DISABLED',
+          entityType: 'BiometricCredential',
+          entityId: stored.id,
+        },
+      }),
+    ]);
+  }
+  return res.status(204).send();
+}
+
 const passwordResetLifetimeMs = 15 * 60 * 1000;
 const passwordResetResponse = {
   message:
@@ -755,6 +876,10 @@ export async function confirmPasswordReset(req: Request, res: Response) {
         data: { password: passwordHash },
       });
       await tx.refreshToken.updateMany({
+        where: { userId: reset.user.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await tx.biometricCredential.updateMany({
         where: { userId: reset.user.id, revokedAt: null },
         data: { revokedAt: now },
       });
@@ -1012,6 +1137,10 @@ export async function changeOwnPassword(req: Request, res: Response) {
       where: { userId: actor.id, revokedAt: null },
       data: { revokedAt: changedAt },
     });
+    await tx.biometricCredential.updateMany({
+      where: { userId: actor.id, revokedAt: null },
+      data: { revokedAt: changedAt },
+    });
     await tx.passwordResetToken.updateMany({
       where: { userId: actor.id, consumedAt: null },
       data: { consumedAt: changedAt },
@@ -1033,10 +1162,17 @@ export async function changeOwnPassword(req: Request, res: Response) {
 }
 
 export async function logoutAll(req: Request, res: Response) {
-  await prisma.refreshToken.updateMany({
-    where: { userId: req.user!.id, revokedAt: null },
-    data: { revokedAt: new Date() },
-  });
+  const revokedAt = new Date();
+  await prisma.$transaction([
+    prisma.refreshToken.updateMany({
+      where: { userId: req.user!.id, revokedAt: null },
+      data: { revokedAt },
+    }),
+    prisma.biometricCredential.updateMany({
+      where: { userId: req.user!.id, revokedAt: null },
+      data: { revokedAt },
+    }),
+  ]);
   return res.status(204).send();
 }
 

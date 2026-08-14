@@ -1,6 +1,9 @@
 import { asyncRouter } from '../middleware/async-handler';
 import {
   activeConsentTexts,
+  biometricLogin,
+  disableBiometricLogin,
+  enrollBiometricLogin,
   login,
   logout,
   logoutAll,
@@ -26,6 +29,15 @@ const router = asyncRouter();
 
 router.post('/register', register);
 router.post('/login', login);
+router.post('/biometric/login', biometricLogin);
+router.post(
+  '/biometric/enroll',
+  requireAuth,
+  requireApproved,
+  sensitiveActionRateLimit,
+  enrollBiometricLogin,
+);
+router.delete('/biometric', requireAuth, disableBiometricLogin);
 router.post('/password-reset/request', requestPasswordReset);
 router.post('/password-reset/exchange', exchangePasswordReset);
 router.post('/password-reset/confirm', confirmPasswordReset);

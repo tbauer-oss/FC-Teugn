@@ -1618,10 +1618,21 @@ class DataRepository {
     );
   }
 
-  Future<LiveTickerModel> ticker(String eventId, {int after = 0}) async {
+  Future<LiveTickerModel> ticker(
+    String eventId, {
+    int after = 0,
+    bool waitForChanges = false,
+  }) async {
     final res = await client.dio.get(
       '/matches/$eventId/ticker',
-      queryParameters: {'after': after},
+      queryParameters: {
+        'after': after,
+        if (waitForChanges) 'waitMs': 8000,
+      },
+      options: Options(
+        extra: const {'suppressLoading': true},
+        headers: const {'Cache-Control': 'no-cache'},
+      ),
     );
     return LiveTickerModel.fromJson(res.data as Map<String, dynamic>);
   }

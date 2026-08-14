@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/biometric_auth/biometric_auth.dart';
 import '../../core/models/user.dart';
 import '../shared/page_scaffold.dart';
 import 'auth_controller.dart';
@@ -30,6 +33,8 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
   bool _savingPassword = false;
   bool _showCurrentPassword = false;
   bool _showNewPassword = false;
+  bool _savingBiometric = false;
+  BiometricLoginSettings? _biometricSettings;
 
   @override
   void initState() {
@@ -39,6 +44,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
     _lastName = TextEditingController(text: user.resolvedLastName);
     _email = TextEditingController(text: user.email);
     _phone = TextEditingController(text: user.phone ?? '');
+    unawaited(_loadBiometricSettings());
   }
 
   @override
@@ -112,6 +118,30 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
       if (mounted) _message(_errorText(error), error: true);
     } finally {
       if (mounted) setState(() => _savingPassword = false);
+    }
+  }
+
+  Future<void> _loadBiometricSettings() async {
+    final settings =
+        await ref.read(authProvider.notifier).biometricLoginSettings();
+    if (mounted) setState(() => _biometricSettings = settings);
+  }
+
+  Future<void> _setBiometricLogin(bool enabled) async {
+    if (_savingBiometric) return;
+    setState(() => _savingBiometric = true);
+    try {
+      final controller = ref.read(authProvider.notifier);
+      final message = enabled
+          ? await controller.enableBiometricLogin()
+          : await controller.disableBiometricLogin();
+      if (!mounted) return;
+      _message(message);
+      await _loadBiometricSettings();
+    } catch (error) {
+      if (mounted) _message(_errorText(error), error: true);
+    } finally {
+      if (mounted) setState(() => _savingBiometric = false);
     }
   }
 
@@ -318,20 +348,127 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
               ),
             ),
           );
+          final biometric = _SettingsCard(
+            title: 'Biometrischer Login',
+            subtitle:
+                'Mit Fingerabdruck oder Gesichtserkennung sicher anmelden.',
+            icon: Icons.fingerprint,
+            child: _buildBiometricSettings(),
+          );
           if (constraints.maxWidth >= 820) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            return Column(
               children: [
-                Expanded(child: profile),
-                const SizedBox(width: 18),
-                Expanded(child: password),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: profile),
+                    const SizedBox(width: 18),
+                    Expanded(child: password),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                biometric,
               ],
             );
           }
           return Column(
-            children: [profile, const SizedBox(height: 16), password],
+            children: [
+              profile,
+              const SizedBox(height: 16),
+              password,
+              const SizedBox(height: 16),
+              biometric,
+            ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildBiometricSettings() {
+    final settings = _biometricSettings;
+    if (settings == null) {
+      return const _BiometricHint(
+        icon: Icons.manage_search_rounded,
+        text: 'Biometrische Gerätefunktionen werden geprüft …',
+      );
+    }
+    if (settings.capability == BiometricCapability.unsupported) {
+      return const _BiometricHint(
+        icon: Icons.phone_android_rounded,
+        text:
+            'Diese Funktion steht in der Android-App und auf unterstützten iPhones zur Verfügung.',
+      );
+    }
+    if (settings.capability == BiometricCapability.notEnrolled) {
+      return const _BiometricHint(
+        icon: Icons.fingerprint,
+        text:
+            'Richte zuerst in den Geräteeinstellungen einen Fingerabdruck oder die Gesichtserkennung ein.',
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile.adaptive(
+          key: const ValueKey('biometric-login-switch'),
+          contentPadding: EdgeInsets.zero,
+          value: settings.enabled,
+          onChanged: _savingBiometric ? null : _setBiometricLogin,
+          title: Text(
+            settings.enabled
+                ? 'Biometrischer Login aktiviert'
+                : 'Biometrischen Login aktivieren',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          subtitle: const Text(
+            'Dein Passwort wird nicht gespeichert. Die Bestätigung erfolgt ausschließlich durch das Gerät.',
+          ),
+          secondary: _savingBiometric
+              ? const SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  settings.enabled
+                      ? Icons.verified_user_rounded
+                      : Icons.security_rounded,
+                  color: settings.enabled ? AppColors.teal : AppColors.gold,
+                ),
+        ),
+        if (settings.enabled)
+          const _BiometricHint(
+            icon: Icons.shield_outlined,
+            text:
+                'Eine gemerkte Sitzung öffnet die App weiterhin automatisch. Biometrie wird erst angeboten, wenn keine gültige Sitzung mehr vorhanden ist. Passwortänderung, „Überall abmelden“ oder das Ausschalten hier widerrufen die Gerätefreigabe.',
+          ),
+      ],
+    );
+  }
+}
+
+class _BiometricHint extends StatelessWidget {
+  const _BiometricHint({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.yellowSoft,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: AppColors.gold),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text)),
+        ],
       ),
     );
   }

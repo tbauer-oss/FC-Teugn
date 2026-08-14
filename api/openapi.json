@@ -61,6 +61,29 @@
         "responses": {"200": {"description": "Access- und Refresh-Token"}, "401": {"$ref": "#/components/responses/Unauthorized"}}
       }
     },
+    "/auth/biometric/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Mit einer lokal biometrisch geschützten Geräteberechtigung anmelden",
+        "responses": {"200": {"description": "Access- und Refresh-Token"}, "401": {"$ref": "#/components/responses/Unauthorized"}}
+      }
+    },
+    "/auth/biometric/enroll": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Widerrufbare Geräteberechtigung für biometrischen Login erstellen",
+        "security": [{"bearerAuth": []}],
+        "responses": {"201": {"description": "Geräteberechtigung erstellt"}, "401": {"$ref": "#/components/responses/Unauthorized"}}
+      }
+    },
+    "/auth/biometric": {
+      "delete": {
+        "tags": ["Auth"],
+        "summary": "Biometrische Geräteberechtigung widerrufen",
+        "security": [{"bearerAuth": []}],
+        "responses": {"204": {"description": "Geräteberechtigung widerrufen"}}
+      }
+    },
     "/auth/refresh": {
       "post": {
         "tags": ["Auth"],
@@ -258,7 +281,7 @@
       "put": {"tags": ["Spiele"], "summary": "Aufstellung und Formation speichern", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}], "responses": {"200": {"description": "Aufstellung gespeichert"}}}
     },
     "/matches/{id}/ticker": {
-      "get": {"tags": ["Spiele"], "summary": "Liveticker mit Sequenzstand lesen", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}], "responses": {"200": {"description": "Tickerzustand"}}}
+      "get": {"tags": ["Spiele"], "summary": "Liveticker mit Sequenzstand lesen", "description": "Optionales Long-Polling liefert neue Ereignisse nahezu unmittelbar; ohne waitMs bleibt das bisherige Sofort-Polling vollständig kompatibel.", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}, {"name": "after", "in": "query", "schema": {"type": "integer", "minimum": 0}, "description": "Letzte bereits bekannte Ereignissequenz"}, {"name": "waitMs", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 10000}, "description": "Maximale Wartezeit auf eine neuere oder zurückgesetzte Sequenz"}], "responses": {"200": {"description": "Tickerzustand"}}}
     },
     "/matches/{id}/ticker/events": {
       "post": {"tags": ["Spiele"], "summary": "Idempotentes Tickerkommando", "security": [{"bearerAuth": []}], "parameters": [{"$ref": "#/components/parameters/Id"}], "responses": {"201": {"description": "Ereignis erstellt"}, "200": {"description": "Bereits bekanntes Ereignis"}}}

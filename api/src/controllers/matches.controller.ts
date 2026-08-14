@@ -44,6 +44,10 @@ import { notifyUsers } from '../services/notification.service';
 import { settlePostCommitTasks } from '../services/post-commit.service';
 import { sendLiveTickerNotification } from '../services/live-ticker-notification.service';
 import {
+  publishLiveTickerUpdate,
+  waitForLiveTickerUpdate,
+} from '../services/live-ticker-realtime.service';
+import {
   AWAY_MEETING_LOCATION,
   HOME_MATCH_VENUE,
   normalizedMatchVenue,
@@ -2384,12 +2388,9 @@ function elapsed(ticker: {
   return ticker.elapsedSeconds + Math.max(0, Math.floor((Date.now() - ticker.clockStartedAt.getTime()) / 1000));
 }
 
-export async function getTicker(req: Request, res: Response) {
-  const match = await findAccessibleTickerMatch(req.params.id, req.user!);
-  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
-  const after = integer(req.query.after, 0, Number.MAX_SAFE_INTEGER, 0);
-  const ticker = await prisma.liveTicker.findUnique({
-    where: { eventId: match.id },
+function readTickerSnapshot(eventId: string, after: number) {
+  return prisma.liveTicker.findUnique({
+    where: { eventId },
     include: {
       events: {
         where: { sequence: { gt: after }, revokedAt: null },
@@ -2402,6 +2403,35 @@ export async function getTicker(req: Request, res: Response) {
       },
     },
   });
+}
+
+export async function getTicker(req: Request, res: Response) {
+  let match = await findAccessibleTickerMatch(req.params.id, req.user!);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const after = integer(req.query.after, 0, Number.MAX_SAFE_INTEGER, 0);
+  const waitMs = integer(req.query.waitMs, 0, 10_000, 0);
+  res.set('Cache-Control', 'private, no-store, no-transform');
+
+  let ticker = await readTickerSnapshot(match.id, after);
+  if (waitMs > 0 && (ticker?.lastSequence ?? 0) === after) {
+    await waitForLiveTickerUpdate({
+      eventId: match.id,
+      after,
+      waitMs,
+      readSequence: async () => {
+        const current = await prisma.liveTicker.findUnique({
+          where: { eventId: match!.id },
+          select: { lastSequence: true },
+        });
+        return current?.lastSequence ?? 0;
+      },
+    });
+    // Authorization and publication state can change while a request waits.
+    // Revalidate both before returning any family-facing data.
+    match = await findAccessibleTickerMatch(req.params.id, req.user!);
+    if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+    ticker = await readTickerSnapshot(match.id, after);
+  }
   if (!ticker) {
     return res.json({
       status: TickerStatus.NOT_STARTED,
@@ -2566,6 +2596,7 @@ export async function tickerCommand(req: Request, res: Response) {
     return { ticker, event, duplicate: false };
   });
   if (!result.duplicate) {
+    publishLiveTickerUpdate(match.id);
     await prisma.auditLog.create({
       data: {
         actorId: user.id,
@@ -2623,7 +2654,7 @@ export async function undoTickerEvent(req: Request, res: Response) {
     const duplicate = await tx.liveTickerEvent.findUnique({
       where: { tickerId_clientEventId: { tickerId: ticker.id, clientEventId } },
     });
-    if (duplicate) return duplicate;
+    if (duplicate) return { event: duplicate, duplicate: true };
     const fcWasHome = match.matchDetails?.isHome !== false;
     const ourGoal =
       (target.type === TickerEventType.HOME_GOAL && fcWasHome) ||
@@ -2639,7 +2670,7 @@ export async function undoTickerEvent(req: Request, res: Response) {
       where: { id: ticker.id },
       data: { ourGoals, theirGoals, lastSequence: sequence },
     });
-    return tx.liveTickerEvent.create({
+    const event = await tx.liveTickerEvent.create({
       data: {
         tickerId: ticker.id,
         clientEventId,
@@ -2654,21 +2685,25 @@ export async function undoTickerEvent(req: Request, res: Response) {
         comment: text(req.body?.comment, 500) ?? 'Letzte Aktion rückgängig gemacht',
       },
     });
+    return { event, duplicate: false };
   });
-  await prisma.auditLog.create({
-    data: {
-      actorId: user.id,
-      teamId: match.teamId,
-      action: 'LIVE_TICKER_CORRECTION',
-      entityType: 'LiveTickerEvent',
-      entityId: result.id,
-      metadata: { correctedEventId: target.id },
-    },
-  });
+  if (!result.duplicate) {
+    publishLiveTickerUpdate(match.id);
+    await prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: match.teamId,
+        action: 'LIVE_TICKER_CORRECTION',
+        entityType: 'LiveTickerEvent',
+        entityId: result.event.id,
+        metadata: { correctedEventId: target.id },
+      },
+    });
+  }
   if (ticker.status === TickerStatus.FINISHED) {
     await recalculateMatchStatistics(match.id);
   }
-  return res.json(result);
+  return res.json(result.event);
 }
 
 export async function resetTicker(req: Request, res: Response) {
@@ -2697,6 +2732,7 @@ export async function resetTicker(req: Request, res: Response) {
       },
     });
   });
+  publishLiveTickerUpdate(match.id);
 
   await prisma.auditLog.create({
     data: {

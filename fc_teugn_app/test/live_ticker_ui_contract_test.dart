@@ -4,10 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late String source;
+  late String repositorySource;
 
   setUpAll(() {
     source = File(
       'lib/features/matches/matchday_page.dart',
+    ).readAsStringSync();
+    repositorySource = File(
+      'lib/core/data_repository.dart',
     ).readAsStringSync();
   });
 
@@ -37,8 +41,13 @@ void main() {
   test('ticker refreshes incrementally and keeps writes off the full reload',
       () {
     expect(source, contains('after: previousSequence'));
+    expect(source, contains('waitForChanges: true'));
+    expect(source, contains('_runTickerRefreshLoop()'));
+    expect(source, isNot(contains('Duration(seconds: 4)')));
     expect(source, contains('onChanged: _refreshTicker'));
     expect(source, isNot(contains('onChanged: _load,')));
+    expect(repositorySource, contains("if (waitForChanges) 'waitMs': 8000"));
+    expect(repositorySource, contains("'Cache-Control': 'no-cache'"));
   });
 
   test('new confirmed goals trigger the matching shared live sound path', () {

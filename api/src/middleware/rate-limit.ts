@@ -11,7 +11,7 @@ function credentialFingerprint(req: Request) {
   const email = req.body?.email;
   const candidate = typeof email === 'string' && email.trim().length > 0
     ? email.trim().toLowerCase()
-    : [req.body?.requestId, req.body?.token]
+    : [req.body?.requestId, req.body?.token, req.body?.credential]
       .find((value) => typeof value === 'string' && value.trim().length > 0)
       ?.trim();
   if (!candidate) return null;
@@ -40,6 +40,7 @@ export function authRateLimit(req: Request, res: Response, next: NextFunction) {
     req.method !== 'POST' ||
     ![
       '/login',
+      '/biometric/login',
       '/register',
       '/password-reset/request',
       '/password-reset/exchange',

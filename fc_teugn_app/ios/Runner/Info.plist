@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Ein Spielerfoto direkt für das geschützte Mannschaftsprofil aufnehmen.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID ermöglicht die sichere Anmeldung bei FC Teugn Talents, ohne das Passwort erneut einzugeben.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Ein Spielerfoto für das geschützte Mannschaftsprofil auswählen.</string>
 	<key>UILaunchStoryboardName</key>

@@ -667,6 +667,7 @@ model User {
   consents                     UserConsent[]
   uploadedFileAssets           FileAsset[]              @relation("FileAssetUploader")
   refreshTokens                RefreshToken[]
+  biometricCredentials         BiometricCredential[]
   passwordResetTokens          PasswordResetToken[]
   createdTeamTasks             TeamTask[]               @relation("TeamTaskCreator")
   assignedTeamTasks            TeamTask[]               @relation("TeamTaskAssignee")
@@ -741,6 +742,20 @@ model RefreshToken {
 
   @@index([userId, revokedAt, expiresAt])
   @@index([familyId])
+}
+
+model BiometricCredential {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
 }
 
 model PasswordResetToken {

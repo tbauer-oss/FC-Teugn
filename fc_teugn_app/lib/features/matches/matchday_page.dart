@@ -55,7 +55,10 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   bool _showingCachedPreview = false;
   bool _refreshingTicker = false;
   String? _error;
-  Timer? _poller;
+  bool _tickerLoopRunning = false;
+  int _tickerLoopFailures = 0;
+  Timer? _tickerDelayTimer;
+  Completer<void>? _tickerDelayCompleter;
   int _loadRequest = 0;
   int _tournamentPlanningTab = 0;
   DateTime? _lastTickerConnectionAt;
@@ -65,17 +68,17 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   void initState() {
     super.initState();
     unawaited(_load());
-    if (!widget.tournamentPlanning) {
-      _poller = Timer.periodic(const Duration(seconds: 4), (_) {
-        if (mounted) unawaited(_refreshTicker());
-      });
-    }
+    unawaited(_runTickerRefreshLoop());
   }
 
   @override
   void dispose() {
-    _poller?.cancel();
     _loadRequest += 1;
+    _tickerDelayTimer?.cancel();
+    final tickerDelayCompleter = _tickerDelayCompleter;
+    if (tickerDelayCompleter != null && !tickerDelayCompleter.isCompleted) {
+      tickerDelayCompleter.complete();
+    }
     super.dispose();
   }
 
@@ -268,12 +271,61 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     }
   }
 
+  Future<void> _runTickerRefreshLoop() async {
+    if (_tickerLoopRunning || widget.tournamentPlanning) return;
+    _tickerLoopRunning = true;
+    try {
+      while (mounted && !widget.tournamentPlanning) {
+        if (_match == null) {
+          await _waitForTickerDelay(const Duration(milliseconds: 200));
+          continue;
+        }
+
+        final successful = await _refreshTickerRequest(waitForChanges: true);
+        if (!mounted) break;
+        if (successful) {
+          _tickerLoopFailures = 0;
+          // Yield briefly before opening the next long-poll request. The
+          // server keeps the preceding request open until an update arrives,
+          // so this does not introduce a visible polling delay.
+          await _waitForTickerDelay(const Duration(milliseconds: 75));
+          continue;
+        }
+
+        _tickerLoopFailures += 1;
+        const retrySeconds = [1, 2, 4, 8];
+        final retryDelay =
+            retrySeconds[min(_tickerLoopFailures - 1, retrySeconds.length - 1)];
+        await _waitForTickerDelay(Duration(seconds: retryDelay));
+      }
+    } finally {
+      _tickerLoopRunning = false;
+    }
+  }
+
+  Future<void> _waitForTickerDelay(Duration duration) {
+    final completer = Completer<void>();
+    _tickerDelayCompleter = completer;
+    _tickerDelayTimer = Timer(duration, () {
+      if (identical(_tickerDelayCompleter, completer)) {
+        _tickerDelayTimer = null;
+        _tickerDelayCompleter = null;
+      }
+      if (!completer.isCompleted) completer.complete();
+    });
+    return completer.future;
+  }
+
   Future<void> _refreshTicker() async {
+    await _refreshTickerRequest();
+  }
+
+  Future<bool> _refreshTickerRequest({bool waitForChanges = false}) async {
     if (widget.tournamentPlanning ||
         !mounted ||
         _match == null ||
         _refreshingTicker) {
-      return;
+      return false;
     }
     final repository = ref.read(repositoryProvider);
     final offlineQueue = ref.read(tickerOfflineQueueProvider);
@@ -285,8 +337,9 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       final incrementalTicker = await repository.ticker(
         matchId,
         after: previousSequence,
+        waitForChanges: waitForChanges,
       );
-      if (!mounted) return;
+      if (!mounted) return false;
       late final MatchdayModel updatedMatch;
       setState(() {
         final current = _match!;
@@ -339,6 +392,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           // Keep the live ticker usable even if local cache storage fails.
         }
       }
+      return true;
     } catch (error) {
       if (mounted && _isConnectivityFailure(error)) {
         setState(() {
@@ -352,6 +406,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           }
         });
       }
+      return false;
     } finally {
       _refreshingTicker = false;
     }

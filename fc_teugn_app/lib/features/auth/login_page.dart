@@ -229,6 +229,44 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                           )
                                         : const Text('Anmelden'),
                                   ),
+                                  if (authState.biometricLoginAvailable) ...[
+                                    const SizedBox(height: 14),
+                                    Row(
+                                      children: [
+                                        const Expanded(child: Divider()),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
+                                          child: Text(
+                                            'ODER',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelSmall
+                                                ?.copyWith(
+                                                  color: AppColors.muted,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                          ),
+                                        ),
+                                        const Expanded(child: Divider()),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 14),
+                                    OutlinedButton.icon(
+                                      key: const ValueKey('biometric-login'),
+                                      onPressed: authState.loading
+                                          ? null
+                                          : _biometricLogin,
+                                      icon: const Icon(Icons.fingerprint),
+                                      label: Text(
+                                        authState.biometricAccountLabel == null
+                                            ? 'Mit Biometrie anmelden'
+                                            : 'Mit Biometrie anmelden\n${authState.biometricAccountLabel}',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 10),
                                   const Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
@@ -293,6 +331,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (signedIn) {
       TextInput.finishAutofillContext(shouldSave: true);
     }
+  }
+
+  Future<void> _biometricLogin() async {
+    await ref.read(authProvider.notifier).unlockWithBiometrics();
   }
 
   Future<void> _showForgotPassword() async {

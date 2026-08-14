@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../core/api_client.dart';
+import '../../core/biometric_auth/biometric_auth.dart';
 import '../../core/loading/loading_controller.dart';
 import '../../core/models/user.dart';
 import '../../core/offline_outbox.dart';
@@ -16,12 +17,16 @@ class AuthState {
   final String? accessToken;
   final bool loading;
   final String? error;
+  final bool biometricLoginAvailable;
+  final String? biometricAccountLabel;
 
   AuthState({
     this.user,
     this.accessToken,
     this.loading = false,
     this.error,
+    this.biometricLoginAvailable = false,
+    this.biometricAccountLabel,
   });
 
   AuthState copyWith({
@@ -29,25 +34,50 @@ class AuthState {
     String? accessToken,
     bool? loading,
     String? error,
+    bool? biometricLoginAvailable,
+    String? biometricAccountLabel,
   }) {
     return AuthState(
       user: user ?? this.user,
       accessToken: accessToken ?? this.accessToken,
       loading: loading ?? this.loading,
       error: error,
+      biometricLoginAvailable:
+          biometricLoginAvailable ?? this.biometricLoginAvailable,
+      biometricAccountLabel:
+          biometricAccountLabel ?? this.biometricAccountLabel,
     );
   }
 }
 
+class BiometricLoginSettings {
+  const BiometricLoginSettings({
+    required this.capability,
+    required this.enabled,
+  });
+
+  final BiometricCapability capability;
+  final bool enabled;
+}
+
 class AuthController extends StateNotifier<AuthState> {
-  AuthController({AppLoadingController? loadingController})
-      : _loadingController = loadingController,
+  AuthController({
+    AppLoadingController? loadingController,
+    FlutterSecureStorage? storage,
+    BiometricAuthenticator? biometricAuthenticator,
+  })  : _loadingController = loadingController,
+        _storage = storage ?? const FlutterSecureStorage(),
+        _biometricAuthenticator =
+            biometricAuthenticator ?? createBiometricAuthenticator(),
         super(AuthState(loading: true)) {
     unawaited(_restore());
   }
 
   static const _refreshTokenKey = 'fc_teugn_refresh_token';
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  static const _biometricCredentialKey = 'fc_teugn_biometric_credential';
+  static const _biometricAccountKey = 'fc_teugn_biometric_account';
+  final FlutterSecureStorage _storage;
+  final BiometricAuthenticator _biometricAuthenticator;
   final AppLoadingController? _loadingController;
   Future<String?>? _refreshing;
   String? _refreshTokenCache;
@@ -65,6 +95,11 @@ class AuthController extends StateNotifier<AuthState> {
       final user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
       final token = data['accessToken'] as String;
       await _storeRefreshToken(data['refreshToken'] as String);
+      final biometricAccount = await _readBiometricAccount();
+      if (biometricAccount != null &&
+          biometricAccount.toLowerCase() != user.email.toLowerCase()) {
+        await _clearBiometricPreference();
+      }
       state = AuthState(user: user, accessToken: token, loading: false);
       return true;
     } catch (e) {
@@ -200,6 +235,7 @@ class AuthController extends StateNotifier<AuthState> {
       final user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
       final token = data['accessToken'] as String;
       await _storeRefreshToken(data['refreshToken'] as String);
+      await _clearBiometricPreference();
       state = AuthState(user: user, accessToken: token, loading: false);
     } catch (e) {
       state = state.copyWith(
@@ -240,7 +276,9 @@ class AuthController extends StateNotifier<AuthState> {
       await GeneralOfflineOutbox().clearUser(userId);
       await TickerOfflineQueue().clearUser(userId);
     }
-    state = AuthState();
+    if (!await _prepareBiometricLogin()) {
+      state = AuthState();
+    }
   }
 
   Future<String> updateOwnProfile({
@@ -268,6 +306,9 @@ class AuthController extends StateNotifier<AuthState> {
           ),
           error: null,
         );
+      }
+      if (await _isBiometricLoginEnabled()) {
+        await _storage.write(key: _biometricAccountKey, value: email);
       }
       return 'Deine persönlichen Daten wurden gespeichert.';
     } catch (error) {
@@ -303,6 +344,7 @@ class AuthController extends StateNotifier<AuthState> {
   void clearSession() {
     final userId = state.user?.id;
     unawaited(_deleteStoredToken());
+    unawaited(_clearBiometricPreference());
     unawaited(nativePushService.disable(forgetPreference: false));
     if (userId != null) {
       unawaited(GeneralOfflineOutbox().clearUser(userId));
@@ -379,6 +421,7 @@ class AuthController extends StateNotifier<AuthState> {
       final token = await refreshAccessToken();
       if (token != null || !mounted) return;
       if (_refreshFailureInvalidatesSession) {
+        if (await _prepareBiometricLogin()) return;
         state = AuthState();
         return;
       }
@@ -401,6 +444,189 @@ class AuthController extends StateNotifier<AuthState> {
     if (state.user != null) return;
     state = AuthState(loading: true);
     await _restore();
+  }
+
+  Future<BiometricLoginSettings> biometricLoginSettings() async {
+    final capability = await _biometricAuthenticator.capability();
+    return BiometricLoginSettings(
+      capability: capability,
+      enabled: await _isBiometricLoginEnabled(),
+    );
+  }
+
+  Future<String> enableBiometricLogin() async {
+    final user = state.user;
+    if (user == null) {
+      throw Exception('Bitte melde dich zuerst mit deinem Passwort an.');
+    }
+    final capability = await _biometricAuthenticator.capability();
+    if (capability == BiometricCapability.notEnrolled) {
+      throw Exception(
+        'Auf diesem Gerät ist noch kein Fingerabdruck bzw. keine Gesichtserkennung eingerichtet.',
+      );
+    }
+    if (capability != BiometricCapability.available) {
+      throw Exception(
+        'Biometrischer Login wird auf diesem Gerät nicht unterstützt.',
+      );
+    }
+    final result = await _biometricAuthenticator.authenticate(
+      reason: 'Biometrischen Login für FC Teugn Talents aktivieren',
+    );
+    if (result != BiometricAuthenticationResult.authenticated) {
+      throw Exception(_biometricFailureMessage(result));
+    }
+    final response = await _client.dio.post('/auth/biometric/enroll');
+    final data = response.data as Map<String, dynamic>;
+    final credential = data['credential'] as String?;
+    if (credential == null || credential.isEmpty) {
+      throw Exception(
+        'Die biometrische Geräteberechtigung konnte nicht erstellt werden.',
+      );
+    }
+    await _storage.write(key: _biometricCredentialKey, value: credential);
+    await _storage.write(key: _biometricAccountKey, value: user.email);
+    return 'Biometrischer Login ist auf diesem Gerät aktiviert.';
+  }
+
+  Future<String> disableBiometricLogin() async {
+    await _disableBiometricLoginOnServer();
+    await _clearBiometricPreference();
+    return 'Biometrischer Login ist auf diesem Gerät deaktiviert.';
+  }
+
+  Future<bool> unlockWithBiometrics() async {
+    if (state.loading || !state.biometricLoginAvailable) return false;
+    final accountLabel = state.biometricAccountLabel;
+    state = AuthState(
+      loading: true,
+      biometricLoginAvailable: true,
+      biometricAccountLabel: accountLabel,
+    );
+    final result = await _biometricAuthenticator.authenticate(
+      reason: 'Bei FC Teugn Talents anmelden',
+    );
+    if (result != BiometricAuthenticationResult.authenticated) {
+      state = AuthState(
+        biometricLoginAvailable: true,
+        biometricAccountLabel: accountLabel,
+        error: _biometricFailureMessage(result),
+      );
+      return false;
+    }
+
+    final credential = await _readBiometricCredential();
+    if (credential == null) {
+      await _clearBiometricPreference();
+      state = AuthState(
+        error:
+            'Die biometrische Geräteberechtigung fehlt. Bitte melde dich einmal mit deinem Passwort an.',
+      );
+      return false;
+    }
+    try {
+      final response =
+          await ApiClient(loadingController: _loadingController).dio.post(
+        '/auth/biometric/login',
+        data: {'credential': credential},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+      await _storeRefreshToken(data['refreshToken'] as String);
+      state = AuthState(
+        user: user,
+        accessToken: data['accessToken'] as String,
+      );
+      return true;
+    } catch (error) {
+      final invalidCredential = error is DioException &&
+          (error.response?.statusCode == 401 ||
+              error.response?.statusCode == 403);
+      if (invalidCredential) {
+        await _clearBiometricPreference();
+        state = AuthState(
+          error:
+              'Der biometrische Login ist abgelaufen. Bitte melde dich einmal mit deinem Passwort an und aktiviere ihn erneut.',
+        );
+      } else {
+        state = AuthState(
+          biometricLoginAvailable: true,
+          biometricAccountLabel: accountLabel,
+          error:
+              'Der biometrische Login konnte gerade nicht abgeschlossen werden. Bitte prüfe die Verbindung oder nutze dein Passwort.',
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<bool> _prepareBiometricLogin() async {
+    if (!await _isBiometricLoginEnabled()) return false;
+    final account = await _readBiometricAccount();
+    state = AuthState(
+      biometricLoginAvailable: true,
+      biometricAccountLabel: account,
+    );
+    return true;
+  }
+
+  Future<bool> _isBiometricLoginEnabled() async {
+    return await _readBiometricCredential() != null;
+  }
+
+  Future<String?> _readBiometricCredential() async {
+    try {
+      final credential = await _storage.read(key: _biometricCredentialKey);
+      return credential?.trim().isEmpty == true ? null : credential;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> _readBiometricAccount() async {
+    try {
+      final account = await _storage.read(key: _biometricAccountKey);
+      return account?.trim().isEmpty == true ? null : account;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _clearBiometricPreference() async {
+    try {
+      await _storage.delete(key: _biometricCredentialKey);
+      await _storage.delete(key: _biometricAccountKey);
+    } catch (_) {}
+  }
+
+  Future<void> _disableBiometricLoginOnServer() async {
+    final credential = await _readBiometricCredential();
+    final accessToken = state.accessToken;
+    if (credential == null || accessToken == null) return;
+    try {
+      await ApiClient(
+        accessToken: accessToken,
+        loadingController: _loadingController,
+      ).dio.delete(
+        '/auth/biometric',
+        data: {'credential': credential},
+      );
+    } catch (_) {
+      // Die lokale Berechtigung wird trotzdem entfernt. Serverseitig läuft
+      // ein nicht mehr zugänglicher Schlüssel automatisch aus.
+    }
+  }
+
+  String _biometricFailureMessage(BiometricAuthenticationResult result) {
+    return switch (result) {
+      BiometricAuthenticationResult.cancelled =>
+        'Biometrische Anmeldung wurde abgebrochen.',
+      BiometricAuthenticationResult.unavailable =>
+        'Biometrie ist aktuell nicht verfügbar. Nutze bitte dein Passwort.',
+      BiometricAuthenticationResult.failed =>
+        'Biometrie konnte dich nicht bestätigen. Versuche es erneut oder nutze dein Passwort.',
+      BiometricAuthenticationResult.authenticated => '',
+    };
   }
 
   Future<void> _storeRefreshToken(String token) async {
