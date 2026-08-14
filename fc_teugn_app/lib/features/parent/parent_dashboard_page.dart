@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import '../shared/dashboard_notifications.dart';
+import '../shared/dashboard_event_navigation.dart';
 import '../shared/family_responses.dart';
 import '../privacy/parent_consent_prompt.dart';
 
@@ -184,11 +185,7 @@ class _ParentEventRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final date = event.startAt.toLocal();
-    final route = event.type == EventType.match
-        ? event.category.isTournament
-            ? '/parent/matches'
-            : '/parent/matches/${event.id}'
-        : '/parent/events';
+    final route = dashboardEventRoute(event: event, isTrainer: false);
     final details = [
       '${date.day}.${date.month}.${date.year}',
       '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} Uhr',
@@ -198,9 +195,7 @@ class _ParentEventRow extends StatelessWidget {
         .where((reply) => reply.status == AttendanceStatus.unknown)
         .length;
     return InkWell(
-      onTap: () => event.type == EventType.match
-          ? context.push(route)
-          : context.go(route),
+      onTap: () => context.go(route),
       borderRadius: BorderRadius.circular(14),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),

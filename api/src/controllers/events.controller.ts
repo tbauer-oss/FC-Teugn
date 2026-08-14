@@ -44,6 +44,7 @@ import {
   reminderRecipientsForEvent,
   syncScheduledRemindersForEvent,
 } from '../services/reminder.service';
+import { ensureNextRegularTrainingOccurrences } from '../services/regular-training-occurrence.service';
 import { mediaAssetUrl } from '../services/media-access';
 import { notifyUsers } from '../services/notification.service';
 import {
@@ -1016,12 +1017,14 @@ export async function listPersonalResponses(req: Request, res: Response) {
   if (!playerIds.length || !teamIds.length) return res.json([]);
 
   const now = new Date();
+  await ensureNextRegularTrainingOccurrences(teamIds, now);
   const from = validDate(req.query.from) ?? new Date(now.getTime() - 30 * 86_400_000);
   const to = validDate(req.query.to) ?? new Date(now.getTime() + 370 * 86_400_000);
   const events = await prisma.event.findMany({
     where: {
       parentTournamentId: null,
       status: { in: [EventStatus.SCHEDULED, EventStatus.CANCELLED] },
+      isHiddenRegularOccurrence: false,
       visibility: { not: EventVisibility.STAFF_ONLY },
       startAt: { gte: from, lte: to },
       OR: [
@@ -1143,6 +1146,7 @@ export async function listEvents(req: Request, res: Response) {
       : req.query.categories,
   ).filter((value) => Object.values(EventCategory).includes(value as EventCategory));
 
+  await ensureNextRegularTrainingOccurrences(effectiveTeams);
   const [events, roster, personalPlayerIds] = await Promise.all([
     prisma.event.findMany({
       where: {

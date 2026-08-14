@@ -42,6 +42,54 @@ test('family response endpoint is role-independent and auditable', () => {
   assert.match(events, /responderRelationship/);
 });
 
+test('family response inbox materializes only the next regular training', () => {
+  const {
+    nextRegularTrainingOccurrence,
+  } = require('../dist/src/services/regular-training-occurrence.service');
+  const team = {
+    id: 'team-e1',
+    name: 'E1-Jugend',
+    trainingLocation: 'Teugn Sportplatz',
+    trainingTimes: ['Dienstag 17:30–19:00 · Platz: Platz 1 unten'],
+    seasonStartDate: new Date('2026-08-18T00:00:00.000Z'),
+    seasonEndDate: new Date('2027-06-30T00:00:00.000Z'),
+    indoorSeasonStartDate: null,
+    indoorSeasonEndDate: null,
+    indoorTrainingLocation: null,
+    indoorTrainingTimes: [],
+    ageGroup: {
+      season: {
+        name: '2026/27',
+        startDate: new Date('2026-08-01T00:00:00.000Z'),
+        endDate: new Date('2027-06-30T00:00:00.000Z'),
+      },
+    },
+  };
+
+  const first = nextRegularTrainingOccurrence(
+    team,
+    new Date('2026-08-14T10:00:00.000Z'),
+  );
+  const following = nextRegularTrainingOccurrence(
+    team,
+    new Date('2026-08-18T16:00:00.000Z'),
+  );
+
+  assert.equal(first.startAt.toISOString(), '2026-08-18T15:30:00.000Z');
+  assert.equal(first.endAt.toISOString(), '2026-08-18T17:00:00.000Z');
+  assert.equal(first.location, 'Platz 1 unten');
+  assert.equal(following.startAt.toISOString(), '2026-08-25T15:30:00.000Z');
+
+  const events = source('src/controllers/events.controller.ts');
+  const occurrenceService = source(
+    'src/services/regular-training-occurrence.service.ts',
+  );
+  assert.match(events, /ensureNextRegularTrainingOccurrences\(teamIds, now\)/);
+  assert.match(events, /isHiddenRegularOccurrence:\s*false/);
+  assert.match(occurrenceService, /regular-training:\$\{occurrence\.teamId\}/);
+  assert.match(occurrenceService, /isSeriesException:\s*true/);
+});
+
 test('published cross-team nominations grant access to exactly that event', () => {
   const { eventReadScope } = require('../dist/src/services/team-access');
   const scope = eventReadScope(['team-e2'], { playerIds: ['player-e2'] });

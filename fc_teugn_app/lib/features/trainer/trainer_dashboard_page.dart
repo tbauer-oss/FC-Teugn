@@ -14,6 +14,7 @@ import '../../core/widgets/adaptive_layout.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import '../shared/dashboard_notifications.dart';
+import '../shared/dashboard_event_navigation.dart';
 import '../shared/family_responses.dart';
 
 class TrainerDashboardPage extends ConsumerWidget {
@@ -29,6 +30,17 @@ class TrainerDashboardPage extends ConsumerWidget {
     final organization = ref.watch(organizationProvider).valueOrNull;
     final notifications =
         ref.watch(liveNotificationsProvider).valueOrNull ?? const [];
+    final personalResponseEventIds = ref
+            .watch(personalResponsesProvider)
+            .valueOrNull
+            ?.map((response) => response.eventId)
+            .toSet() ??
+        const <String>{};
+    String eventRoute(EventModel event) => dashboardEventRoute(
+          event: event,
+          isTrainer: true,
+          personalResponseEventIds: personalResponseEventIds,
+        );
     final team = organization?.currentTeam;
     final teamId = team?.id;
     final contextTeamIds = organization?.workingContext.teamIds.toSet() ??
@@ -81,6 +93,7 @@ class TrainerDashboardPage extends ConsumerWidget {
       overdueTasks: overdueTasks,
       openTasks: openTasks,
       now: now,
+      eventRoute: eventRoute,
     );
 
     return PageScaffold(
@@ -107,7 +120,11 @@ class TrainerDashboardPage extends ConsumerWidget {
             const PersonalResponsesCard(isTrainer: true),
             const SizedBox(height: 12),
           ],
-          _NextEventHero(event: nextEvent, now: now),
+          _NextEventHero(
+            event: nextEvent,
+            now: now,
+            eventRoute: eventRoute,
+          ),
           const SizedBox(height: 12),
           _StatusGrid(
             playersLoading: players.isLoading,
@@ -116,6 +133,7 @@ class TrainerDashboardPage extends ConsumerWidget {
             injuredPlayers: injuredPlayers,
             nextEvent: nextEvent,
             totalOpen: totalOpen,
+            nextEventRoute: nextEvent == null ? null : eventRoute(nextEvent),
             onRetryPlayers: () => ref.invalidate(playersProvider),
           ),
           if (players.hasError) ...[
@@ -128,8 +146,10 @@ class TrainerDashboardPage extends ConsumerWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final priorityCard = _PriorityCard(items: priorities);
-              final agendaCard =
-                  _AgendaCard(events: nextEvents.skip(1).toList());
+              final agendaCard = _AgendaCard(
+                events: nextEvents.skip(1).toList(),
+                eventRoute: eventRoute,
+              );
               if (constraints.maxWidth < 780) {
                 return Column(
                   children: [
@@ -177,6 +197,7 @@ class TrainerDashboardPage extends ConsumerWidget {
     required List<TeamTaskModel> overdueTasks,
     required List<TeamTaskModel> openTasks,
     required DateTime now,
+    required String Function(EventModel event) eventRoute,
   }) {
     final items = <_DashboardPriority>[];
     if (openResponses > 0 && nextEvent != null) {
@@ -186,7 +207,7 @@ class TrainerDashboardPage extends ConsumerWidget {
           color: AppColors.gold,
           title: '$openResponses Rückmeldungen fehlen',
           subtitle: 'Für „${nextEvent.title}“ Zu- und Absagen prüfen',
-          route: _eventRoute(nextEvent),
+          route: eventRoute(nextEvent),
         ),
       );
     }
@@ -221,7 +242,7 @@ class TrainerDashboardPage extends ConsumerWidget {
           color: AppColors.gold,
           title: 'Spieltag vorbereiten',
           subtitle: '${nextMatch.title} · Kader und Aufstellung prüfen',
-          route: _eventRoute(nextMatch),
+          route: eventRoute(nextMatch),
         ),
       );
     }
@@ -376,10 +397,15 @@ class AdminMemberRequestsCard extends StatelessWidget {
 }
 
 class _NextEventHero extends StatelessWidget {
-  const _NextEventHero({required this.event, required this.now});
+  const _NextEventHero({
+    required this.event,
+    required this.now,
+    required this.eventRoute,
+  });
 
   final EventModel? event;
   final DateTime now;
+  final String Function(EventModel event) eventRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -392,7 +418,7 @@ class _NextEventHero extends StatelessWidget {
           if (current == null) {
             context.go('/trainer/events');
           } else {
-            context.push(_eventRoute(current));
+            context.push(eventRoute(current));
           }
         },
         borderRadius: BorderRadius.circular(22),
@@ -622,6 +648,7 @@ class _StatusGrid extends StatelessWidget {
     required this.injuredPlayers,
     required this.nextEvent,
     required this.totalOpen,
+    required this.nextEventRoute,
     required this.onRetryPlayers,
   });
 
@@ -631,6 +658,7 @@ class _StatusGrid extends StatelessWidget {
   final int injuredPlayers;
   final EventModel? nextEvent;
   final int totalOpen;
+  final String? nextEventRoute;
   final VoidCallback onRetryPlayers;
 
   @override
@@ -671,7 +699,7 @@ class _StatusGrid extends StatelessWidget {
               color: AppColors.success,
               onTap: nextEvent == null
                   ? () => context.go('/trainer/events')
-                  : () => context.push(_eventRoute(nextEvent!)),
+                  : () => context.push(nextEventRoute!),
             ),
             _StatusItem(
               label: 'Jetzt offen',
@@ -898,9 +926,10 @@ class _AllDoneState extends StatelessWidget {
 }
 
 class _AgendaCard extends StatelessWidget {
-  const _AgendaCard({required this.events});
+  const _AgendaCard({required this.events, required this.eventRoute});
 
   final List<EventModel> events;
+  final String Function(EventModel event) eventRoute;
 
   @override
   Widget build(BuildContext context) => _DashboardSection(
@@ -920,7 +949,10 @@ class _AgendaCard extends StatelessWidget {
             : Column(
                 children: [
                   for (var index = 0; index < events.length; index++) ...[
-                    _AgendaRow(event: events[index]),
+                    _AgendaRow(
+                      event: events[index],
+                      route: eventRoute(events[index]),
+                    ),
                     if (index < events.length - 1)
                       const Divider(height: 1, indent: 45),
                   ],
@@ -930,13 +962,14 @@ class _AgendaCard extends StatelessWidget {
 }
 
 class _AgendaRow extends StatelessWidget {
-  const _AgendaRow({required this.event});
+  const _AgendaRow({required this.event, required this.route});
 
   final EventModel event;
+  final String route;
 
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: () => context.push(_eventRoute(event)),
+        onTap: () => context.push(route),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1154,16 +1187,6 @@ class _PlayerLoadFailure extends StatelessWidget {
         ),
       );
 }
-
-String _eventRoute(EventModel event) => switch (event.type) {
-      EventType.match => event.category.isTournament
-          ? '/trainer/matches'
-          : '/trainer/matches/${event.id}',
-      EventType.training => event.id.startsWith('training-plan:')
-          ? '/trainer/events'
-          : '/trainer/training/${event.id}',
-      EventType.event => '/trainer/events',
-    };
 
 List<EventModel> _dashboardEvents(
   List<EventModel> stored,
