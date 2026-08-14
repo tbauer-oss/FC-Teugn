@@ -15,6 +15,7 @@ import {
   NotificationCategory,
 } from '@prisma/client';
 import { notifyUsers } from '../services/notification.service';
+import { notifyPendingRegistrationAdministrators } from '../services/registration-notification.service';
 import { isRecentRefreshRotation } from '../lib/session-refresh';
 
 const refreshLifetimeMs = 30 * 24 * 60 * 60 * 1000;
@@ -382,6 +383,18 @@ export async function register(req: Request, res: Response) {
       pushOptIn: true,
     },
   });
+
+  if (user.status === AccountStatus.PENDING && registrationRequest) {
+    await notifyPendingRegistrationAdministrators({
+      registrationRequestId: registrationRequest.id,
+      applicantName: user.name,
+    }).catch((error) => {
+      console.error(
+        'Systemadministration konnte nicht über die Registrierung informiert werden.',
+        error,
+      );
+    });
+  }
 
   return res.status(201).json({
     user: {

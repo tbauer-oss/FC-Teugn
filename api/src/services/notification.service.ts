@@ -239,6 +239,12 @@ export function externalPushPreview(notification: {
   ) {
     return { title: notification.title, body: notification.body };
   }
+  if (category === NotificationCategory.REGISTRATION) {
+    return {
+      title: 'Neue Registrierung',
+      body: 'Eine neue Registrierung wartet auf deine Freigabe.',
+    };
+  }
   const body = category === NotificationCategory.EVENT_REMINDER
     ? 'Eine neue Terminerinnerung ist in der App verfügbar.'
     : category === NotificationCategory.MATCH ||
