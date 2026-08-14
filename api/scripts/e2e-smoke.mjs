@@ -608,9 +608,20 @@ assert(
     seasonScorer?.career?.goals >= seasonScorer?.goals,
   'Season statistics or the career comparison are incomplete',
 );
-const scorerProfile = await request(`/players/${playerId}`, {
-  headers: auth(trainerToken),
-});
+let scorerProfile;
+for (let attempt = 0; attempt < 20; attempt += 1) {
+  scorerProfile = await request(`/players/${playerId}`, {
+    headers: auth(trainerToken),
+  });
+  const seasonStatisticsReady = scorerProfile.statisticsBySeason?.some(
+    (season) =>
+      season.seasonId === activeSeason.id &&
+      season.goals >= 1 &&
+      season.appearances >= 1,
+  );
+  if (seasonStatisticsReady) break;
+  await new Promise((resolve) => setTimeout(resolve, 250));
+}
 assert(
   scorerProfile.statistics?.goals >= 1,
   'Ticker goals are missing from the player profile',
