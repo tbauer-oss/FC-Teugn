@@ -98,22 +98,17 @@ const approval = await request(
     status: 'APPROVED',
     role: 'PARENT',
     teamIds: [teamId],
+    guardianLinks: [
+      {
+        playerId,
+        relationship: 'GUARDIAN',
+      },
+    ],
     reviewStatus: 'COMPLETED',
     adminNote: 'Automatisierte E2E-Abnahme',
   }),
 );
 assert(approval.status === 'APPROVED', 'Parent approval failed');
-
-// 3. Admin ordnet das Elternteil einem Spieler zu.
-await request(
-  '/admin/assign-parent-player',
-  json('POST', trainerToken, {
-    parentId: registration.user.id,
-    playerId,
-    relationship: 'GUARDIAN',
-    isLegalGuardian: true,
-  }),
-);
 
 const [parentClientAToken, parentClientBToken] = await Promise.all([
   login(parentEmail),
