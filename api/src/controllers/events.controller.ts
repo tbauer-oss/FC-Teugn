@@ -1862,15 +1862,6 @@ export async function deleteEvent(req: Request, res: Response) {
   if (
     permanent &&
     existing.category === EventCategory.TRAINING &&
-    existing.status !== EventStatus.CANCELLED
-  ) {
-    return res.status(409).json({
-      message: 'Ein Training muss zuerst abgesagt werden, bevor es endgültig gelöscht werden kann.',
-    });
-  }
-  if (
-    permanent &&
-    existing.category === EventCategory.TRAINING &&
     existing.status === EventStatus.CANCELLED &&
     existing.isSeriesException
   ) {

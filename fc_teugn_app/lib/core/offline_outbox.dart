@@ -73,6 +73,11 @@ class GeneralOfflineOutbox {
           .whereType<Map<String, dynamic>>()
           .map(QueuedApiWrite.fromJson)
           .where((item) => item.createdAt.isAfter(cutoff))
+          // Freigaben und Trainingsplanänderungen sind Verwaltungsaktionen.
+          // Sie dürfen nach einem Antwort-Timeout nie später unbemerkt erneut
+          // abgespielt werden, weil der Server sie bereits ausgeführt haben
+          // kann oder inzwischen ein neuerer Plan gespeichert wurde.
+          .where(_isSafeToReplay)
           .toList()
         ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
       await _write(userId, values);
@@ -105,6 +110,20 @@ class GeneralOfflineOutbox {
   }
 
   Future<void> clearUser(String userId) => _storage.delete(key: _key(userId));
+
+  bool _isSafeToReplay(QueuedApiWrite write) {
+    final path = write.path.split('?').first;
+    if (path == '/admin/approve') return false;
+    if (RegExp(r'^/organization/teams/[^/]+/training-schedule$')
+        .hasMatch(path)) {
+      return false;
+    }
+    if (write.method == 'PATCH' &&
+        RegExp(r'^/organization/teams/[^/]+$').hasMatch(path)) {
+      return false;
+    }
+    return true;
+  }
 
   Future<int> synchronize(Dio dio, String userId) async {
     if (_syncing) return 0;

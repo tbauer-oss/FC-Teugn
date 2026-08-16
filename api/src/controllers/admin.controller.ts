@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'crypto';
 import {
   AccountStatus,
   GuardianRelationship,
+  NotificationCategory,
   PermissionOverrideState,
   Prisma,
   RegistrationReviewStatus,
@@ -1034,6 +1035,18 @@ export async function approveUser(req: Request, res: Response) {
           },
         },
       });
+      if (nextStatus !== AccountStatus.PENDING) {
+        // Die Registrierungs-Pushmeldung darf nach einer abgeschlossenen
+        // Prüfung nicht weiter als offene Aufgabe im Dashboard erscheinen.
+        await tx.notification.updateMany({
+          where: {
+            category: NotificationCategory.REGISTRATION,
+            entityId: registration.id,
+            readAt: null,
+          },
+          data: { readAt: new Date() },
+        });
+      }
     }
     await tx.auditLog.create({
       data: {

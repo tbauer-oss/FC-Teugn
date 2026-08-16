@@ -4,7 +4,11 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:fc_teugn_app/core/api_client.dart';
+import 'package:fc_teugn_app/core/data_repository.dart';
 import 'package:fc_teugn_app/core/loading/loading_controller.dart';
+import 'package:fc_teugn_app/core/models/user.dart';
+import 'package:fc_teugn_app/core/offline_outbox.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -109,6 +113,80 @@ void main() {
       throwsA(isA<DioException>()),
     );
     expect(getCalls, 1);
+  });
+
+  test('member approval retries safely but is never put into offline outbox',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    var postCalls = 0;
+    final idempotencyKeys = <String?>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      postCalls++;
+      idempotencyKeys.add(request.headers.value('x-idempotency-key'));
+      request.response.statusCode = HttpStatus.serviceUnavailable;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({'message': 'warming up'}));
+      await request.response.close();
+    });
+    final outbox = GeneralOfflineOutbox();
+    final client = ApiClient(
+      baseUrl: 'http://${server.address.host}:${server.port}',
+      offlineOutbox: outbox,
+      userId: 'admin-1',
+    );
+    final repository = DataRepository(client);
+
+    await expectLater(
+      repository.approveUser(
+        'pending-1',
+        status: AccountStatus.approved,
+      ),
+      throwsA(isA<DioException>()),
+    );
+
+    expect(postCalls, 3);
+    final uniqueIdempotencyKeys = idempotencyKeys.toSet();
+    expect(uniqueIdempotencyKeys, hasLength(1));
+    expect(uniqueIdempotencyKeys.single, isNotEmpty);
+    expect(await outbox.pending('admin-1'), isEmpty);
+  });
+
+  test('legacy queued admin and schedule writes are discarded', () async {
+    final now = DateTime.now().toUtc().toIso8601String();
+    FlutterSecureStorage.setMockInitialValues({
+      'fc_teugn_general_outbox_v1_admin-2': jsonEncode([
+        {
+          'id': 'approval',
+          'method': 'POST',
+          'path': '/admin/approve',
+          'query': <String, dynamic>{},
+          'data': {'userId': 'pending-1'},
+          'createdAt': now,
+        },
+        {
+          'id': 'schedule',
+          'method': 'PATCH',
+          'path': '/organization/teams/e1/training-schedule',
+          'query': <String, dynamic>{},
+          'data': {'trainingTimes': const []},
+          'createdAt': now,
+        },
+        {
+          'id': 'attendance',
+          'method': 'PUT',
+          'path': '/events/event-1/attendance/player-1',
+          'query': <String, dynamic>{},
+          'data': {'status': 'YES'},
+          'createdAt': now,
+        },
+      ]),
+    });
+
+    final pending = await GeneralOfflineOutbox().pending('admin-2');
+
+    expect(pending.map((write) => write.id), ['attendance']);
   });
 
   test('routine writes use one non-blocking loading operation', () async {

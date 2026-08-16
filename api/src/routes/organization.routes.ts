@@ -66,7 +66,6 @@ router.patch(
   requireAuth,
   requireApproved,
   idempotencyMiddleware,
-  requirePermission(Permission.MANAGE_ORGANIZATION),
   updateTrainingSchedule,
 );
 router.post(

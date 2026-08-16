@@ -86,7 +86,11 @@ test('family response inbox materializes only the next regular training', () => 
   );
   assert.match(events, /ensureNextRegularTrainingOccurrences\(teamIds, now\)/);
   assert.match(events, /isHiddenRegularOccurrence:\s*false/);
-  assert.match(occurrenceService, /regular-training:\$\{occurrence\.teamId\}/);
+  assert.match(occurrenceService, /regular-training:\$\{team\.id\}/);
+  assert.match(
+    occurrenceService,
+    /reconcileNextRegularTrainingOccurrence\(prisma, team, now\)/,
+  );
   assert.match(occurrenceService, /isSeriesException:\s*true/);
 });
 

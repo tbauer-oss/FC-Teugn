@@ -1092,6 +1092,12 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
   }
   const trainingLocation = optionalText(req.body.trainingLocation, 200);
   const trainingTimes = stringList(req.body.trainingTimes, 14, 100);
+  const indoorTrainingLocation = req.body.indoorTrainingLocation === undefined
+    ? undefined
+    : optionalText(req.body.indoorTrainingLocation, 200);
+  const indoorTrainingTimes = req.body.indoorTrainingTimes === undefined
+    ? undefined
+    : stringList(req.body.indoorTrainingTimes, 14, 100);
   const matchdayTimes = stringList(req.body.matchdayTimes, 14, 100);
   const reminderValue = req.body.defaultReminderMinutes;
   const defaultReminderMinutes = reminderValue === undefined
@@ -1179,6 +1185,12 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
       data: {
         trainingLocation,
         trainingTimes,
+        ...(indoorTrainingLocation !== undefined
+          ? { indoorTrainingLocation }
+          : {}),
+        ...(indoorTrainingTimes !== undefined
+          ? { indoorTrainingTimes }
+          : {}),
         trainingPartnerIds,
         matchdayTimes,
         ...(defaultReminderMinutes !== undefined
@@ -1208,6 +1220,8 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
           before: {
             trainingLocation: existing.trainingLocation,
             trainingTimes: existing.trainingTimes,
+            indoorTrainingLocation: existing.indoorTrainingLocation,
+            indoorTrainingTimes: existing.indoorTrainingTimes,
             trainingPartnerIds: existing.trainingPartnerIds,
             matchdayTimes: existing.matchdayTimes,
             defaultReminderMinutes: existing.defaultReminderMinutes,
@@ -1217,6 +1231,14 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
           after: {
             trainingLocation,
             trainingTimes,
+            indoorTrainingLocation:
+              indoorTrainingLocation === undefined
+                ? existing.indoorTrainingLocation
+                : indoorTrainingLocation,
+            indoorTrainingTimes:
+              indoorTrainingTimes === undefined
+                ? existing.indoorTrainingTimes
+                : indoorTrainingTimes,
             trainingPartnerIds,
             matchdayTimes,
             defaultReminderMinutes:

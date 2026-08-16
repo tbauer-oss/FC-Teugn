@@ -29,7 +29,16 @@ class _DashboardNotificationsState
   @override
   Widget build(BuildContext context) {
     final unread = widget.notifications
-        .where((item) => !item.isRead && !_locallyReadIds.contains(item.id))
+        .where(
+          (item) =>
+              !item.isRead &&
+              !_locallyReadIds.contains(item.id) &&
+              // Für Trainer ist die Mitgliedsanfragen-Karte direkt darunter
+              // die autoritative Anzeige. Eine zweite, möglicherweise alte
+              // Registrierungsbenachrichtigung darf ihr nicht widersprechen.
+              !(widget.isTrainer &&
+                  item.category == NotificationCategory.registration),
+        )
         .toList();
     if (unread.isEmpty) return const SizedBox.shrink();
     final latest = unread.first;

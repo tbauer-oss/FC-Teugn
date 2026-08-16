@@ -10,20 +10,32 @@ function source(relativePath) {
 test('regular training has two independent defaults and reminder deduplication', () => {
   const schema = source('prisma/schema.prisma');
   const reminders = source('src/services/reminder.service.ts');
+  const organization = source('src/controllers/organization.controller.ts');
+  const organizationRoutes = source('src/routes/organization.routes.ts');
   assert.match(schema, /defaultReminderMinutes\s+Int\?\s+@default\(60\)/);
   assert.match(schema, /secondaryReminderMinutes\s+Int\?\s+@default\(1440\)/);
   assert.match(reminders, /new Set\(\[[\s\S]*secondaryReminderMinutes[\s\S]*defaultReminderMinutes/);
   assert.match(reminders, /regular-training:\$\{team\.id\}:\$\{occurrence\}:\$\{minutesBefore\}:\$\{recipientId\}/);
   assert.match(reminders, /timeZone:\s*'Europe\/Berlin'/);
+  assert.match(
+    organization,
+    /effectivePermissions\.includes\(Permission\.CONFIGURE_TRAINING_REMINDERS\)/,
+  );
+  assert.match(organization, /indoorTrainingTimes !== undefined/);
+  assert.doesNotMatch(
+    organizationRoutes,
+    /training-schedule'[\s\S]{0,180}Permission\.MANAGE_ORGANIZATION/,
+  );
 });
 
-test('single training occurrence supports mandatory cancellation and hidden deletion tombstone', () => {
+test('single training occurrence supports cancellation, deletion and hidden tombstones', () => {
   const events = source('src/controllers/events.controller.ts');
   const routes = source('src/routes/events.routes.ts');
   assert.match(routes, /regular-training-occurrences\/cancel[\s\S]*CANCEL_TRAINING_OCCURRENCE/);
   assert.match(events, /Trainingsabsage[\s\S]*forceInApp:\s*true[\s\S]*forcePush:\s*true/);
   assert.match(events, /isHiddenRegularOccurrence:\s*true/);
-  assert.match(events, /muss zuerst abgesagt werden, bevor es endgültig gelöscht werden kann/);
+  assert.doesNotMatch(events, /muss zuerst abgesagt werden, bevor es endgültig gelöscht werden kann/);
+  assert.match(events, /EVENT_SERIES_PERMANENTLY_DELETED/);
 });
 
 test('match communication uses explicit internal, nomination and family-release stages', () => {

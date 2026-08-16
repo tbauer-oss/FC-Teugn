@@ -45,6 +45,9 @@ class DataRepository {
 
   DataRepository(this.client);
 
+  String _idempotencyKey(String operation) =>
+      '$operation-${DateTime.now().microsecondsSinceEpoch}';
+
   Future<MemberPermissionProfile> memberPermissions(String userId) async {
     final res = await client.dio.get('/admin/members/$userId/permissions');
     return MemberPermissionProfile.fromJson(res.data as Map<String, dynamic>);
@@ -414,38 +417,51 @@ class DataRepository {
     String? bfvTeamUrl,
     required bool isActive,
   }) async {
-    final res = await client.dio.patch('/organization/teams/$teamId', data: {
-      'name': name,
-      'teamNumber': teamNumber,
-      'shortName': shortName,
-      'level': level,
-      'teamType': teamType,
-      'gender': gender,
-      'gameFormat': gameFormat.apiValue,
-      'periodCount': periodCount,
-      'periodMinutes': periodMinutes,
-      'birthYears': birthYears,
-      'description': description,
-      'trainingLocation': trainingLocation,
-      'trainingTimes': trainingTimes,
-      'seasonStartDate':
-          seasonStartDate == null ? null : dateOnlyForApi(seasonStartDate),
-      'seasonEndDate':
-          seasonEndDate == null ? null : dateOnlyForApi(seasonEndDate),
-      'indoorSeasonStartDate': indoorSeasonStartDate == null
-          ? null
-          : dateOnlyForApi(indoorSeasonStartDate),
-      'indoorSeasonEndDate': indoorSeasonEndDate == null
-          ? null
-          : dateOnlyForApi(indoorSeasonEndDate),
-      'indoorTrainingLocation': indoorTrainingLocation,
-      'indoorTrainingTimes': indoorTrainingTimes,
-      'homeVenue': homeVenue,
-      'bfvTeamId': bfvTeamId,
-      'dfbnetTeamId': dfbnetTeamId,
-      'bfvTeamUrl': bfvTeamUrl,
-      'isActive': isActive,
-    });
+    final res = await client.dio.patch(
+      '/organization/teams/$teamId',
+      data: {
+        'name': name,
+        'teamNumber': teamNumber,
+        'shortName': shortName,
+        'level': level,
+        'teamType': teamType,
+        'gender': gender,
+        'gameFormat': gameFormat.apiValue,
+        'periodCount': periodCount,
+        'periodMinutes': periodMinutes,
+        'birthYears': birthYears,
+        'description': description,
+        'trainingLocation': trainingLocation,
+        'trainingTimes': trainingTimes,
+        'seasonStartDate':
+            seasonStartDate == null ? null : dateOnlyForApi(seasonStartDate),
+        'seasonEndDate':
+            seasonEndDate == null ? null : dateOnlyForApi(seasonEndDate),
+        'indoorSeasonStartDate': indoorSeasonStartDate == null
+            ? null
+            : dateOnlyForApi(indoorSeasonStartDate),
+        'indoorSeasonEndDate': indoorSeasonEndDate == null
+            ? null
+            : dateOnlyForApi(indoorSeasonEndDate),
+        'indoorTrainingLocation': indoorTrainingLocation,
+        'indoorTrainingTimes': indoorTrainingTimes,
+        'homeVenue': homeVenue,
+        'bfvTeamId': bfvTeamId,
+        'dfbnetTeamId': dfbnetTeamId,
+        'bfvTeamUrl': bfvTeamUrl,
+        'isActive': isActive,
+      },
+      options: Options(
+        headers: {
+          'X-Idempotency-Key': _idempotencyKey('team-update-$teamId'),
+        },
+        receiveTimeout: const Duration(seconds: 40),
+        extra: const {
+          'requireOnline': true,
+          'retryTransientWrite': true,
+        },
+      ),
+    );
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
   }
 
@@ -485,18 +501,34 @@ class DataRepository {
     required int? secondaryReminderMinutes,
     required bool defaultReminderPushEnabled,
     String? trainingLocation,
+    String? indoorTrainingLocation,
+    List<String>? indoorTrainingTimes,
   }) async {
     final res = await client.dio.patch(
       '/organization/teams/$teamId/training-schedule',
       data: {
         'trainingLocation': trainingLocation,
         'trainingTimes': trainingTimes,
+        if (indoorTrainingLocation != null)
+          'indoorTrainingLocation': indoorTrainingLocation,
+        if (indoorTrainingTimes != null)
+          'indoorTrainingTimes': indoorTrainingTimes,
         'trainingPartnerIds': trainingPartnerIds,
         'matchdayTimes': matchdayTimes,
         'defaultReminderMinutes': defaultReminderMinutes,
         'secondaryReminderMinutes': secondaryReminderMinutes,
         'defaultReminderPushEnabled': defaultReminderPushEnabled,
       },
+      options: Options(
+        headers: {
+          'X-Idempotency-Key': _idempotencyKey('training-schedule-$teamId'),
+        },
+        receiveTimeout: const Duration(seconds: 40),
+        extra: const {
+          'requireOnline': true,
+          'retryTransientWrite': true,
+        },
+      ),
     );
     return TeamSummary.fromJson(res.data as Map<String, dynamic>);
   }
@@ -2065,38 +2097,51 @@ class DataRepository {
     String? applicantMessage,
     RegistrationReviewStatus? reviewStatus,
   }) async {
-    await client.dio.post('/admin/approve', data: {
-      'userId': userId,
-      'status': accountStatusApi(status),
-      'role': role == null ? null : userRoleApi(role),
-      'teamIds': teamIds,
-      'teamRoles': teamRoles == null
-          ? null
-          : [
-              for (final entry in teamRoles.entries)
-                {'teamId': entry.key, 'role': userRoleApi(entry.value)},
-            ],
-      'playerId': playerId,
-      'relationship': relationship,
-      'guardianLinks': guardianRelationships == null
-          ? null
-          : [
-              for (final entry in guardianRelationships.entries)
-                {
-                  'playerId': entry.key,
-                  'relationship': entry.value,
-                },
-            ],
-      'adminNote': adminNote,
-      'applicantMessage': applicantMessage,
-      'reviewStatus': switch (reviewStatus) {
-        RegistrationReviewStatus.newRequest => 'NEW',
-        RegistrationReviewStatus.inReview => 'IN_REVIEW',
-        RegistrationReviewStatus.needsInfo => 'NEEDS_INFO',
-        RegistrationReviewStatus.completed => 'COMPLETED',
-        null => null,
+    await client.dio.post(
+      '/admin/approve',
+      data: {
+        'userId': userId,
+        'status': accountStatusApi(status),
+        'role': role == null ? null : userRoleApi(role),
+        'teamIds': teamIds,
+        'teamRoles': teamRoles == null
+            ? null
+            : [
+                for (final entry in teamRoles.entries)
+                  {'teamId': entry.key, 'role': userRoleApi(entry.value)},
+              ],
+        'playerId': playerId,
+        'relationship': relationship,
+        'guardianLinks': guardianRelationships == null
+            ? null
+            : [
+                for (final entry in guardianRelationships.entries)
+                  {
+                    'playerId': entry.key,
+                    'relationship': entry.value,
+                  },
+              ],
+        'adminNote': adminNote,
+        'applicantMessage': applicantMessage,
+        'reviewStatus': switch (reviewStatus) {
+          RegistrationReviewStatus.newRequest => 'NEW',
+          RegistrationReviewStatus.inReview => 'IN_REVIEW',
+          RegistrationReviewStatus.needsInfo => 'NEEDS_INFO',
+          RegistrationReviewStatus.completed => 'COMPLETED',
+          null => null,
+        },
       },
-    });
+      options: Options(
+        headers: {
+          'X-Idempotency-Key': _idempotencyKey('member-review-$userId'),
+        },
+        receiveTimeout: const Duration(seconds: 40),
+        extra: const {
+          'requireOnline': true,
+          'retryTransientWrite': true,
+        },
+      ),
+    );
   }
 
   Future<void> assignParentPlayer({

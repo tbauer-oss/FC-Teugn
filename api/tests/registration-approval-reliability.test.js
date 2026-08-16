@@ -63,6 +63,7 @@ test('a second youth may add only its own child relation later', () => {
 
 test('multi-child approvals are scoped and committed atomically', () => {
   const admin = source('src/controllers/admin.controller.ts');
+  const notifications = source('src/controllers/notifications.controller.ts');
   const teamAccess = source('src/services/team-access.ts');
 
   assert.match(admin, /guardianLinks\?: Array/);
@@ -77,6 +78,14 @@ test('multi-child approvals are scoped and committed atomically', () => {
   assert.match(admin, /TransactionIsolationLevel\.Serializable/);
   assert.match(admin, /error\.code === 'P2034'/);
   assert.match(admin, /status\(409\)/);
+  assert.match(admin, /category:\s*NotificationCategory\.REGISTRATION/);
+  assert.match(admin, /entityId:\s*registration\.id/);
+  assert.match(admin, /data:\s*\{ readAt:\s*new Date\(\) \}/);
+  assert.match(notifications, /user:\s*\{ status:\s*AccountStatus\.PENDING \}/);
+  assert.match(notifications, /userId:\s*\{ in:\s*registrationReferences \}/);
+  assert.match(notifications, /pendingRegistrations\.flatMap/);
+  assert.match(notifications, /anyPendingRegistration/);
+  assert.match(notifications, /completedNotificationIds/);
 
   assert.match(teamAccess, /Member administration deliberately ignores family links/);
   assert.match(teamAccess, /memberManagementTeamIds/);

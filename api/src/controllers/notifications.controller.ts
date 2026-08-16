@@ -1,4 +1,5 @@
 import {
+  AccountStatus,
   ConsentDocumentType,
   NotificationCategory,
   NotificationDeliveryStatus,
@@ -68,7 +69,66 @@ export async function listNotifications(req: Request, res: Response) {
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
-  return res.json(notifications);
+  // Altversionen verwendeten teils die Registrierungs-ID, teils die Benutzer-
+  // ID als Referenz. Der aktuelle Pending-Status ist deshalb die einzige
+  // autoritative Quelle. So verschwinden auch historische Hinweise, deren
+  // Freigabe längst abgeschlossen ist, ohne die Historie zu löschen.
+  const registrationNotifications = notifications
+    .filter(
+      (item) =>
+        item.category === NotificationCategory.REGISTRATION &&
+        item.readAt === null,
+    );
+  const registrationReferences = registrationNotifications
+    .map((item) => item.entityId)
+    .filter((value): value is string => Boolean(value));
+  const pendingRegistrations = registrationReferences.length === 0
+    ? []
+    : await prisma.registrationRequest.findMany({
+        where: {
+          user: { status: AccountStatus.PENDING },
+          OR: [
+            { id: { in: registrationReferences } },
+            { userId: { in: registrationReferences } },
+          ],
+        },
+        select: { id: true, userId: true },
+      });
+  const pendingReferences = new Set(
+    pendingRegistrations.flatMap((registration) => [
+      registration.id,
+      registration.userId,
+    ]),
+  );
+  const hasUnreferencedRegistration = registrationNotifications.some(
+    (item) => !item.entityId,
+  );
+  const anyPendingRegistration = hasUnreferencedRegistration
+    ? await prisma.registrationRequest.count({
+        where: { user: { status: AccountStatus.PENDING } },
+      }) > 0
+    : false;
+  const completedNotificationIds = registrationNotifications
+    .filter((item) =>
+      item.entityId
+        ? !pendingReferences.has(item.entityId)
+        : !anyPendingRegistration,
+    )
+    .map((item) => item.id);
+  const completedAt = new Date();
+  if (completedNotificationIds.length > 0) {
+    await prisma.notification.updateMany({
+      where: { id: { in: completedNotificationIds }, readAt: null },
+      data: { readAt: completedAt },
+    });
+  }
+  return res.json(
+    notifications.map((item) =>
+      completedNotificationIds.includes(item.id) && item.readAt === null
+        ? { ...item, readAt: completedAt }
+        : item,
+    ),
+  );
 }
 
 export async function markNotificationRead(req: Request, res: Response) {

@@ -34,6 +34,9 @@ final repositoryProvider = Provider<DataRepository>((ref) {
     offlineOutbox: ref.watch(offlineOutboxProvider),
     userId: authState.user?.id,
     loadingController: ref.read(appLoadingProvider),
+    onOfflineSynchronizationComplete: () {
+      ref.read(manualDataRefreshProvider.notifier).state++;
+    },
   );
   return DataRepository(client);
 });
@@ -200,7 +203,7 @@ final pendingUsersProvider =
 /// geladen; dieser kleine lokale Overlay-State entfernt den Eintrag jedoch
 /// schon im selben Frame aus Listen, Badges und Dashboard-Karten.
 final dismissedPendingRegistrationIdsProvider =
-    StateProvider.autoDispose<Set<String>>((ref) => <String>{});
+    StateProvider<Set<String>>((ref) => <String>{});
 
 AsyncValue<List<AppUser>> visiblePendingUsers(
   AsyncValue<List<AppUser>> pending,

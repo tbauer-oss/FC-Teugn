@@ -18,6 +18,7 @@ class ApiClient {
     GeneralOfflineOutbox? offlineOutbox,
     String? userId,
     AppLoadingController? loadingController,
+    VoidCallback? onOfflineSynchronizationComplete,
   }) {
     const envBaseUrl = String.fromEnvironment('API_BASE_URL');
 
@@ -87,12 +88,14 @@ class ApiClient {
           dio: dio,
           outbox: offlineOutbox,
           userId: userId!,
-          onSynchronizationComplete: (count) =>
-              loadingController?.showTransientStatus(
-            count == 1
-                ? 'Offline gespeicherte Änderung gesendet'
-                : '$count offline gespeicherte Änderungen gesendet',
-          ),
+          onSynchronizationComplete: (count) {
+            loadingController?.showTransientStatus(
+              count == 1
+                  ? 'Offline gespeicherte Änderung gesendet'
+                  : '$count offline gespeicherte Änderungen gesendet',
+            );
+            onOfflineSynchronizationComplete?.call();
+          },
           onQueued: () =>
               loadingController?.showTransientStatus('Offline gespeichert'),
         ),

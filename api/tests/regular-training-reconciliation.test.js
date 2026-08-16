@@ -52,7 +52,7 @@ test('schedule edits move the response-bearing occurrence and hide duplicates', 
         },
       ],
       update: async (args) => calls.updates.push(args),
-      create: async () => assert.fail('existing occurrence must be reused'),
+      upsert: async () => assert.fail('existing occurrence must be reused'),
       updateMany: async (args) => calls.updateMany.push(args),
     },
   };
@@ -95,7 +95,7 @@ test('removing a regular schedule hides its future materialization', async () =>
         },
       ],
       update: async () => assert.fail('no canonical event expected'),
-      create: async () => assert.fail('no event expected'),
+      upsert: async () => assert.fail('no event expected'),
       updateMany: async (args) => hidden.push(args),
     },
   };
@@ -140,7 +140,7 @@ test('an explicitly hidden occurrence remains a tombstone after editing', async 
         },
       ],
       update: async () => assert.fail('tombstone must not be reactivated'),
-      create: async () => assert.fail('tombstone ID must not be recreated'),
+      upsert: async () => assert.fail('tombstone ID must not be recreated'),
       updateMany: async () => assert.fail('tombstone is already hidden'),
     },
   };
@@ -152,4 +152,71 @@ test('an explicitly hidden occurrence remains a tombstone after editing', async 
   );
 
   assert.deepEqual(ids, [expectedId]);
+});
+
+test('a cancelled old time is hidden and never moved to the new schedule', async () => {
+  const now = new Date('2026-08-16T10:00:00.000Z');
+  const changedTeam = team(['Freitag 18:00–19:30 · Platz: Platz 2']);
+  const calls = { updates: [], updateMany: [] };
+  const tx = {
+    event: {
+      findMany: async () => [
+        {
+          id: 'regular-training:team-e1:cancelled-old-time',
+          startAt: new Date('2026-08-18T15:30:00.000Z'),
+          status: 'CANCELLED',
+          isHiddenRegularOccurrence: false,
+          _count: { attendance: 4, participants: 0 },
+        },
+        {
+          id: 'regular-training:team-e1:scheduled-old-time',
+          startAt: new Date('2026-08-18T16:30:00.000Z'),
+          status: 'SCHEDULED',
+          isHiddenRegularOccurrence: false,
+          _count: { attendance: 0, participants: 0 },
+        },
+      ],
+      update: async (args) => calls.updates.push(args),
+      upsert: async () => assert.fail('scheduled occurrence can be reused'),
+      updateMany: async (args) => calls.updateMany.push(args),
+    },
+  };
+
+  await reconcileNextRegularTrainingOccurrence(tx, changedTeam, now);
+
+  assert.equal(
+    calls.updates[0].where.id,
+    'regular-training:team-e1:scheduled-old-time',
+  );
+  assert.deepEqual(calls.updateMany[0].where.id.in, [
+    'regular-training:team-e1:cancelled-old-time',
+  ]);
+});
+
+test('legacy regular occurrences are included in automatic cleanup', async () => {
+  let query;
+  const tx = {
+    event: {
+      findMany: async (args) => {
+        query = args.where;
+        return [];
+      },
+      update: async () => assert.fail('no existing event'),
+      upsert: async () => undefined,
+      updateMany: async () => undefined,
+    },
+  };
+
+  await reconcileNextRegularTrainingOccurrence(
+    tx,
+    team(['Dienstag 17:30–19:00 · Platz: Platz 1']),
+    new Date('2026-08-16T10:00:00.000Z'),
+  );
+
+  assert.equal(query.category, 'TRAINING');
+  assert.equal(query.OR[0].id.startsWith, 'regular-training:team-e1:');
+  assert.match(
+    query.OR[1].description.startsWith,
+    /^Reguläre Trainingszeit laut Belegungsplan/,
+  );
 });

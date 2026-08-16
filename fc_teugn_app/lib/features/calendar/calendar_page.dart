@@ -199,7 +199,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 !occurrence.$1.isAfter(pauseEnd)) {
               continue;
             }
-            final alreadyStored = events.any(
+            final alreadyStored = result.any(
               (event) =>
                   event.category == EventCategory.training &&
                   (event.teamId == team.id ||
@@ -3810,6 +3810,14 @@ class _ManagementBar extends ConsumerWidget {
   final EventModel event;
   final OrganizationContext organization;
 
+  bool get _isRegularTraining =>
+      event.id.startsWith('training-plan:') ||
+      event.id.startsWith('regular-training:') ||
+      (event.category == EventCategory.training &&
+          (event.description ?? '').startsWith(
+            'Reguläre Trainingszeit laut Belegungsplan der Saison ',
+          ));
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
@@ -3833,7 +3841,7 @@ class _ManagementBar extends ConsumerWidget {
               icon: const Icon(Icons.lock_rounded),
               label: const Text('Rückmeldungen abschließen'),
             ),
-          if (!event.id.startsWith('training-plan:'))
+          if (!_isRegularTraining)
             OutlinedButton.icon(
               onPressed: () => _edit(context, ref),
               icon: const Icon(Icons.edit_rounded),
@@ -3857,7 +3865,18 @@ class _ManagementBar extends ConsumerWidget {
                     : 'Absagen',
               ),
             ),
-          if (event.capabilities.canDelete)
+          if (_isRegularTraining &&
+              organization.can('CONFIGURE_TRAINING_REMINDERS'))
+            OutlinedButton.icon(
+              onPressed: () => _deleteRegularTrainingSeries(context, ref),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              icon: const Icon(Icons.delete_sweep_rounded),
+              label: const Text('Trainingsserie löschen'),
+            ),
+          if (event.capabilities.canDelete &&
+              (!_isRegularTraining || event.isCancelled))
             OutlinedButton.icon(
               onPressed: () => _deletePermanently(context, ref),
               style: OutlinedButton.styleFrom(
@@ -4142,6 +4161,131 @@ class _ManagementBar extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('$entity konnte nicht sicher gelöscht werden.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteRegularTrainingSeries(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final team = organization.teams
+        .where((candidate) => candidate.id == event.teamId)
+        .firstOrNull;
+    if (team == null) return;
+    final date = DateTime(
+      event.startAt.year,
+      event.startAt.month,
+      event.startAt.day,
+    );
+    final indoorStart = team.indoorSeasonStartDate;
+    final indoorEnd = team.indoorSeasonEndDate;
+    final indoor = indoorStart != null &&
+        indoorEnd != null &&
+        !date.isBefore(DateTime(
+          indoorStart.year,
+          indoorStart.month,
+          indoorStart.day,
+        )) &&
+        !date.isAfter(DateTime(
+          indoorEnd.year,
+          indoorEnd.month,
+          indoorEnd.day,
+        ));
+    bool matchingSlot(String value) {
+      final slot = RegularTrainingSlot.tryParse(
+        value,
+        fallbackLocation:
+            indoor ? team.indoorTrainingLocation : team.trainingLocation,
+      );
+      if (slot == null) return false;
+      return slot.weekday == event.startAt.weekday &&
+          slot.startMinutes == event.startAt.hour * 60 + event.startAt.minute &&
+          (event.endAt == null ||
+              slot.endMinutes == event.endAt!.hour * 60 + event.endAt!.minute);
+    }
+
+    final source = indoor ? team.indoorTrainingTimes : team.trainingTimes;
+    final matching = source.where(matchingSlot).toList();
+    if (matching.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Die zugehörige Trainingsserie konnte nicht eindeutig gefunden werden.',
+          ),
+        ),
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.delete_sweep_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: const Text('Gesamte Trainingsserie löschen?'),
+        content: Text(
+          '${matching.first}\n\nAlle noch kommenden automatisch erzeugten '
+          'Termine dieser Trainingszeit werden entfernt. Andere '
+          'Trainingszeiten und vergangene Vereinsdaten bleiben erhalten.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            icon: const Icon(Icons.delete_forever_rounded),
+            label: const Text('Serie löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final remaining = source.where((value) => !matchingSlot(value)).toList();
+    try {
+      final repository = ref.read(repositoryProvider);
+      await repository.updateTrainingSchedule(
+        teamId: team.id,
+        trainingTimes: indoor ? team.trainingTimes : remaining,
+        trainingPartnerIds: team.trainingPartnerIds,
+        matchdayTimes: team.matchdayTimes,
+        defaultReminderMinutes: team.defaultReminderMinutes,
+        secondaryReminderMinutes: team.secondaryReminderMinutes,
+        defaultReminderPushEnabled: team.defaultReminderPushEnabled,
+        trainingLocation: team.trainingLocation,
+        indoorTrainingLocation: indoor ? team.indoorTrainingLocation : null,
+        indoorTrainingTimes: indoor ? remaining : null,
+      );
+      ref.invalidate(organizationProvider);
+      ref.invalidate(eventsProvider);
+      await Future.wait([
+        ref.read(organizationProvider.future),
+        ref.read(eventsProvider.future),
+      ]);
+      if (context.mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        Navigator.pop(context);
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Trainingsserie wurde gelöscht.')),
+        );
+      }
+    } on DioException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_apiErrorMessage(
+              error,
+              'Die Trainingsserie konnte nicht gelöscht werden.',
+            )),
           ),
         );
       }

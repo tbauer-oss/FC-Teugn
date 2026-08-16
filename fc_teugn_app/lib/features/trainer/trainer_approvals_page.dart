@@ -271,6 +271,16 @@ class TrainerApprovalsPage extends ConsumerWidget {
       ),
     );
     if (decision == null) return;
+    void completeApproval() {
+      ref.read(dismissedPendingRegistrationIdsProvider.notifier).update(
+            (ids) => {...ids, user.id},
+          );
+      ref.invalidate(pendingUsersProvider);
+      ref.invalidate(membersProvider);
+      ref.invalidate(organizationProvider);
+      ref.invalidate(liveNotificationsProvider);
+    }
+
     try {
       await ref.read(repositoryProvider).approveUser(
             user.id,
@@ -283,18 +293,32 @@ class TrainerApprovalsPage extends ConsumerWidget {
             adminNote: decision.adminNote,
             reviewStatus: RegistrationReviewStatus.completed,
           );
-      ref.read(dismissedPendingRegistrationIdsProvider.notifier).update(
-            (ids) => {...ids, user.id},
-          );
-      ref.invalidate(pendingUsersProvider);
-      ref.invalidate(membersProvider);
-      ref.invalidate(organizationProvider);
+      completeApproval();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${user.name} wurde freigegeben.')),
         );
       }
     } on DioException catch (error) {
+      // Bei einem verlorenen HTTP-Response kann die atomare Freigabe bereits
+      // erfolgreich committed sein. Vor einer Fehlermeldung wird deshalb der
+      // autoritative Pending-Stand abgefragt.
+      var persisted = false;
+      try {
+        final pending = await ref.read(repositoryProvider).pendingUsers();
+        persisted = !pending.any((candidate) => candidate.id == user.id);
+      } catch (_) {
+        // Die ursprüngliche, aussagekräftigere Fehlermeldung bleibt erhalten.
+      }
+      if (persisted) {
+        completeApproval();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${user.name} wurde freigegeben.')),
+          );
+        }
+        return;
+      }
       final response = error.response?.data;
       final message = response is Map<String, dynamic>
           ? response['message'] as String?
