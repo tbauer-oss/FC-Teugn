@@ -2060,6 +2060,7 @@ class DataRepository {
     Map<String, UserRole>? teamRoles,
     String? playerId,
     String? relationship,
+    Map<String, String>? guardianRelationships,
     String? adminNote,
     String? applicantMessage,
     RegistrationReviewStatus? reviewStatus,
@@ -2077,6 +2078,15 @@ class DataRepository {
             ],
       'playerId': playerId,
       'relationship': relationship,
+      'guardianLinks': guardianRelationships == null
+          ? null
+          : [
+              for (final entry in guardianRelationships.entries)
+                {
+                  'playerId': entry.key,
+                  'relationship': entry.value,
+                },
+            ],
       'adminNote': adminNote,
       'applicantMessage': applicantMessage,
       'reviewStatus': switch (reviewStatus) {

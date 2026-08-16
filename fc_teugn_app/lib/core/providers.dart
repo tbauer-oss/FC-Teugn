@@ -195,6 +195,23 @@ final pendingUsersProvider =
   return ref.watch(repositoryProvider).pendingUsers();
 });
 
+/// Registrierungen, die in dieser laufenden Sitzung bereits erfolgreich
+/// abgeschlossen wurden. Die serverseitige Liste wird danach ebenfalls neu
+/// geladen; dieser kleine lokale Overlay-State entfernt den Eintrag jedoch
+/// schon im selben Frame aus Listen, Badges und Dashboard-Karten.
+final dismissedPendingRegistrationIdsProvider =
+    StateProvider.autoDispose<Set<String>>((ref) => <String>{});
+
+AsyncValue<List<AppUser>> visiblePendingUsers(
+  AsyncValue<List<AppUser>> pending,
+  Set<String> dismissedIds,
+) =>
+    pending.whenData(
+      (users) => users
+          .where((user) => !dismissedIds.contains(user.id))
+          .toList(growable: false),
+    );
+
 final membersProvider = FutureProvider.autoDispose<List<AppUser>>((ref) async {
   _watchManualRefresh(ref);
   _scheduleLiveRefresh(ref, const Duration(seconds: 60));

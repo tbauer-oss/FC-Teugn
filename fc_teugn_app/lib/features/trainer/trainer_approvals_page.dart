@@ -21,7 +21,10 @@ class TrainerApprovalsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pending = ref.watch(pendingUsersProvider);
+    final pending = visiblePendingUsers(
+      ref.watch(pendingUsersProvider),
+      ref.watch(dismissedPendingRegistrationIdsProvider),
+    );
     final members = ref.watch(membersProvider);
     final organization = ref.watch(organizationProvider).valueOrNull;
     final players =
@@ -276,21 +279,41 @@ class TrainerApprovalsPage extends ConsumerWidget {
             teamIds: decision.teamIds,
             teamRoles: decision.teamRoles,
             playerId: decision.playerId,
-            relationship: decision.relationship,
+            guardianRelationships: decision.guardianRelationships,
             adminNote: decision.adminNote,
             reviewStatus: RegistrationReviewStatus.completed,
           );
-      _refresh(ref);
+      ref.read(dismissedPendingRegistrationIdsProvider.notifier).update(
+            (ids) => {...ids, user.id},
+          );
+      ref.invalidate(pendingUsersProvider);
+      ref.invalidate(membersProvider);
+      ref.invalidate(organizationProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${user.name} wurde freigegeben.')),
+        );
+      }
+    } on DioException catch (error) {
+      final response = error.response?.data;
+      final message = response is Map<String, dynamic>
+          ? response['message'] as String?
+          : null;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              message ?? 'Freigabe konnte nicht gespeichert werden.',
+            ),
+          ),
         );
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Freigabe konnte nicht gespeichert werden.')),
+            content: Text('Freigabe konnte nicht gespeichert werden.'),
+          ),
         );
       }
     }
@@ -326,7 +349,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
             teamIds: decision.teamIds,
             teamRoles: decision.teamRoles,
             playerId: decision.playerId,
-            relationship: decision.relationship,
+            guardianRelationships: decision.guardianRelationships,
             adminNote: decision.adminNote,
           );
       _refresh(ref);
@@ -2245,7 +2268,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
   late Map<String, UserRole> teamRoles;
   String? playerId;
   late final TextEditingController adminNote;
-  late String relationship;
+  late Map<String, String> guardianRelationships;
   late List<UserParentPlayerLink> parentPlayers;
   String? removingPlayerId;
 
@@ -2273,8 +2296,10 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
     adminNote = TextEditingController(
       text: widget.user.registrationRequest?.adminNote,
     );
-    relationship = widget.user.registrationRequest?.relationship ?? 'GUARDIAN';
     parentPlayers = List<UserParentPlayerLink>.of(widget.user.parentPlayers);
+    guardianRelationships = {
+      for (final link in parentPlayers) link.playerId: link.relationship,
+    };
   }
 
   @override
@@ -2508,99 +2533,65 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
               if (role != UserRole.player) ...[
                 const SizedBox(height: 20),
                 Text(
-                  'Eltern-Zuordnung',
+                  'Zugeordnete Kinder',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                 ),
                 const SizedBox(height: 5),
-                const Text(
-                  'Optional: Auch Systemadministration, Vereinsfunktionäre '
-                  'und Trainer können Eltern eines Spielers sein. Die '
-                  'Hauptrolle und sämtliche Rechte bleiben unverändert.',
+                Text(
+                  limitedManager
+                      ? 'Du kannst ausschließlich Kinder deiner gewählten Jugend zuordnen. Die Beziehung wird für jedes Kind einzeln gespeichert.'
+                      : 'Wähle ein oder mehrere Kinder aus. Die bei der Registrierung gewünschte Jugend wird zuerst angeboten; weitere Jugenden können bei vorhandener Berechtigung ergänzt werden.',
                 ),
-                if (parentPlayers.isNotEmpty) ...[
+                if (guardianRelationships.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final link in parentPlayers)
-                        Chip(
-                          avatar: const Icon(
-                            Icons.family_restroom_rounded,
-                            size: 16,
-                          ),
-                          label: Text(
-                            '${link.playerName} · '
-                            '${guardianRelationshipLabel(link.relationship)}'
-                            '${link.ageGroupCode.isEmpty ? '' : ' · ${link.ageGroupCode}'}',
-                          ),
-                          deleteIcon: removingPlayerId == link.playerId
-                              ? const SizedBox.square(
-                                  dimension: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.close_rounded, size: 18),
-                          deleteButtonTooltipMessage:
-                              'Sorgeberechtigten-Zuordnung entfernen',
-                          onDeleted: widget.onRemoveParentPlayer == null ||
-                                  removingPlayerId != null
-                              ? null
-                              : () async {
-                                  setState(
-                                    () => removingPlayerId = link.playerId,
-                                  );
-                                  final removed =
-                                      await widget.onRemoveParentPlayer!(link);
-                                  if (!mounted) return;
-                                  setState(() {
-                                    removingPlayerId = null;
-                                    if (removed) parentPlayers.remove(link);
-                                  });
-                                },
+                  for (final entry in guardianRelationships.entries.where(
+                    (entry) => widget.players.any(
+                      (player) => player.id == entry.key,
+                    ),
+                  ))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _GuardianChildCard(
+                        player: widget.players.firstWhere(
+                          (player) => player.id == entry.key,
                         ),
-                    ],
-                  ),
+                        relationship: entry.value,
+                        removing: removingPlayerId == entry.key,
+                        canRemovePersisted: widget.onRemoveParentPlayer != null,
+                        persisted: parentPlayers.any(
+                          (link) => link.playerId == entry.key,
+                        ),
+                        onRelationshipChanged: (value) => setState(
+                          () => guardianRelationships[entry.key] = value,
+                        ),
+                        onRemove: () => _removeGuardianAssignment(entry.key),
+                      ),
+                    ),
                 ],
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: playerId,
-                  decoration: const InputDecoration(
-                    labelText: 'Weiteres Kind / Spielerprofil (optional)',
+                OutlinedButton.icon(
+                  key: const ValueKey('add-guardian-child'),
+                  onPressed: _availableGuardianPlayers.isEmpty
+                      ? null
+                      : _pickGuardianChild,
+                  icon: const Icon(Icons.add_rounded),
+                  label: Text(
+                    guardianRelationships.isEmpty
+                        ? 'Kind zuweisen'
+                        : 'Weiteres Kind zuweisen',
                   ),
-                  items: [
-                    for (final player in widget.players.where(
-                      (player) =>
-                          teamIds.contains(player.teamId) &&
-                          !parentPlayers
-                              .any((link) => link.playerId == player.id),
-                    ))
-                      DropdownMenuItem(
-                        value: player.id,
-                        child: Text(player.fullName),
-                      ),
-                  ],
-                  onChanged: (value) => setState(() => playerId = value),
                 ),
-                if (playerId != null) ...[
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: relationship,
-                    decoration: const InputDecoration(
-                      labelText: 'Beziehung zum Kind',
+                if (role == UserRole.parent &&
+                    guardianRelationships.isEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Für einen Elternzugang ist mindestens ein Kind erforderlich.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                      fontWeight: FontWeight.w700,
                     ),
-                    items: const [
-                      DropdownMenuItem(value: 'MOTHER', child: Text('Mutter')),
-                      DropdownMenuItem(value: 'FATHER', child: Text('Vater')),
-                      DropdownMenuItem(
-                        value: 'GUARDIAN',
-                        child: Text('Sorgeberechtigte Person'),
-                      ),
-                    ],
-                    onChanged: (value) => setState(() => relationship = value!),
                   ),
                 ],
               ],
@@ -2653,7 +2644,10 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                       role == UserRole.player) ||
                   (role == UserRole.player &&
                       playerId == null &&
-                      !widget.editing)
+                      !widget.editing) ||
+                  (!widget.editing &&
+                      role == UserRole.parent &&
+                      guardianRelationships.isEmpty)
               ? null
               : () => Navigator.pop(
                     context,
@@ -2666,9 +2660,9 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                           teamId: teamRoles[teamId] ?? _teamFunction(role),
                       },
                       playerId: playerId,
-                      relationship: role != UserRole.player && playerId != null
-                          ? relationship
-                          : null,
+                      guardianRelationships: role == UserRole.player
+                          ? const <String, String>{}
+                          : Map<String, String>.of(guardianRelationships),
                       adminNote: adminNote.text.trim(),
                     ),
                   ),
@@ -2681,6 +2675,80 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
         ),
       ],
     );
+  }
+
+  List<PlayerModel> get _availableGuardianPlayers {
+    final visibleTeamIds =
+        widget.organization.teams.map((team) => team.id).toSet();
+    final requestedTeamIds = widget.user.registrationRequest?.requestedTeams
+            .map((membership) => membership.teamId)
+            .toSet() ??
+        const <String>{};
+    final result = widget.players
+        .where(
+          (player) =>
+              player.teamId != null &&
+              visibleTeamIds.contains(player.teamId) &&
+              !guardianRelationships.containsKey(player.id),
+        )
+        .toList();
+    result.sort((left, right) {
+      final leftRequested = requestedTeamIds.contains(left.teamId);
+      final rightRequested = requestedTeamIds.contains(right.teamId);
+      if (leftRequested != rightRequested) return leftRequested ? -1 : 1;
+      final team = left.teamCode.compareTo(right.teamCode);
+      return team != 0 ? team : left.fullName.compareTo(right.fullName);
+    });
+    return result;
+  }
+
+  Future<void> _pickGuardianChild() async {
+    final requestedTeamIds = widget.user.registrationRequest?.requestedTeams
+            .map((membership) => membership.teamId)
+            .toSet() ??
+        const <String>{};
+    final selected = await showModalBottomSheet<PlayerModel>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => _GuardianChildPickerSheet(
+        players: _availableGuardianPlayers,
+        requestedTeamIds: requestedTeamIds,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      guardianRelationships[selected.id] =
+          widget.user.registrationRequest?.relationship ?? 'GUARDIAN';
+      final selectedTeamId = selected.teamId;
+      if (selectedTeamId != null &&
+          (!widget.editing || widget.organization.can('MANAGE_ORGANIZATION'))) {
+        teamIds.add(selectedTeamId);
+        teamRoles.putIfAbsent(selectedTeamId, () => _teamFunction(role));
+      }
+    });
+  }
+
+  Future<void> _removeGuardianAssignment(String assignedPlayerId) async {
+    final persistedLink = parentPlayers
+        .where((link) => link.playerId == assignedPlayerId)
+        .firstOrNull;
+    if (persistedLink != null) {
+      final remove = widget.onRemoveParentPlayer;
+      if (remove == null || removingPlayerId != null) return;
+      setState(() => removingPlayerId = assignedPlayerId);
+      final removed = await remove(persistedLink);
+      if (!mounted) return;
+      setState(() {
+        removingPlayerId = null;
+        if (removed) {
+          parentPlayers.remove(persistedLink);
+          guardianRelationships.remove(assignedPlayerId);
+        }
+      });
+      return;
+    }
+    setState(() => guardianRelationships.remove(assignedPlayerId));
   }
 
   String _roleLabel(UserRole value) => switch (value) {
@@ -2771,6 +2839,230 @@ class _PermissionPreview extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GuardianChildCard extends StatelessWidget {
+  const _GuardianChildCard({
+    required this.player,
+    required this.relationship,
+    required this.removing,
+    required this.persisted,
+    required this.canRemovePersisted,
+    required this.onRelationshipChanged,
+    required this.onRemove,
+  });
+
+  final PlayerModel player;
+  final String relationship;
+  final bool removing;
+  final bool persisted;
+  final bool canRemovePersisted;
+  final ValueChanged<String> onRelationshipChanged;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final canRemove = !persisted || canRemovePersisted;
+    return Container(
+      key: ValueKey('guardian-child-${player.id}'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: AppColors.yellowSoft,
+                child: Text(
+                  player.initials,
+                  style: const TextStyle(
+                    color: AppColors.black,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      player.fullName,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    Text(
+                      {
+                        player.teamCode,
+                        if (player.ageGroupCode?.trim().isNotEmpty == true)
+                          '${player.ageGroupCode}-Jugend',
+                      }.join(' · '),
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (canRemove)
+                IconButton(
+                  tooltip: 'Zuordnung entfernen',
+                  onPressed: removing ? null : onRemove,
+                  icon: removing
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.close_rounded),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            key: ValueKey('guardian-relationship-${player.id}'),
+            initialValue: relationship,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Beziehung zu diesem Kind',
+              prefixIcon: Icon(Icons.family_restroom_rounded),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'MOTHER', child: Text('Mutter')),
+              DropdownMenuItem(value: 'FATHER', child: Text('Vater')),
+              DropdownMenuItem(
+                value: 'GUARDIAN',
+                child: Text('Sorgeberechtigte Person'),
+              ),
+              DropdownMenuItem(
+                value: 'OTHER',
+                child: Text('Sonstige sorgeberechtigte Person'),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) onRelationshipChanged(value);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuardianChildPickerSheet extends StatefulWidget {
+  const _GuardianChildPickerSheet({
+    required this.players,
+    required this.requestedTeamIds,
+  });
+
+  final List<PlayerModel> players;
+  final Set<String> requestedTeamIds;
+
+  @override
+  State<_GuardianChildPickerSheet> createState() =>
+      _GuardianChildPickerSheetState();
+}
+
+class _GuardianChildPickerSheetState extends State<_GuardianChildPickerSheet> {
+  String query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = query.trim().toLowerCase();
+    final visible = widget.players.where((player) {
+      if (normalized.isEmpty) return true;
+      return '${player.fullName} ${player.teamCode} ${player.ageGroupCode ?? ''}'
+          .toLowerCase()
+          .contains(normalized);
+    }).toList();
+    return FractionallySizedBox(
+      heightFactor: .82,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        child: Column(
+          children: [
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.line,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Kind zuweisen',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Schließen',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              autofocus: true,
+              onChanged: (value) => setState(() => query = value),
+              decoration: const InputDecoration(
+                hintText: 'Name, Jugend oder Mannschaft suchen',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: visible.isEmpty
+                  ? const Center(
+                      child: Text('Kein passendes Kind gefunden.'),
+                    )
+                  : ListView.separated(
+                      itemCount: visible.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final player = visible[index];
+                        final requested =
+                            widget.requestedTeamIds.contains(player.teamId);
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 3,
+                          ),
+                          leading: CircleAvatar(
+                            backgroundColor: requested
+                                ? AppColors.yellowSoft
+                                : AppColors.background,
+                            child: Text(player.initials),
+                          ),
+                          title: Text(
+                            player.fullName,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          subtitle: Text(
+                            '${player.teamCode}'
+                            '${requested ? ' · gewünschte Jugend' : ''}',
+                          ),
+                          trailing:
+                              const Icon(Icons.add_circle_outline_rounded),
+                          onTap: () => Navigator.pop(context, player),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3045,8 +3337,8 @@ class _ApprovalDecision {
     required this.role,
     required this.teamIds,
     required this.teamRoles,
+    this.guardianRelationships = const <String, String>{},
     this.playerId,
-    this.relationship,
     this.adminNote,
   });
 
@@ -3054,8 +3346,8 @@ class _ApprovalDecision {
   final UserRole role;
   final List<String> teamIds;
   final Map<String, UserRole> teamRoles;
+  final Map<String, String> guardianRelationships;
   final String? playerId;
-  final String? relationship;
   final String? adminNote;
 }
 

@@ -140,7 +140,7 @@ export async function syncScheduledRemindersForEvent(eventId: string) {
       },
     }),
   ];
-  if (desiredJobs.length > 0) {
+  if (!event.isHiddenRegularOccurrence && desiredJobs.length > 0) {
     writes.push(
       prisma.scheduledReminder.createMany({
         data: desiredJobs,

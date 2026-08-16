@@ -137,6 +137,8 @@ class _OrganizationContent extends ConsumerWidget {
         );
       }
       ref.invalidate(organizationProvider);
+      ref.invalidate(eventsProvider);
+      ref.invalidate(personalResponsesProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(team == null

@@ -3,11 +3,12 @@ import {
   EventStatus,
   EventType,
   EventVisibility,
+  Prisma,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { parseTrainingSlot } from './pitch-conflict.service';
 
-type RegularTrainingTeamSchedule = {
+export type RegularTrainingTeamSchedule = {
   id: string;
   name: string;
   trainingLocation: string | null;
@@ -26,6 +27,11 @@ type RegularTrainingTeamSchedule = {
     };
   };
 };
+
+type RegularTrainingTransaction = Pick<
+  Prisma.TransactionClient,
+  'event'
+>;
 
 type CalendarParts = {
   year: number;
@@ -288,4 +294,113 @@ export async function ensureNextRegularTrainingOccurrences(
       });
     }),
   );
+}
+
+/**
+ * Reconciles the already materialized next occurrence after a team's regular
+ * schedule changes. The canonical event is updated in place so attendance,
+ * participants, cancellations and reminders keep their logical identity.
+ * Additional stale materializations are retained only as hidden history,
+ * never as a second visible training.
+ */
+export async function reconcileNextRegularTrainingOccurrence(
+  tx: RegularTrainingTransaction,
+  team: RegularTrainingTeamSchedule,
+  now = new Date(),
+) {
+  const idPrefix = `regular-training:${team.id}:`;
+  const materialized = await tx.event.findMany({
+    where: {
+      teamId: team.id,
+      id: { startsWith: idPrefix },
+      startAt: { gte: now },
+    },
+    orderBy: { startAt: 'asc' },
+    select: {
+      id: true,
+      startAt: true,
+      isHiddenRegularOccurrence: true,
+      _count: { select: { attendance: true, participants: true } },
+    },
+  });
+  const expected = nextRegularTrainingOccurrence(team, now);
+  const visible = materialized.filter(
+    (event) => !event.isHiddenRegularOccurrence,
+  );
+  if (!expected) {
+    const hiddenIds = visible.map((event) => event.id);
+    if (visible.length > 0) {
+      await tx.event.updateMany({
+        where: { id: { in: hiddenIds } },
+        data: { isHiddenRegularOccurrence: true },
+      });
+    }
+    return hiddenIds;
+  }
+
+  // Prefer the occurrence that already contains user data. This protects a
+  // response-bearing event even if an earlier software version produced a
+  // duplicate. The stable event ID keeps all dependent rows attached.
+  const canonical = [...visible].sort((left, right) => {
+    const leftData = left._count.attendance + left._count.participants;
+    const rightData = right._count.attendance + right._count.participants;
+    return rightData - leftData || left.startAt.getTime() - right.startAt.getTime();
+  })[0];
+  const canonicalId = canonical?.id ??
+    `regular-training:${team.id}:${expected.startAt.getTime()}`;
+  const expectedTombstone = !canonical
+    ? materialized.find(
+        (event) =>
+          event.id === canonicalId && event.isHiddenRegularOccurrence,
+      )
+    : undefined;
+  // A hidden occurrence is an explicit single-date deletion. Re-creating it
+  // would undo the user's exception and can also violate the stable ID's
+  // unique constraint. Keep the tombstone authoritative for that date.
+  if (expectedTombstone) return [expectedTombstone.id];
+  const eventData = {
+    teamId: team.id,
+    type: EventType.TRAINING,
+    category: EventCategory.TRAINING,
+    visibility: EventVisibility.TEAM,
+    title: 'Training',
+    startAt: expected.startAt,
+    endAt: expected.endAt,
+    location: expected.location,
+    description:
+      `Reguläre Trainingszeit laut Belegungsplan der Saison ${expected.seasonName}.`,
+    isSeriesException: true,
+    isHiddenRegularOccurrence: false,
+  } as const;
+  if (canonical) {
+    await tx.event.update({
+      where: { id: canonical.id },
+      data: {
+        ...eventData,
+        targetTeams: {
+          deleteMany: {},
+          create: [{ teamId: team.id }],
+        },
+      },
+    });
+  } else {
+    await tx.event.create({
+      data: {
+        id: canonicalId,
+        status: EventStatus.SCHEDULED,
+        ...eventData,
+        targetTeams: { create: [{ teamId: team.id }] },
+      },
+    });
+  }
+  const staleIds = visible
+    .map((event) => event.id)
+    .filter((id) => id !== canonicalId);
+  if (staleIds.length > 0) {
+    await tx.event.updateMany({
+      where: { id: { in: staleIds } },
+      data: { isHiddenRegularOccurrence: true },
+    });
+  }
+  return [canonicalId, ...staleIds];
 }

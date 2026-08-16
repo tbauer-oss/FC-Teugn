@@ -29,6 +29,8 @@ import {
   syncSquadWithTeamDefaultLineup,
 } from '../services/default-lineup.service';
 import { teamPhotoConsentStatus } from '../services/consent-policy';
+import { reconcileNextRegularTrainingOccurrence } from '../services/regular-training-occurrence.service';
+import { syncScheduledRemindersForEvent } from '../services/reminder.service';
 
 const staffRoles: Role[] = [
   Role.SUPER_ADMIN,
@@ -731,7 +733,7 @@ export async function updateTeam(req: Request, res: Response) {
     shortName: _shortName,
     ...profileData
   } = data;
-  const team = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.team.update({
       where: { id: teamId },
       data: {
@@ -742,6 +744,10 @@ export async function updateTeam(req: Request, res: Response) {
       },
       include: hierarchyInclude,
     });
+    const reconciledEventIds = await reconcileNextRegularTrainingOccurrence(
+      tx,
+      updated,
+    );
     if (data.seasonEndDate) {
       const inclusiveSeasonEnd = new Date(data.seasonEndDate);
       inclusiveSeasonEnd.setUTCHours(23, 59, 59, 999);
@@ -771,9 +777,12 @@ export async function updateTeam(req: Request, res: Response) {
         metadata: { before: teamSnapshot(existing), after: teamSnapshot(updated) },
       },
     });
-    return updated;
+    return { team: updated, reconciledEventIds };
   });
-  return res.json(await serializeTeam(team, true));
+  await Promise.all(
+    result.reconciledEventIds.map(syncScheduledRemindersForEvent),
+  );
+  return res.json(await serializeTeam(result.team, true));
 }
 
 export async function updateTeamDefaultLineup(req: Request, res: Response) {
@@ -1123,7 +1132,7 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
   }
   const requestedPartnerIds = stringList(req.body.trainingPartnerIds, 12, 100)
     .filter((id) => id !== teamId);
-  const team = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const existing = await tx.team.findUnique({
       where: { id: teamId },
       include: hierarchyInclude,
@@ -1184,6 +1193,10 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
       },
       include: hierarchyInclude,
     });
+    const reconciledEventIds = await reconcileNextRegularTrainingOccurrence(
+      tx,
+      updated,
+    );
     await tx.auditLog.create({
       data: {
         actorId: user.id,
@@ -1220,10 +1233,13 @@ export async function updateTrainingSchedule(req: Request, res: Response) {
         },
       },
     });
-    return updated;
+    return { team: updated, reconciledEventIds };
   });
-  if (!team) return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
-  return res.json(await serializeTeam(team, true));
+  if (!result) return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  await Promise.all(
+    result.reconciledEventIds.map(syncScheduledRemindersForEvent),
+  );
+  return res.json(await serializeTeam(result.team, true));
 }
 
 export async function uploadTeamPhoto(req: Request, res: Response) {

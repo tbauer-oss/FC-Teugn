@@ -24,6 +24,8 @@ import { hashPassword } from '../lib/password';
 
 const adminPasswordResetLifetimeMs = 60 * 60 * 1000;
 
+class RegistrationApprovalConflict extends Error {}
+
 function passwordResetTokenHash(token: string) {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -143,6 +145,26 @@ export function canLimitedManagerUpdateMember(
   if (nextStatus !== AccountStatus.APPROVED) return false;
   if (targetStatus === AccountStatus.APPROVED) return nextRole === targetRole;
   return targetStatus === AccountStatus.PENDING && nextRole === targetRole;
+}
+
+export function limitedManagerTeamAssignmentAllowed(
+  targetStatus: AccountStatus,
+  requestedTeamIds: string[],
+  currentScopedTeamIds: string[],
+  managementTeamIds: string[],
+) {
+  if (!requestedTeamIds.every((id) => managementTeamIds.includes(id))) {
+    return false;
+  }
+  if (targetStatus === AccountStatus.PENDING) return true;
+  // An already approved parent can become visible to a second youth through
+  // a still documented registration request or an existing child link. In
+  // that case there is intentionally no account membership in this youth;
+  // the trainer may add only the locally authorized child relation while the
+  // account's primary team and memberships remain untouched.
+  if (currentScopedTeamIds.length === 0) return true;
+  return requestedTeamIds.length === currentScopedTeamIds.length &&
+    requestedTeamIds.every((id) => currentScopedTeamIds.includes(id));
 }
 
 const singleYouthRoles = new Set<Role>([
@@ -643,6 +665,7 @@ export async function approveUser(req: Request, res: Response) {
     teamRoles,
     playerId,
     relationship,
+    guardianLinks,
     adminNote,
     applicantMessage,
     reviewStatus,
@@ -654,6 +677,10 @@ export async function approveUser(req: Request, res: Response) {
     teamRoles?: Array<{ teamId?: string; role?: Role }>;
     playerId?: string;
     relationship?: GuardianRelationship;
+    guardianLinks?: Array<{
+      playerId?: string;
+      relationship?: GuardianRelationship;
+    }>;
     adminNote?: string;
     applicantMessage?: string;
     reviewStatus?: RegistrationReviewStatus;
@@ -771,12 +798,17 @@ export async function approveUser(req: Request, res: Response) {
             .map((membership) => membership.teamId)
             .filter((id) => managementTeamIds.includes(id)),
         ])];
-    if (
-      requestedTeamIds.length !== currentScopedTeamIds.length ||
-      !requestedTeamIds.every((id) => currentScopedTeamIds.includes(id))
-    ) {
+    const assignmentAllowed = limitedManagerTeamAssignmentAllowed(
+      target.status,
+      requestedTeamIds,
+      currentScopedTeamIds,
+      managementTeamIds,
+    );
+    if (!assignmentAllowed) {
       return res.status(403).json({
-        message: 'Trainer dürfen Mannschaftszuordnungen nicht ändern.',
+        message: target.status === AccountStatus.PENDING
+          ? 'Trainer dürfen eine Registrierung nur Mannschaften ihrer gewählten Jugend zuordnen.'
+          : 'Trainer dürfen bestehende Mannschaftszuordnungen nicht ändern.',
       });
     }
   }
@@ -801,6 +833,59 @@ export async function approveUser(req: Request, res: Response) {
           select: { id: true },
         })
       : null;
+
+  const requestedGuardianLinks = nextRole === Role.PLAYER
+    ? []
+    : [
+        ...(Array.isArray(guardianLinks) ? guardianLinks : []),
+        ...(!Array.isArray(guardianLinks) && playerId
+          ? [{ playerId, relationship }]
+          : []),
+      ];
+  const guardianAssignments = new Map<string, GuardianRelationship>();
+  for (const assignment of requestedGuardianLinks) {
+    const assignedPlayerId = typeof assignment?.playerId === 'string'
+      ? assignment.playerId.trim()
+      : '';
+    if (!assignedPlayerId) {
+      return res.status(400).json({
+        message: 'Mindestens eine Kinderzuordnung ist unvollständig.',
+      });
+    }
+    const assignedRelationship = assignment.relationship &&
+      Object.values(GuardianRelationship).includes(assignment.relationship)
+      ? assignment.relationship
+      : GuardianRelationship.GUARDIAN;
+    guardianAssignments.set(assignedPlayerId, assignedRelationship);
+  }
+  const guardianPlayers = guardianAssignments.size === 0
+    ? []
+    : await prisma.player.findMany({
+        where: {
+          id: { in: [...guardianAssignments.keys()] },
+          teamId: {
+            in: limitedManager
+              ? managementTeamIds
+              : allowedTeams.map((team) => team.id),
+          },
+        },
+        select: { id: true, teamId: true },
+      });
+  if (guardianPlayers.length !== guardianAssignments.size) {
+    return res.status(403).json({
+      message: 'Mindestens ein Kind gehört nicht zu deinem erlaubten Mannschafts- oder Jugendbereich.',
+    });
+  }
+  if (
+    nextStatus === AccountStatus.APPROVED &&
+    target.status === AccountStatus.PENDING &&
+    nextRole === Role.PARENT &&
+    guardianAssignments.size === 0
+  ) {
+    return res.status(400).json({
+      message: 'Für einen Elternzugang muss mindestens ein Kind zugeordnet werden.',
+    });
+  }
   if (nextRole === Role.PLAYER && !linkedPlayer && !playerId) {
     linkedPlayer = await prisma.player.findFirst({
       where: {
@@ -831,7 +916,21 @@ export async function approveUser(req: Request, res: Response) {
     nextRole,
     actor.role,
   );
-  const updated = await prisma.$transaction(async (tx) => {
+  let updated: Prisma.UserGetPayload<{ select: typeof memberSelect }>;
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+    if (
+      target.status === AccountStatus.PENDING &&
+      nextStatus !== AccountStatus.PENDING
+    ) {
+      const claimed = await tx.user.updateMany({
+        where: { id: target.id, status: AccountStatus.PENDING },
+        data: { status: nextStatus, role: nextRole, teamId: primaryTeamId },
+      });
+      if (claimed.count !== 1) {
+        throw new RegistrationApprovalConflict();
+      }
+    }
     const member = preserveAccountAssignment
       ? await tx.user.findUniqueOrThrow({
           where: { id: target.id },
@@ -876,29 +975,26 @@ export async function approveUser(req: Request, res: Response) {
           });
         }
       }
-      if (linkedPlayer && canHaveParentPlayerLinks(nextRole)) {
-        await tx.parentPlayerLink.upsert({
-          where: {
-            parentId_playerId: { parentId: target.id, playerId: linkedPlayer.id },
-          },
-          create: {
-            parentId: target.id,
-            playerId: linkedPlayer.id,
-            relationship:
-              relationship &&
-              Object.values(GuardianRelationship).includes(relationship)
-                ? relationship
-                : GuardianRelationship.GUARDIAN,
-          },
-          update: {
-            relationship:
-              relationship &&
-              Object.values(GuardianRelationship).includes(relationship)
-                ? relationship
-                : GuardianRelationship.GUARDIAN,
-          },
-        });
+      if (canHaveParentPlayerLinks(nextRole)) {
+        for (const [assignedPlayerId, assignedRelationship] of guardianAssignments) {
+          await tx.parentPlayerLink.upsert({
+            where: {
+              parentId_playerId: {
+                parentId: target.id,
+                playerId: assignedPlayerId,
+              },
+            },
+            create: {
+              parentId: target.id,
+              playerId: assignedPlayerId,
+              relationship: assignedRelationship,
+            },
+            update: { relationship: assignedRelationship },
+          });
+        }
       }
+    } else if (target.status === AccountStatus.PENDING) {
+      await tx.parentPlayerLink.deleteMany({ where: { parentId: target.id } });
     }
     const registration = await tx.registrationRequest.findUnique({
       where: { userId: target.id },
@@ -929,6 +1025,12 @@ export async function approveUser(req: Request, res: Response) {
             teamRoles: Object.fromEntries(membershipFunctions),
             teamIds: allowedTeams.map((team) => team.id),
             playerId: linkedPlayer?.id,
+            guardianLinks: [...guardianAssignments].map(
+              ([assignedPlayerId, assignedRelationship]) => ({
+                playerId: assignedPlayerId,
+                relationship: assignedRelationship,
+              }),
+            ),
           },
         },
       });
@@ -945,6 +1047,12 @@ export async function approveUser(req: Request, res: Response) {
           teamRoles: Object.fromEntries(membershipFunctions),
           teamIds: allowedTeams.map((team) => team.id),
           playerId: linkedPlayer?.id,
+          guardianLinks: [...guardianAssignments].map(
+            ([assignedPlayerId, assignedRelationship]) => ({
+              playerId: assignedPlayerId,
+              relationship: assignedRelationship,
+            }),
+          ),
           reviewStatus: nextReviewStatus,
           adminNote: adminNote?.trim() || null,
           applicantMessage: applicantMessage?.trim() || null,
@@ -955,7 +1063,21 @@ export async function approveUser(req: Request, res: Response) {
       where: { id: member.id },
       select: memberSelect,
     });
-  });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  } catch (error) {
+    if (
+      error instanceof RegistrationApprovalConflict ||
+      (error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2034')
+    ) {
+      return res.status(409).json({
+        message: 'Die Registrierung wurde bereits von einer anderen Person bearbeitet.',
+      });
+    }
+    throw error;
+  }
 
   return res.json(limitedManager
     ? scopedMemberView(updated, managementTeamIds)

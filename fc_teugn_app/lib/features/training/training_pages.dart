@@ -651,6 +651,8 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
           secondaryReminderMinutes: draft.secondaryReminderMinutes,
           defaultReminderPushEnabled: draft.defaultReminderPushEnabled,
         );
+        ref.invalidate(eventsProvider);
+        ref.invalidate(personalResponsesProvider);
       }
       await _load(refresh: true);
       if (mounted) {

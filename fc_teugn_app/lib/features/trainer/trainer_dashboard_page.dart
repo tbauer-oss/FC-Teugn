@@ -26,7 +26,10 @@ class TrainerDashboardPage extends ConsumerWidget {
     final user = ref.watch(authProvider).user;
     final players = ref.watch(playersProvider);
     final events = ref.watch(eventsProvider);
-    final approvals = ref.watch(pendingUsersProvider);
+    final approvals = visiblePendingUsers(
+      ref.watch(pendingUsersProvider),
+      ref.watch(dismissedPendingRegistrationIdsProvider),
+    );
     final organization = ref.watch(organizationProvider).valueOrNull;
     final notifications =
         ref.watch(liveNotificationsProvider).valueOrNull ?? const [];
@@ -76,6 +79,7 @@ class TrainerDashboardPage extends ConsumerWidget {
         .toList()
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
     final nextEvent = upcoming.firstOrNull;
+    final nextTraining = nextTrainingForDashboard(upcoming);
     final nextEvents = upcoming.take(4).toList();
     final openResponses = _openResponses(nextEvent);
     final approvalCount = approvals.valueOrNull?.length ?? 0;
@@ -108,7 +112,7 @@ class TrainerDashboardPage extends ConsumerWidget {
             notifications: notifications,
             isTrainer: true,
           ),
-          if (user?.role == UserRole.superAdmin) ...[
+          if (organization?.can('MANAGE_MEMBERS') == true) ...[
             AdminMemberRequestsCard(
               pending: approvals,
               onOpen: () => context.go('/trainer/approvals'),
@@ -118,6 +122,14 @@ class TrainerDashboardPage extends ConsumerWidget {
           ],
           if (user?.canUsePersonalResponses == true) ...[
             const PersonalResponsesCard(isTrainer: true),
+            const SizedBox(height: 12),
+          ],
+          if (nextTraining != null) ...[
+            _NextTrainingOverview(
+              event: nextTraining,
+              players: teamPlayers,
+              onOpen: () => context.push(eventRoute(nextTraining)),
+            ),
             const SizedBox(height: 12),
           ],
           _NextEventHero(
@@ -394,6 +406,343 @@ class AdminMemberRequestsCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _NextTrainingOverview extends StatelessWidget {
+  const _NextTrainingOverview({
+    required this.event,
+    required this.players,
+    required this.onOpen,
+  });
+
+  final EventModel event;
+  final List<PlayerModel> players;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final teamIds = {
+      event.teamId,
+      ...event.targetTeams.map((team) => team.id),
+    };
+    final roster = players
+        .where(
+          (player) =>
+              player.status == PlayerStatus.active &&
+              player.teamId != null &&
+              teamIds.contains(player.teamId),
+        )
+        .toList();
+    final summary = event.attendanceSummary;
+    final counts = trainingDashboardCounts(
+      summary,
+      missingCount: event.missingAttendance.length,
+      rosterCount: roster.length,
+    );
+    final teams = event.targetTeams.isEmpty
+        ? event.title
+        : event.targetTeams.map((team) => team.name).toSet().join(' · ');
+    return Card(
+      key: const ValueKey('next-training-overview'),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.yellowSoft,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.sports_rounded),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Nächstes Training',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          '${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr · $teams',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded),
+                ],
+              ),
+              if (event.location.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 18,
+                      color: AppColors.muted,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        event.location,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  _TrainingResponseMetric(
+                    icon: Icons.check_circle_rounded,
+                    label: 'Zugesagt',
+                    value: counts.yes,
+                    color: AppColors.success,
+                  ),
+                  _TrainingResponseMetric(
+                    icon: Icons.cancel_rounded,
+                    label: 'Abgesagt',
+                    value: counts.no,
+                    color: Colors.redAccent,
+                  ),
+                  if (counts.maybe > 0)
+                    _TrainingResponseMetric(
+                      icon: Icons.help_rounded,
+                      label: 'Vielleicht',
+                      value: counts.maybe,
+                      color: AppColors.orange,
+                    ),
+                  _TrainingResponseMetric(
+                    icon: Icons.schedule_rounded,
+                    label: 'Offen',
+                    value: counts.open,
+                    color: AppColors.muted,
+                  ),
+                  _TrainingResponseMetric(
+                    icon: Icons.groups_rounded,
+                    label: 'Gesamt',
+                    value: counts.total,
+                    color: AppColors.blue,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  key: const ValueKey('next-training-participants'),
+                  onPressed: () => _showTrainingResponses(
+                    context,
+                    event,
+                    roster,
+                  ),
+                  icon: const Icon(Icons.people_alt_outlined),
+                  label: const Text('Teilnehmer ansehen'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showTrainingResponses(
+    BuildContext context,
+    EventModel event,
+    List<PlayerModel> roster,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => _TrainingResponsesSheet(
+        event: event,
+        roster: roster,
+      ),
+    );
+  }
+}
+
+class _TrainingResponseMetric extends StatelessWidget {
+  const _TrainingResponseMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final int value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .09),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 5),
+            Text(
+              '$value $label',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+            ),
+          ],
+        ),
+      );
+}
+
+class _TrainingResponsesSheet extends StatelessWidget {
+  const _TrainingResponsesSheet({required this.event, required this.roster});
+
+  final EventModel event;
+  final List<PlayerModel> roster;
+
+  @override
+  Widget build(BuildContext context) {
+    final repliedIds = event.attendance.map((item) => item.playerId).toSet();
+    final explicitOpen = event.missingAttendance
+        .map((item) => (name: item.name, reason: null as String?))
+        .toList();
+    final open = explicitOpen.isNotEmpty
+        ? explicitOpen
+        : roster
+            .where((player) => !repliedIds.contains(player.id))
+            .map((player) => (name: player.fullName, reason: null as String?))
+            .toList();
+    List<({String name, String? reason})> replies(AttendanceStatus status) =>
+        event.attendance
+            .where((item) => item.status == status)
+            .map(
+              (item) => (
+                name: item.playerName ?? 'Spieler',
+                reason: item.reason,
+              ),
+            )
+            .toList();
+    return FractionallySizedBox(
+      heightFactor: .78,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        child: Column(
+          children: [
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.line,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Rückmeldungen zum Training',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Schließen',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            Expanded(
+              child: ListView(
+                children: [
+                  _TrainingResponseGroup(
+                    title: 'Zugesagt',
+                    color: AppColors.success,
+                    entries: replies(AttendanceStatus.yes),
+                  ),
+                  _TrainingResponseGroup(
+                    title: 'Vielleicht',
+                    color: AppColors.orange,
+                    entries: replies(AttendanceStatus.maybe),
+                  ),
+                  _TrainingResponseGroup(
+                    title: 'Abgesagt',
+                    color: Colors.redAccent,
+                    entries: replies(AttendanceStatus.no),
+                  ),
+                  _TrainingResponseGroup(
+                    title: 'Keine Rückmeldung',
+                    color: AppColors.muted,
+                    entries: open,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TrainingResponseGroup extends StatelessWidget {
+  const _TrainingResponseGroup({
+    required this.title,
+    required this.color,
+    required this.entries,
+  });
+
+  final String title;
+  final Color color;
+  final List<({String name, String? reason})> entries;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$title (${entries.length})',
+              style: TextStyle(fontWeight: FontWeight.w900, color: color),
+            ),
+            const SizedBox(height: 5),
+            if (entries.isEmpty)
+              const Text('Niemand', style: TextStyle(color: AppColors.muted))
+            else
+              for (final entry in entries)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.person_rounded, color: color),
+                  title: Text(entry.name),
+                  subtitle: entry.reason?.trim().isNotEmpty == true
+                      ? Text(entry.reason!)
+                      : null,
+                ),
+          ],
+        ),
+      );
 }
 
 class _NextEventHero extends StatelessWidget {
@@ -1282,6 +1631,35 @@ List<EventModel> _dashboardEvents(
     );
   }
   return result;
+}
+
+EventModel? nextTrainingForDashboard(Iterable<EventModel> events) {
+  final trainings = events
+      .where((event) => event.category == EventCategory.training)
+      .toList()
+    ..sort((left, right) => left.startAt.compareTo(right.startAt));
+  return trainings.firstOrNull;
+}
+
+({int yes, int no, int maybe, int open, int total}) trainingDashboardCounts(
+  AttendanceSummary summary, {
+  required int missingCount,
+  required int rosterCount,
+}) {
+  final fallbackOpen =
+      summary.total == 0 && missingCount == 0 ? rosterCount : 0;
+  final open = summary.unknown > 0
+      ? summary.unknown
+      : missingCount > 0
+          ? missingCount
+          : fallbackOpen;
+  return (
+    yes: summary.yes,
+    no: summary.no,
+    maybe: summary.maybe,
+    open: open,
+    total: summary.yes + summary.no + summary.maybe + open,
+  );
 }
 
 String _time(DateTime value) =>
