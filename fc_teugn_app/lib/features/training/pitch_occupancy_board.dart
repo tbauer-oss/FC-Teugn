@@ -47,6 +47,8 @@ class _PitchOccupancyBoardState extends State<PitchOccupancyBoard> {
         conflict.second,
       ],
     };
+    final approvedConflicts =
+        conflicts.where((conflict) => conflict.approved).toList();
     final jointTrainingLabels = <String>{
       for (final team in plan.teams)
         for (final partnerId in team.trainingPartnerIds)
@@ -108,34 +110,24 @@ class _PitchOccupancyBoardState extends State<PitchOccupancyBoard> {
               ),
             ),
         ],
-        if (conflicts.any((conflict) => conflict.approved)) ...[
+        if (approvedConflicts.isNotEmpty || jointTrainingLabels.isNotEmpty) ...[
           const SizedBox(height: 8),
-          _Notice(
-            icon: Icons.verified_rounded,
-            color: AppColors.teal,
-            title: 'Abgestimmte Überschneidungen',
-            message:
-                '${conflicts.where((conflict) => conflict.approved).length} Überschneidung(en) wurden bestätigt und gelten nicht mehr als Konflikt.',
-          ),
-          if (plan.canManageOccupancy)
-            for (final conflict
-                in conflicts.where((conflict) => conflict.approved))
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: _ConflictRow(
-                  conflict: conflict,
-                  canManage: true,
-                  onChanged: widget.onConflictApproval,
-                ),
-              ),
-        ],
-        if (jointTrainingLabels.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _Notice(
-            icon: Icons.groups_2_rounded,
-            color: AppColors.blue,
-            title: 'Gemeinsame Trainings',
-            message: jointTrainingLabels.join(' · '),
+          _OccupancyDetailShortcuts(
+            approvedConflictCount: approvedConflicts.length,
+            jointTrainingCount: jointTrainingLabels.length,
+            onOpenApprovedConflicts: approvedConflicts.isEmpty
+                ? null
+                : () => _showApprovedConflicts(
+                      context,
+                      conflicts: approvedConflicts,
+                      canManage: plan.canManageOccupancy,
+                    ),
+            onOpenJointTrainings: jointTrainingLabels.isEmpty
+                ? null
+                : () => _showJointTrainings(
+                      context,
+                      labels: jointTrainingLabels,
+                    ),
           ),
         ],
         if (unparsedCount > 0)
@@ -197,6 +189,62 @@ class _PitchOccupancyBoardState extends State<PitchOccupancyBoard> {
       ],
     );
   }
+
+  Future<void> _showApprovedConflicts(
+    BuildContext context, {
+    required List<PitchOccupancyConflict> conflicts,
+    required bool canManage,
+  }) =>
+      _showOccupancyDetails(
+        context,
+        title: 'Abgestimmte Überschneidungen',
+        description:
+            '${conflicts.length} bestätigte Überschneidung${conflicts.length == 1 ? '' : 'en'} gilt nicht mehr als offener Konflikt.',
+        icon: Icons.verified_rounded,
+        color: AppColors.teal,
+        child: Column(
+          children: [
+            for (final conflict in conflicts)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _ConflictRow(
+                  conflict: conflict,
+                  canManage: canManage,
+                  onChanged: widget.onConflictApproval == null
+                      ? null
+                      : (changedConflict, approved) {
+                          Navigator.of(context, rootNavigator: true).pop();
+                          widget.onConflictApproval!(
+                            changedConflict,
+                            approved,
+                          );
+                        },
+                ),
+              ),
+          ],
+        ),
+      );
+
+  Future<void> _showJointTrainings(
+    BuildContext context, {
+    required List<String> labels,
+  }) =>
+      _showOccupancyDetails(
+        context,
+        title: 'Gemeinsame Trainings',
+        description: 'Diese Mannschaften nutzen ihre Trainingszeit gemeinsam.',
+        icon: Icons.groups_2_rounded,
+        color: AppColors.blue,
+        child: Column(
+          children: [
+            for (final label in labels)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _JointTrainingRow(label: label),
+              ),
+          ],
+        ),
+      );
 }
 
 class _PlanHeader extends StatelessWidget {
@@ -1281,6 +1329,256 @@ class _SlotPill extends StatelessWidget {
                 ),
             ],
           ),
+        ),
+      );
+}
+
+class _OccupancyDetailShortcuts extends StatelessWidget {
+  const _OccupancyDetailShortcuts({
+    required this.approvedConflictCount,
+    required this.jointTrainingCount,
+    required this.onOpenApprovedConflicts,
+    required this.onOpenJointTrainings,
+  });
+
+  final int approvedConflictCount;
+  final int jointTrainingCount;
+  final VoidCallback? onOpenApprovedConflicts;
+  final VoidCallback? onOpenJointTrainings;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final availableButtons = <Widget>[
+            if (onOpenApprovedConflicts != null)
+              _OccupancyDetailButton(
+                key: const ValueKey('approved-conflicts-button'),
+                icon: Icons.verified_rounded,
+                color: AppColors.teal,
+                label: 'Abgestimmt ($approvedConflictCount)',
+                tooltip: 'Abgestimmte Überschneidungen öffnen',
+                onPressed: onOpenApprovedConflicts!,
+              ),
+            if (onOpenJointTrainings != null)
+              _OccupancyDetailButton(
+                key: const ValueKey('joint-trainings-button'),
+                icon: Icons.groups_2_rounded,
+                color: AppColors.blue,
+                label: 'Gemeinsame Trainings ($jointTrainingCount)',
+                tooltip: 'Gemeinsame Trainings öffnen',
+                onPressed: onOpenJointTrainings!,
+              ),
+          ];
+          final twoColumns = constraints.maxWidth >= 300;
+          final buttonWidth = twoColumns && availableButtons.length > 1
+              ? (constraints.maxWidth - 8) / 2
+              : constraints.maxWidth.clamp(0, 260).toDouble();
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final button in availableButtons)
+                SizedBox(width: buttonWidth, child: button),
+            ],
+          );
+        },
+      );
+}
+
+class _OccupancyDetailButton extends StatelessWidget {
+  const _OccupancyDetailButton({
+    required super.key,
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: tooltip,
+        child: Tooltip(
+          message: tooltip,
+          child: OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon, color: color, size: 19),
+            label: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.left,
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.navy,
+              alignment: Alignment.centerLeft,
+              minimumSize: const Size.fromHeight(48),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              visualDensity: VisualDensity.compact,
+              side: BorderSide(color: color.withValues(alpha: .35)),
+              backgroundColor: color.withValues(alpha: .06),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(13),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+Future<void> _showOccupancyDetails(
+  BuildContext context, {
+  required String title,
+  required String description,
+  required IconData icon,
+  required Color color,
+  required Widget child,
+}) {
+  final panel = _OccupancyDetailsPanel(
+    title: title,
+    description: description,
+    icon: icon,
+    color: color,
+    child: child,
+  );
+  if (MediaQuery.sizeOf(context).width >= 700) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680, maxHeight: 720),
+          child: panel,
+        ),
+      ),
+    );
+  }
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    useRootNavigator: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => FractionallySizedBox(
+      heightFactor: .78,
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: panel,
+      ),
+    ),
+  );
+}
+
+class _OccupancyDetailsPanel extends StatelessWidget {
+  const _OccupancyDetailsPanel({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.child,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 10, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(icon, color: color),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: AppColors.navy,
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(description),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('occupancy-details-close'),
+                  tooltip: 'Schließen',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: AppColors.line.withValues(alpha: .8)),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(18),
+              child: child,
+            ),
+          ),
+        ],
+      );
+}
+
+class _JointTrainingRow extends StatelessWidget {
+  const _JointTrainingRow({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.blue.withValues(alpha: .06),
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: AppColors.blue.withValues(alpha: .2)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.groups_2_rounded, color: AppColors.blue),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.navy,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
         ),
       );
 }
