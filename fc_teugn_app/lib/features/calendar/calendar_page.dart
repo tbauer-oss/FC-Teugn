@@ -24,9 +24,14 @@ import 'tournament_plan_browser_page.dart';
 enum CalendarView { day, week, month, year, agenda }
 
 class CalendarPage extends ConsumerStatefulWidget {
-  const CalendarPage({super.key, required this.canManage});
+  const CalendarPage({
+    super.key,
+    required this.canManage,
+    this.initialEventId,
+  });
 
   final bool canManage;
+  final String? initialEventId;
 
   @override
   ConsumerState<CalendarPage> createState() => _CalendarPageState();
@@ -39,6 +44,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   int _navigationDirection = 1;
   final selectedCategories = <EventCategory>{};
   final selectedTeams = <String>{};
+  bool _initialEventOpened = false;
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +106,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 items,
                 organization,
               );
+              _openInitialEvent(calendarItems);
               final filtered = calendarItems.where(_matchesFilters).toList()
                 ..sort((a, b) => a.startAt.compareTo(b.startAt));
               return switch (view) {
@@ -162,6 +169,22 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         ],
       ),
     );
+  }
+
+  void _openInitialEvent(List<EventModel> events) {
+    if (_initialEventOpened || widget.initialEventId == null) return;
+    final event =
+        events.where((item) => item.id == widget.initialEventId).firstOrNull;
+    if (event == null) return;
+    _initialEventOpened = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        cursor = event.startAt;
+        view = CalendarView.agenda;
+      });
+      _openEvent(event);
+    });
   }
 
   List<EventModel> _withRegularTrainings(

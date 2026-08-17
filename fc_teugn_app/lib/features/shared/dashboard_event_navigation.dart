@@ -23,5 +23,10 @@ String dashboardEventRoute({
         ? '/trainer/events'
         : '/trainer/training/${event.id}';
   }
-  return isTrainer ? '/trainer/events' : '/parent/events';
+  return isTrainer
+      ? '/trainer/events'
+      : Uri(
+          path: '/parent/events',
+          queryParameters: {'eventId': event.id},
+        ).toString();
 }

@@ -3,14 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/models/communication.dart';
 import '../../core/models/event.dart';
+import '../../core/models/matchday.dart';
+import '../../core/models/personal_response.dart';
+import '../../core/models/player.dart';
+import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
-import '../shared/page_scaffold.dart';
-import '../shared/dashboard_notifications.dart';
 import '../shared/dashboard_event_navigation.dart';
 import '../shared/family_responses.dart';
-import '../privacy/parent_consent_prompt.dart';
+import '../shared/page_scaffold.dart';
+import 'family_assistant_model.dart';
 
 class ParentDashboardPage extends ConsumerWidget {
   const ParentDashboardPage({super.key});
@@ -18,230 +22,913 @@ class ParentDashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).user;
-    final players = ref.watch(playersProvider).valueOrNull ?? [];
-    final consentAttention =
-        ref.watch(parentConsentAttentionProvider).valueOrNull ?? const [];
+    final playersAsync = ref.watch(playersProvider);
+    final responsesAsync = ref.watch(personalResponsesProvider);
+    final eventsAsync = ref.watch(eventsProvider);
+    final matchesAsync = ref.watch(parentMatchdaysProvider);
+    final consentAsync = ref.watch(parentConsentAttentionProvider);
+    final notificationsAsync = ref.watch(liveNotificationsProvider);
+    final players = playersAsync.valueOrNull ?? const <PlayerModel>[];
+    final responses =
+        responsesAsync.valueOrNull ?? const <PersonalResponseModel>[];
+    final events = eventsAsync.valueOrNull ?? const <EventModel>[];
+    final matches = matchesAsync.valueOrNull ?? const <MatchdayModel>[];
+    final consents =
+        consentAsync.valueOrNull ?? const <ParentConsentAttention>[];
     final notifications =
-        ref.watch(liveNotificationsProvider).valueOrNull ?? const [];
-    final events = [
-      ...(ref.watch(eventsProvider).valueOrNull ?? <EventModel>[]),
-    ];
-    events.sort((a, b) => a.startAt.compareTo(b.startAt));
-    final nextEvents = events
-        .where((event) => event.startAt.isAfter(DateTime.now()))
-        .take(3)
-        .toList();
+        notificationsAsync.valueOrNull ?? const <AppNotificationModel>[];
+    final now = DateTime.now();
+    final dayStart = DateTime(now.year, now.month, now.day);
+    final timeline = buildFamilyTimeline(
+      events: events,
+      responses: responses,
+      from: dayStart,
+      until: dayStart.add(const Duration(days: 8)),
+    );
+    final openResponses = responses.where((item) => item.isOpen).toList()
+      ..sort((a, b) {
+        if (a.isOverdue != b.isOverdue) return a.isOverdue ? -1 : 1;
+        return a.startAt.compareTo(b.startAt);
+      });
+    final liveMatches = matches.where(isActiveFamilyTicker).toList()
+      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    final childIds = players.map((player) => player.id).toSet();
+    final carpoolEvents = events.where((event) {
+      return event.startAt.isAfter(now) &&
+          event.startAt.isBefore(now.add(const Duration(days: 8))) &&
+          hasRelevantCarpool(event, childIds);
+    }).toList()
+      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    final changes = notifications.where((item) {
+      return !item.isRead &&
+          isScheduleChangeNotification(item) &&
+          item.createdAt.isAfter(now.subtract(const Duration(days: 14)));
+    }).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return PageScaffold(
       title: 'Hallo ${_firstName(user?.name)}!',
-      subtitle: 'Alle Termine und Rückmeldungen deiner Kinder auf einen Blick.',
+      subtitle: 'Dein Familien-Assistent – nur das, was jetzt wichtig ist.',
+      denseMobileHeader: true,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          DashboardNotifications(
-            notifications: notifications,
-            isTrainer: false,
-          ),
-          if (consentAttention.isNotEmpty) ...[
-            ParentConsentReminderCard(items: consentAttention),
-            const SizedBox(height: 18),
+          if (playersAsync.isLoading ||
+              responsesAsync.isLoading ||
+              eventsAsync.isLoading) ...[
+            const LinearProgressIndicator(minHeight: 3),
+            const SizedBox(height: 8),
           ],
-          const PersonalResponsesCard(isTrainer: false),
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.navy, AppColors.blue],
-              ),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 620;
-                final copy = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Gemeinsam am Ball.',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 23,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '${players.length} ${players.length == 1 ? 'Kind ist' : 'Kinder sind'} deinem Konto zugeordnet.',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: .72),
-                      ),
-                    ),
-                  ],
-                );
-                final button = OutlinedButton(
-                  onPressed: () => context.go('/parent/players'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: BorderSide(
-                      color: Colors.white.withValues(alpha: .35),
-                    ),
-                  ),
-                  child: const Text('Meine Kinder'),
-                );
-                return Padding(
-                  padding: EdgeInsets.all(compact ? 18 : 24),
-                  child: compact
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(
-                                  Icons.sports_soccer_rounded,
-                                  color: AppColors.orange,
-                                  size: 38,
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(child: copy),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            button,
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            const Icon(
-                              Icons.sports_soccer_rounded,
-                              color: AppColors.orange,
-                              size: 44,
-                            ),
-                            const SizedBox(width: 22),
-                            Expanded(child: copy),
-                            const SizedBox(width: 22),
-                            button,
-                          ],
-                        ),
-                );
-              },
-            ),
+          for (final match in liveMatches) ...[
+            _LiveTickerCard(match: match),
+            const SizedBox(height: 10),
+          ],
+          _TodayImportantCard(
+            openResponses: openResponses,
+            scheduleChanges: changes,
+            carpoolEvents: carpoolEvents,
+            matches: matches,
+            players: players,
+            consents: consents,
+            notifications: notifications,
           ),
-          const SizedBox(height: 18),
-          Card(
-            child: LayoutBuilder(
-              builder: (context, constraints) => Padding(
-                padding: EdgeInsets.all(constraints.maxWidth < 600 ? 16 : 22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Nächste Termine',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => context.go('/parent/events'),
-                          child: const Text('Alle ansehen'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    if (nextEvents.isEmpty)
-                      const EmptyState(
-                        icon: Icons.calendar_today_rounded,
-                        title: 'Alles erledigt',
-                        message: 'Aktuell stehen keine weiteren Termine an.',
-                      )
-                    else
-                      for (var i = 0; i < nextEvents.length; i++) ...[
-                        _ParentEventRow(event: nextEvents[i]),
-                        if (i < nextEvents.length - 1)
-                          const Divider(height: 26),
-                      ],
-                  ],
-                ),
-              ),
-            ),
+          const SizedBox(height: 10),
+          if (_needsSetup(user, players)) ...[
+            _FamilySetupCard(user: user, players: players),
+            const SizedBox(height: 10),
+          ],
+          _WeekTimelineCard(items: timeline),
+          const SizedBox(height: 10),
+          _ChildrenSection(
+            players: players,
+            responses: responses,
+            matches: matches,
+            consents: consents,
           ),
+          const SizedBox(height: 10),
+          _NotificationGroupsCard(notifications: notifications),
         ],
       ),
     );
   }
 
-  String _firstName(String? name) => name == null || name.trim().isEmpty
+  static bool _needsSetup(AppUser? user, List<PlayerModel> players) =>
+      players.isEmpty ||
+      !players.any((player) => player.teamId?.isNotEmpty == true) ||
+      user?.registrationRequest?.pushOptIn != true;
+
+  static String _firstName(String? name) => name == null || name.trim().isEmpty
       ? 'Fußballfamilie'
-      : name.trim().split(' ').first;
+      : name.trim().split(RegExp(r'\s+')).first;
 }
 
-class _ParentEventRow extends StatelessWidget {
-  const _ParentEventRow({required this.event});
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading(
+      {required this.icon,
+      required this.title,
+      required this.subtitle,
+      this.trailing});
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
 
-  final EventModel event;
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+                color: AppColors.yellowSoft,
+                borderRadius: BorderRadius.circular(11)),
+            child: Icon(icon, size: 20, color: AppColors.black),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              Text(subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall),
+            ]),
+          ),
+          if (trailing != null) ...[const SizedBox(width: 6), trailing!],
+        ],
+      );
+}
+
+class _LiveTickerCard extends StatelessWidget {
+  const _LiveTickerCard({required this.match});
+  final MatchdayModel match;
 
   @override
   Widget build(BuildContext context) {
-    final date = event.startAt.toLocal();
-    final route = dashboardEventRoute(event: event, isTrainer: false);
-    final details = [
-      '${date.day}.${date.month}.${date.year}',
-      '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} Uhr',
-      if (event.location.trim().isNotEmpty) event.location,
-    ].join(' · ');
-    final openReplies = event.attendance
-        .where((reply) => reply.status == AttendanceStatus.unknown)
-        .length;
-    return InkWell(
-      onTap: () => context.go(route),
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: AppColors.teal.withValues(alpha: .12),
-              foregroundColor: AppColors.teal,
-              child: Icon(
-                event.type == EventType.match
-                    ? Icons.sports_soccer_rounded
-                    : Icons.sports_rounded,
-              ),
+    final ticker = match.ticker!;
+    final opponent = match.details?.opponent ?? 'Gegner';
+    return Semantics(
+      button: true,
+      label:
+          'Liveticker ${match.title}, ${ticker.ourGoals} zu ${ticker.theirGoals}',
+      child: InkWell(
+        onTap: () => context.go('/parent/matches/${match.id}?tab=live'),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [AppColors.black, Color(0xFF4B4200)]),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                  color: AppColors.yellow,
+                  borderRadius: BorderRadius.circular(13)),
+              child: const Icon(Icons.sensors_rounded, color: AppColors.black),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 11),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    event.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.navy,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(children: [
+                      _PulseDot(),
+                      SizedBox(width: 6),
+                      Text('JETZT LIVE',
+                          style: TextStyle(
+                              color: AppColors.yellow,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .6)),
+                    ]),
+                    const SizedBox(height: 2),
+                    Text(
+                      'FC Teugn ${ticker.ourGoals} : ${ticker.theirGoals} $opponent',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900),
                     ),
-                  ),
-                  Text(
-                    details,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
+                  ]),
             ),
-            if (openReplies > 0)
-              Chip(
-                avatar: const Icon(Icons.schedule_rounded, size: 15),
-                label: Text('$openReplies offen'),
-              )
-            else
-              const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
-          ],
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white),
+          ]),
         ),
       ),
     );
   }
 }
+
+class _PulseDot extends StatelessWidget {
+  const _PulseDot();
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 8,
+        height: 8,
+        decoration: const BoxDecoration(
+            color: Colors.redAccent, shape: BoxShape.circle),
+      );
+}
+
+class _TodayImportantCard extends StatelessWidget {
+  const _TodayImportantCard({
+    required this.openResponses,
+    required this.scheduleChanges,
+    required this.carpoolEvents,
+    required this.matches,
+    required this.players,
+    required this.consents,
+    required this.notifications,
+  });
+  final List<PersonalResponseModel> openResponses;
+  final List<AppNotificationModel> scheduleChanges;
+  final List<EventModel> carpoolEvents;
+  final List<MatchdayModel> matches;
+  final List<PlayerModel> players;
+  final List<ParentConsentAttention> consents;
+  final List<AppNotificationModel> notifications;
+
+  @override
+  Widget build(BuildContext context) {
+    final nominations = _nominations(matches, players, notifications);
+    final itemCount = openResponses.length +
+        scheduleChanges.length +
+        carpoolEvents.length +
+        nominations.length +
+        consents.length;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _SectionHeading(
+            icon: itemCount == 0
+                ? Icons.task_alt_rounded
+                : Icons.notifications_active_rounded,
+            title: itemCount == 0 ? 'Alles erledigt' : 'Heute wichtig',
+            subtitle: itemCount == 0
+                ? 'Für deine Familie ist gerade keine Aktion notwendig.'
+                : '$itemCount ${itemCount == 1 ? 'Punkt braucht' : 'Punkte brauchen'} deine Aufmerksamkeit.',
+          ),
+          if (itemCount > 0) const Divider(height: 18),
+          for (final response in openResponses.take(3)) ...[
+            _ImportantResponse(item: response),
+            const SizedBox(height: 7),
+          ],
+          if (openResponses.length > 3)
+            _CompactLink(
+              icon: Icons.how_to_reg_rounded,
+              title: '${openResponses.length - 3} weitere Rückmeldungen',
+              subtitle: 'Alle offenen Antworten anzeigen',
+              onTap: () => context.go('/parent/family'),
+            ),
+          for (final notification in scheduleChanges.take(2)) ...[
+            _CompactLink(
+              icon: Icons.update_rounded,
+              title: 'Terminänderung',
+              subtitle: scheduleChangeSummary(notification),
+              onTap: () => _openNotification(context, notification),
+            ),
+            const SizedBox(height: 7),
+          ],
+          for (final nomination in nominations.take(2)) ...[
+            _CompactLink(
+              icon: Icons.verified_rounded,
+              title: 'Neue Nominierung · ${nomination.playerName}',
+              subtitle:
+                  '${nomination.match.title} · ${_shortDate(nomination.match.startAt)}',
+              color: AppColors.success,
+              onTap: () => context.go('/parent/matches/${nomination.match.id}'),
+            ),
+            const SizedBox(height: 7),
+          ],
+          for (final event in carpoolEvents.take(2)) ...[
+            _CompactLink(
+              icon: Icons.directions_car_filled_rounded,
+              title: 'Mitfahrt verfügbar oder gesucht',
+              subtitle: '${event.title} · ${_shortDate(event.startAt)}',
+              color: AppColors.success,
+              onTap: () => context.go(Uri(
+                  path: '/parent/events',
+                  queryParameters: {'eventId': event.id}).toString()),
+            ),
+            const SizedBox(height: 7),
+          ],
+          for (final consent in consents.take(1))
+            _CompactLink(
+              icon: Icons.privacy_tip_outlined,
+              title: 'Einwilligung prüfen · ${consent.playerName}',
+              subtitle:
+                  '${consent.openCount} ${consent.openCount == 1 ? 'Entscheidung ist' : 'Entscheidungen sind'} offen',
+              onTap: () =>
+                  context.go('/parent/players/${consent.playerId}?consents=1'),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  static List<_Nomination> _nominations(
+    List<MatchdayModel> matches,
+    List<PlayerModel> players,
+    List<AppNotificationModel> notifications,
+  ) {
+    final now = DateTime.now();
+    final notifiedMatchIds = notifications
+        .where(
+          (item) =>
+              !item.isRead && item.category == NotificationCategory.nomination,
+        )
+        .map((item) =>
+            Uri.tryParse(item.actionUrl ?? '')?.pathSegments.lastOrNull)
+        .whereType<String>()
+        .toSet();
+    final playerById = {for (final player in players) player.id: player};
+    final result = <_Nomination>[];
+    for (final match in matches) {
+      if (match.startAt.isBefore(now) || match.familyReleasedAt == null) {
+        continue;
+      }
+      final publishedAt = match.squad?.publishedAt?.toLocal();
+      final recentlyPublished = publishedAt != null &&
+          publishedAt.isAfter(now.subtract(const Duration(days: 7)));
+      if (!recentlyPublished && !notifiedMatchIds.contains(match.id)) {
+        continue;
+      }
+      for (final member in match.squad?.members ?? const <SquadMemberModel>[]) {
+        final player = playerById[member.player.id];
+        if (player != null && member.status != NominationStatus.declined) {
+          result.add(_Nomination(match: match, playerName: player.displayName));
+        }
+      }
+    }
+    result.sort((a, b) => a.match.startAt.compareTo(b.match.startAt));
+    return result;
+  }
+}
+
+class _Nomination {
+  const _Nomination({required this.match, required this.playerName});
+  final MatchdayModel match;
+  final String playerName;
+}
+
+class _ImportantResponse extends StatelessWidget {
+  const _ImportantResponse({required this.item});
+  final PersonalResponseModel item;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: item.isOverdue
+              ? Colors.red.withValues(alpha: .06)
+              : AppColors.yellowSoft.withValues(alpha: .46),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Icon(
+                item.isMatch
+                    ? Icons.sports_soccer_rounded
+                    : Icons.sports_rounded,
+                size: 19),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                '${item.title} · ${item.playerName}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+            Text(_shortDate(item.startAt),
+                style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700)),
+          ]),
+          const SizedBox(height: 7),
+          if (item.canRespond)
+            PersonalResponseQuickActions(item: item, expanded: true)
+          else
+            OutlinedButton.icon(
+              onPressed: () => _openResponse(context, item),
+              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              label: const Text('Rückmeldung ansehen'),
+            ),
+        ]),
+      );
+}
+
+class _CompactLink extends StatelessWidget {
+  const _CompactLink(
+      {required this.icon,
+      required this.title,
+      required this.subtitle,
+      required this.onTap,
+      this.color = AppColors.gold});
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(13),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 5),
+          child: Row(children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                  color: color.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(11)),
+              child: Icon(icon, color: color, size: 19),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Text(subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall),
+                ])),
+            const Icon(Icons.chevron_right_rounded, size: 20),
+          ]),
+        ),
+      );
+}
+
+class _FamilySetupCard extends StatelessWidget {
+  const _FamilySetupCard({required this.user, required this.players});
+  final AppUser? user;
+  final List<PlayerModel> players;
+
+  @override
+  Widget build(BuildContext context) {
+    final childDone = players.isNotEmpty;
+    final teamDone = players.any((player) => player.teamId?.isNotEmpty == true);
+    final pushDone = user?.registrationRequest?.pushOptIn == true;
+    final done = [childDone, teamDone, pushDone].where((value) => value).length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _SectionHeading(
+              icon: Icons.rocket_launch_outlined,
+              title: 'Ruhig startklar werden',
+              subtitle: '$done von 3 Schritten erledigt'),
+          const SizedBox(height: 9),
+          LinearProgressIndicator(value: done / 3, minHeight: 6),
+          const SizedBox(height: 7),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            _SetupChip(
+                done: childDone,
+                label: 'Kinder prüfen',
+                onTap: () => context.go('/parent/players')),
+            _SetupChip(
+                done: teamDone,
+                label: 'Mannschaft prüfen',
+                onTap: () => context.go('/parent/players')),
+            _SetupChip(
+                done: pushDone,
+                label: 'Push einstellen',
+                onTap: () => context.go('/parent/messages?section=settings')),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+class _SetupChip extends StatelessWidget {
+  const _SetupChip(
+      {required this.done, required this.label, required this.onTap});
+  final bool done;
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => ActionChip(
+        onPressed: onTap,
+        visualDensity: VisualDensity.compact,
+        avatar: Icon(
+            done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+            size: 18,
+            color: done ? AppColors.success : AppColors.gold),
+        label: Text(label),
+      );
+}
+
+class _WeekTimelineCard extends StatelessWidget {
+  const _WeekTimelineCard({required this.items});
+  final List<FamilyTimelineItem> items;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _SectionHeading(
+              icon: Icons.view_timeline_rounded,
+              title: 'Diese Woche',
+              subtitle: items.isEmpty
+                  ? 'Keine Termine in den nächsten sieben Tagen.'
+                  : '${items.length} ${items.length == 1 ? 'Termin' : 'Termine'} – ohne doppelte Einträge',
+              trailing: TextButton(
+                  onPressed: () => context.go('/parent/events'),
+                  child: const Text('Kalender')),
+            ),
+            if (items.isNotEmpty) ...[
+              const Divider(height: 17),
+              for (final item in items.take(7)) _TimelineRow(item: item),
+              if (items.length > 7)
+                TextButton(
+                    onPressed: () => context.go('/parent/events'),
+                    child: Text('${items.length - 7} weitere Termine')),
+            ],
+          ]),
+        ),
+      );
+}
+
+class _TimelineRow extends StatelessWidget {
+  const _TimelineRow({required this.item});
+  final FamilyTimelineItem item;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: () => _openTimelineItem(context, item),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(children: [
+            Container(
+              width: 48,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(
+                color: item.isMatch
+                    ? AppColors.yellowSoft
+                    : AppColors.success.withValues(alpha: .10),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Column(children: [
+                Text(_weekday(item.startAt),
+                    style: const TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w900)),
+                Text('${item.startAt.day}.${item.startAt.month}.',
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+              ]),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Text(
+                    '${_clock(item.startAt)} Uhr${item.location.trim().isEmpty ? '' : ' · ${item.location}'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ])),
+            if (item.response?.isOpen == true)
+              const Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: Icon(Icons.schedule_rounded, size: 15),
+                  label: Text('Antworten'))
+            else
+              const Icon(Icons.chevron_right_rounded, size: 20),
+          ]),
+        ),
+      );
+}
+
+class _ChildrenSection extends StatelessWidget {
+  const _ChildrenSection(
+      {required this.players,
+      required this.responses,
+      required this.matches,
+      required this.consents});
+  final List<PlayerModel> players;
+  final List<PersonalResponseModel> responses;
+  final List<MatchdayModel> matches;
+  final List<ParentConsentAttention> consents;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _SectionHeading(
+              icon: Icons.family_restroom_rounded,
+              title: 'Deine Kinder',
+              subtitle: players.isEmpty
+                  ? 'Noch kein Kind zugeordnet.'
+                  : 'Nächste Termine, Kaderstatus und offene Aufgaben.',
+              trailing: IconButton(
+                  onPressed: () => context.go('/parent/players'),
+                  tooltip: 'Alle Kinder',
+                  icon: const Icon(Icons.arrow_forward_rounded)),
+            ),
+            if (players.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              LayoutBuilder(builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 760 ? 2 : 1;
+                const gap = 8.0;
+                final width =
+                    (constraints.maxWidth - gap * (columns - 1)) / columns;
+                return Wrap(spacing: gap, runSpacing: gap, children: [
+                  for (final player in players)
+                    SizedBox(
+                      width: width,
+                      child: _ChildCard(
+                        player: player,
+                        responses: responses
+                            .where((item) => item.playerId == player.id)
+                            .toList(),
+                        matches: matches,
+                        consent: consents
+                            .where((item) => item.playerId == player.id)
+                            .firstOrNull,
+                      ),
+                    ),
+                ]);
+              }),
+            ],
+          ]),
+        ),
+      );
+}
+
+class _ChildCard extends StatelessWidget {
+  const _ChildCard(
+      {required this.player,
+      required this.responses,
+      required this.matches,
+      this.consent});
+  final PlayerModel player;
+  final List<PersonalResponseModel> responses;
+  final List<MatchdayModel> matches;
+  final ParentConsentAttention? consent;
+
+  @override
+  Widget build(BuildContext context) {
+    final upcoming = responses
+        .where((item) => item.startAt.isAfter(DateTime.now()))
+        .toList()
+      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    final nextTraining = upcoming.where((item) => !item.isMatch).firstOrNull;
+    final nextMatch = upcoming.where((item) => item.isMatch).firstOrNull;
+    final open = upcoming.where((item) => item.isOpen).length +
+        (consent?.openCount ?? 0);
+    return InkWell(
+      onTap: () => context.go('/parent/players/${player.id}'),
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+            color: AppColors.background,
+            border: Border.all(color: AppColors.line),
+            borderRadius: BorderRadius.circular(15)),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            CircleAvatar(
+              radius: 19,
+              backgroundColor: AppColors.yellowSoft,
+              foregroundColor: AppColors.black,
+              child: Text(player.initials,
+                  style: const TextStyle(fontWeight: FontWeight.w900)),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(player.displayName,
+                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                  Text(player.teamCode,
+                      style: Theme.of(context).textTheme.bodySmall),
+                ])),
+            if (open > 0)
+              Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.schedule_rounded, size: 15),
+                  label: Text('$open offen'))
+            else
+              const Icon(Icons.check_circle_rounded, color: AppColors.success),
+          ]),
+          const SizedBox(height: 7),
+          _ChildFact(
+            icon: Icons.sports_rounded,
+            label: 'Training',
+            value: nextTraining == null
+                ? 'Kein Termin'
+                : '${_shortDate(nextTraining.startAt)} · ${_clock(nextTraining.startAt)}',
+            onTap: nextTraining == null
+                ? null
+                : () => _openResponse(context, nextTraining),
+          ),
+          _ChildFact(
+            icon: Icons.sports_soccer_rounded,
+            label: 'Spiel',
+            value: nextMatch == null
+                ? 'Kein Termin'
+                : '${_shortDate(nextMatch.startAt)} · ${nextMatch.title}',
+            onTap: nextMatch == null
+                ? null
+                : () => _openResponse(context, nextMatch),
+          ),
+          _ChildFact(
+              icon: Icons.verified_user_outlined,
+              label: 'Kader',
+              value: _squadStatus(player.id, matches)),
+        ]),
+      ),
+    );
+  }
+
+  static String _squadStatus(String playerId, List<MatchdayModel> matches) {
+    final upcoming = matches.where((match) {
+      if (match.startAt.isBefore(DateTime.now()) ||
+          match.familyReleasedAt == null) {
+        return false;
+      }
+      return match.eligiblePlayers.any((player) => player.id == playerId) ||
+          (match.squad?.members.any((member) => member.player.id == playerId) ??
+              false);
+    }).toList()
+      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    final match = upcoming.firstOrNull;
+    if (match == null) return 'Noch keine Freigabe';
+    final member = match.squad?.members
+        .where((item) => item.player.id == playerId)
+        .firstOrNull;
+    if (match.squad == null) return 'Noch offen';
+    if (member == null) return 'Nicht nominiert';
+    return switch (member.status) {
+      NominationStatus.nominated => 'Nominiert',
+      NominationStatus.onCall => 'Auf Abruf',
+      NominationStatus.declined => 'Nicht dabei',
+    };
+  }
+}
+
+class _ChildFact extends StatelessWidget {
+  const _ChildFact(
+      {required this.icon,
+      required this.label,
+      required this.value,
+      this.onTap});
+  final IconData icon;
+  final String label;
+  final String value;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(children: [
+            Icon(icon, size: 17, color: AppColors.gold),
+            const SizedBox(width: 7),
+            SizedBox(
+                width: 62,
+                child: Text(label,
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w800))),
+            Expanded(
+                child: Text(value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        const TextStyle(fontSize: 12, color: AppColors.muted))),
+            if (onTap != null)
+              const Icon(Icons.chevron_right_rounded, size: 17),
+          ]),
+        ),
+      );
+}
+
+class _NotificationGroupsCard extends StatelessWidget {
+  const _NotificationGroupsCard({required this.notifications});
+  final List<AppNotificationModel> notifications;
+
+  @override
+  Widget build(BuildContext context) {
+    final unread = notifications.where((item) => !item.isRead).toList();
+    final counts = <FamilyNotificationGroup, int>{
+      for (final group in FamilyNotificationGroup.values) group: 0
+    };
+    for (final item in unread) {
+      final group = familyNotificationGroup(item);
+      counts[group] = counts[group]! + 1;
+    }
+    return Card(
+      child: InkWell(
+        onTap: () => context.go('/parent/messages?section=notifications'),
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _SectionHeading(
+              icon: Icons.notifications_none_rounded,
+              title: 'Mitteilungen',
+              subtitle: unread.isEmpty
+                  ? 'Keine ungelesenen Nachrichten.'
+                  : '${unread.length} ungelesen – verständlich sortiert',
+              trailing: const Icon(Icons.chevron_right_rounded),
+            ),
+            if (unread.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final group in FamilyNotificationGroup.values)
+                  if (counts[group]! > 0)
+                    Chip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text(
+                            '${familyNotificationGroupLabel(group)} · ${counts[group]}')),
+              ]),
+            ],
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+void _openResponse(BuildContext context, PersonalResponseModel response) {
+  context.go(Uri(path: '/parent/family', queryParameters: {
+    'eventId': response.eventId,
+    'playerId': response.playerId
+  }).toString());
+}
+
+void _openTimelineItem(BuildContext context, FamilyTimelineItem item) {
+  if (item.response != null) {
+    _openResponse(context, item.response!);
+  } else if (item.event != null) {
+    context.go(dashboardEventRoute(event: item.event!, isTrainer: false));
+  } else {
+    context.go('/parent/events');
+  }
+}
+
+void _openNotification(
+    BuildContext context, AppNotificationModel notification) {
+  final id =
+      Uri.tryParse(notification.actionUrl ?? '')?.pathSegments.lastOrNull;
+  if ((notification.category == NotificationCategory.event ||
+          notification.category == NotificationCategory.eventReminder) &&
+      id != null &&
+      id != 'events') {
+    context.go(Uri(path: '/parent/events', queryParameters: {'eventId': id})
+        .toString());
+    return;
+  }
+  context.go('/parent/messages?section=notifications');
+}
+
+String _clock(DateTime date) =>
+    '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+String _shortDate(DateTime date) => '${date.day}.${date.month}.${date.year}';
+String _weekday(DateTime date) => switch (date.weekday) {
+      DateTime.monday => 'MO',
+      DateTime.tuesday => 'DI',
+      DateTime.wednesday => 'MI',
+      DateTime.thursday => 'DO',
+      DateTime.friday => 'FR',
+      DateTime.saturday => 'SA',
+      _ => 'SO',
+    };

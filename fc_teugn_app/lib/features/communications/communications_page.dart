@@ -13,12 +13,18 @@ import '../../core/push/native_push_service.dart';
 import '../../core/push/push_client.dart';
 import '../../core/widgets/adaptive_layout.dart';
 import '../auth/auth_controller.dart';
+import '../parent/family_assistant_model.dart';
 import '../shared/page_scaffold.dart';
 
 class CommunicationsPage extends ConsumerStatefulWidget {
-  const CommunicationsPage({super.key, required this.staffView});
+  const CommunicationsPage({
+    super.key,
+    required this.staffView,
+    this.initialSection,
+  });
 
   final bool staffView;
+  final String? initialSection;
 
   @override
   ConsumerState<CommunicationsPage> createState() => _CommunicationsPageState();
@@ -27,6 +33,16 @@ class CommunicationsPage extends ConsumerStatefulWidget {
 class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
   _CommunicationView _view = _CommunicationView.announcements;
   int _revision = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _view = switch (widget.initialSection) {
+      'notifications' => _CommunicationView.notifications,
+      'settings' => _CommunicationView.settings,
+      _ => _CommunicationView.announcements,
+    };
+  }
 
   void _reload() => setState(() => _revision++);
 
@@ -1051,6 +1067,12 @@ class _NotificationList extends ConsumerWidget {
             message: 'Aktuell gibt es keine Benachrichtigungen.',
           );
         }
+        final grouped = <FamilyNotificationGroup, List<AppNotificationModel>>{
+          for (final group in FamilyNotificationGroup.values) group: [],
+        };
+        for (final item in items) {
+          grouped[familyNotificationGroup(item)]!.add(item);
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -1062,65 +1084,98 @@ class _NotificationList extends ConsumerWidget {
               icon: const Icon(Icons.done_all_rounded),
               label: const Text('Alle als gelesen markieren'),
             ),
-            for (final item in items)
-              Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(14),
-                  leading: CircleAvatar(
-                    backgroundColor:
-                        (item.isRead ? AppColors.muted : AppColors.blue)
-                            .withValues(alpha: .12),
-                    child: Icon(
-                      Icons.notifications_rounded,
-                      color: item.isRead ? AppColors.muted : AppColors.blue,
-                    ),
+            for (final group in FamilyNotificationGroup.values)
+              if (grouped[group]!.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 10, 4, 7),
+                  child: Row(
+                    children: [
+                      Icon(_groupIcon(group), size: 20, color: AppColors.gold),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          familyNotificationGroupLabel(group),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      Text(
+                        '${grouped[group]!.length}',
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
-                  title: Text(item.title),
-                  subtitle: Text(item.body),
-                  trailing: canDelete
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (!item.isRead)
-                              const Padding(
-                                padding: EdgeInsets.only(right: 2),
-                                child: Icon(
+                ),
+                for (final item in grouped[group]!)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.all(14),
+                      leading: CircleAvatar(
+                        backgroundColor:
+                            (item.isRead ? AppColors.muted : AppColors.blue)
+                                .withValues(alpha: .12),
+                        child: Icon(
+                          Icons.notifications_rounded,
+                          color: item.isRead ? AppColors.muted : AppColors.blue,
+                        ),
+                      ),
+                      title: Text(item.title),
+                      subtitle: Text(item.body),
+                      trailing: canDelete
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!item.isRead)
+                                  const Padding(
+                                    padding: EdgeInsets.only(right: 2),
+                                    child: Icon(
+                                      Icons.circle,
+                                      size: 10,
+                                      color: AppColors.orange,
+                                    ),
+                                  ),
+                                IconButton(
+                                  tooltip: 'Benachrichtigung löschen',
+                                  icon:
+                                      const Icon(Icons.delete_outline_rounded),
+                                  color: Theme.of(context).colorScheme.error,
+                                  onPressed: () => _delete(context, ref, item),
+                                ),
+                              ],
+                            )
+                          : item.isRead
+                              ? null
+                              : const Icon(
                                   Icons.circle,
                                   size: 10,
                                   color: AppColors.orange,
                                 ),
-                              ),
-                            IconButton(
-                              tooltip: 'Benachrichtigung löschen',
-                              icon: const Icon(Icons.delete_outline_rounded),
-                              color: Theme.of(context).colorScheme.error,
-                              onPressed: () => _delete(context, ref, item),
-                            ),
-                          ],
-                        )
-                      : item.isRead
+                      onTap: item.isRead
                           ? null
-                          : const Icon(
-                              Icons.circle,
-                              size: 10,
-                              color: AppColors.orange,
-                            ),
-                  onTap: item.isRead
-                      ? null
-                      : () async {
-                          await ref
-                              .read(repositoryProvider)
-                              .markNotificationRead(item.id);
-                          onChanged();
-                        },
-                ),
-              ),
+                          : () async {
+                              await ref
+                                  .read(repositoryProvider)
+                                  .markNotificationRead(item.id);
+                              onChanged();
+                            },
+                    ),
+                  ),
+              ],
           ],
         );
       },
     );
   }
+
+  IconData _groupIcon(FamilyNotificationGroup group) => switch (group) {
+        FamilyNotificationGroup.important => Icons.priority_high_rounded,
+        FamilyNotificationGroup.matchday => Icons.sports_soccer_rounded,
+        FamilyNotificationGroup.training => Icons.sports_rounded,
+        FamilyNotificationGroup.club => Icons.campaign_rounded,
+      };
 
   Future<void> _delete(
     BuildContext context,

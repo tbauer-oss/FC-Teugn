@@ -273,6 +273,18 @@ void main() {
     );
     expect(find.text('Verein & Verwaltung'), findsOneWidget);
     expect(find.text('Mitglieder & Berechtigungen'), findsOneWidget);
+    expect(find.byTooltip('Funktion suchen'), findsOneWidget);
+    await tester.tap(find.byTooltip('Funktion suchen'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Berechtigungen');
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Mitglieder & Berechtigungen'),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 

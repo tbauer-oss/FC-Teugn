@@ -439,7 +439,7 @@ class AppShell extends ConsumerWidget {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    '$queuedWrites Änderung${queuedWrites == 1 ? '' : 'en'} offline gespeichert – automatischer Versand läuft.',
+                                    '$queuedWrites Änderung${queuedWrites == 1 ? ' wartet' : 'en warten'} auf die Übertragung – die App versucht es automatisch erneut.',
                                     style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
@@ -1064,12 +1064,24 @@ class MobileNavigationPanel extends StatelessWidget {
     return null;
   }
 
+  Future<void> _showSearch(BuildContext context) async {
+    final destination = await showDialog<ShellDestination>(
+      context: context,
+      builder: (context) => _MobileMenuSearchDialog(
+        destinations: destinations,
+      ),
+    );
+    if (destination != null) onSelect(destination);
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedDestination = _selectedDestination();
     return SafeArea(
       top: false,
       child: ListView(
+        // ignore: deprecated_member_use
+        cacheExtent: 1800,
         padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
         children: [
           Container(
@@ -1128,6 +1140,12 @@ class MobileNavigationPanel extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  onPressed: () => _showSearch(context),
+                  tooltip: 'Funktion suchen',
+                  color: Colors.white,
+                  icon: const Icon(Icons.search_rounded),
                 ),
               ],
             ),
@@ -1240,6 +1258,86 @@ class MobileNavigationPanel extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MobileMenuSearchDialog extends StatefulWidget {
+  const _MobileMenuSearchDialog({required this.destinations});
+  final List<ShellDestination> destinations;
+
+  @override
+  State<_MobileMenuSearchDialog> createState() =>
+      _MobileMenuSearchDialogState();
+}
+
+class _MobileMenuSearchDialogState extends State<_MobileMenuSearchDialog> {
+  final _controller = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _query.trim().toLowerCase();
+    final results = widget.destinations.where((destination) {
+      return query.isEmpty ||
+          destination.label.toLowerCase().contains(query) ||
+          destination.hint.toLowerCase().contains(query) ||
+          destination.section.label.toLowerCase().contains(query);
+    }).toList();
+    return AlertDialog(
+      title: const Text('Funktion suchen'),
+      contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              onChanged: (value) => setState(() => _query = value),
+              decoration: const InputDecoration(
+                hintText: 'z. B. Rückmeldungen oder Tabelle',
+                prefixIcon: Icon(Icons.search_rounded),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: results.length,
+                itemBuilder: (context, index) {
+                  final destination = results[index];
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(destination.icon, color: AppColors.gold),
+                    title: Text(destination.label),
+                    subtitle: Text(
+                      destination.hint,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => Navigator.pop(context, destination),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Schließen'),
+        ),
+      ],
     );
   }
 }

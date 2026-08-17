@@ -7,6 +7,7 @@ import 'api_client.dart';
 import 'data_repository.dart';
 import 'models/event.dart';
 import 'models/communication.dart';
+import 'models/matchday.dart';
 import 'models/organization.dart';
 import 'models/pitch_occupancy.dart';
 import 'models/player.dart';
@@ -161,6 +162,17 @@ final personalResponsesProvider =
   _watchManualRefresh(ref);
   _scheduleLiveRefresh(ref, const Duration(seconds: 20));
   return ref.watch(repositoryProvider).personalResponses();
+});
+
+/// Spieltagsdaten für kompakte Familienansichten. Die kurze Aktualisierung ist
+/// nur aktiv, solange eine Seite den Provider tatsächlich beobachtet. So kann
+/// ein gestarteter Liveticker zeitnah erscheinen, ohne im Hintergrund unnötig
+/// Anfragen zu erzeugen.
+final parentMatchdaysProvider =
+    FutureProvider.autoDispose<List<MatchdayModel>>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 8));
+  return ref.watch(repositoryProvider).matches();
 });
 
 final supportTicketsProvider =

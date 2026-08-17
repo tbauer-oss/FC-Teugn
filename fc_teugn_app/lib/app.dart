@@ -680,8 +680,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
             ),
             GoRoute(
               path: '/trainer/messages',
-              builder: (context, state) =>
-                  const CommunicationsPage(staffView: true),
+              builder: (context, state) => CommunicationsPage(
+                staffView: true,
+                initialSection: state.uri.queryParameters['section'],
+              ),
             ),
             GoRoute(
               path: '/trainer/operations',
@@ -830,7 +832,9 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
             ),
             GoRoute(
               path: '/parent/events',
-              builder: (context, state) => const ParentEventsPage(),
+              builder: (context, state) => ParentEventsPage(
+                initialEventId: state.uri.queryParameters['eventId'],
+              ),
             ),
             GoRoute(
               path: '/parent/matches',
@@ -857,8 +861,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
             ),
             GoRoute(
               path: '/parent/messages',
-              builder: (context, state) =>
-                  const CommunicationsPage(staffView: false),
+              builder: (context, state) => CommunicationsPage(
+                staffView: false,
+                initialSection: state.uri.queryParameters['section'],
+              ),
             ),
             GoRoute(
               path: '/parent/operations',

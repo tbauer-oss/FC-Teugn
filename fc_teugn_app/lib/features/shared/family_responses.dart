@@ -233,89 +233,6 @@ class _ResponseTile extends ConsumerStatefulWidget {
 }
 
 class _ResponseTileState extends ConsumerState<_ResponseTile> {
-  bool _saving = false;
-
-  Future<void> _answer(AttendanceStatus status) async {
-    String? reason;
-    if (status == AttendanceStatus.no) {
-      final controller = TextEditingController(
-        text: widget.item.responseStatus == AttendanceStatus.no
-            ? widget.item.reason ?? ''
-            : '',
-      );
-      reason = await showDialog<String?>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('${widget.item.playerName} absagen?'),
-          content: TextField(
-            controller: controller,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Grund (optional)',
-              hintText: 'z. B. krank oder verhindert',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
-              child: const Text('Absagen'),
-            ),
-          ],
-        ),
-      );
-      controller.dispose();
-      if (reason == null) return;
-    }
-    setState(() => _saving = true);
-    try {
-      await ref.read(repositoryProvider).setAttendance(
-            eventId: widget.item.eventId,
-            playerId: widget.item.playerId,
-            status: status,
-            reason: reason,
-            personalResponse: true,
-          );
-      ref.invalidate(personalResponsesProvider);
-      ref.invalidate(eventsProvider);
-      await Future.wait<void>([
-        ref.read(personalResponsesProvider.future).then<void>((_) {}),
-        ref.read(eventsProvider.future).then<void>((_) {}),
-      ]);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              switch (status) {
-                AttendanceStatus.yes =>
-                  'Zusage für ${widget.item.playerName} gespeichert.',
-                AttendanceStatus.maybe =>
-                  '„Vielleicht“ für ${widget.item.playerName} gespeichert.',
-                AttendanceStatus.no =>
-                  'Absage für ${widget.item.playerName} gespeichert.',
-                AttendanceStatus.unknown =>
-                  'Rückmeldung für ${widget.item.playerName} gespeichert.',
-              },
-            ),
-          ),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text('Rückmeldung konnte nicht gespeichert werden: $error')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -354,7 +271,10 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
           ? '${trainer ? '/trainer' : '/parent'}/matches/${item.eventId}'
           : trainer
               ? '/trainer/events'
-              : '/parent/events');
+              : Uri(
+                  path: '/parent/events',
+                  queryParameters: {'eventId': item.eventId},
+                ).toString());
     }
 
     final narrowPage = MediaQuery.sizeOf(context).width < 660;
@@ -450,11 +370,9 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
             ],
           );
           final actions = item.canRespond
-              ? _AttendanceResponseActions(
+              ? PersonalResponseQuickActions(
+                  item: item,
                   expanded: narrow,
-                  saving: _saving,
-                  allowMaybe: !item.isMatch,
-                  onAnswer: _answer,
                 )
               : Chip(
                   avatar: Icon(
@@ -512,6 +430,122 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
       ),
     );
   }
+}
+
+/// Gemeinsame, kompakte Rückmeldeaktion für Familienseite und Dashboard.
+/// Damit verwenden beide Oberflächen exakt denselben Speicherweg und dieselbe
+/// Spielregel (bei Spielen nur Zu- oder Absage).
+class PersonalResponseQuickActions extends ConsumerStatefulWidget {
+  const PersonalResponseQuickActions({
+    super.key,
+    required this.item,
+    this.expanded = false,
+    this.onSaved,
+  });
+
+  final PersonalResponseModel item;
+  final bool expanded;
+  final VoidCallback? onSaved;
+
+  @override
+  ConsumerState<PersonalResponseQuickActions> createState() =>
+      _PersonalResponseQuickActionsState();
+}
+
+class _PersonalResponseQuickActionsState
+    extends ConsumerState<PersonalResponseQuickActions> {
+  bool _saving = false;
+
+  Future<void> _answer(AttendanceStatus status) async {
+    String? reason;
+    if (status == AttendanceStatus.no) {
+      final controller = TextEditingController(
+        text: widget.item.responseStatus == AttendanceStatus.no
+            ? widget.item.reason ?? ''
+            : '',
+      );
+      reason = await showDialog<String?>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('${widget.item.playerName} absagen?'),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Grund (optional)',
+              hintText: 'z. B. krank oder verhindert',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Absagen'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (reason == null) return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await ref.read(repositoryProvider).setAttendance(
+            eventId: widget.item.eventId,
+            playerId: widget.item.playerId,
+            status: status,
+            reason: reason,
+            personalResponse: true,
+          );
+      ref.invalidate(personalResponsesProvider);
+      ref.invalidate(eventsProvider);
+      ref.invalidate(parentMatchdaysProvider);
+      await Future.wait<void>([
+        ref.read(personalResponsesProvider.future).then<void>((_) {}),
+        ref.read(eventsProvider.future).then<void>((_) {}),
+      ]);
+      widget.onSaved?.call();
+      if (mounted) {
+        final result = switch (status) {
+          AttendanceStatus.yes => 'Zusage',
+          AttendanceStatus.maybe => '„Vielleicht“',
+          AttendanceStatus.no => 'Absage',
+          AttendanceStatus.unknown => 'Rückmeldung',
+        };
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Erfolgreich gespeichert: $result für ${widget.item.playerName}.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Die Rückmeldung konnte nicht gespeichert werden. Bitte Verbindung prüfen und erneut versuchen.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _AttendanceResponseActions(
+        expanded: widget.expanded,
+        saving: _saving,
+        allowMaybe: !widget.item.isMatch,
+        onAnswer: _answer,
+      );
 }
 
 class _AttendanceResponseActions extends StatelessWidget {

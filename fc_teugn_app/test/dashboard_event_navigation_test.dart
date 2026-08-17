@@ -64,4 +64,18 @@ void main() {
       '/parent/matches/match-1',
     );
   });
+
+  test('parent special event opens the matching calendar detail', () {
+    expect(
+      dashboardEventRoute(
+        event: _event(
+          id: 'event-1',
+          type: EventType.event,
+          category: EventCategory.specialEvent,
+        ),
+        isTrainer: false,
+      ),
+      '/parent/events?eventId=event-1',
+    );
+  });
 }

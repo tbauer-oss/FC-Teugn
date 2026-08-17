@@ -10,7 +10,7 @@ class OfflineWriteQueuedException implements Exception {
 
   @override
   String toString() =>
-      'Die Änderung wurde offline gespeichert und wird automatisch versendet.';
+      'Die Änderung ist vorgemerkt und wird automatisch erneut übertragen.';
 }
 
 class QueuedApiWrite {
@@ -227,7 +227,8 @@ class OfflineOutboxInterceptor extends Interceptor {
           requestOptions: request,
           type: DioExceptionType.connectionError,
           error: const OfflineWriteQueuedException(),
-          message: 'Offline gespeichert; automatischer Versand bei Verbindung.',
+          message:
+              'Änderung vorgemerkt; die Übertragung wird automatisch erneut versucht.',
         ),
       );
     } catch (_) {
