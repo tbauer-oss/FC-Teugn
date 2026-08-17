@@ -98,6 +98,13 @@ class TrainerDashboardPage extends ConsumerWidget {
       openTasks: openTasks,
       now: now,
       eventRoute: eventRoute,
+      onOpenResponses: nextEvent == null
+          ? null
+          : () => _showEventResponses(
+                context,
+                nextEvent,
+                _eventRoster(nextEvent, teamPlayers),
+              ),
     );
     final compactDashboard = MediaQuery.sizeOf(context).width < 600;
     final sectionGap = compactDashboard ? 8.0 : 12.0;
@@ -216,6 +223,7 @@ class TrainerDashboardPage extends ConsumerWidget {
     required List<TeamTaskModel> openTasks,
     required DateTime now,
     required String Function(EventModel event) eventRoute,
+    required VoidCallback? onOpenResponses,
   }) {
     final items = <_DashboardPriority>[];
     if (openResponses > 0 && nextEvent != null) {
@@ -225,7 +233,7 @@ class TrainerDashboardPage extends ConsumerWidget {
           color: AppColors.gold,
           title: '$openResponses Rückmeldungen fehlen',
           subtitle: 'Für „${nextEvent.title}“ Zu- und Absagen prüfen',
-          route: eventRoute(nextEvent),
+          onTap: onOpenResponses,
         ),
       );
     }
@@ -430,18 +438,7 @@ class _NextTrainingOverview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
-    final teamIds = {
-      event.teamId,
-      ...event.targetTeams.map((team) => team.id),
-    };
-    final roster = players
-        .where(
-          (player) =>
-              player.status == PlayerStatus.active &&
-              player.teamId != null &&
-              teamIds.contains(player.teamId),
-        )
-        .toList();
+    final roster = _eventRoster(event, players);
     final summary = event.attendanceSummary;
     final counts = trainingDashboardCounts(
       summary,
@@ -558,7 +555,7 @@ class _NextTrainingOverview extends StatelessWidget {
                   key: const ValueKey('next-training-participants'),
                   onPressed: opensPersonalResponse
                       ? onOpen
-                      : () => _showTrainingResponses(
+                      : () => _showEventResponses(
                             context,
                             event,
                             roster,
@@ -582,21 +579,40 @@ class _NextTrainingOverview extends StatelessWidget {
     );
   }
 
-  void _showTrainingResponses(
-    BuildContext context,
-    EventModel event,
-    List<PlayerModel> roster,
-  ) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => _TrainingResponsesSheet(
-        event: event,
-        roster: roster,
-      ),
-    );
-  }
+}
+
+List<PlayerModel> _eventRoster(
+  EventModel event,
+  List<PlayerModel> players,
+) {
+  final teamIds = {
+    event.teamId,
+    ...event.targetTeams.map((team) => team.id),
+  };
+  return players
+      .where(
+        (player) =>
+            player.status == PlayerStatus.active &&
+            player.teamId != null &&
+            teamIds.contains(player.teamId),
+      )
+      .toList();
+}
+
+void _showEventResponses(
+  BuildContext context,
+  EventModel event,
+  List<PlayerModel> roster,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (context) => _TrainingResponsesSheet(
+      event: event,
+      roster: roster,
+    ),
+  );
 }
 
 class _TrainingResponseMetric extends StatelessWidget {
@@ -662,6 +678,7 @@ class _TrainingResponsesSheet extends StatelessWidget {
             )
             .toList();
     return FractionallySizedBox(
+      key: const ValueKey('trainer-response-overview-sheet'),
       heightFactor: .78,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
@@ -678,10 +695,17 @@ class _TrainingResponsesSheet extends StatelessWidget {
             const SizedBox(height: 14),
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Rückmeldungen zum Training',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                    event.type == EventType.match
+                        ? 'Rückmeldungen zum Spiel'
+                        : event.type == EventType.training
+                            ? 'Rückmeldungen zum Training'
+                            : 'Rückmeldungen zum Termin',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -1170,14 +1194,16 @@ class _DashboardPriority {
     required this.color,
     required this.title,
     required this.subtitle,
-    required this.route,
-  });
+    this.route,
+    this.onTap,
+  }) : assert(route != null || onTap != null);
 
   final IconData icon;
   final Color color;
   final String title;
   final String subtitle;
-  final String route;
+  final String? route;
+  final VoidCallback? onTap;
 }
 
 class _PriorityCard extends StatelessWidget {
@@ -1210,7 +1236,7 @@ class _PriorityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: () => context.go(item.route),
+        onTap: item.onTap ?? () => context.go(item.route!),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 9),

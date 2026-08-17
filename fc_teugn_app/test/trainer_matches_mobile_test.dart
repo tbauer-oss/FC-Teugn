@@ -302,7 +302,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Live-Turnierplan'), findsOneWidget);
+    expect(
+      find.text(
+        'Turnierplan · 3. Hopfenbach-Cup mit langem Turniernamen',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Turnierplan live öffnen'), findsOneWidget);
     expect(find.text('Live-Turnierplan laden'), findsOneWidget);
     expect(tester.takeException(), isNull);

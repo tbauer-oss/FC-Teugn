@@ -125,42 +125,37 @@ class _BfvBrowserPageState extends State<BfvBrowserPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 680;
+    return Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
+          toolbarHeight: compact ? 48 : 52,
           automaticallyImplyLeading: false,
+          leadingWidth: compact ? 44 : 48,
           leading: IconButton(
             tooltip: 'Zurück zur App',
             onPressed: () => Navigator.of(context).maybePop(),
             icon: const Icon(Icons.arrow_back_rounded),
+            visualDensity: VisualDensity.compact,
           ),
           titleSpacing: 0,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Tabelle & Ergebnisse',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                widget.teamName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.muted,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
+          title: Text(
+            'BfV · ${widget.teamName}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
           ),
           actions: [
             IconButton(
               tooltip: 'Neu laden',
               onPressed: _reload,
               icon: const Icon(Icons.refresh_rounded),
+              visualDensity: VisualDensity.compact,
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: compact ? 2 : 4),
           ],
           bottom: _loading
               ? PreferredSize(
@@ -207,4 +202,5 @@ class _BfvBrowserPageState extends State<BfvBrowserPage> {
                 ),
         ),
       );
+  }
 }

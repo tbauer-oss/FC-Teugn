@@ -1,4 +1,6 @@
 import 'package:fc_teugn_app/core/models/event.dart';
+import 'package:fc_teugn_app/features/calendar/tournament_plan_browser_page.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -51,6 +53,41 @@ void main() {
         'url': 'https://www.meinturnierplan.de/showit.php?id=2acei7shc3',
         'mimeType': 'text/html',
       });
+    });
+
+    testWidgets('opens above the app shell on the root navigator',
+        (tester) async {
+      final rootNavigatorKey = GlobalKey<NavigatorState>();
+      final shellNavigatorKey = GlobalKey<NavigatorState>();
+      late BuildContext shellContext;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: rootNavigatorKey,
+          home: Navigator(
+            key: shellNavigatorKey,
+            onGenerateRoute: (_) => MaterialPageRoute<void>(
+              builder: (context) {
+                shellContext = context;
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+
+      final browserClosed = openTournamentPlanBrowser(
+        shellContext,
+        url: 'https://www.meinturnierplan.de/showit.php?id=2acei7shc3',
+        tournamentName: 'Sommerturnier',
+      );
+
+      expect(rootNavigatorKey.currentState!.canPop(), isTrue);
+      expect(shellNavigatorKey.currentState!.canPop(), isFalse);
+
+      rootNavigatorKey.currentState!.pop();
+      await browserClosed;
+      await tester.pumpAndSettle();
     });
   });
 }

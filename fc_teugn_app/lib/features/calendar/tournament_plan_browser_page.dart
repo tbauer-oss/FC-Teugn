@@ -21,7 +21,10 @@ Future<void> openTournamentPlanBrowser(
     );
     return;
   }
-  await Navigator.of(context).push(
+  // External pages need their own full-screen route. Keeping the app shell
+  // around the WebView creates two competing scroll surfaces, especially on
+  // mobile web and foldables.
+  await Navigator.of(context, rootNavigator: true).push(
     MaterialPageRoute<void>(
       builder: (_) => TournamentPlanBrowserPage(
         uri: uri,
@@ -142,30 +145,28 @@ class _TournamentPlanBrowserPageState extends State<TournamentPlanBrowserPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 680;
+    return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
+          toolbarHeight: compact ? 48 : 52,
           automaticallyImplyLeading: false,
+          leadingWidth: compact ? 44 : 48,
           leading: IconButton(
             tooltip: 'Zurück',
             onPressed: () => Navigator.of(context).maybePop(),
             icon: const Icon(Icons.arrow_back_rounded),
+            visualDensity: VisualDensity.compact,
           ),
           titleSpacing: 0,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Live-Turnierplan'),
-              Text(
-                widget.tournamentName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.muted,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
+          title: Text(
+            'Turnierplan · ${widget.tournamentName}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
           ),
           actions: [
             if (_contentApproved)
@@ -173,7 +174,9 @@ class _TournamentPlanBrowserPageState extends State<TournamentPlanBrowserPage> {
                 tooltip: 'Neu laden',
                 onPressed: _reload,
                 icon: const Icon(Icons.refresh_rounded),
+                visualDensity: VisualDensity.compact,
               ),
+            if (compact) const SizedBox(width: 2),
           ],
           bottom: _loading
               ? PreferredSize(
@@ -196,6 +199,7 @@ class _TournamentPlanBrowserPageState extends State<TournamentPlanBrowserPage> {
                   : WebViewWidget(controller: _controller!),
         ),
       );
+  }
 }
 
 class _TournamentPrivacyNotice extends StatelessWidget {
