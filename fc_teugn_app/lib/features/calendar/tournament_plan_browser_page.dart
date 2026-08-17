@@ -148,57 +148,57 @@ class _TournamentPlanBrowserPageState extends State<TournamentPlanBrowserPage> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 680;
     return Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          toolbarHeight: compact ? 48 : 52,
-          automaticallyImplyLeading: false,
-          leadingWidth: compact ? 44 : 48,
-          leading: IconButton(
-            tooltip: 'Zurück',
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back_rounded),
-            visualDensity: VisualDensity.compact,
-          ),
-          titleSpacing: 0,
-          title: Text(
-            'Turnierplan · ${widget.tournamentName}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-          ),
-          actions: [
-            if (_contentApproved)
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _reload,
-                icon: const Icon(Icons.refresh_rounded),
-                visualDensity: VisualDensity.compact,
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        toolbarHeight: compact ? 48 : 52,
+        automaticallyImplyLeading: false,
+        leadingWidth: compact ? 44 : 48,
+        leading: IconButton(
+          tooltip: 'Zurück',
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: const Icon(Icons.arrow_back_rounded),
+          visualDensity: VisualDensity.compact,
+        ),
+        titleSpacing: 0,
+        title: Text(
+          'Turnierplan · ${widget.tournamentName}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
               ),
-            if (compact) const SizedBox(width: 2),
-          ],
-          bottom: _loading
-              ? PreferredSize(
-                  preferredSize: const Size.fromHeight(3),
-                  child: LinearProgressIndicator(
-                    value: _progress > 0 ? _progress / 100 : null,
-                    minHeight: 3,
-                    color: AppColors.gold,
-                    backgroundColor: AppColors.yellowSoft,
-                  ),
-                )
-              : null,
         ),
-        body: SafeArea(
-          top: false,
-          child: !_contentApproved
-              ? _TournamentPrivacyNotice(onLoad: _load)
-              : _error != null
-                  ? _TournamentLoadError(message: _error!, onRetry: _reload)
-                  : WebViewWidget(controller: _controller!),
-        ),
-      );
+        actions: [
+          if (_contentApproved)
+            IconButton(
+              tooltip: 'Neu laden',
+              onPressed: _reload,
+              icon: const Icon(Icons.refresh_rounded),
+              visualDensity: VisualDensity.compact,
+            ),
+          if (compact) const SizedBox(width: 2),
+        ],
+        bottom: _loading
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(3),
+                child: LinearProgressIndicator(
+                  value: _progress > 0 ? _progress / 100 : null,
+                  minHeight: 3,
+                  color: AppColors.gold,
+                  backgroundColor: AppColors.yellowSoft,
+                ),
+              )
+            : null,
+      ),
+      body: SafeArea(
+        top: false,
+        child: !_contentApproved
+            ? _TournamentPrivacyNotice(onLoad: _load)
+            : _error != null
+                ? _TournamentLoadError(message: _error!, onRetry: _reload)
+                : WebViewWidget(controller: _controller!),
+      ),
+    );
   }
 }
 

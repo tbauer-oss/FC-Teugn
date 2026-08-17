@@ -578,7 +578,6 @@ class _NextTrainingOverview extends StatelessWidget {
       ),
     );
   }
-
 }
 
 List<PlayerModel> _eventRoster(

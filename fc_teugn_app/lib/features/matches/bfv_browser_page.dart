@@ -128,79 +128,79 @@ class _BfvBrowserPageState extends State<BfvBrowserPage> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 680;
     return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          toolbarHeight: compact ? 48 : 52,
-          automaticallyImplyLeading: false,
-          leadingWidth: compact ? 44 : 48,
-          leading: IconButton(
-            tooltip: 'Zurück zur App',
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back_rounded),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        toolbarHeight: compact ? 48 : 52,
+        automaticallyImplyLeading: false,
+        leadingWidth: compact ? 44 : 48,
+        leading: IconButton(
+          tooltip: 'Zurück zur App',
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: const Icon(Icons.arrow_back_rounded),
+          visualDensity: VisualDensity.compact,
+        ),
+        titleSpacing: 0,
+        title: Text(
+          'BfV · ${widget.teamName}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Neu laden',
+            onPressed: _reload,
+            icon: const Icon(Icons.refresh_rounded),
             visualDensity: VisualDensity.compact,
           ),
-          titleSpacing: 0,
-          title: Text(
-            'BfV · ${widget.teamName}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
+          SizedBox(width: compact ? 2 : 4),
+        ],
+        bottom: _loading
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(3),
+                child: LinearProgressIndicator(
+                  value: _progress > 0 ? _progress / 100 : null,
+                  minHeight: 3,
+                  color: AppColors.gold,
+                  backgroundColor: AppColors.yellowSoft,
                 ),
-          ),
-          actions: [
-            IconButton(
-              tooltip: 'Neu laden',
-              onPressed: _reload,
-              icon: const Icon(Icons.refresh_rounded),
-              visualDensity: VisualDensity.compact,
-            ),
-            SizedBox(width: compact ? 2 : 4),
-          ],
-          bottom: _loading
-              ? PreferredSize(
-                  preferredSize: const Size.fromHeight(3),
-                  child: LinearProgressIndicator(
-                    value: _progress > 0 ? _progress / 100 : null,
-                    minHeight: 3,
-                    color: AppColors.gold,
-                    backgroundColor: AppColors.yellowSoft,
-                  ),
-                )
-              : null,
-        ),
-        body: SafeArea(
-          top: false,
-          child: _error == null
-              ? WebViewWidget(controller: _controller)
-              : Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.cloud_off_rounded,
-                          size: 48,
-                          color: AppColors.gold,
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton.icon(
-                          onPressed: _reload,
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Erneut laden'),
-                        ),
-                      ],
-                    ),
+              )
+            : null,
+      ),
+      body: SafeArea(
+        top: false,
+        child: _error == null
+            ? WebViewWidget(controller: _controller)
+            : Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.cloud_off_rounded,
+                        size: 48,
+                        color: AppColors.gold,
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _reload,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Erneut laden'),
+                      ),
+                    ],
                   ),
                 ),
-        ),
-      );
+              ),
+      ),
+    );
   }
 }
