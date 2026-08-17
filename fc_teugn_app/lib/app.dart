@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,7 +65,8 @@ class FCTeugnApp extends ConsumerStatefulWidget {
 }
 
 class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
-  static const _minimumLaunchDuration = Duration(milliseconds: 2800);
+  static const _nativeMinimumLaunchDuration = Duration(milliseconds: 2800);
+  static const _webMinimumLaunchDuration = Duration(milliseconds: 350);
   Timer? _launchTimer;
   StreamSubscription<String>? _pushActionSubscription;
   final GlobalKey<NavigatorState> _rootNavigatorKey =
@@ -74,6 +76,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   GoRouter? _activeRouter;
   String? _pendingPushAction;
   bool _minimumLaunchComplete = false;
+  bool _initialLaunchComplete = false;
+  bool _launchCompletionScheduled = false;
   bool _initialPushPromptScheduled = false;
   bool _startupPromptsScheduled = false;
   bool _parentConsentPromptScheduled = false;
@@ -88,7 +92,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
       _openPendingPushAction();
     });
     if (!widget.playMobileIntroVideo) {
-      _launchTimer = Timer(_minimumLaunchDuration, _completeLaunchIntro);
+      _launchTimer = Timer(
+        kIsWeb ? _webMinimumLaunchDuration : _nativeMinimumLaunchDuration,
+        _completeLaunchIntro,
+      );
     }
   }
 
@@ -311,9 +318,24 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
     return 'Die Vereinsdaten konnten nicht vollständig geladen werden.';
   }
 
+  void _finishInitialLaunchAfterBuild() {
+    if (_initialLaunchComplete || _launchCompletionScheduled) return;
+    _launchCompletionScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _launchCompletionScheduled = false;
+      if (!mounted || _initialLaunchComplete) return;
+      _launchTimer?.cancel();
+      setState(() => _initialLaunchComplete = true);
+    });
+  }
+
   Widget _withLaunchTransition(Widget child) => AnimatedSwitcher(
-        duration: const Duration(milliseconds: 900),
-        reverseDuration: const Duration(milliseconds: 800),
+        duration: kIsWeb
+            ? const Duration(milliseconds: 240)
+            : const Duration(milliseconds: 900),
+        reverseDuration: kIsWeb
+            ? const Duration(milliseconds: 200)
+            : const Duration(milliseconds: 800),
         switchInCurve: Curves.easeInOutCubic,
         switchOutCurve: Curves.easeInOutCubic,
         transitionBuilder: (child, animation) {
@@ -364,10 +386,16 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
     final bootstrapError = bootstrap?.error;
     final authRestoreError =
         authState.user == null && authState.loading ? authState.error : null;
-    if (!_minimumLaunchComplete ||
-        (authState.loading && authState.user == null) ||
-        bootstrapLoading ||
-        bootstrapError != null) {
+    final initialAuthRestoreLoading =
+        authState.loading && authState.user == null;
+    final initialSessionReady = !initialAuthRestoreLoading &&
+        (approvedUser == null || (!bootstrapLoading && bootstrapError == null));
+    if (!_initialLaunchComplete &&
+        _minimumLaunchComplete &&
+        initialSessionReady) {
+      _finishInitialLaunchAfterBuild();
+    }
+    if (!_initialLaunchComplete) {
       return _withLaunchTransition(MaterialApp(
         key: const ValueKey('fc-teugn-launch'),
         title: AppIdentity.name,
@@ -383,12 +411,14 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         home: AnimatedLaunchScreen(
           playMobileIntroVideo: widget.playMobileIntroVideo,
           onIntroCompleted: _completeLaunchIntro,
-          waitingForData: bootstrapLoading,
-          statusMessage: bootstrapLoading
-              ? 'Vereinsdaten werden geladen...'
-              : authRestoreError != null || bootstrapError != null
-                  ? 'Start konnte noch nicht abgeschlossen werden'
-                  : 'App wird vorbereitet …',
+          waitingForData: initialAuthRestoreLoading || bootstrapLoading,
+          statusMessage: initialAuthRestoreLoading
+              ? 'Sitzung wird geprüft...'
+              : bootstrapLoading
+                  ? 'Vereinsdaten werden geladen...'
+                  : authRestoreError != null || bootstrapError != null
+                      ? 'Start konnte noch nicht abgeschlossen werden'
+                      : 'App wird vorbereitet …',
           errorMessage: authRestoreError ??
               (bootstrapError == null
                   ? null
