@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import {
+  EventType,
   ImportFormat,
   ImportJobStatus,
   ImportRowAction,
@@ -15,6 +16,10 @@ import {
 } from '../services/competition-provider';
 import { recalculateMatchStatistics } from '../services/statistics.service';
 import { writeCompetitionMatch } from '../services/competition-import-write.service';
+import {
+  matchCompetitionOpponents,
+  normalizedCompetitionName,
+} from '../services/competition-opponent-match.service';
 
 const supportedProviders = new Set([
   'BFV_CSV',
@@ -43,6 +48,10 @@ function counts(rows: { action: ImportRowAction }[]) {
   };
 }
 
+function eventImportKey(startAt: string | Date, opponent: string) {
+  return `${new Date(startAt).getTime()}|${normalizedCompetitionName(opponent)}`;
+}
+
 export async function previewCompetitionImport(req: Request, res: Response) {
   const user = req.user!;
   const teamId = text(req.body?.teamId, 100);
@@ -64,13 +73,18 @@ export async function previewCompetitionImport(req: Request, res: Response) {
   if (!(await accessibleTeamIds(user)).includes(teamId)) {
     return res.status(403).json({ message: 'Kein Zugriff auf diese Mannschaft.' });
   }
-  const parsed = parseCompetitionSource(format as ImportFormat, content);
+  const parsed = await matchCompetitionOpponents(
+    teamId,
+    parseCompetitionSource(format as ImportFormat, content),
+  );
   const externalIds = parsed
     .map((row) => row.match?.externalId)
     .filter((id): id is string => Boolean(id));
   const references = await prisma.externalReference.findMany({
     where: {
-      provider,
+      provider: format === ImportFormat.ICS
+        ? { in: ['ICS', 'BFV_ICS'] }
+        : provider,
       entityType: 'Event',
       externalId: { in: externalIds },
     },
@@ -89,6 +103,33 @@ export async function previewCompetitionImport(req: Request, res: Response) {
     },
   });
   const eventById = new Map(events.map((event) => [event.id, event]));
+  const validMatches = parsed.flatMap((row) => row.match ? [row.match] : []);
+  const startTimes = validMatches.map((match) => new Date(match.startAt).getTime());
+  const possibleExistingEvents = startTimes.length
+    ? await prisma.event.findMany({
+        where: {
+          teamId,
+          type: EventType.MATCH,
+          startAt: {
+            gte: new Date(Math.min(...startTimes) - 5 * 60_000),
+            lte: new Date(Math.max(...startTimes) + 5 * 60_000),
+          },
+        },
+        select: {
+          id: true,
+          startAt: true,
+          opponent: true,
+          matchDetails: { select: { opponent: true } },
+        },
+      })
+    : [];
+  const existingByKey = new Map<string, { id: string } | null>();
+  for (const event of possibleExistingEvents) {
+    const opponent = event.matchDetails?.opponent || event.opponent;
+    if (!opponent) continue;
+    const key = eventImportKey(event.startAt, opponent);
+    existingByKey.set(key, existingByKey.has(key) ? null : { id: event.id });
+  }
   const rows = parsed.map((row) => {
     if (!row.match) {
       return {
@@ -103,6 +144,22 @@ export async function previewCompetitionImport(req: Request, res: Response) {
     const checksum = competitionMatchChecksum(row.match);
     const reference = referenceById.get(row.match.externalId);
     if (!reference) {
+      const existing = existingByKey.get(
+        eventImportKey(row.match.startAt, row.match.opponent),
+      );
+      if (existing) {
+        return {
+          rowNumber: row.rowNumber,
+          externalId: row.match.externalId,
+          action: ImportRowAction.UPDATE,
+          normalized: row.match as unknown as Prisma.InputJsonValue,
+          messages: [
+            ...row.messages,
+            'Bereits vorhandenes Spiel erkannt; es wird mit der ICS-UID verknüpft.',
+          ],
+          entityId: existing.id,
+        };
+      }
       return {
         rowNumber: row.rowNumber,
         externalId: row.match.externalId,

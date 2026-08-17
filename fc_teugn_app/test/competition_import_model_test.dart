@@ -19,6 +19,12 @@ void main() {
           'normalized': {
             'opponent': 'SV Beispiel',
             'startAt': '2026-08-15T08:30:00.000Z',
+            'isHome': true,
+            'competition': 'Meisterschaften',
+            'location': 'Sportanlage Teugn, Platz 2',
+            'opponentId': 'opponent-1',
+            'opponentClubName': 'SV Beispiel',
+            'opponentTeamDesignation': 'E1',
           },
           'messages': [],
         },
@@ -39,6 +45,11 @@ void main() {
     expect(preview.createCount, 1);
     expect(preview.conflictCount, 1);
     expect(preview.rows.first.action, CompetitionImportAction.create);
+    expect(preview.rows.first.isHome, isTrue);
+    expect(preview.rows.first.competition, 'Meisterschaften');
+    expect(preview.rows.first.location, 'Sportanlage Teugn, Platz 2');
+    expect(preview.rows.first.opponentId, 'opponent-1');
+    expect(preview.rows.first.opponentTeamDesignation, 'E1');
     expect(preview.rows.last.action, CompetitionImportAction.conflict);
     expect(preview.rows.last.messages, isNotEmpty);
   });

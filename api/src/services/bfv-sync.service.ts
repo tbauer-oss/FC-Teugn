@@ -4,6 +4,7 @@ import {
   parseCompetitionSource,
 } from './competition-provider';
 import { writeCompetitionMatch } from './competition-import-write.service';
+import { matchCompetitionOpponents } from './competition-opponent-match.service';
 
 const PROVIDER = 'BFV_ICS';
 const MAX_ICS_BYTES = 2_000_000;
@@ -84,11 +85,18 @@ export async function runBfvTeamSync(teamId: string) {
   });
   try {
     const content = await fetchOfficialIcs(validatedBfvIcalUrl(config.icalUrl));
-    const parsed = parseCompetitionSource('ICS', content).slice(0, 500);
+    const parsed = (await matchCompetitionOpponents(
+      teamId,
+      parseCompetitionSource('ICS', content),
+    )).slice(0, 500);
     const matches = parsed.flatMap((row) => row.match ? [row.match] : []);
     const externalIds = [...new Set(matches.map((match) => match.externalId))];
     const references = await prisma.externalReference.findMany({
-      where: { provider: PROVIDER, entityType: 'Event', externalId: { in: externalIds } },
+      where: {
+        provider: { in: [PROVIDER, 'ICS'] },
+        entityType: 'Event',
+        externalId: { in: externalIds },
+      },
     });
     const referenceById = new Map(references.map((item) => [item.externalId, item]));
     const events = await prisma.event.findMany({

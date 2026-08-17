@@ -78,6 +78,7 @@ export async function writeCompetitionMatch(
     where: { eventId: event.id },
     update: {
       opponent: match.opponent,
+      opponentId: match.opponentId,
       isHome: match.isHome,
       kind: type.kind,
       status: matchStatus(match.status),
@@ -94,6 +95,7 @@ export async function writeCompetitionMatch(
     create: {
       eventId: event.id,
       opponent: match.opponent,
+      opponentId: match.opponentId,
       isHome: match.isHome,
       kind: type.kind,
       status: matchStatus(match.status),

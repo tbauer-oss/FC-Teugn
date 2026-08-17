@@ -56,6 +56,12 @@ class CompetitionImportRow {
     this.externalId,
     this.opponent,
     this.startAt,
+    this.isHome,
+    this.competition,
+    this.location,
+    this.opponentId,
+    this.opponentClubName,
+    this.opponentTeamDesignation,
   });
 
   final int rowNumber;
@@ -63,6 +69,12 @@ class CompetitionImportRow {
   final String? externalId;
   final String? opponent;
   final DateTime? startAt;
+  final bool? isHome;
+  final String? competition;
+  final String? location;
+  final String? opponentId;
+  final String? opponentClubName;
+  final String? opponentTeamDesignation;
   final List<String> messages;
 
   factory CompetitionImportRow.fromJson(Map<String, dynamic> json) {
@@ -79,6 +91,13 @@ class CompetitionImportRow {
       startAt: normalized?['startAt'] == null
           ? null
           : DateTime.parse(normalized!['startAt'] as String),
+      isHome: normalized?['isHome'] as bool?,
+      competition: normalized?['competition'] as String?,
+      location: normalized?['location'] as String?,
+      opponentId: normalized?['opponentId'] as String?,
+      opponentClubName: normalized?['opponentClubName'] as String?,
+      opponentTeamDesignation:
+          normalized?['opponentTeamDesignation'] as String?,
       messages: (json['messages'] as List<dynamic>? ?? const [])
           .map((item) => item.toString())
           .toList(),

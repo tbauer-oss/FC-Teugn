@@ -11,6 +11,9 @@ export type NormalizedCompetitionMatch = {
   location: string;
   address: string | null;
   opponent: string;
+  opponentId: string | null;
+  opponentClubName: string;
+  opponentTeamDesignation: string | null;
   isHome: boolean;
   competition: string | null;
   division: string | null;
@@ -101,6 +104,108 @@ function derivedExternalId(match: Omit<NormalizedCompetitionMatch, 'externalId'>
     .slice(0, 24)}`;
 }
 
+export type CompetitionTeamIdentity = {
+  rawName: string;
+  clubName: string;
+  teamDesignation: string | null;
+  displayName: string;
+};
+
+function withoutPlayingCommunityPrefix(input: string) {
+  return input
+    .replace(/^\s*\(\s*SG\s*\)\s*/i, '')
+    .replace(/^\s*SG\s+/i, '')
+    .trim();
+}
+
+/**
+ * Converts BfV team labels such as `FC Hausen E7 2` into the app's stable
+ * youth-team notation (`FC Hausen E2`). The number directly behind the youth
+ * letter is the playing format in BfV exports; a following number is the
+ * actual squad number.
+ */
+export function competitionTeamIdentity(input: string): CompetitionTeamIdentity {
+  const rawName = unescapeIcs(input).trim();
+  const cleaned = withoutPlayingCommunityPrefix(rawName);
+  const match = cleaned.match(
+    /^(.*?)(?:\s+)([A-G])(?:\s*(\d{1,2}))?(?:\s*-?\s*Jun\.?\s*)?(?:\s+(\d{1,2}))?$/i,
+  );
+  if (!match) {
+    return {
+      rawName,
+      clubName: cleaned,
+      teamDesignation: null,
+      displayName: cleaned,
+    };
+  }
+  const [, rawClub, rawLetter, firstNumber, explicitSquad] = match;
+  const clubName = withoutPlayingCommunityPrefix(rawClub);
+  const letter = rawLetter.toLocaleUpperCase('de-DE');
+  const formatNumbers = new Set(['3', '5', '7', '9', '11']);
+  const squadNumber = explicitSquad ||
+    (firstNumber && !formatNumbers.has(firstNumber) ? firstNumber : '1');
+  const teamDesignation = `${letter}${squadNumber}`;
+  return {
+    rawName,
+    clubName,
+    teamDesignation,
+    displayName: `${clubName} ${teamDesignation}`.trim(),
+  };
+}
+
+function pairingFromSummary(summary: string) {
+  const [pairing = '', ...metadata] = summary
+    .split(/\s*,\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const ownTeamPattern = /\bFC\s+Teugn(?:\s+[A-G]\d+(?:\s+\d{1,2})?)?/i;
+  const ownTeam = pairing.match(ownTeamPattern);
+  if (ownTeam?.index != null) {
+    const before = pairing.slice(0, ownTeam.index).replace(/\s*[-–—]\s*$/, '');
+    const after = pairing
+      .slice(ownTeam.index + ownTeam[0].length)
+      .replace(/^\s*[-–—]\s*/, '');
+    const isHome = ownTeam.index === 0;
+    const opponentRaw = (isHome ? after : before).trim();
+    if (opponentRaw) {
+      return {
+        isHome,
+        ownTeam: competitionTeamIdentity(ownTeam[0]),
+        opponent: competitionTeamIdentity(opponentRaw),
+        competition: metadata[0] || null,
+        division: metadata.slice(1).join(', ') || null,
+      };
+    }
+  }
+  const fallback = pairing.split(/\s+(?:[-–—]|vs\.?|gegen)\s+/i);
+  if (fallback.length === 2) {
+    const isHome = /^fc\s+teugn/i.test(fallback[0]);
+    return {
+      isHome,
+      ownTeam: competitionTeamIdentity(isHome ? fallback[0] : fallback[1]),
+      opponent: competitionTeamIdentity(isHome ? fallback[1] : fallback[0]),
+      competition: metadata[0] || null,
+      division: metadata.slice(1).join(', ') || null,
+    };
+  }
+  return null;
+}
+
+function locationParts(value: string) {
+  const location = value.trim();
+  if (!location) return { location: 'Noch offen', address: null };
+  const parts = location.split(/\s*,\s*/).filter(Boolean);
+  const postalIndex = parts.findIndex((part) => /\b\d{5}\b/.test(part));
+  if (postalIndex > 0) {
+    const addressStart = Math.max(1, postalIndex - 1);
+    return {
+      location: parts.slice(0, addressStart).join(', ') || parts[0],
+      address: parts.slice(addressStart).join(', '),
+    };
+  }
+  return { location, address: null };
+}
+
 function csvRows(content: string): ParsedCompetitionRow[] {
   let records: Record<string, unknown>[];
   try {
@@ -136,13 +241,17 @@ function csvRows(content: string): ParsedCompetitionRow[] {
     const location =
       value(row, 'location', 'ort', 'spielstätte', 'spielstaette') ||
       'Noch offen';
+    const opponentIdentity = competitionTeamIdentity(opponent);
     const base = {
-      title: value(row, 'title', 'titel') || `Spiel gegen ${opponent}`,
+      title: value(row, 'title', 'titel') || `Spiel gegen ${opponentIdentity.displayName}`,
       startAt: start!.toISOString(),
       endAt: null,
       location,
       address: value(row, 'address', 'adresse') || null,
-      opponent,
+      opponent: opponentIdentity.displayName,
+      opponentId: null,
+      opponentClubName: opponentIdentity.clubName,
+      opponentTeamDesignation: opponentIdentity.teamDesignation,
       isHome: boolean(value(row, 'ishome', 'heim', 'heimspiel'), true),
       competition: value(row, 'competition', 'wettbewerb', 'liga') || null,
       division: value(row, 'division', 'staffel') || null,
@@ -267,29 +376,40 @@ function icsRows(content: string): ParsedCompetitionRow[] {
     if (!start) messages.push('DTSTART fehlt oder ist ungültig.');
     if (!summary) messages.push('SUMMARY fehlt.');
     if (messages.length) return { rowNumber: index + 1, match: null, messages };
-    const parts = summary.split(/\s+(?:-|–|:|vs\.?|gegen)\s+/i);
-    const isHome = /^fc\s+teugn/i.test(parts[0] ?? '');
-    const opponent = (
-      isHome ? parts[1] : parts.find((part) => !/^fc\s+teugn/i.test(part))
-    )?.trim() || summary;
-    const location = properties.get('LOCATION')?.trim() || 'Noch offen';
+    const pairing = pairingFromSummary(summary);
+    if (!pairing) {
+      return {
+        rowNumber: index + 1,
+        match: null,
+        messages: [
+          ...messages,
+          'Heim- und Auswärtsteam konnten aus SUMMARY nicht sicher erkannt werden.',
+        ],
+      };
+    }
+    const venue = locationParts(properties.get('LOCATION')?.trim() ?? '');
     const end = icsDate(
       properties.get('DTEND') ?? '',
       timeZones.get('DTEND'),
     );
     const base = {
-      title: summary,
+      title: pairing.isHome
+        ? `FC Teugn – ${pairing.opponent.displayName}`
+        : `${pairing.opponent.displayName} – FC Teugn`,
       startAt: start!.toISOString(),
       endAt: end?.toISOString() ?? null,
-      location,
-      address: location === 'Noch offen' ? null : location,
-      opponent,
-      isHome,
+      location: venue.location,
+      address: venue.address,
+      opponent: pairing.opponent.displayName,
+      opponentId: null,
+      opponentClubName: pairing.opponent.clubName,
+      opponentTeamDesignation: pairing.opponent.teamDesignation,
+      isHome: pairing.isHome,
       competition:
+        pairing.competition ||
         properties.get('CATEGORIES')?.trim() ||
-        properties.get('X-WR-CALNAME')?.trim() ||
         'BfV-Spielplan',
-      division: null,
+      division: pairing.division,
       matchDay: null,
       status:
         properties.get('STATUS')?.toUpperCase() === 'CANCELLED' ||
