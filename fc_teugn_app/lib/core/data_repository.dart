@@ -2390,6 +2390,24 @@ class DataRepository {
       data: {
         'conflictPolicy': sourceWinsConflicts ? 'SOURCE_WINS' : 'SKIP',
       },
+      options: Options(
+        headers: {
+          'X-Idempotency-Key':
+              'competition-import-$importId-${sourceWinsConflicts ? 'source-wins' : 'skip'}',
+        },
+        extra: {
+          // Der Importjob und der Idempotenzschlüssel machen ein erneutes
+          // Senden nach einem vorübergehenden 503 eindeutig und sicher.
+          'retryTransientWrite': true,
+          // Ein kompletter Spielplan soll nicht unbemerkt in der allgemeinen
+          // Offline-Warteschlange landen. Der Dialog wartet auf Bestätigung.
+          'requireOnline': true,
+        },
+        // The server writes every event, match detail, target team and BfV
+        // reference atomically. Give a briefly busy serverless database time
+        // to finish instead of presenting a false offline failure.
+        receiveTimeout: const Duration(seconds: 28),
+      ),
     );
   }
 

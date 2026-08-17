@@ -30,6 +30,7 @@ import 'features/players/player_profile_page.dart';
 import 'features/matches/matchday_page.dart';
 import 'features/matches/bfv_competition_page.dart';
 import 'features/matches/bfv_browser_page.dart';
+import 'features/integrations/spielplus_page.dart';
 import 'features/statistics/statistics_page.dart';
 import 'features/training/training_pages.dart';
 import 'features/communications/communications_page.dart';
@@ -467,6 +468,9 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
         }
 
         if (loggedIn && user.status == AccountStatus.approved) {
+          if (!user.isTrainer && location == '/spielplus-browser') {
+            return '/parent';
+          }
           if (user.isTrainer && location.startsWith('/parent')) {
             return '/trainer';
           }
@@ -516,6 +520,21 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
               );
             }
             return BfvBrowserPage(initialUri: target, teamName: teamName);
+          },
+        ),
+        GoRoute(
+          path: '/spielplus-browser',
+          parentNavigatorKey: _rootNavigatorKey,
+          builder: (context, state) {
+            final user = ref.read(authProvider).user;
+            if (user == null || !user.isTrainer) {
+              return const Scaffold(
+                body: Center(
+                  child: Text('SpielPLUS steht dem Trainerteam zur Verfügung.'),
+                ),
+              );
+            }
+            return SpielPlusBrowserPage(userId: user.id);
           },
         ),
         ShellRoute(
@@ -577,6 +596,13 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
                   route: '/trainer/bfv',
                   section: ShellSection.schedule,
                   hint: 'Offizielle BfV-Ligaübersicht',
+                  showOnMobile: false),
+              ShellDestination(
+                  label: 'SpielPLUS · BfV',
+                  icon: Icons.login_rounded,
+                  route: '/spielplus-browser',
+                  section: ShellSection.schedule,
+                  hint: 'Spielbericht und Verbandsverwaltung öffnen',
                   showOnMobile: false),
               ShellDestination(
                   label: 'Training & Platzplanung',

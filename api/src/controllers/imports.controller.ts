@@ -16,6 +16,15 @@ import {
 } from '../services/competition-provider';
 import { recalculateMatchStatistics } from '../services/statistics.service';
 import { writeCompetitionMatch } from '../services/competition-import-write.service';
+
+export const competitionImportTransactionOptions = {
+  // A seven-match BfV plan already performs several related writes per row.
+  // Prisma's short interactive-transaction defaults are too tight for a
+  // temporarily busy serverless database connection, even though the import
+  // itself is valid and small.
+  maxWait: 10_000,
+  timeout: 20_000,
+} as const;
 import {
   matchCompetitionOpponents,
   normalizedCompetitionName,
@@ -278,29 +287,30 @@ export async function applyCompetitionImport(req: Request, res: Response) {
         data: { entityId },
       });
     }
-    return tx.importJob.update({
+    const savedJob = await tx.importJob.update({
       where: { id: job.id },
       data: { status: ImportJobStatus.APPLIED, appliedAt: new Date() },
       include: { rows: { orderBy: { rowNumber: 'asc' } } },
     });
-  });
-  await prisma.auditLog.create({
-    data: {
-      actorId: user.id,
-      teamId: job.teamId,
-      action: 'COMPETITION_IMPORT_APPLIED',
-      entityType: 'ImportJob',
-      entityId: job.id,
-      metadata: {
-        provider: job.provider,
-        format: job.format,
-        sourceHash: job.sourceHash,
-        createCount: job.createCount,
-        updateCount: job.updateCount,
-        conflictPolicy: sourceWins ? 'SOURCE_WINS' : 'SKIP',
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: job.teamId,
+        action: 'COMPETITION_IMPORT_APPLIED',
+        entityType: 'ImportJob',
+        entityId: job.id,
+        metadata: {
+          provider: job.provider,
+          format: job.format,
+          sourceHash: job.sourceHash,
+          createCount: job.createCount,
+          updateCount: job.updateCount,
+          conflictPolicy: sourceWins ? 'SOURCE_WINS' : 'SKIP',
+        },
       },
-    },
-  });
+    });
+    return savedJob;
+  }, competitionImportTransactionOptions);
   const affectedIds = applied.rows
     .filter(
       (row) =>

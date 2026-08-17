@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/biometric_auth/biometric_auth.dart';
 import '../../core/models/user.dart';
+import '../integrations/spielplus_page.dart';
 import '../shared/page_scaffold.dart';
 import 'auth_controller.dart';
 
@@ -29,6 +31,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
   final _currentPassword = TextEditingController();
   final _newPassword = TextEditingController();
   final _confirmPassword = TextEditingController();
+  late final AppUser _user;
   bool _savingProfile = false;
   bool _savingPassword = false;
   bool _showCurrentPassword = false;
@@ -39,11 +42,11 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
   @override
   void initState() {
     super.initState();
-    final user = widget.initialUser ?? ref.read(authProvider).user!;
-    _firstName = TextEditingController(text: user.resolvedFirstName);
-    _lastName = TextEditingController(text: user.resolvedLastName);
-    _email = TextEditingController(text: user.email);
-    _phone = TextEditingController(text: user.phone ?? '');
+    _user = widget.initialUser ?? ref.read(authProvider).user!;
+    _firstName = TextEditingController(text: _user.resolvedFirstName);
+    _lastName = TextEditingController(text: _user.resolvedLastName);
+    _email = TextEditingController(text: _user.email);
+    _phone = TextEditingController(text: _user.phone ?? '');
     unawaited(_loadBiometricSettings());
   }
 
@@ -355,6 +358,12 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
             icon: Icons.fingerprint,
             child: _buildBiometricSettings(),
           );
+          final spielPlus = _user.isTrainer
+              ? SpielPlusSettingsCard(
+                  userId: _user.id,
+                  onOpen: () => context.go('/spielplus-browser'),
+                )
+              : null;
           if (constraints.maxWidth >= 820) {
             return Column(
               children: [
@@ -368,6 +377,10 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
                 ),
                 const SizedBox(height: 18),
                 biometric,
+                if (spielPlus != null) ...[
+                  const SizedBox(height: 18),
+                  spielPlus,
+                ],
               ],
             );
           }
@@ -378,6 +391,10 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
               password,
               const SizedBox(height: 16),
               biometric,
+              if (spielPlus != null) ...[
+                const SizedBox(height: 16),
+                spielPlus,
+              ],
             ],
           );
         },

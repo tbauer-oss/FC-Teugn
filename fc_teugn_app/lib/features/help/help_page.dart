@@ -1228,6 +1228,32 @@ const helpArticles = <HelpArticle>[
   ),
   HelpArticle(
     category: HelpCategory.matchday,
+    title: 'Wie öffne ich SpielPLUS in der App?',
+    summary:
+        'Trainer öffnen SpielPLUS direkt aus dem App-Menü und können den Gerätezugang optional vorbereiten.',
+    audience: HelpAudience.staff,
+    keywords: [
+      'SpielPLUS',
+      'DFBnet',
+      'BfV Login',
+      'Spielbericht',
+      'Kennung',
+      'Automatisch anmelden',
+    ],
+    route: '/spielplus-browser',
+    routeLabel: 'SpielPLUS öffnen',
+    steps: [
+      'Öffne im Trainer-Menü unter „Training & Spieltag“ den Punkt „SpielPLUS · BfV“.',
+      'In der Android- oder iPhone-App startet SpielPLUS im internen Vollbildbrowser. Bereits vorhandene DFBnet-Sitzungen werden weiterverwendet.',
+      'Unter „Mein Konto“ oder über das Zugangssymbol im SpielPLUS-Kopf kannst du Kennung und Passwort optional für dieses Gerät speichern.',
+      'Aktiviere „Automatisch anmelden“, wenn das Anmeldeformular nach dem Öffnen direkt ausgefüllt und abgeschickt werden soll.',
+      'Auf gemeinsam genutzten Geräten entfernst du den Zugang anschließend wieder. In der Web-App nutzt du wegen der DFBnet-Sicherheitsrichtlinie den Passwortmanager des Browsers.',
+    ],
+    tip:
+        'Die SpielPLUS-Zugangsdaten bleiben im geschützten Gerätespeicher. Sie werden weder mit anderen Geräten synchronisiert noch an die Vereinsdatenbank übertragen.',
+  ),
+  HelpArticle(
+    category: HelpCategory.matchday,
     title: 'Wie veröffentliche ich ein Spiel intern oder für Familien?',
     summary:
         'Die interne Information des Trainerteams und die Freigabe für Eltern und Spieler sind bewusst getrennte Schritte.',
