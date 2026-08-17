@@ -42,6 +42,15 @@ test('family response endpoint is role-independent and auditable', () => {
   assert.match(events, /responderRelationship/);
 });
 
+test('matches accept only yes or no responses', () => {
+  const events = source('src/controllers/events.controller.ts');
+  assert.match(
+    events,
+    /event\.type === EventType\.MATCH && status === AttendanceStatus\.MAYBE/,
+  );
+  assert.match(events, /Bei Spielen ist nur eine Zu- oder Absage möglich/);
+});
+
 test('family response inbox materializes only the next regular training', () => {
   const {
     nextRegularTrainingOccurrence,

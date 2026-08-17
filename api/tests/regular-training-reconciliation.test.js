@@ -123,13 +123,16 @@ test('hidden stale occurrences cannot recreate reminder jobs', () => {
   );
 });
 
-test('an explicitly hidden occurrence remains a tombstone after editing', async () => {
+test('an explicitly deleted occurrence remains a tombstone after editing', async () => {
   const now = new Date('2026-08-16T10:00:00.000Z');
   const activeTeam = team(['Dienstag 17:30–19:00 · Platz: Platz 1']);
   const expected = nextRegularTrainingOccurrence(activeTeam, now);
   const expectedId =
     `regular-training:team-e1:${expected.startAt.getTime()}`;
   const tx = {
+    auditLog: {
+      findFirst: async () => ({ id: 'audit-explicit-deletion' }),
+    },
     event: {
       findMany: async () => [
         {
@@ -152,6 +155,56 @@ test('an explicitly hidden occurrence remains a tombstone after editing', async 
   );
 
   assert.deepEqual(ids, [expectedId]);
+});
+
+test('an automatically hidden expected occurrence is reactivated after a schedule edit', async () => {
+  const now = new Date('2026-08-16T10:00:00.000Z');
+  const activeTeam = team(['Dienstag 17:15–18:45 · Platz: Platz 1']);
+  const expected = nextRegularTrainingOccurrence(activeTeam, now);
+  const expectedId =
+    `regular-training:team-e1:${expected.startAt.getTime()}`;
+  const calls = { updates: [], updateMany: [] };
+  const tx = {
+    auditLog: {
+      findFirst: async () => null,
+    },
+    event: {
+      findMany: async () => [
+        {
+          id: expectedId,
+          startAt: expected.startAt,
+          endAt: expected.endAt,
+          location: expected.location,
+          status: 'SCHEDULED',
+          isHiddenRegularOccurrence: true,
+          _count: { attendance: 0, participants: 0 },
+        },
+        {
+          id: 'regular-training:team-e1:old-1730',
+          startAt: new Date('2026-08-18T15:30:00.000Z'),
+          status: 'SCHEDULED',
+          isHiddenRegularOccurrence: false,
+          _count: { attendance: 0, participants: 0 },
+        },
+      ],
+      update: async (args) => calls.updates.push(args),
+      upsert: async () => assert.fail('hidden occurrence must be reused'),
+      updateMany: async (args) => calls.updateMany.push(args),
+    },
+  };
+
+  const ids = await reconcileNextRegularTrainingOccurrence(
+    tx,
+    activeTeam,
+    now,
+  );
+
+  assert.deepEqual(ids, [expectedId, 'regular-training:team-e1:old-1730']);
+  assert.equal(calls.updates[0].where.id, expectedId);
+  assert.equal(calls.updates[0].data.isHiddenRegularOccurrence, false);
+  assert.deepEqual(calls.updateMany[0].where.id.in, [
+    'regular-training:team-e1:old-1730',
+  ]);
 });
 
 test('a cancelled old time is hidden and never moved to the new schedule', async () => {

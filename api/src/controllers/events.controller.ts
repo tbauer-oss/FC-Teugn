@@ -2222,6 +2222,11 @@ export async function setAttendance(req: Request, res: Response) {
     req.body.status,
     AttendanceStatus.UNKNOWN,
   );
+  if (event.type === EventType.MATCH && status === AttendanceStatus.MAYBE) {
+    return res.status(400).json({
+      message: 'Bei Spielen ist nur eine Zu- oder Absage möglich.',
+    });
+  }
   const previous = event.attendance.find((item) => item.playerId === playerId);
   const responseSource = parentLink
     ? AttendanceResponseSource.GUARDIAN

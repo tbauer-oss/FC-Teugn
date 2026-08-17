@@ -24,7 +24,7 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
           'Hier beantwortest du Termine für alle zugeordneten Kinder und siehst den aktuellen Stand sofort.',
       steps: [
         'Oben siehst du, wie viele Antworten offen, zugesagt, vielleicht oder abgesagt sind.',
-        'Wähle beim passenden Kind „Zusagen“, „Vielleicht“ oder „Absagen“. Bei einer Absage kannst du freiwillig einen Grund ergänzen.',
+        'Wähle beim passenden Kind „Zusagen“ oder „Absagen“. Bei Trainings ist zusätzlich „Vielleicht“ möglich. Bei einer Absage kannst du freiwillig einen Grund ergänzen.',
         'Die Kalenderansicht wird direkt synchronisiert. Unter „Details“ findest du Termin, Treffpunkt und weitere Informationen.',
       ],
       searchQuery: 'Rückmeldung Vielleicht Absage Grund',

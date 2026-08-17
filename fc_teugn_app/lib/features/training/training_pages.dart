@@ -485,11 +485,11 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                 borderRadius: BorderRadius.circular(18),
                 onTap: () => context.push('/trainer/training/${training.id}'),
                 child: Padding(
-                  padding: EdgeInsets.all(compact ? 11 : 18),
+                  padding: EdgeInsets.all(compact ? 9 : 18),
                   child: Row(
                     children: [
                       _DateTile(date: training.startAt.toLocal()),
-                      SizedBox(width: compact ? 10 : 16),
+                      SizedBox(width: compact ? 8 : 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,17 +505,30 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                                       ?.copyWith(fontWeight: FontWeight.w900)
                                   : Theme.of(context).textTheme.titleLarge,
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: compact ? 2 : 4),
                             Text(
-                              training.location,
+                              [
+                                if (training.teamNames.isNotEmpty)
+                                  training.teamNames.join(' · '),
+                                if (training.location.trim().isNotEmpty)
+                                  training.location,
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(color: AppColors.muted),
                             ),
-                            SizedBox(height: compact ? 5 : 8),
+                            SizedBox(height: compact ? 3 : 8),
                             Wrap(
                               spacing: 7,
                               runSpacing: 7,
                               children: [
                                 Chip(
+                                  visualDensity: compact
+                                      ? const VisualDensity(
+                                          horizontal: -3,
+                                          vertical: -3,
+                                        )
+                                      : VisualDensity.standard,
                                   avatar: Icon(
                                     training.plan == null
                                         ? Icons.edit_calendar_outlined
@@ -2481,7 +2494,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
       if (!mounted) return;
       setState(() {
         _training = training;
-        _exercises = exercises;
+        _exercises = _mergeTrainingExerciseSuggestions(training, exercises);
         _availableCoaches = availableCoaches;
         _selectedCoachIds =
             training.plan?.coaches.map((coach) => coach.id).toSet() ?? {};
@@ -2538,21 +2551,38 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
             '${date.day}.${date.month}.${date.year} · ${_training!.location}',
         child: Column(
           children: [
-            const TabBar(
-              isScrollable: true,
-              tabs: [
-                Tab(
-                    icon: Icon(Icons.view_timeline_rounded),
-                    text: 'Einheitsplan'),
-                Tab(
-                    icon: Icon(Icons.auto_stories_outlined),
-                    text: 'Übungsbibliothek'),
-                Tab(icon: Icon(Icons.fact_check_outlined), text: 'Anwesenheit'),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 430;
+                return TabBar(
+                  isScrollable: !compact,
+                  tabs: [
+                    Tab(
+                      icon: compact
+                          ? const Icon(Icons.view_timeline_rounded, size: 19)
+                          : null,
+                      text: compact ? 'Plan' : 'Einheitsplan',
+                    ),
+                    Tab(
+                      icon: compact
+                          ? const Icon(Icons.auto_stories_outlined, size: 19)
+                          : null,
+                      text: compact ? 'Übungen' : 'Übungsbibliothek',
+                    ),
+                    Tab(
+                      icon: compact
+                          ? const Icon(Icons.fact_check_outlined, size: 19)
+                          : null,
+                      text: 'Anwesenheit',
+                    ),
+                  ],
+                );
+              },
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             SizedBox(
-              height: MediaQuery.sizeOf(context).height - 250,
+              height:
+                  (MediaQuery.sizeOf(context).height - 225).clamp(460.0, 900.0),
               child: TabBarView(
                 children: [
                   _planTab(),
@@ -2580,13 +2610,18 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                 children: [
                   SizedBox(
                     width: fieldWidth,
-                    child: TextField(
+                    child: _PresetTextField(
                       controller: _focus,
-                      decoration: const InputDecoration(
-                        labelText: 'Schwerpunkte',
-                        hintText: 'Passspiel, Ballkontrolle, Umschalten',
-                        prefixIcon: Icon(Icons.center_focus_strong_rounded),
-                      ),
+                      label: 'Schwerpunkte',
+                      icon: Icons.center_focus_strong_rounded,
+                      options: const [
+                        'Ballkontrolle & Dribbling',
+                        'Passspiel & Freilaufen',
+                        'Torabschluss',
+                        'Umschalten',
+                        'Zweikampfverhalten',
+                        'Koordination & Schnelligkeit',
+                      ],
                     ),
                   ),
                   SizedBox(
@@ -2600,14 +2635,17 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                 ],
               ),
               const SizedBox(height: 12),
-              TextField(
+              _PresetTextField(
                 controller: _goals,
-                minLines: 2,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Lernziele',
-                  prefixIcon: Icon(Icons.flag_outlined),
-                ),
+                label: 'Lernziele',
+                icon: Icons.flag_outlined,
+                options: const [
+                  'Beidfüßig und mit Blick nach vorn lösen',
+                  'Nach dem Pass sofort wieder freilaufen',
+                  'Mutig ins Dribbling gehen und Entscheidungen treffen',
+                  'Schnell umschalten und gemeinsam verteidigen',
+                  'Viele Ballaktionen und Torabschlüsse ermöglichen',
+                ],
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -2616,26 +2654,30 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                 children: [
                   SizedBox(
                     width: fieldWidth,
-                    child: TextField(
+                    child: _PresetTextField(
                       controller: _materials,
-                      minLines: 2,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Material',
-                        prefixIcon: Icon(Icons.inventory_2_outlined),
-                      ),
+                      label: 'Material',
+                      icon: Icons.inventory_2_outlined,
+                      options: const [
+                        'Bälle, Hütchen und Leibchen',
+                        'Bälle, Mini-Tore und Hütchen',
+                        'Bälle, Stangen, Hürden und Leibchen',
+                        'Bälle, Koordinationsleiter und Hütchen',
+                      ],
                     ),
                   ),
                   SizedBox(
                     width: fieldWidth,
-                    child: TextField(
+                    child: _PresetTextField(
                       controller: _pitch,
-                      minLines: 2,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Platzaufteilung / Aufbau',
-                        prefixIcon: Icon(Icons.grid_on_rounded),
-                      ),
+                      label: 'Platzaufteilung / Aufbau',
+                      icon: Icons.grid_on_rounded,
+                      options: const [
+                        'Halber Platz · zwei parallele Felder',
+                        'Vier kleine Felder für Kleingruppen',
+                        'Ein Hauptfeld mit zwei Mini-Toren',
+                        'Stationenbetrieb in drei Bereichen',
+                      ],
                     ),
                   ),
                 ],
@@ -2775,89 +2817,147 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
         },
       );
 
-  Widget _exerciseTab() => Column(
-        children: [
-          Row(
+  Widget _exerciseTab() => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 430;
+          return Column(
             children: [
-              Expanded(
-                child: Text(
-                  '${_exercises.length} Übungen im Mannschaftsbereich',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              FilledButton.icon(
-                onPressed: _createExercise,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Neue Übung'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: _exercises.isEmpty
-                ? const EmptyState(
-                    icon: Icons.auto_stories_outlined,
-                    title: 'Übungsbibliothek ist leer',
-                    message:
-                        'Lege wiederverwendbare Übungen für dein Trainerteam an.',
-                  )
-                : GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 430,
-                      mainAxisExtent: 245,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${_exercises.length} Übungen & Jugendideen',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    itemCount: _exercises.length,
-                    itemBuilder: (context, index) {
-                      final exercise = _exercises[index];
-                      return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(18),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                  ),
+                  const SizedBox(width: 6),
+                  FilledButton.icon(
+                    onPressed: _createExercise,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    style: compact
+                        ? FilledButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 9),
+                          )
+                        : null,
+                    label: Text(compact ? 'Neu' : 'Neue Übung'),
+                  ),
+                ],
+              ),
+              SizedBox(height: compact ? 7 : 12),
+              Expanded(
+                child: _exercises.isEmpty
+                    ? const EmptyState(
+                        icon: Icons.auto_stories_outlined,
+                        title: 'Übungsbibliothek ist leer',
+                        message:
+                            'Lege wiederverwendbare Übungen für dein Trainerteam an.',
+                      )
+                    : GridView.builder(
+                        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 430,
+                          mainAxisExtent: compact ? 220 : 245,
+                          crossAxisSpacing: compact ? 7 : 12,
+                          mainAxisSpacing: compact ? 7 : 12,
+                        ),
+                        itemCount: _exercises.length,
+                        itemBuilder: (context, index) {
+                          final exercise = _exercises[index];
+                          return Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(compact ? 11 : 18),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Chip(label: Text(exercise.category)),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Chip(
+                                            visualDensity: compact
+                                                ? const VisualDensity(
+                                                    horizontal: -3,
+                                                    vertical: -3,
+                                                  )
+                                                : VisualDensity.standard,
+                                            label: Text(
+                                              exercise.category,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      if (exercise.isFavorite)
+                                        const Padding(
+                                          padding: EdgeInsets.only(left: 4),
+                                          child: Icon(
+                                            Icons.star_rounded,
+                                            color: AppColors.orange,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  Text(
+                                    exercise.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: compact
+                                        ? Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w900)
+                                        : Theme.of(context)
+                                            .textTheme
+                                            .titleLarge,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    exercise.instructions,
+                                    maxLines: compact ? 2 : 3,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                   const Spacer(),
-                                  if (exercise.isFavorite)
-                                    const Icon(Icons.star_rounded,
-                                        color: AppColors.orange),
-                                ],
-                              ),
-                              Text(
-                                exercise.title,
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                exercise.instructions,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const Spacer(),
-                              Row(
-                                children: [
-                                  const Icon(Icons.timer_outlined, size: 18),
-                                  Text(' ${exercise.durationMinutes} Min.'),
-                                  const Spacer(),
-                                  TextButton.icon(
-                                    onPressed: () => _appendExercise(exercise),
-                                    icon: const Icon(Icons.add_rounded),
-                                    label: const Text('Einplanen'),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.timer_outlined,
+                                          size: 17),
+                                      Text(' ${exercise.durationMinutes} Min.'),
+                                      const Spacer(),
+                                      TextButton.icon(
+                                        onPressed: () =>
+                                            _appendExercise(exercise),
+                                        style: compact
+                                            ? TextButton.styleFrom(
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 5,
+                                                ),
+                                              )
+                                            : null,
+                                        icon: const Icon(Icons.add_rounded,
+                                            size: 17),
+                                        label: Text(
+                                            compact ? 'Planen' : 'Einplanen'),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
       );
 
   Widget _attendanceTab() => Column(
@@ -2919,7 +3019,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
             title: exercise.title,
             phase: TrainingPhase.mainPart,
             durationMinutes: exercise.durationMinutes,
-            exerciseId: exercise.id,
+            exerciseId: exercise.id.startsWith('preset:') ? null : exercise.id,
           ),
         ),
       );
@@ -3289,6 +3389,263 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
   }
 }
 
+class _PresetTextField extends StatefulWidget {
+  const _PresetTextField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    required this.options,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final List<String> options;
+
+  @override
+  State<_PresetTextField> createState() => _PresetTextFieldState();
+}
+
+class _PresetTextFieldState extends State<_PresetTextField> {
+  static const customValue = '__custom__';
+  late String? value;
+
+  @override
+  void initState() {
+    super.initState();
+    value = widget.controller.text.trim().isEmpty
+        ? null
+        : widget.controller.text.trim();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PresetTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final current = widget.controller.text.trim();
+    if (current != (value ?? '')) value = current.isEmpty ? null : current;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final values = <String>{
+      ...widget.options,
+      if (value?.isNotEmpty == true && !widget.options.contains(value)) value!,
+    };
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        prefixIcon: Icon(widget.icon),
+      ),
+      hint: const Text('Auswählen oder selbst eingeben'),
+      items: [
+        for (final option in values)
+          DropdownMenuItem(
+            value: option,
+            child: Text(
+              option,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        const DropdownMenuItem(
+          value: customValue,
+          child: Row(
+            children: [
+              Icon(Icons.edit_rounded, size: 18),
+              SizedBox(width: 8),
+              Text('Eigene Eingabe …'),
+            ],
+          ),
+        ),
+      ],
+      onChanged: (selected) async {
+        if (selected == customValue) {
+          final editor = TextEditingController(text: value ?? '');
+          final custom = await showDialog<String>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text('${widget.label} anpassen'),
+              content: TextField(
+                controller: editor,
+                autofocus: true,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  hintText: 'Eigene Angabe eintragen',
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, editor.text.trim()),
+                  child: const Text('Übernehmen'),
+                ),
+              ],
+            ),
+          );
+          editor.dispose();
+          if (!mounted || custom == null) {
+            setState(() {});
+            return;
+          }
+          setState(() {
+            value = custom.isEmpty ? null : custom;
+            widget.controller.text = custom;
+          });
+          return;
+        }
+        setState(() {
+          value = selected;
+          widget.controller.text = selected ?? '';
+        });
+      },
+    );
+  }
+}
+
+List<TrainingExerciseModel> _mergeTrainingExerciseSuggestions(
+  TrainingModel training,
+  List<TrainingExerciseModel> saved,
+) {
+  final titles = saved.map((item) => item.title.toLowerCase().trim()).toSet();
+  return [
+    ...saved,
+    ...trainingExerciseSuggestions(training).where(
+      (item) => !titles.contains(item.title.toLowerCase().trim()),
+    ),
+  ];
+}
+
+List<TrainingExerciseModel> trainingExerciseSuggestions(
+  TrainingModel training,
+) {
+  final context =
+      '${training.teamNames.join(' ')} ${training.title}'.toUpperCase();
+  final age =
+      RegExp(r'\b([A-G])\d?[- ]?JUGEND\b').firstMatch(context)?.group(1) ??
+          RegExp(r'\b([A-G])\d\b').firstMatch(context)?.group(1) ??
+          'E';
+  final ideas = switch (age) {
+    'G' => const [
+        (
+          'Dribbel-Zoo',
+          'Ballgefühl',
+          10,
+          'Viele kleine Hütchentore verteilen.',
+          'Jedes Kind führt einen Ball und löst spielerische Bewegungsaufgaben.'
+        ),
+        (
+          'Farben-Fänger',
+          'Reaktion',
+          10,
+          'Vier farbige Zonen markieren.',
+          'Auf Zuruf dribbeln die Kinder schnell in die passende Farbzone.'
+        ),
+        (
+          '3 gegen 3 auf zwei Tore',
+          'Spielform',
+          15,
+          'Kleines Feld mit zwei Mini-Toren.',
+          'Freies Spiel mit vielen Ballkontakten und schnellen Neustarts.'
+        ),
+      ],
+    'F' => const [
+        (
+          'Balljäger mit Rettungszonen',
+          'Dribbling',
+          12,
+          'Quadrat mit vier sicheren Ecken markieren.',
+          'Kinder schützen ihren Ball und wechseln mutig die Richtung.'
+        ),
+        (
+          'Passtore sammeln',
+          'Passspiel',
+          12,
+          'Mehrere Hütchentore im Feld verteilen.',
+          'Paare passen durch möglichst viele unterschiedliche Tore.'
+        ),
+        (
+          '3 gegen 3 auf vier Tore',
+          'Spielform',
+          18,
+          'Vier Mini-Tore an den Seiten aufstellen.',
+          'Freies Spiel; jedes Team greift auf zwei Tore an.'
+        ),
+      ],
+    'E' => const [
+        (
+          'Finten-Inseln',
+          'Dribbling',
+          12,
+          'Vier Inseln mit Hütchen und je einem Fintenauftrag aufbauen.',
+          'Spieler dribbeln frei und führen an jeder Insel eine andere Finte aus.'
+        ),
+        (
+          'Passdreieck mit Anschlussaktion',
+          'Passspiel',
+          15,
+          'Dreiecke in Kleingruppen markieren.',
+          'Passen, dem Ball nachgehen und vor der Annahme offen zum Feld stehen.'
+        ),
+        (
+          '3 gegen 3 auf vier Tore',
+          'Spielform',
+          18,
+          'Vier Mini-Tore an den Seiten aufstellen.',
+          'Freies Spiel mit Umschalten; jedes Team greift auf zwei Tore an.'
+        ),
+        (
+          'Torabschluss nach Dribbling',
+          'Torabschluss',
+          15,
+          'Zwei kurze Dribbelparcours vor dem Tor.',
+          'Finte am Hütchen, Ball vorlegen und gezielt mit beiden Füßen abschließen.'
+        ),
+      ],
+    _ => const [
+        (
+          'Rondo mit Anschlussaktion',
+          'Passspiel',
+          15,
+          'Zwei Felder für 4 gegen 1 oder 5 gegen 2.',
+          'Nach mehreren Pässen folgt der zielgerichtete Wechsel ins Nachbarfeld.'
+        ),
+        (
+          'Überzahl zum Torabschluss',
+          'Taktik',
+          18,
+          'Halbfeld mit Tor und zwei Kontertoren.',
+          'Angreifer lösen eine Überzahl und schalten nach Ballverlust sofort um.'
+        ),
+        (
+          '4 gegen 4 plus Anspieler',
+          'Spielform',
+          20,
+          'Kompaktes Feld mit neutralen Außenspielern.',
+          'Ballbesitz sichern, Tiefe erkennen und nach Ballgewinn schnell spielen.'
+        ),
+      ],
+  };
+  return [
+    for (var index = 0; index < ideas.length; index++)
+      TrainingExerciseModel(
+        id: 'preset:$age:$index',
+        teamId: training.teamId,
+        title: ideas[index].$1,
+        category: '$age-Jugend · ${ideas[index].$2}',
+        durationMinutes: ideas[index].$3,
+        setup: ideas[index].$4,
+        instructions: ideas[index].$5,
+        isFavorite: false,
+      ),
+  ];
+}
+
 class _CoachMultiSelectField extends StatelessWidget {
   const _CoachMultiSelectField({
     required this.coaches,
@@ -3310,18 +3667,17 @@ class _CoachMultiSelectField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: 'Trainerteam',
-          helperText: coaches.isEmpty
-              ? 'Noch keine Trainer für diese Jugend freigegeben'
-              : 'Mehrfachauswahl möglich',
           prefixIcon: const Icon(Icons.groups_2_outlined),
           suffixIcon:
               onTap == null ? null : const Icon(Icons.arrow_drop_down_rounded),
         ),
         isEmpty: selected.isEmpty,
         child: selected.isEmpty
-            ? const Text(
-                'Trainer auswählen',
-                style: TextStyle(color: AppColors.muted),
+            ? Text(
+                coaches.isEmpty
+                    ? 'Keine freigegebenen Trainer'
+                    : 'Trainer auswählen · Mehrfachauswahl',
+                style: const TextStyle(color: AppColors.muted),
               )
             : Wrap(
                 spacing: 6,

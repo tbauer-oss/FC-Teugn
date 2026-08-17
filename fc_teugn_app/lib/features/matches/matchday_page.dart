@@ -3341,14 +3341,6 @@ class _AttendanceMenu extends StatelessWidget {
           ),
         ),
         PopupMenuItem(
-          value: AttendanceStatus.maybe,
-          child: ListTile(
-            dense: true,
-            leading: Icon(Icons.help_outline_rounded),
-            title: Text('Vielleicht'),
-          ),
-        ),
-        PopupMenuItem(
           value: AttendanceStatus.no,
           child: ListTile(
             dense: true,

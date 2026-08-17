@@ -11,9 +11,11 @@ import { prisma } from '../lib/prisma';
 import {
   accessibleTeamIds,
   clubIdForTeam,
+  contextualTeamIds,
   eventTeamScope,
   resolveContextTeamId,
 } from '../services/team-access';
+import { ensureNextRegularTrainingOccurrences } from '../services/regular-training-occurrence.service';
 
 const occupancyAdminRoles: Role[] = [
   Role.SUPER_ADMIN,
@@ -721,16 +723,21 @@ export async function listTrainingCoaches(req: Request, res: Response) {
 }
 
 export async function listTrainings(req: Request, res: Response) {
-  const teamIds = await accessibleTeamIds(req.user!);
+  // The planning overview follows the actively selected youth context. A
+  // system administrator or trainer must not see unrelated teams merely
+  // because their account is allowed to administer the whole club.
+  const teamIds = await contextualTeamIds(req.user!);
   const from = req.query.from
     ? new Date(String(req.query.from))
     : new Date(Date.now() - 180 * 86400000);
   const to = req.query.to
     ? new Date(String(req.query.to))
     : new Date(Date.now() + 550 * 86400000);
+  await ensureNextRegularTrainingOccurrences(teamIds);
   const trainings = await prisma.event.findMany({
     where: {
       type: EventType.TRAINING,
+      isHiddenRegularOccurrence: false,
       ...eventTeamScope(teamIds),
       startAt: {
         gte: Number.isNaN(from.getTime())
@@ -776,7 +783,12 @@ export async function listTrainings(req: Request, res: Response) {
 export async function getTraining(req: Request, res: Response) {
   const teamIds = await accessibleTeamIds(req.user!);
   const training = await prisma.event.findFirst({
-    where: { id: req.params.id, type: EventType.TRAINING, ...eventTeamScope(teamIds) },
+    where: {
+      id: req.params.id,
+      type: EventType.TRAINING,
+      isHiddenRegularOccurrence: false,
+      ...eventTeamScope(teamIds),
+    },
     include: trainingInclude,
   });
   if (!training) return res.status(404).json({ message: 'Training nicht gefunden.' });
@@ -996,7 +1008,7 @@ export async function recordTrainingAttendance(req: Request, res: Response) {
 }
 
 export async function listExercises(req: Request, res: Response) {
-  const teamIds = await accessibleTeamIds(req.user!);
+  const teamIds = await contextualTeamIds(req.user!);
   const category = text(req.query.category, 100);
   const exercises = await prisma.trainingExercise.findMany({
     where: {

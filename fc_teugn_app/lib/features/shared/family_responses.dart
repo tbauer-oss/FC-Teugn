@@ -453,6 +453,7 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
               ? _AttendanceResponseActions(
                   expanded: narrow,
                   saving: _saving,
+                  allowMaybe: !item.isMatch,
                   onAnswer: _answer,
                 )
               : Chip(
@@ -517,11 +518,13 @@ class _AttendanceResponseActions extends StatelessWidget {
   const _AttendanceResponseActions({
     required this.expanded,
     required this.saving,
+    required this.allowMaybe,
     required this.onAnswer,
   });
 
   final bool expanded;
   final bool saving;
+  final bool allowMaybe;
   final ValueChanged<AttendanceStatus> onAnswer;
 
   @override
@@ -543,12 +546,13 @@ class _AttendanceResponseActions extends StatelessWidget {
         icon: Icon(Icons.check_rounded, size: expanded ? 15 : 18),
         label: const Text('Zusagen'),
       ),
-      FilledButton.tonalIcon(
-        style: expanded ? compactStyle : null,
-        onPressed: saving ? null : () => onAnswer(AttendanceStatus.maybe),
-        icon: Icon(Icons.help_outline_rounded, size: expanded ? 15 : 18),
-        label: const Text('Vielleicht'),
-      ),
+      if (allowMaybe)
+        FilledButton.tonalIcon(
+          style: expanded ? compactStyle : null,
+          onPressed: saving ? null : () => onAnswer(AttendanceStatus.maybe),
+          icon: Icon(Icons.help_outline_rounded, size: expanded ? 15 : 18),
+          label: const Text('Vielleicht'),
+        ),
       OutlinedButton.icon(
         style: expanded ? compactStyle : null,
         onPressed: saving ? null : () => onAnswer(AttendanceStatus.no),

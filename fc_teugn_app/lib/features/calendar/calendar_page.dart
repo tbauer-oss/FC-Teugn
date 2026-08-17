@@ -3106,10 +3106,11 @@ class _AttendanceSection extends ConsumerWidget {
                   label: 'Abgesagt',
                   value: summary.no,
                   color: Colors.redAccent),
-              _StatusMetric(
-                  label: 'Vielleicht',
-                  value: summary.maybe,
-                  color: AppColors.orange),
+              if (event.type != EventType.match || summary.maybe > 0)
+                _StatusMetric(
+                    label: 'Vielleicht',
+                    value: summary.maybe,
+                    color: AppColors.orange),
               if (event.capabilities.canManage)
                 _StatusMetric(
                     label: 'Offen',
@@ -6616,7 +6617,11 @@ class _AttendanceDialogState extends State<_AttendanceDialog> {
             initialValue: status,
             decoration: const InputDecoration(labelText: 'Status'),
             items: [
-              for (final value in AttendanceStatus.values)
+              for (final value in AttendanceStatus.values.where(
+                (value) =>
+                    widget.event.type != EventType.match ||
+                    value != AttendanceStatus.maybe,
+              ))
                 DropdownMenuItem(value: value, child: Text(value.label)),
             ],
             onChanged: (value) => setState(() => status = value ?? status),

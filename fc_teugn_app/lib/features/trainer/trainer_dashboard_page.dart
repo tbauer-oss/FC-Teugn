@@ -99,6 +99,8 @@ class TrainerDashboardPage extends ConsumerWidget {
       now: now,
       eventRoute: eventRoute,
     );
+    final compactDashboard = MediaQuery.sizeOf(context).width < 600;
+    final sectionGap = compactDashboard ? 8.0 : 12.0;
 
     return PageScaffold(
       title: '${_greeting(now)}, ${_firstName(user?.name)}',
@@ -118,26 +120,30 @@ class TrainerDashboardPage extends ConsumerWidget {
               onOpen: () => context.go('/trainer/approvals'),
               onRefresh: () => ref.invalidate(pendingUsersProvider),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: sectionGap),
           ],
           if (user?.canUsePersonalResponses == true) ...[
             const PersonalResponsesCard(isTrainer: true),
-            const SizedBox(height: 12),
+            SizedBox(height: sectionGap),
           ],
           if (nextTraining != null) ...[
             _NextTrainingOverview(
               event: nextTraining,
               players: teamPlayers,
+              opensPersonalResponse:
+                  personalResponseEventIds.contains(nextTraining.id),
               onOpen: () => context.push(eventRoute(nextTraining)),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: sectionGap),
           ],
-          _NextEventHero(
-            event: nextEvent,
-            now: now,
-            eventRoute: eventRoute,
-          ),
-          const SizedBox(height: 12),
+          if (nextEvent?.id != nextTraining?.id) ...[
+            _NextEventHero(
+              event: nextEvent,
+              now: now,
+              eventRoute: eventRoute,
+            ),
+            SizedBox(height: sectionGap),
+          ],
           _StatusGrid(
             playersLoading: players.isLoading,
             playersError: players.hasError,
@@ -412,15 +418,18 @@ class _NextTrainingOverview extends StatelessWidget {
   const _NextTrainingOverview({
     required this.event,
     required this.players,
+    required this.opensPersonalResponse,
     required this.onOpen,
   });
 
   final EventModel event;
   final List<PlayerModel> players;
+  final bool opensPersonalResponse;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final teamIds = {
       event.teamId,
       ...event.targetTeams.map((team) => team.id),
@@ -448,22 +457,22 @@ class _NextTrainingOverview extends StatelessWidget {
       child: InkWell(
         onTap: onOpen,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.all(compact ? 10 : 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: compact ? 34 : 38,
+                    height: compact ? 34 : 38,
                     decoration: BoxDecoration(
                       color: AppColors.yellowSoft,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.sports_rounded),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: compact ? 8 : 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -485,7 +494,7 @@ class _NextTrainingOverview extends StatelessWidget {
                 ],
               ),
               if (event.location.trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
+                SizedBox(height: compact ? 5 : 8),
                 Row(
                   children: [
                     const Icon(
@@ -504,7 +513,7 @@ class _NextTrainingOverview extends StatelessWidget {
                   ],
                 ),
               ],
-              const SizedBox(height: 12),
+              SizedBox(height: compact ? 7 : 12),
               Wrap(
                 spacing: 7,
                 runSpacing: 7,
@@ -542,18 +551,28 @@ class _NextTrainingOverview extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: compact ? 4 : 10),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
                   key: const ValueKey('next-training-participants'),
-                  onPressed: () => _showTrainingResponses(
-                    context,
-                    event,
-                    roster,
+                  onPressed: opensPersonalResponse
+                      ? onOpen
+                      : () => _showTrainingResponses(
+                            context,
+                            event,
+                            roster,
+                          ),
+                  icon: Icon(
+                    opensPersonalResponse
+                        ? Icons.how_to_reg_rounded
+                        : Icons.people_alt_outlined,
                   ),
-                  icon: const Icon(Icons.people_alt_outlined),
-                  label: const Text('Teilnehmer ansehen'),
+                  label: Text(
+                    opensPersonalResponse
+                        ? 'Rückmeldung abgeben'
+                        : 'Teilnehmer ansehen',
+                  ),
                 ),
               ),
             ],
@@ -1543,8 +1562,10 @@ List<EventModel> _dashboardEvents(
   DateTime now,
   Set<String> contextTeamIds,
 ) {
-  if (organization == null) return stored;
-  final result = [...stored];
+  final visibleStored =
+      stored.where((event) => !event.isHiddenRegularOccurrence).toList();
+  if (organization == null) return visibleStored;
+  final result = [...visibleStored];
   for (final team in organization.teams.where(
     (team) => contextTeamIds.isEmpty || contextTeamIds.contains(team.id),
   )) {

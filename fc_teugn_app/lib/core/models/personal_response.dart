@@ -14,6 +14,7 @@ class PersonalResponseModel {
     required this.responseStatus,
     required this.canRespond,
     required this.isOverdue,
+    this.type = 'SPECIAL_EVENT',
     this.opponent,
     this.meetingAt,
     this.meetingLocation,
@@ -28,6 +29,7 @@ class PersonalResponseModel {
   final String teamName;
   final String ageGroupCode;
   final String title;
+  final String type;
   final String category;
   final DateTime startAt;
   final String location;
@@ -42,6 +44,11 @@ class PersonalResponseModel {
   final bool isOverdue;
 
   bool get isOpen => responseStatus == AttendanceStatus.unknown;
+  bool get isMatch =>
+      type == 'MATCH' ||
+      category.contains('MATCH') ||
+      category.contains('TOURNAMENT') ||
+      category == 'FOOTBALL_FESTIVAL';
 
   factory PersonalResponseModel.fromJson(Map<String, dynamic> json) {
     final rawStatus = json['responseStatus'] as String? ?? 'UNKNOWN';
@@ -52,6 +59,7 @@ class PersonalResponseModel {
       teamName: json['teamName'] as String? ?? '',
       ageGroupCode: json['ageGroupCode'] as String? ?? '',
       title: json['title'] as String? ?? 'Termin',
+      type: json['type'] as String? ?? 'SPECIAL_EVENT',
       category: json['category'] as String? ?? 'SPECIAL_EVENT',
       startAt: DateTime.parse(json['startAt'] as String).toLocal(),
       location: json['location'] as String? ?? '',

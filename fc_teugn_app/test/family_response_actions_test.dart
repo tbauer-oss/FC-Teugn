@@ -32,6 +32,8 @@ PersonalResponseModel _response({
   AttendanceStatus status = AttendanceStatus.unknown,
   bool canRespond = true,
   String? reason,
+  String type = 'TRAINING',
+  String category = 'TRAINING',
 }) {
   return PersonalResponseModel(
     eventId: eventId,
@@ -40,7 +42,8 @@ PersonalResponseModel _response({
     teamName: 'E1-Jugend',
     ageGroupCode: 'E1',
     title: title,
-    category: 'TRAINING',
+    type: type,
+    category: category,
     startAt: DateTime(2026, 8, 22, 10),
     location: 'Sportplatz Teugn',
     responseStatus: status,
@@ -87,6 +90,21 @@ void main() {
     expect(find.text('Max Muster absagen?'), findsOneWidget);
     expect(find.text('Grund (optional)'), findsOneWidget);
     expect(find.text('z. B. krank oder verhindert'), findsOneWidget);
+  });
+
+  testWidgets('match response only offers accept or decline', (tester) async {
+    await _pumpPage(
+      tester,
+      _response(
+        title: 'Punktspiel',
+        type: 'MATCH',
+        category: 'LEAGUE_MATCH',
+      ),
+    );
+
+    expect(find.widgetWithText(FilledButton, 'Zusagen'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Vielleicht'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Absagen'), findsOneWidget);
   });
 
   testWidgets('saved decline reason is visible in family response',

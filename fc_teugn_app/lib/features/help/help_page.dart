@@ -1006,12 +1006,12 @@ const helpArticles = <HelpArticle>[
     steps: [
       'Öffne „Meine Kinder & Rückmeldungen“ oder rufe den Termin über Kalender, Startseite oder eine Benachrichtigung auf.',
       'Prüfe bei mehreren Kindern am Namen, für welches Spielerprofil du antwortest. Oben fassen „Offen“, „Zugesagt“, „Vielleicht“ und „Abgesagt“ alle Antworten zusammen.',
-      'Wähle „Zusagen“, „Vielleicht“ oder „Absagen“. Eine Antwort darfst du später jederzeit ändern, solange Rückmeldungen möglich sind.',
+      'Wähle „Zusagen“ oder „Absagen“. Bei Trainings steht zusätzlich „Vielleicht“ zur Verfügung. Eine Antwort darfst du später jederzeit ändern, solange Rückmeldungen möglich sind.',
       'Bei „Absagen“ kannst du im folgenden Fenster freiwillig einen Grund eintragen. Das Feld darf leer bleiben; ein gespeicherter Grund wird am Termin angezeigt und kann durch erneutes Absagen geändert werden.',
       'Die Antwort wird sofort mit der Terminansicht im Kalender synchronisiert. Gib zusätzlich an, ob das Kind als Torhüter verfügbar ist, sofern diese Auswahl angeboten wird.',
     ],
     tip:
-        '„Vielleicht“ ist eine eigene Rückmeldung und wird weder als offene Antwort noch als feste Zusage gezählt.',
+        'Bei Trainings ist „Vielleicht“ eine eigene Rückmeldung und wird weder als offene Antwort noch als feste Zusage gezählt. Für Spiele gibt es bewusst nur Zu- oder Absage.',
   ),
   HelpArticle(
     category: HelpCategory.calendar,

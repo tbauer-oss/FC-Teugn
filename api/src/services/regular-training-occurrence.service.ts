@@ -30,7 +30,7 @@ export type RegularTrainingTeamSchedule = {
 
 type RegularTrainingTransaction = Pick<
   Prisma.TransactionClient,
-  'event'
+  'event' | 'auditLog'
 >;
 
 type CalendarParts = {
@@ -304,17 +304,31 @@ export async function reconcileNextRegularTrainingOccurrence(
     (event) => event.id === expectedId && event.isHiddenRegularOccurrence,
   );
   if (expectedTombstone) {
-    const staleIds = visible.map((event) => event.id);
-    if (staleIds.length > 0) {
-      await tx.event.updateMany({
-        where: { id: { in: staleIds } },
-        data: {
-          isHiddenRegularOccurrence: true,
-          reminderSyncPendingAt: new Date(),
-        },
-      });
+    // Only an occurrence deliberately deleted by an administrator is a real
+    // tombstone. Older reconciliation versions also hid obsolete generated
+    // rows with the same flag. Treating those automatic rows as tombstones
+    // made the newly configured regular time disappear after a later edit.
+    const explicitDeletion = await tx.auditLog.findFirst({
+      where: {
+        entityType: 'Event',
+        entityId: expectedTombstone.id,
+        action: 'CANCELLED_TRAINING_OCCURRENCE_DELETED',
+      },
+      select: { id: true },
+    });
+    if (explicitDeletion) {
+      const staleIds = visible.map((event) => event.id);
+      if (staleIds.length > 0) {
+        await tx.event.updateMany({
+          where: { id: { in: staleIds } },
+          data: {
+            isHiddenRegularOccurrence: true,
+            reminderSyncPendingAt: new Date(),
+          },
+        });
+      }
+      return [expectedTombstone.id, ...staleIds];
     }
-    return [expectedTombstone.id, ...staleIds];
   }
   const cancelledExpected = visible.find(
     (event) =>
@@ -341,7 +355,7 @@ export async function reconcileNextRegularTrainingOccurrence(
   // Prefer the occurrence that already contains user data. This protects a
   // response-bearing event even if an earlier software version produced a
   // duplicate. The stable event ID keeps all dependent rows attached.
-  const canonical = visible
+  const canonical = [...visible, ...(expectedTombstone ? [expectedTombstone] : [])]
     .filter((event) => event.status !== EventStatus.CANCELLED)
     .sort((left, right) => {
       const leftData = left._count.attendance + left._count.participants;
@@ -366,6 +380,7 @@ export async function reconcileNextRegularTrainingOccurrence(
   } as const;
   if (canonical) {
     const alreadyCurrent =
+      !canonical.isHiddenRegularOccurrence &&
       canonical.startAt.getTime() === expected.startAt.getTime() &&
       canonical.endAt?.getTime() === expected.endAt.getTime() &&
       canonical.location === expected.location;

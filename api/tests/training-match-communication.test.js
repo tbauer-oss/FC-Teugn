@@ -28,6 +28,22 @@ test('regular training has two independent defaults and reminder deduplication',
   );
 });
 
+test('training overview follows the selected youth and hides old occurrences', () => {
+  const trainings = source('src/controllers/trainings.controller.ts');
+  assert.match(
+    trainings,
+    /export async function listTrainings[\s\S]*contextualTeamIds\(req\.user!\)/,
+  );
+  assert.match(
+    trainings,
+    /export async function listTrainings[\s\S]*isHiddenRegularOccurrence:\s*false/,
+  );
+  assert.match(
+    trainings,
+    /export async function listExercises[\s\S]*contextualTeamIds\(req\.user!\)/,
+  );
+});
+
 test('single training occurrence supports cancellation, deletion and hidden tombstones', () => {
   const events = source('src/controllers/events.controller.ts');
   const routes = source('src/routes/events.routes.ts');

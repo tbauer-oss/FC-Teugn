@@ -34,6 +34,7 @@ class TrainingModel {
     required this.attendance,
     required this.roster,
     this.plan,
+    this.teamNames = const [],
   });
 
   final String id;
@@ -41,6 +42,7 @@ class TrainingModel {
   final DateTime startAt;
   final String location;
   final String teamId;
+  final List<String> teamNames;
   final TrainingPlanModel? plan;
   final List<TrainingAttendanceEntry> attendance;
   final List<TrainingRosterPlayer> roster;
@@ -51,6 +53,17 @@ class TrainingModel {
         startAt: DateTime.parse(json['startAt'] as String),
         location: json['location'] as String? ?? '',
         teamId: json['teamId'] as String? ?? '',
+        teamNames: (json['targetTeams'] as List<dynamic>? ?? const [])
+            .map((item) => item as Map<String, dynamic>)
+            .map((item) => item['team'] as Map<String, dynamic>?)
+            .whereType<Map<String, dynamic>>()
+            .map((team) =>
+                (team['shortName'] as String?)?.trim().isNotEmpty == true
+                    ? team['shortName'] as String
+                    : team['name'] as String? ?? '')
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList(),
         plan: json['trainingPlan'] == null
             ? null
             : TrainingPlanModel.fromJson(
