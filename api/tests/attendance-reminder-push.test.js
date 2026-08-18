@@ -12,7 +12,7 @@ const end = source.indexOf('export async function createCarpoolOffer', start);
 const handler = source.slice(start, end);
 
 test('manual attendance reminders honor the optional push selection', () => {
-  assert.match(handler, /notifyUsers\(recipients/);
+  assert.match(handler, /queueUserNotifications\(recipients/);
   assert.match(handler, /NotificationCategory\.EVENT_REMINDER/);
   assert.match(handler, /req\.body\.pushEnabled !== false/);
   assert.match(handler, /pushEnabled,/);
@@ -38,4 +38,16 @@ test('one manual reminder request cannot create duplicate push deliveries', () =
   assert.match(handler, /attendance-reminder:\$\{user\.id\}:\$\{event\.id\}/);
   assert.doesNotMatch(handler, /existingRecipients|alreadySent|notification\.upsert/);
   assert.match(handler, /eventReminder\.createMany/);
+});
+
+test('manual reminders acknowledge a durable queue before external push delivery finishes', () => {
+  assert.match(handler, /await queueUserNotifications\(recipients/);
+  assert.match(handler, /waitUntil\(settlePostCommitTasks/);
+  assert.match(handler, /promise: deliverQueuedPushes\(queuedResult\.deliveryIds\)/);
+  assert.match(handler, /return res\.status\(202\)\.json/);
+  assert.match(handler, /accepted: true/);
+  assert.match(handler, /deliveryStatus: 'QUEUED'/);
+  assert.match(handler, /queuedPushDeliveries: queuedResult\.deliveries/);
+  assert.match(handler, /pushDeliveries: 0/);
+  assert.doesNotMatch(handler, /await notifyUsers\(recipients/);
 });

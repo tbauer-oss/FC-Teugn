@@ -229,6 +229,42 @@ void main() {
     expect(await outbox.pending('trainer-1'), isEmpty);
   });
 
+  test('manual reminder returns immediately with queued delivery status',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    var postCalls = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      postCalls++;
+      expect(request.headers.value('x-idempotency-key'), isNotEmpty);
+      request.response.statusCode = HttpStatus.accepted;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({
+        'accepted': true,
+        'deliveryStatus': 'QUEUED',
+        'recipients': 6,
+        'targetedPlayers': 6,
+        'missingPlayers': 6,
+        'notifications': 6,
+        'pushDeliveries': 0,
+        'queuedPushDeliveries': 7,
+      }));
+      await request.response.close();
+    });
+    final repository = DataRepository(ApiClient(
+      baseUrl: 'http://${server.address.host}:${server.port}',
+    ));
+
+    final result = await repository.sendAttendanceReminders('event-1');
+
+    expect(postCalls, 1);
+    expect(result.accepted, isTrue);
+    expect(result.recipients, 6);
+    expect(result.missingPlayers, 6);
+    expect(result.queuedPushDeliveries, 7);
+  });
+
   test('routine writes use one non-blocking loading operation', () async {
     final arrived = Completer<void>();
     final release = Completer<void>();

@@ -149,14 +149,16 @@ Future<void> showEventAttendanceReminder(
         ? 'Alle relevanten Personen'
         : '${result.missingPlayers} offene Rückmeldung(en)';
     final deliveryText = settings.pushEnabled
-        ? ' Push wurde an ${result.pushDeliveries} Gerät(e) zugestellt.'
-        : '';
+        ? result.queuedPushDeliveries > 0
+            ? ' ${result.queuedPushDeliveries} Push-Zustellung(en) laufen im Hintergrund.'
+            : ' Die Push-Zustellung läuft im Hintergrund.'
+        : ' Die Erinnerung ist in der App verfügbar.';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           result.recipients == 0
               ? 'Für diese Auswahl wurden keine Empfänger gefunden.'
-              : '$audienceText: ${result.recipients} Person(en) wurden erinnert.$deliveryText',
+              : 'Erinnerungsauftrag angenommen: $audienceText, ${result.recipients} Person(en).$deliveryText',
         ),
       ),
     );

@@ -36,6 +36,13 @@ export type NotificationInput = {
   dedupeKey?: string | null;
 };
 
+export type QueuedNotificationBatch = {
+  recipients: number;
+  notifications: number;
+  deliveries: number;
+  deliveryIds: string[];
+};
+
 type PushDeliverySummaryInput = {
   status: NotificationDeliveryStatus;
   errorCode: string | null;
@@ -118,11 +125,16 @@ export function androidPushMessage(
   };
 }
 
-export async function notifyUsers(userIds: string[], input: NotificationInput) {
+export async function queueUserNotifications(
+  userIds: string[],
+  input: NotificationInput,
+): Promise<QueuedNotificationBatch> {
   const uniqueIds = [...new Set(userIds)];
   if (!uniqueIds.length) return {
-    recipients: 0, notifications: 0, deliveries: 0,
-    sent: 0, failed: 0, pending: 0, skipped: 0,
+    recipients: 0,
+    notifications: 0,
+    deliveries: 0,
+    deliveryIds: [],
   };
   const [preferences, subscriptions] = await Promise.all([
     prisma.notificationPreference.findMany({
@@ -137,6 +149,7 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
   );
   let notificationCount = 0;
   let deliveryCount = 0;
+  const deliveryIds: string[] = [];
   for (const userId of uniqueIds) {
     const preference = preferenceByUser.get(userId);
     const defaults = defaultNotificationPreference(input.category);
@@ -198,31 +211,48 @@ export async function notifyUsers(userIds: string[], input: NotificationInput) {
       });
       if (!existingDelivery) deliveryCount++;
       if (delivery.status !== NotificationDeliveryStatus.SENT) {
-        await deliverPush(delivery.id).catch(() => undefined);
+        deliveryIds.push(delivery.id);
       }
     }
   }
-  const deliverySummary = deliveryCount
-    ? summarizePushDeliveries(await prisma.notificationDelivery.findMany({
-        where: {
-          notification: {
-            userId: { in: uniqueIds },
-            ...(input.dedupeKey
-              ? { dedupeKey: { startsWith: `${input.dedupeKey}:` } }
-              : { createdAt: { gte: new Date(Date.now() - 60_000) } }),
-          },
-        },
-        select: {
-          status: true,
-          errorCode: true,
-          subscription: { select: { platform: true } },
-        },
-      }))
-    : summarizePushDeliveries([]);
   return {
     recipients: uniqueIds.length,
     notifications: notificationCount,
     deliveries: deliveryCount,
+    deliveryIds,
+  };
+}
+
+export async function deliverQueuedPushes(deliveryIds: string[]) {
+  const uniqueIds = [...new Set(deliveryIds)];
+  // Eine kleine Parallelisierung verhindert lange HTTP-Laufzeiten, ohne die
+  // Push-Anbieter oder die Datenbank mit unbegrenzt vielen Requests zu fluten.
+  const concurrency = 8;
+  for (let index = 0; index < uniqueIds.length; index += concurrency) {
+    await Promise.allSettled(
+      uniqueIds
+        .slice(index, index + concurrency)
+        .map((deliveryId) => deliverPush(deliveryId)),
+    );
+  }
+  if (!uniqueIds.length) return summarizePushDeliveries([]);
+  return summarizePushDeliveries(await prisma.notificationDelivery.findMany({
+    where: { id: { in: uniqueIds } },
+    select: {
+      status: true,
+      errorCode: true,
+      subscription: { select: { platform: true } },
+    },
+  }));
+}
+
+export async function notifyUsers(userIds: string[], input: NotificationInput) {
+  const queued = await queueUserNotifications(userIds, input);
+  const deliverySummary = await deliverQueuedPushes(queued.deliveryIds);
+  return {
+    recipients: queued.recipients,
+    notifications: queued.notifications,
+    deliveries: queued.deliveries,
     ...deliverySummary,
   };
 }
@@ -330,11 +360,41 @@ export async function sendAdminTestPush(actorName: string) {
 }
 
 export async function deliverPush(deliveryId: string) {
+  const claimedAt = new Date();
+  const retryBefore = new Date(claimedAt.getTime() - pendingDeliveryRetryDelayMs);
+  const claim = await prisma.notificationDelivery.updateMany({
+    where: {
+      id: deliveryId,
+      status: NotificationDeliveryStatus.PENDING,
+      attemptCount: { lt: maxAutomaticDeliveryAttempts },
+      OR: [
+        { lastAttemptAt: null },
+        { lastAttemptAt: { lte: retryBefore } },
+      ],
+    },
+    data: {
+      attemptCount: { increment: 1 },
+      lastAttemptAt: claimedAt,
+    },
+  });
+  // Hintergrundversand, Cron und ein gleichzeitig geöffneter Client können
+  // denselben Datensatz sehen. Nur der Gewinner dieses atomaren Claims darf
+  // tatsächlich an Firebase bzw. Web Push senden.
+  if (!claim.count) return;
   const delivery = await prisma.notificationDelivery.findUnique({
     where: { id: deliveryId },
     include: { notification: true, subscription: true },
   });
-  if (!delivery?.subscription || !delivery.subscription.isActive) return;
+  if (!delivery?.subscription || !delivery.subscription.isActive) {
+    await prisma.notificationDelivery.update({
+      where: { id: deliveryId },
+      data: {
+        status: NotificationDeliveryStatus.SKIPPED,
+        errorCode: 'PUSH_SUBSCRIPTION_INACTIVE',
+      },
+    }).catch(() => undefined);
+    return;
+  }
   if (delivery.subscription.platform === PushPlatform.ANDROID) {
     const messaging = firebaseMessaging();
     if (!messaging) {
@@ -377,8 +437,6 @@ export async function deliverPush(deliveryId: string) {
       where: { id: delivery.id },
       data: {
         status: NotificationDeliveryStatus.SKIPPED,
-        attemptCount: { increment: 1 },
-        lastAttemptAt: new Date(),
         errorCode: 'UNSUPPORTED_PUSH_PLATFORM',
       },
     });
@@ -468,8 +526,6 @@ async function markDeliverySent(deliveryId: string, subscriptionId: string) {
       where: { id: deliveryId },
       data: {
         status: NotificationDeliveryStatus.SENT,
-        attemptCount: { increment: 1 },
-        lastAttemptAt: now,
         sentAt: now,
         errorCode: null,
       },
@@ -486,8 +542,6 @@ async function markDeliveryFailed(deliveryId: string, errorCode: string) {
     where: { id: deliveryId },
     data: {
       status: NotificationDeliveryStatus.FAILED,
-      attemptCount: { increment: 1 },
-      lastAttemptAt: new Date(),
       errorCode: errorCode.slice(0, 160),
     },
   });
@@ -498,8 +552,6 @@ async function markDeliveryPending(deliveryId: string, errorCode: string) {
     where: { id: deliveryId },
     data: {
       status: NotificationDeliveryStatus.PENDING,
-      attemptCount: { increment: 1 },
-      lastAttemptAt: new Date(),
       errorCode: errorCode.slice(0, 160),
     },
     select: { attemptCount: true },

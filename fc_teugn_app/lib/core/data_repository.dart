@@ -1230,7 +1230,8 @@ class DataRepository {
         int recipients,
         int targetedPlayers,
         int missingPlayers,
-        int pushDeliveries,
+        int queuedPushDeliveries,
+        bool accepted,
       })> sendAttendanceReminders(
     String eventId, {
     String? message,
@@ -1252,7 +1253,7 @@ class DataRepository {
           // einem unklaren Verbindungsabbruch niemals im Hintergrund erneut
           // abgespielt werden.
           'requireOnline': true,
-          'loadingMessage': 'Erinnerung wird versendet …',
+          'loadingMessage': 'Erinnerung wird vorbereitet …',
           'loadingMode': 'background',
         },
       ),
@@ -1262,7 +1263,8 @@ class DataRepository {
       recipients: data['recipients'] as int? ?? 0,
       targetedPlayers: data['targetedPlayers'] as int? ?? 0,
       missingPlayers: data['missingPlayers'] as int? ?? 0,
-      pushDeliveries: data['pushDeliveries'] as int? ?? 0,
+      queuedPushDeliveries: data['queuedPushDeliveries'] as int? ?? 0,
+      accepted: data['accepted'] as bool? ?? true,
     );
   }
 

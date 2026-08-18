@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
+import { waitUntil } from '@vercel/functions';
 import {
   AccountStatus,
   AttendanceResponseSource,
@@ -46,7 +47,12 @@ import {
 } from '../services/reminder.service';
 import { ensureNextRegularTrainingOccurrences } from '../services/regular-training-occurrence.service';
 import { mediaAssetUrl } from '../services/media-access';
-import { notifyUsers } from '../services/notification.service';
+import {
+  deliverQueuedPushes,
+  notifyUsers,
+  queueUserNotifications,
+} from '../services/notification.service';
+import { settlePostCommitTasks } from '../services/post-commit.service';
 import {
   AWAY_MEETING_LOCATION,
   HOME_MATCH_VENUE,
@@ -2471,7 +2477,11 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
       ? `Erinnerung an „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`
       : `Bitte Rückmeldung zu „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`);
   const pushEnabled = req.body.pushEnabled !== false;
-  let pushResult = { notifications: 0, deliveries: 0 };
+  let queuedResult = {
+    notifications: 0,
+    deliveries: 0,
+    deliveryIds: [] as string[],
+  };
   if (recipientIds.size) {
     const recipients = [...recipientIds];
     await prisma.eventReminder.createMany({
@@ -2481,7 +2491,10 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
         message,
       })),
     });
-    pushResult = await notifyUsers(recipients, {
+    // In-App-Nachrichten und Zustellaufträge werden vor der Antwort dauerhaft
+    // angelegt. Die externe Zustellung an Firebase/Web Push läuft danach
+    // unabhängig weiter und blockiert die App nicht mehr.
+    queuedResult = await queueUserNotifications(recipients, {
       category: NotificationCategory.EVENT_REMINDER,
       title: audience === 'ALL'
         ? event.category === EventCategory.TRAINING
@@ -2501,6 +2514,12 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
         ? `attendance-reminder:${user.id}:${event.id}:${requestIdempotencyKey}`
         : undefined,
     });
+    if (queuedResult.deliveryIds.length) {
+      waitUntil(settlePostCommitTasks([{
+        name: 'attendance-reminder-push-delivery',
+        promise: deliverQueuedPushes(queuedResult.deliveryIds),
+      }]));
+    }
   }
   await prisma.auditLog.create({
     data: {
@@ -2515,17 +2534,23 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
         targetedPlayers: players.length,
         missingPlayers,
         pushEnabled,
-        pushDeliveries: pushResult.deliveries,
+        queuedPushDeliveries: queuedResult.deliveries,
+        deliveryStatus: 'QUEUED',
       },
     },
   });
-  return res.json({
+  return res.status(202).json({
+    accepted: true,
+    deliveryStatus: 'QUEUED',
     recipients: recipientIds.size,
     audience,
     targetedPlayers: players.length,
     missingPlayers,
-    notifications: pushResult.notifications,
-    pushDeliveries: pushResult.deliveries,
+    notifications: queuedResult.notifications,
+    // Ältere Apps dürfen eine nur vorgemerkte Zustellung nicht irrtümlich als
+    // bereits zugestellt ausgeben. Neue Clients verwenden den Queue-Zähler.
+    pushDeliveries: 0,
+    queuedPushDeliveries: queuedResult.deliveries,
   });
 }
 
