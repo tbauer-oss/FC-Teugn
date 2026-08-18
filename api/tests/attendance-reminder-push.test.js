@@ -18,6 +18,15 @@ test('manual attendance reminders honor the optional push selection', () => {
   assert.match(handler, /pushEnabled,/);
 });
 
+test('manual training reminders can target either open or all players', () => {
+  assert.match(handler, /req\.body\.audience/);
+  assert.match(handler, /audience === 'ALL'/);
+  assert.match(handler, /audience === 'OPEN' \? \{ notIn: \[\.\.\.replied\] \} : \{\}/);
+  assert.match(handler, /title: audience === 'ALL'/);
+  assert.match(handler, /'Trainingserinnerung'/);
+  assert.match(handler, /targetedPlayers: players\.length/);
+});
+
 test('trainer-only participants do not suppress reminders for the team roster', () => {
   assert.match(handler, /explicitlyRequested\.length \? \{ in: explicitlyRequested \} : \{\}/);
   assert.doesNotMatch(handler, /event\.participants\.length \? \{ in: explicitlyRequested \}/);

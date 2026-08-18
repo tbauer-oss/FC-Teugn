@@ -2438,12 +2438,13 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
   const explicitlyRequested = event.participants
     .filter((participant) => participant.responseRequired && participant.playerId)
     .map((participant) => participant.playerId!);
+  const audience = clean(req.body.audience)?.toUpperCase() === 'ALL' ? 'ALL' : 'OPEN';
   const players = await prisma.player.findMany({
     where: {
       teamId: { in: targetTeamIds },
       status: 'ACTIVE',
       id: {
-        notIn: [...replied],
+        ...(audience === 'OPEN' ? { notIn: [...replied] } : {}),
         // Nur eine ausdrueckliche Spielerliste schraenkt den Kader ein.
         // Reine Benutzer-Teilnehmer (z. B. Trainer) duerfen nicht dazu
         // fuehren, dass bei "Offene erinnern" keine Eltern gefunden werden.
@@ -2462,9 +2463,12 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
     if (player.userId) recipientIds.add(player.userId);
     player.parentLinks.forEach((link) => recipientIds.add(link.parentId));
   }
+  const missingPlayers = players.filter((player) => !replied.has(player.id)).length;
   const message =
     clean(req.body.message) ??
-    `Bitte Rückmeldung zu „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`;
+    (audience === 'ALL'
+      ? `Erinnerung an „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`
+      : `Bitte Rückmeldung zu „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`);
   const pushEnabled = req.body.pushEnabled !== false;
   let pushResult = { notifications: 0, deliveries: 0 };
   if (recipientIds.size) {
@@ -2478,7 +2482,11 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
     });
     pushResult = await notifyUsers(recipients, {
       category: NotificationCategory.EVENT_REMINDER,
-      title: 'Offene Rückmeldung',
+      title: audience === 'ALL'
+        ? event.category === EventCategory.TRAINING
+          ? 'Trainingserinnerung'
+          : 'Terminerinnerung'
+        : 'Offene Rückmeldung',
       body: message,
       actionUrl: `/events/${event.id}`,
       entityType: 'Event',
@@ -2495,7 +2503,9 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
       entityId: event.id,
       metadata: {
         recipients: recipientIds.size,
-        missingPlayers: players.length,
+        audience,
+        targetedPlayers: players.length,
+        missingPlayers,
         pushEnabled,
         pushDeliveries: pushResult.deliveries,
       },
@@ -2503,7 +2513,9 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
   });
   return res.json({
     recipients: recipientIds.size,
-    missingPlayers: players.length,
+    audience,
+    targetedPlayers: players.length,
+    missingPlayers,
     notifications: pushResult.notifications,
     pushDeliveries: pushResult.deliveries,
   });

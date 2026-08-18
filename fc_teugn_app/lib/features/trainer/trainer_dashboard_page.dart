@@ -12,6 +12,7 @@ import '../../core/providers.dart';
 import '../../core/regular_training_schedule.dart';
 import '../../core/widgets/adaptive_layout.dart';
 import '../auth/auth_controller.dart';
+import '../shared/attendance_reminder_action.dart';
 import '../shared/page_scaffold.dart';
 import '../shared/dashboard_notifications.dart';
 import '../shared/dashboard_event_navigation.dart';
@@ -81,7 +82,14 @@ class TrainerDashboardPage extends ConsumerWidget {
     final nextEvent = upcoming.firstOrNull;
     final nextTraining = nextTrainingForDashboard(upcoming);
     final nextEvents = upcoming.take(4).toList();
-    final openResponses = _openResponses(nextEvent);
+    final responseEvents = _nextResponseEventsByTeam(
+      upcoming,
+      contextTeamIds,
+    );
+    final openResponses = responseEvents.fold<int>(
+      0,
+      (sum, event) => sum + _openResponses(event),
+    );
     final approvalCount = approvals.valueOrNull?.length ?? 0;
     final overdueTasks =
         teamOperations?.tasks.where((task) => task.isOverdue).toList() ??
@@ -91,20 +99,19 @@ class TrainerDashboardPage extends ConsumerWidget {
             const <TeamTaskModel>[];
     final totalOpen = openResponses + approvalCount + openTasks.length;
     final priorities = _priorities(
+      responseEvents: responseEvents,
       nextEvent: nextEvent,
-      openResponses: openResponses,
       approvals: approvalCount,
       overdueTasks: overdueTasks,
       openTasks: openTasks,
       now: now,
       eventRoute: eventRoute,
-      onOpenResponses: nextEvent == null
-          ? null
-          : () => _showEventResponses(
-                context,
-                nextEvent,
-                _eventRoster(nextEvent, teamPlayers),
-              ),
+      eventTeamLabel: (event) => _eventTeamLabel(event, organization),
+      onOpenResponses: (event) => _showEventResponses(
+        context,
+        event,
+        _eventRoster(event, teamPlayers),
+      ),
     );
     final compactDashboard = MediaQuery.sizeOf(context).width < 600;
     final sectionGap = compactDashboard ? 8.0 : 12.0;
@@ -215,25 +222,80 @@ class TrainerDashboardPage extends ConsumerWidget {
     return event.attendanceSummary.unknown;
   }
 
+  List<EventModel> _nextResponseEventsByTeam(
+    List<EventModel> upcoming,
+    Set<String> contextTeamIds,
+  ) {
+    final coveredTeamIds = <String>{};
+    final result = <EventModel>[];
+    for (final event in upcoming) {
+      if (_openResponses(event) == 0) continue;
+      final eventTeamIds = {
+        event.teamId,
+        ...event.targetTeams.map((team) => team.id),
+      }.where(
+        (teamId) => contextTeamIds.isEmpty || contextTeamIds.contains(teamId),
+      );
+      if (eventTeamIds.isEmpty || eventTeamIds.every(coveredTeamIds.contains)) {
+        continue;
+      }
+      result.add(event);
+      coveredTeamIds.addAll(eventTeamIds);
+    }
+    return result;
+  }
+
+  String _eventTeamLabel(
+    EventModel event,
+    OrganizationContext? organization,
+  ) {
+    final eventTeamIds = {
+      event.teamId,
+      ...event.targetTeams.map((team) => team.id),
+    };
+    final organizationLabels = organization?.teams
+            .where((team) => eventTeamIds.contains(team.id))
+            .map((team) => team.displayName)
+            .toSet()
+            .toList() ??
+        const <String>[];
+    if (organizationLabels.isNotEmpty) {
+      return organizationLabels.join(' · ');
+    }
+    final targetLabels = event.targetTeams
+        .map(
+          (team) => team.ageGroupCode.isEmpty
+              ? team.name
+              : '${team.ageGroupCode}-Jugend',
+        )
+        .toSet()
+        .toList();
+    return targetLabels.isEmpty ? 'Mannschaft' : targetLabels.join(' · ');
+  }
+
   List<_DashboardPriority> _priorities({
+    required List<EventModel> responseEvents,
     required EventModel? nextEvent,
-    required int openResponses,
     required int approvals,
     required List<TeamTaskModel> overdueTasks,
     required List<TeamTaskModel> openTasks,
     required DateTime now,
     required String Function(EventModel event) eventRoute,
-    required VoidCallback? onOpenResponses,
+    required String Function(EventModel event) eventTeamLabel,
+    required void Function(EventModel event) onOpenResponses,
   }) {
     final items = <_DashboardPriority>[];
-    if (openResponses > 0 && nextEvent != null) {
+    for (final responseEvent in responseEvents) {
+      final openResponses = _openResponses(responseEvent);
       items.add(
         _DashboardPriority(
           icon: Icons.how_to_reg_rounded,
           color: AppColors.gold,
           title: '$openResponses Rückmeldungen fehlen',
-          subtitle: 'Für „${nextEvent.title}“ Zu- und Absagen prüfen',
-          onTap: onOpenResponses,
+          subtitle: '${eventTeamLabel(responseEvent)} · '
+              '${_shortDate(responseEvent.startAt)}, '
+              '${_time(responseEvent.startAt)} Uhr',
+          onTap: () => onOpenResponses(responseEvent),
         ),
       );
     }
@@ -283,7 +345,7 @@ class TrainerDashboardPage extends ConsumerWidget {
         ),
       );
     }
-    return items.take(3).toList();
+    return items;
   }
 
   String _firstName(String? name) {
@@ -648,14 +710,14 @@ class _TrainingResponseMetric extends StatelessWidget {
       );
 }
 
-class _TrainingResponsesSheet extends StatelessWidget {
+class _TrainingResponsesSheet extends ConsumerWidget {
   const _TrainingResponsesSheet({required this.event, required this.roster});
 
   final EventModel event;
   final List<PlayerModel> roster;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final repliedIds = event.attendance.map((item) => item.playerId).toSet();
     final explicitOpen = event.missingAttendance
         .map((item) => (name: item.name, reason: null as String?))
@@ -714,6 +776,20 @@ class _TrainingResponsesSheet extends StatelessWidget {
                 ),
               ],
             ),
+            if (event.capabilities.canManage &&
+                event.category == EventCategory.training) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  key: const ValueKey('trainer-training-reminder'),
+                  onPressed: () =>
+                      showEventAttendanceReminder(context, ref, event),
+                  icon: const Icon(Icons.notifications_active_rounded),
+                  label: const Text('Training erinnern'),
+                ),
+              ),
+            ],
             Expanded(
               child: ListView(
                 children: [

@@ -1225,19 +1225,30 @@ class DataRepository {
     await client.dio.post('/events/$eventId/attendance/finalize');
   }
 
-  Future<({int recipients, int missingPlayers, int pushDeliveries})>
-      sendAttendanceReminders(
+  Future<
+      ({
+        int recipients,
+        int targetedPlayers,
+        int missingPlayers,
+        int pushDeliveries,
+      })> sendAttendanceReminders(
     String eventId, {
     String? message,
     bool pushEnabled = true,
+    bool includeAll = false,
   }) async {
     final res = await client.dio.post(
       '/events/$eventId/attendance/reminders',
-      data: {'message': message, 'pushEnabled': pushEnabled},
+      data: {
+        'message': message,
+        'pushEnabled': pushEnabled,
+        'audience': includeAll ? 'ALL' : 'OPEN',
+      },
     );
     final data = res.data as Map<String, dynamic>;
     return (
       recipients: data['recipients'] as int? ?? 0,
+      targetedPlayers: data['targetedPlayers'] as int? ?? 0,
       missingPlayers: data['missingPlayers'] as int? ?? 0,
       pushDeliveries: data['pushDeliveries'] as int? ?? 0,
     );

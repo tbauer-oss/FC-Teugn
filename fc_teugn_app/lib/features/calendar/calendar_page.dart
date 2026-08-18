@@ -18,6 +18,7 @@ import '../../core/providers.dart';
 import '../../core/regular_training_schedule.dart';
 import '../../core/widgets/adaptive_layout.dart';
 import '../../core/widgets/responsive_form_dialog.dart';
+import '../shared/attendance_reminder_action.dart';
 import '../shared/page_scaffold.dart';
 import 'tournament_plan_browser_page.dart';
 
@@ -3353,94 +3354,17 @@ class _AttendanceSection extends ConsumerWidget {
                   label: const Text('Rückmeldung'),
                 ),
               if (event.capabilities.canManage &&
-                  event.missingAttendance.isNotEmpty)
+                  (event.category == EventCategory.training ||
+                      event.missingAttendance.isNotEmpty))
                 OutlinedButton.icon(
-                  onPressed: () async {
-                    var sendPush = true;
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (dialogContext) => StatefulBuilder(
-                        builder: (context, setDialogState) => AlertDialog(
-                          title: const Text('Offene Rückmeldungen erinnern'),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${event.missingAttendance.length} offene '
-                                'Rückmeldung(en) erhalten eine Erinnerung in '
-                                'der App.',
-                              ),
-                              const SizedBox(height: 12),
-                              SwitchListTile.adaptive(
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text(
-                                  'Zusätzlich als Push-Nachricht senden',
-                                ),
-                                subtitle: const Text(
-                                  'Kann für jede Erinnerung einzeln entschieden werden.',
-                                ),
-                                value: sendPush,
-                                onChanged: (value) => setDialogState(
-                                  () => sendPush = value,
-                                ),
-                              ),
-                            ],
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(dialogContext, false),
-                              child: const Text('Abbrechen'),
-                            ),
-                            FilledButton.icon(
-                              onPressed: () =>
-                                  Navigator.pop(dialogContext, true),
-                              icon: Icon(
-                                sendPush
-                                    ? Icons.notifications_active_rounded
-                                    : Icons.notifications_none_rounded,
-                              ),
-                              label: const Text('Jetzt erinnern'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                    if (confirmed != true || !context.mounted) return;
-                    try {
-                      final result = await ref
-                          .read(repositoryProvider)
-                          .sendAttendanceReminders(
-                            event.id,
-                            pushEnabled: sendPush,
-                          );
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              sendPush
-                                  ? '${result.recipients} Personen wurden erinnert; '
-                                      'Push an ${result.pushDeliveries} Gerät(e).'
-                                  : '${result.recipients} Personen wurden ohne Push erinnert.',
-                            ),
-                          ),
-                        );
-                      }
-                    } catch (_) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Die Erinnerungen konnten nicht versendet werden.',
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                  },
+                  onPressed: () =>
+                      showEventAttendanceReminder(context, ref, event),
                   icon: const Icon(Icons.notifications_active_rounded),
-                  label: const Text('Offene erinnern'),
+                  label: Text(
+                    event.category == EventCategory.training
+                        ? 'Training erinnern'
+                        : 'Offene erinnern',
+                  ),
                 ),
             ],
           ),

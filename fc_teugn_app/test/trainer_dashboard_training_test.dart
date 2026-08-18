@@ -1,7 +1,9 @@
 import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/models/event.dart';
+import 'package:fc_teugn_app/core/models/organization.dart';
 import 'package:fc_teugn_app/core/models/personal_response.dart';
 import 'package:fc_teugn_app/core/models/player.dart';
+import 'package:fc_teugn_app/core/models/team_operations.dart';
 import 'package:fc_teugn_app/core/models/user.dart';
 import 'package:fc_teugn_app/core/providers.dart';
 import 'package:fc_teugn_app/features/trainer/trainer_dashboard_page.dart';
@@ -10,17 +12,82 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+const _ageGroup = AgeGroupSummary(
+  id: 'age-e',
+  name: 'E-Jugend',
+  code: 'E',
+);
+const _teamE1 = TeamSummary(
+  id: 'team-e1',
+  name: 'E1',
+  apiDisplayName: 'E1-Jugend',
+  ageGroup: _ageGroup,
+  seasonName: '2026/27',
+);
+const _teamE2 = TeamSummary(
+  id: 'team-e2',
+  name: 'E2',
+  apiDisplayName: 'E2-Jugend',
+  ageGroup: _ageGroup,
+  seasonName: '2026/27',
+);
+const _operations = TeamOperationsOverview(
+  teamId: 'team-e1',
+  canManage: true,
+  tasks: [],
+  equipment: [],
+  checklistTemplates: [],
+  checklistRuns: [],
+  members: [],
+  players: [],
+);
+
+OrganizationContext _organization() => OrganizationContext(
+      club: const ClubSummary(
+        id: 'club-1',
+        name: 'FC Teugn',
+        shortName: 'FCT',
+        primaryColor: '#171918',
+        accentColor: '#FFE600',
+      ),
+      season: SeasonSummary(
+        id: 'season-1',
+        name: '2026/27',
+        startDate: DateTime(2026, 7),
+        endDate: DateTime(2027, 6, 30),
+        isActive: true,
+      ),
+      currentTeam: _teamE1,
+      ageGroups: const [_ageGroup],
+      teams: const [_teamE1, _teamE2],
+      permissions: const {},
+      metrics: const OrganizationMetrics(
+        players: 0,
+        members: 0,
+        upcomingEvents: 2,
+        pendingApprovals: 0,
+      ),
+      workingContext: const WorkingContext(
+        ageGroupId: 'age-e',
+        teamIds: ['team-e1', 'team-e2'],
+        includeAllTeams: true,
+      ),
+    );
+
 EventModel _event({
   required String id,
   required EventCategory category,
   required DateTime startAt,
+  String teamId = 'team-e1',
+  List<EventTeam> targetTeams = const [],
   List<EventAttendance> attendance = const [],
   AttendanceSummary attendanceSummary = const AttendanceSummary(),
   List<MissingAttendance> missingAttendance = const [],
+  EventCapabilities capabilities = const EventCapabilities(),
 }) =>
     EventModel(
       id: id,
-      teamId: 'team-e1',
+      teamId: teamId,
       type: category == EventCategory.training
           ? EventType.training
           : EventType.event,
@@ -31,13 +98,13 @@ EventModel _event({
       startAt: startAt,
       location: 'Teugn Sportplatz',
       attendanceFinalized: false,
-      targetTeams: const [],
+      targetTeams: targetTeams,
       attachments: const [],
       attendance: attendance,
       attendanceSummary: attendanceSummary,
       missingAttendance: missingAttendance,
       carpoolOffers: const [],
-      capabilities: const EventCapabilities(),
+      capabilities: capabilities,
       reminderMinutes: const [],
     );
 
@@ -113,6 +180,7 @@ void main() {
       missingAttendance: const [
         MissingAttendance(id: 'player-ben', name: 'Ben Offen'),
       ],
+      capabilities: const EventCapabilities(canManage: true),
     );
     const players = [
       PlayerModel(
@@ -153,6 +221,9 @@ void main() {
         overrides: [
           playersProvider.overrideWith((ref) async => players),
           eventsProvider.overrideWith((ref) async => [event]),
+          organizationProvider.overrideWith((ref) async => _organization()),
+          teamOperationsProvider('team-e1')
+              .overrideWith((ref) async => _operations),
           pendingUsersProvider.overrideWith((ref) async => <AppUser>[]),
           personalResponsesProvider.overrideWith(
             (ref) async => [personalResponse],
@@ -181,6 +252,82 @@ void main() {
     expect(find.text('Rückmeldungen zum Training'), findsOneWidget);
     expect(find.text('Anna Zugesagt'), findsOneWidget);
     expect(find.text('Ben Offen'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('trainer-training-reminder')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('trainer-training-reminder')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Alle zum Training erinnern'), findsOneWidget);
+    expect(find.text('Individuelle Nachricht (optional)'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('dashboard shows missing responses for every selected team',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final startAt = DateTime.now().add(const Duration(hours: 2));
+    final events = [
+      _event(
+        id: 'training-e1',
+        teamId: 'team-e1',
+        category: EventCategory.training,
+        startAt: startAt,
+        targetTeams: const [
+          EventTeam(id: 'team-e1', name: 'E1', ageGroupCode: 'E1'),
+        ],
+        attendanceSummary: const AttendanceSummary(unknown: 2),
+        missingAttendance: const [
+          MissingAttendance(id: 'player-e1-a', name: 'E1 A'),
+          MissingAttendance(id: 'player-e1-b', name: 'E1 B'),
+        ],
+      ),
+      _event(
+        id: 'training-e2',
+        teamId: 'team-e2',
+        category: EventCategory.training,
+        startAt: startAt.add(const Duration(minutes: 15)),
+        targetTeams: const [
+          EventTeam(id: 'team-e2', name: 'E2', ageGroupCode: 'E2'),
+        ],
+        attendanceSummary: const AttendanceSummary(unknown: 3),
+        missingAttendance: const [
+          MissingAttendance(id: 'player-e2-a', name: 'E2 A'),
+          MissingAttendance(id: 'player-e2-b', name: 'E2 B'),
+          MissingAttendance(id: 'player-e2-c', name: 'E2 C'),
+        ],
+      ),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playersProvider.overrideWith((ref) async => <PlayerModel>[]),
+          eventsProvider.overrideWith((ref) async => events),
+          organizationProvider.overrideWith((ref) async => _organization()),
+          teamOperationsProvider('team-e1')
+              .overrideWith((ref) async => _operations),
+          pendingUsersProvider.overrideWith((ref) async => <AppUser>[]),
+          personalResponsesProvider.overrideWith((ref) async => const []),
+          liveNotificationsProvider.overrideWith(
+            (ref) => Stream.value(const []),
+          ),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const Scaffold(body: TrainerDashboardPage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 Rückmeldungen fehlen'), findsOneWidget);
+    expect(find.text('3 Rückmeldungen fehlen'), findsOneWidget);
+    expect(find.textContaining('E1-Jugend'), findsWidgets);
+    expect(find.textContaining('E2-Jugend'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 }
