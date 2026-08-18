@@ -270,6 +270,10 @@ class _TransientRequestRetryInterceptor extends Interceptor {
     ErrorInterceptorHandler handler,
   ) async {
     final request = error.requestOptions;
+    if (request.extra['disableTransientRetry'] == true) {
+      handler.next(error);
+      return;
+    }
     final attempt = request.extra[_attemptKey] as int? ?? 0;
     final isGet = request.method.toUpperCase() == 'GET';
     final isIdempotentWrite = request.extra['retryTransientWrite'] == true;

@@ -115,6 +115,35 @@ void main() {
     expect(getCalls, 1);
   });
 
+  test('background status checks can disable nested transient retries',
+      () async {
+    var getCalls = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      getCalls++;
+      request.response.statusCode = HttpStatus.serviceUnavailable;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({'message': 'still processing'}));
+      await request.response.close();
+    });
+
+    final client = ApiClient(
+      baseUrl: 'http://${server.address.host}:${server.port}',
+    );
+
+    await expectLater(
+      client.dio.get<void>(
+        '/status',
+        options: Options(
+          extra: const {'disableTransientRetry': true},
+        ),
+      ),
+      throwsA(isA<DioException>()),
+    );
+    expect(getCalls, 1);
+  });
+
   test('member approval retries safely but is never put into offline outbox',
       () async {
     FlutterSecureStorage.setMockInitialValues({});
@@ -238,6 +267,7 @@ void main() {
     expect(idempotencyKeys.single, isNotEmpty);
     expect(result.accepted, isFalse);
     expect(result.confirmationPending, isTrue);
+    expect(result.trackingKey, idempotencyKeys.single);
     expect(await outbox.pending('trainer-1'), isEmpty);
   });
 
@@ -293,11 +323,24 @@ void main() {
       baseUrl: 'http://${server.address.host}:${server.port}',
     ));
 
-    final result = await repository.sendAttendanceReminders('event-1');
+    final queued = await repository.sendAttendanceReminders('event-1');
 
     expect(postCalls, 1);
+    expect(statusCalls, 0);
+    expect(queued.accepted, isTrue);
+    expect(queued.deliveryStatusConfirmed, isFalse);
+    expect(queued.recipients, 6);
+    expect(queued.missingPlayers, 6);
+    expect(queued.trackingKey, idempotencyKey);
+
+    final result = await repository.waitForAttendanceReminderDelivery(
+      'event-1',
+      queued.trackingKey,
+    );
+
     expect(statusCalls, 1);
-    expect(result.accepted, isTrue);
+    expect(result, isNotNull);
+    expect(result!.accepted, isTrue);
     expect(result.deliveryStatusConfirmed, isTrue);
     expect(result.recipients, 6);
     expect(result.missingPlayers, 6);

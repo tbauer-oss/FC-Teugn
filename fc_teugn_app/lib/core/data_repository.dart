@@ -54,6 +54,7 @@ typedef AttendanceReminderSendResult = ({
   bool confirmationPending,
   bool deliveryComplete,
   bool deliveryStatusConfirmed,
+  String trackingKey,
   int recipients,
   int targetedPlayers,
   int missingPlayers,
@@ -76,6 +77,7 @@ int _nonNegativeInt(Map<String, dynamic> data, String key, [int fallback = 0]) {
 
 AttendanceReminderSendResult _attendanceReminderResult(
   Map<String, dynamic> data, {
+  required String trackingKey,
   required bool deliveryStatusConfirmed,
   bool confirmationPending = false,
 }) {
@@ -94,6 +96,7 @@ AttendanceReminderSendResult _attendanceReminderResult(
     deliveryComplete: data['deliveryComplete'] as bool? ??
         (deliveryStatusConfirmed && pendingDevices == 0),
     deliveryStatusConfirmed: deliveryStatusConfirmed,
+    trackingKey: trackingKey,
     recipients: recipients,
     targetedPlayers: _nonNegativeInt(data, 'targetedPlayers'),
     missingPlayers: _nonNegativeInt(data, 'missingPlayers'),
@@ -1299,8 +1302,6 @@ class DataRepository {
     bool includeAll = false,
   }) async {
     final idempotencyKey = _idempotencyKey('attendance-reminder-$eventId');
-    Map<String, dynamic>? acceptedData;
-    DioException? ambiguousError;
     try {
       final res = await client.dio.post(
         '/events/$eventId/attendance/reminders',
@@ -1321,7 +1322,11 @@ class DataRepository {
           },
         ),
       );
-      acceptedData = res.data as Map<String, dynamic>;
+      return _attendanceReminderResult(
+        res.data as Map<String, dynamic>,
+        trackingKey: idempotencyKey,
+        deliveryStatusConfirmed: !pushEnabled,
+      );
     } on DioException catch (error) {
       final status = error.response?.statusCode;
       final mayHaveReachedServer = status == 408 ||
@@ -1329,56 +1334,70 @@ class DataRepository {
           (status != null && status >= 500) ||
           status == null;
       if (!mayHaveReachedServer) rethrow;
-      ambiguousError = error;
     }
 
     final confirmed = await _confirmedAttendanceReminderStatus(
       eventId,
       idempotencyKey,
-      waitForDelivery: pushEnabled,
+      waitForDelivery: false,
+      delays: const [
+        Duration(milliseconds: 100),
+        Duration(milliseconds: 250),
+        Duration(milliseconds: 500),
+        Duration(milliseconds: 900),
+      ],
     );
     if (confirmed != null) return confirmed;
-    if (acceptedData != null) {
-      return _attendanceReminderResult(
-        acceptedData,
-        deliveryStatusConfirmed: !pushEnabled,
-      );
-    }
-    if (ambiguousError != null) {
-      return (
-        accepted: false,
-        confirmationPending: true,
-        deliveryComplete: false,
-        deliveryStatusConfirmed: false,
-        recipients: 0,
-        targetedPlayers: 0,
-        missingPlayers: 0,
-        notificationRecipients: 0,
-        pushRecipients: 0,
-        sentPushRecipients: 0,
-        pendingPushRecipients: 0,
-        unavailablePushRecipients: 0,
-        recipientsWithoutActivePush: 0,
-        pushDevices: 0,
-        sentPushDevices: 0,
-        pendingPushDevices: 0,
-        unavailablePushDevices: 0,
-      );
-    }
-    throw StateError('Der Erinnerungsauftrag konnte nicht geprüft werden.');
+    return (
+      accepted: false,
+      confirmationPending: true,
+      deliveryComplete: false,
+      deliveryStatusConfirmed: false,
+      trackingKey: idempotencyKey,
+      recipients: 0,
+      targetedPlayers: 0,
+      missingPlayers: 0,
+      notificationRecipients: 0,
+      pushRecipients: 0,
+      sentPushRecipients: 0,
+      pendingPushRecipients: 0,
+      unavailablePushRecipients: 0,
+      recipientsWithoutActivePush: 0,
+      pushDevices: 0,
+      sentPushDevices: 0,
+      pendingPushDevices: 0,
+      unavailablePushDevices: 0,
+    );
   }
+
+  /// Prüft ausschließlich den bereits angenommenen Erinnerungsauftrag.
+  ///
+  /// Der ursprüngliche POST wird dabei niemals wiederholt. Dadurch kann die
+  /// Oberfläche den erfolgreichen Eingang sofort bestätigen und den genauen
+  /// Provider-Status anschließend ohne sichtbaren Ladevorgang nachreichen.
+  Future<AttendanceReminderSendResult?> waitForAttendanceReminderDelivery(
+    String eventId,
+    String trackingKey,
+  ) =>
+      _confirmedAttendanceReminderStatus(
+        eventId,
+        trackingKey,
+        waitForDelivery: true,
+        delays: const [
+          Duration(milliseconds: 200),
+          Duration(milliseconds: 500),
+          Duration(seconds: 1),
+          Duration(seconds: 2),
+          Duration(seconds: 4),
+        ],
+      );
 
   Future<AttendanceReminderSendResult?> _confirmedAttendanceReminderStatus(
     String eventId,
     String idempotencyKey, {
     required bool waitForDelivery,
+    required List<Duration> delays,
   }) async {
-    const delays = <Duration>[
-      Duration(milliseconds: 100),
-      Duration(milliseconds: 250),
-      Duration(milliseconds: 500),
-      Duration(milliseconds: 900),
-    ];
     AttendanceReminderSendResult? latest;
     for (final delay in delays) {
       await Future<void>.delayed(delay);
@@ -1386,11 +1405,19 @@ class DataRepository {
         final response = await client.dio.get(
           '/events/$eventId/attendance/reminders/status',
           queryParameters: {'key': idempotencyKey},
-          options: Options(extra: const {'suppressLoading': true}),
+          options: Options(
+            receiveTimeout: const Duration(seconds: 5),
+            sendTimeout: const Duration(seconds: 5),
+            extra: const {
+              'suppressLoading': true,
+              'disableTransientRetry': true,
+            },
+          ),
         );
         final data = response.data as Map<String, dynamic>;
         final result = _attendanceReminderResult(
           data,
+          trackingKey: idempotencyKey,
           deliveryStatusConfirmed: data['accepted'] == true,
           confirmationPending: data['accepted'] != true,
         );

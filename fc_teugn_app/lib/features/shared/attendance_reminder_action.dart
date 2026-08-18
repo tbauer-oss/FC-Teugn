@@ -1,7 +1,10 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
 
+import '../../core/data_repository.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
 
@@ -18,6 +21,8 @@ Future<void> showEventAttendanceReminder(
   WidgetRef ref,
   EventModel event,
 ) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final repository = ref.read(repositoryProvider);
   final openCount = event.missingAttendance.isNotEmpty
       ? event.missingAttendance.length
       : event.attendanceSummary.unknown;
@@ -135,69 +140,43 @@ Future<void> showEventAttendanceReminder(
     ),
   );
   messageController.dispose();
-  if (settings == null || !context.mounted) return;
+  if (settings == null) return;
 
   try {
-    final result = await ref.read(repositoryProvider).sendAttendanceReminders(
-          event.id,
-          message: settings.message,
-          pushEnabled: settings.pushEnabled,
-          includeAll: settings.audience == AttendanceReminderAudience.all,
-        );
-    if (!context.mounted) return;
-    final audienceText = settings.audience == AttendanceReminderAudience.all
-        ? 'Alle relevanten Personen'
-        : '${result.missingPlayers} offene Rückmeldung(en)';
+    final result = await repository.sendAttendanceReminders(
+      event.id,
+      message: settings.message,
+      pushEnabled: settings.pushEnabled,
+      includeAll: settings.audience == AttendanceReminderAudience.all,
+    );
     final String feedback;
     if (result.confirmationPending) {
       feedback =
-          'Der Auftrag wurde genau einmal übertragen. Die Serverbestätigung '
-          'wird noch geprüft; es erfolgt kein automatischer Doppelversand.';
+          'Der Auftrag wurde einmal übermittelt. Die Serverbestätigung wird '
+          'im Hintergrund geprüft; es erfolgt kein Doppelversand.';
     } else if (result.recipients == 0) {
       feedback = 'Für diese Auswahl wurden keine Empfänger gefunden.';
     } else if (!settings.pushEnabled) {
-      feedback = '$audienceText: ${result.notificationRecipients} von '
-          '${result.recipients} Konten wurden in der App informiert.';
-    } else if (!result.deliveryStatusConfirmed) {
-      feedback = 'Erinnerungsauftrag sicher angenommen: $audienceText, '
-          '${result.recipients} Konten. Die Push-Übergabe läuft im Hintergrund.';
+      feedback = 'Erinnerung an ${result.recipients} Konten übermittelt und '
+          'in der App bereitgestellt.';
     } else {
-      final parts = <String>[
-        '$audienceText: ${result.notificationRecipients} von '
-            '${result.recipients} Konten wurden informiert',
-      ];
-      if (result.pushRecipients > 0) {
-        parts.add(
-          'Push-Dienst: ${result.sentPushRecipients} von '
-          '${result.pushRecipients} erreichbaren Konten angenommen',
-        );
-      }
-      if (result.pendingPushRecipients > 0) {
-        parts.add('${result.pendingPushRecipients} noch in Bearbeitung');
-      }
-      if (result.unavailablePushRecipients > 0) {
-        parts.add(
-          '${result.unavailablePushRecipients} derzeit nicht erreichbar',
-        );
-      }
-      if (result.recipientsWithoutActivePush > 0) {
-        parts.add(
-          '${result.recipientsWithoutActivePush} ohne aktiven Push-Empfang',
-        );
-      }
-      if (result.pushDevices == 0) {
-        parts.add('kein aktives Push-Gerät registriert');
-      }
-      feedback = '${parts.join(' · ')}.';
+      feedback = 'Erinnerung an ${result.recipients} Konten übermittelt. '
+          'Die Push-Auslieferung wird im Hintergrund geprüft.';
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 8),
-        content: Text(feedback),
-      ),
-    );
+    _showImmediateReminderFeedback(messenger, feedback);
+
+    if (settings.pushEnabled &&
+        (result.recipients > 0 || result.confirmationPending)) {
+      unawaited(
+        _showAttendanceReminderDeliveryReport(
+          messenger: messenger,
+          repository: repository,
+          event: event,
+          initialResult: result,
+        ),
+      );
+    }
   } on DioException catch (error) {
-    if (!context.mounted) return;
     final deliveryMayHaveStarted = switch (error.type) {
       DioExceptionType.connectionTimeout ||
       DioExceptionType.sendTimeout ||
@@ -207,22 +186,129 @@ Future<void> showEventAttendanceReminder(
         true,
       _ => false,
     };
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          deliveryMayHaveStarted
-              ? 'Die Verbindung ist gerade nicht stabil. Es wurde kein '
-                  'zweiter Auftrag ausgelöst.'
-              : 'Die Erinnerungen konnten nicht versendet werden.',
-        ),
-      ),
+    _showImmediateReminderFeedback(
+      messenger,
+      deliveryMayHaveStarted
+          ? 'Die Verbindung ist gerade nicht stabil. Es wurde kein zweiter '
+              'Auftrag ausgelöst.'
+          : 'Die Erinnerungen konnten nicht versendet werden.',
     );
   } catch (_) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Die Erinnerungen konnten nicht versendet werden.'),
-      ),
+    _showImmediateReminderFeedback(
+      messenger,
+      'Die Erinnerungen konnten nicht versendet werden.',
     );
   }
+}
+
+void _showImmediateReminderFeedback(
+  ScaffoldMessengerState? messenger,
+  String message,
+) {
+  if (messenger == null || !messenger.mounted) return;
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 6),
+        content: Text(message),
+      ),
+    );
+}
+
+Future<void> _showAttendanceReminderDeliveryReport({
+  required ScaffoldMessengerState? messenger,
+  required DataRepository repository,
+  required EventModel event,
+  required AttendanceReminderSendResult initialResult,
+}) async {
+  AttendanceReminderSendResult? checkedResult;
+  try {
+    checkedResult = await repository.waitForAttendanceReminderDelivery(
+      event.id,
+      initialResult.trackingKey,
+    );
+  } catch (_) {
+    // Die Erinnerung ist bereits mit einem eindeutigen Schlüssel angenommen.
+    // Ein Fehler der rein lesenden Hintergrundprüfung darf weder die App noch
+    // einen zweiten Versand auslösen.
+  }
+  if (messenger == null || !messenger.mounted) return;
+
+  final result = checkedResult ?? initialResult;
+  final report = _attendanceReminderDeliveryReport(result);
+  final scheme = Theme.of(messenger.context).colorScheme;
+  messenger
+    ..hideCurrentMaterialBanner()
+    ..showMaterialBanner(
+      MaterialBanner(
+        leading: Icon(
+          result.deliveryComplete
+              ? Icons.verified_rounded
+              : Icons.notifications_active_rounded,
+          color: result.deliveryComplete
+              ? scheme.primary
+              : scheme.onSurfaceVariant,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Versandbericht',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 2),
+            Text(report),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: messenger.hideCurrentMaterialBanner,
+            child: const Text('Schließen'),
+          ),
+        ],
+      ),
+    );
+}
+
+String _attendanceReminderDeliveryReport(
+  AttendanceReminderSendResult result,
+) {
+  if (!result.accepted) {
+    return 'Der Auftrag wurde nur einmal übertragen. Die Serverbestätigung '
+        'steht noch aus; ein Doppelversand ist ausgeschlossen.';
+  }
+
+  final parts = <String>[
+    '${result.notificationRecipients} von ${result.recipients} Konten in der '
+        'App informiert',
+  ];
+  if (result.pushRecipients > 0) {
+    parts.add(
+      '${result.sentPushRecipients} von ${result.pushRecipients} Push-Konten '
+      'vom Push-Dienst angenommen',
+    );
+  } else if (result.pushDevices == 0) {
+    parts.add('kein aktives Push-Gerät registriert');
+  }
+  if (result.pendingPushRecipients > 0) {
+    parts
+        .add('${result.pendingPushRecipients} Push-Konten noch in Bearbeitung');
+  }
+  if (result.unavailablePushRecipients > 0) {
+    parts.add(
+      '${result.unavailablePushRecipients} Push-Konten derzeit nicht '
+      'erreichbar',
+    );
+  }
+  if (result.recipientsWithoutActivePush > 0) {
+    parts.add(
+      '${result.recipientsWithoutActivePush} Konten ohne aktiven Push-Empfang',
+    );
+  }
+  if (!result.deliveryComplete) {
+    parts.add('vollständiger Abschlussstatus steht noch aus');
+  }
+  return '${parts.join(' · ')}.';
 }
