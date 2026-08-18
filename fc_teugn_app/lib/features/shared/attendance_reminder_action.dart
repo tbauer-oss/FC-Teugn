@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
@@ -156,6 +157,26 @@ Future<void> showEventAttendanceReminder(
           result.recipients == 0
               ? 'Für diese Auswahl wurden keine Empfänger gefunden.'
               : '$audienceText: ${result.recipients} Person(en) wurden erinnert.$deliveryText',
+        ),
+      ),
+    );
+  } on DioException catch (error) {
+    if (!context.mounted) return;
+    final deliveryMayHaveStarted = switch (error.type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout ||
+      DioExceptionType.connectionError ||
+      DioExceptionType.unknown =>
+        true,
+      _ => false,
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          deliveryMayHaveStarted
+              ? 'Der Versandstatus konnte nicht bestätigt werden. Der Auftrag wird nicht automatisch wiederholt.'
+              : 'Die Erinnerungen konnten nicht versendet werden.',
         ),
       ),
     );

@@ -73,10 +73,10 @@ class GeneralOfflineOutbox {
           .whereType<Map<String, dynamic>>()
           .map(QueuedApiWrite.fromJson)
           .where((item) => item.createdAt.isAfter(cutoff))
-          // Freigaben und Trainingsplanänderungen sind Verwaltungsaktionen.
-          // Sie dürfen nach einem Antwort-Timeout nie später unbemerkt erneut
+          // Freigaben, Trainingsplanänderungen und Benachrichtigungsversand
+          // dürfen nach einem Antwort-Timeout nie später unbemerkt erneut
           // abgespielt werden, weil der Server sie bereits ausgeführt haben
-          // kann oder inzwischen ein neuerer Plan gespeichert wurde.
+          // kann oder inzwischen ein neuerer Stand gespeichert wurde.
           .where(_isSafeToReplay)
           .toList()
         ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
@@ -114,6 +114,9 @@ class GeneralOfflineOutbox {
   bool _isSafeToReplay(QueuedApiWrite write) {
     final path = write.path.split('?').first;
     if (path == '/admin/approve') return false;
+    if (RegExp(r'^/events/[^/]+/attendance/reminders$').hasMatch(path)) {
+      return false;
+    }
     if (RegExp(r'^/organization/teams/[^/]+/training-schedule$')
         .hasMatch(path)) {
       return false;

@@ -32,7 +32,10 @@ test('trainer-only participants do not suppress reminders for the team roster', 
   assert.doesNotMatch(handler, /event\.participants\.length \? \{ in: explicitlyRequested \}/);
 });
 
-test('every manual reminder can create a fresh push delivery', () => {
+test('one manual reminder request cannot create duplicate push deliveries', () => {
+  assert.match(handler, /req\.header\('x-idempotency-key'\)/);
+  assert.match(handler, /dedupeKey: requestIdempotencyKey/);
+  assert.match(handler, /attendance-reminder:\$\{user\.id\}:\$\{event\.id\}/);
   assert.doesNotMatch(handler, /existingRecipients|alreadySent|notification\.upsert/);
   assert.match(handler, /eventReminder\.createMany/);
 });

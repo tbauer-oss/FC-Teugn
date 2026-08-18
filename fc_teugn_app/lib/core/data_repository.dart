@@ -1237,6 +1237,7 @@ class DataRepository {
     bool pushEnabled = true,
     bool includeAll = false,
   }) async {
+    final idempotencyKey = _idempotencyKey('attendance-reminder-$eventId');
     final res = await client.dio.post(
       '/events/$eventId/attendance/reminders',
       data: {
@@ -1244,6 +1245,17 @@ class DataRepository {
         'pushEnabled': pushEnabled,
         'audience': includeAll ? 'ALL' : 'OPEN',
       },
+      options: Options(
+        headers: {'X-Idempotency-Key': idempotencyKey},
+        extra: const {
+          // Erinnerungen erzeugen Push-Nachrichten und dürfen deshalb nach
+          // einem unklaren Verbindungsabbruch niemals im Hintergrund erneut
+          // abgespielt werden.
+          'requireOnline': true,
+          'loadingMessage': 'Erinnerung wird versendet …',
+          'loadingMode': 'background',
+        },
+      ),
     );
     final data = res.data as Map<String, dynamic>;
     return (

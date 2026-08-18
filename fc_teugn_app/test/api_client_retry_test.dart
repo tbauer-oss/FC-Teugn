@@ -174,6 +174,14 @@ void main() {
           'createdAt': now,
         },
         {
+          'id': 'reminder',
+          'method': 'POST',
+          'path': '/events/event-1/attendance/reminders',
+          'query': <String, dynamic>{},
+          'data': {'audience': 'OPEN', 'pushEnabled': true},
+          'createdAt': now,
+        },
+        {
           'id': 'attendance',
           'method': 'PUT',
           'path': '/events/event-1/attendance/player-1',
@@ -187,6 +195,38 @@ void main() {
     final pending = await GeneralOfflineOutbox().pending('admin-2');
 
     expect(pending.map((write) => write.id), ['attendance']);
+  });
+
+  test('manual reminders are never queued or automatically repeated', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    var postCalls = 0;
+    final idempotencyKeys = <String?>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      postCalls++;
+      idempotencyKeys.add(request.headers.value('x-idempotency-key'));
+      request.response.statusCode = HttpStatus.serviceUnavailable;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({'message': 'not available'}));
+      await request.response.close();
+    });
+    final outbox = GeneralOfflineOutbox();
+    final client = ApiClient(
+      baseUrl: 'http://${server.address.host}:${server.port}',
+      offlineOutbox: outbox,
+      userId: 'trainer-1',
+    );
+    final repository = DataRepository(client);
+
+    await expectLater(
+      repository.sendAttendanceReminders('event-1'),
+      throwsA(isA<DioException>()),
+    );
+
+    expect(postCalls, 1);
+    expect(idempotencyKeys.single, isNotEmpty);
+    expect(await outbox.pending('trainer-1'), isEmpty);
   });
 
   test('routine writes use one non-blocking loading operation', () async {

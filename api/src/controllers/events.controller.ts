@@ -2418,6 +2418,7 @@ export async function recordActualAttendance(req: Request, res: Response) {
 
 export async function sendAttendanceReminders(req: Request, res: Response) {
   const user = req.user!;
+  const requestIdempotencyKey = clean(req.header('x-idempotency-key'));
   const teamIds = await accessibleTeamIds(user);
   const event = await prisma.event.findFirst({
     where: { id: req.params.id, ...eventScope(teamIds) },
@@ -2492,6 +2493,13 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
       entityType: 'Event',
       entityId: event.id,
       pushEnabled,
+      // Derselbe HTTP-Auftrag darf auch dann nur genau eine Benachrichtigung
+      // je Empfänger erzeugen, wenn die Antwort nach dem Versand abreißt und
+      // ein älterer Client den Request erneut überträgt. Ein neuer bewusster
+      // Klick besitzt einen neuen Schlüssel und bleibt weiterhin möglich.
+      dedupeKey: requestIdempotencyKey
+        ? `attendance-reminder:${user.id}:${event.id}:${requestIdempotencyKey}`
+        : undefined,
     });
   }
   await prisma.auditLog.create({
