@@ -107,6 +107,8 @@ class ParentDashboardPage extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           _NotificationGroupsCard(notifications: notifications),
+          const SizedBox(height: 10),
+          const _TrainerContactCard(),
         ],
       ),
     );
@@ -886,6 +888,28 @@ class _NotificationGroupsCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TrainerContactCard extends StatelessWidget {
+  const _TrainerContactCard();
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: InkWell(
+          onTap: () => context.go('/parent/messages?section=contact'),
+          borderRadius: BorderRadius.circular(20),
+          child: const Padding(
+            padding: EdgeInsets.all(12),
+            child: _SectionHeading(
+              icon: Icons.forum_rounded,
+              title: 'Trainerteam kontaktieren',
+              subtitle:
+                  'Kurze organisatorische Nachricht · Löschung nach 30 Tagen',
+              trailing: Icon(Icons.chevron_right_rounded),
+            ),
+          ),
+        ),
+      );
 }
 
 void _openResponse(BuildContext context, PersonalResponseModel response) {

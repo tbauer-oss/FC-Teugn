@@ -75,6 +75,20 @@ test('event creation notification stays scoped and match release remains explici
   assert.match(events, /EVENT_CREATION_NOTIFICATION_SENT/);
 });
 
+test('family contact is team scoped and expires after thirty days', () => {
+  const communications = source('src/controllers/communications.controller.ts');
+  const routes = source('src/routes/communications.routes.ts');
+  const retention = source('src/services/privacy-retention.service.ts');
+  assert.match(communications, /familyContactRetentionDays\s*=\s*30/);
+  assert.match(communications, /familyContactTeamIds\(user\)/);
+  assert.match(communications, /familyContactStaffIds\(teamId\)/);
+  assert.match(communications, /expiresAt[\s\S]*familyContactRetentionDays/);
+  assert.match(communications, /Textnachrichten|Bitte eine Nachricht eingeben/);
+  assert.match(routes, /router\.get\('\/family-contact'/);
+  assert.match(routes, /router\.post\('\/family-contact'/);
+  assert.match(retention, /expiresAt:\s*\{\s*lte:\s*now\s*\}/);
+});
+
 test('away matches never inherit the Teugn home ground', () => {
   const {
     HOME_MATCH_VENUE,

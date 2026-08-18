@@ -97,7 +97,7 @@ class PersonalResponsesCard extends ConsumerWidget {
   }
 }
 
-class FamilyResponsesPage extends ConsumerWidget {
+class FamilyResponsesPage extends ConsumerStatefulWidget {
   const FamilyResponsesPage({
     super.key,
     required this.isTrainer,
@@ -108,12 +108,21 @@ class FamilyResponsesPage extends ConsumerWidget {
   final String? highlightedEventId;
   final String? highlightedPlayerId;
 
+  @override
+  ConsumerState<FamilyResponsesPage> createState() =>
+      _FamilyResponsesPageState();
+}
+
+class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
+  _ResponsePeriod _period = _ResponsePeriod.oneWeek;
+
   bool _isHighlighted(PersonalResponseModel item) =>
-      item.eventId == highlightedEventId &&
-      (highlightedPlayerId == null || item.playerId == highlightedPlayerId);
+      item.eventId == widget.highlightedEventId &&
+      (widget.highlightedPlayerId == null ||
+          item.playerId == widget.highlightedPlayerId);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final responses = ref.watch(personalResponsesProvider);
     return PageScaffold(
       title: 'Meine Kinder & Rückmeldungen',
@@ -133,31 +142,30 @@ class FamilyResponsesPage extends ConsumerWidget {
           ),
         ),
         data: (items) {
-          final sorted = [...items]..sort((a, b) {
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final periodEnd = _period.endFrom(today);
+          final visible = items.where((item) {
+            if (_isHighlighted(item)) return true;
+            if (item.startAt.isBefore(today)) return false;
+            return periodEnd == null || item.startAt.isBefore(periodEnd);
+          }).toList();
+          final sorted = [...visible]..sort((a, b) {
               final aHighlighted = _isHighlighted(a);
               final bHighlighted = _isHighlighted(b);
               if (aHighlighted != bHighlighted) return aHighlighted ? -1 : 1;
               if (a.isOpen != b.isOpen) return a.isOpen ? -1 : 1;
               return a.startAt.compareTo(b.startAt);
             });
-          if (sorted.isEmpty) {
-            return const Card(
-              child: Padding(
-                padding: EdgeInsets.all(28),
-                child: Column(
-                  children: [
-                    Icon(Icons.family_restroom_rounded, size: 46),
-                    SizedBox(height: 12),
-                    Text(
-                        'Aktuell sind keine persönlichen Rückmeldungen vorhanden.'),
-                  ],
-                ),
-              ),
-            );
-          }
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _ResponsePeriodPicker(
+                value: _period,
+                visibleCount: sorted.length,
+                onChanged: (value) => setState(() => _period = value),
+              ),
+              const SizedBox(height: 8),
               SingleChildScrollView(
                 key: const ValueKey('family-response-summary-scroll'),
                 scrollDirection: Axis.horizontal,
@@ -203,24 +211,165 @@ class FamilyResponsesPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              Card(
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  children: [
-                    for (final item in sorted)
-                      _ResponseTile(
-                        item: item,
-                        highlighted: _isHighlighted(item),
-                      )
-                  ],
+              if (sorted.isEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.event_available_rounded, size: 42),
+                        const SizedBox(height: 9),
+                        Text(
+                          'Keine Rückmeldungen in diesem Zeitraum',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _period == _ResponsePeriod.allUpcoming
+                              ? 'Aktuell sind keine kommenden persönlichen Rückmeldungen vorhanden.'
+                              : 'Wähle bei Bedarf einen längeren Zeitraum aus.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: AppColors.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      for (final item in sorted)
+                        _ResponseTile(
+                          item: item,
+                          highlighted: _isHighlighted(item),
+                        )
+                    ],
+                  ),
                 ),
-              ),
             ],
           );
         },
       ),
     );
   }
+}
+
+enum _ResponsePeriod { oneWeek, twoWeeks, fourWeeks, allUpcoming }
+
+extension on _ResponsePeriod {
+  String get label => switch (this) {
+        _ResponsePeriod.oneWeek => '1 Woche',
+        _ResponsePeriod.twoWeeks => '2 Wochen',
+        _ResponsePeriod.fourWeeks => '4 Wochen',
+        _ResponsePeriod.allUpcoming => 'Alle kommenden',
+      };
+
+  DateTime? endFrom(DateTime start) => switch (this) {
+        _ResponsePeriod.oneWeek => start.add(const Duration(days: 7)),
+        _ResponsePeriod.twoWeeks => start.add(const Duration(days: 14)),
+        _ResponsePeriod.fourWeeks => start.add(const Duration(days: 28)),
+        _ResponsePeriod.allUpcoming => null,
+      };
+}
+
+class _ResponsePeriodPicker extends StatelessWidget {
+  const _ResponsePeriodPicker({
+    required this.value,
+    required this.visibleCount,
+    required this.onChanged,
+  });
+
+  final _ResponsePeriod value;
+  final int visibleCount;
+  final ValueChanged<_ResponsePeriod> onChanged;
+
+  Widget _dropdown({bool expanded = false}) => DropdownButtonHideUnderline(
+        child: DropdownButton<_ResponsePeriod>(
+          value: value,
+          borderRadius: BorderRadius.circular(14),
+          isDense: true,
+          isExpanded: expanded,
+          items: [
+            for (final period in _ResponsePeriod.values)
+              DropdownMenuItem(
+                value: period,
+                child: Text(
+                  period.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: (period) {
+            if (period != null) onChanged(period);
+          },
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: 'Zeitraum der Rückmeldungen: ${value.label}',
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(11, 7, 9, 7),
+            decoration: BoxDecoration(
+              color: AppColors.yellowSoft.withValues(alpha: .42),
+              border: Border.all(color: AppColors.line),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 390;
+                return Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: const Icon(Icons.date_range_rounded, size: 19),
+                    ),
+                    const SizedBox(width: 9),
+                    if (compact) ...[
+                      Expanded(child: _dropdown(expanded: true)),
+                    ] else ...[
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Zeitraum',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.muted,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              '$visibleCount ${visibleCount == 1 ? 'Termin' : 'Termine'} angezeigt',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _dropdown(),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      );
 }
 
 class _ResponseTile extends ConsumerStatefulWidget {

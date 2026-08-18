@@ -34,6 +34,7 @@ PersonalResponseModel _response({
   String? reason,
   String type = 'TRAINING',
   String category = 'TRAINING',
+  DateTime? startAt,
 }) {
   return PersonalResponseModel(
     eventId: eventId,
@@ -44,7 +45,7 @@ PersonalResponseModel _response({
     title: title,
     type: type,
     category: category,
-    startAt: DateTime(2026, 8, 22, 10),
+    startAt: startAt ?? DateTime.now().add(const Duration(days: 3)),
     location: 'Sportplatz Teugn',
     responseStatus: status,
     reason: reason,
@@ -179,5 +180,47 @@ void main() {
 
     expect(find.text('Freundschaftsspiel'), findsOneWidget);
     expect(repository.calls, 2);
+  });
+
+  testWidgets('one week is selected and parents can extend the response period',
+      (tester) async {
+    final now = DateTime.now();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          personalResponsesProvider.overrideWith(
+            (ref) async => [
+              _response(
+                eventId: 'near',
+                title: 'Training diese Woche',
+                startAt: now.add(const Duration(days: 2)),
+              ),
+              _response(
+                eventId: 'later',
+                title: 'Training in drei Wochen',
+                startAt: now.add(const Duration(days: 20)),
+              ),
+            ],
+          ),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const FamilyResponsesPage(isTrainer: false),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 Woche'), findsOneWidget);
+    expect(find.text('Training diese Woche'), findsOneWidget);
+    expect(find.text('Training in drei Wochen'), findsNothing);
+
+    await tester.tap(find.text('1 Woche'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('4 Wochen').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Training in drei Wochen'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

@@ -186,6 +186,68 @@ void main() {
     expect(find.text('Schließen'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      'mobile calendar shows distinct emoji categories without overflow',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final now = DateTime.now();
+    final date = DateTime(now.year, now.month, 18, 17, 15);
+    final events = [
+      _calendarEvent(
+        id: 'training',
+        title: 'Training',
+        startAt: date,
+        category: 'TRAINING',
+      ),
+      _calendarEvent(
+        id: 'match',
+        title: 'Pflichtspiel',
+        startAt: date.add(const Duration(days: 1)),
+        category: 'LEAGUE_MATCH',
+      ),
+      _calendarEvent(
+        id: 'party',
+        title: 'Weihnachtsfeier',
+        startAt: date.add(const Duration(days: 2)),
+        category: 'CHRISTMAS_PARTY',
+      ),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          eventsProvider.overrideWith((ref) async => events),
+          organizationProvider.overrideWith((ref) async => _organization(now)),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const Scaffold(body: CalendarPage(canManage: false)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('🏃 Training'), findsWidgets);
+    expect(find.text('⚽ Pflichtspiel'), findsWidgets);
+    expect(find.text('🎄 Weihnachtsfeier'), findsWidgets);
+    expect(tester.takeException(), isNull);
+
+    for (final width in const [360.0, 390.0, 480.0, 599.0]) {
+      tester.view.physicalSize = Size(width, 820);
+      await tester.pumpAndSettle();
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'Der Kalender muss auch bei $width px und in Foldable-Panes '
+            'ohne Überlauf bleiben.',
+      );
+    }
+  });
 }
 
 OrganizationContext _organization(DateTime now) {
@@ -232,12 +294,13 @@ EventModel _calendarEvent({
   required String id,
   required String title,
   required DateTime startAt,
+  String category = 'SPECIAL_EVENT',
 }) {
   return EventModel.fromJson({
     'id': id,
     'teamId': 'team-e1',
     'type': 'EVENT',
-    'category': 'SPECIAL_EVENT',
+    'category': category,
     'status': 'SCHEDULED',
     'visibility': 'TEAM',
     'title': title,

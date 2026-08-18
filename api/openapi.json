@@ -307,6 +307,26 @@
       "get": {"tags": ["Kommunikation"], "summary": "Sichtbare Mitteilungen", "security": [{"bearerAuth": []}], "responses": {"200": {"description": "Mitteilungen"}}},
       "post": {"tags": ["Kommunikation"], "summary": "Mitteilung speichern", "security": [{"bearerAuth": []}], "responses": {"201": {"description": "Mitteilung"}}}
     },
+    "/communications/family-contact": {
+      "get": {
+        "tags": ["Kommunikation"],
+        "summary": "Direktkontakt zwischen Eltern und zuständigem Trainerteam",
+        "description": "Liefert ausschließlich Textnachrichten der freigegebenen eigenen Jugend. Nachrichten werden nach spätestens 30 Tagen automatisch entfernt.",
+        "security": [{"bearerAuth": []}],
+        "responses": {"200": {"description": "Mannschaftsbezogene Direktnachrichten und auswählbare Mannschaften"}}
+      },
+      "post": {
+        "tags": ["Kommunikation"],
+        "summary": "Kurze Nachricht an Eltern oder Trainerteam senden",
+        "description": "Eltern eröffnen einen Direktkontakt für eine zugeordnete Mannschaft; das zuständige Trainerteam kann darauf antworten. Es werden nur Textnachrichten bis 2.000 Zeichen gespeichert, maximal 30 Tage.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "201": {"description": "Nachricht gespeichert und an die berechtigten Empfänger verteilt"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"}
+        }
+      }
+    },
     "/notifications/admin/devices": {
       "get": {
         "tags": ["Administration", "Kommunikation"],

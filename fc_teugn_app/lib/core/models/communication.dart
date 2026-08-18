@@ -32,6 +32,96 @@ String communicationApiEnum(Enum value) => value.name
     )
     .toUpperCase();
 
+class FamilyContactInbox {
+  const FamilyContactInbox({
+    required this.retentionDays,
+    required this.teamOptions,
+    required this.messages,
+  });
+
+  final int retentionDays;
+  final List<FamilyContactTeam> teamOptions;
+  final List<FamilyContactMessage> messages;
+
+  factory FamilyContactInbox.fromJson(Map<String, dynamic> json) =>
+      FamilyContactInbox(
+        retentionDays: (json['retentionDays'] as num?)?.toInt() ?? 30,
+        teamOptions: (json['teamOptions'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => FamilyContactTeam.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+        messages: (json['messages'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => FamilyContactMessage.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
+}
+
+class FamilyContactTeam {
+  const FamilyContactTeam({required this.id, required this.name});
+
+  final String id;
+  final String name;
+
+  factory FamilyContactTeam.fromJson(Map<String, dynamic> json) =>
+      FamilyContactTeam(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? 'Mannschaft',
+      );
+}
+
+class FamilyContactMessage {
+  const FamilyContactMessage({
+    required this.id,
+    required this.conversationId,
+    required this.teamId,
+    required this.teamName,
+    required this.senderId,
+    required this.senderName,
+    required this.senderIsStaff,
+    required this.sentByMe,
+    required this.message,
+    required this.createdAt,
+    required this.expiresAt,
+    required this.isRead,
+  });
+
+  final String id;
+  final String conversationId;
+  final String teamId;
+  final String teamName;
+  final String senderId;
+  final String senderName;
+  final bool senderIsStaff;
+  final bool sentByMe;
+  final String message;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+  final bool isRead;
+
+  factory FamilyContactMessage.fromJson(Map<String, dynamic> json) =>
+      FamilyContactMessage(
+        id: json['id'] as String? ?? '',
+        conversationId: json['conversationId'] as String? ?? '',
+        teamId: json['teamId'] as String? ?? '',
+        teamName: json['teamName'] as String? ?? 'Mannschaft',
+        senderId: json['senderId'] as String? ?? '',
+        senderName: json['senderName'] as String? ?? 'Vereinsmitglied',
+        senderIsStaff: json['senderIsStaff'] as bool? ?? false,
+        sentByMe: json['sentByMe'] as bool? ?? false,
+        message: json['message'] as String? ?? '',
+        createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
+        expiresAt: DateTime.parse(json['expiresAt'] as String).toLocal(),
+        isRead: json['isRead'] as bool? ?? false,
+      );
+}
+
 class AnnouncementModel {
   const AnnouncementModel({
     required this.id,

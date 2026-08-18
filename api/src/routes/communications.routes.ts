@@ -2,11 +2,13 @@ import { asyncRouter } from '../middleware/async-handler';
 import {
   archiveAnnouncement,
   getAnnouncement,
+  listFamilyContacts,
   listAnnouncements,
   markAnnouncementRead,
   permanentlyDeleteAnnouncement,
   publishAnnouncement,
   saveAnnouncement,
+  sendFamilyContact,
 } from '../controllers/communications.controller';
 import {
   requireApproved,
@@ -22,6 +24,8 @@ const router = asyncRouter();
 router.use(requireAuth);
 router.use(requireApproved);
 router.use(idempotencyMiddleware);
+router.get('/family-contact', listFamilyContacts);
+router.post('/family-contact', sendFamilyContact);
 router.get('/', listAnnouncements);
 router.get('/:id', getAnnouncement);
 router.post('/', requirePermission(Permission.SEND_ANNOUNCEMENTS), saveAnnouncement);

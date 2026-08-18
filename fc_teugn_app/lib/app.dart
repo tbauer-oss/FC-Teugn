@@ -1003,10 +1003,12 @@ String normalizePushActionRoute(
     ).toString();
   }
   if (path == '/messages' || path.startsWith('/messages/')) {
-    return isTrainer ? '/trainer/messages' : '/parent/messages';
+    final base = isTrainer ? '/trainer/messages' : '/parent/messages';
+    return parsed?.hasQuery == true ? '$base?${parsed!.query}' : base;
   }
   if (path == '/trainer/messages' || path == '/parent/messages') {
-    return isTrainer ? '/trainer/messages' : '/parent/messages';
+    final base = isTrainer ? '/trainer/messages' : '/parent/messages';
+    return parsed?.hasQuery == true ? '$base?${parsed!.query}' : base;
   }
   if (path == '/events' || path.startsWith('/events/')) {
     return isTrainer ? '/trainer/events' : '/parent/events';

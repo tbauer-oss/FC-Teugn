@@ -7,10 +7,15 @@ import {
   Prisma,
   Role as PrismaRole,
 } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { hasPermission, Permission } from '../security/permissions';
-import { accessibleTeamIds, contextualTeamIds } from '../services/team-access';
+import {
+  accessibleTeamIds,
+  contextualTeamIds,
+  type TeamScopedUser,
+} from '../services/team-access';
 import { notifyUsers } from '../services/notification.service';
 import { Role } from '../types/enums';
 
@@ -24,6 +29,235 @@ const staffRoles = new Set<string>([
   PrismaRole.TRAINER_ADMIN,
   PrismaRole.TRAINER,
 ]);
+
+const familyContactRetentionDays = 30;
+const familyContactEntityPrefix = 'FamilyContact:';
+
+function isStaffRole(role: string) {
+  return staffRoles.has(role);
+}
+
+function familyContactConversation(value: string | null | undefined) {
+  const [threadId, parentId, teamId, ...rest] = String(value ?? '').split('.');
+  if (!threadId || !parentId || !teamId || rest.length) return null;
+  return { id: `${threadId}.${parentId}.${teamId}`, threadId, parentId, teamId };
+}
+
+async function familyContactTeamIds(user: TeamScopedUser) {
+  return isStaffRole(String(user.role))
+    ? contextualTeamIds(user)
+    : accessibleTeamIds(user);
+}
+
+async function familyContactStaffIds(teamId: string) {
+  const users = await prisma.user.findMany({
+    where: {
+      status: AccountStatus.APPROVED,
+      accountDeletedAt: null,
+      OR: [
+        {
+          role: { in: [...staffRoles] as PrismaRole[] },
+          teamId,
+        },
+        {
+          memberships: {
+            some: {
+              teamId,
+              status: AccountStatus.APPROVED,
+              role: { in: [...staffRoles] as PrismaRole[] },
+            },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+  return users.map((user) => user.id);
+}
+
+export async function listFamilyContacts(req: Request, res: Response) {
+  const user = req.user!;
+  const now = new Date();
+  await prisma.notification.deleteMany({
+    where: {
+      entityType: { startsWith: familyContactEntityPrefix },
+      expiresAt: { lte: now },
+    },
+  });
+  const teamIds = await familyContactTeamIds(user);
+  const notifications = await prisma.notification.findMany({
+    where: {
+      userId: user.id,
+      entityType: { startsWith: familyContactEntityPrefix },
+      expiresAt: { gt: now },
+    },
+    orderBy: { createdAt: 'asc' },
+    take: 300,
+  });
+  const visible = notifications
+    .map((notification) => ({
+      notification,
+      conversation: familyContactConversation(notification.entityId),
+      senderId: notification.entityType?.slice(familyContactEntityPrefix.length) ?? '',
+    }))
+    .filter(
+      (item): item is typeof item & {
+        conversation: NonNullable<ReturnType<typeof familyContactConversation>>;
+      } => Boolean(item.conversation && teamIds.includes(item.conversation.teamId)),
+    );
+  const senderIds = [...new Set(visible.map((item) => item.senderId))];
+  const messageTeamIds = [...new Set(visible.map((item) => item.conversation.teamId))];
+  const [senders, teams] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: senderIds } },
+      select: { id: true, name: true, role: true },
+    }),
+    prisma.team.findMany({
+      where: {
+        id: { in: [...new Set([...teamIds, ...messageTeamIds])] },
+        deletedAt: null,
+        isActive: true,
+      },
+      orderBy: [{ ageGroup: { code: 'asc' } }, { teamNumber: 'asc' }],
+      select: { id: true, name: true, shortName: true },
+    }),
+  ]);
+  const senderById = new Map(senders.map((sender) => [sender.id, sender]));
+  const teamById = new Map(teams.map((team) => [team.id, team]));
+  const readAt = new Date();
+  const unreadIds = visible
+    .filter((item) => item.notification.readAt == null && item.senderId !== user.id)
+    .map((item) => item.notification.id);
+  if (unreadIds.length) {
+    await prisma.notification.updateMany({
+      where: { id: { in: unreadIds }, userId: user.id },
+      data: { readAt },
+    });
+  }
+  return res.json({
+    retentionDays: familyContactRetentionDays,
+    teamOptions: teams
+      .filter((team) => teamIds.includes(team.id))
+      .map((team) => ({
+        id: team.id,
+        name: team.shortName || team.name,
+      })),
+    messages: visible.map((item) => {
+      const sender = senderById.get(item.senderId);
+      const team = teamById.get(item.conversation.teamId);
+      return {
+        id: item.notification.id,
+        conversationId: item.conversation.id,
+        teamId: item.conversation.teamId,
+        teamName: team?.shortName || team?.name || 'Mannschaft',
+        senderId: item.senderId,
+        senderName: sender?.name || 'Vereinsmitglied',
+        senderIsStaff: sender ? isStaffRole(sender.role) : false,
+        sentByMe: item.senderId === user.id,
+        message: item.notification.body,
+        createdAt: item.notification.createdAt,
+        expiresAt: item.notification.expiresAt,
+        isRead: item.notification.readAt != null || unreadIds.includes(item.notification.id),
+      };
+    }),
+  });
+}
+
+export async function sendFamilyContact(req: Request, res: Response) {
+  const user = req.user!;
+  const message = text(req.body?.message, 2000);
+  if (!message) {
+    return res.status(400).json({ message: 'Bitte eine Nachricht eingeben.' });
+  }
+  const allowedTeamIds = await familyContactTeamIds(user);
+  const requestedConversation = familyContactConversation(
+    text(req.body?.conversationId, 240),
+  );
+  let parentId = user.id;
+  let teamId = text(req.body?.teamId, 100);
+  let conversationId: string;
+  if (requestedConversation) {
+    parentId = requestedConversation.parentId;
+    teamId = requestedConversation.teamId;
+    conversationId = requestedConversation.id;
+  } else {
+    if (isStaffRole(String(user.role))) {
+      return res.status(400).json({
+        message: 'Neue Direktkontakte werden von Eltern eröffnet. Bitte auf eine bestehende Nachricht antworten.',
+      });
+    }
+    if (!teamId) {
+      return res.status(400).json({ message: 'Bitte eine Mannschaft auswählen.' });
+    }
+    conversationId = `${randomUUID()}.${parentId}.${teamId}`;
+  }
+  if (!teamId || !allowedTeamIds.includes(teamId)) {
+    return res.status(403).json({ message: 'Keine Berechtigung für diese Mannschaft.' });
+  }
+  const senderIsParent = user.id === parentId;
+  if (!senderIsParent && !isStaffRole(String(user.role))) {
+    return res.status(403).json({ message: 'Keine Berechtigung für diesen Direktkontakt.' });
+  }
+  const parent = await prisma.user.findFirst({
+    where: { id: parentId, status: AccountStatus.APPROVED, accountDeletedAt: null },
+    select: { id: true },
+  });
+  if (!parent) {
+    return res.status(404).json({ message: 'Der Elternkontakt ist nicht mehr verfügbar.' });
+  }
+  const staffIds = await familyContactStaffIds(teamId);
+  if (!staffIds.length) {
+    return res.status(409).json({
+      message: 'Für diese Mannschaft ist aktuell kein Trainerkontakt hinterlegt.',
+    });
+  }
+  const recipients = [...new Set([parentId, ...staffIds])];
+  const sender = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { name: true },
+  });
+  const expiresAt = new Date(
+    Date.now() + familyContactRetentionDays * 24 * 60 * 60 * 1000,
+  );
+  const messageId = randomUUID();
+  const entityType = `${familyContactEntityPrefix}${user.id}`;
+  const dedupeKey = `family-contact:${messageId}`;
+  const actionUrl = '/messages?section=contact';
+  await prisma.notification.create({
+    data: {
+      userId: user.id,
+      category: NotificationCategory.ANNOUNCEMENT,
+      title: senderIsParent ? 'Du · Nachricht an Trainerteam' : 'Du · Antwort an Eltern',
+      body: message,
+      actionUrl,
+      entityType,
+      entityId: conversationId,
+      expiresAt,
+      readAt: new Date(),
+      dedupeKey: `${dedupeKey}:${user.id}`,
+    },
+  });
+  const recipientIds = recipients.filter((id) => id !== user.id);
+  await notifyUsers(recipientIds, {
+    category: NotificationCategory.ANNOUNCEMENT,
+    title: senderIsParent
+      ? `Elternnachricht · ${sender?.name || 'Elternteil'}`
+      : `Trainerteam · ${sender?.name || 'Trainerteam'}`,
+    body: message,
+    actionUrl,
+    entityType,
+    entityId: conversationId,
+    expiresAt,
+    pushEnabled: true,
+    forceInApp: true,
+    dedupeKey,
+  });
+  return res.status(201).json({
+    conversationId,
+    expiresAt,
+    recipients: recipientIds.length,
+  });
+}
 
 const announcementInclude = {
   author: { select: { id: true, name: true } },

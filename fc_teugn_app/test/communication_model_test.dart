@@ -48,6 +48,36 @@ void main() {
     );
   });
 
+  test('parses short-lived family contact messages', () {
+    final inbox = FamilyContactInbox.fromJson({
+      'retentionDays': 30,
+      'teamOptions': [
+        {'id': 'team-e1', 'name': 'E1-Jugend'},
+      ],
+      'messages': [
+        {
+          'id': 'message-1',
+          'conversationId': 'thread.parent.team-e1',
+          'teamId': 'team-e1',
+          'teamName': 'E1-Jugend',
+          'senderId': 'parent-1',
+          'senderName': 'Familie Muster',
+          'senderIsStaff': false,
+          'sentByMe': true,
+          'message': 'Kurze organisatorische Frage',
+          'createdAt': '2026-08-18T08:00:00.000Z',
+          'expiresAt': '2026-09-17T08:00:00.000Z',
+          'isRead': true,
+        },
+      ],
+    });
+
+    expect(inbox.retentionDays, 30);
+    expect(inbox.teamOptions.single.name, 'E1-Jugend');
+    expect(inbox.messages.single.sentByMe, isTrue);
+    expect(inbox.messages.single.message, 'Kurze organisatorische Frage');
+  });
+
   test('parses notification preferences and push configuration', () {
     final preference = NotificationPreferenceModel.fromJson({
       'category': 'LIVE_TICKER',

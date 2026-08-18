@@ -19,6 +19,23 @@ void main() {
     );
   });
 
+  test('direct contact push opens the trainer-parent conversation', () {
+    expect(
+      normalizePushActionRoute(
+        '/messages?section=contact',
+        isTrainer: true,
+      ),
+      '/trainer/messages?section=contact',
+    );
+    expect(
+      normalizePushActionRoute(
+        '/messages?section=contact',
+        isTrainer: false,
+      ),
+      '/parent/messages?section=contact',
+    );
+  });
+
   test('unknown relative push links return to the role landing page', () {
     expect(
       normalizePushActionRoute('not-a-route', isTrainer: true),

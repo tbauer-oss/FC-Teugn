@@ -634,7 +634,7 @@ class _CalendarToolbar extends StatelessWidget {
                 icon: Icons.category_outlined,
                 values: EventCategory.values,
                 selected: selectedCategories,
-                itemLabel: (item) => item.label,
+                itemLabel: (item) => '${_categoryEmoji(item)} ${item.label}',
                 onChanged: onCategoriesChanged,
               ),
               if (teams.length > 1)
@@ -1100,6 +1100,10 @@ class _MonthView extends StatelessWidget {
           width: 1050,
           child: Column(
             children: [
+              _CalendarCategoryLegend(
+                categories: events.map((event) => event.category),
+              ),
+              const Divider(height: 1),
               Row(
                 children: [
                   for (final label in [
@@ -1197,6 +1201,11 @@ class _MobileMonthView extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
             child: Column(
               children: [
+                _CalendarCategoryLegend(
+                  categories: monthEvents.map((event) => event.category),
+                  compact: true,
+                ),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     for (final label in const [
@@ -1240,60 +1249,61 @@ class _MobileMonthView extends StatelessWidget {
                         .where((event) => _sameDay(event.startAt, date))
                         .toList();
                     final today = _sameDay(date, DateTime.now());
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: dayEvents.isEmpty
-                          ? null
-                          : () => _showMobileDay(
-                                context,
-                                date,
-                                dayEvents,
-                                onOpen,
-                              ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(3),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 30,
-                              height: 30,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: today
-                                    ? AppColors.yellow
-                                    : dayEvents.isNotEmpty
-                                        ? AppColors.yellowSoft
-                                        : Colors.transparent,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Text(
-                                '$day',
-                                style: const TextStyle(
-                                  color: AppColors.black,
-                                  fontWeight: FontWeight.w800,
+                    return Semantics(
+                      button: dayEvents.isNotEmpty,
+                      label: dayEvents.isEmpty
+                          ? '$day, keine Termine'
+                          : '$day, ${dayEvents.map((event) => event.category.label).join(', ')}',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: dayEvents.isEmpty
+                            ? null
+                            : () => _showMobileDay(
+                                  context,
+                                  date,
+                                  dayEvents,
+                                  onOpen,
+                                ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 27,
+                                height: 22,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: today
+                                      ? AppColors.yellow
+                                      : dayEvents.isNotEmpty
+                                          ? _categoryColor(
+                                              dayEvents.first.category,
+                                            ).withValues(alpha: .10)
+                                          : Colors.transparent,
+                                  border: dayEvents.isEmpty
+                                      ? null
+                                      : Border.all(
+                                          color: _categoryColor(
+                                            dayEvents.first.category,
+                                          ).withValues(alpha: .28),
+                                        ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '$day',
+                                  style: const TextStyle(
+                                    color: AppColors.black,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
-                            ),
-                            if (dayEvents.isNotEmpty)
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  for (final event in dayEvents.take(3))
-                                    Container(
-                                      width: 4,
-                                      height: 4,
-                                      margin: const EdgeInsets.symmetric(
-                                        horizontal: 1,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _categoryColor(event.category),
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                          ],
+                              if (dayEvents.isNotEmpty)
+                                _CompactEmojiPreview(events: dayEvents),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -1323,16 +1333,9 @@ class _MobileMonthView extends StatelessWidget {
               child: ListTile(
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                leading: CircleAvatar(
-                  backgroundColor:
-                      _categoryColor(event.category).withValues(alpha: .12),
-                  child: Text(
-                    '${event.startAt.day}',
-                    style: TextStyle(
-                      color: _categoryColor(event.category),
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                leading: _EventEmojiBadge(
+                  event: event,
+                  footer: '${event.startAt.day}.',
                 ),
                 title: Text(
                   event.title,
@@ -1386,10 +1389,7 @@ class _MobileMonthView extends StatelessWidget {
                     final event = dayEvents[index];
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        Icons.event_rounded,
-                        color: _categoryColor(event.category),
-                      ),
+                      leading: _EventEmojiBadge(event: event),
                       title: Text(event.title),
                       subtitle: Text(
                           '${_time(event.startAt)} Uhr · ${event.location}'),
@@ -1407,6 +1407,144 @@ class _MobileMonthView extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CalendarCategoryLegend extends StatelessWidget {
+  const _CalendarCategoryLegend({
+    required this.categories,
+    this.compact = false,
+  });
+
+  final Iterable<EventCategory> categories;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final present = categories.toSet();
+    final ordered =
+        EventCategory.values.where(present.contains).toList(growable: false);
+    if (ordered.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: compact ? 2 : 10),
+        child: const Text(
+          'Noch keine Termine in diesem Zeitraum',
+          style: TextStyle(color: AppColors.muted),
+        ),
+      );
+    }
+    return Semantics(
+      label: 'Legende der Terminarten',
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 0 : 12,
+            vertical: compact ? 1 : 8,
+          ),
+          child: Row(
+            children: [
+              for (var index = 0; index < ordered.length; index++) ...[
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 7 : 9,
+                    vertical: compact ? 4 : 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color:
+                        _categoryColor(ordered[index]).withValues(alpha: .09),
+                    border: Border.all(
+                      color:
+                          _categoryColor(ordered[index]).withValues(alpha: .22),
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${_categoryEmoji(ordered[index])} ${ordered[index].label}',
+                    style: TextStyle(
+                      color: _categoryColor(ordered[index]),
+                      fontSize: compact ? 11 : 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (index != ordered.length - 1)
+                  SizedBox(width: compact ? 5 : 7),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactEmojiPreview extends StatelessWidget {
+  const _CompactEmojiPreview({required this.events});
+
+  final List<EventModel> events;
+
+  @override
+  Widget build(BuildContext context) {
+    final emojis = events
+        .map((event) => _categoryEmoji(event.category))
+        .toSet()
+        .take(2)
+        .join();
+    final overflow = events.length > 2 ? '+${events.length - 2}' : '';
+    return Text(
+      '$emojis$overflow',
+      maxLines: 1,
+      style: const TextStyle(
+        fontSize: 8,
+        height: 1,
+        fontWeight: FontWeight.w800,
+        color: AppColors.muted,
+      ),
+    );
+  }
+}
+
+class _EventEmojiBadge extends StatelessWidget {
+  const _EventEmojiBadge({required this.event, this.footer});
+
+  final EventModel event;
+  final String? footer;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: event.category.label,
+        child: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _categoryColor(event.category).withValues(alpha: .10),
+            border: Border.all(
+              color: _categoryColor(event.category).withValues(alpha: .22),
+            ),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _categoryEmoji(event.category),
+                style: TextStyle(fontSize: footer == null ? 21 : 18),
+              ),
+              if (footer != null)
+                Text(
+                  footer!,
+                  style: TextStyle(
+                    height: .9,
+                    color: _categoryColor(event.category),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
 }
 
 class _MonthDay extends StatelessWidget {
@@ -1477,7 +1615,7 @@ class _MonthDay extends StatelessWidget {
                         borderRadius: BorderRadius.circular(7),
                       ),
                       child: Text(
-                        '${_time(event.startAt)} ${event.title}',
+                        '${_categoryEmoji(event.category)} ${_time(event.startAt)} ${event.title}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1526,14 +1664,7 @@ class _MonthDay extends StatelessWidget {
               final event = sortedEvents[index];
               return ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  backgroundColor:
-                      _categoryColor(event.category).withValues(alpha: .12),
-                  child: Icon(
-                    Icons.event_rounded,
-                    color: _categoryColor(event.category),
-                  ),
-                ),
+                leading: _EventEmojiBadge(event: event),
                 title: Text(event.title),
                 subtitle: Text(
                   '${_time(event.startAt)} Uhr · ${event.location}',
@@ -2116,6 +2247,11 @@ class _EventCard extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
+                    Text(
+                      _categoryEmoji(event.category),
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                    const SizedBox(height: 2),
                     Text(
                       _time(event.startAt),
                       style: TextStyle(
@@ -7182,6 +7318,24 @@ Color _categoryColor(EventCategory category) {
   }
   return AppColors.orange;
 }
+
+String _categoryEmoji(EventCategory category) => switch (category) {
+      EventCategory.training => '🏃',
+      EventCategory.leagueMatch => '⚽',
+      EventCategory.friendlyMatch => '🤝',
+      EventCategory.cupMatch => '🏆',
+      EventCategory.tournament => '🥇',
+      EventCategory.indoorTournament => '🏟️',
+      EventCategory.footballFestival => '🎉',
+      EventCategory.teamMeeting => '🗣️',
+      EventCategory.parentsMeeting => '👨‍👩‍👧',
+      EventCategory.christmasParty => '🎄',
+      EventCategory.seasonClosing => '🏁',
+      EventCategory.clubEvent => '🎪',
+      EventCategory.trip => '🚌',
+      EventCategory.photoSession => '📸',
+      EventCategory.specialEvent => '📌',
+    };
 
 IconData _categoryIcon(EventCategory category) {
   if (category == EventCategory.training) return Icons.fitness_center_rounded;

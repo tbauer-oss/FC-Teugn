@@ -38,6 +38,7 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
   void initState() {
     super.initState();
     _view = switch (widget.initialSection) {
+      'contact' => _CommunicationView.familyContact,
       'notifications' => _CommunicationView.notifications,
       'settings' => _CommunicationView.settings,
       _ => _CommunicationView.announcements,
@@ -54,6 +55,12 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
         label: 'Mitteilungen',
         description: 'Team-Infos verfassen und verwalten',
         icon: Icons.campaign_rounded,
+      ),
+      const _CommunicationDestination(
+        view: _CommunicationView.familyContact,
+        label: 'Direktkontakt',
+        description: 'Eltern und Trainerteam kurz abstimmen',
+        icon: Icons.forum_rounded,
       ),
       if (widget.staffView)
         const _CommunicationDestination(
@@ -108,6 +115,8 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
               staffView: widget.staffView,
               onChanged: _reload,
             )
+          else if (effectiveView == _CommunicationView.familyContact)
+            _FamilyContactPanel(staffView: widget.staffView)
           else if (effectiveView == _CommunicationView.pitchRequests)
             _PitchConflictRequestList(
               key: ValueKey('pitch-conflicts-$_revision'),
@@ -173,9 +182,515 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
 
 enum _CommunicationView {
   announcements,
+  familyContact,
   pitchRequests,
   notifications,
   settings,
+}
+
+class _FamilyContactPanel extends ConsumerStatefulWidget {
+  const _FamilyContactPanel({required this.staffView});
+
+  final bool staffView;
+
+  @override
+  ConsumerState<_FamilyContactPanel> createState() =>
+      _FamilyContactPanelState();
+}
+
+class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
+  FamilyContactInbox? _inbox;
+  Object? _error;
+  bool _loading = true;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() => _loading = true);
+    try {
+      final inbox = await ref.read(repositoryProvider).familyContacts();
+      if (!mounted) return;
+      setState(() {
+        _inbox = inbox;
+        _error = null;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error;
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading && _inbox == null) {
+      return const LogoLoadingPanel(
+        message: 'Direktkontakte werden geladen …',
+      );
+    }
+    if (_error != null && _inbox == null) {
+      return EmptyState(
+        icon: Icons.forum_outlined,
+        title: 'Direktkontakt nicht erreichbar',
+        message: 'Die kurzen Nachrichten konnten gerade nicht geladen werden.',
+        action: FilledButton.icon(
+          onPressed: _load,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Erneut laden'),
+        ),
+      );
+    }
+    final inbox = _inbox!;
+    final grouped = <String, List<FamilyContactMessage>>{};
+    for (final message in inbox.messages) {
+      grouped.putIfAbsent(message.conversationId, () => []).add(message);
+    }
+    final conversations = grouped.values.toList()
+      ..sort((a, b) => b.last.createdAt.compareTo(a.last.createdAt));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.teal.withValues(alpha: .08),
+            border: Border.all(
+              color: AppColors.teal.withValues(alpha: .22),
+            ),
+            borderRadius: BorderRadius.circular(17),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 560;
+              final info = Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: const Icon(
+                      Icons.lock_clock_rounded,
+                      color: AppColors.teal,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Kurzer Draht zum Trainerteam',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          'Textnachrichten ohne Anhänge · automatische Löschung nach ${inbox.retentionDays} Tagen',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+              final compose = FilledButton.icon(
+                onPressed: _sending || inbox.teamOptions.isEmpty
+                    ? null
+                    : () => _compose(inbox: inbox),
+                icon: const Icon(Icons.edit_rounded, size: 18),
+                label: const Text('Trainerteam schreiben'),
+              );
+              if (widget.staffView) return info;
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    info,
+                    const SizedBox(height: 10),
+                    compose,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: info),
+                  const SizedBox(width: 12),
+                  compose,
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_loading) const LinearProgressIndicator(minHeight: 3),
+        if (conversations.isEmpty)
+          EmptyState(
+            icon: Icons.mark_chat_unread_outlined,
+            title: widget.staffView
+                ? 'Keine Elternnachrichten'
+                : 'Noch kein Direktkontakt',
+            message: widget.staffView
+                ? 'Neue Nachrichten aus deiner ausgewählten Jugend erscheinen hier.'
+                : 'Hier kannst du eine kurze organisatorische Frage direkt an das zuständige Trainerteam senden.',
+          )
+        else ...[
+          Text(
+            'Unterhaltungen',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 7),
+          for (final messages in conversations)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _FamilyContactThreadCard(
+                messages: messages,
+                staffView: widget.staffView,
+                onOpen: () => _openThread(messages),
+                onReply: () => _compose(
+                  inbox: inbox,
+                  messages: messages,
+                ),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _openThread(List<FamilyContactMessage> messages) async {
+    final reply = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: .82,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.staffView
+                    ? _parentConversationTitle(messages)
+                    : 'Trainerteam · ${messages.first.teamName}',
+                style: Theme.of(sheetContext).textTheme.headlineSmall,
+              ),
+              Text(
+                'Nachrichten werden nach ${_inbox?.retentionDays ?? 30} Tagen automatisch entfernt.',
+                style: Theme.of(sheetContext).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) =>
+                      _FamilyContactBubble(message: messages[index]),
+                ),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(sheetContext, true),
+                icon: const Icon(Icons.reply_rounded),
+                label: const Text('Antworten'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (reply == true && mounted) {
+      await _compose(inbox: _inbox!, messages: messages);
+    }
+  }
+
+  Future<void> _compose({
+    required FamilyContactInbox inbox,
+    List<FamilyContactMessage>? messages,
+  }) async {
+    final controller = TextEditingController();
+    var selectedTeamId = messages?.first.teamId ??
+        (inbox.teamOptions.length == 1 ? inbox.teamOptions.first.id : null);
+    final draft = await showModalBottomSheet<_FamilyContactDraft>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            14 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  messages == null ? 'Trainerteam schreiben' : 'Antworten',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  'Bitte nur kurze organisatorische Absprachen senden. Für Notfälle den bekannten direkten Kontakt nutzen.',
+                ),
+                const SizedBox(height: 12),
+                if (messages == null && inbox.teamOptions.length > 1)
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedTeamId,
+                    decoration: const InputDecoration(
+                      labelText: 'Mannschaft',
+                      prefixIcon: Icon(Icons.groups_rounded),
+                    ),
+                    items: [
+                      for (final team in inbox.teamOptions)
+                        DropdownMenuItem(
+                          value: team.id,
+                          child: Text(team.name),
+                        ),
+                    ],
+                    onChanged: (value) =>
+                        setSheetState(() => selectedTeamId = value),
+                  )
+                else
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.groups_rounded),
+                    title: Text(
+                      messages?.first.teamName ??
+                          inbox.teamOptions.firstOrNull?.name ??
+                          'Mannschaft',
+                    ),
+                    subtitle: const Text('Empfänger: zuständiges Trainerteam'),
+                  ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  minLines: 3,
+                  maxLines: 6,
+                  maxLength: 2000,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Nachricht',
+                    hintText: 'Worum geht es?',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: () {
+                    final text = controller.text.trim();
+                    if (text.isEmpty || selectedTeamId == null) return;
+                    Navigator.pop(
+                      sheetContext,
+                      _FamilyContactDraft(
+                        message: text,
+                        teamId: selectedTeamId!,
+                        conversationId: messages?.first.conversationId,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.send_rounded),
+                  label: const Text('Sicher senden'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    controller.dispose();
+    if (draft == null || !mounted) return;
+    setState(() => _sending = true);
+    try {
+      await ref.read(repositoryProvider).sendFamilyContact(
+            message: draft.message,
+            teamId: draft.teamId,
+            conversationId: draft.conversationId,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nachricht wurde sicher gesendet.')),
+      );
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Die Nachricht konnte nicht gesendet werden. Bitte Verbindung prüfen und erneut versuchen.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+}
+
+class _FamilyContactDraft {
+  const _FamilyContactDraft({
+    required this.message,
+    required this.teamId,
+    this.conversationId,
+  });
+
+  final String message;
+  final String teamId;
+  final String? conversationId;
+}
+
+class _FamilyContactThreadCard extends StatelessWidget {
+  const _FamilyContactThreadCard({
+    required this.messages,
+    required this.staffView,
+    required this.onOpen,
+    required this.onReply,
+  });
+
+  final List<FamilyContactMessage> messages;
+  final bool staffView;
+  final VoidCallback onOpen;
+  final VoidCallback onReply;
+
+  @override
+  Widget build(BuildContext context) {
+    final last = messages.last;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 11, 9, 11),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.yellowSoft,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(Icons.chat_bubble_outline_rounded),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      staffView
+                          ? _parentConversationTitle(messages)
+                          : 'Trainerteam · ${last.teamName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    Text(
+                      last.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${messages.length} ${messages.length == 1 ? 'Nachricht' : 'Nachrichten'} · ${_contactTimestamp(last.createdAt)}',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: onReply,
+                tooltip: 'Antworten',
+                icon: const Icon(Icons.reply_rounded),
+              ),
+              const Icon(Icons.chevron_right_rounded, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FamilyContactBubble extends StatelessWidget {
+  const _FamilyContactBubble({required this.message});
+
+  final FamilyContactMessage message;
+
+  @override
+  Widget build(BuildContext context) => Align(
+        alignment:
+            message.sentByMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 520),
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: message.sentByMe
+                ? AppColors.yellowSoft
+                : AppColors.teal.withValues(alpha: .09),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                message.sentByMe ? 'Du' : message.senderName,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 3),
+              Text(message.message),
+              const SizedBox(height: 4),
+              Text(
+                _contactTimestamp(message.createdAt),
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+String _parentConversationTitle(List<FamilyContactMessage> messages) {
+  final parentMessages = messages.where((message) => !message.senderIsStaff);
+  final parentName = parentMessages.isEmpty
+      ? 'Elternkontakt'
+      : parentMessages.first.senderName;
+  return '$parentName · ${messages.first.teamName}';
+}
+
+String _contactTimestamp(DateTime value) {
+  final local = value.toLocal();
+  return '${local.day}.${local.month}.${local.year} · '
+      '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')} Uhr';
 }
 
 class _CommunicationDestination {

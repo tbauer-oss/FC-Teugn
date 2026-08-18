@@ -2171,6 +2171,37 @@ class DataRepository {
     );
   }
 
+  Future<FamilyContactInbox> familyContacts() async {
+    final response = await client.dio.get('/communications/family-contact');
+    return FamilyContactInbox.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> sendFamilyContact({
+    required String message,
+    String? teamId,
+    String? conversationId,
+  }) async {
+    await client.dio.post(
+      '/communications/family-contact',
+      data: {
+        'message': message,
+        if (teamId != null) 'teamId': teamId,
+        if (conversationId != null) 'conversationId': conversationId,
+      },
+      options: Options(
+        headers: {
+          'X-Idempotency-Key': _idempotencyKey('family-contact'),
+        },
+        extra: const {
+          'requireOnline': true,
+          'retryTransientWrite': true,
+        },
+      ),
+    );
+  }
+
   Future<List<AnnouncementModel>> announcements({
     bool includeDrafts = false,
   }) async {
