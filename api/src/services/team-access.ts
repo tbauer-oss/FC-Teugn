@@ -15,6 +15,43 @@ export type TeamScopedUser = {
   permissions?: string[];
 };
 
+const staffTeamScopeRoles: ReadonlySet<string> = new Set([
+  Role.TRAINER_ADMIN,
+  Role.COACH,
+  Role.TRAINER,
+  Role.ASSISTANT_COACH,
+  Role.TEAM_MANAGER,
+]);
+
+/**
+ * Staff responsibilities always take precedence over an additional family
+ * assignment. A coach who is also a parent keeps the personal family inbox,
+ * but their app-wide working context is made up exclusively of staff teams.
+ */
+export function usesStaffTeamScope(role: Role | PrismaRole) {
+  return staffTeamScopeRoles.has(String(role));
+}
+
+export function roleScopedTeamIds(
+  role: Role | PrismaRole,
+  currentTeamId: string | null,
+  memberships: Array<{ teamId: string; role: Role | PrismaRole }>,
+  linkedPlayerTeamIds: string[],
+) {
+  const membershipIds = usesStaffTeamScope(role)
+    ? memberships
+        .filter((membership) => usesStaffTeamScope(membership.role))
+        .map((membership) => membership.teamId)
+    : memberships.map((membership) => membership.teamId);
+  return [
+    ...new Set([
+      ...(currentTeamId ? [currentTeamId] : []),
+      ...membershipIds,
+      ...(usesStaffTeamScope(role) ? [] : linkedPlayerTeamIds),
+    ]),
+  ];
+}
+
 function permitted(user: TeamScopedUser, permission: Permission) {
   return hasEffectivePermission(
     user.role as Role,
@@ -113,15 +150,14 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
       status: AccountStatus.APPROVED,
       team: { deletedAt: null },
     },
-    select: { teamId: true },
+    select: { teamId: true, role: true },
   });
   const currentTeam = await prisma.team.findFirst({
     where: { id: user.teamId, deletedAt: null },
     select: { id: true },
   });
-  // Family assignments are independent from the user's primary club role. A
-  // trainer can therefore answer for their own child without losing trainer
-  // permissions or having to switch accounts.
+  // Family assignments remain part of authorization. The narrower app-wide
+  // trainer context is resolved separately by workingContextTeamIds().
   const linkedPlayerTeams = await prisma.parentPlayerLink.findMany({
     where: { parentId: user.id, player: { teamId: { not: null } } },
     select: { player: { select: { teamId: true } } },
@@ -131,10 +167,41 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
       ...(currentTeam ? [currentTeam.id] : []),
       ...memberships.map((item) => item.teamId),
       ...linkedPlayerTeams
-        .map((item) => item.player.teamId)
-        .filter((id): id is string => Boolean(id)),
+      .map((item) => item.player.teamId)
+      .filter((id): id is string => Boolean(id)),
     ]),
   ];
+}
+
+/**
+ * Teams that may appear in the app-wide working-context switcher.
+ *
+ * Trainer responsibilities take precedence over an additional parent link:
+ * staff accounts switch only between their approved staff assignments, while
+ * family access continues to be authorized through accessibleTeamIds().
+ */
+export async function workingContextTeamIds(user: TeamScopedUser) {
+  if (!usesStaffTeamScope(user.role)) return accessibleTeamIds(user);
+  const [memberships, currentTeam] = await Promise.all([
+    prisma.teamMembership.findMany({
+      where: {
+        userId: user.id,
+        status: AccountStatus.APPROVED,
+        team: { deletedAt: null, isActive: true },
+      },
+      select: { teamId: true, role: true },
+    }),
+    prisma.team.findFirst({
+      where: { id: user.teamId, deletedAt: null, isActive: true },
+      select: { id: true },
+    }),
+  ]);
+  return roleScopedTeamIds(
+    user.role,
+    currentTeam?.id ?? null,
+    memberships,
+    [],
+  );
 }
 
 /**
@@ -142,7 +209,7 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
  * accessible teams and therefore never acts as an authorization grant.
  */
 export async function selectedContextTeamIds(user: TeamScopedUser) {
-  const accessibleIds = await accessibleTeamIds(user);
+  const accessibleIds = await workingContextTeamIds(user);
   if (!accessibleIds.length) return [];
   const preference = await prisma.userContextPreference.findUnique({
     where: { userId: user.id },

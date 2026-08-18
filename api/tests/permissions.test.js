@@ -95,6 +95,8 @@ const {
 const {
   canManageFormationRole,
   hasOrganizationWideTeamScope,
+  roleScopedTeamIds,
+  usesStaffTeamScope,
 } = require('../dist/src/services/team-access');
 const {
   selectPresentAttendance,
@@ -216,6 +218,34 @@ test('only club-wide roles see the complete organization structure', () => {
   assert.equal(hasOrganizationWideTeamScope(Role.TRAINER), false);
   assert.equal(hasOrganizationWideTeamScope(Role.ASSISTANT_COACH), false);
   assert.equal(hasOrganizationWideTeamScope(Role.TEAM_MANAGER), false);
+});
+
+test('trainer and assistant-coach team scope takes precedence over family links', () => {
+  for (const role of [Role.COACH, Role.TRAINER, Role.ASSISTANT_COACH]) {
+    assert.equal(usesStaffTeamScope(role), true, role);
+    assert.deepEqual(
+      roleScopedTeamIds(
+        role,
+        'team-e1',
+        [
+          { teamId: 'team-e1', role: Role.COACH },
+          { teamId: 'team-e2', role: Role.ASSISTANT_COACH },
+          { teamId: 'team-parent-only', role: Role.PARENT },
+        ],
+        ['team-parent-only'],
+      ),
+      ['team-e1', 'team-e2'],
+      role,
+    );
+  }
+});
+
+test('parent team scope continues to follow linked children', () => {
+  assert.equal(usesStaffTeamScope(Role.PARENT), false);
+  assert.deepEqual(
+    roleScopedTeamIds(Role.PARENT, 'team-e1', [], ['team-e1', 'team-e2']),
+    ['team-e1', 'team-e2'],
+  );
 });
 
 test('individual permission overrides deny first and can add missing rights', () => {

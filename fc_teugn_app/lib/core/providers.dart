@@ -157,6 +157,21 @@ final eventsProvider =
   return ref.watch(repositoryProvider).events();
 });
 
+/// Kompakter Terminbereich für den Familien-Assistenten. Die Startseite
+/// benötigt weder vergangene Monate noch die komplette Saison und lädt daher
+/// nur die dort tatsächlich dargestellten acht Tage.
+final parentDashboardEventsProvider =
+    FutureProvider.autoDispose<List<EventModel>>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 60));
+  final now = DateTime.now();
+  final dayStart = DateTime(now.year, now.month, now.day);
+  return ref.watch(repositoryProvider).events(
+        from: dayStart,
+        to: dayStart.add(const Duration(days: 8)),
+      );
+});
+
 final personalResponsesProvider =
     FutureProvider.autoDispose<List<PersonalResponseModel>>((ref) async {
   _watchManualRefresh(ref);
@@ -164,15 +179,41 @@ final personalResponsesProvider =
   return ref.watch(repositoryProvider).personalResponses();
 });
 
-/// Spieltagsdaten für kompakte Familienansichten. Die kurze Aktualisierung ist
-/// nur aktiv, solange eine Seite den Provider tatsächlich beobachtet. So kann
-/// ein gestarteter Liveticker zeitnah erscheinen, ohne im Hintergrund unnötig
-/// Anfragen zu erzeugen.
+bool _hasActiveTicker(List<MatchdayModel> matches) => matches.any((match) {
+      return switch (match.ticker?.status) {
+        TickerStatus.live ||
+        TickerStatus.paused ||
+        TickerStatus.halfTime ||
+        TickerStatus.interrupted =>
+          true,
+        _ => false,
+      };
+    });
+
+/// Spieltagsdaten für kompakte Familienansichten. Ohne laufenden Liveticker
+/// genügt ein moderates Intervall. Während eines Spiels bleibt die bisherige
+/// kurze Aktualisierung erhalten. Der begrenzte Zeitraum vermeidet, dass bei
+/// jedem Lauf die komplette Spielhistorie samt Detaildaten übertragen wird.
 final parentMatchdaysProvider =
     FutureProvider.autoDispose<List<MatchdayModel>>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 8));
-  return ref.watch(repositoryProvider).matches();
+  final now = DateTime.now();
+  try {
+    final matches = await ref.watch(repositoryProvider).matches(
+          from: now.subtract(const Duration(days: 1)),
+          to: now.add(const Duration(days: 180)),
+        );
+    _scheduleLiveRefresh(
+      ref,
+      Duration(seconds: _hasActiveTicker(matches) ? 8 : 15),
+    );
+    return matches;
+  } catch (_) {
+    // Auch ein vorübergehender Netzfehler wird automatisch erneut versucht,
+    // aber nicht in einer aggressiven Fehlerschleife.
+    _scheduleLiveRefresh(ref, const Duration(seconds: 30));
+    rethrow;
+  }
 });
 
 final supportTicketsProvider =
@@ -327,9 +368,11 @@ class AppBootstrapException implements Exception {
 
 /// Lädt nur die drei Datenbereiche vor, die jede erste Hauptansicht benötigt.
 /// Mannschaftsdaten werden zuerst geladen; Spieler und Kalender folgen mit
-/// höchstens zwei parallelen Requests. Rollenabhängige Spezialseiten laden ihre
-/// Daten erst beim Öffnen. So erzeugt der App-Start keine acht gleichzeitigen
-/// Datenbankabfragen mehr.
+/// höchstens zwei parallelen Requests. Eltern erhalten dabei direkt den kleinen
+/// Acht-Tage-Bereich ihres Familien-Assistenten statt des vollständigen
+/// Vereinskalenders. Rollenabhängige Spezialseiten laden ihre Daten erst beim
+/// Öffnen. So erzeugt der App-Start keine acht gleichzeitigen Datenbankabfragen
+/// und keine unnötig große Kalenderantwort mehr.
 final sessionBootstrapProvider =
     FutureProvider.autoDispose.family<void, AppBootstrapSession>(
   (ref, session) async {
@@ -350,7 +393,12 @@ final sessionBootstrapProvider =
     );
     await Future.wait([
       preload('Spielerdaten', ref.read(playersProvider.future)),
-      preload('Kalenderdaten', ref.read(eventsProvider.future)),
+      preload(
+        'Kalenderdaten',
+        session.role == UserRole.parent
+            ? ref.read(parentDashboardEventsProvider.future)
+            : ref.read(eventsProvider.future),
+      ),
     ]);
   },
 );

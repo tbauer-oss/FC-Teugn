@@ -70,17 +70,18 @@ test('trainer member administration is narrowed to the selected youth', () => {
   assert.match(admin, /memberManagementTeamIds\(actor\)/);
 });
 
-test('organization structure is narrowed to the selected trainer context', () => {
+test('organization switcher exposes assigned teams while data stays in the selected context', () => {
   const organization = read('src/controllers/organization.controller.ts');
   assert.match(
     organization,
     /canViewAllTeams\s*=\s*hasOrganizationWideTeamScope\(user\.role\)/,
   );
+  assert.match(organization, /workingContextTeamIds\(user\)/);
   assert.match(
     organization,
-    /canViewAllTeams\s*\?\s*\{\}\s*:\s*\{\s*id:\s*currentTeam\.ageGroupId\s*\}/,
+    /teams:\s*\{\s*some:\s*\{[\s\S]*?id:\s*\{\s*in:\s*visibleTeamIds\s*\}/,
   );
-  assert.match(organization, /id:\s*\{\s*in:\s*contextTeamIds\s*\}/);
+  assert.match(organization, /id:\s*\{\s*in:\s*visibleTeamIds\s*\}/);
   assert.match(
     organization,
     /teamId:\s*\{\s*in:\s*contextTeamIds\s*\}/,

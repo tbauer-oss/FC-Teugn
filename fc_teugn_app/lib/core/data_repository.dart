@@ -1411,8 +1411,11 @@ class DataRepository {
     });
   }
 
-  Future<List<MatchdayModel>> matches() async {
-    final res = await client.dio.get('/matches');
+  Future<List<MatchdayModel>> matches({DateTime? from, DateTime? to}) async {
+    final res = await client.dio.get('/matches', queryParameters: {
+      if (from != null) 'from': from.toUtc().toIso8601String(),
+      if (to != null) 'to': to.toUtc().toIso8601String(),
+    });
     return (res.data as List<dynamic>)
         .map((item) => MatchdayModel.fromJson(item as Map<String, dynamic>))
         .toList();

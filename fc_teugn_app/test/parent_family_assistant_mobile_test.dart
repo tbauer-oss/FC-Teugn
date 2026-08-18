@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/models/personal_response.dart';
@@ -46,7 +48,7 @@ Future<void> _pump(WidgetTester tester, double width) async {
       overrides: [
         playersProvider.overrideWith((ref) async => [_player()]),
         personalResponsesProvider.overrideWith((ref) async => [_response()]),
-        eventsProvider.overrideWith((ref) async => const []),
+        parentDashboardEventsProvider.overrideWith((ref) async => const []),
         parentMatchdaysProvider.overrideWith((ref) async => const []),
         parentConsentAttentionProvider.overrideWith((ref) async => const []),
         liveNotificationsProvider.overrideWith((ref) => Stream.value(const [])),
@@ -73,4 +75,52 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('background refresh keeps the family assistant calm',
+      (tester) async {
+    final refresh = Completer<List<PersonalResponseModel>>();
+    var responseRequests = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playersProvider.overrideWith((ref) async => [_player()]),
+          personalResponsesProvider.overrideWith((ref) {
+            responseRequests++;
+            if (responseRequests == 1) {
+              return Future.value([_response()]);
+            }
+            return refresh.future;
+          }),
+          parentDashboardEventsProvider.overrideWith((ref) async => const []),
+          parentMatchdaysProvider.overrideWith((ref) async => const []),
+          parentConsentAttentionProvider.overrideWith((ref) async => const []),
+          liveNotificationsProvider.overrideWith(
+            (ref) => Stream.value(const []),
+          ),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const Scaffold(body: ParentDashboardPage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ParentDashboardPage)),
+    );
+    container.invalidate(personalResponsesProvider);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+
+    expect(responseRequests, 2);
+    expect(
+      find.byKey(const ValueKey('parent-dashboard-initial-loading')),
+      findsNothing,
+    );
+    expect(find.text('Diese Woche'), findsOneWidget);
+
+    refresh.complete([_response()]);
+    await tester.pumpAndSettle();
+  });
 }

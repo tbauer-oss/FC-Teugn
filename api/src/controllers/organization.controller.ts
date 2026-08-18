@@ -21,6 +21,7 @@ import {
   hasOrganizationWideTeamScope,
   resolveContextTeamId,
   selectedContextTeamIds,
+  workingContextTeamIds,
 } from '../services/team-access';
 import { objectStorage } from '../services/object-storage';
 import { mediaAssetUrl } from '../services/media-access';
@@ -421,7 +422,7 @@ export async function organizationContext(req: Request, res: Response) {
   const clubId = currentTeam.ageGroup.season.clubId;
   const permissions = user.permissions ?? await effectivePermissionsForUser(user.id, user.role);
   const canViewAllTeams = hasOrganizationWideTeamScope(user.role);
-  const visibleTeamIds = await accessibleTeamIds(user);
+  const visibleTeamIds = await workingContextTeamIds(user);
   const contextTeamIds = selectedIds.length ? selectedIds : [contextTeamId];
   const seasonScope =
     user.role === Role.SUPER_ADMIN
@@ -431,7 +432,15 @@ export async function organizationContext(req: Request, res: Response) {
     prisma.ageGroup.findMany({
       where: {
         season: seasonScope,
-        ...(canViewAllTeams ? {} : { id: currentTeam.ageGroupId }),
+        ...(canViewAllTeams ? {} : {
+          teams: {
+            some: {
+              id: { in: visibleTeamIds },
+              isActive: true,
+              deletedAt: null,
+            },
+          },
+        }),
       },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: { id: true, name: true, code: true, sortOrder: true },
@@ -441,7 +450,7 @@ export async function organizationContext(req: Request, res: Response) {
         ageGroup: { season: seasonScope },
         deletedAt: null,
         ...(canViewAllTeams ? {} : {
-          id: { in: contextTeamIds },
+          id: { in: visibleTeamIds },
         }),
       },
       orderBy: [

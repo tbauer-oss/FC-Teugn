@@ -24,7 +24,7 @@ class ParentDashboardPage extends ConsumerWidget {
     final user = ref.watch(authProvider).user;
     final playersAsync = ref.watch(playersProvider);
     final responsesAsync = ref.watch(personalResponsesProvider);
-    final eventsAsync = ref.watch(eventsProvider);
+    final eventsAsync = ref.watch(parentDashboardEventsProvider);
     final matchesAsync = ref.watch(parentMatchdaysProvider);
     final consentAsync = ref.watch(parentConsentAttentionProvider);
     final notificationsAsync = ref.watch(liveNotificationsProvider);
@@ -37,6 +37,10 @@ class ParentDashboardPage extends ConsumerWidget {
         consentAsync.valueOrNull ?? const <ParentConsentAttention>[];
     final notifications =
         notificationsAsync.valueOrNull ?? const <AppNotificationModel>[];
+    final isInitialDataLoading =
+        (playersAsync.isLoading && !playersAsync.hasValue) ||
+        (responsesAsync.isLoading && !responsesAsync.hasValue) ||
+        (eventsAsync.isLoading && !eventsAsync.hasValue);
     final now = DateTime.now();
     final dayStart = DateTime(now.year, now.month, now.day);
     final timeline = buildFamilyTimeline(
@@ -73,10 +77,11 @@ class ParentDashboardPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (playersAsync.isLoading ||
-              responsesAsync.isLoading ||
-              eventsAsync.isLoading) ...[
-            const LinearProgressIndicator(minHeight: 3),
+          if (isInitialDataLoading) ...[
+            const LinearProgressIndicator(
+              key: ValueKey('parent-dashboard-initial-loading'),
+              minHeight: 3,
+            ),
             const SizedBox(height: 8),
           ],
           for (final match in liveMatches) ...[
