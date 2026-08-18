@@ -39,8 +39,8 @@ class ParentDashboardPage extends ConsumerWidget {
         notificationsAsync.valueOrNull ?? const <AppNotificationModel>[];
     final isInitialDataLoading =
         (playersAsync.isLoading && !playersAsync.hasValue) ||
-        (responsesAsync.isLoading && !responsesAsync.hasValue) ||
-        (eventsAsync.isLoading && !eventsAsync.hasValue);
+            (responsesAsync.isLoading && !responsesAsync.hasValue) ||
+            (eventsAsync.isLoading && !eventsAsync.hasValue);
     final now = DateTime.now();
     final dayStart = DateTime(now.year, now.month, now.day);
     final timeline = buildFamilyTimeline(
