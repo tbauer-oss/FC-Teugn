@@ -2563,6 +2563,14 @@ class DataRepository {
     return AdminPushTestResult.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<AdminPushTestResult> sendAdminPushScenario(String scenario) async {
+    final res = await client.dio.post(
+      '/notifications/admin/test-push/self',
+      data: {'scenario': scenario},
+    );
+    return AdminPushTestResult.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<List<AdminPushDevice>> adminPushDevices() async {
     final res = await client.dio.get('/notifications/admin/devices');
     return (res.data as List<dynamic>)

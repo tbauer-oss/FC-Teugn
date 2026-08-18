@@ -1754,6 +1754,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
   bool _subscribing = false;
   bool _nativePushEnabled = false;
   bool _testingPush = false;
+  String? _testingPushScenario;
   bool _changingDevice = false;
   AdminPushTestResult? _pushTestResult;
   final _deviceSearch = TextEditingController();
@@ -1832,8 +1833,10 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
               const SizedBox(height: 14),
               _AdminPushTestCard(
                 testing: _testingPush,
+                testingScenario: _testingPushScenario,
                 result: _pushTestResult,
                 onTest: _testPushBroadcast,
+                onScenarioTest: _testOwnPushScenario,
               ),
               const SizedBox(height: 14),
               _AdminPushDeviceCard(
@@ -1929,6 +1932,38 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
       );
     } finally {
       if (mounted) setState(() => _testingPush = false);
+    }
+  }
+
+  Future<void> _testOwnPushScenario(String scenario) async {
+    if (_testingPush || _testingPushScenario != null) return;
+    setState(() {
+      _testingPushScenario = scenario;
+      _pushTestResult = null;
+    });
+    try {
+      final result =
+          await ref.read(repositoryProvider).sendAdminPushScenario(scenario);
+      if (!mounted) return;
+      setState(() => _pushTestResult = result);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.subscriptions == 0
+                ? 'Für dein Konto ist kein aktives Push-Gerät registriert.'
+                : '${result.sent} von ${result.subscriptions} eigenen Geräten haben das Testszenario angenommen.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Das Push-Testszenario konnte nicht gesendet werden.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _testingPushScenario = null);
     }
   }
 
@@ -2190,13 +2225,17 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
 class _AdminPushTestCard extends StatelessWidget {
   const _AdminPushTestCard({
     required this.testing,
+    required this.testingScenario,
     required this.result,
     required this.onTest,
+    required this.onScenarioTest,
   });
 
   final bool testing;
+  final String? testingScenario;
   final AdminPushTestResult? result;
   final VoidCallback onTest;
+  final ValueChanged<String> onScenarioTest;
 
   @override
   Widget build(BuildContext context) {
@@ -2265,6 +2304,37 @@ class _AdminPushTestCard extends StatelessWidget {
           const Text(
             'Nur die Systemadministration kann eine Testnachricht an alle aktiv registrierten Geräte senden.',
           ),
+          const SizedBox(height: 14),
+          Text(
+            'Tests nur an mich',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Prüfe konkrete Anzeige und Klickziel auf deinen eigenen aktiven Geräten.',
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final scenario in _adminPushScenarios)
+                OutlinedButton.icon(
+                  onPressed: testing || testingScenario != null
+                      ? null
+                      : () => onScenarioTest(scenario.key),
+                  icon: testingScenario == scenario.key
+                      ? const SizedBox.square(
+                          dimension: 17,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(scenario.icon, size: 18),
+                  label: Text(scenario.label),
+                ),
+            ],
+          ),
           if (value != null) ...[
             const SizedBox(height: 12),
             Wrap(
@@ -2296,6 +2366,20 @@ class _AdminPushTestCard extends StatelessWidget {
     );
   }
 }
+
+const _adminPushScenarios = <({
+  String key,
+  String label,
+  IconData icon,
+})>[
+  (key: 'TRAINING', label: 'Training', icon: Icons.sports_soccer_rounded),
+  (key: 'MATCH', label: 'Spiel', icon: Icons.stadium_rounded),
+  (key: 'LIVE_TICKER', label: 'Liveticker', icon: Icons.sensors_rounded),
+  (key: 'NOMINATION', label: 'Nominierung', icon: Icons.groups_rounded),
+  (key: 'REGISTRATION', label: 'Registrierung', icon: Icons.person_add_rounded),
+  (key: 'MESSAGE', label: 'Nachricht', icon: Icons.forum_rounded),
+  (key: 'SUPPORT', label: 'Support', icon: Icons.support_agent_rounded),
+];
 
 class _AdminPushDeviceCard extends StatelessWidget {
   const _AdminPushDeviceCard({

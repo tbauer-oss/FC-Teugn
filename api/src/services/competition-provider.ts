@@ -21,6 +21,8 @@ export type NormalizedCompetitionMatch = {
   status: string;
   ourGoals: number | null;
   theirGoals: number | null;
+  periodCount: number | null;
+  periodMinutes: number | null;
   sourceUrl: string | null;
 };
 
@@ -102,6 +104,36 @@ function derivedExternalId(match: Omit<NormalizedCompetitionMatch, 'externalId'>
     .update(`${match.startAt}|${match.opponent}|${match.location}`)
     .digest('hex')
     .slice(0, 24)}`;
+}
+
+function explicitMatchTiming(
+  countValue: string,
+  minutesValue: string,
+  description = '',
+) {
+  let periodCount = integer(countValue);
+  let periodMinutes = integer(minutesValue);
+  if (periodCount == null && periodMinutes == null) {
+    const described = description.match(
+      /\b([1-8])\s*[x×]\s*(\d{1,2})\s*(?:min(?:\.|uten?)?)?\b/i,
+    );
+    if (described) {
+      periodCount = Number(described[1]);
+      periodMinutes = Number(described[2]);
+    }
+  }
+  if (
+    periodCount == null ||
+    periodMinutes == null ||
+    periodCount < 1 ||
+    periodCount > 8 ||
+    periodMinutes < 1 ||
+    periodMinutes > 90 ||
+    periodCount * periodMinutes > 180
+  ) {
+    return null;
+  }
+  return { periodCount, periodMinutes };
 }
 
 export type CompetitionTeamIdentity = {
@@ -242,6 +274,30 @@ function csvRows(content: string): ParsedCompetitionRow[] {
       value(row, 'location', 'ort', 'spielstätte', 'spielstaette') ||
       'Noch offen';
     const opponentIdentity = competitionTeamIdentity(opponent);
+    const rawPeriodCount = value(
+      row,
+      'periodcount',
+      'abschnitte',
+      'spielabschnitte',
+      'halbzeiten',
+    );
+    const rawPeriodMinutes = value(
+      row,
+      'periodminutes',
+      'minutenproabschnitt',
+      'minabschnitt',
+      'spielzeitproabschnitt',
+    );
+    const timing = explicitMatchTiming(
+      rawPeriodCount,
+      rawPeriodMinutes,
+      value(row, 'spielzeit', 'duration', 'dauer'),
+    );
+    if ((rawPeriodCount || rawPeriodMinutes) && !timing) {
+      messages.push(
+        'Die angegebene Spielzeit ist unvollständig oder ungültig und wird aus der Mannschaft übernommen.',
+      );
+    }
     const base = {
       title: value(row, 'title', 'titel') || `Spiel gegen ${opponentIdentity.displayName}`,
       startAt: start!.toISOString(),
@@ -259,6 +315,8 @@ function csvRows(content: string): ParsedCompetitionRow[] {
       status: status(value(row, 'status', 'spielstatus')),
       ourGoals: integer(value(row, 'ourgoals', 'torefcteugn', 'toreheim')),
       theirGoals: integer(value(row, 'theirgoals', 'toregegner', 'toregast')),
+      periodCount: timing?.periodCount ?? null,
+      periodMinutes: timing?.periodMinutes ?? null,
       sourceUrl: value(row, 'bfvurl', 'sourceurl', 'quelle') || null,
     };
     const externalId =
@@ -392,6 +450,18 @@ function icsRows(content: string): ParsedCompetitionRow[] {
       properties.get('DTEND') ?? '',
       timeZones.get('DTEND'),
     );
+    // DTSTART/DTEND beschreiben in BfV-Dateien häufig den gesamten Platz-Slot
+    // inklusive Pausen. Nur eine ausdrücklich notierte Abschnittszeit gilt
+    // deshalb als Spielzeit; andernfalls übernimmt der Import die Mannschaft.
+    const timing = explicitMatchTiming(
+      properties.get('X-PERIOD-COUNT') ?? '',
+      properties.get('X-PERIOD-MINUTES') ?? '',
+      [
+        properties.get('DESCRIPTION'),
+        properties.get('X-GAME-DURATION'),
+        properties.get('X-SPIELZEIT'),
+      ].filter(Boolean).join(' '),
+    );
     const base = {
       title: pairing.isHome
         ? `FC Teugn – ${pairing.opponent.displayName}`
@@ -418,6 +488,8 @@ function icsRows(content: string): ParsedCompetitionRow[] {
           : 'PLANNED',
       ourGoals: null,
       theirGoals: null,
+      periodCount: timing?.periodCount ?? null,
+      periodMinutes: timing?.periodMinutes ?? null,
       sourceUrl: properties.get('URL')?.trim() || null,
     };
     const externalId =

@@ -17,6 +17,7 @@ import {
   saveNotificationPreferences,
   setAdminPushDeviceState,
   testPushBroadcast,
+  testOwnPushScenario,
 } from '../controllers/notifications.controller';
 import { requireApproved, requireAuth, requireRoles } from '../middleware/auth';
 import { idempotencyMiddleware } from '../middleware/idempotency';
@@ -28,6 +29,11 @@ router.use(requireApproved);
 router.use(idempotencyMiddleware);
 router.get('/', listNotifications);
 router.post('/admin/test-push', requireRoles([Role.SUPER_ADMIN]), testPushBroadcast);
+router.post(
+  '/admin/test-push/self',
+  requireRoles([Role.SUPER_ADMIN]),
+  testOwnPushScenario,
+);
 router.get('/admin/devices', requireRoles([Role.SUPER_ADMIN]), listAdminPushDevices);
 router.patch(
   '/admin/devices/:id',

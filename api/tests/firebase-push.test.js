@@ -6,6 +6,7 @@ const {
 } = require('../dist/src/lib/firebase-admin');
 const {
   androidPushMessage,
+  adminPushScenarios,
   defaultNotificationPreference,
   externalPushPreview,
   summarizePushDeliveries,
@@ -63,10 +64,10 @@ test('Android notification uses the app channel and retains navigation data', ()
   );
   assert.equal(message.data.actionUrl, '/messages/announcement-1');
   assert.equal(message.data.notificationId, 'notification-1');
-  assert.equal(message.notification.title, 'FC Teugn Talents');
-  assert.equal(message.data.title, 'FC Teugn Talents');
-  assert.doesNotMatch(message.notification.body, /18:00/);
-  assert.doesNotMatch(message.data.body, /Training geändert/);
+  assert.equal(message.notification.title, 'Training geändert');
+  assert.equal(message.data.title, 'Training geändert');
+  assert.equal(message.notification.body, 'Beginn ist jetzt um 18:00 Uhr.');
+  assert.equal(message.data.body, 'Beginn ist jetzt um 18:00 Uhr.');
   assert.equal(message.android.priority, 'high');
 });
 
@@ -87,6 +88,18 @@ test('live ticker push is opt-in and exposes the requested score event', () => {
       body: 'FC Teugn trifft.',
     },
   );
+});
+
+test('admin can preview concrete push scenarios with functional targets', () => {
+  assert.deepEqual(externalPushPreview(adminPushScenarios.TRAINING), {
+    title: 'Rückmeldung fehlt: Training E-Jugend',
+    body: 'Bitte gib für das Training am Dienstag um 17:15 Uhr eine Zu- oder Absage ab.',
+  });
+  assert.equal(adminPushScenarios.TRAINING.actionUrl, '/family');
+  assert.equal(adminPushScenarios.MATCH.actionUrl, '/matches');
+  assert.equal(adminPushScenarios.REGISTRATION.actionUrl, '/trainer/approvals');
+  assert.equal(adminPushScenarios.MESSAGE.actionUrl, '/messages');
+  assert.equal(adminPushScenarios.SUPPORT.actionUrl, '/support');
 });
 
 test('admin push test summary exposes delivery and platform diagnostics', () => {
@@ -123,6 +136,10 @@ test('global push test route remains restricted to the system administrator', ()
   assert.match(
     routes,
     /router\.post\('\/admin\/test-push', requireRoles\(\[Role\.SUPER_ADMIN\]\)/,
+  );
+  assert.match(
+    routes,
+    /'\/admin\/test-push\/self'[\s\S]*requireRoles\(\[Role\.SUPER_ADMIN\]\)[\s\S]*testOwnPushScenario/,
   );
 });
 

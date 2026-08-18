@@ -27,7 +27,8 @@ test('manual training reminders can target either open or all players', () => {
   assert.match(handler, /audience === 'ALL'/);
   assert.match(handler, /audience === 'OPEN' \? \{ notIn: \[\.\.\.replied\] \} : \{\}/);
   assert.match(handler, /title: audience === 'ALL'/);
-  assert.match(handler, /'Trainingserinnerung'/);
+  assert.match(handler, /Trainingserinnerung: \$\{event\.title\}/);
+  assert.match(handler, /actionUrl: `\/family\?eventId=\$\{event\.id\}`/);
   assert.match(handler, /targetedPlayers: players\.length/);
 });
 

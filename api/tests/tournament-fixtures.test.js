@@ -31,6 +31,9 @@ test('a tournament owns independent playable fixtures', () => {
   );
   assert.match(matchController, /export async function syncTournamentFixtures/);
   assert.match(matchController, /competition: 'Turnierspiel'/);
+  assert.match(matchController, /tournament\.team\.periodCount/);
+  assert.match(matchController, /tournament\.team\.periodMinutes/);
+  assert.match(matchController, /existingTiming\?\.periodCount/);
 });
 
 test('tournament containers do not require one opponent', () => {

@@ -298,33 +298,12 @@ export function externalPushPreview(notification: {
   title?: string;
   body?: string;
 }) {
-  const category = notification.category;
-  if (
-    category === NotificationCategory.LIVE_TICKER &&
-    notification.title &&
-    notification.body
-  ) {
-    return { title: notification.title, body: notification.body };
-  }
-  if (category === NotificationCategory.REGISTRATION) {
-    return {
-      title: 'Neue Registrierung',
-      body: 'Eine neue Registrierung wartet auf deine Freigabe.',
-    };
-  }
-  const body = category === NotificationCategory.EVENT_REMINDER
-    ? 'Eine neue Terminerinnerung ist in der App verfügbar.'
-    : category === NotificationCategory.MATCH ||
-        category === NotificationCategory.NOMINATION ||
-        category === NotificationCategory.LINEUP ||
-        category === NotificationCategory.LIVE_TICKER
-      ? 'Eine neue Spielinformation ist in der App verfügbar.'
-      : category === NotificationCategory.SUPPORT
-        ? 'Eine neue Supportinformation ist in der App verfügbar.'
-        : notification.entityType === 'PasswordReset'
-          ? 'Eine Sicherheitsinformation ist in der App verfügbar.'
-          : 'Eine neue Vereinsinformation ist in der App verfügbar.';
-  return { title: 'FC Teugn Talents', body };
+  const title = notification.title?.trim();
+  const body = notification.body?.trim();
+  return {
+    title: title || 'FC Teugn Talents',
+    body: body || 'Eine neue Information ist in der App verfügbar.',
+  };
 }
 
 export function defaultNotificationPreference(category: NotificationCategory) {
@@ -390,6 +369,116 @@ export async function sendAdminTestPush(actorName: string) {
   });
   return {
     recipients: userIds.length,
+    ...summarizePushDeliveries(deliveries),
+  };
+}
+
+export const adminPushScenarios = {
+  TRAINING: {
+    category: NotificationCategory.EVENT_REMINDER,
+    title: 'Rückmeldung fehlt: Training E-Jugend',
+    body: 'Bitte gib für das Training am Dienstag um 17:15 Uhr eine Zu- oder Absage ab.',
+    actionUrl: '/family',
+    entityType: 'ADMIN_PUSH_SCENARIO_TRAINING',
+  },
+  MATCH: {
+    category: NotificationCategory.MATCH,
+    title: 'Spieltag: FC Teugn – Testgegner',
+    body: 'Anstoß ist am Samstag um 10:00 Uhr. Treffpunkt: 09:15 Uhr am Sportplatz.',
+    actionUrl: '/matches',
+    entityType: 'ADMIN_PUSH_SCENARIO_MATCH',
+  },
+  LIVE_TICKER: {
+    category: NotificationCategory.LIVE_TICKER,
+    title: 'Tor für FC Teugn! 1:0',
+    body: 'FC Teugn geht in der 12. Minute in Führung. Liveticker jetzt öffnen.',
+    actionUrl: '/matches',
+    entityType: 'ADMIN_PUSH_SCENARIO_LIVE_TICKER',
+  },
+  NOMINATION: {
+    category: NotificationCategory.NOMINATION,
+    title: 'Neue Nominierung für den Spieltag',
+    body: 'Der Kader für das Spiel am Samstag wurde freigegeben. Nominierung jetzt ansehen.',
+    actionUrl: '/matches',
+    entityType: 'ADMIN_PUSH_SCENARIO_NOMINATION',
+  },
+  REGISTRATION: {
+    category: NotificationCategory.REGISTRATION,
+    title: 'Neue Registrierung wartet auf Freigabe',
+    body: 'Max Mustermann hat sich registriert und wartet auf deine Prüfung.',
+    actionUrl: '/trainer/approvals',
+    entityType: 'ADMIN_PUSH_SCENARIO_REGISTRATION',
+  },
+  MESSAGE: {
+    category: NotificationCategory.ANNOUNCEMENT,
+    title: 'Neue Nachricht vom Trainerteam',
+    body: 'Bitte beachte die aktuelle Information zum Training der E-Jugend.',
+    actionUrl: '/messages',
+    entityType: 'ADMIN_PUSH_SCENARIO_MESSAGE',
+  },
+  SUPPORT: {
+    category: NotificationCategory.SUPPORT,
+    title: 'Antwort vom technischen Support',
+    body: 'Zu deiner Supportanfrage liegt eine neue Antwort vor.',
+    actionUrl: '/support',
+    entityType: 'ADMIN_PUSH_SCENARIO_SUPPORT',
+  },
+} as const;
+
+export type AdminPushScenario = keyof typeof adminPushScenarios;
+
+export async function sendAdminScenarioTestPush(
+  userId: string,
+  scenario: AdminPushScenario,
+) {
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: {
+      userId,
+      isActive: true,
+      user: { status: AccountStatus.APPROVED },
+    },
+    select: { id: true },
+  });
+  if (!subscriptions.length) {
+    return {
+      scenario,
+      recipients: 0,
+      ...summarizePushDeliveries([]),
+    };
+  }
+  const selected = adminPushScenarios[scenario];
+  const notification = await prisma.notification.create({
+    data: {
+      userId,
+      ...selected,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+    select: { id: true },
+  });
+  const deliveryIds: string[] = [];
+  for (const subscription of subscriptions) {
+    const delivery = await prisma.notificationDelivery.create({
+      data: {
+        notificationId: notification.id,
+        subscriptionId: subscription.id,
+        userId,
+      },
+      select: { id: true },
+    });
+    deliveryIds.push(delivery.id);
+  }
+  await Promise.all(deliveryIds.map((id) => deliverPush(id)));
+  const deliveries = await prisma.notificationDelivery.findMany({
+    where: { id: { in: deliveryIds } },
+    select: {
+      status: true,
+      errorCode: true,
+      subscription: { select: { platform: true } },
+    },
+  });
+  return {
+    scenario,
+    recipients: 1,
     ...summarizePushDeliveries(deliveries),
   };
 }

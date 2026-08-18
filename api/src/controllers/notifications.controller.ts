@@ -11,6 +11,9 @@ import {
   deliverPush,
   defaultNotificationPreference,
   pushConfiguration,
+  adminPushScenarios,
+  AdminPushScenario,
+  sendAdminScenarioTestPush,
   sendAdminTestPush,
 } from '../services/notification.service';
 
@@ -129,6 +132,21 @@ export async function listNotifications(req: Request, res: Response) {
         : item,
     ),
   );
+}
+
+export async function testOwnPushScenario(req: Request, res: Response) {
+  const scenario = String(req.body?.scenario ?? '').toUpperCase();
+  if (!Object.prototype.hasOwnProperty.call(adminPushScenarios, scenario)) {
+    return res.status(400).json({
+      message: 'Unbekanntes Push-Testszenario.',
+      scenarios: Object.keys(adminPushScenarios),
+    });
+  }
+  const result = await sendAdminScenarioTestPush(
+    req.user!.id,
+    scenario as AdminPushScenario,
+  );
+  return res.json(result);
 }
 
 export async function markNotificationRead(req: Request, res: Response) {

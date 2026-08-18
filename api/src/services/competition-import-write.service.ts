@@ -42,6 +42,28 @@ function classification(match: NormalizedCompetitionMatch) {
   return { kind: MatchKind.LEAGUE, category: EventCategory.LEAGUE_MATCH };
 }
 
+export function competitionMatchTiming(
+  match: Pick<NormalizedCompetitionMatch, 'periodCount' | 'periodMinutes'>,
+  team: { periodCount: number; periodMinutes: number },
+) {
+  const explicit =
+    match.periodCount != null &&
+    match.periodMinutes != null &&
+    match.periodCount >= 1 &&
+    match.periodCount <= 8 &&
+    match.periodMinutes >= 1 &&
+    match.periodMinutes <= 90 &&
+    match.periodCount * match.periodMinutes <= 180;
+  const periodCount = explicit ? match.periodCount! : team.periodCount;
+  const periodMinutes = explicit ? match.periodMinutes! : team.periodMinutes;
+  return {
+    periodCount,
+    periodMinutes,
+    durationMinutes: periodCount * periodMinutes,
+    explicit,
+  };
+}
+
 export async function writeCompetitionMatch(
   tx: Prisma.TransactionClient,
   teamId: string,
@@ -49,6 +71,11 @@ export async function writeCompetitionMatch(
   match: NormalizedCompetitionMatch,
   entityId?: string | null,
 ) {
+  const team = await tx.team.findUniqueOrThrow({
+    where: { id: teamId },
+    select: { periodCount: true, periodMinutes: true },
+  });
+  const timing = competitionMatchTiming(match, team);
   const startAt = new Date(match.startAt);
   const type = classification(match);
   const eventData = {
@@ -108,6 +135,9 @@ export async function writeCompetitionMatch(
       externalUpdatedAt: new Date(),
       ourGoals: match.ourGoals,
       theirGoals: match.theirGoals,
+      periodCount: timing.periodCount,
+      periodMinutes: timing.periodMinutes,
+      durationMinutes: timing.durationMinutes,
     },
   });
   await tx.externalReference.upsert({

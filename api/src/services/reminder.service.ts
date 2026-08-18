@@ -267,7 +267,9 @@ export async function processDueReminders(now = new Date()) {
         })} Uhr.`,
         actionUrl: job.event.type === EventType.MATCH
           ? `/matches/${job.eventId}`
-          : `/events/${job.eventId}`,
+          : job.event.category === EventCategory.TRAINING
+            ? `/family?eventId=${job.eventId}`
+            : `/events/${job.eventId}`,
         entityType: 'Event',
         entityId: job.eventId,
         dedupeKey: job.idempotencyKey,
@@ -437,7 +439,7 @@ async function processRegularTrainingReminders(now: Date) {
             category: NotificationCategory.EVENT_REMINDER,
             title: 'Training steht an',
             body: `Das reguläre Training von ${team.name} beginnt um ${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')} Uhr.`,
-            actionUrl: '/events',
+            actionUrl: '/family',
             entityType: 'Team',
             entityId: team.id,
             dedupeKey: `regular-training:${team.id}:${occurrence}:${minutesBefore}:${recipientId}`,

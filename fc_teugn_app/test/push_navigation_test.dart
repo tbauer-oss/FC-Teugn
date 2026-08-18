@@ -47,14 +47,15 @@ void main() {
     );
   });
 
-  test('event notifications open the role-correct calendar', () {
+  test('event notifications open the exact event in the role-correct calendar',
+      () {
     expect(
       normalizePushActionRoute('/events/event-1', isTrainer: true),
-      '/trainer/events',
+      '/trainer/events?eventId=event-1',
     );
     expect(
       normalizePushActionRoute('/events/event-1', isTrainer: false),
-      '/parent/events',
+      '/parent/events?eventId=event-1',
     );
   });
 

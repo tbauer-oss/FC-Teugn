@@ -716,7 +716,7 @@ export async function cancelRegularTrainingOccurrence(req: Request, res: Respons
       category: NotificationCategory.EVENT_REMINDER,
       title: 'Trainingsabsage',
       body: `Das Training der ${team.ageGroup.code}${team.teamNumber} am ${local.weekday}, ${local.date}, um ${local.time} Uhr fällt aus.${reason ? ` Grund: ${reason}` : ''}`,
-      actionUrl: '/events',
+      actionUrl: `/events/${created.id}`,
       entityType: 'TrainingCancellation',
       entityId: created.id,
       dedupeKey: `training-cancelled:${teamId}:${startAt.toISOString()}`,
@@ -1254,13 +1254,6 @@ export async function createEvent(req: Request, res: Response) {
   if (data.endAt && data.endAt < data.startAt) {
     return res.status(400).json({ message: 'Das Ende darf nicht vor dem Beginn liegen.' });
   }
-  const timing = singleMatch ? matchTiming(req.body) : null;
-  if (singleMatch && !timing) {
-    return res.status(400).json({
-      message:
-        'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).',
-    });
-  }
   let teamIds = await validatedTargetTeams(req, req.body.teamIds, user.teamId);
   if (data.visibility === EventVisibility.CLUB) {
     if (!hasPermission(user.role, Permission.MANAGE_ORGANIZATION)) {
@@ -1272,6 +1265,21 @@ export async function createEvent(req: Request, res: Response) {
   }
   if (!teamIds) {
     return res.status(403).json({ message: 'Mindestens eine erlaubte Mannschaft auswählen.' });
+  }
+  const teamTiming = singleMatch
+    ? await prisma.team.findUnique({
+        where: { id: teamIds[0] },
+        select: { periodCount: true, periodMinutes: true },
+      })
+    : null;
+  const timing = singleMatch
+    ? matchTiming(req.body, teamTiming ?? undefined)
+    : null;
+  if (singleMatch && !timing) {
+    return res.status(400).json({
+      message:
+        'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).',
+    });
   }
   const participants = await validatedParticipants(
     teamIds,
@@ -1501,7 +1509,9 @@ export async function createEvent(req: Request, res: Response) {
         category: NotificationCategory.EVENT_REMINDER,
         title: `Neuer Termin: ${firstEvent.title}`,
         body: `${firstEvent.title} am ${local.weekday}, ${local.date}, um ${local.time} Uhr${firstEvent.location ? ` in ${firstEvent.location}` : ''}.${createdIds.length > 1 ? ` Die Serie umfasst ${createdIds.length} Termine.` : ''}`,
-        actionUrl: '/events',
+        actionUrl: firstEvent.category === EventCategory.TRAINING
+          ? `/family?eventId=${firstEvent.id}`
+          : `/events/${firstEvent.id}`,
         entityType: 'EventCreation',
         entityId: firstEvent.id,
         dedupeKey: `event-created:${firstEvent.id}`,
@@ -2147,7 +2157,7 @@ export async function deleteEvent(req: Request, res: Response) {
               const local = berlinDateParts(existing.startAt);
               return `Das Training am ${local.weekday}, ${local.date}, um ${local.time} Uhr fällt aus.${reason ? ` Grund: ${reason}` : ''}`;
             })(),
-            actionUrl: '/events',
+            actionUrl: `/events/${existing.id}`,
             entityType: 'TrainingCancellation',
             entityId: existing.id,
             dedupeKey: `training-cancelled:${existing.id}`,
@@ -2499,11 +2509,11 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
       category: NotificationCategory.EVENT_REMINDER,
       title: audience === 'ALL'
         ? event.category === EventCategory.TRAINING
-          ? 'Trainingserinnerung'
-          : 'Terminerinnerung'
-        : 'Offene Rückmeldung',
+          ? `Trainingserinnerung: ${event.title}`
+          : `Terminerinnerung: ${event.title}`
+        : `Rückmeldung fehlt: ${event.title}`,
       body: message,
-      actionUrl: `/events/${event.id}`,
+      actionUrl: `/family?eventId=${event.id}`,
       entityType: 'Event',
       entityId: event.id,
       pushEnabled,

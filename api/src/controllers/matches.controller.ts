@@ -484,9 +484,16 @@ export async function syncTournamentFixtures(req: Request, res: Response) {
     },
     include: {
       targetTeams: { select: { teamId: true } },
+      team: { select: { periodCount: true, periodMinutes: true } },
       tournamentFixtures: {
         include: {
-          matchDetails: { select: { status: true } },
+          matchDetails: {
+            select: {
+              status: true,
+              periodCount: true,
+              periodMinutes: true,
+            },
+          },
           liveTicker: { select: { id: true, events: { select: { id: true }, take: 1 } } },
           squads: { select: { id: true }, take: 1 },
         },
@@ -505,13 +512,34 @@ export async function syncTournamentFixtures(req: Request, res: Response) {
   }
   const maximumStart = tournament.endAt ??
     new Date(tournament.startAt.getTime() + 24 * 60 * 60 * 1000);
+  const existingById = new Map(
+    tournament.tournamentFixtures.map((fixture) => [fixture.id, fixture]),
+  );
   const inputs: TournamentFixtureInput[] = [];
   for (const raw of rawFixtures) {
     const item = raw as Record<string, unknown>;
+    const fixtureId = text(item.id, 100) ?? undefined;
+    const existingTiming = fixtureId
+      ? existingById.get(fixtureId)?.matchDetails
+      : null;
+    const fallbackPeriodCount =
+      existingTiming?.periodCount ?? tournament.team.periodCount;
+    const fallbackPeriodMinutes =
+      existingTiming?.periodMinutes ?? tournament.team.periodMinutes;
     const opponentId = text(item.opponentId, 100);
     const startAt = item.startAt ? new Date(String(item.startAt)) : null;
-    const periodCount = integer(item.periodCount, 1, 8, 2);
-    const periodMinutes = integer(item.periodMinutes, 1, 90, 15);
+    const periodCount = integer(
+      item.periodCount,
+      1,
+      8,
+      fallbackPeriodCount,
+    );
+    const periodMinutes = integer(
+      item.periodMinutes,
+      1,
+      90,
+      fallbackPeriodMinutes,
+    );
     if (
       !opponentId ||
       !startAt ||
@@ -526,7 +554,7 @@ export async function syncTournamentFixtures(req: Request, res: Response) {
       });
     }
     inputs.push({
-      id: text(item.id, 100) ?? undefined,
+      id: fixtureId,
       opponentId,
       startAt,
       isHome: item.isHome !== false,
@@ -538,9 +566,6 @@ export async function syncTournamentFixtures(req: Request, res: Response) {
   if (new Set(suppliedIds).size !== suppliedIds.length) {
     return res.status(400).json({ message: 'Eine Turnierpartie wurde doppelt übermittelt.' });
   }
-  const existingById = new Map(
-    tournament.tournamentFixtures.map((fixture) => [fixture.id, fixture]),
-  );
   if (suppliedIds.some((id) => !existingById.has(id))) {
     return res.status(400).json({ message: 'Mindestens eine Turnierpartie gehört nicht zu diesem Turnier.' });
   }
@@ -1448,7 +1473,7 @@ export async function rescheduleMatch(req: Request, res: Response) {
       category: NotificationCategory.EVENT_REMINDER,
       title: `Spiel gegen ${opponent} wurde verlegt`,
       body: `Neuer Termin: ${local} Uhr · Treffpunkt: ${meetingLocation ?? 'noch offen'} · ${location}`,
-      actionUrl: `/trainer/matches/${match.id}`,
+      actionUrl: `/matches/${match.id}`,
       entityType: 'Event',
       entityId: match.id,
       pushEnabled: notification === 'PUSH',

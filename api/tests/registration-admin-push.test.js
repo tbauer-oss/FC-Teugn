@@ -30,8 +30,8 @@ test('pending registration notification opens approvals without child data', () 
   assert.equal(notification.forceInApp, true);
   assert.doesNotMatch(notification.body, /Kind|child/i);
   assert.deepEqual(externalPushPreview(notification), {
-    title: 'Neue Registrierung',
-    body: 'Eine neue Registrierung wartet auf deine Freigabe.',
+    title: 'Neue Registrierung wartet auf Freigabe',
+    body: 'Max Mustermann hat sich registriert und wartet auf deine Prüfung.',
   });
 });
 

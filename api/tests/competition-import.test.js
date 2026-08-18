@@ -6,6 +6,9 @@ const {
   competitionTeamIdentity,
   parseCompetitionSource,
 } = require('../dist/src/services/competition-provider.js');
+const {
+  competitionMatchTiming,
+} = require('../dist/src/services/competition-import-write.service.js');
 
 const fixture = fs.readFileSync(
   path.join(__dirname, 'fixtures', 'bfv-spielplan.ics'),
@@ -27,6 +30,8 @@ assert.equal(first.location, 'Sportanlage Teugn, Platz 2');
 assert.equal(first.address, 'Kreutweg 13, 93356 Teugn');
 assert.equal(first.competition, 'Meisterschaften');
 assert.equal(first.division, 'U11 (E7-Jun.) Gruppe Teugn (Herbst 1)');
+assert.equal(first.periodCount, null);
+assert.equal(first.periodMinutes, null);
 
 const away = rows[1].match;
 assert.equal(away.opponent, 'TSV Langquaid E3');
@@ -44,5 +49,37 @@ assert.deepEqual(competitionTeamIdentity('FC Hausen E7 2'), {
   teamDesignation: 'E2',
   displayName: 'FC Hausen E2',
 });
+
+assert.deepEqual(
+  competitionMatchTiming(
+    { periodCount: null, periodMinutes: null },
+    { periodCount: 4, periodMinutes: 15 },
+  ),
+  {
+    periodCount: 4,
+    periodMinutes: 15,
+    durationMinutes: 60,
+    explicit: false,
+  },
+);
+assert.deepEqual(
+  competitionMatchTiming(
+    { periodCount: 3, periodMinutes: 20 },
+    { periodCount: 4, periodMinutes: 15 },
+  ),
+  {
+    periodCount: 3,
+    periodMinutes: 20,
+    durationMinutes: 60,
+    explicit: true,
+  },
+);
+
+const explicitCsv = parseCompetitionSource(
+  'CSV',
+  'Datum;Uhrzeit;Gegner;Abschnitte;Minuten pro Abschnitt\n18.09.2026;18:00;Testverein E1;4;15',
+);
+assert.equal(explicitCsv[0].match.periodCount, 4);
+assert.equal(explicitCsv[0].match.periodMinutes, 15);
 
 console.log('competition import tests passed');

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/models/communication.dart';
 import '../../core/providers.dart';
+import '../../core/push/push_action_route.dart';
 
 class DashboardNotifications extends ConsumerStatefulWidget {
   const DashboardNotifications({
@@ -120,23 +121,13 @@ class _DashboardNotificationsState
     await _markRead(item);
     if (!context.mounted) return;
     final prefix = widget.isTrainer ? '/trainer' : '/parent';
-    final id = Uri.tryParse(item.actionUrl ?? '')?.pathSegments.lastOrNull;
-    final route = switch (item.category) {
-      NotificationCategory.announcement ||
-      NotificationCategory.urgent =>
-        '$prefix/messages',
-      NotificationCategory.nomination ||
-      NotificationCategory.lineup ||
-      NotificationCategory.liveTicker ||
-      NotificationCategory.match =>
-        id == null ? '$prefix/matches' : '$prefix/matches/$id',
-      NotificationCategory.registration when widget.isTrainer =>
-        '/trainer/approvals',
-      NotificationCategory.event ||
-      NotificationCategory.eventReminder =>
-        '$prefix/events',
-      _ => prefix,
-    };
+    final route =
+        item.category == NotificationCategory.registration && widget.isTrainer
+            ? '/trainer/approvals'
+            : roleCorrectPushActionRoute(
+                item.actionUrl ?? prefix,
+                isTrainer: widget.isTrainer,
+              );
     context.go(route);
   }
 
