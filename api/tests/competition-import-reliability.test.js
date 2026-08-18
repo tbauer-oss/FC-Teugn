@@ -44,8 +44,18 @@ assert.match(
 );
 assert.match(
   repository,
-  /competition-import-\$importId-\$\{sourceWinsConflicts \? 'source-wins' : 'skip'\}/,
+  /competition-import-\$importId-\$\{sourceWinsConflicts \? 'source-wins' : 'skip'\}-\$selectionKey/,
   'an import apply retry needs a stable operation-specific idempotency key',
+);
+assert.match(
+  repository,
+  /if \(sortedRowIds != null\) 'selectedRowIds': sortedRowIds/,
+  'the app must submit the explicitly selected preview rows',
+);
+assert.match(
+  applyBody,
+  /const selectedRowIds = selectedRowIdsInput == null[\s\S]*const requestedRows = selectedRowIds[\s\S]*job\.rows\.filter\(\(row\) => selectedRowIds\.has\(row\.id\)\)/,
+  'the server must only apply rows selected in the preview',
 );
 assert.match(
   repository,

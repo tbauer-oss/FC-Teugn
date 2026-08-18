@@ -24,6 +24,7 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
           'Hier beantwortest du Termine für alle zugeordneten Kinder und siehst den aktuellen Stand sofort.',
       steps: [
         'Oben siehst du, wie viele Antworten offen, zugesagt, vielleicht oder abgesagt sind.',
+        'Der Zeitraum startet mit einer Woche. Bei Bedarf kannst du 2 Wochen, 4 Wochen oder alle kommenden Termine anzeigen.',
         'Wähle beim passenden Kind „Zusagen“ oder „Absagen“. Bei Trainings ist zusätzlich „Vielleicht“ möglich. Bei einer Absage kannst du freiwillig einen Grund ergänzen.',
         'Die Kalenderansicht wird direkt synchronisiert. Unter „Details“ findest du Termin, Treffpunkt und weitere Informationen.',
       ],
@@ -48,7 +49,8 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
       summary:
           'Plane Termine, Teilnehmer, Rückmeldungen und Erinnerungen zentral.',
       steps: [
-        'Tippe einen Tag an, um alle Termine dieses Tages vollständig zu sehen.',
+        'Die Symbole zeigen die Terminart sofort: zum Beispiel 🏃 Training, ⚽ Ligaspiel, 🤝 Freundschaftsspiel und 🏆 Pokal.',
+        'Tippe einen Tag an, um alle Termine dieses Tages vollständig zu sehen. Unter „Kategorien“ findest du die komplette Legende.',
         'Beim Anlegen kannst du Mannschaften oder einzelne Personen auswählen.',
         'Bearbeitete Zeiten, Teilnehmer und Erinnerungen werden sofort neu zugeordnet.',
       ],
@@ -98,13 +100,14 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
   if (title.contains('nachricht') || title.contains('mitteilung')) {
     return const ContextHelpInfo(
       summary:
-          'Sende gezielte Mitteilungen und optional eine Push-Benachrichtigung.',
+          'Sende Vereinsmitteilungen oder nutze den kurzlebigen Direktkontakt zwischen Eltern und Trainerteam.',
       steps: [
-        'Wähle zuerst Mannschaften und Empfängergruppe.',
-        'Aktiviere Push nur, wenn die Nachricht sofort auf den Geräten erscheinen soll.',
-        'Lesestatus und Antworten findest du direkt bei der Mitteilung.',
+        'Im Mitteilungscenter wählst du Mannschaften und Empfängergruppe; Push bleibt optional.',
+        'Unter „Direktkontakt“ können Eltern und Trainer kurze organisatorische Textnachrichten austauschen.',
+        'Direktnachrichten haben keine Anhänge und werden nach 30 Tagen automatisch gelöscht.',
+        'Lesestatus und Antworten findest du direkt beim jeweiligen Eintrag.',
       ],
-      searchQuery: 'Nachricht Mitteilung Push',
+      searchQuery: 'Nachricht Mitteilung Push Direktkontakt 30 Tage',
     );
   }
   if (title.contains('statistik')) {

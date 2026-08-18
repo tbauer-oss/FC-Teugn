@@ -24,6 +24,20 @@ test('due reminders re-check current relevance after attendance changes', () => 
   assert.match(service, /ReminderJobStatus\.CANCELLED/);
 });
 
+test('trainer-only participants keep the full team reminder audience', () => {
+  assert.match(service, /explicitlyRequestedPlayers/);
+  assert.match(service, /if \(explicitlyRequestedPlayers\.length\)/);
+  assert.doesNotMatch(service, /if \(event\.participants\.length\)/);
+});
+
+test('due jobs are reconciled before automatic reminders are delivered', () => {
+  assert.match(service, /dueEventCandidates/);
+  assert.match(
+    service,
+    /dueEventCandidates\.map\(\(\{ eventId \}\) => syncScheduledRemindersForEvent\(eventId\)\)/,
+  );
+});
+
 test('team reminder lead time is validated, stored and serialized', () => {
   assert.match(organization, /defaultReminderMinutes < 1/);
   assert.match(organization, /defaultReminderMinutes > 10_080/);

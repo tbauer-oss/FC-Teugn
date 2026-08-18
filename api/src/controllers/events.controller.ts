@@ -2444,7 +2444,10 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
       status: 'ACTIVE',
       id: {
         notIn: [...replied],
-        ...(event.participants.length ? { in: explicitlyRequested } : {}),
+        // Nur eine ausdrueckliche Spielerliste schraenkt den Kader ein.
+        // Reine Benutzer-Teilnehmer (z. B. Trainer) duerfen nicht dazu
+        // fuehren, dass bei "Offene erinnern" keine Eltern gefunden werden.
+        ...(explicitlyRequested.length ? { in: explicitlyRequested } : {}),
       },
     },
     include: {

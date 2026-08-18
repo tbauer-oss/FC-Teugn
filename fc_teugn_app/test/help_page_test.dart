@@ -94,6 +94,7 @@ void main() {
     final responseText = responseArticle.steps.join(' ');
     expect(responseText, contains('„Vielleicht“'));
     expect(responseText, contains('Grund'));
+    expect(responseText, contains('„1 Woche“'));
     expect(responseText, contains('Kalender synchronisiert'));
 
     final opponentArticle = helpArticles.singleWhere(
@@ -117,5 +118,34 @@ void main() {
     expect(publicationArticle.steps.join(' '), contains('Treffpunktzeit'));
     expect(publicationArticle.steps.join(' '), contains('Empfängerliste'));
     expect(publicationArticle.steps.join(' '), contains('Familienfreigabe'));
+  });
+
+  test('FAQ covers family assistant, emoji calendar and direct contact', () {
+    final assistant = helpArticles.singleWhere(
+      (article) => article.title == 'Was zeigt mir der Familien-Assistent?',
+    );
+    expect(assistant.steps.join(' '), contains('Heute wichtig'));
+    expect(assistant.steps.join(' '), contains('Alles erledigt'));
+
+    final calendar = helpArticles.singleWhere(
+      (article) =>
+          article.title == 'Woran erkenne ich die Terminarten im Kalender?',
+    );
+    expect(calendar.steps.join(' '), contains('🏃 Training'));
+    expect(calendar.steps.join(' '), contains('Kategorien'));
+
+    final period = helpArticles.singleWhere(
+      (article) =>
+          article.title == 'Wie wähle ich den Zeitraum meiner Rückmeldungen?',
+    );
+    expect(period.steps.join(' '), contains('„1 Woche“'));
+    expect(period.steps.join(' '), contains('„Alle kommenden“'));
+
+    final contact = helpArticles.singleWhere(
+      (article) => article.title.contains('Direktkontakt zwischen Eltern'),
+    );
+    expect(contact.steps.join(' '), contains('30 Tagen'));
+    expect(contact.steps.join(' '), contains('2.000 Zeichen'));
+    expect(contact.route, '/messages?section=contact');
   });
 }

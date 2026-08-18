@@ -48,6 +48,21 @@ bool looksLikeBfvIcs(String content) {
           value.contains('service.bfv.de'));
 }
 
+@visibleForTesting
+Set<String> defaultCompetitionImportSelection(
+  CompetitionImportPreview preview,
+) =>
+    preview.rows.where((row) => row.canBeSelected).map((row) => row.id).toSet();
+
+@visibleForTesting
+bool isCompetitionImportPlaceholder(CompetitionImportRow row) {
+  final opponent = row.opponent?.trim().toLowerCase() ?? '';
+  return opponent.startsWith('spielfrei') ||
+      opponent.startsWith('freilos') ||
+      opponent == 'pause' ||
+      opponent == 'kein spiel';
+}
+
 class CompetitionImportDialog extends ConsumerStatefulWidget {
   const CompetitionImportDialog({super.key, required this.organization});
 
@@ -65,6 +80,7 @@ class _CompetitionImportDialogState
   CompetitionImportFormat _format = CompetitionImportFormat.ics;
   String _provider = 'BFV_ICS';
   CompetitionImportPreview? _preview;
+  Set<String> _selectedRowIds = <String>{};
   String? _fileName;
   int? _fileSize;
   bool _busy = false;
@@ -127,10 +143,23 @@ class _CompetitionImportDialogState
                 provider: _provider,
               ),
               const SizedBox(height: 12),
-              _PreviewSummary(preview: _preview!),
+              _PreviewSummary(
+                preview: _preview!,
+                selectedCount: _selectedRowIds.length,
+                selectableCount:
+                    defaultCompetitionImportSelection(_preview!).length,
+                onSelectAll: _selectAllRows,
+                onClearSelection: _clearRowSelection,
+              ),
               const SizedBox(height: 12),
               for (final row in _preview!.rows) ...[
-                _ImportRowTile(row: row),
+                _ImportRowTile(
+                  row: row,
+                  selected: _selectedRowIds.contains(row.id),
+                  onSelected: row.canBeSelected
+                      ? (selected) => _setRowSelected(row.id, selected)
+                      : null,
+                ),
                 const SizedBox(height: 8),
               ],
               if (_preview!.conflictCount > 0) ...[
@@ -163,7 +192,9 @@ class _CompetitionImportDialogState
               label: const AdaptiveButtonLabel('Datei ändern'),
             ),
           FilledButton.icon(
-            onPressed: _busy || (_preview == null && !_hasSource)
+            onPressed: _busy ||
+                    (_preview == null && !_hasSource) ||
+                    (_preview != null && _selectedRowIds.isEmpty)
                 ? null
                 : _preview == null
                     ? _createPreview
@@ -183,7 +214,7 @@ class _CompetitionImportDialogState
                   ? 'Bitte warten …'
                   : _preview == null
                       ? 'Spiele prüfen'
-                      : 'Spiele importieren',
+                      : _importButtonLabel(_selectedRowIds.length),
             ),
           ),
         ],
@@ -236,7 +267,26 @@ class _CompetitionImportDialogState
 
   void _backToSource() => setState(() {
         _preview = null;
+        _selectedRowIds = <String>{};
         _sourceWins = false;
+      });
+
+  void _setRowSelected(String rowId, bool selected) => setState(() {
+        final next = {..._selectedRowIds};
+        if (selected) {
+          next.add(rowId);
+        } else {
+          next.remove(rowId);
+        }
+        _selectedRowIds = next;
+      });
+
+  void _selectAllRows() => setState(() {
+        _selectedRowIds = defaultCompetitionImportSelection(_preview!);
+      });
+
+  void _clearRowSelection() => setState(() {
+        _selectedRowIds = <String>{};
       });
 
   Future<void> _createPreview() async {
@@ -251,7 +301,10 @@ class _CompetitionImportDialogState
                 fileName: _fileName,
               );
       if (!mounted) return;
-      setState(() => _preview = preview);
+      setState(() {
+        _preview = preview;
+        _selectedRowIds = defaultCompetitionImportSelection(preview);
+      });
     } catch (error) {
       if (mounted) _showMessage(_errorMessage(error, 'Importvorschau'));
     } finally {
@@ -260,11 +313,16 @@ class _CompetitionImportDialogState
   }
 
   Future<void> _apply() async {
+    if (_selectedRowIds.isEmpty) {
+      _showMessage('Wähle mindestens einen Termin für den Import aus.');
+      return;
+    }
     setState(() => _busy = true);
     try {
       await ref.read(repositoryProvider).applyCompetitionImport(
             _preview!.id,
             sourceWinsConflicts: _sourceWins,
+            selectedRowIds: _selectedRowIds,
           );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
@@ -548,9 +606,19 @@ class _SelectedImportSource extends StatelessWidget {
 }
 
 class _PreviewSummary extends StatelessWidget {
-  const _PreviewSummary({required this.preview});
+  const _PreviewSummary({
+    required this.preview,
+    required this.selectedCount,
+    required this.selectableCount,
+    required this.onSelectAll,
+    required this.onClearSelection,
+  });
 
   final CompetitionImportPreview preview;
+  final int selectedCount;
+  final int selectableCount;
+  final VoidCallback onSelectAll;
+  final VoidCallback onClearSelection;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -568,6 +636,63 @@ class _PreviewSummary extends StatelessWidget {
               _CountChip('Konflikte', preview.conflictCount, AppColors.orange),
               _CountChip('Ungültig', preview.invalidCount, Colors.redAccent),
             ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+            decoration: BoxDecoration(
+              color: AppColors.yellowSoft.withValues(alpha: .5),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Theme.of(context).dividerColor),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final actions = Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: [
+                    TextButton.icon(
+                      onPressed:
+                          selectedCount == selectableCount ? null : onSelectAll,
+                      icon: const Icon(Icons.select_all_rounded),
+                      label: const Text('Alle auswählen'),
+                    ),
+                    TextButton.icon(
+                      onPressed: selectedCount == 0 ? null : onClearSelection,
+                      icon: const Icon(Icons.deselect_rounded),
+                      label: const Text('Auswahl aufheben'),
+                    ),
+                  ],
+                );
+                final selection = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$selectedCount von $selectableCount Terminen ausgewählt',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Alle übernehmbaren Termine sind zunächst ausgewählt.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                );
+                if (constraints.maxWidth < 580) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [selection, const SizedBox(height: 6), actions],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: selection),
+                    const SizedBox(width: 8),
+                    actions,
+                  ],
+                );
+              },
+            ),
           ),
         ],
       );
@@ -593,9 +718,15 @@ class _CountChip extends StatelessWidget {
 }
 
 class _ImportRowTile extends StatelessWidget {
-  const _ImportRowTile({required this.row});
+  const _ImportRowTile({
+    required this.row,
+    required this.selected,
+    required this.onSelected,
+  });
 
   final CompetitionImportRow row;
+  final bool selected;
+  final ValueChanged<bool>? onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -632,66 +763,110 @@ class _ImportRowTile extends StatelessWidget {
       if ((row.competition ?? '').isNotEmpty) row.competition!,
       if ((row.location ?? '').isNotEmpty) row.location!,
     ];
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+    final placeholder = isCompetitionImportPlaceholder(row);
+    return Semantics(
+      container: true,
+      toggled: row.canBeSelected ? selected : null,
+      enabled: row.canBeSelected,
+      label: row.canBeSelected
+          ? '${row.opponent ?? 'Termin'} für Import auswählen'
+          : '${row.opponent ?? 'Termin'} kann nicht ausgewählt werden',
+      child: InkWell(
+        onTap: onSelected == null ? null : () => onSelected!(!selected),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).dividerColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.yellowSoft.withValues(alpha: .18)
+                : Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? AppColors.gold : Theme.of(context).dividerColor,
+              width: selected ? 1.4 : 1,
+            ),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: color),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  row.opponent ?? 'Zeile ${row.rowNumber}',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    key: ValueKey('competition-import-row-${row.id}'),
+                    value: selected,
+                    onChanged: onSelected == null
+                        ? null
+                        : (value) => onSelected!(value ?? false),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(icon, color: color),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      row.opponent ?? 'Zeile ${row.rowNumber}',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  _StatusPill(label: label, color: color),
+                ],
               ),
-              _StatusPill(label: label, color: color),
-            ],
-          ),
-          if (details.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(details.join(' · '),
-                style: Theme.of(context).textTheme.bodySmall),
-          ],
-          if (row.action != CompetitionImportAction.invalid) ...[
-            const SizedBox(height: 7),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  row.opponentId != null
-                      ? Icons.link_rounded
-                      : Icons.info_outline_rounded,
-                  size: 17,
-                  color:
-                      row.opponentId != null ? AppColors.teal : AppColors.muted,
+              if (details.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(details.join(' · '),
+                    style: Theme.of(context).textTheme.bodySmall),
+              ],
+              if (row.action != CompetitionImportAction.invalid) ...[
+                const SizedBox(height: 7),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      row.opponentId != null
+                          ? Icons.link_rounded
+                          : Icons.info_outline_rounded,
+                      size: 17,
+                      color: row.opponentId != null
+                          ? AppColors.teal
+                          : AppColors.muted,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        row.opponentId != null
+                            ? 'Mit vorhandenem Gegner verknüpft'
+                            : 'Noch keinem Gegnerstammsatz zugeordnet',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    row.opponentId != null
-                        ? 'Mit vorhandenem Gegner verknüpft'
-                        : 'Noch keinem Gegnerstammsatz zugeordnet',
-                    style: Theme.of(context).textTheme.bodySmall,
+              ],
+              if (row.messages.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(row.messages.join(' · '),
+                    style: Theme.of(context).textTheme.bodySmall),
+              ],
+              if (placeholder) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.yellowSoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Hinweis: „SPIELFREI“ ist kein echtes Spiel. Entferne den Haken, wenn dieser Eintrag nicht übernommen werden soll.',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
-            ),
-          ],
-          if (row.messages.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(row.messages.join(' · '),
-                style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -726,3 +901,6 @@ String _providerLabel(String provider) => switch (provider) {
 
 String _dateTime(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year} · ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')} Uhr';
+
+String _importButtonLabel(int count) =>
+    count == 1 ? '1 Spiel importieren' : '$count Spiele importieren';

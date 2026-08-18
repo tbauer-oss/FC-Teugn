@@ -13,6 +13,21 @@ void main() {
     );
     expect(responses.steps.join(' '), contains('vielleicht'));
     expect(responses.steps.join(' '), contains('Grund'));
+    expect(responses.steps.join(' '), contains('einer Woche'));
+
+    final calendar = contextHelpFor(
+      'Vereinskalender',
+      'Termine und Rückmeldungen zentral verwalten.',
+    );
+    expect(calendar.steps.join(' '), contains('🏃 Training'));
+    expect(calendar.steps.join(' '), contains('Legende'));
+
+    final messages = contextHelpFor(
+      'Nachrichten & Abstimmung',
+      'Nachrichten zentral verwalten.',
+    );
+    expect(messages.steps.join(' '), contains('Direktkontakt'));
+    expect(messages.steps.join(' '), contains('30 Tagen'));
 
     final opponents = contextHelpFor(
       'Liga & Gegner',

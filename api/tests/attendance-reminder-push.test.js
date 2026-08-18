@@ -18,6 +18,11 @@ test('manual attendance reminders honor the optional push selection', () => {
   assert.match(handler, /pushEnabled,/);
 });
 
+test('trainer-only participants do not suppress reminders for the team roster', () => {
+  assert.match(handler, /explicitlyRequested\.length \? \{ in: explicitlyRequested \} : \{\}/);
+  assert.doesNotMatch(handler, /event\.participants\.length \? \{ in: explicitlyRequested \}/);
+});
+
 test('every manual reminder can create a fresh push delivery', () => {
   assert.doesNotMatch(handler, /existingRecipients|alreadySent|notification\.upsert/);
   assert.match(handler, /eventReminder\.createMany/);

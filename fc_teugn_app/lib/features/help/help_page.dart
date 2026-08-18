@@ -195,10 +195,11 @@ class _HelpPageState extends State<HelpPage> {
                       onTap: () => context.go('/parent/family'),
                     ),
                     _QuickHelpAction(
-                      icon: Icons.groups_rounded,
-                      title: 'Meine Kinder',
-                      caption: 'Profile ansehen',
-                      onTap: () => context.go('/parent/players'),
+                      icon: Icons.forum_rounded,
+                      title: 'Direktkontakt',
+                      caption: 'Trainerteam kurz erreichen',
+                      onTap: () =>
+                          context.go('/parent/messages?section=contact'),
                     ),
                     _QuickHelpAction(
                       icon: Icons.sports_soccer_rounded,
@@ -963,6 +964,32 @@ const helpArticles = <HelpArticle>[
   ),
   HelpArticle(
     category: HelpCategory.calendar,
+    title: 'Woran erkenne ich die Terminarten im Kalender?',
+    summary:
+        'Jede Terminart besitzt ein eigenes Symbol und eine feste Farbe, damit Training, Spiel und Vereinsleben sofort unterscheidbar sind.',
+    keywords: [
+      'Emoji',
+      'Kalendersymbol',
+      'Legende',
+      'Training',
+      'Spiel',
+      'Turnier',
+      'Kategorie'
+    ],
+    route: '/events',
+    routeLabel: 'Kalender öffnen',
+    steps: [
+      'Öffne den Kalender. In der Monatsansicht steht direkt am Tag ein passendes Symbol statt kaum unterscheidbarer Punkte.',
+      'Die wichtigsten Symbole sind: 🏃 Training, ⚽ Ligaspiel, 🤝 Freundschaftsspiel, 🏆 Pokal, 🥇 Turnier und 📌 sonstiger besonderer Termin.',
+      'Über „Kategorien“ öffnest du die vollständige Legende und kannst Terminarten gezielt ein- oder ausblenden.',
+      'Tippe auf einen Tag, um darunter alle Termine chronologisch mit Symbol, Uhrzeit, Mannschaft und Ort zu sehen.',
+      'Auf schmalen Smartphones und Foldable-Panes passt sich die Darstellung automatisch an; die Bedeutung der Symbole bleibt immer gleich.',
+    ],
+    tip:
+        'Weitere Symbole kennzeichnen zum Beispiel Mannschaftsabend 🗣️, Elternabend 👨‍👩‍👧, Vereinsfest 🎪, Ausflug 🚌 oder Fototermin 📸.',
+  ),
+  HelpArticle(
+    category: HelpCategory.calendar,
     title: 'Wie lege ich einen Termin oder eine Serie an?',
     summary:
         'Termine können für Mannschaften oder individuell ausgewählte Personen erstellt werden.',
@@ -1005,6 +1032,7 @@ const helpArticles = <HelpArticle>[
     routeLabel: 'Meine Rückmeldungen öffnen',
     steps: [
       'Öffne „Meine Kinder & Rückmeldungen“ oder rufe den Termin über Kalender, Startseite oder eine Benachrichtigung auf.',
+      'Oben ist zunächst „1 Woche“ ausgewählt. Bei Bedarf kannst du auf 2 Wochen, 4 Wochen oder alle kommenden Termine wechseln.',
       'Prüfe bei mehreren Kindern am Namen, für welches Spielerprofil du antwortest. Oben fassen „Offen“, „Zugesagt“, „Vielleicht“ und „Abgesagt“ alle Antworten zusammen.',
       'Wähle „Zusagen“ oder „Absagen“. Bei Trainings steht zusätzlich „Vielleicht“ zur Verfügung. Eine Antwort darfst du später jederzeit ändern, solange Rückmeldungen möglich sind.',
       'Bei „Absagen“ kannst du im folgenden Fenster freiwillig einen Grund eintragen. Das Feld darf leer bleiben; ein gespeicherter Grund wird am Termin angezeigt und kann durch erneutes Absagen geändert werden.',
@@ -1012,6 +1040,56 @@ const helpArticles = <HelpArticle>[
     ],
     tip:
         'Bei Trainings ist „Vielleicht“ eine eigene Rückmeldung und wird weder als offene Antwort noch als feste Zusage gezählt. Für Spiele gibt es bewusst nur Zu- oder Absage.',
+  ),
+  HelpArticle(
+    category: HelpCategory.calendar,
+    title: 'Wie wähle ich den Zeitraum meiner Rückmeldungen?',
+    summary:
+        'Die Liste startet bewusst mit einer Woche und kann bei Bedarf erweitert werden, ohne den Familienalltag mit weit entfernten Terminen zu überladen.',
+    audience: HelpAudience.family,
+    keywords: [
+      'Zeitraum',
+      '1 Woche',
+      '2 Wochen',
+      '4 Wochen',
+      'alle kommenden Termine',
+      'Rückmeldungen filtern'
+    ],
+    route: '/family',
+    routeLabel: 'Rückmeldungen öffnen',
+    steps: [
+      'Öffne „Meine Kinder & Rückmeldungen“. Direkt unter der Zusammenfassung findest du die Zeitraum-Auswahl.',
+      '„1 Woche“ ist vorausgewählt und zeigt die unmittelbar anstehenden Antworten für alle verknüpften Kinder.',
+      'Wähle „2 Wochen“ oder „4 Wochen“, wenn du weiter vorausplanen möchtest.',
+      'Mit „Alle kommenden“ werden sämtliche zukünftigen rückmeldefähigen Termine geladen.',
+      'Die Zähler oben beziehen sich immer auf den gewählten Zeitraum und aktualisieren sich nach jeder Antwort sofort.',
+    ],
+    tip:
+        'Der Zeitraum ändert nur die Ansicht. Bereits gespeicherte Antworten und Termine bleiben vollständig erhalten.',
+  ),
+  HelpArticle(
+    category: HelpCategory.start,
+    title: 'Was zeigt mir der Familien-Assistent?',
+    summary:
+        'Die Eltern-Startseite bündelt nur die Aufgaben und Termine, die für die eigene Familie gerade wirklich relevant sind.',
+    audience: HelpAudience.family,
+    keywords: [
+      'Familien-Assistent',
+      'Heute wichtig',
+      'Diese Woche',
+      'Kinderkarte',
+      'Alles erledigt',
+      'Startseite'
+    ],
+    steps: [
+      'Unter „Heute wichtig“ erscheinen offene Rückmeldungen, kurzfristige Änderungen, neue Nominierungen und relevante Mitfahrten.',
+      'Nutze die direkte Aktion an der Karte, um ohne Umweg zuzusagen oder abzusagen beziehungsweise den passenden Bereich zu öffnen.',
+      'Unter „Diese Woche“ siehst du eine kompakte Zeitleiste statt mehrfach wiederholter Terminblöcke.',
+      'Die Karte jedes Kindes fasst nächstes Training, nächstes Spiel, Kaderstatus und offene Aufgaben zusammen.',
+      'Sobald nichts mehr zu erledigen ist, bestätigt die Startseite klar „Alles erledigt“. Ein laufender freigegebener Liveticker erscheint automatisch.',
+    ],
+    tip:
+        'Ein Tipp auf einen Termin führt immer zur passenden Rückmeldung oder Detailansicht – nicht nur in eine allgemeine Kalenderansicht.',
   ),
   HelpArticle(
     category: HelpCategory.calendar,
@@ -1189,6 +1267,8 @@ const helpArticles = <HelpArticle>[
       'Du kannst Mannschaften ausschließlich in einer Jugend verwalten, für die du als Trainer oder Funktionär berechtigt bist. Andere Trainer sehen denselben Verein, pflegen aber ihre eigenen Jugendmannschaften.',
       'Das Wappen wird einmal am Verein hochgeladen und dadurch bei allen zugehörigen Mannschaften, Spielen und im Liveticker verwendet.',
       'Beim Anlegen oder Bearbeiten eines Spiels wählst du zuerst den Verein und danach die Jugendmannschaft. Fehlt diese Kombination, legt die App sie beim Speichern automatisch in deiner Jugend an.',
+      'Für einen einmaligen Dateiimport öffnest du im Spielbetrieb „Spielplan importieren“, wählst die Mannschaft und lädst die BfV-ICS-Datei hoch. Vor dem Speichern erscheint immer eine vollständige Vorschau.',
+      'Alle übernehmbaren Termine sind zunächst ausgewählt. Entferne bei einzelnen unerwünschten Einträgen den Haken – beispielsweise bei „SPIELFREI“ – oder nutze „Alle auswählen“ beziehungsweise „Auswahl aufheben“. Nur die angehakten Zeilen werden gespeichert.',
       'Für den automatischen BfV-Abgleich öffnest du den Reiter „BfV“, wählst die konkrete Mannschaft und hinterlegst deren offizielle BfV-Mannschaftsseite sowie die iCal-Adresse.',
       'Nach „Speichern“ kannst du sofort synchronisieren. Danach gleicht die Vereinsverwaltung die eigenen Spiele automatisch ab; neue Spiele werden angelegt und lokale Änderungen bei Konflikten geschützt.',
       'Erzeuge im offiziellen BfV-Widgetgenerator ein Mannschafts-Komplett-Widget. Registriere dort einmalig fcteugnapp.vercel.app als erlaubte Domain und kopiere die Mannschaftskennung aus zeigeMannschaftKomplett(…) in das gleichnamige Feld der App.',
@@ -1556,6 +1636,31 @@ const helpArticles = <HelpArticle>[
       'Öffne einen Eintrag, um ihn zu lesen und gegebenenfalls als gelesen zu markieren.',
       'Unter „Einstellungen“ steuerst du In-App- und Pushnachrichten je Kategorie.',
     ],
+  ),
+  HelpArticle(
+    category: HelpCategory.communication,
+    title: 'Wie nutze ich den Direktkontakt zwischen Eltern und Trainerteam?',
+    summary:
+        'Kurze organisatorische Textnachrichten können direkt in der App ausgetauscht werden und werden nach 30 Tagen automatisch gelöscht.',
+    keywords: [
+      'Direktkontakt',
+      'Eltern Trainer',
+      'Trainerteam',
+      '30 Tage',
+      'kurze Nachricht',
+      'Kontakt'
+    ],
+    route: '/messages?section=contact',
+    routeLabel: 'Direktkontakt öffnen',
+    steps: [
+      'Eltern öffnen auf der Startseite „Direktkontakt“ oder unter „Mehr“ den Bereich „Nachrichten & Abstimmung“. Trainer nutzen denselben Reiter im Mitteilungscenter.',
+      'Wähle die passende Jugend beziehungsweise das betreffende Kind und öffne die Unterhaltung mit dem zuständigen Trainerteam.',
+      'Sende eine kurze organisatorische Textnachricht. Anhänge sind bewusst nicht vorgesehen; eine Nachricht darf höchstens 2.000 Zeichen enthalten.',
+      'Neue Antworten erscheinen in derselben Unterhaltung und können zusätzlich als Pushnachricht direkt dorthin führen.',
+      'Alle Direktnachrichten werden nach 30 Tagen automatisch entfernt. Für dauerhafte Vereinsinformationen bleibt das normale Mitteilungscenter zuständig.',
+    ],
+    tip:
+        'Der Direktkontakt ist nicht für Notfälle oder sensible Gesundheitsdaten gedacht. Nutze dafür die bekannten direkten Notfallwege.',
   ),
   HelpArticle(
     category: HelpCategory.organization,

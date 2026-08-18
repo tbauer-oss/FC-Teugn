@@ -3,6 +3,7 @@ import { processDueReminders } from '../services/reminder.service';
 import { processDueAnnouncements } from './communications.controller';
 import { processDueBfvSyncs } from '../services/bfv-sync.service';
 import { applyOperationalRetention } from '../services/privacy-retention.service';
+import { retryPendingPushDeliveries } from '../services/notification.service';
 
 export async function processScheduledJobs(req: Request, res: Response) {
   const configuredSecret = process.env.CRON_SECRET?.trim();
@@ -16,5 +17,9 @@ export async function processScheduledJobs(req: Request, res: Response) {
     processDueBfvSyncs(new Date(), 1),
     applyOperationalRetention(),
   ]);
-  return res.json({ reminders, bfvSyncs, retention });
+  // Erinnerungen und geplante Mitteilungen legen ihre Zustellungen oberhalb an.
+  // Danach werden auch vorübergehend fehlgeschlagene Pushes aller Kategorien
+  // erneut versendet, ohne dass der Empfänger zuerst die App öffnen muss.
+  const pushRetries = await retryPendingPushDeliveries();
+  return res.json({ reminders, pushRetries, bfvSyncs, retention });
 }

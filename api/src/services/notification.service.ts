@@ -15,6 +15,8 @@ const vapidPublicKey = process.env.VAPID_PUBLIC_KEY?.trim() ?? '';
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim() ?? '';
 const vapidSubject = process.env.VAPID_SUBJECT?.trim() || 'mailto:admin@fc-teugn.de';
 export const webPushConfigured = Boolean(vapidPublicKey && vapidPrivateKey);
+const maxAutomaticDeliveryAttempts = 6;
+const pendingDeliveryRetryDelayMs = 4 * 60 * 1000;
 
 if (webPushConfigured) {
   webPush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
@@ -336,13 +338,7 @@ export async function deliverPush(deliveryId: string) {
   if (delivery.subscription.platform === PushPlatform.ANDROID) {
     const messaging = firebaseMessaging();
     if (!messaging) {
-      await prisma.notificationDelivery.update({
-        where: { id: delivery.id },
-        data: {
-          status: NotificationDeliveryStatus.PENDING,
-          errorCode: 'ANDROID_PUSH_NOT_CONFIGURED',
-        },
-      });
+      await markDeliveryPending(delivery.id, 'ANDROID_PUSH_NOT_CONFIGURED');
       return;
     }
     try {
@@ -363,8 +359,16 @@ export async function deliverPush(deliveryId: string) {
           where: { id: delivery.subscription.id },
           data: { isActive: false },
         });
+        await markDeliveryFailed(
+          delivery.id,
+          errorCode ?? 'ANDROID_DELIVERY_FAILED',
+        );
+      } else {
+        await markDeliveryPending(
+          delivery.id,
+          errorCode ?? 'ANDROID_DELIVERY_FAILED',
+        );
       }
-      await markDeliveryFailed(delivery.id, errorCode ?? 'ANDROID_DELIVERY_FAILED');
     }
     return;
   }
@@ -381,13 +385,7 @@ export async function deliverPush(deliveryId: string) {
     return;
   }
   if (!webPushConfigured || !delivery.subscription.p256dh || !delivery.subscription.auth) {
-    await prisma.notificationDelivery.update({
-      where: { id: delivery.id },
-      data: {
-        status: NotificationDeliveryStatus.PENDING,
-        errorCode: 'WEB_PUSH_NOT_CONFIGURED',
-      },
-    });
+    await markDeliveryPending(delivery.id, 'WEB_PUSH_NOT_CONFIGURED');
     return;
   }
   try {
@@ -417,12 +415,50 @@ export async function deliverPush(deliveryId: string) {
         where: { id: delivery.subscription.id },
         data: { isActive: false },
       });
+      await markDeliveryFailed(delivery.id, `HTTP_${statusCode}`);
+    } else {
+      await markDeliveryPending(
+        delivery.id,
+        statusCode ? `HTTP_${statusCode}` : 'DELIVERY_FAILED',
+      );
     }
-    await markDeliveryFailed(
-      delivery.id,
-      statusCode ? `HTTP_${statusCode}` : 'DELIVERY_FAILED',
-    );
   }
+}
+
+export async function retryPendingPushDeliveries(limit = 100) {
+  const retryBefore = new Date(Date.now() - pendingDeliveryRetryDelayMs);
+  const pending = await prisma.notificationDelivery.findMany({
+    where: {
+      status: NotificationDeliveryStatus.PENDING,
+      attemptCount: { lt: maxAutomaticDeliveryAttempts },
+      subscription: { isActive: true },
+      OR: [
+        { lastAttemptAt: null },
+        { lastAttemptAt: { lte: retryBefore } },
+      ],
+    },
+    orderBy: [{ lastAttemptAt: 'asc' }, { createdAt: 'asc' }],
+    select: { id: true },
+    take: Math.max(1, Math.min(limit, 250)),
+  });
+  for (const delivery of pending) {
+    await deliverPush(delivery.id).catch(() => undefined);
+  }
+  if (!pending.length) {
+    return { processed: 0, ...summarizePushDeliveries([]) };
+  }
+  const deliveries = await prisma.notificationDelivery.findMany({
+    where: { id: { in: pending.map((delivery) => delivery.id) } },
+    select: {
+      status: true,
+      errorCode: true,
+      subscription: { select: { platform: true } },
+    },
+  });
+  return {
+    processed: pending.length,
+    ...summarizePushDeliveries(deliveries),
+  };
 }
 
 async function markDeliverySent(deliveryId: string, subscriptionId: string) {
@@ -455,6 +491,25 @@ async function markDeliveryFailed(deliveryId: string, errorCode: string) {
       errorCode: errorCode.slice(0, 160),
     },
   });
+}
+
+async function markDeliveryPending(deliveryId: string, errorCode: string) {
+  const delivery = await prisma.notificationDelivery.update({
+    where: { id: deliveryId },
+    data: {
+      status: NotificationDeliveryStatus.PENDING,
+      attemptCount: { increment: 1 },
+      lastAttemptAt: new Date(),
+      errorCode: errorCode.slice(0, 160),
+    },
+    select: { attemptCount: true },
+  });
+  if (delivery.attemptCount >= maxAutomaticDeliveryAttempts) {
+    await prisma.notificationDelivery.update({
+      where: { id: deliveryId },
+      data: { status: NotificationDeliveryStatus.FAILED },
+    });
+  }
 }
 
 function firebaseErrorCode(error: unknown) {

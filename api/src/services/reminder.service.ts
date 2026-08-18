@@ -43,9 +43,15 @@ export async function reminderRecipientsForEvent(
       .filter((entry) => entry.status === AttendanceStatus.NO)
       .map((entry) => entry.playerId),
   );
-  if (event.participants.length) {
-    for (const participant of event.participants) {
-      if (participant.userId) recipientIds.add(participant.userId);
+  const explicitlyRequestedPlayers = event.participants.filter(
+    (participant) =>
+      participant.responseRequired && participant.playerId && participant.player,
+  );
+  event.participants.forEach((participant) => {
+    if (participant.userId) recipientIds.add(participant.userId);
+  });
+  if (explicitlyRequestedPlayers.length) {
+    for (const participant of explicitlyRequestedPlayers) {
       if (
         !options.includeDeclined &&
         participant.playerId &&
@@ -57,6 +63,9 @@ export async function reminderRecipientsForEvent(
       participant.player?.parentLinks.forEach((link) => recipientIds.add(link.parentId));
     }
   } else {
+    // Ein Termin kann Trainer als direkte Benutzer-Teilnehmer enthalten, ohne
+    // dass der Spielerkader eingeschraenkt wurde. In diesem Fall bleibt die
+    // komplette Mannschaft samt Sorgeberechtigten erinnerungsberechtigt.
     const teamIds = event.targetTeams.length
       ? event.targetTeams.map((target) => target.teamId)
       : [event.teamId];
@@ -185,6 +194,22 @@ export async function processPendingReminderSyncs(limit = 20) {
 export async function processDueReminders(now = new Date()) {
   const pendingSync = await processPendingReminderSyncs();
   const regularTrainingSent = await processRegularTrainingReminders(now);
+  const dueEventCandidates = await prisma.scheduledReminder.findMany({
+    where: {
+      status: { in: [ReminderJobStatus.SCHEDULED, ReminderJobStatus.FAILED] },
+      dueAt: { lte: now },
+      event: { status: EventStatus.SCHEDULED, startAt: { gt: now } },
+    },
+    distinct: ['eventId'],
+    take: 100,
+    select: { eventId: true },
+  });
+  // Unmittelbar vor dem Versand wird die Empfaengerliste erneut aufgebaut.
+  // Damit reparieren sich auch bereits angelegte Erinnerungsjobs, die durch
+  // eine reine Trainer-Teilnehmerliste bislang keine Eltern enthielten.
+  await Promise.all(
+    dueEventCandidates.map(({ eventId }) => syncScheduledRemindersForEvent(eventId)),
+  );
   const due = await prisma.scheduledReminder.findMany({
     where: {
       status: { in: [ReminderJobStatus.SCHEDULED, ReminderJobStatus.FAILED] },

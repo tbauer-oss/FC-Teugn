@@ -23,6 +23,15 @@ import 'models/support.dart';
 import 'team_game_format.dart';
 import 'date_only.dart';
 
+String _stableCompetitionImportSelectionKey(List<String> rowIds) {
+  var hash = 0x811c9dc5;
+  for (final codeUnit in rowIds.join('|').codeUnits) {
+    hash ^= codeUnit;
+    hash = (hash * 0x01000193).toUnsigned(32);
+  }
+  return '${rowIds.length}-${hash.toRadixString(16).padLeft(8, '0')}';
+}
+
 Map<String, String?> _bfvWidgetTeamIdsFromResponse(dynamic data) {
   if (data is! Map || data['teams'] is! List) {
     throw const FormatException('Ungültige BfV-Mannschaftsantwort.');
@@ -2415,16 +2424,23 @@ class DataRepository {
   Future<void> applyCompetitionImport(
     String importId, {
     bool sourceWinsConflicts = false,
+    Set<String>? selectedRowIds,
   }) async {
+    final sortedRowIds =
+        selectedRowIds == null ? null : (selectedRowIds.toList()..sort());
+    final selectionKey = sortedRowIds == null
+        ? 'all'
+        : _stableCompetitionImportSelectionKey(sortedRowIds);
     await client.dio.post(
       '/imports/competition/$importId/apply',
       data: {
         'conflictPolicy': sourceWinsConflicts ? 'SOURCE_WINS' : 'SKIP',
+        if (sortedRowIds != null) 'selectedRowIds': sortedRowIds,
       },
       options: Options(
         headers: {
           'X-Idempotency-Key':
-              'competition-import-$importId-${sourceWinsConflicts ? 'source-wins' : 'skip'}',
+              'competition-import-$importId-${sourceWinsConflicts ? 'source-wins' : 'skip'}-$selectionKey',
         },
         extra: {
           // Der Importjob und der Idempotenzschlüssel machen ein erneutes

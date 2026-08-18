@@ -13,6 +13,7 @@ void main() {
       'invalidCount': 0,
       'rows': [
         {
+          'id': 'row-2',
           'rowNumber': 2,
           'externalId': 'bfv-123',
           'action': 'CREATE',
@@ -29,6 +30,7 @@ void main() {
           'messages': [],
         },
         {
+          'id': 'row-3',
           'rowNumber': 3,
           'externalId': 'bfv-124',
           'action': 'CONFLICT',
@@ -45,12 +47,15 @@ void main() {
     expect(preview.createCount, 1);
     expect(preview.conflictCount, 1);
     expect(preview.rows.first.action, CompetitionImportAction.create);
+    expect(preview.rows.first.id, 'row-2');
+    expect(preview.rows.first.canBeSelected, isTrue);
     expect(preview.rows.first.isHome, isTrue);
     expect(preview.rows.first.competition, 'Meisterschaften');
     expect(preview.rows.first.location, 'Sportanlage Teugn, Platz 2');
     expect(preview.rows.first.opponentId, 'opponent-1');
     expect(preview.rows.first.opponentTeamDesignation, 'E1');
     expect(preview.rows.last.action, CompetitionImportAction.conflict);
+    expect(preview.rows.last.canBeSelected, isTrue);
     expect(preview.rows.last.messages, isNotEmpty);
   });
 }

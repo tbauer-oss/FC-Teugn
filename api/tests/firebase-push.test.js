@@ -173,3 +173,22 @@ test('system-wide device management remains restricted to the system administrat
 test('bulk cleanup targets disabled push registrations only', () => {
   assert.deepEqual(disabledPushDeviceWhere, { isActive: false });
 });
+
+test('transient push failures are retried globally by the authenticated cron', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const service = fs.readFileSync(
+    path.join(__dirname, '../src/services/notification.service.ts'),
+    'utf8',
+  );
+  const cron = fs.readFileSync(
+    path.join(__dirname, '../src/controllers/cron.controller.ts'),
+    'utf8',
+  );
+  assert.match(service, /export async function retryPendingPushDeliveries/);
+  assert.match(service, /status: NotificationDeliveryStatus\.PENDING/);
+  assert.match(service, /attemptCount: \{ lt: maxAutomaticDeliveryAttempts \}/);
+  assert.match(service, /markDeliveryPending\(delivery\.id/);
+  assert.match(cron, /retryPendingPushDeliveries\(\)/);
+  assert.match(cron, /pushRetries/);
+});

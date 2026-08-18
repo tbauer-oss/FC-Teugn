@@ -50,6 +50,7 @@ class CompetitionImportPreview {
 
 class CompetitionImportRow {
   const CompetitionImportRow({
+    required this.id,
     required this.rowNumber,
     required this.action,
     required this.messages,
@@ -64,6 +65,7 @@ class CompetitionImportRow {
     this.opponentTeamDesignation,
   });
 
+  final String id;
   final int rowNumber;
   final CompetitionImportAction action;
   final String? externalId;
@@ -77,10 +79,22 @@ class CompetitionImportRow {
   final String? opponentTeamDesignation;
   final List<String> messages;
 
+  bool get canBeSelected => switch (action) {
+        CompetitionImportAction.create ||
+        CompetitionImportAction.update ||
+        CompetitionImportAction.conflict =>
+          true,
+        CompetitionImportAction.skip ||
+        CompetitionImportAction.invalid =>
+          false,
+      };
+
   factory CompetitionImportRow.fromJson(Map<String, dynamic> json) {
     final normalized = json['normalized'] as Map<String, dynamic>?;
+    final rowNumber = json['rowNumber'] as int? ?? 0;
     return CompetitionImportRow(
-      rowNumber: json['rowNumber'] as int? ?? 0,
+      id: json['id'] as String? ?? 'row-$rowNumber',
+      rowNumber: rowNumber,
       action: _enum(
         CompetitionImportAction.values,
         json['action'],

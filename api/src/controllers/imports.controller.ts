@@ -258,16 +258,43 @@ export async function applyCompetitionImport(req: Request, res: Response) {
   if (!job) return res.status(404).json({ message: 'Importvorschau nicht gefunden.' });
   if (job.status === ImportJobStatus.APPLIED) return res.json(job);
   const sourceWins = req.body?.conflictPolicy === 'SOURCE_WINS';
+  const selectedRowIdsInput = req.body?.selectedRowIds;
+  if (selectedRowIdsInput != null && !Array.isArray(selectedRowIdsInput)) {
+    return res.status(400).json({ message: 'Die Terminauswahl ist ungültig.' });
+  }
+  const selectedRowIds = selectedRowIdsInput == null
+    ? null
+    : new Set<string>(
+        selectedRowIdsInput
+          .map((value: unknown) => text(value, 100))
+          .filter((value: string | null): value is string => Boolean(value)),
+      );
+  if (selectedRowIds && selectedRowIds.size === 0) {
+    return res.status(400).json({
+      message: 'Wähle mindestens einen Termin für den Import aus.',
+    });
+  }
+  if (selectedRowIds) {
+    const knownRowIds = new Set(job.rows.map((row) => row.id));
+    if ([...selectedRowIds].some((rowId) => !knownRowIds.has(rowId))) {
+      return res.status(400).json({
+        message: 'Die Terminauswahl passt nicht mehr zu dieser Importvorschau.',
+      });
+    }
+  }
+  const requestedRows = selectedRowIds
+    ? job.rows.filter((row) => selectedRowIds.has(row.id))
+    : job.rows;
+  const actionableRows = requestedRows.filter(
+    (row) =>
+      row.normalized &&
+      row.action !== ImportRowAction.INVALID &&
+      row.action !== ImportRowAction.SKIP &&
+      (row.action !== ImportRowAction.CONFLICT || sourceWins),
+  );
+  const actionableRowIds = new Set(actionableRows.map((row) => row.id));
   const applied = await prisma.$transaction(async (tx) => {
-    for (const row of job.rows) {
-      if (
-        !row.normalized ||
-        row.action === ImportRowAction.INVALID ||
-        row.action === ImportRowAction.SKIP ||
-        (row.action === ImportRowAction.CONFLICT && !sourceWins)
-      ) {
-        continue;
-      }
+    for (const row of actionableRows) {
       if (row.action === ImportRowAction.CONFLICT && row.entityId) {
         const ownedEntity = await tx.event.findFirst({
           where: { id: row.entityId, teamId: job.teamId },
@@ -306,6 +333,8 @@ export async function applyCompetitionImport(req: Request, res: Response) {
           createCount: job.createCount,
           updateCount: job.updateCount,
           conflictPolicy: sourceWins ? 'SOURCE_WINS' : 'SKIP',
+          selectedRowCount: selectedRowIds?.size ?? requestedRows.length,
+          appliedRowCount: actionableRows.length,
         },
       },
     });
@@ -314,6 +343,7 @@ export async function applyCompetitionImport(req: Request, res: Response) {
   const affectedIds = applied.rows
     .filter(
       (row) =>
+        actionableRowIds.has(row.id) &&
         row.entityId &&
         row.action !== ImportRowAction.SKIP &&
         row.action !== ImportRowAction.INVALID,
