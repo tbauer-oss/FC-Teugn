@@ -147,72 +147,107 @@ export async function queueUserNotifications(
   const preferenceByUser = new Map(
     preferences.map((preference) => [preference.userId, preference]),
   );
+  const subscriptionsByUser = new Map<string, typeof subscriptions>();
+  for (const subscription of subscriptions) {
+    const existing = subscriptionsByUser.get(subscription.userId) ?? [];
+    existing.push(subscription);
+    subscriptionsByUser.set(subscription.userId, existing);
+  }
   let notificationCount = 0;
   let deliveryCount = 0;
   const deliveryIds: string[] = [];
-  for (const userId of uniqueIds) {
-    const preference = preferenceByUser.get(userId);
-    const defaults = defaultNotificationPreference(input.category);
-    const inApp = input.forceInApp || (preference?.inApp ?? defaults.inApp);
-    const push = input.forcePush || ((preference?.push ?? defaults.push) && input.pushEnabled !== false);
-    if (!inApp && !push) continue;
-    const notification = input.dedupeKey
-      ? await prisma.notification.upsert({
-          where: { dedupeKey: `${input.dedupeKey}:${userId}` },
-          update: {},
-          create: {
-            userId,
-            category: input.category,
-            title: input.title.slice(0, 160),
-            body: input.body.slice(0, 1000),
-            actionUrl: input.actionUrl,
-            entityType: input.entityType,
-            entityId: input.entityId,
-            expiresAt: input.expiresAt,
-            dedupeKey: `${input.dedupeKey}:${userId}`,
-          },
-        })
-      : await prisma.notification.create({ data: {
-        userId,
-        category: input.category,
-        title: input.title.slice(0, 160),
-        body: input.body.slice(0, 1000),
-        actionUrl: input.actionUrl,
-        entityType: input.entityType,
-        entityId: input.entityId,
-        expiresAt: input.expiresAt,
-      } });
-    notificationCount++;
-    if (!push) continue;
-    for (const subscription of subscriptions.filter((item) => item.userId === userId)) {
-      const existingDelivery = await prisma.notificationDelivery.findUnique({
-        where: {
-          notificationId_subscriptionId: {
-            notificationId: notification.id,
-            subscriptionId: subscription.id,
-          },
-        },
-        select: { id: true, status: true },
-      });
-      const delivery = existingDelivery ?? await prisma.notificationDelivery.upsert({
-        where: {
-          notificationId_subscriptionId: {
-            notificationId: notification.id,
-            subscriptionId: subscription.id,
-          },
-        },
-        update: {},
-        create: {
-          notificationId: notification.id,
-          subscriptionId: subscription.id,
-          userId,
-        },
-        select: { id: true, status: true },
-      });
-      if (!existingDelivery) deliveryCount++;
-      if (delivery.status !== NotificationDeliveryStatus.SENT) {
-        deliveryIds.push(delivery.id);
-      }
+  // Die Empfänger werden in kleinen parallelen Gruppen vorbereitet. Dadurch
+  // bleibt die Bestätigung auch bei größeren Mannschaften schnell, ohne den
+  // Datenbank-Pool mit unbegrenzt vielen gleichzeitigen Abfragen zu belasten.
+  const concurrency = 8;
+  for (let index = 0; index < uniqueIds.length; index += concurrency) {
+    const results = await Promise.all(
+      uniqueIds.slice(index, index + concurrency).map(async (userId) => {
+        const preference = preferenceByUser.get(userId);
+        const defaults = defaultNotificationPreference(input.category);
+        const inApp = input.forceInApp || (preference?.inApp ?? defaults.inApp);
+        const push = input.forcePush || (
+          (preference?.push ?? defaults.push) && input.pushEnabled !== false
+        );
+        if (!inApp && !push) {
+          return { notifications: 0, deliveries: 0, deliveryIds: [] as string[] };
+        }
+        const notification = input.dedupeKey
+          ? await prisma.notification.upsert({
+              where: { dedupeKey: `${input.dedupeKey}:${userId}` },
+              update: {},
+              create: {
+                userId,
+                category: input.category,
+                title: input.title.slice(0, 160),
+                body: input.body.slice(0, 1000),
+                actionUrl: input.actionUrl,
+                entityType: input.entityType,
+                entityId: input.entityId,
+                expiresAt: input.expiresAt,
+                dedupeKey: `${input.dedupeKey}:${userId}`,
+              },
+            })
+          : await prisma.notification.create({ data: {
+              userId,
+              category: input.category,
+              title: input.title.slice(0, 160),
+              body: input.body.slice(0, 1000),
+              actionUrl: input.actionUrl,
+              entityType: input.entityType,
+              entityId: input.entityId,
+              expiresAt: input.expiresAt,
+            } });
+        if (!push) {
+          return { notifications: 1, deliveries: 0, deliveryIds: [] as string[] };
+        }
+        const prepared = await Promise.all(
+          (subscriptionsByUser.get(userId) ?? []).map(async (subscription) => {
+            const existingDelivery = await prisma.notificationDelivery.findUnique({
+              where: {
+                notificationId_subscriptionId: {
+                  notificationId: notification.id,
+                  subscriptionId: subscription.id,
+                },
+              },
+              select: { id: true, status: true },
+            });
+            const delivery = existingDelivery ?? await prisma.notificationDelivery.upsert({
+              where: {
+                notificationId_subscriptionId: {
+                  notificationId: notification.id,
+                  subscriptionId: subscription.id,
+                },
+              },
+              update: {},
+              create: {
+                notificationId: notification.id,
+                subscriptionId: subscription.id,
+                userId,
+              },
+              select: { id: true, status: true },
+            });
+            return {
+              created: existingDelivery == null ? 1 : 0,
+              deliveryId: delivery.status !== NotificationDeliveryStatus.SENT
+                ? delivery.id
+                : null,
+            };
+          }),
+        );
+        return {
+          notifications: 1,
+          deliveries: prepared.reduce((sum, item) => sum + item.created, 0),
+          deliveryIds: prepared
+            .map((item) => item.deliveryId)
+            .filter((id): id is string => id != null),
+        };
+      }),
+    );
+    for (const result of results) {
+      notificationCount += result.notifications;
+      deliveryCount += result.deliveries;
+      deliveryIds.push(...result.deliveryIds);
     }
   }
   return {

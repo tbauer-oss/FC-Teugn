@@ -148,18 +148,52 @@ Future<void> showEventAttendanceReminder(
     final audienceText = settings.audience == AttendanceReminderAudience.all
         ? 'Alle relevanten Personen'
         : '${result.missingPlayers} offene Rückmeldung(en)';
-    final deliveryText = settings.pushEnabled
-        ? result.queuedPushDeliveries > 0
-            ? ' ${result.queuedPushDeliveries} Push-Zustellung(en) laufen im Hintergrund.'
-            : ' Die Push-Zustellung läuft im Hintergrund.'
-        : ' Die Erinnerung ist in der App verfügbar.';
+    final String feedback;
+    if (result.confirmationPending) {
+      feedback =
+          'Der Auftrag wurde genau einmal übertragen. Die Serverbestätigung '
+          'wird noch geprüft; es erfolgt kein automatischer Doppelversand.';
+    } else if (result.recipients == 0) {
+      feedback = 'Für diese Auswahl wurden keine Empfänger gefunden.';
+    } else if (!settings.pushEnabled) {
+      feedback = '$audienceText: ${result.notificationRecipients} von '
+          '${result.recipients} Konten wurden in der App informiert.';
+    } else if (!result.deliveryStatusConfirmed) {
+      feedback = 'Erinnerungsauftrag sicher angenommen: $audienceText, '
+          '${result.recipients} Konten. Die Push-Übergabe läuft im Hintergrund.';
+    } else {
+      final parts = <String>[
+        '$audienceText: ${result.notificationRecipients} von '
+            '${result.recipients} Konten wurden informiert',
+      ];
+      if (result.pushRecipients > 0) {
+        parts.add(
+          'Push-Dienst: ${result.sentPushRecipients} von '
+          '${result.pushRecipients} erreichbaren Konten angenommen',
+        );
+      }
+      if (result.pendingPushRecipients > 0) {
+        parts.add('${result.pendingPushRecipients} noch in Bearbeitung');
+      }
+      if (result.unavailablePushRecipients > 0) {
+        parts.add(
+          '${result.unavailablePushRecipients} derzeit nicht erreichbar',
+        );
+      }
+      if (result.recipientsWithoutActivePush > 0) {
+        parts.add(
+          '${result.recipientsWithoutActivePush} ohne aktiven Push-Empfang',
+        );
+      }
+      if (result.pushDevices == 0) {
+        parts.add('kein aktives Push-Gerät registriert');
+      }
+      feedback = '${parts.join(' · ')}.';
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          result.recipients == 0
-              ? 'Für diese Auswahl wurden keine Empfänger gefunden.'
-              : 'Erinnerungsauftrag angenommen: $audienceText, ${result.recipients} Person(en).$deliveryText',
-        ),
+        duration: const Duration(seconds: 8),
+        content: Text(feedback),
       ),
     );
   } on DioException catch (error) {
@@ -177,7 +211,8 @@ Future<void> showEventAttendanceReminder(
       SnackBar(
         content: Text(
           deliveryMayHaveStarted
-              ? 'Der Versandstatus konnte nicht bestätigt werden. Der Auftrag wird nicht automatisch wiederholt.'
+              ? 'Die Verbindung ist gerade nicht stabil. Es wurde kein '
+                  'zweiter Auftrag ausgelöst.'
               : 'Die Erinnerungen konnten nicht versendet werden.',
         ),
       ),

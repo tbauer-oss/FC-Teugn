@@ -15,6 +15,7 @@ import {
   GuardianRelationship,
   MatchStatus,
   NotificationCategory,
+  NotificationDeliveryStatus,
   Prisma,
   RecurrenceFrequency,
   Role as PrismaRole,
@@ -2551,6 +2552,125 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
     // bereits zugestellt ausgeben. Neue Clients verwenden den Queue-Zähler.
     pushDeliveries: 0,
     queuedPushDeliveries: queuedResult.deliveries,
+  });
+}
+
+export async function attendanceReminderStatus(req: Request, res: Response) {
+  const user = req.user!;
+  const idempotencyKey = clean(req.query.key);
+  if (!idempotencyKey || idempotencyKey.length > 160) {
+    return res.status(400).json({ message: 'Ungültiger Erinnerungsauftrag.' });
+  }
+  const teamIds = await accessibleTeamIds(user);
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.id, ...eventScope(teamIds) },
+    include: { targetTeams: true },
+  });
+  if (!event) return res.status(404).json({ message: 'Termin nicht gefunden.' });
+  if (!(await canManageEvent(user, event))) {
+    return res.status(403).json({ message: 'Keine Berechtigung für diesen Termin.' });
+  }
+
+  const dedupePrefix =
+    `attendance-reminder:${user.id}:${event.id}:${idempotencyKey}:`;
+  const [record, notifications] = await Promise.all([
+    prisma.idempotencyRecord.findUnique({
+      where: {
+        userId_idempotencyKey: {
+          userId: user.id,
+          idempotencyKey,
+        },
+      },
+      select: {
+        method: true,
+        path: true,
+        responseStatus: true,
+        responseBody: true,
+      },
+    }),
+    prisma.notification.findMany({
+      where: { dedupeKey: { startsWith: dedupePrefix } },
+      select: {
+        userId: true,
+        deliveries: {
+          select: { userId: true, status: true },
+        },
+      },
+    }),
+  ]);
+  const expectedPath = `/events/${event.id}/attendance/reminders`;
+  const matchingRecord =
+    record?.method === 'POST' && record.path.endsWith(expectedPath)
+      ? record
+      : null;
+  const responseBody =
+    matchingRecord?.responseBody &&
+    typeof matchingRecord.responseBody === 'object' &&
+    !Array.isArray(matchingRecord.responseBody)
+      ? matchingRecord.responseBody as Record<string, unknown>
+      : {};
+  const numberFromBody = (key: string, fallback = 0) => {
+    const value = Number(responseBody[key]);
+    return Number.isFinite(value) && value >= 0 ? Math.trunc(value) : fallback;
+  };
+  const notificationRecipients = new Set(
+    notifications.map((notification) => notification.userId),
+  );
+  const deliveries = notifications.flatMap(
+    (notification) => notification.deliveries,
+  );
+  const pushRecipients = new Set(deliveries.map((delivery) => delivery.userId));
+  const sentRecipients = new Set(
+    deliveries
+      .filter((delivery) => delivery.status === NotificationDeliveryStatus.SENT)
+      .map((delivery) => delivery.userId),
+  );
+  const pendingRecipients = new Set(
+    deliveries
+      .filter((delivery) => delivery.status === NotificationDeliveryStatus.PENDING)
+      .map((delivery) => delivery.userId),
+  );
+  sentRecipients.forEach((recipientId) => pendingRecipients.delete(recipientId));
+  const accepted =
+    responseBody.accepted === true ||
+    matchingRecord?.responseStatus === 202 ||
+    notifications.length > 0;
+  if (!accepted) {
+    return res.status(202).json({
+      accepted: false,
+      confirmationPending: true,
+      deliveryStatus: 'PROCESSING',
+    });
+  }
+  const recipients = numberFromBody('recipients', notificationRecipients.size);
+  const sentPushDevices = deliveries.filter(
+    (delivery) => delivery.status === NotificationDeliveryStatus.SENT,
+  ).length;
+  const pendingPushDevices = deliveries.filter(
+    (delivery) => delivery.status === NotificationDeliveryStatus.PENDING,
+  ).length;
+  const unavailablePushDevices = deliveries.length - sentPushDevices - pendingPushDevices;
+  return res.json({
+    accepted: true,
+    confirmationPending: false,
+    deliveryStatus: pendingPushDevices > 0 ? 'PENDING' : 'CONFIRMED',
+    deliveryComplete: pendingPushDevices === 0,
+    recipients,
+    targetedPlayers: numberFromBody('targetedPlayers'),
+    missingPlayers: numberFromBody('missingPlayers'),
+    notificationRecipients: notificationRecipients.size,
+    pushRecipients: pushRecipients.size,
+    sentPushRecipients: sentRecipients.size,
+    pendingPushRecipients: pendingRecipients.size,
+    unavailablePushRecipients: Math.max(
+      0,
+      pushRecipients.size - sentRecipients.size - pendingRecipients.size,
+    ),
+    recipientsWithoutActivePush: Math.max(0, recipients - pushRecipients.size),
+    pushDevices: deliveries.length,
+    sentPushDevices,
+    pendingPushDevices,
+    unavailablePushDevices,
   });
 }
 

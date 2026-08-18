@@ -49,6 +49,73 @@ Map<String, String?> _bfvWidgetTeamIdsFromResponse(dynamic data) {
   return result;
 }
 
+typedef AttendanceReminderSendResult = ({
+  bool accepted,
+  bool confirmationPending,
+  bool deliveryComplete,
+  bool deliveryStatusConfirmed,
+  int recipients,
+  int targetedPlayers,
+  int missingPlayers,
+  int notificationRecipients,
+  int pushRecipients,
+  int sentPushRecipients,
+  int pendingPushRecipients,
+  int unavailablePushRecipients,
+  int recipientsWithoutActivePush,
+  int pushDevices,
+  int sentPushDevices,
+  int pendingPushDevices,
+  int unavailablePushDevices,
+});
+
+int _nonNegativeInt(Map<String, dynamic> data, String key, [int fallback = 0]) {
+  final value = data[key];
+  return value is num && value >= 0 ? value.toInt() : fallback;
+}
+
+AttendanceReminderSendResult _attendanceReminderResult(
+  Map<String, dynamic> data, {
+  required bool deliveryStatusConfirmed,
+  bool confirmationPending = false,
+}) {
+  final recipients = _nonNegativeInt(data, 'recipients');
+  final queuedDevices = _nonNegativeInt(data, 'queuedPushDeliveries');
+  final pushDevices = _nonNegativeInt(data, 'pushDevices', queuedDevices);
+  final pendingDevices = _nonNegativeInt(
+    data,
+    'pendingPushDevices',
+    deliveryStatusConfirmed ? 0 : queuedDevices,
+  );
+  return (
+    accepted: data['accepted'] as bool? ?? false,
+    confirmationPending:
+        data['confirmationPending'] as bool? ?? confirmationPending,
+    deliveryComplete: data['deliveryComplete'] as bool? ??
+        (deliveryStatusConfirmed && pendingDevices == 0),
+    deliveryStatusConfirmed: deliveryStatusConfirmed,
+    recipients: recipients,
+    targetedPlayers: _nonNegativeInt(data, 'targetedPlayers'),
+    missingPlayers: _nonNegativeInt(data, 'missingPlayers'),
+    notificationRecipients: _nonNegativeInt(
+      data,
+      'notificationRecipients',
+      _nonNegativeInt(data, 'notifications'),
+    ),
+    pushRecipients: _nonNegativeInt(data, 'pushRecipients'),
+    sentPushRecipients: _nonNegativeInt(data, 'sentPushRecipients'),
+    pendingPushRecipients: _nonNegativeInt(data, 'pendingPushRecipients'),
+    unavailablePushRecipients:
+        _nonNegativeInt(data, 'unavailablePushRecipients'),
+    recipientsWithoutActivePush:
+        _nonNegativeInt(data, 'recipientsWithoutActivePush'),
+    pushDevices: pushDevices,
+    sentPushDevices: _nonNegativeInt(data, 'sentPushDevices'),
+    pendingPushDevices: pendingDevices,
+    unavailablePushDevices: _nonNegativeInt(data, 'unavailablePushDevices'),
+  );
+}
+
 class DataRepository {
   final ApiClient client;
 
@@ -1225,47 +1292,117 @@ class DataRepository {
     await client.dio.post('/events/$eventId/attendance/finalize');
   }
 
-  Future<
-      ({
-        int recipients,
-        int targetedPlayers,
-        int missingPlayers,
-        int queuedPushDeliveries,
-        bool accepted,
-      })> sendAttendanceReminders(
+  Future<AttendanceReminderSendResult> sendAttendanceReminders(
     String eventId, {
     String? message,
     bool pushEnabled = true,
     bool includeAll = false,
   }) async {
     final idempotencyKey = _idempotencyKey('attendance-reminder-$eventId');
-    final res = await client.dio.post(
-      '/events/$eventId/attendance/reminders',
-      data: {
-        'message': message,
-        'pushEnabled': pushEnabled,
-        'audience': includeAll ? 'ALL' : 'OPEN',
-      },
-      options: Options(
-        headers: {'X-Idempotency-Key': idempotencyKey},
-        extra: const {
-          // Erinnerungen erzeugen Push-Nachrichten und dürfen deshalb nach
-          // einem unklaren Verbindungsabbruch niemals im Hintergrund erneut
-          // abgespielt werden.
-          'requireOnline': true,
-          'loadingMessage': 'Erinnerung wird vorbereitet …',
-          'loadingMode': 'background',
+    Map<String, dynamic>? acceptedData;
+    DioException? ambiguousError;
+    try {
+      final res = await client.dio.post(
+        '/events/$eventId/attendance/reminders',
+        data: {
+          'message': message,
+          'pushEnabled': pushEnabled,
+          'audience': includeAll ? 'ALL' : 'OPEN',
         },
-      ),
+        options: Options(
+          headers: {'X-Idempotency-Key': idempotencyKey},
+          extra: const {
+            // Erinnerungen erzeugen Push-Nachrichten und dürfen deshalb nach
+            // einem unklaren Verbindungsabbruch niemals im Hintergrund erneut
+            // abgespielt werden.
+            'requireOnline': true,
+            'loadingMessage': 'Erinnerung wird vorbereitet …',
+            'loadingMode': 'background',
+          },
+        ),
+      );
+      acceptedData = res.data as Map<String, dynamic>;
+    } on DioException catch (error) {
+      final status = error.response?.statusCode;
+      final mayHaveReachedServer = status == 408 ||
+          status == 429 ||
+          (status != null && status >= 500) ||
+          status == null;
+      if (!mayHaveReachedServer) rethrow;
+      ambiguousError = error;
+    }
+
+    final confirmed = await _confirmedAttendanceReminderStatus(
+      eventId,
+      idempotencyKey,
+      waitForDelivery: pushEnabled,
     );
-    final data = res.data as Map<String, dynamic>;
-    return (
-      recipients: data['recipients'] as int? ?? 0,
-      targetedPlayers: data['targetedPlayers'] as int? ?? 0,
-      missingPlayers: data['missingPlayers'] as int? ?? 0,
-      queuedPushDeliveries: data['queuedPushDeliveries'] as int? ?? 0,
-      accepted: data['accepted'] as bool? ?? true,
-    );
+    if (confirmed != null) return confirmed;
+    if (acceptedData != null) {
+      return _attendanceReminderResult(
+        acceptedData,
+        deliveryStatusConfirmed: !pushEnabled,
+      );
+    }
+    if (ambiguousError != null) {
+      return (
+        accepted: false,
+        confirmationPending: true,
+        deliveryComplete: false,
+        deliveryStatusConfirmed: false,
+        recipients: 0,
+        targetedPlayers: 0,
+        missingPlayers: 0,
+        notificationRecipients: 0,
+        pushRecipients: 0,
+        sentPushRecipients: 0,
+        pendingPushRecipients: 0,
+        unavailablePushRecipients: 0,
+        recipientsWithoutActivePush: 0,
+        pushDevices: 0,
+        sentPushDevices: 0,
+        pendingPushDevices: 0,
+        unavailablePushDevices: 0,
+      );
+    }
+    throw StateError('Der Erinnerungsauftrag konnte nicht geprüft werden.');
+  }
+
+  Future<AttendanceReminderSendResult?> _confirmedAttendanceReminderStatus(
+    String eventId,
+    String idempotencyKey, {
+    required bool waitForDelivery,
+  }) async {
+    const delays = <Duration>[
+      Duration(milliseconds: 100),
+      Duration(milliseconds: 250),
+      Duration(milliseconds: 500),
+      Duration(milliseconds: 900),
+    ];
+    AttendanceReminderSendResult? latest;
+    for (final delay in delays) {
+      await Future<void>.delayed(delay);
+      try {
+        final response = await client.dio.get(
+          '/events/$eventId/attendance/reminders/status',
+          queryParameters: {'key': idempotencyKey},
+          options: Options(extra: const {'suppressLoading': true}),
+        );
+        final data = response.data as Map<String, dynamic>;
+        final result = _attendanceReminderResult(
+          data,
+          deliveryStatusConfirmed: data['accepted'] == true,
+          confirmationPending: data['accepted'] != true,
+        );
+        if (!result.accepted) continue;
+        latest = result;
+        if (!waitForDelivery || result.deliveryComplete) return result;
+      } on DioException {
+        // Die Statusprüfung verändert keine Daten und wird deshalb begrenzt
+        // wiederholt. Der ursprüngliche Versandauftrag wird nie dupliziert.
+      }
+    }
+    return latest;
   }
 
   Future<String> createCalendarSubscription() async {

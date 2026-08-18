@@ -15,6 +15,7 @@ import {
   publicCalendarSubscription,
   recordActualAttendance,
   requestCarpoolSeat,
+  attendanceReminderStatus,
   sendAttendanceReminders,
   setAttendance,
   updateCarpoolPassenger,
@@ -100,6 +101,11 @@ router.post(
   '/:id/attendance/reminders',
   requirePermission(Permission.MANAGE_EVENTS),
   sendAttendanceReminders,
+);
+router.get(
+  '/:id/attendance/reminders/status',
+  requirePermission(Permission.MANAGE_EVENTS),
+  attendanceReminderStatus,
 );
 router.post('/:id/carpool-offers', createCarpoolOffer);
 router.delete('/:id/carpool-offers/:offerId', deleteCarpoolOffer);

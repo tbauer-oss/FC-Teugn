@@ -206,4 +206,6 @@ test('notification creation and external push delivery are separate phases', () 
   assert.match(service, /export async function deliverQueuedPushes/);
   assert.match(service, /const queued = await queueUserNotifications\(userIds, input\)/);
   assert.match(service, /await deliverQueuedPushes\(queued\.deliveryIds\)/);
+  assert.match(service, /const concurrency = 8/);
+  assert.match(service, /subscriptionsByUser/);
 });

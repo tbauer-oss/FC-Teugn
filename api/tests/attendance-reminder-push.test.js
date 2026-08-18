@@ -10,6 +10,10 @@ const source = fs.readFileSync(
 const start = source.indexOf('export async function sendAttendanceReminders');
 const end = source.indexOf('export async function createCarpoolOffer', start);
 const handler = source.slice(start, end);
+const routes = fs.readFileSync(
+  path.join(__dirname, '..', 'src', 'routes', 'events.routes.ts'),
+  'utf8',
+);
 
 test('manual attendance reminders honor the optional push selection', () => {
   assert.match(handler, /queueUserNotifications\(recipients/);
@@ -50,4 +54,16 @@ test('manual reminders acknowledge a durable queue before external push delivery
   assert.match(handler, /queuedPushDeliveries: queuedResult\.deliveries/);
   assert.match(handler, /pushDeliveries: 0/);
   assert.doesNotMatch(handler, /await notifyUsers\(recipients/);
+});
+
+test('manual reminder status resolves an ambiguous response without resending', () => {
+  assert.match(routes, /\/:id\/attendance\/reminders\/status/);
+  assert.match(routes, /attendanceReminderStatus/);
+  assert.match(handler, /export async function attendanceReminderStatus/);
+  assert.match(handler, /idempotencyRecord\.findUnique/);
+  assert.match(handler, /dedupeKey: \{ startsWith: dedupePrefix \}/);
+  assert.match(handler, /sentPushRecipients/);
+  assert.match(handler, /pendingPushRecipients/);
+  assert.match(handler, /recipientsWithoutActivePush/);
+  assert.match(handler, /deliveryComplete: pendingPushDevices === 0/);
 });

@@ -197,18 +197,30 @@ void main() {
     expect(pending.map((write) => write.id), ['attendance']);
   });
 
-  test('manual reminders are never queued or automatically repeated', () async {
+  test('ambiguous manual reminders are checked but never repeated', () async {
     FlutterSecureStorage.setMockInitialValues({});
     var postCalls = 0;
+    var statusCalls = 0;
     final idempotencyKeys = <String?>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
     server.listen((request) async {
-      postCalls++;
-      idempotencyKeys.add(request.headers.value('x-idempotency-key'));
-      request.response.statusCode = HttpStatus.serviceUnavailable;
+      if (request.method == 'POST') {
+        postCalls++;
+        idempotencyKeys.add(request.headers.value('x-idempotency-key'));
+        request.response.statusCode = HttpStatus.serviceUnavailable;
+      } else {
+        statusCalls++;
+        request.response.statusCode = HttpStatus.accepted;
+      }
       request.response.headers.contentType = ContentType.json;
-      request.response.write(jsonEncode({'message': 'not available'}));
+      request.response.write(jsonEncode(request.method == 'POST'
+          ? {'message': 'not available'}
+          : {
+              'accepted': false,
+              'confirmationPending': true,
+              'deliveryStatus': 'PROCESSING',
+            }));
       await request.response.close();
     });
     final outbox = GeneralOfflineOutbox();
@@ -219,37 +231,62 @@ void main() {
     );
     final repository = DataRepository(client);
 
-    await expectLater(
-      repository.sendAttendanceReminders('event-1'),
-      throwsA(isA<DioException>()),
-    );
+    final result = await repository.sendAttendanceReminders('event-1');
 
     expect(postCalls, 1);
+    expect(statusCalls, 4);
     expect(idempotencyKeys.single, isNotEmpty);
+    expect(result.accepted, isFalse);
+    expect(result.confirmationPending, isTrue);
     expect(await outbox.pending('trainer-1'), isEmpty);
   });
 
-  test('manual reminder returns immediately with queued delivery status',
-      () async {
+  test('manual reminder reports provider-accepted delivery status', () async {
     FlutterSecureStorage.setMockInitialValues({});
     var postCalls = 0;
+    var statusCalls = 0;
+    String? idempotencyKey;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
     server.listen((request) async {
-      postCalls++;
-      expect(request.headers.value('x-idempotency-key'), isNotEmpty);
-      request.response.statusCode = HttpStatus.accepted;
       request.response.headers.contentType = ContentType.json;
-      request.response.write(jsonEncode({
-        'accepted': true,
-        'deliveryStatus': 'QUEUED',
-        'recipients': 6,
-        'targetedPlayers': 6,
-        'missingPlayers': 6,
-        'notifications': 6,
-        'pushDeliveries': 0,
-        'queuedPushDeliveries': 7,
-      }));
+      if (request.method == 'POST') {
+        postCalls++;
+        idempotencyKey = request.headers.value('x-idempotency-key');
+        expect(idempotencyKey, isNotEmpty);
+        request.response.statusCode = HttpStatus.accepted;
+        request.response.write(jsonEncode({
+          'accepted': true,
+          'deliveryStatus': 'QUEUED',
+          'recipients': 6,
+          'targetedPlayers': 6,
+          'missingPlayers': 6,
+          'notifications': 6,
+          'pushDeliveries': 0,
+          'queuedPushDeliveries': 7,
+        }));
+      } else {
+        statusCalls++;
+        expect(request.uri.queryParameters['key'], idempotencyKey);
+        request.response.write(jsonEncode({
+          'accepted': true,
+          'confirmationPending': false,
+          'deliveryComplete': true,
+          'recipients': 6,
+          'targetedPlayers': 6,
+          'missingPlayers': 6,
+          'notificationRecipients': 6,
+          'pushRecipients': 5,
+          'sentPushRecipients': 5,
+          'pendingPushRecipients': 0,
+          'unavailablePushRecipients': 0,
+          'recipientsWithoutActivePush': 1,
+          'pushDevices': 7,
+          'sentPushDevices': 7,
+          'pendingPushDevices': 0,
+          'unavailablePushDevices': 0,
+        }));
+      }
       await request.response.close();
     });
     final repository = DataRepository(ApiClient(
@@ -259,10 +296,14 @@ void main() {
     final result = await repository.sendAttendanceReminders('event-1');
 
     expect(postCalls, 1);
+    expect(statusCalls, 1);
     expect(result.accepted, isTrue);
+    expect(result.deliveryStatusConfirmed, isTrue);
     expect(result.recipients, 6);
     expect(result.missingPlayers, 6);
-    expect(result.queuedPushDeliveries, 7);
+    expect(result.sentPushRecipients, 5);
+    expect(result.sentPushDevices, 7);
+    expect(result.recipientsWithoutActivePush, 1);
   });
 
   test('routine writes use one non-blocking loading operation', () async {
