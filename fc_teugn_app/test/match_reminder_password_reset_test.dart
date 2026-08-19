@@ -62,6 +62,17 @@ void main() {
     );
   });
 
+  test('captured reset route survives the temporary launch navigator', () {
+    expect(
+      initialAppRouteForSession(
+        null,
+        capturedPasswordResetRoute:
+            '/reset-password?token=captured-before-launch',
+      ),
+      '/reset-password?token=captured-before-launch',
+    );
+  });
+
   test('FAQ explains match reminder and password reset by email', () {
     final password = helpArticles.singleWhere(
       (article) => article.title.contains('Passwort vergessen'),

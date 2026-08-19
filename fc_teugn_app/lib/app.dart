@@ -77,6 +77,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
   GoRouter? _activeRouter;
+  late final String? _startupPasswordResetRoute;
   String? _pendingPushAction;
   bool _minimumLaunchComplete = false;
   bool _initialLaunchComplete = false;
@@ -90,6 +91,11 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
   @override
   void initState() {
     super.initState();
+    // The temporary launch MaterialApp owns the browser navigator before the
+    // real GoRouter is created. Capture password-reset links immediately so
+    // its token cannot be lost while the launch screen restores the session.
+    _startupPasswordResetRoute =
+        kIsWeb ? passwordResetRouteFromBrowserUri(Uri.base) : null;
     WidgetsBinding.instance.addObserver(this);
     // The first resumed lifecycle event belongs to the initial launch. Treat
     // it as current so it does not immediately duplicate the bootstrap calls.
@@ -465,7 +471,14 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
     // location and causes the dashboard to visibly enter a second time.
     final router = _activeRouter ??= GoRouter(
       navigatorKey: _rootNavigatorKey,
-      initialLocation: _initialRouteFor(authState.user),
+      initialLocation: initialAppRouteForSession(
+        authState.user,
+        capturedPasswordResetRoute: _startupPasswordResetRoute,
+      ),
+      // When a reset link was captured before the launch screen, it must take
+      // precedence over the platform route that the temporary navigator may
+      // have written in the meantime.
+      overridePlatformDefaultLocation: _startupPasswordResetRoute != null,
       redirect: (context, state) {
         final user = ref.read(authProvider).user;
         final location = state.matchedLocation;
@@ -1004,7 +1017,14 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
   }
 }
 
-String _initialRouteFor(AppUser? user) {
+@visibleForTesting
+String initialAppRouteForSession(
+  AppUser? user, {
+  String? capturedPasswordResetRoute,
+}) {
+  if (capturedPasswordResetRoute != null) {
+    return capturedPasswordResetRoute;
+  }
   if (kIsWeb) {
     final passwordResetRoute = passwordResetRouteFromBrowserUri(Uri.base);
     if (passwordResetRoute != null) return passwordResetRoute;
