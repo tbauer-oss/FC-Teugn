@@ -19,6 +19,7 @@ import {
   canManageFormation,
   canManageTeam,
   hasOrganizationWideTeamScope,
+  invalidateTeamAccessCache,
   resolveContextTeamId,
   selectedContextTeamIds,
   workingContextTeamIds,
@@ -599,6 +600,7 @@ export async function updateOrganizationContext(req: Request, res: Response) {
       },
     });
   });
+  invalidateTeamAccessCache(user.id);
   return organizationContext(req, res);
 }
 

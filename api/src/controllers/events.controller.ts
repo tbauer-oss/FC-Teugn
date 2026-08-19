@@ -46,7 +46,6 @@ import {
   reminderRecipientsForEvent,
   syncScheduledRemindersForEvent,
 } from '../services/reminder.service';
-import { ensureNextRegularTrainingOccurrences } from '../services/regular-training-occurrence.service';
 import { mediaAssetUrl } from '../services/media-access';
 import {
   deliverQueuedPushes,
@@ -170,7 +169,6 @@ const eventInclude = {
       },
     },
   },
-  squads: { include: { members: true } },
 } as const;
 
 type CalendarEvent = Prisma.EventGetPayload<{ include: typeof eventInclude }>;
@@ -1024,9 +1022,8 @@ export async function listPersonalResponses(req: Request, res: Response) {
   if (!playerIds.length || !teamIds.length) return res.json([]);
 
   const now = new Date();
-  await ensureNextRegularTrainingOccurrences(teamIds, now);
-  const from = validDate(req.query.from) ?? new Date(now.getTime() - 30 * 86_400_000);
-  const to = validDate(req.query.to) ?? new Date(now.getTime() + 370 * 86_400_000);
+  const from = validDate(req.query.from) ?? new Date(now.getTime() - 86_400_000);
+  const to = validDate(req.query.to) ?? new Date(now.getTime() + 7 * 86_400_000);
   const events = await prisma.event.findMany({
     where: {
       parentTournamentId: null,
@@ -1139,8 +1136,9 @@ export async function listEvents(req: Request, res: Response) {
   const staff = isStaff(user.role, user.permissions);
   const accessibleIds = await accessibleTeamIds(user);
   const teamIds = await contextualTeamIds(user);
-  const from = validDate(req.query.from);
-  const to = validDate(req.query.to);
+  const now = new Date();
+  const from = validDate(req.query.from) ?? new Date(now.getTime() - 86_400_000);
+  const to = validDate(req.query.to) ?? new Date(now.getTime() + 42 * 86_400_000);
   const requestedTeams = parseStringList(
     typeof req.query.teamIds === 'string' ? req.query.teamIds.split(',') : req.query.teamIds,
   );
@@ -1153,7 +1151,6 @@ export async function listEvents(req: Request, res: Response) {
       : req.query.categories,
   ).filter((value) => Object.values(EventCategory).includes(value as EventCategory));
 
-  await ensureNextRegularTrainingOccurrences(effectiveTeams);
   const [events, roster, personalPlayerIds] = await Promise.all([
     prisma.event.findMany({
       where: {
@@ -1162,14 +1159,7 @@ export async function listEvents(req: Request, res: Response) {
           effectiveTeams,
           staff ? {} : { userId: user.id },
         ),
-        ...(from || to
-          ? {
-              startAt: {
-                ...(from ? { gte: from } : {}),
-                ...(to ? { lte: to } : {}),
-              },
-            }
-          : {}),
+        startAt: { gte: from, lte: to },
         ...(categories.length
           ? { category: { in: categories as EventCategory[] } }
           : {}),

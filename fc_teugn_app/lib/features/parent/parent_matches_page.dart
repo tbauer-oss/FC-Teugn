@@ -15,7 +15,7 @@ class ParentMatchesPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final events = ref.watch(eventsProvider);
+    final events = ref.watch(matchEventsProvider);
     return PageScaffold(
       title: 'Spiele',
       subtitle: 'Spielplan, Treffpunkt und Ergebnisse der Mannschaft.',

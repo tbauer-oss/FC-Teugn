@@ -23,6 +23,51 @@ const staffTeamScopeRoles: ReadonlySet<string> = new Set([
   Role.TEAM_MANAGER,
 ]);
 
+const teamAccessCache = new Map<
+  string,
+  { expiresAt: number; value: Promise<string[]> }
+>();
+const teamAccessCacheTtlMs = 10_000;
+
+function teamAccessCacheKey(scope: string, user: TeamScopedUser) {
+  return [
+    scope,
+    user.id,
+    user.teamId,
+    String(user.role),
+    [...(user.permissions ?? [])].sort().join(','),
+  ].join(':');
+}
+
+async function cachedTeamIds(
+  scope: string,
+  user: TeamScopedUser,
+  load: () => Promise<string[]>,
+) {
+  const key = teamAccessCacheKey(scope, user);
+  const now = Date.now();
+  const cached = teamAccessCache.get(key);
+  if (cached && cached.expiresAt > now) return [...await cached.value];
+  const value = load();
+  teamAccessCache.set(key, { expiresAt: now + teamAccessCacheTtlMs, value });
+  try {
+    return [...await value];
+  } catch (error) {
+    teamAccessCache.delete(key);
+    throw error;
+  }
+}
+
+export function invalidateTeamAccessCache(userId?: string) {
+  if (!userId) {
+    teamAccessCache.clear();
+    return;
+  }
+  for (const key of teamAccessCache.keys()) {
+    if (key.split(':')[1] === userId) teamAccessCache.delete(key);
+  }
+}
+
 /**
  * Staff responsibilities always take precedence over an additional family
  * assignment. A coach who is also a parent keeps the personal family inbox,
@@ -124,7 +169,7 @@ export async function resolveContextTeamId(user: TeamScopedUser) {
   return fallback?.id ?? null;
 }
 
-export async function accessibleTeamIds(user: TeamScopedUser) {
+async function computeAccessibleTeamIds(user: TeamScopedUser) {
   if (String(user.role) === Role.SUPER_ADMIN) {
     const teams = await prisma.team.findMany({
       where: { deletedAt: null },
@@ -173,6 +218,10 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
   ];
 }
 
+export async function accessibleTeamIds(user: TeamScopedUser) {
+  return cachedTeamIds('accessible', user, () => computeAccessibleTeamIds(user));
+}
+
 /**
  * Teams that may appear in the app-wide working-context switcher.
  *
@@ -180,7 +229,7 @@ export async function accessibleTeamIds(user: TeamScopedUser) {
  * staff accounts switch only between their approved staff assignments, while
  * family access continues to be authorized through accessibleTeamIds().
  */
-export async function workingContextTeamIds(user: TeamScopedUser) {
+async function computeWorkingContextTeamIds(user: TeamScopedUser) {
   if (!usesStaffTeamScope(user.role)) return accessibleTeamIds(user);
   const [memberships, currentTeam] = await Promise.all([
     prisma.teamMembership.findMany({
@@ -204,11 +253,15 @@ export async function workingContextTeamIds(user: TeamScopedUser) {
   );
 }
 
+export async function workingContextTeamIds(user: TeamScopedUser) {
+  return cachedTeamIds('working', user, () => computeWorkingContextTeamIds(user));
+}
+
 /**
  * Returns the app-wide selected working context. It can only narrow the set of
  * accessible teams and therefore never acts as an authorization grant.
  */
-export async function selectedContextTeamIds(user: TeamScopedUser) {
+async function computeSelectedContextTeamIds(user: TeamScopedUser) {
   const accessibleIds = await workingContextTeamIds(user);
   if (!accessibleIds.length) return [];
   const preference = await prisma.userContextPreference.findUnique({
@@ -232,6 +285,10 @@ export async function selectedContextTeamIds(user: TeamScopedUser) {
     select: { id: true },
   });
   return teams.length ? teams.map((team) => team.id) : [accessibleIds[0]];
+}
+
+export async function selectedContextTeamIds(user: TeamScopedUser) {
+  return cachedTeamIds('selected', user, () => computeSelectedContextTeamIds(user));
 }
 
 /**
@@ -298,7 +355,7 @@ function hasPermissionForMembership(
   return hasEffectivePermission(role as Role, permission);
 }
 
-export async function contextualTeamIds(user: TeamScopedUser) {
+async function computeContextualTeamIds(user: TeamScopedUser) {
   const contextRoles = new Set<string>([
     Role.SUPER_ADMIN,
     Role.CLUB_ADMIN,
@@ -312,6 +369,11 @@ export async function contextualTeamIds(user: TeamScopedUser) {
   return contextRoles.has(String(user.role))
     ? selectedContextTeamIds(user)
     : accessibleTeamIds(user);
+}
+
+
+export async function contextualTeamIds(user: TeamScopedUser) {
+  return cachedTeamIds('contextual', user, () => computeContextualTeamIds(user));
 }
 
 export async function youthPlayerPoolTeamIds(user: TeamScopedUser) {

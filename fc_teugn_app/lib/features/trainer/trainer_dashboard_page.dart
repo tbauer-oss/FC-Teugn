@@ -25,15 +25,13 @@ class TrainerDashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
     final user = ref.watch(authProvider).user;
-    final players = ref.watch(playersProvider);
-    final events = ref.watch(eventsProvider);
+    final dashboard = ref.watch(trainerDashboardSummaryProvider);
     final approvals = visiblePendingUsers(
       ref.watch(pendingUsersProvider),
       ref.watch(dismissedPendingRegistrationIdsProvider),
     );
     final organization = ref.watch(organizationProvider).valueOrNull;
-    final notifications =
-        ref.watch(liveNotificationsProvider).valueOrNull ?? const [];
+    final notifications = dashboard.valueOrNull?.notifications ?? const [];
     final personalResponseEventIds = ref
             .watch(personalResponsesProvider)
             .valueOrNull
@@ -53,7 +51,8 @@ class TrainerDashboardPage extends ConsumerWidget {
         ? null
         : ref.watch(teamOperationsProvider(teamId)).valueOrNull;
 
-    final teamPlayers = (players.valueOrNull ?? const <PlayerModel>[])
+    final teamPlayers = (dashboard.valueOrNull?.players ??
+            const <PlayerModel>[])
         .where((player) =>
             contextTeamIds.isEmpty || contextTeamIds.contains(player.teamId))
         .toList();
@@ -65,7 +64,7 @@ class TrainerDashboardPage extends ConsumerWidget {
         .length;
 
     final eventItems = _dashboardEvents(
-      events.valueOrNull ?? const <EventModel>[],
+      dashboard.valueOrNull?.events ?? const <EventModel>[],
       organization,
       now,
       contextTeamIds,
@@ -159,19 +158,20 @@ class TrainerDashboardPage extends ConsumerWidget {
             SizedBox(height: sectionGap),
           ],
           _StatusGrid(
-            playersLoading: players.isLoading,
-            playersError: players.hasError,
+            playersLoading: dashboard.isLoading,
+            playersError: dashboard.hasError,
             activePlayers: activePlayers,
             injuredPlayers: injuredPlayers,
             nextEvent: nextEvent,
             totalOpen: totalOpen,
             nextEventRoute: nextEvent == null ? null : eventRoute(nextEvent),
-            onRetryPlayers: () => ref.invalidate(playersProvider),
+            onRetryPlayers: () =>
+                ref.invalidate(trainerDashboardSummaryProvider),
           ),
-          if (players.hasError) ...[
+          if (dashboard.hasError) ...[
             const SizedBox(height: 10),
             _PlayerLoadFailure(
-              onRetry: () => ref.invalidate(playersProvider),
+              onRetry: () => ref.invalidate(trainerDashboardSummaryProvider),
             ),
           ],
           const SizedBox(height: 14),

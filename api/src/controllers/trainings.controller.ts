@@ -15,7 +15,6 @@ import {
   eventTeamScope,
   resolveContextTeamId,
 } from '../services/team-access';
-import { ensureNextRegularTrainingOccurrences } from '../services/regular-training-occurrence.service';
 
 const occupancyAdminRoles: Role[] = [
   Role.SUPER_ADMIN,
@@ -729,11 +728,10 @@ export async function listTrainings(req: Request, res: Response) {
   const teamIds = await contextualTeamIds(req.user!);
   const from = req.query.from
     ? new Date(String(req.query.from))
-    : new Date(Date.now() - 180 * 86400000);
+    : new Date(Date.now() - 7 * 86400000);
   const to = req.query.to
     ? new Date(String(req.query.to))
-    : new Date(Date.now() + 550 * 86400000);
-  await ensureNextRegularTrainingOccurrences(teamIds);
+    : new Date(Date.now() + 180 * 86400000);
   const trainings = await prisma.event.findMany({
     where: {
       type: EventType.TRAINING,
@@ -744,7 +742,7 @@ export async function listTrainings(req: Request, res: Response) {
           ? new Date(Date.now() - 180 * 86400000)
           : from,
         lte: Number.isNaN(to.getTime())
-          ? new Date(Date.now() + 550 * 86400000)
+          ? new Date(Date.now() + 180 * 86400000)
           : to,
       },
     },

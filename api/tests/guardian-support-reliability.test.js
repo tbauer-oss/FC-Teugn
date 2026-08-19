@@ -51,7 +51,7 @@ test('matches accept only yes or no responses', () => {
   assert.match(events, /Bei Spielen ist nur eine Zu- oder Absage möglich/);
 });
 
-test('family response inbox materializes only the next regular training', () => {
+test('regular training materialization runs only after plan changes or controlled cron', () => {
   const {
     nextRegularTrainingOccurrence,
   } = require('../dist/src/services/regular-training-occurrence.service');
@@ -90,10 +90,14 @@ test('family response inbox materializes only the next regular training', () => 
   assert.equal(following.startAt.toISOString(), '2026-08-25T15:30:00.000Z');
 
   const events = source('src/controllers/events.controller.ts');
+  const cron = source('src/controllers/cron.controller.ts');
+  const cronRoutes = source('src/routes/cron.routes.ts');
   const occurrenceService = source(
     'src/services/regular-training-occurrence.service.ts',
   );
-  assert.match(events, /ensureNextRegularTrainingOccurrences\(teamIds, now\)/);
+  assert.doesNotMatch(events, /ensureNextRegularTrainingOccurrences/);
+  assert.match(cron, /ensureNextRegularTrainingOccurrences/);
+  assert.match(cronRoutes, /regular-trainings/);
   assert.match(events, /isHiddenRegularOccurrence:\s*false/);
   assert.match(occurrenceService, /regular-training:\$\{team\.id\}/);
   assert.match(

@@ -4,6 +4,7 @@
   "outputDirectory": null,
   "installCommand": "npx -y pnpm@10.13.1 install --frozen-lockfile",
   "buildCommand": "npx -y pnpm@10.13.1 exec prisma migrate deploy && npx -y pnpm@10.13.1 run build",
+  "regions": ["fra1"],
   "functions": {
     "api/index.ts": {
       "includeFiles": "{dist/**,prisma/**,assets/**}",
@@ -14,6 +15,10 @@
     {
       "path": "/internal/cron/reminders",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/internal/cron/regular-trainings",
+      "schedule": "7 * * * *"
     }
   ]
 }

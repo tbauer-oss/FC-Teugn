@@ -229,13 +229,40 @@ export function resolveEffectivePermissions(
   return allPermissions.filter((permission) => effective.has(permission));
 }
 
+const permissionCache = new Map<
+  string,
+  { expiresAt: number; value: Promise<Permission[]> }
+>();
+const permissionCacheTtlMs = 10_000;
+
+export function invalidateEffectivePermissions(userId?: string) {
+  if (!userId) {
+    permissionCache.clear();
+    return;
+  }
+  for (const key of permissionCache.keys()) {
+    if (key.startsWith(`${userId}:`)) permissionCache.delete(key);
+  }
+}
+
 export async function effectivePermissionsForUser(userId: string, role: Role) {
   if (role === Role.SUPER_ADMIN) return [...allPermissions];
-  const overrides = await prisma.userPermissionOverride.findMany({
+  const key = `${userId}:${role}`;
+  const now = Date.now();
+  const cached = permissionCache.get(key);
+  if (cached && cached.expiresAt > now) return [...await cached.value];
+
+  const value = prisma.userPermissionOverride.findMany({
     where: { userId },
     select: { permission: true, state: true },
-  });
-  return resolveEffectivePermissions(role, overrides);
+  }).then((overrides) => resolveEffectivePermissions(role, overrides));
+  permissionCache.set(key, { expiresAt: now + permissionCacheTtlMs, value });
+  try {
+    return [...await value];
+  } catch (error) {
+    permissionCache.delete(key);
+    throw error;
+  }
 }
 
 export function hasEffectivePermission(

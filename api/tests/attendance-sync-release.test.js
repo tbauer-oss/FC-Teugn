@@ -15,17 +15,20 @@ test('attendance mutation returns the fully refreshed event snapshot', () => {
   );
 });
 
-test('Flutter refreshes family responses and calendar before confirming success', () => {
+test('Flutter confirms the changed response without blocking on full calendar reloads', () => {
   const repository = source('../fc_teugn_app/lib/core/data_repository.dart');
   const family = source('../fc_teugn_app/lib/features/shared/family_responses.dart');
   const calendar = source('../fc_teugn_app/lib/features/calendar/calendar_page.dart');
 
   assert.match(repository, /Future<EventModel> setAttendance/);
   assert.match(repository, /EventModel\.fromJson\(payload\['event'\]/);
-  for (const ui of [family, calendar]) {
-    assert.match(ui, /invalidate\(personalResponsesProvider\)/);
-    assert.match(ui, /invalidate\(eventsProvider\)/);
-    assert.match(ui, /personalResponsesProvider\.future/);
-    assert.match(ui, /eventsProvider\.future/);
-  }
+  assert.match(family, /invalidate\(personalResponsesProvider\)/);
+  assert.match(family, /invalidate\(eventsProvider\)/);
+  assert.match(family, /personalResponsesProvider\.future/);
+  assert.doesNotMatch(family, /eventsProvider\.future/);
+
+  assert.match(calendar, /invalidate\(personalResponsesProvider\)/);
+  assert.match(calendar, /invalidate\(eventsProvider\)/);
+  assert.match(calendar, /personalResponsesProvider\.future/);
+  assert.match(calendar, /eventsProvider\.future/);
 });

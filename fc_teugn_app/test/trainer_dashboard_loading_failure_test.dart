@@ -1,5 +1,4 @@
 import 'package:fc_teugn_app/core/app_theme.dart';
-import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/models/user.dart';
 import 'package:fc_teugn_app/core/providers.dart';
 import 'package:fc_teugn_app/features/trainer/trainer_dashboard_page.dart';
@@ -23,10 +22,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          playersProvider.overrideWith(
+          trainerDashboardSummaryProvider.overrideWith(
             (ref) => Future.error(Exception('temporarily unavailable')),
           ),
-          eventsProvider.overrideWith((ref) async => <EventModel>[]),
           pendingUsersProvider.overrideWith((ref) async => <AppUser>[]),
         ],
         child: MaterialApp(

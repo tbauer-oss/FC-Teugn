@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_theme.dart';
-import '../../core/providers.dart';
+import '../../core/models/dashboard_summary.dart';
 
 enum ParentConsentPromptAction { later, review }
 

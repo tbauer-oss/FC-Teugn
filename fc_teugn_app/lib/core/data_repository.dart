@@ -20,6 +20,7 @@ import 'models/emergency.dart';
 import 'models/competition.dart';
 import 'models/personal_response.dart';
 import 'models/support.dart';
+import 'models/dashboard_summary.dart';
 import 'team_game_format.dart';
 import 'date_only.dart';
 
@@ -1093,6 +1094,30 @@ class DataRepository {
         .toList();
   }
 
+  Future<DashboardSummary> dashboardSummary({
+    required bool trainer,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final response = await client.dio.get(
+      '/dashboard/${trainer ? 'trainer' : 'parent'}',
+      queryParameters: {
+        'from': from.toUtc().toIso8601String(),
+        'to': to.toUtc().toIso8601String(),
+      },
+    );
+    return DashboardSummary.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<List<ParentConsentAttention>> parentConsentAttention() async {
+    final response =
+        await client.dio.get('/dashboard/parent/consent-attention');
+    return (response.data as List<dynamic>)
+        .whereType<Map<String, dynamic>>()
+        .map(ParentConsentAttention.fromJson)
+        .toList(growable: false);
+  }
+
   Future<EventModel> event(String eventId) async {
     final res = await client.dio.get('/events/$eventId');
     return EventModel.fromJson(res.data as Map<String, dynamic>);
@@ -1283,8 +1308,17 @@ class DataRepository {
     return EventModel.fromJson(payload['event'] as Map<String, dynamic>);
   }
 
-  Future<List<PersonalResponseModel>> personalResponses() async {
-    final response = await client.dio.get('/events/personal-responses/list');
+  Future<List<PersonalResponseModel>> personalResponses({
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final response = await client.dio.get(
+      '/events/personal-responses/list',
+      queryParameters: {
+        if (from != null) 'from': from.toUtc().toIso8601String(),
+        if (to != null) 'to': to.toUtc().toIso8601String(),
+      },
+    );
     return (response.data as List<dynamic>)
         .whereType<Map<String, dynamic>>()
         .map(PersonalResponseModel.fromJson)
@@ -2297,6 +2331,8 @@ class DataRepository {
     String? adminNote,
     String? applicantMessage,
     RegistrationReviewStatus? reviewStatus,
+    String? firstName,
+    String? lastName,
   }) async {
     await client.dio.post(
       '/admin/approve',
@@ -2324,6 +2360,8 @@ class DataRepository {
               ],
         'adminNote': adminNote,
         'applicantMessage': applicantMessage,
+        'firstName': firstName,
+        'lastName': lastName,
         'reviewStatus': switch (reviewStatus) {
           RegistrationReviewStatus.newRequest => 'NEW',
           RegistrationReviewStatus.inReview => 'IN_REVIEW',

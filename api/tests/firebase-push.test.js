@@ -226,3 +226,17 @@ test('notification creation and external push delivery are separate phases', () 
   assert.match(service, /const concurrency = 8/);
   assert.match(service, /subscriptionsByUser/);
 });
+
+test('reading notifications never triggers external push delivery', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const controller = fs.readFileSync(
+    path.join(__dirname, '../src/controllers/notifications.controller.ts'),
+    'utf8',
+  );
+  const start = controller.indexOf('export async function listNotifications');
+  const end = controller.indexOf('export async function markNotificationRead');
+  assert.ok(start >= 0 && end > start);
+  const listBlock = controller.slice(start, end);
+  assert.doesNotMatch(listBlock, /deliverPush/);
+});

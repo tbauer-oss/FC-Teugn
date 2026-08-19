@@ -58,6 +58,7 @@ class MatchdayModel {
     this.meetingLocation,
     this.details,
     this.squad,
+    this.squadSummary,
     this.ticker,
     this.eligiblePlayers = const [],
     this.attendance = const [],
@@ -87,6 +88,7 @@ class MatchdayModel {
   final String teamId;
   final MatchDetailsModel? details;
   final MatchSquadModel? squad;
+  final MatchSquadSummaryModel? squadSummary;
   final LiveTickerModel? ticker;
   final List<PlayerModel> eligiblePlayers;
   final List<EventAttendance> attendance;
@@ -127,6 +129,11 @@ class MatchdayModel {
       squad: squads.isEmpty
           ? null
           : MatchSquadModel.fromJson(squads.first as Map<String, dynamic>),
+      squadSummary: json['squadSummary'] == null
+          ? null
+          : MatchSquadSummaryModel.fromJson(
+              json['squadSummary'] as Map<String, dynamic>,
+            ),
       ticker: json['liveTicker'] == null
           ? null
           : LiveTickerModel.fromJson(
@@ -176,6 +183,47 @@ class MatchdayModel {
           .toList(),
     );
   }
+
+  DateTime? get squadPublishedAt =>
+      squad?.publishedAt ?? squadSummary?.publishedAt;
+
+  bool get hasSquad => squad != null || squadSummary != null;
+
+  NominationStatus? nominationForPlayer(String playerId) {
+    final fullMember = squad?.members
+        .where((member) => member.player.id == playerId)
+        .firstOrNull;
+    return fullMember?.status ?? squadSummary?.memberStatus[playerId];
+  }
+}
+
+class MatchSquadSummaryModel {
+  const MatchSquadSummaryModel({
+    required this.id,
+    required this.memberStatus,
+    this.publishedAt,
+  });
+
+  final String id;
+  final DateTime? publishedAt;
+  final Map<String, NominationStatus> memberStatus;
+
+  factory MatchSquadSummaryModel.fromJson(Map<String, dynamic> json) =>
+      MatchSquadSummaryModel(
+        id: json['id'] as String,
+        publishedAt: json['publishedAt'] == null
+            ? null
+            : DateTime.parse(json['publishedAt'] as String),
+        memberStatus: {
+          for (final item in (json['members'] as List<dynamic>? ?? const []))
+            if ((item as Map<String, dynamic>)['playerId'] is String)
+              item['playerId'] as String: _enum(
+                NominationStatus.values,
+                item['status'],
+                NominationStatus.nominated,
+              ),
+        },
+      );
 }
 
 class PlayerMatchRatingModel {

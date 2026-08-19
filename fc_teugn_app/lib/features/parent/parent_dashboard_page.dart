@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/models/communication.dart';
+import '../../core/models/dashboard_summary.dart';
 import '../../core/models/event.dart';
 import '../../core/models/matchday.dart';
 import '../../core/models/personal_response.dart';
@@ -22,25 +23,23 @@ class ParentDashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).user;
-    final playersAsync = ref.watch(playersProvider);
+    final summaryAsync = ref.watch(parentDashboardSummaryProvider);
     final responsesAsync = ref.watch(personalResponsesProvider);
-    final eventsAsync = ref.watch(parentDashboardEventsProvider);
     final matchesAsync = ref.watch(parentMatchdaysProvider);
     final consentAsync = ref.watch(parentConsentAttentionProvider);
-    final notificationsAsync = ref.watch(liveNotificationsProvider);
-    final players = playersAsync.valueOrNull ?? const <PlayerModel>[];
+    final summary = summaryAsync.valueOrNull;
+    final players = summary?.players ?? const <PlayerModel>[];
     final responses =
         responsesAsync.valueOrNull ?? const <PersonalResponseModel>[];
-    final events = eventsAsync.valueOrNull ?? const <EventModel>[];
+    final events = summary?.events ?? const <EventModel>[];
     final matches = matchesAsync.valueOrNull ?? const <MatchdayModel>[];
     final consents =
         consentAsync.valueOrNull ?? const <ParentConsentAttention>[];
     final notifications =
-        notificationsAsync.valueOrNull ?? const <AppNotificationModel>[];
+        summary?.notifications ?? const <AppNotificationModel>[];
     final isInitialDataLoading =
-        (playersAsync.isLoading && !playersAsync.hasValue) ||
-            (responsesAsync.isLoading && !responsesAsync.hasValue) ||
-            (eventsAsync.isLoading && !eventsAsync.hasValue);
+        (summaryAsync.isLoading && !summaryAsync.hasValue) ||
+            (responsesAsync.isLoading && !responsesAsync.hasValue);
     final now = DateTime.now();
     final dayStart = DateTime(now.year, now.month, now.day);
     final timeline = buildFamilyTimeline(
@@ -366,15 +365,17 @@ class _TodayImportantCard extends StatelessWidget {
       if (match.startAt.isBefore(now) || match.familyReleasedAt == null) {
         continue;
       }
-      final publishedAt = match.squad?.publishedAt?.toLocal();
+      final publishedAt = match.squadPublishedAt?.toLocal();
       final recentlyPublished = publishedAt != null &&
           publishedAt.isAfter(now.subtract(const Duration(days: 7)));
       if (!recentlyPublished && !notifiedMatchIds.contains(match.id)) {
         continue;
       }
-      for (final member in match.squad?.members ?? const <SquadMemberModel>[]) {
-        final player = playerById[member.player.id];
-        if (player != null && member.status != NominationStatus.declined) {
+      for (final player in players) {
+        final status = match.nominationForPlayer(player.id);
+        if (playerById[player.id] != null &&
+            status != null &&
+            status != NominationStatus.declined) {
           result.add(_Nomination(match: match, playerName: player.displayName));
         }
       }
@@ -790,18 +791,15 @@ class _ChildCard extends StatelessWidget {
         return false;
       }
       return match.eligiblePlayers.any((player) => player.id == playerId) ||
-          (match.squad?.members.any((member) => member.player.id == playerId) ??
-              false);
+          match.nominationForPlayer(playerId) != null;
     }).toList()
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
     final match = upcoming.firstOrNull;
     if (match == null) return 'Noch keine Freigabe';
-    final member = match.squad?.members
-        .where((item) => item.player.id == playerId)
-        .firstOrNull;
-    if (match.squad == null) return 'Noch offen';
-    if (member == null) return 'Nicht nominiert';
-    return switch (member.status) {
+    final status = match.nominationForPlayer(playerId);
+    if (!match.hasSquad) return 'Noch offen';
+    if (status == null) return 'Nicht nominiert';
+    return switch (status) {
       NominationStatus.nominated => 'Nominiert',
       NominationStatus.onCall => 'Auf Abruf',
       NominationStatus.declined => 'Nicht dabei',

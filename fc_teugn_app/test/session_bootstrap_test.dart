@@ -6,7 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('bootstrap preloads only universal core resources', () async {
+  test('bootstrap blocks only on navigation-critical organization data',
+      () async {
     final calls = <String, int>{};
     int called(String resource) => calls.update(
           resource,
@@ -87,10 +88,6 @@ void main() {
       ).future,
     );
 
-    expect(calls, {
-      'organization': 1,
-      'players': 1,
-      'events': 1,
-    });
+    expect(calls, {'organization': 1});
   });
 }

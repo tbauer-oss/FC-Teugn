@@ -114,7 +114,18 @@ class FamilyResponsesPage extends ConsumerStatefulWidget {
 }
 
 class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
-  _ResponsePeriod _period = _ResponsePeriod.oneWeek;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.highlightedEventId != null) {
+      Future.microtask(() {
+        if (mounted) {
+          ref.read(personalResponsePeriodProvider.notifier).state =
+              PersonalResponsePeriod.allUpcoming;
+        }
+      });
+    }
+  }
 
   bool _isHighlighted(PersonalResponseModel item) =>
       item.eventId == widget.highlightedEventId &&
@@ -124,6 +135,7 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
   @override
   Widget build(BuildContext context) {
     final responses = ref.watch(personalResponsesProvider);
+    final period = ref.watch(personalResponsePeriodProvider);
     return PageScaffold(
       title: 'Meine Kinder & Rückmeldungen',
       subtitle: 'Rückmeldungen für alle dir zugeordneten Kinder.',
@@ -144,7 +156,7 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
         data: (items) {
           final now = DateTime.now();
           final today = DateTime(now.year, now.month, now.day);
-          final periodEnd = _period.endFrom(today);
+          final periodEnd = period.endFrom(today);
           final visible = items.where((item) {
             if (_isHighlighted(item)) return true;
             if (item.startAt.isBefore(today)) return false;
@@ -161,9 +173,11 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _ResponsePeriodPicker(
-                value: _period,
+                value: period,
                 visibleCount: sorted.length,
-                onChanged: (value) => setState(() => _period = value),
+                onChanged: (value) => ref
+                    .read(personalResponsePeriodProvider.notifier)
+                    .state = value,
               ),
               const SizedBox(height: 8),
               SingleChildScrollView(
@@ -225,7 +239,7 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _period == _ResponsePeriod.allUpcoming
+                          period == PersonalResponsePeriod.allUpcoming
                               ? 'Aktuell sind keine kommenden persönlichen Rückmeldungen vorhanden.'
                               : 'Wähle bei Bedarf einen längeren Zeitraum aus.',
                           textAlign: TextAlign.center,
@@ -256,21 +270,19 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
   }
 }
 
-enum _ResponsePeriod { oneWeek, twoWeeks, fourWeeks, allUpcoming }
-
-extension on _ResponsePeriod {
+extension on PersonalResponsePeriod {
   String get label => switch (this) {
-        _ResponsePeriod.oneWeek => '1 Woche',
-        _ResponsePeriod.twoWeeks => '2 Wochen',
-        _ResponsePeriod.fourWeeks => '4 Wochen',
-        _ResponsePeriod.allUpcoming => 'Alle kommenden',
+        PersonalResponsePeriod.oneWeek => '1 Woche',
+        PersonalResponsePeriod.twoWeeks => '2 Wochen',
+        PersonalResponsePeriod.fourWeeks => '4 Wochen',
+        PersonalResponsePeriod.allUpcoming => 'Alle kommenden',
       };
 
   DateTime? endFrom(DateTime start) => switch (this) {
-        _ResponsePeriod.oneWeek => start.add(const Duration(days: 7)),
-        _ResponsePeriod.twoWeeks => start.add(const Duration(days: 14)),
-        _ResponsePeriod.fourWeeks => start.add(const Duration(days: 28)),
-        _ResponsePeriod.allUpcoming => null,
+        PersonalResponsePeriod.oneWeek => start.add(const Duration(days: 7)),
+        PersonalResponsePeriod.twoWeeks => start.add(const Duration(days: 14)),
+        PersonalResponsePeriod.fourWeeks => start.add(const Duration(days: 28)),
+        PersonalResponsePeriod.allUpcoming => null,
       };
 }
 
@@ -281,18 +293,18 @@ class _ResponsePeriodPicker extends StatelessWidget {
     required this.onChanged,
   });
 
-  final _ResponsePeriod value;
+  final PersonalResponsePeriod value;
   final int visibleCount;
-  final ValueChanged<_ResponsePeriod> onChanged;
+  final ValueChanged<PersonalResponsePeriod> onChanged;
 
   Widget _dropdown({bool expanded = false}) => DropdownButtonHideUnderline(
-        child: DropdownButton<_ResponsePeriod>(
+        child: DropdownButton<PersonalResponsePeriod>(
           value: value,
           borderRadius: BorderRadius.circular(14),
           isDense: true,
           isExpanded: expanded,
           items: [
-            for (final period in _ResponsePeriod.values)
+            for (final period in PersonalResponsePeriod.values)
               DropdownMenuItem(
                 value: period,
                 child: Text(
@@ -653,10 +665,9 @@ class _PersonalResponseQuickActionsState
       ref.invalidate(personalResponsesProvider);
       ref.invalidate(eventsProvider);
       ref.invalidate(parentMatchdaysProvider);
-      await Future.wait<void>([
-        ref.read(personalResponsesProvider.future).then<void>((_) {}),
-        ref.read(eventsProvider.future).then<void>((_) {}),
-      ]);
+      ref.invalidate(parentDashboardSummaryProvider);
+      ref.invalidate(trainerDashboardSummaryProvider);
+      await ref.read(personalResponsesProvider.future);
       widget.onSaved?.call();
       if (mounted) {
         final result = switch (status) {

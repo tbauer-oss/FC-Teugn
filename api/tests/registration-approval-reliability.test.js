@@ -87,6 +87,11 @@ test('multi-child approvals are scoped and committed atomically', () => {
   assert.match(notifications, /anyPendingRegistration/);
   assert.match(notifications, /completedNotificationIds/);
 
+  assert.match(admin, /Mitgliedernamen dürfen nur von der Systemadministration/);
+  assert.match(admin, /firstName: normalizedFirstName/);
+  assert.match(admin, /lastName: normalizedLastName/);
+  assert.match(admin, /nameChange: profileNameChangeRequested/);
+
   assert.match(teamAccess, /Member administration deliberately ignores family links/);
   assert.match(teamAccess, /memberManagementTeamIds/);
 });

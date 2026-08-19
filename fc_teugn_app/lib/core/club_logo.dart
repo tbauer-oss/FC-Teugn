@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'app_identity.dart';
-
 // Diese bereinigte 800px-Datei besitzt klare, harte Kanten und eignet sich für
 // die kompakte Darstellung im App-Chrome besser als der sehr große
 // Originalexport mit eingebetteten Vorschaudaten.
@@ -30,12 +28,10 @@ Future<void> _preloadAsset(String asset) async {
   );
 }
 
-Future<void> preloadBrandingAssets() async {
+Future<void> preloadBrandingAssets({String? launchAsset}) async {
   await Future.wait([
     _preloadAsset(_clubLogoAsset),
-    _preloadAsset(AppIdentity.splashAsset),
-    _preloadAsset(AppIdentity.mobileApkSplashAsset),
-    _preloadAsset(AppIdentity.webSplashAsset),
+    if (launchAsset != null) _preloadAsset(launchAsset),
   ]);
 }
 

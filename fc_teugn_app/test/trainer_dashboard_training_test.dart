@@ -1,4 +1,5 @@
 import 'package:fc_teugn_app/core/app_theme.dart';
+import 'package:fc_teugn_app/core/models/dashboard_summary.dart';
 import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/models/organization.dart';
 import 'package:fc_teugn_app/core/models/personal_response.dart';
@@ -220,7 +221,13 @@ void main() {
       ProviderScope(
         overrides: [
           playersProvider.overrideWith((ref) async => players),
-          eventsProvider.overrideWith((ref) async => [event]),
+          trainerDashboardSummaryProvider.overrideWith(
+            (ref) async => DashboardSummary(
+              players: players,
+              events: [event],
+              notifications: const [],
+            ),
+          ),
           organizationProvider.overrideWith((ref) async => _organization()),
           teamOperationsProvider('team-e1')
               .overrideWith((ref) async => _operations),
@@ -306,7 +313,13 @@ void main() {
       ProviderScope(
         overrides: [
           playersProvider.overrideWith((ref) async => <PlayerModel>[]),
-          eventsProvider.overrideWith((ref) async => events),
+          trainerDashboardSummaryProvider.overrideWith(
+            (ref) async => DashboardSummary(
+              players: const [],
+              events: events,
+              notifications: const [],
+            ),
+          ),
           organizationProvider.overrideWith((ref) async => _organization()),
           teamOperationsProvider('team-e1')
               .overrideWith((ref) async => _operations),

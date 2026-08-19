@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
+import 'core/app_identity.dart';
 import 'core/club_logo.dart';
 import 'core/app_theme.dart';
 import 'core/push/native_push_service.dart';
@@ -12,13 +13,21 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final playMobileIntroVideo =
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-  await nativePushService.initialize();
-  final brandingPreload = preloadBrandingAssets();
-  if (playMobileIntroVideo) {
-    unawaited(brandingPreload.catchError((_) {}));
-  } else {
-    await brandingPreload;
-  }
+  // Push registration must never delay the first visible frame. The service
+  // owns its action stream already, so initialization can safely finish while
+  // the native intro or the lightweight web launch screen is shown.
+  unawaited(nativePushService.initialize().catchError((_) {}));
+  // On web, only the responsive launch image that is actually rendered should
+  // be downloaded. Previously three large splash images were decoded before
+  // runApp, even though two of them could never be visible.
+  final launchAsset = kIsWeb
+      ? null
+      : playMobileIntroVideo
+          ? AppIdentity.mobileApkSplashAsset
+          : AppIdentity.splashAsset;
+  unawaited(
+    preloadBrandingAssets(launchAsset: launchAsset).catchError((_) {}),
+  );
   ErrorWidget.builder = (details) => ColoredBox(
         color: AppColors.background,
         child: Center(

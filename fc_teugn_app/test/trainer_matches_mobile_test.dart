@@ -189,7 +189,9 @@ class _TournamentRepository extends DataRepository {
 
 Widget _page({DataRepository? repository, EventModel? event}) => ProviderScope(
       overrides: [
-        eventsProvider.overrideWith((ref) async => [event ?? _tournament()]),
+        matchEventsProvider.overrideWith(
+          (ref) async => [event ?? _tournament()],
+        ),
         organizationProvider.overrideWith((ref) async => _organization()),
         if (repository != null)
           repositoryProvider.overrideWithValue(repository),
@@ -254,7 +256,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          eventsProvider.overrideWith((ref) async => [_tournament()]),
+          matchEventsProvider.overrideWith((ref) async => [_tournament()]),
           organizationProvider.overrideWith((ref) async => _organization()),
         ],
         child: MaterialApp(

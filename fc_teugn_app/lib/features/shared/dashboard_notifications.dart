@@ -145,6 +145,8 @@ class _DashboardNotificationsState
     try {
       await ref.read(repositoryProvider).markNotificationRead(item.id);
       ref.invalidate(liveNotificationsProvider);
+      ref.invalidate(parentDashboardSummaryProvider);
+      ref.invalidate(trainerDashboardSummaryProvider);
     } catch (_) {
       if (mounted) {
         setState(() => _locallyReadIds.remove(item.id));

@@ -16,6 +16,7 @@ import 'models/user.dart';
 import 'models/team_operations.dart';
 import 'models/personal_response.dart';
 import 'models/support.dart';
+import 'models/dashboard_summary.dart';
 import 'offline_ticker.dart';
 import 'offline_outbox.dart';
 import 'loading/loading_controller.dart';
@@ -95,7 +96,7 @@ final nativePushRegistrationProvider = FutureProvider<void>((ref) async {
 final playersProvider =
     FutureProvider.autoDispose<List<PlayerModel>>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 60));
+  _scheduleLiveRefresh(ref, const Duration(seconds: 120));
   return ref.watch(repositoryProvider).players();
 });
 
@@ -111,50 +112,65 @@ final consentTemplatesProvider =
   return ref.watch(repositoryProvider).consentTemplates();
 });
 
-class ParentConsentAttention {
-  const ParentConsentAttention({
-    required this.playerId,
-    required this.playerName,
-    required this.openCount,
-  });
-
-  final String playerId;
-  final String playerName;
-  final int openCount;
-}
-
 final parentConsentAttentionProvider =
     FutureProvider.autoDispose<List<ParentConsentAttention>>((ref) async {
   final user = ref.watch(authProvider).user;
   if (user == null || user.status != AccountStatus.approved) return const [];
-  final links = <String, UserParentPlayerLink>{
-    for (final link in user.parentPlayers)
-      if (link.isLegalGuardian && link.playerId.isNotEmpty) link.playerId: link,
-  };
-  if (links.isEmpty) return const [];
-
-  final repository = ref.watch(repositoryProvider);
-  final templates = await ref.watch(consentTemplatesProvider.future);
-  final result = <ParentConsentAttention>[];
-  for (final link in links.values) {
-    final player = await repository.player(link.playerId);
-    final open = openConsentTemplates(player.consents, templates);
-    if (open.isNotEmpty) {
-      result.add(ParentConsentAttention(
-        playerId: player.id,
-        playerName: player.fullName,
-        openCount: open.length,
-      ));
-    }
+  if (!user.parentPlayers.any(
+    (link) => link.isLegalGuardian && link.playerId.isNotEmpty,
+  )) {
+    return const [];
   }
-  return result;
+  return ref.watch(repositoryProvider).parentConsentAttention();
 });
 
 final eventsProvider =
     FutureProvider.autoDispose<List<EventModel>>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 30));
+  _scheduleLiveRefresh(ref, const Duration(seconds: 90));
   return ref.watch(repositoryProvider).events();
+});
+
+/// Bounded, category-filtered data for the match overview. Matchday details
+/// (squad, lineup, ratings and ticker events) are loaded only after opening a
+/// match, so the overview remains small while still covering the season.
+final matchEventsProvider =
+    FutureProvider.autoDispose<List<EventModel>>((ref) async {
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 90));
+  final now = DateTime.now();
+  return ref.watch(repositoryProvider).events(
+    from: now.subtract(const Duration(days: 180)),
+    to: now.add(const Duration(days: 550)),
+    categories: const [
+      EventCategory.leagueMatch,
+      EventCategory.friendlyMatch,
+      EventCategory.cupMatch,
+      EventCategory.tournament,
+      EventCategory.indoorTournament,
+      EventCategory.footballFestival,
+    ],
+  );
+});
+
+typedef EventQueryRange = ({DateTime from, DateTime to});
+
+/// Loads only the period visible in the calendar. Month navigation therefore
+/// no longer transfers and parses the entire season on every page build.
+final calendarEventsProvider = FutureProvider.autoDispose
+    .family<List<EventModel>, EventQueryRange>((ref, range) async {
+  // Keep recently viewed calendar windows warm. This makes month swipes use
+  // the prefetched adjacent window instead of briefly replacing the calendar
+  // with a loading panel, while the cache still expires quickly.
+  final cacheLink = ref.keepAlive();
+  final cacheTimer = Timer(const Duration(minutes: 2), cacheLink.close);
+  ref.onDispose(cacheTimer.cancel);
+  _watchManualRefresh(ref);
+  _scheduleLiveRefresh(ref, const Duration(seconds: 90));
+  return ref.watch(repositoryProvider).events(
+        from: range.from,
+        to: range.to,
+      );
 });
 
 /// Kompakter Terminbereich für den Familien-Assistenten. Die Startseite
@@ -172,11 +188,66 @@ final parentDashboardEventsProvider =
       );
 });
 
+final parentDashboardSummaryProvider =
+    FutureProvider.autoDispose<DashboardSummary>((ref) async {
+  _watchManualRefresh(ref);
+  final now = DateTime.now();
+  final dayStart = DateTime(now.year, now.month, now.day);
+  try {
+    final summary = await ref.watch(repositoryProvider).dashboardSummary(
+          trainer: false,
+          from: dayStart,
+          to: dayStart.add(const Duration(days: 8)),
+        );
+    _scheduleLiveRefresh(ref, const Duration(seconds: 60));
+    return summary;
+  } catch (_) {
+    _scheduleLiveRefresh(ref, const Duration(seconds: 90));
+    rethrow;
+  }
+});
+
+final trainerDashboardSummaryProvider =
+    FutureProvider.autoDispose<DashboardSummary>((ref) async {
+  _watchManualRefresh(ref);
+  final now = DateTime.now();
+  final dayStart = DateTime(now.year, now.month, now.day);
+  try {
+    final summary = await ref.watch(repositoryProvider).dashboardSummary(
+          trainer: true,
+          from: dayStart.subtract(const Duration(days: 1)),
+          to: dayStart.add(const Duration(days: 42)),
+        );
+    _scheduleLiveRefresh(ref, const Duration(seconds: 60));
+    return summary;
+  } catch (_) {
+    _scheduleLiveRefresh(ref, const Duration(seconds: 90));
+    rethrow;
+  }
+});
+
+enum PersonalResponsePeriod { oneWeek, twoWeeks, fourWeeks, allUpcoming }
+
+final personalResponsePeriodProvider = StateProvider<PersonalResponsePeriod>(
+    (ref) => PersonalResponsePeriod.oneWeek);
+
 final personalResponsesProvider =
     FutureProvider.autoDispose<List<PersonalResponseModel>>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 20));
-  return ref.watch(repositoryProvider).personalResponses();
+  _scheduleLiveRefresh(ref, const Duration(seconds: 60));
+  final period = ref.watch(personalResponsePeriodProvider);
+  final now = DateTime.now();
+  final dayStart = DateTime(now.year, now.month, now.day);
+  final days = switch (period) {
+    PersonalResponsePeriod.oneWeek => 7,
+    PersonalResponsePeriod.twoWeeks => 14,
+    PersonalResponsePeriod.fourWeeks => 28,
+    PersonalResponsePeriod.allUpcoming => 370,
+  };
+  return ref.watch(repositoryProvider).personalResponses(
+        from: dayStart.subtract(const Duration(days: 1)),
+        to: dayStart.add(Duration(days: days)),
+      );
 });
 
 bool _hasActiveTicker(List<MatchdayModel> matches) => matches.any((match) {
@@ -201,11 +272,11 @@ final parentMatchdaysProvider =
   try {
     final matches = await ref.watch(repositoryProvider).matches(
           from: now.subtract(const Duration(days: 1)),
-          to: now.add(const Duration(days: 180)),
+          to: now.add(const Duration(days: 62)),
         );
     _scheduleLiveRefresh(
       ref,
-      Duration(seconds: _hasActiveTicker(matches) ? 8 : 15),
+      Duration(seconds: _hasActiveTicker(matches) ? 8 : 60),
     );
     return matches;
   } catch (_) {
@@ -219,35 +290,35 @@ final parentMatchdaysProvider =
 final supportTicketsProvider =
     FutureProvider.autoDispose<List<SupportTicketModel>>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 45));
+  _scheduleLiveRefresh(ref, const Duration(seconds: 90));
   return ref.watch(repositoryProvider).supportTickets();
 });
 
 final trainingsProvider =
     FutureProvider.autoDispose<List<TrainingModel>>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 60));
+  _scheduleLiveRefresh(ref, const Duration(seconds: 120));
   return ref.watch(repositoryProvider).trainings();
 });
 
 final outdoorPitchOccupancyProvider =
     FutureProvider.autoDispose<PitchOccupancyPlan>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 45));
+  _scheduleLiveRefresh(ref, const Duration(seconds: 90));
   return ref.watch(repositoryProvider).pitchOccupancy();
 });
 
 final indoorPitchOccupancyProvider =
     FutureProvider.autoDispose<PitchOccupancyPlan>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 45));
+  _scheduleLiveRefresh(ref, const Duration(seconds: 90));
   return ref.watch(repositoryProvider).pitchOccupancy(indoor: true);
 });
 
 final pendingUsersProvider =
     FutureProvider.autoDispose<List<AppUser>>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 30));
+  _scheduleLiveRefresh(ref, const Duration(seconds: 60));
   return ref.watch(repositoryProvider).pendingUsers();
 });
 
@@ -270,14 +341,14 @@ AsyncValue<List<AppUser>> visiblePendingUsers(
 
 final membersProvider = FutureProvider.autoDispose<List<AppUser>>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 60));
+  _scheduleLiveRefresh(ref, const Duration(seconds: 120));
   return ref.watch(repositoryProvider).members();
 });
 
 final organizationProvider =
     FutureProvider.autoDispose<OrganizationContext>((ref) async {
   _watchManualRefresh(ref);
-  _scheduleLiveRefresh(ref, const Duration(seconds: 90));
+  _scheduleLiveRefresh(ref, const Duration(seconds: 120));
   return ref.watch(repositoryProvider).organizationContext();
 });
 
@@ -302,7 +373,7 @@ final liveNotificationsProvider =
   _watchManualRefresh(ref);
   while (true) {
     yield await ref.read(repositoryProvider).notifications();
-    await Future<void>.delayed(const Duration(seconds: 10));
+    await Future<void>.delayed(const Duration(seconds: 60));
   }
 });
 
@@ -332,14 +403,15 @@ class WorkingContextController extends StateNotifier<WorkingContextState> {
       ref.invalidate(organizationProvider);
       ref.invalidate(playersProvider);
       ref.invalidate(eventsProvider);
+      ref.invalidate(parentDashboardSummaryProvider);
+      ref.invalidate(trainerDashboardSummaryProvider);
       ref.invalidate(trainingsProvider);
       ref.invalidate(outdoorPitchOccupancyProvider);
       ref.invalidate(indoorPitchOccupancyProvider);
       await ref.read(organizationProvider.future);
-      await Future.wait([
-        ref.read(playersProvider.future),
-        ref.read(eventsProvider.future),
-      ]);
+      // Der Kontext selbst ist jetzt bestätigt. Die sichtbare Zielseite lädt
+      // ihre kompakten Daten anschließend parallel; ein Wechsel muss nicht
+      // auf komplette Kader- und Kalenderlisten warten.
       state = const WorkingContextState();
       return true;
     } catch (error) {
@@ -366,13 +438,9 @@ class AppBootstrapException implements Exception {
   String toString() => '$resource konnte nicht geladen werden: $cause';
 }
 
-/// Lädt nur die drei Datenbereiche vor, die jede erste Hauptansicht benötigt.
-/// Mannschaftsdaten werden zuerst geladen; Spieler und Kalender folgen mit
-/// höchstens zwei parallelen Requests. Eltern erhalten dabei direkt den kleinen
-/// Acht-Tage-Bereich ihres Familien-Assistenten statt des vollständigen
-/// Vereinskalenders. Rollenabhängige Spezialseiten laden ihre Daten erst beim
-/// Öffnen. So erzeugt der App-Start keine acht gleichzeitigen Datenbankabfragen
-/// und keine unnötig große Kalenderantwort mehr.
+/// Only the navigation-critical organization context blocks the first frame.
+/// Dashboard summaries start on their actual page and can render their own
+/// compact loading state, rather than delaying the entire application.
 final sessionBootstrapProvider =
     FutureProvider.autoDispose.family<void, AppBootstrapSession>(
   (ref, session) async {
@@ -391,15 +459,6 @@ final sessionBootstrapProvider =
       'Mannschaftsdaten',
       ref.read(organizationProvider.future),
     );
-    await Future.wait([
-      preload('Spielerdaten', ref.read(playersProvider.future)),
-      preload(
-        'Kalenderdaten',
-        session.role == UserRole.parent
-            ? ref.read(parentDashboardEventsProvider.future)
-            : ref.read(eventsProvider.future),
-      ),
-    ]);
   },
 );
 

@@ -160,6 +160,7 @@ class AppShell extends ConsumerWidget {
             Navigator.of(sheetContext).pop();
             showAppAboutSheet(context);
           },
+          onHome: () => Navigator.of(sheetContext).pop(destinations.first),
           onSelect: (destination) =>
               Navigator.of(sheetContext).pop(destination),
         ),
@@ -347,6 +348,7 @@ class AppShell extends ConsumerWidget {
     final accountRoute = authState.user?.isTrainer == true
         ? '/trainer/account'
         : '/parent/account';
+    final homeRoute = destinations.first.route;
 
     return AdaptiveHingePane(
       child: LayoutBuilder(
@@ -372,6 +374,7 @@ class AppShell extends ConsumerWidget {
                               ref,
                               organization,
                             ),
+                    onHome: () => context.go(homeRoute),
                     onSelect: (index) => context.go(destinations[index].route),
                     onAccount: () => context.go(accountRoute),
                     onLogout: () => ref.read(authProvider.notifier).logout(),
@@ -396,6 +399,7 @@ class AppShell extends ConsumerWidget {
                                     ref,
                                     organization,
                                   ),
+                          onHome: () => context.go(homeRoute),
                           onLogout: () =>
                               ref.read(authProvider.notifier).logout(),
                           onAccount: () => context.go(accountRoute),
@@ -592,6 +596,7 @@ class DesktopSidebar extends StatelessWidget {
     required this.contextLabel,
     required this.seasonLabel,
     this.onContextTap = _noOp,
+    this.onHome = _noOp,
     required this.onSelect,
     this.onAccount = _noOp,
     required this.onLogout,
@@ -608,6 +613,7 @@ class DesktopSidebar extends StatelessWidget {
   final String contextLabel;
   final String seasonLabel;
   final VoidCallback onContextTap;
+  final VoidCallback onHome;
   final ValueChanged<int> onSelect;
   final VoidCallback onAccount;
   final VoidCallback onLogout;
@@ -635,7 +641,9 @@ class DesktopSidebar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Row(
                 children: [
-                  const Expanded(child: _ClubBrand(light: true)),
+                  Expanded(
+                    child: _ClubBrand(light: true, onTap: onHome),
+                  ),
                   _RefreshIconButton(
                     onRefresh: onRefresh,
                     color: Colors.white70,
@@ -1040,6 +1048,7 @@ class MobileNavigationPanel extends StatelessWidget {
     required this.onSelect,
     this.offerInstall = false,
     this.onInstall,
+    this.onHome = _noOp,
     this.onAbout = _noOp,
   });
 
@@ -1052,6 +1061,7 @@ class MobileNavigationPanel extends StatelessWidget {
   final ValueChanged<ShellDestination> onSelect;
   final bool offerInstall;
   final VoidCallback? onInstall;
+  final VoidCallback onHome;
   final VoidCallback onAbout;
 
   ShellDestination? _selectedDestination() {
@@ -1096,15 +1106,23 @@ class MobileNavigationPanel extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 54,
-                  height: 54,
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
+                Tooltip(
+                  message: 'Zur Startseite',
+                  child: InkWell(
+                    key: const ValueKey('mobile-menu-home-logo'),
+                    onTap: onHome,
                     borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 54,
+                      height: 54,
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const ClubLogo(size: 42),
+                    ),
                   ),
-                  child: const ClubLogo(size: 42),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -1485,6 +1503,7 @@ class _MobileHeader extends StatelessWidget {
     required this.onLogout,
     required this.onAccount,
     required this.onContextTap,
+    required this.onHome,
     required this.onPrivacy,
     required this.onHelp,
     required this.onAbout,
@@ -1497,6 +1516,7 @@ class _MobileHeader extends StatelessWidget {
   final VoidCallback onLogout;
   final VoidCallback onAccount;
   final VoidCallback onContextTap;
+  final VoidCallback onHome;
   final VoidCallback onPrivacy;
   final VoidCallback onHelp;
   final VoidCallback onAbout;
@@ -1521,16 +1541,24 @@ class _MobileHeader extends StatelessWidget {
             child: Row(
               children: [
                 if (showDecorativeIdentity) ...[
-                  Container(
-                    width: 42,
-                    height: 42,
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
+                  Tooltip(
+                    message: 'Zur Startseite',
+                    child: InkWell(
+                      key: const ValueKey('mobile-header-home-logo'),
+                      onTap: onHome,
                       borderRadius: BorderRadius.circular(13),
-                      border: Border.all(color: AppColors.line),
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(color: AppColors.line),
+                        ),
+                        child: const ClubLogo(size: 36),
+                      ),
                     ),
-                    child: const ClubLogo(size: 36),
                   ),
                   const SizedBox(width: 10),
                 ],
@@ -1709,41 +1737,53 @@ class _RefreshIconButtonState extends State<_RefreshIconButton> {
 enum _MobileAccountAction { account, help, privacy, about, logout }
 
 class _ClubBrand extends StatelessWidget {
-  const _ClubBrand({required this.light});
+  const _ClubBrand({required this.light, required this.onTap});
 
   final bool light;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final foreground = light ? Colors.white : AppColors.navy;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const ClubLogo(size: 48),
-        const SizedBox(width: 11),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'FC TEUGN',
-              style: TextStyle(
-                color: foreground,
-                fontWeight: FontWeight.w900,
-                letterSpacing: .4,
+    return Tooltip(
+      message: 'Zur Startseite',
+      child: InkWell(
+        key: const ValueKey('desktop-home-logo'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ClubLogo(size: 48),
+              const SizedBox(width: 11),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'FC TEUGN',
+                    style: TextStyle(
+                      color: foreground,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .4,
+                    ),
+                  ),
+                  Text(
+                    'TALENTS',
+                    style: TextStyle(
+                      color: foreground.withValues(alpha: .56),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
               ),
-            ),
-            Text(
-              'TALENTS',
-              style: TextStyle(
-                color: foreground.withValues(alpha: .56),
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 }

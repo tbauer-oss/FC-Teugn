@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fc_teugn_app/core/app_theme.dart';
+import 'package:fc_teugn_app/core/models/dashboard_summary.dart';
 import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/models/personal_response.dart';
 import 'package:fc_teugn_app/core/models/player.dart';
@@ -46,9 +47,14 @@ Future<void> _pump(WidgetTester tester, double width) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        playersProvider.overrideWith((ref) async => [_player()]),
+        parentDashboardSummaryProvider.overrideWith(
+          (ref) async => DashboardSummary(
+            players: [_player()],
+            events: const [],
+            notifications: const [],
+          ),
+        ),
         personalResponsesProvider.overrideWith((ref) async => [_response()]),
-        parentDashboardEventsProvider.overrideWith((ref) async => const []),
         parentMatchdaysProvider.overrideWith((ref) async => const []),
         parentConsentAttentionProvider.overrideWith((ref) async => const []),
         liveNotificationsProvider.overrideWith((ref) => Stream.value(const [])),
@@ -83,7 +89,13 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          playersProvider.overrideWith((ref) async => [_player()]),
+          parentDashboardSummaryProvider.overrideWith(
+            (ref) async => DashboardSummary(
+              players: [_player()],
+              events: const [],
+              notifications: const [],
+            ),
+          ),
           personalResponsesProvider.overrideWith((ref) {
             responseRequests++;
             if (responseRequests == 1) {
@@ -91,7 +103,6 @@ void main() {
             }
             return refresh.future;
           }),
-          parentDashboardEventsProvider.overrideWith((ref) async => const []),
           parentMatchdaysProvider.overrideWith((ref) async => const []),
           parentConsentAttentionProvider.overrideWith((ref) async => const []),
           liveNotificationsProvider.overrideWith(

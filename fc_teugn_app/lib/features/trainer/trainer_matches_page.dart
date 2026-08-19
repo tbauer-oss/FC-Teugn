@@ -26,7 +26,7 @@ class TrainerMatchesPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final events = ref.watch(eventsProvider);
+    final events = ref.watch(matchEventsProvider);
     final repository = ref.watch(repositoryProvider);
     final organization = ref.watch(organizationProvider).valueOrNull;
 
@@ -57,6 +57,7 @@ class TrainerMatchesPage extends ConsumerWidget {
       );
       if (imported == true) {
         ref.invalidate(eventsProvider);
+        ref.invalidate(matchEventsProvider);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Spielplan wurde importiert.')),
@@ -150,6 +151,7 @@ class TrainerMatchesPage extends ConsumerWidget {
                           reminder24hEnabled: draft.reminder24hEnabled,
                         );
                         ref.invalidate(eventsProvider);
+                        ref.invalidate(matchEventsProvider);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -274,7 +276,8 @@ class TrainerMatchesPage extends ConsumerWidget {
             deleteLeagueMatch: deleteLeagueMatch,
           );
       ref.invalidate(eventsProvider);
-      final refreshed = await ref.read(eventsProvider.future);
+      ref.invalidate(matchEventsProvider);
+      final refreshed = await ref.read(matchEventsProvider.future);
       if (refreshed.any((item) => item.id == event.id)) {
         throw StateError('Das gelöschte Spiel ist weiterhin vorhanden.');
       }
@@ -285,6 +288,7 @@ class TrainerMatchesPage extends ConsumerWidget {
       }
     } catch (_) {
       ref.invalidate(eventsProvider);
+      ref.invalidate(matchEventsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Spiel konnte nicht gelöscht werden.')),
@@ -361,6 +365,7 @@ class TrainerMatchesPage extends ConsumerWidget {
             reason: reason.text.trim(),
           );
       ref.invalidate(eventsProvider);
+      ref.invalidate(matchEventsProvider);
       if (context.mounted) {
         final delivery = result['delivery'] as Map<String, dynamic>?;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -601,6 +606,7 @@ class TrainerMatchesPage extends ConsumerWidget {
       return;
     }
     ref.invalidate(eventsProvider);
+    ref.invalidate(matchEventsProvider);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Spieltermin wurde verbindlich verlegt.')),
@@ -1538,6 +1544,7 @@ class TrainerMatchesPage extends ConsumerWidget {
               if (!dialogContext.mounted) return;
               setDialogState(() => row.familyReleasedAt = DateTime.now());
               ref.invalidate(eventsProvider);
+              ref.invalidate(matchEventsProvider);
               ref.invalidate(personalResponsesProvider);
               ScaffoldMessenger.of(dialogContext).showSnackBar(
                 const SnackBar(
@@ -1699,7 +1706,8 @@ class TrainerMatchesPage extends ConsumerWidget {
     );
     if (saved == true) {
       ref.invalidate(eventsProvider);
-      await ref.read(eventsProvider.future);
+      ref.invalidate(matchEventsProvider);
+      await ref.read(matchEventsProvider.future);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Turnierpartien wurden gespeichert.')),

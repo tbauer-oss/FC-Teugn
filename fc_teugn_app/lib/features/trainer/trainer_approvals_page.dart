@@ -291,6 +291,8 @@ class TrainerApprovalsPage extends ConsumerWidget {
             playerId: decision.playerId,
             guardianRelationships: decision.guardianRelationships,
             adminNote: decision.adminNote,
+            firstName: decision.firstName,
+            lastName: decision.lastName,
             reviewStatus: RegistrationReviewStatus.completed,
           );
       completeApproval();
@@ -375,6 +377,8 @@ class TrainerApprovalsPage extends ConsumerWidget {
             playerId: decision.playerId,
             guardianRelationships: decision.guardianRelationships,
             adminNote: decision.adminNote,
+            firstName: decision.firstName,
+            lastName: decision.lastName,
           );
       _refresh(ref);
       ref.invalidate(playersProvider);
@@ -2292,6 +2296,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
   late Map<String, UserRole> teamRoles;
   String? playerId;
   late final TextEditingController adminNote;
+  late final TextEditingController firstName;
+  late final TextEditingController lastName;
   late Map<String, String> guardianRelationships;
   late List<UserParentPlayerLink> parentPlayers;
   String? removingPlayerId;
@@ -2320,6 +2326,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
     adminNote = TextEditingController(
       text: widget.user.registrationRequest?.adminNote,
     );
+    firstName = TextEditingController(text: widget.user.resolvedFirstName);
+    lastName = TextEditingController(text: widget.user.resolvedLastName);
     parentPlayers = List<UserParentPlayerLink>.of(widget.user.parentPlayers);
     guardianRelationships = {
       for (final link in parentPlayers) link.playerId: link.relationship,
@@ -2329,6 +2337,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
   @override
   void dispose() {
     adminNote.dispose();
+    firstName.dispose();
+    lastName.dispose();
     super.dispose();
   }
 
@@ -2369,6 +2379,60 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (widget.actorIsSuperAdmin) ...[
+                Text(
+                  'Mitgliedsname',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final firstNameField = TextField(
+                      key: const ValueKey('member-first-name'),
+                      controller: firstName,
+                      textCapitalization: TextCapitalization.words,
+                      autofillHints: const [AutofillHints.givenName],
+                      maxLength: 80,
+                      decoration: const InputDecoration(
+                        labelText: 'Vorname *',
+                        counterText: '',
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    );
+                    final lastNameField = TextField(
+                      key: const ValueKey('member-last-name'),
+                      controller: lastName,
+                      textCapitalization: TextCapitalization.words,
+                      autofillHints: const [AutofillHints.familyName],
+                      maxLength: 80,
+                      decoration: const InputDecoration(
+                        labelText: 'Nachname *',
+                        counterText: '',
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    );
+                    if (constraints.maxWidth < 480) {
+                      return Column(
+                        children: [
+                          firstNameField,
+                          const SizedBox(height: 10),
+                          lastNameField,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: firstNameField),
+                        const SizedBox(width: 10),
+                        Expanded(child: lastNameField),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 18),
+              ],
               Text(
                 'Rolle',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -2663,6 +2727,9 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
         ),
         FilledButton.icon(
           onPressed: teamIds.isEmpty ||
+                  (widget.actorIsSuperAdmin &&
+                      (firstName.text.trim().isEmpty ||
+                          lastName.text.trim().isEmpty)) ||
                   (limitedManager &&
                       widget.editing &&
                       role == UserRole.player) ||
@@ -2688,6 +2755,12 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                           ? const <String, String>{}
                           : Map<String, String>.of(guardianRelationships),
                       adminNote: adminNote.text.trim(),
+                      firstName: widget.actorIsSuperAdmin
+                          ? firstName.text.trim()
+                          : null,
+                      lastName: widget.actorIsSuperAdmin
+                          ? lastName.text.trim()
+                          : null,
                     ),
                   ),
           icon: const Icon(Icons.verified_user_rounded),
@@ -3364,6 +3437,8 @@ class _ApprovalDecision {
     this.guardianRelationships = const <String, String>{},
     this.playerId,
     this.adminNote,
+    this.firstName,
+    this.lastName,
   });
 
   final AccountStatus status;
@@ -3373,6 +3448,8 @@ class _ApprovalDecision {
   final Map<String, String> guardianRelationships;
   final String? playerId;
   final String? adminNote;
+  final String? firstName;
+  final String? lastName;
 }
 
 class _DetailRow extends StatelessWidget {

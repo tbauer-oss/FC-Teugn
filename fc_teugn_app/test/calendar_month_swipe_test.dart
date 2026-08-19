@@ -57,7 +57,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          eventsProvider.overrideWith((ref) async => const []),
+          calendarEventsProvider.overrideWith((ref, range) async {
+            ref.keepAlive();
+            return const [];
+          }),
           organizationProvider.overrideWith((ref) async => organization),
         ],
         child: MaterialApp(
@@ -159,7 +162,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          eventsProvider.overrideWith((ref) async => events),
+          calendarEventsProvider.overrideWith((ref, range) async {
+            ref.keepAlive();
+            return events;
+          }),
           organizationProvider.overrideWith(
             (ref) async => _organization(now),
           ),
@@ -221,7 +227,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          eventsProvider.overrideWith((ref) async => events),
+          calendarEventsProvider.overrideWith((ref, range) async {
+            ref.keepAlive();
+            return events;
+          }),
           organizationProvider.overrideWith((ref) async => _organization(now)),
         ],
         child: MaterialApp(
@@ -237,9 +246,15 @@ void main() {
     expect(find.text('🎄 Weihnachtsfeier'), findsWidgets);
     expect(tester.takeException(), isNull);
 
-    for (final width in const [360.0, 390.0, 480.0, 599.0]) {
+    for (final width in const [360.0, 390.0, 480.0, 599.0, 720.0, 884.0]) {
       tester.view.physicalSize = Size(width, 820);
       await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('calendar-month-swipe-surface')),
+        findsOneWidget,
+        reason: 'Auch ein $width px breites Foldable-Pane muss die kompakte, '
+            'wischbare Monatsansicht verwenden.',
+      );
       expect(
         tester.takeException(),
         isNull,

@@ -66,9 +66,10 @@ class FCTeugnApp extends ConsumerStatefulWidget {
   ConsumerState<FCTeugnApp> createState() => _FCTeugnAppState();
 }
 
-class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
+class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
+    with WidgetsBindingObserver {
   static const _nativeMinimumLaunchDuration = Duration(milliseconds: 2800);
-  static const _webMinimumLaunchDuration = Duration(milliseconds: 350);
+  static const _webMinimumLaunchDuration = Duration(milliseconds: 120);
   Timer? _launchTimer;
   StreamSubscription<String>? _pushActionSubscription;
   final GlobalKey<NavigatorState> _rootNavigatorKey =
@@ -84,10 +85,15 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
   bool _startupPromptsScheduled = false;
   bool _parentConsentPromptScheduled = false;
   String? _parentConsentPromptShownUserId;
+  DateTime? _lastResumeRefresh;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // The first resumed lifecycle event belongs to the initial launch. Treat
+    // it as current so it does not immediately duplicate the bootstrap calls.
+    _lastResumeRefresh = DateTime.now();
     _pendingPushAction = nativePushService.takePendingAction();
     _pushActionSubscription = nativePushService.actions.listen((action) {
       _pendingPushAction = action;
@@ -109,10 +115,24 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _launchTimer?.cancel();
     unawaited(_pushActionSubscription?.cancel());
     _activeRouter?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final now = DateTime.now();
+    final lastRefresh = _lastResumeRefresh;
+    if (lastRefresh != null &&
+        now.difference(lastRefresh) < const Duration(seconds: 30)) {
+      return;
+    }
+    _lastResumeRefresh = now;
+    ref.read(manualDataRefreshProvider.notifier).state++;
   }
 
   void _openPendingPushAction() {
@@ -305,11 +325,15 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp> {
     ref.invalidate(organizationProvider);
     ref.invalidate(playersProvider);
     ref.invalidate(eventsProvider);
+    ref.invalidate(calendarEventsProvider);
+    ref.invalidate(matchEventsProvider);
     ref.invalidate(trainingsProvider);
     ref.invalidate(outdoorPitchOccupancyProvider);
     ref.invalidate(indoorPitchOccupancyProvider);
     ref.invalidate(pendingUsersProvider);
     ref.invalidate(membersProvider);
+    ref.invalidate(parentDashboardSummaryProvider);
+    ref.invalidate(trainerDashboardSummaryProvider);
     ref.invalidate(sessionBootstrapProvider(session));
   }
 

@@ -42,7 +42,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            eventsProvider.overrideWith((ref) async => [match]),
+            matchEventsProvider.overrideWith((ref) async => [match]),
           ],
           child: MaterialApp(
             theme: buildAppTheme(),
@@ -101,7 +101,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            eventsProvider.overrideWith((ref) async => [tournament]),
+            matchEventsProvider.overrideWith((ref) async => [tournament]),
           ],
           child: MaterialApp(
             theme: buildAppTheme(),
@@ -158,7 +158,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          eventsProvider.overrideWith((ref) async => [tournament]),
+          matchEventsProvider.overrideWith((ref) async => [tournament]),
         ],
         child: MaterialApp(
           theme: buildAppTheme(),

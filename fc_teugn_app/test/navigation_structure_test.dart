@@ -77,6 +77,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1100, 720));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     var refreshCount = 0;
+    var homeCount = 0;
 
     final destinations = <ShellDestination>[
       const ShellDestination(
@@ -172,6 +173,7 @@ void main() {
                 userRole: 'Systemadministration',
                 contextLabel: 'E1-Jugend · FC Teugn',
                 seasonLabel: '2026/27',
+                onHome: () => homeCount++,
                 onSelect: (_) {},
                 onLogout: () {},
                 onRefresh: () async => refreshCount++,
@@ -192,6 +194,10 @@ void main() {
     await tester.tap(find.byTooltip('Daten aktualisieren'));
     await tester.pumpAndSettle();
     expect(refreshCount, 1);
+
+    await tester.tap(find.byKey(const ValueKey('desktop-home-logo')));
+    await tester.pump();
+    expect(homeCount, 1);
   });
 
   testWidgets('Mobiles App-Menü ist kompakt und nach Bereichen gegliedert',
@@ -231,6 +237,7 @@ void main() {
       ),
     ];
 
+    var homeCount = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -241,6 +248,7 @@ void main() {
             seasonLabel: '2026/27',
             userName: 'Tobias Bauer',
             userRole: 'Systemadministration',
+            onHome: () => homeCount++,
             onSelect: (_) {},
           ),
         ),
@@ -253,6 +261,10 @@ void main() {
     expect(find.text('Meine Mannschaft'), findsOneWidget);
     expect(find.text('Organisation & Kommunikation'), findsOneWidget);
     expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('mobile-menu-home-logo')));
+    await tester.pump();
+    expect(homeCount, 1);
 
     final teamHeading = tester.widget<Container>(
       find.byKey(const ValueKey('mobile-menu-section-header-team')),

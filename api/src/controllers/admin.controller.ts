@@ -14,11 +14,13 @@ import {
   effectivePermissionsForUser,
   hasEffectivePermission,
   hasPermission,
+  invalidateEffectivePermissions,
   Permission,
   permissionsForRole,
 } from '../security/permissions';
 import {
   accessibleTeamIds,
+  invalidateTeamAccessCache,
   memberManagementTeamIds,
 } from '../services/team-access';
 import { hashPassword } from '../lib/password';
@@ -34,6 +36,8 @@ function passwordResetTokenHash(token: string) {
 const memberSelect = {
   id: true,
   name: true,
+  firstName: true,
+  lastName: true,
   email: true,
   phone: true,
   role: true,
@@ -670,6 +674,8 @@ export async function approveUser(req: Request, res: Response) {
     adminNote,
     applicantMessage,
     reviewStatus,
+    firstName,
+    lastName,
   } = req.body as {
     userId?: string;
     status?: AccountStatus;
@@ -685,6 +691,8 @@ export async function approveUser(req: Request, res: Response) {
     adminNote?: string;
     applicantMessage?: string;
     reviewStatus?: RegistrationReviewStatus;
+    firstName?: string;
+    lastName?: string;
   };
   if (!userId) {
     return res.status(400).json({ message: 'Benutzer-ID fehlt.' });
@@ -713,6 +721,34 @@ export async function approveUser(req: Request, res: Response) {
   if (!target) {
     return res.status(404).json({ message: 'Mitglied nicht gefunden.' });
   }
+
+  const profileNameChangeRequested =
+    firstName !== undefined || lastName !== undefined;
+  const normalizedFirstName = firstName?.trim() ?? '';
+  const normalizedLastName = lastName?.trim() ?? '';
+  if (profileNameChangeRequested && !isSuperAdmin(actor.role)) {
+    return res.status(403).json({
+      message: 'Mitgliedernamen dürfen nur von der Systemadministration geändert werden.',
+    });
+  }
+  if (
+    profileNameChangeRequested &&
+    (!normalizedFirstName ||
+      !normalizedLastName ||
+      normalizedFirstName.length > 80 ||
+      normalizedLastName.length > 80)
+  ) {
+    return res.status(400).json({
+      message: 'Vorname und Nachname sind erforderlich und dürfen höchstens 80 Zeichen lang sein.',
+    });
+  }
+  const profileNameData = profileNameChangeRequested
+    ? {
+        firstName: normalizedFirstName,
+        lastName: normalizedLastName,
+        name: `${normalizedFirstName} ${normalizedLastName}`,
+      }
+    : {};
 
   const allowedStatuses: AccountStatus[] = [
     AccountStatus.PENDING,
@@ -939,7 +975,12 @@ export async function approveUser(req: Request, res: Response) {
         })
       : await tx.user.update({
           where: { id: target.id },
-          data: { status: nextStatus, role: nextRole, teamId: primaryTeamId },
+          data: {
+            status: nextStatus,
+            role: nextRole,
+            teamId: primaryTeamId,
+            ...profileNameData,
+          },
           select: memberSelect,
         });
     if (!preserveAccountAssignment) {
@@ -1069,6 +1110,12 @@ export async function approveUser(req: Request, res: Response) {
           reviewStatus: nextReviewStatus,
           adminNote: adminNote?.trim() || null,
           applicantMessage: applicantMessage?.trim() || null,
+          nameChange: profileNameChangeRequested
+            ? {
+                before: target.name,
+                after: `${normalizedFirstName} ${normalizedLastName}`,
+              }
+            : null,
         },
       },
     });
@@ -1091,6 +1138,9 @@ export async function approveUser(req: Request, res: Response) {
     }
     throw error;
   }
+
+  invalidateTeamAccessCache(target.id);
+  invalidateEffectivePermissions(target.id);
 
   return res.json(limitedManager
     ? scopedMemberView(updated, managementTeamIds)
@@ -1323,6 +1373,8 @@ export async function updateMemberPermission(req: Request, res: Response) {
   if (!['DEFAULT', 'ALLOW', 'DENY'].includes(requestedState)) {
     return res.status(400).json({ message: 'Status muss DEFAULT, ALLOW oder DENY sein.' });
   }
+  invalidateEffectivePermissions(target.id);
+  invalidateTeamAccessCache(target.id);
   return getMemberPermissions(req, res);
 }
 
@@ -1348,6 +1400,8 @@ export async function resetMemberPermissions(req: Request, res: Response) {
       },
     }),
   ]);
+  invalidateEffectivePermissions(target.id);
+  invalidateTeamAccessCache(target.id);
   return getMemberPermissions(req, res);
 }
 

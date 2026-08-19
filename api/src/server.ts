@@ -16,6 +16,7 @@ import teamOperationsRoutes from './routes/team-operations.routes';
 import competitionsRoutes from './routes/competitions.routes';
 import cronRoutes from './routes/cron.routes';
 import supportRoutes from './routes/support.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { authRateLimit } from './middleware/rate-limit';
 import openApiDocument from '../openapi.json';
@@ -80,6 +81,10 @@ app.use(
       callback(null, false);
     },
     credentials: true,
+    // Browsers may reuse a successful preflight instead of issuing an OPTIONS
+    // request before every authenticated API call.
+    maxAge: 3600,
+    optionsSuccessStatus: 204,
   }),
 );
 app.use(express.json({ limit: '1mb' }));
@@ -102,6 +107,7 @@ app.use('/imports', importsRoutes);
 app.use('/team-operations', teamOperationsRoutes);
 app.use('/competitions', competitionsRoutes);
 app.use('/support', supportRoutes);
+app.use('/dashboard', dashboardRoutes);
 app.use('/internal/cron', cronRoutes);
 
 app.use(errorHandler);

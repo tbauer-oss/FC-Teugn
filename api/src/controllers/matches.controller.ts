@@ -191,6 +191,69 @@ const matchInclude = {
   leagueMatch: true,
 } as const;
 
+// Overview queries deliberately omit attendance, complete squads/lineups,
+// ratings and ticker events. Those belong to GET /matches/:id.
+const matchListInclude = {
+  parentTournament: {
+    select: { id: true, title: true, startAt: true, endAt: true },
+  },
+  team: {
+    select: {
+      id: true,
+      gameFormat: true,
+      defaultFormation: true,
+      ageGroup: { select: { code: true } },
+    },
+  },
+  targetTeams: {
+    include: {
+      team: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          gameFormat: true,
+          defaultFormation: true,
+        },
+      },
+    },
+  },
+  matchDetails: {
+    include: {
+      opponentRecord: {
+        include: {
+          logoAsset: { select: { id: true, deletedAt: true } },
+          opponentClub: {
+            include: {
+              logoAsset: { select: { id: true, deletedAt: true } },
+            },
+          },
+        },
+      },
+    },
+  },
+  squads: {
+    take: 1,
+    select: {
+      id: true,
+      publishedAt: true,
+      members: {
+        select: { playerId: true, status: true },
+      },
+    },
+  },
+  liveTicker: {
+    select: {
+      status: true,
+      currentPeriod: true,
+      elapsedSeconds: true,
+      ourGoals: true,
+      theirGoals: true,
+      lastSequence: true,
+    },
+  },
+} as const;
+
 type TournamentFixtureInput = {
   id?: string;
   opponentId: string;
@@ -472,6 +535,71 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   };
 }
 
+function serializeMatchSummary<
+  T extends Prisma.EventGetPayload<{ include: typeof matchListInclude }>,
+>(
+  match: T,
+  staff: boolean,
+  viewerPlayerIds: string[],
+  capabilities: {
+    canDelete: boolean;
+    canReschedule: boolean;
+    canCancel: boolean;
+    canPublishInternal: boolean;
+    canNominateSquad: boolean;
+    canReleaseFamily: boolean;
+    canRatePlayers: boolean;
+  },
+) {
+  const squad = match.squads[0] ?? null;
+  const familyDetailsVisible = !staff && match.familyReleasedAt !== null;
+  const maySeePersonalNomination = squad?.publishedAt !== null;
+  const visibleMembers = (squad?.members ?? []).filter((member) =>
+    member.status === NominationStatus.NOMINATED &&
+    (staff || familyDetailsVisible ||
+      (maySeePersonalNomination && viewerPlayerIds.includes(member.playerId))),
+  );
+  const lineupTeam = match.targetTeams[0]?.team ?? match.team;
+  const opponentRecord = match.matchDetails?.opponentRecord;
+  return {
+    ...match,
+    matchDetails: match.matchDetails
+      ? {
+          ...match.matchDetails,
+          opponentRecord: undefined,
+          opponentLogoUrl:
+            opponentRecord?.opponentClub.logoAsset &&
+            opponentRecord.opponentClub.logoAsset.deletedAt === null
+              ? mediaAssetUrl(opponentRecord.opponentClub.logoAsset.id, '12h')
+              : opponentRecord?.logoAsset && opponentRecord.logoAsset.deletedAt === null
+                ? mediaAssetUrl(opponentRecord.logoAsset.id, '12h')
+                : match.matchDetails.opponentLogoUrl,
+        }
+      : null,
+    squads: [],
+    squadSummary: squad
+      ? {
+          id: squad.id,
+          publishedAt: squad.publishedAt,
+          members: visibleMembers,
+        }
+      : null,
+    liveTicker: match.liveTicker ? { ...match.liveTicker, events: [] } : null,
+    attendance: [],
+    eligiblePlayers: [],
+    playerRatings: undefined,
+    teamGameFormat: lineupTeam.gameFormat,
+    teamDefaultFormation: lineupTeam.defaultFormation,
+    teamFormationOptions: [],
+    playerPoolAgeGroupCode: match.team.ageGroup.code,
+    capabilities: {
+      canManageTicker: false,
+      canDelegateTicker: false,
+      ...capabilities,
+    },
+  };
+}
+
 export async function syncTournamentFixtures(req: Request, res: Response) {
   const user = req.user!;
   const teamIds = await accessibleTeamIds(user);
@@ -705,22 +833,22 @@ export async function listMatches(req: Request, res: Response) {
   const user = req.user!;
   const staff = isStaff(user.role, user.permissions);
   const teamIds = await contextualTeamIds(user);
-  const from = req.query.from ? new Date(String(req.query.from)) : undefined;
-  const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+  const now = new Date();
+  const requestedFrom = req.query.from ? new Date(String(req.query.from)) : null;
+  const requestedTo = req.query.to ? new Date(String(req.query.to)) : null;
+  const from = requestedFrom && !Number.isNaN(requestedFrom.getTime())
+    ? requestedFrom
+    : new Date(now.getTime() - 86_400_000);
+  const to = requestedTo && !Number.isNaN(requestedTo.getTime())
+    ? requestedTo
+    : new Date(now.getTime() + 180 * 86_400_000);
   const [matches, viewerPlayerIds] = await Promise.all([
     prisma.event.findMany({
       where: {
         ...scope(teamIds, staff ? undefined : user.id),
-        ...(from || to
-          ? {
-              startAt: {
-                ...(from && !Number.isNaN(from.getTime()) ? { gte: from } : {}),
-                ...(to && !Number.isNaN(to.getTime()) ? { lte: to } : {}),
-              },
-            }
-          : {}),
+        startAt: { gte: from, lte: to },
       },
-      include: matchInclude,
+      include: matchListInclude,
       orderBy: { startAt: 'desc' },
       take: 100,
     }),
@@ -736,21 +864,37 @@ export async function listMatches(req: Request, res: Response) {
     Permission.MATCH_RESCHEDULE,
     user.permissions,
   );
+  const capabilities = {
+    canDelete,
+    canReschedule,
+    canCancel: hasEffectivePermission(user.role, Permission.MATCH_CANCEL, user.permissions),
+    canPublishInternal: hasEffectivePermission(
+      user.role,
+      Permission.PUBLISH_LINEUP_INTERNAL,
+      user.permissions,
+    ),
+    canNominateSquad: hasEffectivePermission(
+      user.role,
+      Permission.NOMINATE_SQUAD,
+      user.permissions,
+    ),
+    canReleaseFamily: hasEffectivePermission(
+      user.role,
+      Permission.RELEASE_MATCH_FAMILY,
+      user.permissions,
+    ),
+    canRatePlayers: hasEffectivePermission(
+      user.role,
+      Permission.MANAGE_STATISTICS,
+      user.permissions,
+    ),
+  };
   return res.json(matches.map((match) =>
-    serializeMatch(
+    serializeMatchSummary(
       match,
       staff,
-      [],
-      false,
       viewerPlayerIds,
-      canDelete,
-      canReschedule,
-      hasEffectivePermission(user.role, Permission.MATCH_CANCEL, user.permissions),
-      hasEffectivePermission(user.role, Permission.PUBLISH_LINEUP_INTERNAL, user.permissions),
-      hasEffectivePermission(user.role, Permission.NOMINATE_SQUAD, user.permissions),
-      hasEffectivePermission(user.role, Permission.RELEASE_MATCH_FAMILY, user.permissions),
-      !staff,
-      hasEffectivePermission(user.role, Permission.MANAGE_STATISTICS, user.permissions),
+      capabilities,
     ),
   ));
 }

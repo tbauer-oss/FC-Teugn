@@ -8,7 +8,6 @@ import {
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import {
-  deliverPush,
   defaultNotificationPreference,
   pushConfiguration,
   adminPushScenarios,
@@ -53,16 +52,6 @@ export async function listNotifications(req: Request, res: Response) {
     where: { userId, inApp: false },
     select: { category: true },
   });
-  const pending = await prisma.notificationDelivery.findMany({
-    where: {
-      userId,
-      status: NotificationDeliveryStatus.PENDING,
-      subscription: { isActive: true },
-    },
-    select: { id: true },
-    take: 10,
-  });
-  await Promise.all(pending.map((delivery) => deliverPush(delivery.id).catch(() => undefined)));
   const notifications = await prisma.notification.findMany({
     where: {
       userId,

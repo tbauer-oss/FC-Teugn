@@ -15,7 +15,10 @@ class _RefreshingRepository extends DataRepository {
   var calls = 0;
 
   @override
-  Future<List<PersonalResponseModel>> personalResponses() async {
+  Future<List<PersonalResponseModel>> personalResponses({
+    DateTime? from,
+    DateTime? to,
+  }) async {
     calls++;
     return [
       _response(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/loading/loading_widgets.dart';
 import 'package:flutter/services.dart';
@@ -24,6 +26,11 @@ import 'tournament_plan_browser_page.dart';
 
 enum CalendarView { day, week, month, year, agenda }
 
+// Foldables often report a tablet-like screen width although the app is
+// constrained to one considerably narrower pane. The month view must react to
+// the space it actually receives instead of the full MediaQuery width.
+const double _compactMonthMaxWidth = 900;
+
 class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({
     super.key,
@@ -49,7 +56,25 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    final events = ref.watch(eventsProvider);
+    final eventRange = _calendarRange(view, cursor);
+    final events = ref.watch(calendarEventsProvider(eventRange));
+    if (view == CalendarView.month) {
+      // The month widget animates the adjacent page immediately. Warm both
+      // possible follow-up windows so the gesture never turns into a network
+      // loading screen after it has completed.
+      for (final offset in const [-1, 1]) {
+        final adjacentCursor = DateTime(cursor.year, cursor.month + offset, 1);
+        unawaited(
+          ref
+              .read(
+                calendarEventsProvider(
+                  _calendarRange(CalendarView.month, adjacentCursor),
+                ).future,
+              )
+              .then<void>((_) {}, onError: (_) {}),
+        );
+      }
+    }
     final organization = ref.watch(organizationProvider).valueOrNull;
     final canManage = widget.canManage &&
         (organization?.can('MANAGE_EVENTS') ?? widget.canManage);
@@ -98,7 +123,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               message:
                   'Die Termine konnten gerade nicht geladen werden. Bitte erneut versuchen.',
               action: FilledButton(
-                onPressed: () => ref.invalidate(eventsProvider),
+                onPressed: () => ref.invalidate(calendarEventsProvider),
                 child: const Text('Neu laden'),
               ),
             ),
@@ -106,6 +131,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               final calendarItems = _withRegularTrainings(
                 items,
                 organization,
+                from: eventRange.from,
+                to: eventRange.to,
               );
               _openInitialEvent(calendarItems);
               final filtered = calendarItems.where(_matchesFilters).toList()
@@ -190,8 +217,10 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   List<EventModel> _withRegularTrainings(
     List<EventModel> events,
-    OrganizationContext? organization,
-  ) {
+    OrganizationContext? organization, {
+    required DateTime from,
+    required DateTime to,
+  }) {
     if (organization == null) return events;
     final result =
         events.where((event) => !event.isHiddenRegularOccurrence).toList();
@@ -277,8 +306,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       addSchedule(
         team.trainingTimes,
         team.trainingLocation,
-        seasonStart,
-        seasonEnd,
+        seasonStart.isAfter(from) ? seasonStart : from,
+        seasonEnd.isBefore(to) ? seasonEnd : to,
         indoor: false,
         pauseStart: team.indoorSeasonStartDate,
         pauseEnd: team.indoorSeasonEndDate,
@@ -288,8 +317,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         addSchedule(
           team.indoorTrainingTimes,
           team.indoorTrainingLocation,
-          team.indoorSeasonStartDate!,
-          team.indoorSeasonEndDate!,
+          team.indoorSeasonStartDate!.isAfter(from)
+              ? team.indoorSeasonStartDate!
+              : from,
+          team.indoorSeasonEndDate!.isBefore(to)
+              ? team.indoorSeasonEndDate!
+              : to,
           indoor: true,
         );
       }
@@ -328,19 +361,22 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             reminderMinutes: const [],
             description: 'Automatische Markierung der Mannschaftssaison.',
           );
-      result
-        ..add(seasonMarker(
+      if (!seasonStart.isBefore(from) && !seasonStart.isAfter(to)) {
+        result.add(seasonMarker(
           'season-start',
           'Saisonanfang',
           seasonStart,
           EventCategory.specialEvent,
-        ))
-        ..add(seasonMarker(
+        ));
+      }
+      if (!seasonEnd.isBefore(from) && !seasonEnd.isAfter(to)) {
+        result.add(seasonMarker(
           'season-end',
           'Saisonende',
           seasonEnd,
           EventCategory.seasonClosing,
         ));
+      }
     }
     return result;
   }
@@ -354,6 +390,36 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     final teamMatches =
         selectedTeams.isEmpty || eventTeamIds.any(selectedTeams.contains);
     return categoryMatches && teamMatches;
+  }
+
+  EventQueryRange _calendarRange(CalendarView selectedView, DateTime date) {
+    final day = DateTime(date.year, date.month, date.day);
+    return switch (selectedView) {
+      CalendarView.day => (
+          from: day.subtract(const Duration(days: 1)),
+          to: day.add(const Duration(days: 2)),
+        ),
+      CalendarView.week => (
+          from: day.subtract(Duration(days: day.weekday)),
+          to: day.add(Duration(days: 8 - day.weekday)),
+        ),
+      // Adjacent months are preloaded for the swipe animation.
+      CalendarView.month => (
+          from: DateTime(date.year, date.month - 1, 1),
+          to: DateTime(date.year, date.month + 2, 1)
+              .subtract(const Duration(milliseconds: 1)),
+        ),
+      CalendarView.year => (
+          from: DateTime(date.year, 1, 1),
+          to: DateTime(date.year + 1, 1, 1)
+              .subtract(const Duration(milliseconds: 1)),
+        ),
+      CalendarView.agenda => (
+          from: DateTime(date.year, date.month, 1),
+          to: DateTime(date.year, date.month + 6, 1)
+              .subtract(const Duration(milliseconds: 1)),
+        ),
+    };
   }
 
   DateTime _shift(DateTime value, int direction) => switch (view) {
@@ -413,6 +479,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
     final createdIds = created.map((event) => event.id).toSet();
     ref.invalidate(eventsProvider);
+    ref.invalidate(calendarEventsProvider);
     try {
       final refreshed = await ref.read(eventsProvider.future);
       final confirmedIds = refreshed.map((event) => event.id).toSet();
@@ -435,6 +502,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       }
     } catch (_) {
       ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -500,6 +568,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     try {
       await action();
       ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
       if (mounted && showSuccess) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(success)));
@@ -946,124 +1015,130 @@ class _SwipeableMonthViewState extends State<_SwipeableMonthView>
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.sizeOf(context).width >= 600) return widget.child;
-    return Semantics(
-      label:
-          'Monatskalender ${_periodLabel(CalendarView.month, widget.cursor)}. '
-          'Nach links oder rechts wischen, um den Monat zu wechseln.',
-      child: GestureDetector(
-        // Nur horizontale Monatsgesten werden übernommen. Reine vertikale
-        // Bewegungen bleiben beim umgebenden Seiten-Scroll, damit auch die
-        // Terminliste unter dem Kalender jederzeit hoch- und runterscrollt.
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragStart: (_) {},
-        onHorizontalDragUpdate: (_) {},
-        onHorizontalDragEnd: (_) {},
-        child: Listener(
-          key: const ValueKey('calendar-month-swipe-surface'),
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: (_) => _beginSwipe(),
-          onPointerMove: _updateSwipe,
-          onPointerUp: (_) => _finishSwipe(),
-          onPointerCancel: (_) {
-            _horizontalDistance = 0;
-            _verticalDistance = 0;
-            _horizontalGesture = false;
-            _axisDecided = false;
-            _snapBack();
-          },
-          child: ClipRect(
-            child: AnimatedSize(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeInOutCubic,
-              alignment: Alignment.topCenter,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  _viewportWidth = constraints.maxWidth;
-                  final travel = constraints.maxWidth;
-                  return AnimatedBuilder(
-                    key: const ValueKey('calendar-month-page-transition'),
-                    animation: _pageController,
-                    builder: (context, _) {
-                      if (_outgoingPage == null && _dragOffset != 0) {
-                        final dragProgress =
-                            (_dragOffset.abs() / travel).clamp(0.0, 1.0);
-                        final movingForward = _dragOffset < 0;
-                        final adjacentPage = movingForward
-                            ? widget.nextChild
-                            : widget.previousChild;
-                        final adjacentOffset =
-                            _dragOffset + (movingForward ? travel : -travel);
-                        return Stack(
-                          alignment: Alignment.topCenter,
-                          children: [
-                            const Positioned.fill(
-                              child: ColoredBox(
-                                color: AppColors.background,
-                              ),
-                            ),
-                            Opacity(
-                              opacity: 1 - dragProgress * .16,
-                              child: Transform.translate(
-                                key: const ValueKey(
-                                  'calendar-month-dragging-page',
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= _compactMonthMaxWidth) {
+          return widget.child;
+        }
+        return Semantics(
+          label:
+              'Monatskalender ${_periodLabel(CalendarView.month, widget.cursor)}. '
+              'Nach links oder rechts wischen, um den Monat zu wechseln.',
+          child: GestureDetector(
+            // Nur horizontale Monatsgesten werden übernommen. Reine vertikale
+            // Bewegungen bleiben beim umgebenden Seiten-Scroll, damit auch die
+            // Terminliste unter dem Kalender jederzeit hoch- und runterscrollt.
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragStart: (_) {},
+            onHorizontalDragUpdate: (_) {},
+            onHorizontalDragEnd: (_) {},
+            child: Listener(
+              key: const ValueKey('calendar-month-swipe-surface'),
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (_) => _beginSwipe(),
+              onPointerMove: _updateSwipe,
+              onPointerUp: (_) => _finishSwipe(),
+              onPointerCancel: (_) {
+                _horizontalDistance = 0;
+                _verticalDistance = 0;
+                _horizontalGesture = false;
+                _axisDecided = false;
+                _snapBack();
+              },
+              child: ClipRect(
+                child: AnimatedSize(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeInOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      _viewportWidth = constraints.maxWidth;
+                      final travel = constraints.maxWidth;
+                      return AnimatedBuilder(
+                        key: const ValueKey('calendar-month-page-transition'),
+                        animation: _pageController,
+                        builder: (context, _) {
+                          if (_outgoingPage == null && _dragOffset != 0) {
+                            final dragProgress =
+                                (_dragOffset.abs() / travel).clamp(0.0, 1.0);
+                            final movingForward = _dragOffset < 0;
+                            final adjacentPage = movingForward
+                                ? widget.nextChild
+                                : widget.previousChild;
+                            final adjacentOffset = _dragOffset +
+                                (movingForward ? travel : -travel);
+                            return Stack(
+                              alignment: Alignment.topCenter,
+                              children: [
+                                const Positioned.fill(
+                                  child: ColoredBox(
+                                    color: AppColors.background,
+                                  ),
                                 ),
-                                offset: Offset(_dragOffset, 0),
-                                child: _currentPage,
-                              ),
-                            ),
-                            IgnorePointer(
-                              child: Transform.translate(
-                                key: const ValueKey(
-                                  'calendar-month-adjacent-page',
+                                Opacity(
+                                  opacity: 1 - dragProgress * .16,
+                                  child: Transform.translate(
+                                    key: const ValueKey(
+                                      'calendar-month-dragging-page',
+                                    ),
+                                    offset: Offset(_dragOffset, 0),
+                                    child: _currentPage,
+                                  ),
                                 ),
-                                offset: Offset(adjacentOffset, 0),
-                                child: adjacentPage,
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-                      final progress =
-                          Curves.easeInOutCubicEmphasized.transform(
-                        _pageController.value,
-                      );
-                      return Stack(
-                        alignment: Alignment.topCenter,
-                        children: [
-                          if (_outgoingPage != null)
-                            IgnorePointer(
-                              child: Opacity(
-                                opacity: 1 - progress * .55,
+                                IgnorePointer(
+                                  child: Transform.translate(
+                                    key: const ValueKey(
+                                      'calendar-month-adjacent-page',
+                                    ),
+                                    offset: Offset(adjacentOffset, 0),
+                                    child: adjacentPage,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+                          final progress =
+                              Curves.easeInOutCubicEmphasized.transform(
+                            _pageController.value,
+                          );
+                          return Stack(
+                            alignment: Alignment.topCenter,
+                            children: [
+                              if (_outgoingPage != null)
+                                IgnorePointer(
+                                  child: Opacity(
+                                    opacity: 1 - progress * .55,
+                                    child: Transform.translate(
+                                      offset: Offset(
+                                        -_slideDirection * progress * travel,
+                                        0,
+                                      ),
+                                      child: _outgoingPage,
+                                    ),
+                                  ),
+                                ),
+                              Opacity(
+                                opacity: .55 + progress * .45,
                                 child: Transform.translate(
                                   offset: Offset(
-                                    -_slideDirection * progress * travel,
+                                    _slideDirection * (1 - progress) * travel,
                                     0,
                                   ),
-                                  child: _outgoingPage,
+                                  child: _currentPage,
                                 ),
                               ),
-                            ),
-                          Opacity(
-                            opacity: .55 + progress * .45,
-                            child: Transform.translate(
-                              offset: Offset(
-                                _slideDirection * (1 - progress) * travel,
-                                0,
-                              ),
-                              child: _currentPage,
-                            ),
-                          ),
-                        ],
+                            ],
+                          );
+                        },
                       );
                     },
-                  );
-                },
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -1086,85 +1161,91 @@ class _MonthView extends StatelessWidget {
     final offset = first.weekday - 1;
     final days = DateTime(cursor.year, cursor.month + 1, 0).day;
     final totalCells = ((offset + days + 6) ~/ 7) * 7;
-    if (MediaQuery.sizeOf(context).width < 600) {
-      return _MobileMonthView(
-        cursor: cursor,
-        events: events,
-        onOpen: onOpen,
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _compactMonthMaxWidth) {
+          return _MobileMonthView(
+            cursor: cursor,
+            events: events,
+            onOpen: onOpen,
+          );
+        }
 
-    return Card(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: 1050,
-          child: Column(
-            children: [
-              _CalendarCategoryLegend(
-                categories: events.map((event) => event.category),
-              ),
-              const Divider(height: 1),
-              Row(
+        return Card(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: 1050,
+              child: Column(
                 children: [
-                  for (final label in [
-                    'Mo',
-                    'Di',
-                    'Mi',
-                    'Do',
-                    'Fr',
-                    'Sa',
-                    'So'
-                  ])
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        child: Text(
-                          label,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
+                  _CalendarCategoryLegend(
+                    categories: events.map((event) => event.category),
+                  ),
+                  const Divider(height: 1),
+                  Row(
+                    children: [
+                      for (final label in [
+                        'Mo',
+                        'Di',
+                        'Mi',
+                        'Do',
+                        'Fr',
+                        'Sa',
+                        'So'
+                      ])
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            child: Text(
+                              label,
+                              textAlign: TextAlign.center,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
                         ),
-                      ),
+                    ],
+                  ),
+                  const Divider(height: 1),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 7,
+                      childAspectRatio: .92,
                     ),
+                    itemCount: totalCells,
+                    itemBuilder: (context, index) {
+                      final day = index - offset + 1;
+                      if (day < 1 || day > days) {
+                        return const DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              right: BorderSide(color: AppColors.line),
+                              bottom: BorderSide(color: AppColors.line),
+                            ),
+                            color: Color(0xFFF9FBFC),
+                          ),
+                        );
+                      }
+                      final date = DateTime(cursor.year, cursor.month, day);
+                      final dayEvents = events
+                          .where((event) => _sameDay(event.startAt, date))
+                          .toList();
+                      return _MonthDay(
+                        date: date,
+                        events: dayEvents,
+                        onOpen: onOpen,
+                      );
+                    },
+                  ),
                 ],
               ),
-              const Divider(height: 1),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 7,
-                  childAspectRatio: .92,
-                ),
-                itemCount: totalCells,
-                itemBuilder: (context, index) {
-                  final day = index - offset + 1;
-                  if (day < 1 || day > days) {
-                    return const DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border(
-                          right: BorderSide(color: AppColors.line),
-                          bottom: BorderSide(color: AppColors.line),
-                        ),
-                        color: Color(0xFFF9FBFC),
-                      ),
-                    );
-                  }
-                  final date = DateTime(cursor.year, cursor.month, day);
-                  final dayEvents = events
-                      .where((event) => _sameDay(event.startAt, date))
-                      .toList();
-                  return _MonthDay(
-                    date: date,
-                    events: dayEvents,
-                    onOpen: onOpen,
-                  );
-                },
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -2398,6 +2479,7 @@ class _EventDetailsDialogState extends ConsumerState<EventDetailsDialog> {
     if (!mounted) return;
     setState(() => _event = updated);
     ref.invalidate(eventsProvider);
+    ref.invalidate(calendarEventsProvider);
   }
 
   @override
@@ -3332,6 +3414,7 @@ class _AttendanceSection extends ConsumerWidget {
                           );
                       ref.invalidate(personalResponsesProvider);
                       ref.invalidate(eventsProvider);
+                      ref.invalidate(calendarEventsProvider);
                       await Future.wait<void>([
                         ref
                             .read(personalResponsesProvider.future)
@@ -3920,6 +4003,7 @@ class _ManagementBar extends ConsumerWidget {
               onPressed: () async {
                 await ref.read(repositoryProvider).finalizeAttendance(event.id);
                 ref.invalidate(eventsProvider);
+                ref.invalidate(calendarEventsProvider);
                 if (context.mounted) Navigator.pop(context);
               },
               icon: const Icon(Icons.lock_rounded),
@@ -4015,6 +4099,7 @@ class _ManagementBar extends ConsumerWidget {
         throw StateError('Terminänderung wurde nicht bestätigt.');
       }
       ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
       if (context.mounted) {
         final messenger = ScaffoldMessenger.of(context);
         Navigator.pop(context);
@@ -4034,6 +4119,7 @@ class _ManagementBar extends ConsumerWidget {
       }
     } catch (_) {
       ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -4073,6 +4159,7 @@ class _ManagementBar extends ConsumerWidget {
         throw StateError('Terminabsage wurde nicht bestätigt.');
       }
       ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
       if (context.mounted) {
         final messenger = ScaffoldMessenger.of(context);
         Navigator.pop(context);
@@ -4092,6 +4179,7 @@ class _ManagementBar extends ConsumerWidget {
       }
     } catch (_) {
       ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -4213,6 +4301,7 @@ class _ManagementBar extends ConsumerWidget {
         deleteLeagueMatch: deleteLeagueMatch,
       );
       ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
       final refreshed = await ref.read(eventsProvider.future);
       if (refreshed.any(
         (item) => item.id == event.id && !item.isHiddenRegularOccurrence,
@@ -4241,6 +4330,7 @@ class _ManagementBar extends ConsumerWidget {
       }
     } catch (_) {
       ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -4351,6 +4441,7 @@ class _ManagementBar extends ConsumerWidget {
       );
       ref.invalidate(organizationProvider);
       ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
       await Future.wait([
         ref.read(organizationProvider.future),
         ref.read(eventsProvider.future),
