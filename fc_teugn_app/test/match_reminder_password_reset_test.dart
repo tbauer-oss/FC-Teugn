@@ -25,7 +25,7 @@ void main() {
     expect(dashboard, contains('_locallyReadIds.add(item.id)'));
   });
 
-  test('password reset push keeps only its device-bound request id', () {
+  test('legacy reset deep links remain compatible during rollout', () {
     const action = '/reset-password?requestId=reset-anfrage';
     expect(
       normalizePushActionRoute(action, isTrainer: false),
@@ -37,12 +37,13 @@ void main() {
     );
   });
 
-  test('FAQ explains match reminder and password reset without email', () {
+  test('FAQ explains match reminder and password reset by email', () {
     final password = helpArticles.singleWhere(
       (article) => article.title.contains('Passwort vergessen'),
     );
-    expect(password.summary, contains('Push-Gerät'));
+    expect(password.summary, contains('E-Mail-Adresse'));
     expect(password.steps.join(' '), contains('15 Minuten'));
+    expect(password.steps.join(' '), contains('Spam- oder Junk-Ordner'));
 
     final reminder = helpArticles.singleWhere(
       (article) => article.title.contains('24 Stunden vor einem Spiel'),

@@ -49,7 +49,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Passwort zurücksetzen'), findsOneWidget);
-    expect(find.text('Reset-Push senden'), findsOneWidget);
+    expect(find.text('Reset-Link per E-Mail senden'), findsOneWidget);
+    expect(find.byIcon(Icons.mail_outline_rounded), findsWidgets);
     expect(find.byType(SingleChildScrollView), findsWidgets);
     expect(tester.takeException(), isNull);
   });

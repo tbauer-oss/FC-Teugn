@@ -40,16 +40,18 @@ test('password reset uses hashed expiring one-time tokens and email delivery', (
   assert.match(resetEmail, /reset-password\?token=/);
   assert.match(resetEmail, /Idempotency-Key/);
   assert.match(resetEmail, /15 Minuten/);
-  assert.match(auth, /forcePush: true/);
-  assert.match(auth, /reset-password\?requestId=/);
+  assert.doesNotMatch(auth, /notifyUsers/);
+  assert.doesNotMatch(auth, /forcePush: true/);
+  assert.doesNotMatch(auth, /push fallback delivery/);
+  assert.doesNotMatch(auth, /notifyPasswordResetAdministrators/);
+  assert.match(auth, /email delivery was not accepted/);
+  assert.match(auth, /passwordResetToken\.delete\(\{ where: \{ id: reset\.id \} \}\)/);
+  assert.match(auth, /Spam- oder Junk-Ordner/);
   assert.doesNotMatch(auth, /reset-password\?token=/);
   assert.match(auth, /claimedBySubscriptionId/);
   assert.match(auth, /deviceEndpoint/);
   assert.match(auth, /expiresAt: \{ gt: now \}/);
   assert.match(auth, /refreshToken\.updateMany/);
-  assert.match(auth, /delivery\.sent > 0/);
-  assert.match(auth, /!resetDelivered && user\.pushSubscriptions\.length > 0/);
-  assert.match(auth, /notifyPasswordResetAdministrators\(user\)/);
 });
 
 test('reset request does not disclose whether an account exists', () => {

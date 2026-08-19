@@ -54,41 +54,46 @@ OrganizationContext _organization() => OrganizationContext(
     );
 
 EventModel _tournament({
+  String id = 'tournament-1',
+  String title = '3. Hopfenbach-Cup mit langem Turniernamen',
+  DateTime? startAt,
   List<TournamentFixtureModel> fixtures = const [],
-}) =>
-    EventModel(
-      id: 'tournament-1',
-      teamId: _team.id,
-      type: EventType.match,
-      category: EventCategory.tournament,
-      status: EventStatus.scheduled,
-      visibility: EventVisibility.team,
-      title: '3. Hopfenbach-Cup mit langem Turniernamen',
-      startAt: DateTime(2026, 9, 12, 15),
-      endAt: DateTime(2026, 9, 12, 19),
-      location: 'Hopfenbach-Arena mit langem Ortsnamen',
-      attendanceFinalized: false,
-      targetTeams: const [],
-      attachments: const [
-        EventAttachment(
-          id: 'attachment-1',
-          name: meinTurnierplanAttachmentName,
-          url: 'https://www.meinturnierplan.de/showit.php?id=2acei7shc3',
-          mimeType: 'text/html',
-        ),
-      ],
-      attendance: const [],
-      attendanceSummary: const AttendanceSummary(),
-      missingAttendance: const [],
-      carpoolOffers: const [],
-      capabilities: const EventCapabilities(
-        canManage: true,
-        canCancel: true,
-        canDelete: true,
+}) {
+  final starts = startAt ?? DateTime(2026, 9, 12, 15);
+  return EventModel(
+    id: id,
+    teamId: _team.id,
+    type: EventType.match,
+    category: EventCategory.tournament,
+    status: EventStatus.scheduled,
+    visibility: EventVisibility.team,
+    title: title,
+    startAt: starts,
+    endAt: starts.add(const Duration(hours: 4)),
+    location: 'Hopfenbach-Arena mit langem Ortsnamen',
+    attendanceFinalized: false,
+    targetTeams: const [],
+    attachments: const [
+      EventAttachment(
+        id: 'attachment-1',
+        name: meinTurnierplanAttachmentName,
+        url: 'https://www.meinturnierplan.de/showit.php?id=2acei7shc3',
+        mimeType: 'text/html',
       ),
-      reminderMinutes: const [],
-      tournamentFixtures: fixtures,
-    );
+    ],
+    attendance: const [],
+    attendanceSummary: const AttendanceSummary(),
+    missingAttendance: const [],
+    carpoolOffers: const [],
+    capabilities: const EventCapabilities(
+      canManage: true,
+      canCancel: true,
+      canDelete: true,
+    ),
+    reminderMinutes: const [],
+    tournamentFixtures: fixtures,
+  );
+}
 
 TournamentFixtureModel _fixture({DateTime? familyReleasedAt}) =>
     TournamentFixtureModel(
@@ -187,10 +192,15 @@ class _TournamentRepository extends DataRepository {
   }
 }
 
-Widget _page({DataRepository? repository, EventModel? event}) => ProviderScope(
+Widget _page({
+  DataRepository? repository,
+  EventModel? event,
+  List<EventModel>? events,
+}) =>
+    ProviderScope(
       overrides: [
         matchEventsProvider.overrideWith(
-          (ref) async => [event ?? _tournament()],
+          (ref) async => events ?? [event ?? _tournament()],
         ),
         organizationProvider.overrideWith((ref) async => _organization()),
         if (repository != null)
@@ -203,6 +213,55 @@ Widget _page({DataRepository? repository, EventModel? event}) => ProviderScope(
     );
 
 void main() {
+  testWidgets('matches default to newest first and can be sorted oldest first',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final older = _tournament(
+      id: 'older-match',
+      title: 'Älteres Spiel',
+      startAt: DateTime(2026, 9, 12, 15),
+    );
+    final newer = _tournament(
+      id: 'newer-match',
+      title: 'Neueres Spiel',
+      startAt: DateTime(2026, 10, 30, 15),
+    );
+
+    await tester.pumpWidget(_page(events: [older, newer]));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Neueste zuerst'), findsOneWidget);
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('match-card-newer-match')))
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('match-card-older-match')))
+            .dy,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('match-sort-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Älteste zuerst').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Älteste zuerst'), findsOneWidget);
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('match-card-older-match')))
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('match-card-newer-match')))
+            .dy,
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in const [
     320.0,
     360.0,

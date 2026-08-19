@@ -257,6 +257,27 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Rückmeldungen zum Training'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('trainer-response-event-details')),
+      findsOneWidget,
+    );
+    final eventDetails = find.byKey(
+      const ValueKey('trainer-response-event-details'),
+    );
+    expect(
+      find.descendant(
+        of: eventDetails,
+        matching: find.textContaining('Training · E1-Jugend'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: eventDetails,
+        matching: find.textContaining('Teugn Sportplatz'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Anna Zugesagt'), findsOneWidget);
     expect(find.text('Ben Offen'), findsOneWidget);
     expect(

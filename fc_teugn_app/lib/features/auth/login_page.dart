@@ -352,11 +352,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             icon: Icon(sent
                 ? Icons.mark_email_read_rounded
                 : Icons.lock_reset_rounded),
-            title: Text(
-                sent ? 'Registrierte Geräte prüfen' : 'Passwort zurücksetzen'),
+            title:
+                Text(sent ? 'E-Mail-Postfach prüfen' : 'Passwort zurücksetzen'),
             content: sent
                 ? const Text(
-                    'Wenn der Zugang existiert, erscheint auf einem bereits registrierten Gerät eine sichere Pushnachricht. Der Link ist 15 Minuten und nur einmal gültig.\n\nKein Push-Gerät mehr erreichbar? Dann wird die Systemadministration informiert. Sie kann in „Mitglieder & Freigaben“ einen sicheren, 60 Minuten gültigen Einmal-Link erstellen und dir persönlich senden.',
+                    'Wenn unter dieser E-Mail-Adresse ein freigegebener Zugang besteht, wurde ein sicherer Link zum Zurücksetzen des Passworts versendet. Der Link ist 15 Minuten gültig und kann nur einmal verwendet werden.\n\nBitte prüfe auch deinen Spam- oder Junk-Ordner. Aus Sicherheitsgründen zeigen wir nicht an, ob unter der eingegebenen Adresse tatsächlich ein Konto vorhanden ist.',
                   )
                 : Form(
                     key: formKey,
@@ -365,7 +365,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Ein E-Mail-Versand ist nicht nötig. Wir senden den sicheren Reset-Link als Push an ein bereits registriertes Gerät.',
+                          'Gib die E-Mail-Adresse deines Zugangs ein. Wenn ein freigegebenes Konto vorhanden ist, senden wir dir einen sicheren Link zum Festlegen eines neuen Passworts.',
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -375,7 +375,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           autofillHints: const [AutofillHints.email],
                           decoration: const InputDecoration(
                             labelText: 'E-Mail-Adresse des Zugangs',
-                            prefixIcon: Icon(Icons.person_outline_rounded),
+                            prefixIcon: Icon(Icons.mail_outline_rounded),
                           ),
                           validator: (value) {
                             final text = value?.trim() ?? '';
@@ -437,8 +437,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           dimension: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.notifications_active_rounded),
-                  label: const Text('Reset-Push senden'),
+                      : const Icon(Icons.send_rounded),
+                  label: const Text('Reset-Link per E-Mail senden'),
                 ),
             ],
           ),

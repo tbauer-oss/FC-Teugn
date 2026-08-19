@@ -12,9 +12,7 @@ import {
   ConsentRecordKind,
   ConsentDocumentType,
   GuardianRelationship,
-  NotificationCategory,
 } from '@prisma/client';
-import { notifyUsers } from '../services/notification.service';
 import { notifyPendingRegistrationAdministrators } from '../services/registration-notification.service';
 import { isRecentRefreshRotation } from '../lib/session-refresh';
 import { sendPasswordResetEmail } from '../services/password-reset-email.service';
@@ -643,32 +641,8 @@ export async function disableBiometricLogin(req: Request, res: Response) {
 const passwordResetLifetimeMs = 15 * 60 * 1000;
 const passwordResetResponse = {
   message:
-    'Wenn der Zugang existiert, erhältst du per E-Mail einen 15 Minuten gültigen, sicheren Link. Falls der E-Mail-Versand nicht möglich ist, nutzt die App einen registrierten Gerätezugang oder informiert die Systemadministration.',
+    'Wenn unter dieser E-Mail-Adresse ein freigegebener Zugang besteht, erhältst du einen 15 Minuten gültigen Einmallink. Bitte prüfe auch den Spam- oder Junk-Ordner.',
 };
-
-async function notifyPasswordResetAdministrators(user: {
-  id: string;
-  name: string;
-}) {
-  const administrators = await prisma.user.findMany({
-    where: { role: Role.SUPER_ADMIN, status: AccountStatus.APPROVED },
-    select: { id: true },
-  });
-  await notifyUsers(
-    administrators.map((administrator) => administrator.id),
-    {
-      category: NotificationCategory.SYSTEM,
-      title: 'Passwort-Hilfe angefragt',
-      body: `${user.name} konnte keinen Reset-Link auf einem registrierten Gerät empfangen. Öffne die Mitgliederverwaltung und erstelle dort über das Schlüsselsymbol einen sicheren Einmal-Link.`,
-      actionUrl: '/trainer/approvals',
-      entityType: 'User',
-      entityId: user.id,
-      forcePush: true,
-      forceInApp: true,
-      dedupeKey: `password-reset-help:${user.id}:${new Date().toISOString().slice(0, 13)}`,
-    },
-  );
-}
 
 export async function requestPasswordReset(req: Request, res: Response) {
   const normalizedEmail =
@@ -686,12 +660,6 @@ export async function requestPasswordReset(req: Request, res: Response) {
       name: true,
       email: true,
       status: true,
-      teamId: true,
-      pushSubscriptions: {
-        where: { isActive: true, administrativelyDisabledAt: null },
-        select: { id: true },
-        take: 1,
-      },
     },
   });
   if (
@@ -732,32 +700,9 @@ export async function requestPasswordReset(req: Request, res: Response) {
   } catch (error) {
     console.error('[password-reset] email delivery failed', error);
   }
-  if (!resetDelivered && user.pushSubscriptions.length > 0) {
-    try {
-      const delivery = await notifyUsers([user.id], {
-        category: NotificationCategory.SYSTEM,
-        title: 'Passwort sicher zurücksetzen',
-        body:
-          'Der E-Mail-Versand war nicht möglich. Tippe hier, um innerhalb von 15 Minuten ein neues Passwort festzulegen.',
-        actionUrl: `/reset-password?requestId=${encodeURIComponent(reset.id)}`,
-        entityType: 'PasswordReset',
-        entityId: reset.id,
-        expiresAt: reset.expiresAt,
-        forcePush: true,
-        forceInApp: true,
-        dedupeKey: `password-reset:${reset.id}`,
-      });
-      resetDelivered = delivery.sent > 0;
-    } catch (error) {
-      console.error('[password-reset] push fallback delivery failed', error);
-    }
-  }
   if (!resetDelivered) {
-    try {
-      await notifyPasswordResetAdministrators(user);
-    } catch (error) {
-      console.error('[password-reset] admin fallback notification failed', error);
-    }
+    console.warn('[password-reset] email delivery was not accepted');
+    await prisma.passwordResetToken.delete({ where: { id: reset.id } });
   }
   return res.status(202).json(passwordResetResponse);
 }

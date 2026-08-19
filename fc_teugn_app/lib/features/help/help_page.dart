@@ -870,21 +870,13 @@ const helpArticles = <HelpArticle>[
     category: HelpCategory.start,
     title: 'Was mache ich, wenn ich mein Passwort vergessen habe?',
     summary:
-        'Der sichere Reset funktioniert ohne Vereins-Mailkonto über ein bereits registriertes Push-Gerät.',
-    keywords: [
-      'Passwort vergessen',
-      'Reset',
-      'Anmeldung',
-      'Push',
-      'Systemadmin'
-    ],
+        'Du erhältst einen sicheren Einmallink an die E-Mail-Adresse deines Zugangs.',
+    keywords: ['Passwort vergessen', 'Reset', 'Anmeldung', 'E-Mail', 'Spam'],
     steps: [
       'Tippe auf der Anmeldeseite auf „Passwort vergessen?“ und gib die E-Mail-Adresse deines Zugangs ein.',
-      'Öffne die Pushnachricht auf einem Gerät, auf dem Push für dieses Konto bereits registriert war.',
+      'Öffne die E-Mail von FC Teugn Talents und tippe auf „Neues Passwort festlegen“. Prüfe bitte auch deinen Spam- oder Junk-Ordner.',
       'Lege innerhalb von 15 Minuten ein neues Passwort mit mindestens 10 Zeichen fest. Der Link funktioniert nur einmal.',
       'Melde dich anschließend neu an; bestehende Sitzungen werden aus Sicherheitsgründen beendet.',
-      'Ist kein registriertes Gerät mehr erreichbar, erhält die Systemadministration einen Hilfehinweis. Sie öffnet „Mitglieder & Freigaben“, tippt beim Mitglied auf das Schlüsselsymbol und erstellt einen sicheren Einmal-Link.',
-      'Der Admin-Link ist 60 Minuten gültig, ersetzt ältere Links und kann persönlich zum Beispiel per WhatsApp weitergegeben werden.',
     ],
     tip:
         'Die App verrät bei der Anfrage bewusst nicht, ob eine E-Mail-Adresse registriert ist. Das schützt die Konten vor fremder Ausspähung.',

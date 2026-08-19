@@ -15,7 +15,6 @@ const eventRoutes = read('src/routes/events.routes.ts');
 const players = read('src/controllers/players.controller.ts');
 const admin = read('src/controllers/admin.controller.ts');
 const adminRoutes = read('src/routes/admin.routes.ts');
-const auth = read('src/controllers/auth.controller.ts');
 
 test('carpool needs support several own children and remain team scoped', () => {
   assert.match(schema, /model CarpoolNeed/);
@@ -43,5 +42,4 @@ test('system admin can generate an audited expiring one-time reset link', () => 
   assert.match(admin, /60 \* 60 \* 1000/);
   assert.match(admin, /PASSWORD_RESET_LINK_CREATED_BY_ADMIN/);
   assert.match(admin, /passwordResetToken\.deleteMany/);
-  assert.match(auth, /Schlüsselsymbol/);
 });

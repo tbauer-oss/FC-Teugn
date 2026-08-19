@@ -718,6 +718,7 @@ class _TrainingResponsesSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final organization = ref.watch(organizationProvider).valueOrNull;
     final repliedIds = event.attendance.map((item) => item.playerId).toSet();
     final explicitOpen = event.missingAttendance
         .map((item) => (name: item.name, reason: null as String?))
@@ -738,6 +739,20 @@ class _TrainingResponsesSheet extends ConsumerWidget {
               ),
             )
             .toList();
+    final eventTeams = event.targetTeams.isNotEmpty
+        ? event.targetTeams.map(
+            (team) => team.ageGroupCode.isEmpty
+                ? team.name
+                : '${team.ageGroupCode}-Jugend',
+          )
+        : organization?.teams
+                .where((team) => team.id == event.teamId)
+                .map((team) => team.displayName) ??
+            const Iterable<String>.empty();
+    final teamLabels = eventTeams
+        .where((label) => label.trim().isNotEmpty)
+        .toSet()
+        .join(' · ');
     return FractionallySizedBox(
       key: const ValueKey('trainer-response-overview-sheet'),
       heightFactor: .78,
@@ -775,6 +790,63 @@ class _TrainingResponsesSheet extends ConsumerWidget {
                   icon: const Icon(Icons.close_rounded),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              key: const ValueKey('trainer-response-event-details'),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: AppColors.line),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    event.type == EventType.match
+                        ? Icons.sports_soccer_rounded
+                        : event.type == EventType.training
+                            ? Icons.sports_rounded
+                            : Icons.event_rounded,
+                    size: 20,
+                    color: AppColors.gold,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          [
+                            event.title,
+                            if (teamLabels.isNotEmpty) teamLabels,
+                          ].join(' · '),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr'
+                          '${event.location.trim().isEmpty ? '' : ' · ${event.location}'}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
             if (event.capabilities.canManage &&
                 event.category == EventCategory.training) ...[

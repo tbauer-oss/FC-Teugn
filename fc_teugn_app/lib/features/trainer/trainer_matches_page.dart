@@ -21,11 +21,20 @@ import '../../core/models/user.dart';
 import '../../core/widgets/adaptive_layout.dart';
 import '../calendar/tournament_plan_browser_page.dart';
 
-class TrainerMatchesPage extends ConsumerWidget {
+enum _MatchSortOrder { newestFirst, oldestFirst }
+
+class TrainerMatchesPage extends ConsumerStatefulWidget {
   const TrainerMatchesPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TrainerMatchesPage> createState() => _TrainerMatchesPageState();
+}
+
+class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
+  _MatchSortOrder _sortOrder = _MatchSortOrder.newestFirst;
+
+  @override
+  Widget build(BuildContext context) {
     final events = ref.watch(matchEventsProvider);
     final repository = ref.watch(repositoryProvider);
     final organization = ref.watch(organizationProvider).valueOrNull;
@@ -83,7 +92,12 @@ class TrainerMatchesPage extends ConsumerWidget {
                     event.parentTournamentId == null,
               )
               .toList()
-            ..sort((a, b) => b.startAt.compareTo(a.startAt));
+            ..sort((a, b) {
+              final byDate = _sortOrder == _MatchSortOrder.newestFirst
+                  ? b.startAt.compareTo(a.startAt)
+                  : a.startAt.compareTo(b.startAt);
+              return byDate != 0 ? byDate : a.title.compareTo(b.title);
+            });
           if (matches.isEmpty) {
             return const EmptyState(
               icon: Icons.sports_soccer_rounded,
@@ -94,6 +108,64 @@ class TrainerMatchesPage extends ConsumerWidget {
           }
           return Column(
             children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: PopupMenuButton<_MatchSortOrder>(
+                    key: const ValueKey('match-sort-menu'),
+                    tooltip: 'Spiele sortieren',
+                    initialValue: _sortOrder,
+                    onSelected: (value) => setState(() => _sortOrder = value),
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: _MatchSortOrder.newestFirst,
+                        child: Text('Neueste zuerst'),
+                      ),
+                      PopupMenuItem(
+                        value: _MatchSortOrder.oldestFirst,
+                        child: Text('Älteste zuerst'),
+                      ),
+                    ],
+                    child: Semantics(
+                      button: true,
+                      label: 'Spiele sortieren',
+                      value: _sortOrder == _MatchSortOrder.newestFirst
+                          ? 'Neueste zuerst'
+                          : 'Älteste zuerst',
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: AppColors.line),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.sort_rounded, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              _sortOrder == _MatchSortOrder.newestFirst
+                                  ? 'Neueste zuerst'
+                                  : 'Älteste zuerst',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            const Icon(Icons.arrow_drop_down_rounded, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               for (final match in matches)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),

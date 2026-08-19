@@ -41,9 +41,9 @@ akzeptiert. In Produktion müssen beide aktiven Secrets explizit gesetzt sein.
 existiert. Für freigegebene Konten wird ein zufälliger, nur als SHA-256-Hash
 gespeicherter Einmaltoken erzeugt. Resend versendet den 15 Minuten gültigen
 Link an die im Konto hinterlegte Adresse. Der API-Schlüssel bleibt dabei
-ausschließlich im Backend. Ist der Maildienst nicht verfügbar, wird der
-bestehende gerätegebundene Push-Austausch verwendet; erst wenn auch dieser
-nicht möglich ist, erhält die Systemadministration eine Hilfeanfrage.
+ausschließlich im Backend. Der Passwort-Reset versendet bewusst keine
+Pushnachricht. Wird die E-Mail von Resend nicht angenommen, wird der erzeugte
+Token verworfen und kann durch eine neue Anfrage ersetzt werden.
 
 Nach erfolgreicher Änderung werden alle Refresh-Tokens und biometrischen
 Zugänge des Kontos widerrufen. Der Einmallink kann kein zweites Mal verwendet
