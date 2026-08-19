@@ -168,4 +168,37 @@ void main() {
     expect(apiEnum(LineupStatus.internallyApproved), 'INTERNALLY_APPROVED');
     expect(apiEnum(TickerEventType.matchStart), 'MATCH_START');
   });
+
+  test('parses compact kit laundry duty and trainer candidates', () {
+    final duty = KitLaundryDutyModel.fromJson({
+      'eventId': 'match-1',
+      'title': 'Testspiel',
+      'startAt': '2026-08-19T16:00:00.000Z',
+      'status': 'PROPOSED',
+      'assignmentSource': 'AUTOMATIC',
+      'assignedPlayerId': 'player-1',
+      'assignedFamilyLabel': 'Familie Max',
+      'eligibleFamilyCount': 8,
+      'nominationPublished': true,
+      'viewerEligible': true,
+      'viewerAssigned': true,
+      'canRespond': true,
+      'canComplete': false,
+      'canManage': true,
+      'candidates': [
+        {
+          'familyKey': 'parent-1:parent-2',
+          'playerId': 'player-1',
+          'playerNames': ['Max'],
+          'guardianNames': ['Erika Muster', 'Tom Muster'],
+          'selected': true,
+        },
+      ],
+    });
+
+    expect(duty.status, KitLaundryDutyStatus.proposed);
+    expect(duty.viewerAssigned, isTrue);
+    expect(duty.candidates.single.familyLabel, 'Familie Max');
+    expect(duty.candidates.single.guardianNames, hasLength(2));
+  });
 }

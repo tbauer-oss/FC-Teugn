@@ -145,6 +145,18 @@ enum MatchStatus {
   RECORDED
 }
 
+enum KitLaundryDutyStatus {
+  OPEN
+  PROPOSED
+  CONFIRMED
+  COMPLETED
+}
+
+enum KitLaundryAssignmentSource {
+  AUTOMATIC
+  MANUAL
+}
+
 enum NominationStatus {
   NOMINATED
   ON_CALL
@@ -525,6 +537,7 @@ model Team {
   opponents                  Opponent[]
   leagues                    League[]
   leagueEntries              LeagueEntry[]
+  kitLaundryDuties           KitLaundryDuty[]
   defaultReminderMinutes     Int?                        @default(60)
   secondaryReminderMinutes   Int?                        @default(1440)
   defaultReminderPushEnabled Boolean                     @default(true)
@@ -693,6 +706,7 @@ model User {
   assignedSupportTickets       SupportTicket[]          @relation("SupportTicketAssignee")
   supportMessages              SupportMessage[]
   authoredMatchRatings         PlayerMatchRating[]      @relation("PlayerMatchRatingAuthor")
+  confirmedKitLaundryDuties    KitLaundryDuty[]         @relation("KitLaundryDutyConfirmation")
 
   @@index([accountDeletedAt])
 }
@@ -920,6 +934,7 @@ model Player {
   ownedFileAssets            FileAsset[]                 @relation("PlayerFileOwner")
   eventParticipants          EventParticipant[]
   matchRatings               PlayerMatchRating[]
+  kitLaundryDuties           KitLaundryDuty[]
 
   @@index([clubId, teamId, status, lastName])
 }
@@ -1169,6 +1184,7 @@ model Event {
   scheduledReminders        ScheduledReminder[]
   leagueMatch               LeagueMatch?
   playerRatings             PlayerMatchRating[]
+  kitLaundryDuty            KitLaundryDuty?
 
   @@index([teamId, startAt])
   @@index([seriesId, startAt])
@@ -1560,6 +1576,32 @@ model SquadMember {
 
   @@unique([squadId, playerId])
   @@index([playerId])
+}
+
+model KitLaundryDuty {
+  id                 String                     @id @default(cuid())
+  eventId            String                     @unique
+  teamId             String
+  assignedPlayerId   String?
+  assignedFamilyKey  String?
+  status             KitLaundryDutyStatus       @default(OPEN)
+  assignmentSource   KitLaundryAssignmentSource @default(AUTOMATIC)
+  declinedFamilyKeys String[]                   @default([])
+  proposedAt         DateTime?
+  confirmedAt        DateTime?
+  confirmedById      String?
+  completedAt        DateTime?
+  reminderSentAt     DateTime?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  event              Event                      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team               Team                       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignedPlayer     Player?                    @relation(fields: [assignedPlayerId], references: [id], onDelete: SetNull)
+  confirmedBy        User?                      @relation("KitLaundryDutyConfirmation", fields: [confirmedById], references: [id], onDelete: SetNull)
+
+  @@index([teamId, status, updatedAt])
+  @@index([assignedFamilyKey, status, completedAt])
+  @@index([status, reminderSentAt])
 }
 
 model Lineup {

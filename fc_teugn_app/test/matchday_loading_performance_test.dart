@@ -15,6 +15,22 @@ class _FastMatchRepository extends DataRepository {
   _FastMatchRepository() : super(ApiClient(baseUrl: 'http://test'));
 
   @override
+  Future<KitLaundryDutyModel> kitLaundryDuty(String eventId) async =>
+      KitLaundryDutyModel(
+        eventId: eventId,
+        title: 'Testspiel',
+        startAt: DateTime(2026, 8, 15, 10),
+        status: KitLaundryDutyStatus.open,
+        eligibleFamilyCount: 0,
+        nominationPublished: false,
+        viewerEligible: false,
+        viewerAssigned: false,
+        canRespond: false,
+        canComplete: false,
+        canManage: false,
+      );
+
+  @override
   Future<MatchdayModel> match(String eventId) async => MatchdayModel(
         id: eventId,
         title: 'FC Teugn gegen SV Schnell',

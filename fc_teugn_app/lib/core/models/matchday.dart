@@ -20,6 +20,8 @@ enum LineupStatus { draft, internallyApproved, published, archived }
 
 enum TickerStatus { notStarted, live, paused, halfTime, interrupted, finished }
 
+enum KitLaundryDutyStatus { open, proposed, confirmed, completed }
+
 enum TickerEventType {
   matchStart,
   homeGoal,
@@ -677,4 +679,103 @@ String apiEnum(Enum value) {
         (match) => '${match.group(1)}_${match.group(2)}',
       )
       .toUpperCase();
+}
+
+class KitLaundryCandidateModel {
+  const KitLaundryCandidateModel({
+    required this.familyKey,
+    required this.playerId,
+    required this.playerNames,
+    required this.guardianNames,
+    required this.selected,
+  });
+
+  final String familyKey;
+  final String playerId;
+  final List<String> playerNames;
+  final List<String> guardianNames;
+  final bool selected;
+
+  String get familyLabel => 'Familie ${playerNames.join(' & ')}';
+
+  factory KitLaundryCandidateModel.fromJson(Map<String, dynamic> json) =>
+      KitLaundryCandidateModel(
+        familyKey: json['familyKey'] as String? ?? '',
+        playerId: json['playerId'] as String? ?? '',
+        playerNames: (json['playerNames'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .toList(),
+        guardianNames: (json['guardianNames'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .toList(),
+        selected: json['selected'] as bool? ?? false,
+      );
+}
+
+class KitLaundryDutyModel {
+  const KitLaundryDutyModel({
+    required this.eventId,
+    required this.title,
+    required this.startAt,
+    required this.status,
+    required this.eligibleFamilyCount,
+    required this.nominationPublished,
+    required this.viewerEligible,
+    required this.viewerAssigned,
+    required this.canRespond,
+    required this.canComplete,
+    required this.canManage,
+    this.assignedPlayerId,
+    this.assignedPlayerName,
+    this.assignedFamilyLabel,
+    this.confirmedByName,
+    this.assignmentSource = 'AUTOMATIC',
+    this.candidates = const [],
+  });
+
+  final String eventId;
+  final String title;
+  final DateTime startAt;
+  final KitLaundryDutyStatus status;
+  final String assignmentSource;
+  final String? assignedPlayerId;
+  final String? assignedPlayerName;
+  final String? assignedFamilyLabel;
+  final String? confirmedByName;
+  final int eligibleFamilyCount;
+  final bool nominationPublished;
+  final bool viewerEligible;
+  final bool viewerAssigned;
+  final bool canRespond;
+  final bool canComplete;
+  final bool canManage;
+  final List<KitLaundryCandidateModel> candidates;
+
+  factory KitLaundryDutyModel.fromJson(Map<String, dynamic> json) =>
+      KitLaundryDutyModel(
+        eventId: json['eventId'] as String? ?? '',
+        title: json['title'] as String? ?? 'Spiel',
+        startAt: DateTime.parse(json['startAt'] as String).toLocal(),
+        status: _enum(
+          KitLaundryDutyStatus.values,
+          json['status'],
+          KitLaundryDutyStatus.open,
+        ),
+        assignmentSource: json['assignmentSource'] as String? ?? 'AUTOMATIC',
+        assignedPlayerId: json['assignedPlayerId'] as String?,
+        assignedPlayerName: json['assignedPlayerName'] as String?,
+        assignedFamilyLabel: json['assignedFamilyLabel'] as String?,
+        confirmedByName: json['confirmedByName'] as String?,
+        eligibleFamilyCount: json['eligibleFamilyCount'] as int? ?? 0,
+        nominationPublished: json['nominationPublished'] as bool? ?? false,
+        viewerEligible: json['viewerEligible'] as bool? ?? false,
+        viewerAssigned: json['viewerAssigned'] as bool? ?? false,
+        canRespond: json['canRespond'] as bool? ?? false,
+        canComplete: json['canComplete'] as bool? ?? false,
+        canManage: json['canManage'] as bool? ?? false,
+        candidates: (json['candidates'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(KitLaundryCandidateModel.fromJson)
+            .toList(),
+      );
 }

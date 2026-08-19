@@ -26,6 +26,7 @@ import '../../core/widgets/team_crest.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import 'matchday_autopilot_tab.dart';
+import 'kit_laundry_duty_card.dart';
 
 class MatchdayPage extends ConsumerStatefulWidget {
   const MatchdayPage({
@@ -786,6 +787,12 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
               ),
             ],
             SizedBox(height: compactTournament ? 5 : 8),
+            KitLaundryDutyCard(
+              matchId: match.id,
+              staffView: widget.staffView,
+              compact: true,
+            ),
+            SizedBox(height: compactTournament ? 5 : 8),
             SizedBox(
               width: double.infinity,
               child: SegmentedButton<int>(
@@ -882,7 +889,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
             Expanded(
               child: TabBarView(
                 children: [
-                  MatchOverview(match: match),
+                  MatchOverview(match: match, staffView: widget.staffView),
                   MatchSquadTab(
                     match: match,
                     allPlayers: _players,
@@ -1901,9 +1908,16 @@ class _ScoreTeam extends StatelessWidget {
 }
 
 class MatchOverview extends StatelessWidget {
-  const MatchOverview({required this.match, super.key});
+  const MatchOverview({
+    required this.match,
+    required this.staffView,
+    this.showLaundryDuty = true,
+    super.key,
+  });
 
   final MatchdayModel match;
+  final bool staffView;
+  final bool showLaundryDuty;
 
   @override
   Widget build(BuildContext context) {
@@ -2043,6 +2057,14 @@ class MatchOverview extends StatelessWidget {
                     details?.isHome != false ? 'Heimspiel' : 'Auswärtsspiel',
                 dateLine: '$date · $startTime',
               ),
+              if (showLaundryDuty) ...[
+                SizedBox(height: compact ? 8 : 12),
+                KitLaundryDutyCard(
+                  matchId: match.id,
+                  staffView: staffView,
+                  compact: compact,
+                ),
+              ],
               SizedBox(height: compact ? 12 : 22),
               const _OverviewSectionHeader(
                 icon: Icons.flash_on_rounded,

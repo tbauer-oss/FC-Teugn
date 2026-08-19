@@ -1710,6 +1710,51 @@ class DataRepository {
     return response.data as Map<String, dynamic>;
   }
 
+  Future<KitLaundryDutyModel> kitLaundryDuty(String eventId) async {
+    final response = await client.dio.get('/matches/$eventId/kit-laundry');
+    return KitLaundryDutyModel.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<KitLaundryDutyModel> assignKitLaundryDuty({
+    required String eventId,
+    required String playerId,
+  }) async {
+    final response = await client.dio.put(
+      '/matches/$eventId/kit-laundry',
+      data: {'playerId': playerId},
+      options: Options(extra: const {'requireOnline': true}),
+    );
+    return KitLaundryDutyModel.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<KitLaundryDutyModel> respondKitLaundryDuty({
+    required String eventId,
+    required bool accepted,
+  }) async {
+    final response = await client.dio.post(
+      '/matches/$eventId/kit-laundry/respond',
+      data: {'accepted': accepted},
+      options: Options(extra: const {'requireOnline': true}),
+    );
+    return KitLaundryDutyModel.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<KitLaundryDutyModel> completeKitLaundryDuty(String eventId) async {
+    final response = await client.dio.post(
+      '/matches/$eventId/kit-laundry/complete',
+      options: Options(extra: const {'requireOnline': true}),
+    );
+    return KitLaundryDutyModel.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
   Future<Map<String, dynamic>> publishMatchInternally(
     String eventId, {
     required List<String> recipientIds,

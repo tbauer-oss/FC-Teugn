@@ -1,6 +1,7 @@
 import 'package:fc_teugn_app/core/models/matchday.dart';
 import 'package:fc_teugn_app/features/matches/matchday_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -12,9 +13,15 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: MatchOverview(match: _match()),
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: MatchOverview(
+              match: _match(),
+              staffView: false,
+              showLaundryDuty: false,
+            ),
+          ),
         ),
       ),
     );
@@ -50,9 +57,15 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: MatchOverview(match: _match()),
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: MatchOverview(
+              match: _match(),
+              staffView: false,
+              showLaundryDuty: false,
+            ),
+          ),
         ),
       ),
     );

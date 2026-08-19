@@ -5,6 +5,7 @@ import {
   getMatch,
   getTicker,
   getTickerDelegation,
+  getKitLaundryDuty,
   familyReleasePreview,
   nominationPreview,
   internalPublicationPreview,
@@ -21,6 +22,9 @@ import {
   updateMatch,
   updateSquad,
   updateTickerDelegation,
+  setKitLaundryDuty,
+  respondKitLaundryDuty,
+  finishKitLaundryDuty,
   syncTournamentFixtures,
 } from '../controllers/matches.controller';
 import { requireApproved, requireAuth, requirePermission } from '../middleware/auth';
@@ -66,6 +70,14 @@ router.patch(
   rescheduleMatch,
 );
 router.put('/:id/squad', requirePermission(Permission.MANAGE_LINEUPS), updateSquad);
+router.get('/:id/kit-laundry', getKitLaundryDuty);
+router.put(
+  '/:id/kit-laundry',
+  requirePermission(Permission.MANAGE_LINEUPS),
+  setKitLaundryDuty,
+);
+router.post('/:id/kit-laundry/respond', respondKitLaundryDuty);
+router.post('/:id/kit-laundry/complete', finishKitLaundryDuty);
 router.get('/:id/squad/nomination-preview', requirePermission(Permission.NOMINATE_SQUAD), nominationPreview);
 router.post('/:id/squad/publish', requirePermission(Permission.NOMINATE_SQUAD), publishSquad);
 router.get('/:id/internal-publish-preview', requirePermission(Permission.PUBLISH_LINEUP_INTERNAL), internalPublicationPreview);

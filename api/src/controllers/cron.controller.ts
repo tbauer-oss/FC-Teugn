@@ -6,6 +6,7 @@ import { applyOperationalRetention } from '../services/privacy-retention.service
 import { retryPendingPushDeliveries } from '../services/notification.service';
 import { prisma } from '../lib/prisma';
 import { ensureNextRegularTrainingOccurrences } from '../services/regular-training-occurrence.service';
+import { processKitLaundryReminders } from '../services/kit-laundry.service';
 
 export async function processScheduledJobs(req: Request, res: Response) {
   const configuredSecret = process.env.CRON_SECRET?.trim();
@@ -14,8 +15,9 @@ export async function processScheduledJobs(req: Request, res: Response) {
     return res.status(401).json({ message: 'Cron-Autorisierung fehlgeschlagen.' });
   }
   await processDueAnnouncements();
-  const [reminders, bfvSyncs, retention] = await Promise.all([
+  const [reminders, kitLaundry, bfvSyncs, retention] = await Promise.all([
     processDueReminders(),
+    processKitLaundryReminders(),
     processDueBfvSyncs(new Date(), 1),
     applyOperationalRetention(),
   ]);
@@ -23,7 +25,7 @@ export async function processScheduledJobs(req: Request, res: Response) {
   // Danach werden auch vorübergehend fehlgeschlagene Pushes aller Kategorien
   // erneut versendet, ohne dass der Empfänger zuerst die App öffnen muss.
   const pushRetries = await retryPendingPushDeliveries();
-  return res.json({ reminders, pushRetries, bfvSyncs, retention });
+  return res.json({ reminders, kitLaundry, pushRetries, bfvSyncs, retention });
 }
 
 export async function processRegularTrainingJobs(req: Request, res: Response) {

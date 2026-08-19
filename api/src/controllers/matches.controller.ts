@@ -58,6 +58,13 @@ import {
   matchCategoryLabel,
   resolveMeetingPoint,
 } from '../services/match-publication.service';
+import {
+  assignKitLaundryDuty,
+  completeKitLaundryDuty,
+  kitLaundryDutyView,
+  reconcileKitLaundryDuty,
+  respondToKitLaundryDuty,
+} from '../services/kit-laundry.service';
 
 const tournamentCategories = new Set<EventCategory>([
   EventCategory.TOURNAMENT,
@@ -1774,6 +1781,98 @@ export async function updateSquad(req: Request, res: Response) {
   return res.json(squad);
 }
 
+function laundryError(res: Response, code: string) {
+  const messages: Record<string, string> = {
+    NOT_FOUND: 'Spiel nicht gefunden.',
+    SQUAD_NOT_PUBLISHED: 'Bitte zuerst den Kader verbindlich nominieren.',
+    NOT_ELIGIBLE: 'Ausgewählt werden können nur Familien nominierter Kinder.',
+    NO_OPEN_PROPOSAL: 'Dieser Trikotdienst ist nicht mehr offen.',
+    NOT_ASSIGNED: 'Der Trikotdienst ist aktuell einer anderen Familie zugeordnet.',
+    ALREADY_CHANGED: 'Der Trikotdienst wurde bereits von einem anderen Gerät bearbeitet.',
+    NOT_CONFIRMED: 'Der Trikotdienst muss zuerst bestätigt werden.',
+  };
+  const status = code === 'NOT_FOUND' ? 404 : code === 'NOT_ASSIGNED' ? 403 : 409;
+  return res.status(status).json({ code, message: messages[code] ?? 'Trikotdienst konnte nicht aktualisiert werden.' });
+}
+
+export async function getKitLaundryDuty(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const canManage = hasEffectivePermission(
+    user.role,
+    Permission.MANAGE_LINEUPS,
+    user.permissions,
+  );
+  const duty = await kitLaundryDutyView(match.id, user.id, canManage);
+  return res.json(duty);
+}
+
+export async function setKitLaundryDuty(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const playerId = text(req.body?.playerId, 100);
+  if (!playerId) return res.status(400).json({ message: 'Bitte eine Familie auswählen.' });
+  const result = await assignKitLaundryDuty(match.id, playerId);
+  if (!result.ok) return laundryError(res, result.code);
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: 'KIT_LAUNDRY_ASSIGNED',
+      entityType: 'KitLaundryDuty',
+      entityId: result.duty.id,
+      metadata: { playerId, source: 'MANUAL' },
+    },
+  });
+  return res.json(await kitLaundryDutyView(match.id, user.id, true));
+}
+
+export async function respondKitLaundryDuty(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  if (typeof req.body?.accepted !== 'boolean') {
+    return res.status(400).json({ message: 'Bitte bestätigen oder ablehnen.' });
+  }
+  const result = await respondToKitLaundryDuty(match.id, user.id, req.body.accepted);
+  if (!result.ok) return laundryError(res, result.code);
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: result.accepted ? 'KIT_LAUNDRY_CONFIRMED' : 'KIT_LAUNDRY_DECLINED',
+      entityType: 'KitLaundryDuty',
+      entityId: match.id,
+    },
+  });
+  return res.json(await kitLaundryDutyView(match.id, user.id, false));
+}
+
+export async function finishKitLaundryDuty(req: Request, res: Response) {
+  const user = req.user!;
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const canManage = hasEffectivePermission(
+    user.role,
+    Permission.MANAGE_LINEUPS,
+    user.permissions,
+  );
+  const result = await completeKitLaundryDuty(match.id, user.id, canManage);
+  if (!result.ok) return laundryError(res, result.code);
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: 'KIT_LAUNDRY_COMPLETED',
+      entityType: 'KitLaundryDuty',
+      entityId: match.id,
+    },
+  });
+  return res.json(await kitLaundryDutyView(match.id, user.id, canManage));
+}
+
 export async function publishSquad(req: Request, res: Response) {
   const user = req.user!;
   const match = await findMatch(req.params.id, user);
@@ -1868,6 +1967,7 @@ export async function publishSquad(req: Request, res: Response) {
     return saved;
   });
   const summaries = [];
+  await reconcileKitLaundryDuty(match.id);
   for (const member of playersToNotify) {
     const playerName = member.player.preferredName || member.player.firstName;
     const recipientIds = [
