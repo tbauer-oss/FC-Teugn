@@ -17,6 +17,7 @@ import {
 import { notifyUsers } from '../services/notification.service';
 import { notifyPendingRegistrationAdministrators } from '../services/registration-notification.service';
 import { isRecentRefreshRotation } from '../lib/session-refresh';
+import { sendPasswordResetEmail } from '../services/password-reset-email.service';
 
 const refreshLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 const biometricCredentialLifetimeMs = 180 * 24 * 60 * 60 * 1000;
@@ -642,7 +643,7 @@ export async function disableBiometricLogin(req: Request, res: Response) {
 const passwordResetLifetimeMs = 15 * 60 * 1000;
 const passwordResetResponse = {
   message:
-    'Wenn der Zugang existiert, erhältst du auf einem registrierten Gerät eine sichere Pushnachricht. Kommt keine Nachricht an, wird die Systemadministration um Hilfe gebeten.',
+    'Wenn der Zugang existiert, erhältst du per E-Mail einen 15 Minuten gültigen, sicheren Link. Falls der E-Mail-Versand nicht möglich ist, nutzt die App einen registrierten Gerätezugang oder informiert die Systemadministration.',
 };
 
 async function notifyPasswordResetAdministrators(user: {
@@ -683,6 +684,7 @@ export async function requestPasswordReset(req: Request, res: Response) {
     select: {
       id: true,
       name: true,
+      email: true,
       status: true,
       teamId: true,
       pushSubscriptions: {
@@ -710,15 +712,6 @@ export async function requestPasswordReset(req: Request, res: Response) {
     },
   });
 
-  if (user.pushSubscriptions.length === 0) {
-    try {
-      await notifyPasswordResetAdministrators(user);
-    } catch (error) {
-      console.error('[password-reset] admin fallback notification failed', error);
-    }
-    return res.status(202).json(passwordResetResponse);
-  }
-
   const token = randomBytes(32).toString('base64url');
   const reset = await prisma.passwordResetToken.create({
     data: {
@@ -729,22 +722,35 @@ export async function requestPasswordReset(req: Request, res: Response) {
   });
   let resetDelivered = false;
   try {
-    const delivery = await notifyUsers([user.id], {
-      category: NotificationCategory.SYSTEM,
-      title: 'Passwort sicher zurücksetzen',
-      body:
-        'Tippe hier, um innerhalb von 15 Minuten ein neues Passwort festzulegen.',
-      actionUrl: `/reset-password?requestId=${encodeURIComponent(reset.id)}`,
-      entityType: 'PasswordReset',
-      entityId: reset.id,
+    resetDelivered = await sendPasswordResetEmail({
+      recipient: user.email,
+      recipientName: user.name,
+      token,
+      resetId: reset.id,
       expiresAt: reset.expiresAt,
-      forcePush: true,
-      forceInApp: true,
-      dedupeKey: `password-reset:${reset.id}`,
     });
-    resetDelivered = delivery.sent > 0;
   } catch (error) {
-    console.error('[password-reset] push delivery failed', error);
+    console.error('[password-reset] email delivery failed', error);
+  }
+  if (!resetDelivered && user.pushSubscriptions.length > 0) {
+    try {
+      const delivery = await notifyUsers([user.id], {
+        category: NotificationCategory.SYSTEM,
+        title: 'Passwort sicher zurücksetzen',
+        body:
+          'Der E-Mail-Versand war nicht möglich. Tippe hier, um innerhalb von 15 Minuten ein neues Passwort festzulegen.',
+        actionUrl: `/reset-password?requestId=${encodeURIComponent(reset.id)}`,
+        entityType: 'PasswordReset',
+        entityId: reset.id,
+        expiresAt: reset.expiresAt,
+        forcePush: true,
+        forceInApp: true,
+        dedupeKey: `password-reset:${reset.id}`,
+      });
+      resetDelivered = delivery.sent > 0;
+    } catch (error) {
+      console.error('[password-reset] push fallback delivery failed', error);
+    }
   }
   if (!resetDelivered) {
     try {

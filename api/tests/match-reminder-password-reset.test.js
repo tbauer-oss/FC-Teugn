@@ -10,6 +10,7 @@ const events = read('src/controllers/events.controller.ts');
 const reminders = read('src/services/reminder.service.ts');
 const auth = read('src/controllers/auth.controller.ts');
 const authRoutes = read('src/routes/auth.routes.ts');
+const resetEmail = read('src/services/password-reset-email.service.ts');
 const schema = read('prisma/schema.prisma');
 
 test('all newly created matches default to a 24 hour server reminder', () => {
@@ -24,7 +25,7 @@ test('editing a match reschedules or removes its reminder immediately', () => {
   assert.match(events, /await syncScheduledRemindersForEvent\(event\.id\)/);
 });
 
-test('password reset uses hashed expiring one-time tokens and push delivery', () => {
+test('password reset uses hashed expiring one-time tokens and email delivery', () => {
   assert.match(schema, /model PasswordResetToken/);
   assert.match(schema, /tokenHash\s+String\s+@unique/);
   assert.match(schema, /expiresAt\s+DateTime/);
@@ -33,6 +34,12 @@ test('password reset uses hashed expiring one-time tokens and push delivery', ()
   assert.match(authRoutes, /password-reset\/confirm/);
   assert.match(auth, /randomBytes\(32\)/);
   assert.match(auth, /tokenHash: tokenHash\(token\)/);
+  assert.match(auth, /sendPasswordResetEmail/);
+  assert.match(resetEmail, /RESEND_API_KEY/);
+  assert.match(resetEmail, /RESEND_FROM_EMAIL/);
+  assert.match(resetEmail, /reset-password\?token=/);
+  assert.match(resetEmail, /Idempotency-Key/);
+  assert.match(resetEmail, /15 Minuten/);
   assert.match(auth, /forcePush: true/);
   assert.match(auth, /reset-password\?requestId=/);
   assert.doesNotMatch(auth, /reset-password\?token=/);
@@ -41,6 +48,7 @@ test('password reset uses hashed expiring one-time tokens and push delivery', ()
   assert.match(auth, /expiresAt: \{ gt: now \}/);
   assert.match(auth, /refreshToken\.updateMany/);
   assert.match(auth, /delivery\.sent > 0/);
+  assert.match(auth, /!resetDelivered && user\.pushSubscriptions\.length > 0/);
   assert.match(auth, /notifyPasswordResetAdministrators\(user\)/);
 });
 

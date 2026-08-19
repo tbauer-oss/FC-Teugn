@@ -25,9 +25,29 @@ dadurch auch auf bereits ausgestellte Access-Tokens.
 - `ACCESS_TOKEN_SECRET`: eigener langer Zufallswert für Access-Tokens
 - `REFRESH_TOKEN_SECRET`: davon verschiedener langer Zufallswert für
   Refresh-Tokens
+- `PUBLIC_APP_URL`: öffentliche Web-App-Basis für sichere Aktionslinks
+- `RESEND_API_KEY`: ausschließlich serverseitig gespeicherter Resend-Schlüssel
+  mit `Sending access`
+- `RESEND_FROM_EMAIL`: verifizierter Absender, zum Beispiel
+  `FC Teugn Talents <noreply@mail.fc-teugn-talents.de>`
+- `RESEND_REPLY_TO`: optionale betreute Antwortadresse
 
 `JWT_SECRET` wird nur als Kompatibilitätsalias für bestehende Installationen
 akzeptiert. In Produktion müssen beide aktiven Secrets explizit gesetzt sein.
+
+## Passwort zurücksetzen
+
+`POST /auth/password-reset/request` antwortet unabhängig davon, ob ein Konto
+existiert. Für freigegebene Konten wird ein zufälliger, nur als SHA-256-Hash
+gespeicherter Einmaltoken erzeugt. Resend versendet den 15 Minuten gültigen
+Link an die im Konto hinterlegte Adresse. Der API-Schlüssel bleibt dabei
+ausschließlich im Backend. Ist der Maildienst nicht verfügbar, wird der
+bestehende gerätegebundene Push-Austausch verwendet; erst wenn auch dieser
+nicht möglich ist, erhält die Systemadministration eine Hilfeanfrage.
+
+Nach erfolgreicher Änderung werden alle Refresh-Tokens und biometrischen
+Zugänge des Kontos widerrufen. Der Einmallink kann kein zweites Mal verwendet
+werden.
 
 ## Client-Speicherung
 

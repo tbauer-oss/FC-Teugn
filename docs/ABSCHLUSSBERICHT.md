@@ -154,6 +154,10 @@ Pflicht beziehungsweise produktiv relevant:
 - `CORS_ORIGINS`
 - `API_BASE_URL` beim Flutter-Build, sofern die Standarddomain abweicht
 - `BLOB_READ_WRITE_TOKEN` für private Spieler- und Mannschaftsdateien
+- `PUBLIC_APP_URL` für sichere Links zurück in die Web-App
+- `RESEND_API_KEY` mit auf die Versanddomain beschränktem `Sending access`
+- `RESEND_FROM_EMAIL` mit verifiziertem Absender
+- `RESEND_REPLY_TO` optional für eine betreute Antwortadresse
 
 Für Web Push:
 
