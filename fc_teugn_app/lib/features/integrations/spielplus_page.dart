@@ -10,11 +10,11 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/app_theme.dart';
 import '../../core/spielplus_credentials.dart';
 
-final spielPlusMobileUri = Uri.parse(
-  'https://spielplus.bfv.de/sbo-mobile/v2/#/match-report-operations/match-report-search/club',
+final spielPlusPortalUri = Uri.parse(
+  'https://spielplus.bfv.de/spielplus/oauth/login',
 );
 
-final spielPlusLoginUri = spielPlusMobileUri;
+final spielPlusLoginUri = spielPlusPortalUri;
 
 bool isAllowedSpielPlusUri(Uri uri) {
   if (uri.scheme != 'https') return false;
@@ -195,6 +195,19 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
     }
   }
 
+  Future<void> _openPortalStart() async {
+    final controller = _controller;
+    if (controller == null) return;
+    setState(() {
+      _automaticLoginAttempted = false;
+      _filledLoginUrl = null;
+      _loading = true;
+      _progress = 0;
+      _error = null;
+    });
+    await controller.loadRequest(spielPlusLoginUri);
+  }
+
   Future<void> _fillLoginIfPossible(String url, int generation) async {
     final controller = _controller;
     final target = Uri.tryParse(url);
@@ -294,6 +307,15 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
     await _controller?.loadRequest(spielPlusLoginUri);
   }
 
+  Future<void> _handleSystemBack() async {
+    final controller = _controller;
+    if (controller != null && await controller.canGoBack()) {
+      await controller.goBack();
+      return;
+    }
+    _leave();
+  }
+
   void _leave() {
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
@@ -306,65 +328,79 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 680;
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        toolbarHeight: compact ? 48 : 52,
-        automaticallyImplyLeading: false,
-        leadingWidth: compact ? 44 : 48,
-        leading: IconButton(
-          tooltip: 'Zurück zur App',
-          onPressed: _leave,
-          icon: const Icon(Icons.arrow_back_rounded),
-          visualDensity: VisualDensity.compact,
-        ),
-        titleSpacing: 0,
-        title: Text(
-          'SpielPLUS · BfV',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-        ),
-        actions: [
-          if (!kIsWeb)
-            IconButton(
-              tooltip: 'SpielPLUS-Zugang verwalten',
-              onPressed: _editCredentials,
-              icon: const Icon(Icons.manage_accounts_outlined),
-              visualDensity: VisualDensity.compact,
-            ),
-          if (!kIsWeb)
-            IconButton(
-              tooltip: 'Neu laden',
-              onPressed: _reload,
-              icon: const Icon(Icons.refresh_rounded),
-              visualDensity: VisualDensity.compact,
-            ),
-          SizedBox(width: compact ? 2 : 4),
-        ],
-        bottom: _loading
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(3),
-                child: LinearProgressIndicator(
-                  value: _progress > 0 ? _progress / 100 : null,
-                  minHeight: 3,
-                  color: AppColors.gold,
-                  backgroundColor: AppColors.yellowSoft,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_handleSystemBack());
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          toolbarHeight: compact ? 48 : 52,
+          automaticallyImplyLeading: false,
+          leadingWidth: compact ? 44 : 48,
+          leading: IconButton(
+            tooltip: 'Zurück zur App',
+            onPressed: _leave,
+            icon: const Icon(Icons.arrow_back_rounded),
+            visualDensity: VisualDensity.compact,
+          ),
+          titleSpacing: 0,
+          title: Text(
+            'SpielPLUS · BfV',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
                 ),
-              )
-            : null,
-      ),
-      body: SafeArea(
-        top: false,
-        child: kIsWeb
-            ? const _SpielPlusWebFallback()
-            : _error != null
-                ? _SpielPlusLoadError(message: _error!, onRetry: _reload)
-                : _controller == null
-                    ? const Center(child: CircularProgressIndicator())
-                    : WebViewWidget(controller: _controller!),
+          ),
+          actions: [
+            if (!kIsWeb)
+              IconButton(
+                key: const ValueKey('spielplus-home'),
+                tooltip: 'SpielPLUS-Startseite',
+                onPressed: _openPortalStart,
+                icon: const Icon(Icons.home_outlined),
+                visualDensity: VisualDensity.compact,
+              ),
+            if (!kIsWeb)
+              IconButton(
+                tooltip: 'SpielPLUS-Zugang verwalten',
+                onPressed: _editCredentials,
+                icon: const Icon(Icons.manage_accounts_outlined),
+                visualDensity: VisualDensity.compact,
+              ),
+            if (!kIsWeb)
+              IconButton(
+                tooltip: 'Neu laden',
+                onPressed: _reload,
+                icon: const Icon(Icons.refresh_rounded),
+                visualDensity: VisualDensity.compact,
+              ),
+            SizedBox(width: compact ? 2 : 4),
+          ],
+          bottom: _loading
+              ? PreferredSize(
+                  preferredSize: const Size.fromHeight(3),
+                  child: LinearProgressIndicator(
+                    value: _progress > 0 ? _progress / 100 : null,
+                    minHeight: 3,
+                    color: AppColors.gold,
+                    backgroundColor: AppColors.yellowSoft,
+                  ),
+                )
+              : null,
+        ),
+        body: SafeArea(
+          top: false,
+          child: kIsWeb
+              ? const _SpielPlusWebFallback()
+              : _error != null
+                  ? _SpielPlusLoadError(message: _error!, onRetry: _reload)
+                  : _controller == null
+                      ? const Center(child: CircularProgressIndicator())
+                      : WebViewWidget(controller: _controller!),
+        ),
       ),
     );
   }

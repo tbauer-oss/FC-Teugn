@@ -296,6 +296,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
         if (!mounted) return;
         if (token != null) {
           ref.invalidate(nativePushRegistrationProvider);
+          ref.invalidate(currentDevicePushReadyProvider);
           _showPushMessage('Pushnachrichten sind jetzt aktiviert.');
         } else {
           _showPushMessage(
@@ -308,6 +309,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
         final repository = ref.read(repositoryProvider);
         await repository.grantPushConsent();
         await repository.registerWebPushSubscription(webSubscription!);
+        ref.invalidate(currentDevicePushReadyProvider);
         if (!mounted) return;
         _showPushMessage('Web-Pushnachrichten sind jetzt aktiviert.');
       } catch (_) {

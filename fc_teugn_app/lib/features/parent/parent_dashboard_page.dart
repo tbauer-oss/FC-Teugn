@@ -9,7 +9,6 @@ import '../../core/models/event.dart';
 import '../../core/models/matchday.dart';
 import '../../core/models/personal_response.dart';
 import '../../core/models/player.dart';
-import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../shared/dashboard_event_navigation.dart';
@@ -27,6 +26,7 @@ class ParentDashboardPage extends ConsumerWidget {
     final responsesAsync = ref.watch(personalResponsesProvider);
     final matchesAsync = ref.watch(parentMatchdaysProvider);
     final consentAsync = ref.watch(parentConsentAttentionProvider);
+    final pushReadyAsync = ref.watch(currentDevicePushReadyProvider);
     final summary = summaryAsync.valueOrNull;
     final players = summary?.players ?? const <PlayerModel>[];
     final responses =
@@ -37,6 +37,8 @@ class ParentDashboardPage extends ConsumerWidget {
         consentAsync.valueOrNull ?? const <ParentConsentAttention>[];
     final notifications =
         summary?.notifications ?? const <AppNotificationModel>[];
+    final pushReady = pushReadyAsync.valueOrNull ??
+        (user?.registrationRequest?.pushOptIn == true ? true : null);
     final isInitialDataLoading =
         (summaryAsync.isLoading && !summaryAsync.hasValue) ||
             (responsesAsync.isLoading && !responsesAsync.hasValue);
@@ -97,8 +99,11 @@ class ParentDashboardPage extends ConsumerWidget {
             notifications: notifications,
           ),
           const SizedBox(height: 10),
-          if (_needsSetup(user, players)) ...[
-            _FamilySetupCard(user: user, players: players),
+          if (_needsSetup(players, pushReady)) ...[
+            _FamilySetupCard(
+              players: players,
+              pushDone: pushReady == true,
+            ),
             const SizedBox(height: 10),
           ],
           _WeekTimelineCard(items: timeline),
@@ -118,10 +123,10 @@ class ParentDashboardPage extends ConsumerWidget {
     );
   }
 
-  static bool _needsSetup(AppUser? user, List<PlayerModel> players) =>
+  static bool _needsSetup(List<PlayerModel> players, bool? pushReady) =>
       players.isEmpty ||
       !players.any((player) => player.teamId?.isNotEmpty == true) ||
-      user?.registrationRequest?.pushOptIn != true;
+      pushReady == false;
 
   static String _firstName(String? name) => name == null || name.trim().isEmpty
       ? 'Fußballfamilie'
@@ -489,15 +494,14 @@ class _CompactLink extends StatelessWidget {
 }
 
 class _FamilySetupCard extends StatelessWidget {
-  const _FamilySetupCard({required this.user, required this.players});
-  final AppUser? user;
+  const _FamilySetupCard({required this.players, required this.pushDone});
   final List<PlayerModel> players;
+  final bool pushDone;
 
   @override
   Widget build(BuildContext context) {
     final childDone = players.isNotEmpty;
     final teamDone = players.any((player) => player.teamId?.isNotEmpty == true);
-    final pushDone = user?.registrationRequest?.pushOptIn == true;
     final done = [childDone, teamDone, pushDone].where((value) => value).length;
     return Card(
       child: Padding(

@@ -61,9 +61,13 @@ class PerformanceCenter {
     required this.unratedMatches,
     required this.players,
     this.teamAverage,
+    this.parentTeamAverage,
+    this.parentRatingCount = 0,
   });
 
   final double? teamAverage;
+  final double? parentTeamAverage;
+  final int parentRatingCount;
   final int ratedMatches;
   final int unratedMatches;
   final List<PlayerPerformance> players;
@@ -71,6 +75,8 @@ class PerformanceCenter {
   factory PerformanceCenter.fromJson(Map<String, dynamic> json) =>
       PerformanceCenter(
         teamAverage: (json['teamAverage'] as num?)?.toDouble(),
+        parentTeamAverage: (json['parentTeamAverage'] as num?)?.toDouble(),
+        parentRatingCount: (json['parentRatingCount'] as num?)?.toInt() ?? 0,
         ratedMatches: (json['ratedMatches'] as num?)?.toInt() ?? 0,
         unratedMatches: (json['unratedMatches'] as num?)?.toInt() ?? 0,
         players: (json['players'] as List<dynamic>? ?? const [])
@@ -91,8 +97,15 @@ class PlayerPerformance {
     required this.ratedMatches,
     required this.trend,
     required this.recent,
+    this.timeline = const [],
     this.shirtNumber,
     this.lastScore,
+    this.position,
+    this.secondaryPosition,
+    this.parentAverage,
+    this.parentRatedMatches = 0,
+    this.parentRatingCount = 0,
+    this.lastParentScore,
   });
 
   final String playerId;
@@ -101,8 +114,15 @@ class PlayerPerformance {
   final double average;
   final int ratedMatches;
   final int? lastScore;
+  final String? position;
+  final String? secondaryPosition;
+  final double? parentAverage;
+  final int parentRatedMatches;
+  final int parentRatingCount;
+  final double? lastParentScore;
   final double trend;
   final List<RecentPerformance> recent;
+  final List<PerformanceTimelinePoint> timeline;
 
   factory PlayerPerformance.fromJson(Map<String, dynamic> json) =>
       PlayerPerformance(
@@ -112,6 +132,12 @@ class PlayerPerformance {
         average: (json['average'] as num?)?.toDouble() ?? 0,
         ratedMatches: (json['ratedMatches'] as num?)?.toInt() ?? 0,
         lastScore: (json['lastScore'] as num?)?.toInt(),
+        position: json['position'] as String?,
+        secondaryPosition: json['secondaryPosition'] as String?,
+        parentAverage: (json['parentAverage'] as num?)?.toDouble(),
+        parentRatedMatches: (json['parentRatedMatches'] as num?)?.toInt() ?? 0,
+        parentRatingCount: (json['parentRatingCount'] as num?)?.toInt() ?? 0,
+        lastParentScore: (json['lastParentScore'] as num?)?.toDouble(),
         trend: (json['trend'] as num?)?.toDouble() ?? 0,
         recent: (json['recent'] as List<dynamic>? ?? const [])
             .map(
@@ -120,6 +146,41 @@ class PlayerPerformance {
               ),
             )
             .toList(),
+        timeline: (json['timeline'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => PerformanceTimelinePoint.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+      );
+}
+
+class PerformanceTimelinePoint {
+  const PerformanceTimelinePoint({
+    required this.eventId,
+    required this.startAt,
+    required this.opponent,
+    required this.parentRatingCount,
+    this.trainerScore,
+    this.parentAverage,
+  });
+
+  final String eventId;
+  final DateTime startAt;
+  final String opponent;
+  final double? trainerScore;
+  final double? parentAverage;
+  final int parentRatingCount;
+
+  factory PerformanceTimelinePoint.fromJson(Map<String, dynamic> json) =>
+      PerformanceTimelinePoint(
+        eventId: json['eventId'] as String,
+        startAt: DateTime.parse(json['startAt'] as String).toLocal(),
+        opponent: json['opponent'] as String? ?? 'Gegner',
+        trainerScore: (json['trainerScore'] as num?)?.toDouble(),
+        parentAverage: (json['parentAverage'] as num?)?.toDouble(),
+        parentRatingCount: (json['parentRatingCount'] as num?)?.toInt() ?? 0,
       );
 }
 

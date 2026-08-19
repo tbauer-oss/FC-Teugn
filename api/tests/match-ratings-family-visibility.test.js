@@ -27,6 +27,21 @@ test('ratings never leave the API for family viewers', () => {
   assert.match(matches, /canRatePlayers:\s*true|canRatePlayers,/);
 });
 
+test('parent ratings are separate, anonymous and restricted to own submission', () => {
+  assert.match(schema, /model ParentPlayerMatchRating/);
+  assert.match(schema, /@@unique\(\[eventId, playerId, ratedById\]\)/);
+  assert.match(
+    read('prisma/migrations/20260819143000_parent_match_ratings/migration.sql'),
+    /CHECK \("score" BETWEEN 1 AND 10\)/,
+  );
+  assert.match(routes, /router\.get\('\/:id\/parent-ratings', getParentMatchRatings\)/);
+  assert.match(routes, /router\.put\('\/:id\/parent-ratings', updateParentMatchRatings\)/);
+  assert.match(matches, /user\.role !== Role\.PARENT/);
+  assert.match(matches, /where: \{ eventId: match\.id, ratedById: user\.id \}/);
+  assert.match(matches, /anonymous: true/);
+  assert.doesNotMatch(matches, /parentPlayerRatings: canRatePlayers/);
+});
+
 test('released parents receive full squad, lineup and goal attribution', () => {
   assert.match(matches, /familyTeamViewer && match\.familyReleasedAt !== null/);
   assert.match(matches, /canSeePublishedSquad = staff \|\| tickerEditable \|\| familyDetailsVisible/);

@@ -852,10 +852,15 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     }
     final opponent = match.details?.opponent ?? 'Gegner';
     final mobile = MediaQuery.sizeOf(context).width < 600;
-    final tabCount = widget.staffView ? 6 : 4;
+    final finished = match.details?.status == MatchStatus.finished ||
+        match.details?.status == MatchStatus.recorded ||
+        match.ticker?.status == TickerStatus.finished;
+    final showParentRating = !widget.staffView && finished;
+    final tabCount = widget.staffView ? 6 : (showParentRating ? 5 : 4);
     final initialTabIndex =
         widget.initialTab == 'live' ? (widget.staffView ? 4 : 3) : 0;
     return DefaultTabController(
+      key: ValueKey('match-tabs-$tabCount'),
       length: tabCount,
       initialIndex: initialTabIndex,
       child: PageScaffold(
@@ -884,7 +889,11 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
               ),
             ],
             SizedBox(height: mobile ? 5 : 8),
-            _MatchdayTabBar(compact: mobile, staffView: widget.staffView),
+            _MatchdayTabBar(
+              compact: mobile,
+              staffView: widget.staffView,
+              showParentRating: showParentRating,
+            ),
             const SizedBox(height: 4),
             Expanded(
               child: TabBarView(
@@ -922,6 +931,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                       match: match,
                       onSaved: _applyRatings,
                     ),
+                  if (showParentRating)
+                    _ParentPlayerRatingsTab(matchId: match.id),
                 ],
               ),
             ),
@@ -1185,6 +1196,208 @@ class _PlayerRatingsTabState extends ConsumerState<_PlayerRatingsTab> {
                   : const Icon(Icons.save_rounded),
               label: Text(
                   _saving ? 'Wird gespeichert …' : 'Bewertungen speichern'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ParentPlayerRatingsTab extends ConsumerStatefulWidget {
+  const _ParentPlayerRatingsTab({required this.matchId});
+
+  final String matchId;
+
+  @override
+  ConsumerState<_ParentPlayerRatingsTab> createState() =>
+      _ParentPlayerRatingsTabState();
+}
+
+class _ParentPlayerRatingsTabState
+    extends ConsumerState<_ParentPlayerRatingsTab> {
+  ParentMatchRatingsModel? _data;
+  final Map<String, int?> _scores = {};
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    try {
+      final data =
+          await ref.read(repositoryProvider).parentMatchRatings(widget.matchId);
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _scores
+          ..clear()
+          ..addAll(data.ratings);
+        _loading = false;
+        _error = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Die Elternbewertung konnte nicht geladen werden.';
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    final data = _data;
+    if (data == null) return;
+    setState(() => _saving = true);
+    try {
+      final saved = await ref.read(repositoryProvider).saveParentMatchRatings(
+        eventId: widget.matchId,
+        ratings: {
+          for (final player in data.players) player.id: _scores[player.id],
+        },
+      );
+      if (!mounted) return;
+      setState(() {
+        _data = saved;
+        _scores
+          ..clear()
+          ..addAll(saved.ratings);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Deine anonyme Spielerbewertung wurde gespeichert.'),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Die Elternbewertung konnte nicht gespeichert werden: $error',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return EmptyState(
+        icon: Icons.cloud_off_rounded,
+        title: 'Bewertung nicht verfügbar',
+        message: _error!,
+      );
+    }
+    final data = _data;
+    if (data == null || !data.available) {
+      return const EmptyState(
+        icon: Icons.stars_rounded,
+        title: 'Bewertung nach Abpfiff',
+        message: 'Die optionale Bewertung wird nach Spielende freigeschaltet.',
+      );
+    }
+    if (data.players.isEmpty) {
+      return const EmptyState(
+        icon: Icons.groups_outlined,
+        title: 'Keine Spieler zur Bewertung',
+        message: 'Für dieses Spiel ist kein nominierter Kader hinterlegt.',
+      );
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Card(
+            color: AppColors.yellowSoft,
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.visibility_off_outlined, color: AppColors.gold),
+                  SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      'Optional und anonym · Bewerte die nominierten Spieler wie das Trainerteam von 1 bis 10. Trainer sehen nur den zusammengefassten Elternwert – niemals, wer wie bewertet hat.',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          for (final player in data.players)
+            Card(
+              margin: const EdgeInsets.only(bottom: 6),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      child: Text(player.shirtNumber?.toString() ?? 'FC'),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        player.name,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 108,
+                      child: DropdownButtonFormField<int?>(
+                        key: ValueKey(
+                          'parent-match-rating-${player.id}-${_scores[player.id]}',
+                        ),
+                        initialValue: _scores[player.id],
+                        decoration: const InputDecoration(labelText: '1–10'),
+                        items: [
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('–'),
+                          ),
+                          for (var score = 1; score <= 10; score++)
+                            DropdownMenuItem<int?>(
+                              value: score,
+                              child: Text('$score / 10'),
+                            ),
+                        ],
+                        onChanged: _saving
+                            ? null
+                            : (score) =>
+                                setState(() => _scores[player.id] = score),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 7),
+          FilledButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: _saving
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_rounded),
+            label: Text(
+              _saving ? 'Wird gespeichert …' : 'Anonym speichern',
             ),
           ),
         ],
@@ -1749,10 +1962,15 @@ class _ScoreHero extends StatelessWidget {
 }
 
 class _MatchdayTabBar extends StatelessWidget {
-  const _MatchdayTabBar({required this.compact, required this.staffView});
+  const _MatchdayTabBar({
+    required this.compact,
+    required this.staffView,
+    required this.showParentRating,
+  });
 
   final bool compact;
   final bool staffView;
+  final bool showParentRating;
 
   @override
   Widget build(BuildContext context) {
@@ -1777,6 +1995,8 @@ class _MatchdayTabBar extends StatelessWidget {
           const _WideMatchTab(icon: Icons.bolt_rounded, label: 'Liveticker'),
           if (staffView)
             const _WideMatchTab(icon: Icons.stars_rounded, label: 'Bewertung'),
+          if (showParentRating)
+            const _WideMatchTab(icon: Icons.stars_rounded, label: 'Bewertung'),
         ],
       );
     }
@@ -1798,6 +2018,8 @@ class _MatchdayTabBar extends StatelessWidget {
               icon: Icons.auto_awesome_rounded, label: 'Autopilot'),
         const _CompactMatchTab(icon: Icons.bolt_rounded, label: 'Liveticker'),
         if (staffView)
+          const _CompactMatchTab(icon: Icons.stars_rounded, label: 'Bewertung'),
+        if (showParentRating)
           const _CompactMatchTab(icon: Icons.stars_rounded, label: 'Bewertung'),
       ],
     );

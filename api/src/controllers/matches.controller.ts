@@ -2648,6 +2648,142 @@ export async function updateMatchRatings(req: Request, res: Response) {
   return res.json({ ratings });
 }
 
+function matchIsFinished(match: {
+  matchDetails: { status: MatchStatus } | null;
+  liveTicker: { status: TickerStatus } | null;
+}) {
+  return match.matchDetails?.status === MatchStatus.FINISHED ||
+    match.matchDetails?.status === MatchStatus.RECORDED ||
+    match.liveTicker?.status === TickerStatus.FINISHED;
+}
+
+function parentRatingPlayers(match: Awaited<ReturnType<typeof findMatch>>) {
+  if (!match) return [];
+  return (match.squads[0]?.members ?? [])
+    .filter((member) => member.status === NominationStatus.NOMINATED)
+    .map((member) => member.player)
+    .sort((a, b) => {
+      const aName = a.preferredName || `${a.firstName} ${a.lastName}`;
+      const bName = b.preferredName || `${b.firstName} ${b.lastName}`;
+      return aName.localeCompare(bName, 'de-DE');
+    });
+}
+
+export async function getParentMatchRatings(req: Request, res: Response) {
+  const user = req.user!;
+  if (user.role !== Role.PARENT) {
+    return res.status(403).json({
+      message: 'Die anonyme Elternbewertung ist nur für Elternkonten verfügbar.',
+    });
+  }
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  const available = matchIsFinished(match);
+  const players = available ? parentRatingPlayers(match) : [];
+  const ratings = available
+    ? await prisma.parentPlayerMatchRating.findMany({
+        where: { eventId: match.id, ratedById: user.id },
+        select: { playerId: true, score: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
+      })
+    : [];
+  return res.json({
+    available,
+    anonymous: true,
+    players,
+    ratings,
+  });
+}
+
+export async function updateParentMatchRatings(req: Request, res: Response) {
+  const user = req.user!;
+  if (user.role !== Role.PARENT) {
+    return res.status(403).json({
+      message: 'Die anonyme Elternbewertung ist nur für Elternkonten verfügbar.',
+    });
+  }
+  const match = await findMatch(req.params.id, user);
+  if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  if (!matchIsFinished(match)) {
+    return res.status(409).json({
+      message: 'Die Elternbewertung ist erst nach Spielende möglich.',
+    });
+  }
+  const rawRatings = Array.isArray(req.body?.ratings) ? req.body.ratings : null;
+  if (!rawRatings || rawRatings.length > 60) {
+    return res.status(400).json({ message: 'Ungültige Spielerliste.' });
+  }
+  const players = parentRatingPlayers(match);
+  const nominatedPlayerIds = new Set(players.map((player) => player.id));
+  const normalized = new Map<string, number | null>();
+  for (const raw of rawRatings as Array<Record<string, unknown>>) {
+    const playerId = text(raw.playerId, 100);
+    if (!playerId || !nominatedPlayerIds.has(playerId)) {
+      return res.status(400).json({
+        message: 'Bewertet werden dürfen nur nominierte Spieler.',
+      });
+    }
+    if (raw.score === null) {
+      normalized.set(playerId, null);
+      continue;
+    }
+    const score = Number(raw.score);
+    if (!Number.isInteger(score) || score < 1 || score > 10) {
+      return res.status(400).json({
+        message: 'Bewertungen müssen zwischen 1 und 10 liegen.',
+      });
+    }
+    normalized.set(playerId, score);
+  }
+  await prisma.$transaction(async (tx) => {
+    for (const [playerId, score] of normalized) {
+      if (score === null) {
+        await tx.parentPlayerMatchRating.deleteMany({
+          where: { eventId: match.id, playerId, ratedById: user.id },
+        });
+      } else {
+        await tx.parentPlayerMatchRating.upsert({
+          where: {
+            eventId_playerId_ratedById: {
+              eventId: match.id,
+              playerId,
+              ratedById: user.id,
+            },
+          },
+          update: { score },
+          create: {
+            eventId: match.id,
+            playerId,
+            ratedById: user.id,
+            score,
+          },
+        });
+      }
+    }
+  });
+  const ratings = await prisma.parentPlayerMatchRating.findMany({
+    where: { eventId: match.id, ratedById: user.id },
+    select: { playerId: true, score: true, updatedAt: true },
+    orderBy: { updatedAt: 'desc' },
+  });
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      teamId: match.teamId,
+      action: 'PARENT_MATCH_PLAYER_RATINGS_UPDATED',
+      entityType: 'Event',
+      entityId: match.id,
+      metadata: { ratedPlayers: ratings.length, anonymous: true },
+    },
+  });
+  return res.json({
+    available: true,
+    anonymous: true,
+    players,
+    ratings,
+  });
+}
+
 function elapsed(ticker: {
   elapsedSeconds: number;
   clockStartedAt: Date | null;

@@ -706,6 +706,7 @@ model User {
   assignedSupportTickets       SupportTicket[]          @relation("SupportTicketAssignee")
   supportMessages              SupportMessage[]
   authoredMatchRatings         PlayerMatchRating[]      @relation("PlayerMatchRatingAuthor")
+  authoredParentMatchRatings   ParentPlayerMatchRating[] @relation("ParentPlayerMatchRatingAuthor")
   confirmedKitLaundryDuties    KitLaundryDuty[]         @relation("KitLaundryDutyConfirmation")
 
   @@index([accountDeletedAt])
@@ -934,6 +935,7 @@ model Player {
   ownedFileAssets            FileAsset[]                 @relation("PlayerFileOwner")
   eventParticipants          EventParticipant[]
   matchRatings               PlayerMatchRating[]
+  parentMatchRatings         ParentPlayerMatchRating[]
   kitLaundryDuties           KitLaundryDuty[]
 
   @@index([clubId, teamId, status, lastName])
@@ -1184,6 +1186,7 @@ model Event {
   scheduledReminders        ScheduledReminder[]
   leagueMatch               LeagueMatch?
   playerRatings             PlayerMatchRating[]
+  parentPlayerRatings       ParentPlayerMatchRating[]
   kitLaundryDuty            KitLaundryDuty?
 
   @@index([teamId, startAt])
@@ -1839,6 +1842,24 @@ model PlayerMatchRating {
   ratedBy   User     @relation("PlayerMatchRatingAuthor", fields: [ratedById], references: [id], onDelete: Restrict)
 
   @@unique([eventId, playerId])
+  @@index([playerId, updatedAt])
+  @@index([ratedById, updatedAt])
+}
+
+model ParentPlayerMatchRating {
+  id        String   @id @default(cuid())
+  eventId   String
+  playerId  String
+  ratedById String
+  score     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  ratedBy   User     @relation("ParentPlayerMatchRatingAuthor", fields: [ratedById], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, playerId, ratedById])
+  @@index([eventId, updatedAt])
   @@index([playerId, updatedAt])
   @@index([ratedById, updatedAt])
 }

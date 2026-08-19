@@ -14,6 +14,7 @@ import '../../core/app_theme.dart';
 import '../../core/football_options.dart';
 import '../../core/models/organization.dart';
 import '../../core/models/player.dart';
+import '../../core/models/statistics.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/responsive_form_dialog.dart';
@@ -72,6 +73,7 @@ class PlayerProfilePage extends ConsumerWidget {
         ),
         data: (data) => _ProfileContent(
           player: data,
+          staffView: staffView,
           focusConsents: focusConsents,
           onRefresh: () {
             ref.invalidate(playerProvider(playerId));
@@ -87,11 +89,13 @@ class PlayerProfilePage extends ConsumerWidget {
 class _ProfileContent extends ConsumerWidget {
   const _ProfileContent({
     required this.player,
+    required this.staffView,
     required this.focusConsents,
     required this.onRefresh,
   });
 
   final PlayerModel player;
+  final bool staffView;
   final bool focusConsents;
   final VoidCallback onRefresh;
 
@@ -138,6 +142,13 @@ class _ProfileContent extends ConsumerWidget {
                   ],
                   const SizedBox(height: 12),
                   _SeasonStatisticsCard(player: player),
+                  if (staffView && player.teamId != null) ...[
+                    const SizedBox(height: 12),
+                    _PlayerPerformanceSummaryCard(
+                      playerId: player.id,
+                      teamId: player.teamId!,
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   _DevelopmentCard(
                     notes: player.developmentNotes,
@@ -190,6 +201,13 @@ class _ProfileContent extends ConsumerWidget {
                 _FactsCard(player: player),
                 const SizedBox(height: 16),
                 _SeasonStatisticsCard(player: player),
+                if (staffView && player.teamId != null) ...[
+                  const SizedBox(height: 16),
+                  _PlayerPerformanceSummaryCard(
+                    playerId: player.id,
+                    teamId: player.teamId!,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 _GuardiansCard(
                   guardians: player.guardians,
@@ -918,6 +936,164 @@ class _SeasonStatisticsCard extends StatelessWidget {
                   ),
             ],
           ),
+        ),
+      );
+}
+
+class _PlayerPerformanceSummaryCard extends ConsumerStatefulWidget {
+  const _PlayerPerformanceSummaryCard({
+    required this.playerId,
+    required this.teamId,
+  });
+
+  final String playerId;
+  final String teamId;
+
+  @override
+  ConsumerState<_PlayerPerformanceSummaryCard> createState() =>
+      _PlayerPerformanceSummaryCardState();
+}
+
+class _PlayerPerformanceSummaryCardState
+    extends ConsumerState<_PlayerPerformanceSummaryCard> {
+  late Future<PlayerPerformance?> _performance;
+
+  @override
+  void initState() {
+    super.initState();
+    _performance = _load();
+  }
+
+  Future<PlayerPerformance?> _load() async {
+    final overview = await ref.read(repositoryProvider).statistics(
+      teamIds: [widget.teamId],
+    );
+    for (final player in overview.performanceCenter?.players ?? const []) {
+      if (player.playerId == widget.playerId) return player;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: FutureBuilder<PlayerPerformance?>(
+            future: _performance,
+            builder: (context, snapshot) {
+              final performance = snapshot.data;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.stars_rounded, color: AppColors.gold),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'Spielbewertungen · trainerintern',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  const Text(
+                    'Nur das Trainerteam sieht Trainer- und anonyme Elternwerte.',
+                    style: TextStyle(color: AppColors.muted),
+                  ),
+                  const SizedBox(height: 11),
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    const LinearProgressIndicator()
+                  else if (snapshot.hasError)
+                    const Text(
+                        'Die Bewertungsdaten sind gerade nicht erreichbar.')
+                  else if (performance == null)
+                    const Text('Noch keine Spielbewertungen vorhanden.')
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProfileRatingValue(
+                            label: 'Trainerbewertung',
+                            value: performance.ratedMatches == 0
+                                ? null
+                                : performance.average,
+                            detail: '${performance.ratedMatches} Spiele',
+                            color: AppColors.blue,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ProfileRatingValue(
+                            label: 'Elternbewertung',
+                            value: performance.parentAverage,
+                            detail:
+                                '${performance.parentRatingCount} anonyme Stimmen',
+                            color: AppColors.gold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () => context.go('/trainer/statistics'),
+                    icon: const Icon(Icons.show_chart_rounded),
+                    label: const Text('Entwicklung im Leistungszentrum'),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+}
+
+class _ProfileRatingValue extends StatelessWidget {
+  const _ProfileRatingValue({
+    required this.label,
+    required this.value,
+    required this.detail,
+    required this.color,
+  });
+
+  final String label;
+  final double? value;
+  final String detail;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .09),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: .25)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              value == null ? '–' : '${value!.toStringAsFixed(1)} / 10',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            Text(
+              detail,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 10, color: AppColors.muted),
+            ),
+          ],
         ),
       );
 }

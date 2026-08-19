@@ -1974,6 +1974,35 @@ class DataRepository {
         .toList();
   }
 
+  Future<ParentMatchRatingsModel> parentMatchRatings(String eventId) async {
+    final response = await client.dio.get('/matches/$eventId/parent-ratings');
+    return ParentMatchRatingsModel.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<ParentMatchRatingsModel> saveParentMatchRatings({
+    required String eventId,
+    required Map<String, int?> ratings,
+  }) async {
+    final response = await client.dio.put(
+      '/matches/$eventId/parent-ratings',
+      data: {
+        'ratings': ratings.entries
+            .map(
+              (entry) => {
+                'playerId': entry.key,
+                'score': entry.value,
+              },
+            )
+            .toList(),
+      },
+    );
+    return ParentMatchRatingsModel.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
   Future<LiveTickerModel> sendTickerEvent({
     required String eventId,
     required String clientEventId,

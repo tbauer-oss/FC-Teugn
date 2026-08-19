@@ -19,6 +19,8 @@ import {
   undoTickerEvent,
   updateLineup,
   updateMatchRatings,
+  getParentMatchRatings,
+  updateParentMatchRatings,
   updateMatch,
   updateSquad,
   updateTickerDelegation,
@@ -90,6 +92,8 @@ router.put(
   requirePermission(Permission.MANAGE_STATISTICS),
   updateMatchRatings,
 );
+router.get('/:id/parent-ratings', getParentMatchRatings);
+router.put('/:id/parent-ratings', updateParentMatchRatings);
 router.get('/:id/ticker', getTicker);
 router.get('/:id/ticker/delegation', getTickerDelegation);
 router.put('/:id/ticker/delegation', updateTickerDelegation);

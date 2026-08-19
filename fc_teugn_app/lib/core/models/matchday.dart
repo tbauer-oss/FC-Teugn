@@ -253,6 +253,34 @@ class PlayerMatchRatingModel {
       );
 }
 
+class ParentMatchRatingsModel {
+  const ParentMatchRatingsModel({
+    required this.available,
+    required this.players,
+    required this.ratings,
+  });
+
+  final bool available;
+  final List<MatchPlayer> players;
+  final Map<String, int> ratings;
+
+  factory ParentMatchRatingsModel.fromJson(Map<String, dynamic> json) =>
+      ParentMatchRatingsModel(
+        available: json['available'] as bool? ?? false,
+        players: (json['players'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => MatchPlayer.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(),
+        ratings: {
+          for (final item in (json['ratings'] as List<dynamic>? ?? const []))
+            if ((item as Map<String, dynamic>)['playerId'] is String &&
+                item['score'] is num)
+              item['playerId'] as String: (item['score'] as num).toInt(),
+        },
+      );
+}
+
 class TickerDelegateUser {
   const TickerDelegateUser({
     required this.id,

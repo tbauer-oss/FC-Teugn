@@ -2182,6 +2182,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
         final status = await getWebPushStatus(key);
         if (mounted) setState(() => _webPushStatus = status);
       }
+      ref.invalidate(currentDevicePushReadyProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

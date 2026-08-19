@@ -39,7 +39,11 @@ PersonalResponseModel _response() => PersonalResponseModel(
       isOverdue: false,
     );
 
-Future<void> _pump(WidgetTester tester, double width) async {
+Future<void> _pump(
+  WidgetTester tester,
+  double width, {
+  bool pushReady = true,
+}) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -57,6 +61,9 @@ Future<void> _pump(WidgetTester tester, double width) async {
         personalResponsesProvider.overrideWith((ref) async => [_response()]),
         parentMatchdaysProvider.overrideWith((ref) async => const []),
         parentConsentAttentionProvider.overrideWith((ref) async => const []),
+        currentDevicePushReadyProvider.overrideWith(
+          (ref) async => pushReady,
+        ),
         liveNotificationsProvider.overrideWith((ref) => Stream.value(const [])),
       ],
       child: MaterialApp(
@@ -82,6 +89,23 @@ void main() {
     });
   }
 
+  testWidgets('completed push setup uses the current device status',
+      (tester) async {
+    await _pump(tester, 390, pushReady: true);
+
+    expect(find.text('Ruhig startklar werden'), findsNothing);
+    expect(find.text('Push einstellen'), findsNothing);
+  });
+
+  testWidgets('missing device subscription keeps push setup actionable',
+      (tester) async {
+    await _pump(tester, 390, pushReady: false);
+
+    expect(find.text('Ruhig startklar werden'), findsOneWidget);
+    expect(find.text('2 von 3 Schritten erledigt'), findsOneWidget);
+    expect(find.text('Push einstellen'), findsOneWidget);
+  });
+
   testWidgets('background refresh keeps the family assistant calm',
       (tester) async {
     final refresh = Completer<List<PersonalResponseModel>>();
@@ -105,6 +129,7 @@ void main() {
           }),
           parentMatchdaysProvider.overrideWith((ref) async => const []),
           parentConsentAttentionProvider.overrideWith((ref) async => const []),
+          currentDevicePushReadyProvider.overrideWith((ref) async => true),
           liveNotificationsProvider.overrideWith(
             (ref) => Stream.value(const []),
           ),

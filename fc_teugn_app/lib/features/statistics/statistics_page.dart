@@ -488,20 +488,22 @@ class _PerformanceCenterCard extends StatelessWidget {
           final metrics = [
             _PerformanceMetric(
               compact: compact,
-              label: 'Mannschaftsschnitt',
+              label: 'Trainer',
               value: data.teamAverage == null
                   ? '–'
                   : '${data.teamAverage!.toStringAsFixed(1)} / 10',
             ),
             _PerformanceMetric(
               compact: compact,
-              label: 'Bewertete Spiele',
-              value: '${data.ratedMatches}',
+              label: 'Eltern · anonym',
+              value: data.parentTeamAverage == null
+                  ? '–'
+                  : '${data.parentTeamAverage!.toStringAsFixed(1)} / 10',
             ),
             _PerformanceMetric(
               compact: compact,
-              label: 'Noch offen',
-              value: '${data.unratedMatches}',
+              label: 'Spiele / offen',
+              value: '${data.ratedMatches} / ${data.unratedMatches}',
             ),
           ];
           return Card(
@@ -609,18 +611,10 @@ class _PerformanceCenterCard extends StatelessWidget {
                   padding: EdgeInsets.all(compact ? 11 : 18),
                   child: Column(
                     children: [
-                      if (data.players.isEmpty)
-                        Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: compact ? 6 : 18,
-                          ),
-                          child: const Text(
-                            'Noch keine Spielerbewertungen in diesem Zeitraum.',
-                          ),
-                        )
-                      else
-                        for (final player in data.players)
-                          _PlayerPerformanceRow(player: player),
+                      _PerformancePlayerList(
+                        players: data.players,
+                        compact: compact,
+                      ),
                     ],
                   ),
                 ),
@@ -685,6 +679,133 @@ class _PerformanceMetric extends StatelessWidget {
       );
 }
 
+class _PerformancePlayerList extends StatefulWidget {
+  const _PerformancePlayerList({
+    required this.players,
+    required this.compact,
+  });
+
+  final List<PlayerPerformance> players;
+  final bool compact;
+
+  @override
+  State<_PerformancePlayerList> createState() => _PerformancePlayerListState();
+}
+
+class _PerformancePlayerListState extends State<_PerformancePlayerList> {
+  String _query = '';
+  String _strength = 'ALL';
+  String _position = 'ALL';
+
+  List<String> get _positions => [
+        'ALL',
+        ...{
+          for (final player in widget.players)
+            if (player.position?.trim().isNotEmpty == true)
+              player.position!.trim(),
+        }.toList()
+          ..sort((a, b) => a.compareTo(b)),
+      ];
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedQuery = _query.trim().toLowerCase();
+    final players = widget.players.where((player) {
+      if (normalizedQuery.isNotEmpty &&
+          !player.name.toLowerCase().contains(normalizedQuery)) {
+        return false;
+      }
+      if (_position != 'ALL' && player.position != _position) return false;
+      final reference =
+          player.average > 0 ? player.average : (player.parentAverage ?? 0);
+      return switch (_strength) {
+        'STRONG' => reference >= 8,
+        'MIDDLE' => reference >= 5 && reference < 8,
+        'DEVELOPMENT' => reference > 0 && reference < 5,
+        _ => true,
+      };
+    }).toList();
+    if (widget.players.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: widget.compact ? 6 : 18),
+        child: const Text(
+          'Noch keine Spielerbewertungen in diesem Zeitraum.',
+        ),
+      );
+    }
+    final controls = [
+      TextField(
+        decoration: const InputDecoration(
+          labelText: 'Spieler suchen',
+          prefixIcon: Icon(Icons.search_rounded),
+        ),
+        onChanged: (value) => setState(() => _query = value),
+      ),
+      DropdownButtonFormField<String>(
+        isExpanded: true,
+        initialValue: _strength,
+        decoration: const InputDecoration(labelText: 'Stärke'),
+        items: const [
+          DropdownMenuItem(value: 'ALL', child: Text('Alle Stärken')),
+          DropdownMenuItem(value: 'STRONG', child: Text('Stark · ab 8')),
+          DropdownMenuItem(value: 'MIDDLE', child: Text('Mittel · 5 bis 7,9')),
+          DropdownMenuItem(
+            value: 'DEVELOPMENT',
+            child: Text('Entwicklung · unter 5'),
+          ),
+        ],
+        onChanged: (value) => setState(() => _strength = value ?? 'ALL'),
+      ),
+      DropdownButtonFormField<String>(
+        isExpanded: true,
+        initialValue: _position,
+        decoration: const InputDecoration(labelText: 'Position'),
+        items: [
+          for (final position in _positions)
+            DropdownMenuItem(
+              value: position,
+              child: Text(position == 'ALL' ? 'Alle Positionen' : position),
+            ),
+        ],
+        onChanged: (value) => setState(() => _position = value ?? 'ALL'),
+      ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (widget.compact)
+          Column(
+            children: [
+              controls[0],
+              const SizedBox(height: 6),
+              controls[1],
+              const SizedBox(height: 6),
+              controls[2],
+            ],
+          )
+        else
+          Row(
+            children: [
+              Expanded(flex: 2, child: controls[0]),
+              const SizedBox(width: 8),
+              Expanded(child: controls[1]),
+              const SizedBox(width: 8),
+              Expanded(child: controls[2]),
+            ],
+          ),
+        const SizedBox(height: 10),
+        if (players.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Text('Für diesen Filter wurden keine Spieler gefunden.'),
+          )
+        else
+          for (final player in players) _PlayerPerformanceRow(player: player),
+      ],
+    );
+  }
+}
+
 class _PlayerPerformanceRow extends StatelessWidget {
   const _PlayerPerformanceRow({required this.player});
 
@@ -702,65 +823,314 @@ class _PlayerPerformanceRow extends StatelessWidget {
         : player.trend < -.15
             ? Colors.deepOrange
             : AppColors.muted;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
+    return InkWell(
         borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(child: Text(player.shirtNumber?.toString() ?? 'FC')),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(player.name,
-                    style: const TextStyle(fontWeight: FontWeight.w900)),
-                Text(
-                  '${player.ratedMatches} Bewertungen · zuletzt ${player.lastScore ?? '–'} / 10',
-                  style: const TextStyle(color: AppColors.muted),
-                ),
-                if (player.recent.isNotEmpty) ...[
-                  const SizedBox(height: 5),
-                  Wrap(
-                    spacing: 5,
-                    runSpacing: 5,
-                    children: [
-                      for (final recent in player.recent)
-                        Tooltip(
-                          message:
-                              '${recent.opponent} · ${recent.startAt.day}.${recent.startAt.month}.${recent.startAt.year}',
-                          child: Chip(
-                            visualDensity: VisualDensity.compact,
-                            label: Text('${recent.score}'),
-                          ),
+        onTap: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              showDragHandle: true,
+              builder: (_) => _PerformanceDetailSheet(player: player),
+            ),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(child: Text(player.shirtNumber?.toString() ?? 'FC')),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(player.name,
+                        style: const TextStyle(fontWeight: FontWeight.w900)),
+                    Text(
+                      [player.position, player.secondaryPosition]
+                          .whereType<String>()
+                          .where((value) => value.trim().isNotEmpty)
+                          .join(' / '),
+                      style: const TextStyle(color: AppColors.muted),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 5,
+                      children: [
+                        _RatingValueChip(
+                          label: 'Trainer',
+                          value:
+                              player.ratedMatches == 0 ? null : player.average,
+                          detail: '${player.ratedMatches} Spiele',
+                          color: AppColors.blue,
                         ),
+                        _RatingValueChip(
+                          label: 'Eltern',
+                          value: player.parentAverage,
+                          detail: '${player.parentRatingCount} anonyme Stimmen',
+                          color: AppColors.gold,
+                        ),
+                      ],
+                    ),
+                    if (player.timeline.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      const Text(
+                        'Antippen für Entwicklungskurve und Zeitleiste',
+                        style: TextStyle(color: AppColors.muted, fontSize: 11),
+                      ),
                     ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(trendIcon, color: trendColor),
+              const SizedBox(width: 2),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ));
+  }
+}
+
+class _RatingValueChip extends StatelessWidget {
+  const _RatingValueChip({
+    required this.label,
+    required this.value,
+    required this.detail,
+    required this.color,
+  });
+
+  final String label;
+  final double? value;
+  final String detail;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .10),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: .28)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$label ${value == null ? '–' : '${value!.toStringAsFixed(1)} / 10'}',
+              style: TextStyle(color: color, fontWeight: FontWeight.w900),
+            ),
+            Text(
+              detail,
+              style: const TextStyle(fontSize: 9.5, color: AppColors.muted),
+            ),
+          ],
+        ),
+      );
+}
+
+class _PerformanceDetailSheet extends StatelessWidget {
+  const _PerformanceDetailSheet({required this.player});
+
+  final PlayerPerformance player;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        child: FractionallySizedBox(
+          heightFactor: .88,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  player.name,
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const Text(
+                  'Entwicklung · nur für das Trainerteam sichtbar',
+                  style: TextStyle(color: AppColors.muted),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _RatingValueChip(
+                        label: 'Trainer',
+                        value: player.ratedMatches == 0 ? null : player.average,
+                        detail: '${player.ratedMatches} Spiele',
+                        color: AppColors.blue,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _RatingValueChip(
+                        label: 'Eltern',
+                        value: player.parentAverage,
+                        detail: '${player.parentRatingCount} anonyme Stimmen',
+                        color: AppColors.gold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Entwicklungskurve',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                if (player.timeline.isEmpty)
+                  const Text('Noch keine Werte für eine Kurve vorhanden.')
+                else
+                  Container(
+                    height: 210,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: CustomPaint(
+                      painter: _PerformanceChartPainter(player.timeline),
+                      child: const SizedBox.expand(),
+                    ),
                   ),
-                ],
+                const SizedBox(height: 8),
+                const Wrap(
+                  spacing: 14,
+                  children: [
+                    _ChartLegend(label: 'Trainer', color: AppColors.blue),
+                    _ChartLegend(
+                        label: 'Eltern · anonym', color: AppColors.gold),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Zeitleiste',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 6),
+                for (final point in player.timeline.reversed)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      child:
+                          Text('${point.startAt.day}.${point.startAt.month}.'),
+                    ),
+                    title: Text(point.opponent),
+                    subtitle: Text(
+                      'Trainer ${point.trainerScore?.toStringAsFixed(1) ?? '–'} · '
+                      'Eltern ${point.parentAverage?.toStringAsFixed(1) ?? '–'} '
+                      '(${point.parentRatingCount} Stimmen)',
+                    ),
+                  ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Column(
-            children: [
-              Text(
-                player.average.toStringAsFixed(1),
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              Icon(trendIcon, color: trendColor),
-            ],
+        ),
+      );
+}
+
+class _ChartLegend extends StatelessWidget {
+  const _ChartLegend({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 4,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
+          const SizedBox(width: 5),
+          Text(label, style: const TextStyle(fontSize: 11)),
         ],
-      ),
-    );
+      );
+}
+
+class _PerformanceChartPainter extends CustomPainter {
+  const _PerformanceChartPainter(this.points);
+  final List<PerformanceTimelinePoint> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const left = 24.0;
+    const top = 8.0;
+    const bottom = 20.0;
+    final chartWidth = size.width - left - 6;
+    final chartHeight = size.height - top - bottom;
+    final grid = Paint()
+      ..color = AppColors.line
+      ..strokeWidth = 1;
+    final label = TextPainter(textDirection: TextDirection.ltr);
+    for (final score in [1, 5, 10]) {
+      final y = top + (10 - score) / 9 * chartHeight;
+      canvas.drawLine(Offset(left, y), Offset(size.width, y), grid);
+      label
+        ..text = TextSpan(
+          text: '$score',
+          style: const TextStyle(fontSize: 9, color: AppColors.muted),
+        )
+        ..layout();
+      label.paint(canvas, Offset(1, y - label.height / 2));
+    }
+    void drawSeries(
+        double? Function(PerformanceTimelinePoint) value, Color color) {
+      final paint = Paint()
+        ..color = color
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      final dot = Paint()..color = color;
+      Path? path;
+      for (var index = 0; index < points.length; index++) {
+        final score = value(points[index]);
+        if (score == null) {
+          path = null;
+          continue;
+        }
+        final x = left +
+            (points.length == 1
+                ? chartWidth / 2
+                : index / (points.length - 1) * chartWidth);
+        final y = top + (10 - score.clamp(1, 10)) / 9 * chartHeight;
+        if (path == null) {
+          path = Path()..moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+        canvas.drawCircle(Offset(x, y), 3.5, dot);
+        if (index == points.length - 1 || value(points[index + 1]) == null) {
+          canvas.drawPath(path, paint);
+        }
+      }
+    }
+
+    drawSeries((point) => point.trainerScore, AppColors.blue);
+    drawSeries((point) => point.parentAverage, AppColors.gold);
   }
+
+  @override
+  bool shouldRepaint(covariant _PerformanceChartPainter oldDelegate) =>
+      oldDelegate.points != points;
 }
 
 class _MatchHistory extends StatelessWidget {

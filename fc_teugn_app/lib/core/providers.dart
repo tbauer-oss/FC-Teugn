@@ -21,6 +21,7 @@ import 'offline_ticker.dart';
 import 'offline_outbox.dart';
 import 'loading/loading_controller.dart';
 import 'push/native_push_service.dart';
+import 'push/push_client.dart';
 
 final offlineOutboxProvider = Provider<GeneralOfflineOutbox>(
   (ref) => GeneralOfflineOutbox(),
@@ -91,6 +92,37 @@ final nativePushRegistrationProvider = FutureProvider<void>((ref) async {
     },
   );
   ref.onDispose(() => unawaited(refreshSubscription.cancel()));
+});
+
+/// Prüft, ob auf genau diesem Gerät ein nutzbarer Push-Kanal aktiv ist.
+///
+/// Die Angabe aus der ursprünglichen Registrierung ist dafür nicht
+/// zuverlässig: Push kann später in den Einstellungen aktiviert werden,
+/// ohne dass die alte Registrierungsanfrage erneut geschrieben wird.
+/// Deshalb sind auf Android der aktuelle FCM-Token und im Web das bestehende
+/// Browser-Abonnement die maßgebliche Quelle für den Startklar-Status.
+final currentDevicePushReadyProvider =
+    FutureProvider.autoDispose<bool>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null || user.status != AccountStatus.approved) return false;
+
+  if (nativePushService.supported) {
+    return await nativePushService.currentTokenIfEnabled() != null;
+  }
+
+  if (webPushSupported) {
+    final configuration =
+        await ref.watch(repositoryProvider).pushConfiguration();
+    if (!configuration.webPushConfigured) return false;
+    final status = await getWebPushStatus(configuration.vapidPublicKey);
+    return status.subscribed &&
+        status.permission == WebPushPermission.granted &&
+        !status.keyMismatch;
+  }
+
+  // Plattformen ohne lokal prüfbaren Push-Kanal behalten die vorhandene
+  // Kontoeinstellung als rückwärtskompatiblen Fallback.
+  return user.registrationRequest?.pushOptIn == true;
 });
 
 final playersProvider =

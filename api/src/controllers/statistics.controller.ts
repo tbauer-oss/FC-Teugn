@@ -504,6 +504,34 @@ export async function statisticsOverview(req: Request, res: Response) {
               lastName: true,
               preferredName: true,
               shirtNumber: true,
+              position: true,
+              secondaryPosition: true,
+            },
+          },
+        },
+        orderBy: { event: { startAt: 'desc' } },
+      })
+    : [];
+  const scopedParentRatings = canManageStatistics
+    ? await prisma.parentPlayerMatchRating.findMany({
+        where: { eventId: { in: matches.map((match) => match.id) } },
+        include: {
+          event: {
+            select: {
+              id: true,
+              startAt: true,
+              matchDetails: { select: { opponent: true } },
+            },
+          },
+          player: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              preferredName: true,
+              shirtNumber: true,
+              position: true,
+              secondaryPosition: true,
             },
           },
         },
@@ -515,6 +543,12 @@ export async function statisticsOverview(req: Request, res: Response) {
     const rows = ratingsByPlayer.get(rating.playerId) ?? [];
     rows.push(rating);
     ratingsByPlayer.set(rating.playerId, rows);
+  }
+  const parentRatingsByPlayer = new Map<string, typeof scopedParentRatings>();
+  for (const rating of scopedParentRatings) {
+    const rows = parentRatingsByPlayer.get(rating.playerId) ?? [];
+    rows.push(rating);
+    parentRatingsByPlayer.set(rating.playerId, rows);
   }
   const ratedMatchIds = new Set(scopedRatings.map((rating) => rating.eventId));
   const completedMatches = matches.filter(
@@ -529,14 +563,27 @@ export async function statisticsOverview(req: Request, res: Response) {
           ? scopedRatings.reduce((sum, rating) => sum + rating.score, 0) /
             scopedRatings.length
           : null,
+        parentTeamAverage: scopedParentRatings.length
+          ? scopedParentRatings.reduce((sum, rating) => sum + rating.score, 0) /
+            scopedParentRatings.length
+          : null,
+        parentRatingCount: scopedParentRatings.length,
         ratedMatches: ratedMatchIds.size,
         unratedMatches: completedMatches.filter(
           (match) => !ratedMatchIds.has(match.id),
         ).length,
-        players: [...ratingsByPlayer.entries()]
-          .map(([playerId, ratings]) => {
-            const player = ratings[0].player;
+        players: [...new Set([
+          ...ratingsByPlayer.keys(),
+          ...parentRatingsByPlayer.keys(),
+        ])]
+          .map((playerId) => {
+            const ratings = ratingsByPlayer.get(playerId) ?? [];
+            const parentRatings = parentRatingsByPlayer.get(playerId) ?? [];
+            const player = ratings[0]?.player ?? parentRatings[0].player;
             const chronological = [...ratings].sort(
+              (a, b) => a.event.startAt.getTime() - b.event.startAt.getTime(),
+            );
+            const chronologicalParent = [...parentRatings].sort(
               (a, b) => a.event.startAt.getTime() - b.event.startAt.getTime(),
             );
             const recent = chronological.slice(-5);
@@ -547,25 +594,74 @@ export async function statisticsOverview(req: Request, res: Response) {
             const previousAverage = previous.length
               ? previous.reduce((sum, rating) => sum + rating.score, 0) / previous.length
               : recentAverage;
+            const parentByEvent = new Map<string, typeof parentRatings>();
+            for (const rating of chronologicalParent) {
+              const rows = parentByEvent.get(rating.eventId) ?? [];
+              rows.push(rating);
+              parentByEvent.set(rating.eventId, rows);
+            }
+            const trainerByEvent = new Map(
+              chronological.map((rating) => [rating.eventId, rating]),
+            );
+            const timelineEventIds = [...new Set([
+              ...trainerByEvent.keys(),
+              ...parentByEvent.keys(),
+            ])].sort((a, b) => {
+              const aEvent = trainerByEvent.get(a)?.event ?? parentByEvent.get(a)![0].event;
+              const bEvent = trainerByEvent.get(b)?.event ?? parentByEvent.get(b)![0].event;
+              return aEvent.startAt.getTime() - bEvent.startAt.getTime();
+            });
+            const parentEventAverages = [...parentByEvent.values()].map(
+              (rows) => rows.reduce((sum, rating) => sum + rating.score, 0) / rows.length,
+            );
             return {
               playerId,
               name:
                 player.preferredName || `${player.firstName} ${player.lastName}`,
               shirtNumber: player.shirtNumber,
+              position: player.position,
+              secondaryPosition: player.secondaryPosition,
               average:
-                ratings.reduce((sum, rating) => sum + rating.score, 0) /
-                ratings.length,
+                ratings.length
+                  ? ratings.reduce((sum, rating) => sum + rating.score, 0) /
+                    ratings.length
+                  : null,
               ratedMatches: ratings.length,
               lastScore: chronological.length
                 ? chronological[chronological.length - 1].score
                 : null,
               trend: recentAverage - previousAverage,
+              parentAverage: parentRatings.length
+                ? parentRatings.reduce((sum, rating) => sum + rating.score, 0) /
+                  parentRatings.length
+                : null,
+              parentRatedMatches: parentByEvent.size,
+              parentRatingCount: parentRatings.length,
+              lastParentScore: parentEventAverages.length
+                ? parentEventAverages[parentEventAverages.length - 1]
+                : null,
               recent: [...recent].reverse().map((rating) => ({
                 eventId: rating.eventId,
                 startAt: rating.event.startAt,
                 opponent: rating.event.matchDetails?.opponent ?? 'Gegner',
                 score: rating.score,
               })),
+              timeline: timelineEventIds.map((eventId) => {
+                const trainerRating = trainerByEvent.get(eventId);
+                const parentRows = parentByEvent.get(eventId) ?? [];
+                const event = trainerRating?.event ?? parentRows[0].event;
+                return {
+                  eventId,
+                  startAt: event.startAt,
+                  opponent: event.matchDetails?.opponent ?? 'Gegner',
+                  trainerScore: trainerRating?.score ?? null,
+                  parentAverage: parentRows.length
+                    ? parentRows.reduce((sum, rating) => sum + rating.score, 0) /
+                      parentRows.length
+                    : null,
+                  parentRatingCount: parentRows.length,
+                };
+              }),
             };
           })
           .sort((a, b) => a.name.localeCompare(b.name, 'de-DE')),

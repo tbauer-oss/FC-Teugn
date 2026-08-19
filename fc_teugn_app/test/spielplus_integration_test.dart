@@ -19,9 +19,10 @@ class _MemoryCredentialStorage implements SpielPlusCredentialStorage {
 void main() {
   test('SpielPLUS navigation only accepts official secure hosts', () {
     expect(
-      spielPlusMobileUri.toString(),
-      'https://spielplus.bfv.de/sbo-mobile/v2/#/match-report-operations/match-report-search/club',
+      spielPlusPortalUri.toString(),
+      'https://spielplus.bfv.de/spielplus/oauth/login',
     );
+    expect(spielPlusLoginUri, spielPlusPortalUri);
     expect(
       isAllowedSpielPlusUri(
           Uri.parse('https://spielplus.bfv.de/spielplus/oauth/login')),
