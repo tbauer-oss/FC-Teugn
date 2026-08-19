@@ -36,7 +36,11 @@ export async function sendPasswordResetEmail(
     return false;
   }
 
-  const resetUrl = `${publicAppUrl()}/#/reset-password?token=${encodeURIComponent(
+  // Use a regular HTTPS path instead of a hash-only route. Mail clients,
+  // security scanners and optional click tracking may discard URL fragments
+  // before the browser reaches the app. Vercel rewrites this path to the
+  // Flutter entry page, which converts it to the internal hash route locally.
+  const resetUrl = `${publicAppUrl()}/reset-password?token=${encodeURIComponent(
     input.token,
   )}`;
   const safeName = escapeHtml(input.recipientName);

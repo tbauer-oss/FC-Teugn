@@ -1005,9 +1005,43 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
 }
 
 String _initialRouteFor(AppUser? user) {
+  if (kIsWeb) {
+    final passwordResetRoute = passwordResetRouteFromBrowserUri(Uri.base);
+    if (passwordResetRoute != null) return passwordResetRoute;
+  }
   if (user == null) return '/login';
   if (user.status != AccountStatus.approved) return '/pending';
   return user.isTrainer ? '/trainer' : '/parent';
+}
+
+/// Converts both the new clean email URL and previously issued hash URLs into
+/// the canonical in-app reset route. The clean path is rewritten in index.html
+/// before Flutter starts; this fallback also keeps startup robust when a
+/// browser restores the original URL from history.
+@visibleForTesting
+String? passwordResetRouteFromBrowserUri(Uri uri) {
+  Uri? action;
+  final normalizedPath = uri.path.replaceFirst(RegExp(r'/+$'), '');
+  if (normalizedPath == '/reset-password') {
+    action = uri;
+  } else if (uri.fragment.isNotEmpty) {
+    final fragment =
+        uri.fragment.startsWith('/') ? uri.fragment : '/${uri.fragment}';
+    final parsedFragment = Uri.tryParse(fragment);
+    if (parsedFragment?.path == '/reset-password') action = parsedFragment;
+  }
+  if (action == null) return null;
+
+  final token = action.queryParameters['token']?.trim() ?? '';
+  final requestId = action.queryParameters['requestId']?.trim() ?? '';
+  if (token.isEmpty && requestId.isEmpty) return null;
+  return Uri(
+    path: '/reset-password',
+    queryParameters: {
+      if (token.isNotEmpty) 'token': token,
+      if (requestId.isNotEmpty) 'requestId': requestId,
+    },
+  ).toString();
 }
 
 String normalizePushActionRoute(

@@ -553,7 +553,9 @@ export async function createMemberPasswordResetLink(
   return res.status(201).json({
     memberName: member.name,
     actionUrl,
-    url: `${appBaseUrl}/#${actionUrl}`,
+    // Keep the externally shared URL fragment-free so mail and messenger
+    // redirects cannot silently lose the reset route.
+    url: `${appBaseUrl}${actionUrl}`,
     expiresAt,
   });
 }

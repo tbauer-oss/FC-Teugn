@@ -37,7 +37,8 @@ test('password reset uses hashed expiring one-time tokens and email delivery', (
   assert.match(auth, /sendPasswordResetEmail/);
   assert.match(resetEmail, /RESEND_API_KEY/);
   assert.match(resetEmail, /RESEND_FROM_EMAIL/);
-  assert.match(resetEmail, /reset-password\?token=/);
+  assert.match(resetEmail, /\}\/reset-password\?token=/);
+  assert.doesNotMatch(resetEmail, /\/#\/reset-password\?token=/);
   assert.match(resetEmail, /Idempotency-Key/);
   assert.match(resetEmail, /15 Minuten/);
   assert.doesNotMatch(auth, /notifyUsers/);

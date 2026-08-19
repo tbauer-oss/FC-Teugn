@@ -37,6 +37,31 @@ void main() {
     );
   });
 
+  test('email and legacy browser reset URLs resolve to the reset form', () {
+    expect(
+      passwordResetRouteFromBrowserUri(
+        Uri.parse(
+          'https://fcteugnapp.vercel.app/reset-password?token=email-token',
+        ),
+      ),
+      '/reset-password?token=email-token',
+    );
+    expect(
+      passwordResetRouteFromBrowserUri(
+        Uri.parse(
+          'https://fcteugnapp.vercel.app/#/reset-password?token=legacy-token',
+        ),
+      ),
+      '/reset-password?token=legacy-token',
+    );
+    expect(
+      passwordResetRouteFromBrowserUri(
+        Uri.parse('https://fcteugnapp.vercel.app/'),
+      ),
+      isNull,
+    );
+  });
+
   test('FAQ explains match reminder and password reset by email', () {
     final password = helpArticles.singleWhere(
       (article) => article.title.contains('Passwort vergessen'),

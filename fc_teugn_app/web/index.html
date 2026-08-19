@@ -57,6 +57,18 @@
   </style>
 </head>
 <body>
+  <script>
+    // Password-reset links deliberately use a normal HTTPS path because some
+    // mail clients and security redirects discard URL fragments. Convert the
+    // clean public path into Flutter's internal hash route before Flutter
+    // starts. Existing /#/reset-password links continue to work unchanged.
+    (() => {
+      const normalizedPath = window.location.pathname.replace(/\/+$/, '') || '/';
+      if (normalizedPath !== '/reset-password' || window.location.hash) return;
+      const resetRoute = '/#/reset-password' + window.location.search;
+      window.history.replaceState(null, '', resetRoute);
+    })();
+  </script>
   <script src="pwa_install.js"></script>
   <script src="push_bridge.js"></script>
   <script src="ticker_signal.js"></script>

@@ -42,4 +42,6 @@ test('system admin can generate an audited expiring one-time reset link', () => 
   assert.match(admin, /60 \* 60 \* 1000/);
   assert.match(admin, /PASSWORD_RESET_LINK_CREATED_BY_ADMIN/);
   assert.match(admin, /passwordResetToken\.deleteMany/);
+  assert.match(admin, /url: `\$\{appBaseUrl\}\$\{actionUrl\}`/);
+  assert.doesNotMatch(admin, /url: `\$\{appBaseUrl\}\/#\$\{actionUrl\}`/);
 });

@@ -53,6 +53,19 @@ void main() {
       );
     });
 
+    test('Passwort-Links werden vor Flutter sicher auf die Reset-Route gelegt',
+        () {
+      final index = File('web/index.html').readAsStringSync();
+
+      expect(index, contains("normalizedPath !== '/reset-password'"));
+      expect(index, contains("'/#/reset-password' + window.location.search"));
+      expect(index, contains('window.history.replaceState'));
+      expect(
+        index.indexOf("normalizedPath !== '/reset-password'"),
+        lessThan(index.indexOf('flutter_bootstrap.js')),
+      );
+    });
+
     test('Push verdrängt nicht den Offline-Service-Worker der PWA', () {
       final pushBridge = File('web/push_bridge.js').readAsStringSync();
 

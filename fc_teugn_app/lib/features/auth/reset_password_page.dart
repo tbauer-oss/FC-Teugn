@@ -90,7 +90,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                             else if (_token.isEmpty)
                               _ResetError(
                                 message: _error ??
-                                    'Der sichere Gerätezugriff konnte nicht bestätigt werden. Bitte öffne die Pushnachricht erneut oder wende dich an die Systemadministration.',
+                                    'Der sichere Link fehlt oder ist unvollständig. Bitte fordere auf der Anmeldeseite eine neue E-Mail zum Zurücksetzen an.',
                               )
                             else ...[
                               TextFormField(

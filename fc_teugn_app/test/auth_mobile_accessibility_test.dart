@@ -67,4 +67,17 @@ void main() {
     expect(find.byTooltip('Passwort anzeigen'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('missing email token explains how to request a fresh reset link',
+      (tester) async {
+    await _pumpAt(
+      tester,
+      const ResetPasswordPage(token: '', requestId: ''),
+    );
+
+    expect(find.textContaining('neue E-Mail'), findsOneWidget);
+    expect(find.textContaining('Pushnachricht'), findsNothing);
+    expect(find.text('Zur Anmeldung'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
