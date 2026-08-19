@@ -1316,8 +1316,8 @@ const helpArticles = <HelpArticle>[
     routeLabel: 'SpielPLUS öffnen',
     steps: [
       'Öffne im Trainer-Menü unter „Training & Spieltag“ den Punkt „SpielPLUS · BfV“.',
-      'In der Android- oder iPhone-App startet SpielPLUS im internen Vollbildbrowser. Bereits vorhandene DFBnet-Sitzungen werden weiterverwendet.',
-      'Unter „Mein Konto“ oder über das Zugangssymbol im SpielPLUS-Kopf kannst du Kennung und Passwort optional für dieses Gerät speichern.',
+      'In der Android- oder iPhone-App startet direkt die mobile Spielbericht-Ansicht im internen Vollbildbrowser. Bereits vorhandene DFBnet-Sitzungen werden weiterverwendet.',
+      'Unter „Mein Konto“ oder über das Zugangssymbol im SpielPLUS-Kopf kannst du Kennung und Passwort für dieses Gerät speichern und die automatische Anmeldung aktivieren.',
       'Aktiviere „Automatisch anmelden“, wenn das Anmeldeformular nach dem Öffnen direkt ausgefüllt und abgeschickt werden soll.',
       'Auf gemeinsam genutzten Geräten entfernst du den Zugang anschließend wieder. In der Web-App nutzt du wegen der DFBnet-Sicherheitsrichtlinie den Passwortmanager des Browsers.',
     ],

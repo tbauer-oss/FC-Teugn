@@ -19,6 +19,10 @@ class _MemoryCredentialStorage implements SpielPlusCredentialStorage {
 void main() {
   test('SpielPLUS navigation only accepts official secure hosts', () {
     expect(
+      spielPlusMobileUri.toString(),
+      'https://spielplus.bfv.de/sbo-mobile/v2/#/match-report-operations/match-report-search/club',
+    );
+    expect(
       isAllowedSpielPlusUri(
           Uri.parse('https://spielplus.bfv.de/spielplus/oauth/login')),
       isTrue,
@@ -67,11 +71,28 @@ void main() {
       ),
     );
 
-    expect(script, contains("document.querySelector('#username')"));
-    expect(script, contains("document.querySelector('#password')"));
+    expect(script, contains("'#username'"));
+    expect(script, contains("'#password'"));
     expect(script, contains("document.querySelector('#kc-form-login')"));
     expect(script, contains('requestSubmit'));
+    expect(script, contains('input[autocomplete="username"]'));
+    expect(script, contains('input[autocomplete="current-password"]'));
+    expect(script, contains("return 'credentials-submitted'"));
     expect(script, contains(r'trainer\"name'));
+  });
+
+  test('credential script can fill fields without automatic submission', () {
+    final script = buildSpielPlusCredentialScript(
+      const SpielPlusCredentials(
+        username: 'kennung',
+        password: 'passwort',
+        automaticLogin: true,
+      ),
+      submitAutomatically: false,
+    );
+
+    expect(script, contains('if (false)'));
+    expect(script, contains("return 'credentials-filled'"));
   });
 
   testWidgets('SpielPLUS device settings remain usable on narrow phones',

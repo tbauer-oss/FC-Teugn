@@ -10,8 +10,11 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/app_theme.dart';
 import '../../core/spielplus_credentials.dart';
 
-final spielPlusLoginUri =
-    Uri.parse('https://spielplus.bfv.de/spielplus/oauth/login');
+final spielPlusMobileUri = Uri.parse(
+  'https://spielplus.bfv.de/sbo-mobile/v2/#/match-report-operations/match-report-search/club',
+);
+
+final spielPlusLoginUri = spielPlusMobileUri;
 
 bool isAllowedSpielPlusUri(Uri uri) {
   if (uri.scheme != 'https') return false;
@@ -22,24 +25,76 @@ bool isAllowedSpielPlusUri(Uri uri) {
       host.endsWith('.dfbnet.org');
 }
 
-String buildSpielPlusCredentialScript(SpielPlusCredentials credentials) {
+String buildSpielPlusCredentialScript(
+  SpielPlusCredentials credentials, {
+  bool? submitAutomatically,
+}) {
   final username = jsonEncode(credentials.username.trim());
   final password = jsonEncode(credentials.password);
-  final submit = credentials.automaticLogin && credentials.isComplete;
+  final submit = submitAutomatically ??
+      (credentials.automaticLogin && credentials.isComplete);
   return '''
 (() => {
-  const username = document.querySelector('#username');
-  const password = document.querySelector('#password');
+  const firstUsable = (selectors) => {
+    for (const selector of selectors) {
+      const fields = Array.from(document.querySelectorAll(selector));
+      const visible = fields.find((field) =>
+        !field.disabled && field.getAttribute('aria-hidden') !== 'true');
+      if (visible) return visible;
+    }
+    return null;
+  };
+  const username = firstUsable([
+    '#username',
+    'input[name="username"]',
+    'input[name="user"]',
+    'input[autocomplete="username"]',
+    'input[type="email"]',
+  ]);
+  const password = firstUsable([
+    '#password',
+    'input[name="password"]',
+    'input[autocomplete="current-password"]',
+    'input[type="password"]',
+  ]);
   if (!username || !password) return 'login-form-not-found';
   const applyValue = (field, value) => {
     field.focus();
-    field.value = value;
+    const prototype = Object.getPrototypeOf(field);
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, 'value');
+    if (descriptor && descriptor.set) {
+      descriptor.set.call(field, value);
+    } else {
+      field.value = value;
+    }
     field.dispatchEvent(new Event('input', { bubbles: true }));
     field.dispatchEvent(new Event('change', { bubbles: true }));
+    field.dispatchEvent(new Event('blur', { bubbles: true }));
   };
   applyValue(username, $username);
   applyValue(password, $password);
-  ${submit ? "const form = document.querySelector('#kc-form-login'); if (form) { form.requestSubmit ? form.requestSubmit() : form.submit(); }" : ''}
+  if (${submit ? 'true' : 'false'}) {
+    const form = password.form || username.form ||
+      document.querySelector('#kc-form-login') || document.querySelector('form');
+    if (form) {
+      if (form.requestSubmit) {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+      return 'credentials-submitted';
+    }
+    const submitButton = firstUsable([
+      '#kc-login',
+      'button[type="submit"]',
+      'input[type="submit"]',
+    ]);
+    if (submitButton) {
+      submitButton.click();
+      return 'credentials-submitted';
+    }
+    return 'credentials-filled-no-submit';
+  }
   return 'credentials-filled';
 })()
 ''';
@@ -66,6 +121,7 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
   bool _loading = !kIsWeb;
   bool _automaticLoginAttempted = false;
   String? _filledLoginUrl;
+  int _pageGeneration = 0;
   int _progress = 0;
   String? _error;
 
@@ -106,12 +162,14 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
           onPageStarted: (_) {
             if (!mounted) return;
             setState(() {
+              _pageGeneration += 1;
               _loading = true;
               _error = null;
             });
           },
           onPageFinished: (url) async {
-            await _fillLoginIfPossible(url);
+            final generation = _pageGeneration;
+            await _fillLoginIfPossible(url, generation);
             if (!mounted) return;
             setState(() {
               _loading = false;
@@ -137,7 +195,7 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
     }
   }
 
-  Future<void> _fillLoginIfPossible(String url) async {
+  Future<void> _fillLoginIfPossible(String url, int generation) async {
     final controller = _controller;
     final target = Uri.tryParse(url);
     if (controller == null ||
@@ -146,19 +204,63 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
         !_credentials.isComplete) {
       return;
     }
-    if (_credentials.automaticLogin) {
-      if (_automaticLoginAttempted) return;
-      _automaticLoginAttempted = true;
-    } else if (_filledLoginUrl == url) {
+    if (!_credentials.automaticLogin && _filledLoginUrl == url) {
       return;
     }
-    _filledLoginUrl = url;
+
+    const retryDelays = <Duration>[
+      Duration.zero,
+      Duration(milliseconds: 150),
+      Duration(milliseconds: 300),
+      Duration(milliseconds: 600),
+      Duration(milliseconds: 1000),
+      Duration(milliseconds: 1600),
+    ];
+    for (final delay in retryDelays) {
+      if (delay > Duration.zero) await Future<void>.delayed(delay);
+      if (!mounted || generation != _pageGeneration) return;
+      final shouldSubmit =
+          _credentials.automaticLogin && !_automaticLoginAttempted;
+      try {
+        final rawResult = await controller.runJavaScriptReturningResult(
+          buildSpielPlusCredentialScript(
+            _credentials,
+            submitAutomatically: false,
+          ),
+        );
+        final result = _normalizeJavaScriptResult(rawResult);
+        if (result == 'credentials-filled') {
+          _filledLoginUrl = url;
+          if (shouldSubmit) {
+            // Erst nach sicher erkanntem Formular als Anmeldeversuch markieren.
+            // Dadurch werden dynamisch geladene Formulare zuverlässig gefunden,
+            // fehlerhafte Zugangsdaten lösen aber keine Submit-Schleife aus.
+            _automaticLoginAttempted = true;
+            await controller.runJavaScript(
+              buildSpielPlusCredentialScript(
+                _credentials,
+                submitAutomatically: true,
+              ),
+            );
+          }
+          return;
+        }
+      } catch (_) {
+        // DFBnet bleibt manuell nutzbar, falls das Formular geändert wurde.
+      }
+    }
+  }
+
+  String _normalizeJavaScriptResult(Object value) {
+    if (value is! String) return value.toString();
     try {
-      await controller.runJavaScript(
-        buildSpielPlusCredentialScript(_credentials),
-      );
+      final decoded = jsonDecode(value);
+      return decoded is String ? decoded : value;
     } catch (_) {
-      // Das Formular bleibt normal bedienbar, falls DFBnet seine Seite ändert.
+      final quoted = value.length >= 2 &&
+          ((value.startsWith('"') && value.endsWith('"')) ||
+              (value.startsWith("'") && value.endsWith("'")));
+      return quoted ? value.substring(1, value.length - 1) : value;
     }
   }
 
@@ -166,6 +268,8 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
     final controller = _controller;
     if (controller == null) return;
     setState(() {
+      _automaticLoginAttempted = false;
+      _filledLoginUrl = null;
       _loading = true;
       _progress = 0;
       _error = null;
