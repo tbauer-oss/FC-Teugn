@@ -54,6 +54,15 @@ void main() {
       'teamOptions': [
         {'id': 'team-e1', 'name': 'E1-Jugend'},
       ],
+      'contactOptions': [
+        {
+          'id': 'parent-1',
+          'name': 'Familie Muster',
+          'teamId': 'team-e1',
+          'teamName': 'E1-Jugend',
+          'playerNames': ['Max Muster'],
+        },
+      ],
       'messages': [
         {
           'id': 'message-1',
@@ -62,6 +71,8 @@ void main() {
           'teamName': 'E1-Jugend',
           'senderId': 'parent-1',
           'senderName': 'Familie Muster',
+          'parentId': 'parent-1',
+          'parentName': 'Familie Muster',
           'senderIsStaff': false,
           'sentByMe': true,
           'message': 'Kurze organisatorische Frage',
@@ -74,7 +85,9 @@ void main() {
 
     expect(inbox.retentionDays, 30);
     expect(inbox.teamOptions.single.name, 'E1-Jugend');
+    expect(inbox.contactOptions.single.label, 'Familie Muster · Max Muster');
     expect(inbox.messages.single.sentByMe, isTrue);
+    expect(inbox.messages.single.parentId, 'parent-1');
     expect(inbox.messages.single.message, 'Kurze organisatorische Frage');
   });
 

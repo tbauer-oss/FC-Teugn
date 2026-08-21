@@ -1624,10 +1624,10 @@ const helpArticles = <HelpArticle>[
     route: '/messages',
     routeLabel: 'Mitteilungscenter öffnen',
     steps: [
-      'Eine deutlich sichtbare Meldung im Dashboard weist auf neue Nachrichten hin.',
-      'Mit dem Haken quittierst du die sichtbare Benachrichtigung direkt auf der Startseite als gelesen, ohne den Zielbereich zu öffnen.',
+      'Die Glocke im Kopfbereich zeigt mit einem kleinen Zähler, wie viele Benachrichtigungen noch ungelesen sind.',
+      'Die kompakte Glocken-Übersicht zeigt nur ungelesene Hinweise. Sobald du einen Hinweis oder alle Hinweise als gelesen markierst, verschwinden sie dort.',
       'Im Mitteilungscenter findest du veröffentlichte Mitteilungen und persönliche Benachrichtigungen.',
-      'Öffne einen Eintrag, um ihn zu lesen und gegebenenfalls als gelesen zu markieren.',
+      'Mit „Gelesene löschen“ entfernst du gesammelt ausschließlich bereits gelesene Benachrichtigungen. Ungelesene Hinweise bleiben erhalten.',
       'Unter „Einstellungen“ steuerst du In-App- und Pushnachrichten je Kategorie.',
     ],
   ),
@@ -1647,7 +1647,7 @@ const helpArticles = <HelpArticle>[
     route: '/messages?section=contact',
     routeLabel: 'Direktkontakt öffnen',
     steps: [
-      'Eltern öffnen auf der Startseite „Direktkontakt“ oder unter „Mehr“ den Bereich „Nachrichten & Umfragen“. Trainer nutzen denselben Reiter im Mitteilungscenter.',
+      'Eltern öffnen auf der Startseite „Direktkontakt“ oder unter „Mehr“ den Bereich „Nachrichten & Umfragen“. Trainer nutzen denselben Reiter und können dort Eltern ihrer ausgewählten Mannschaft direkt anschreiben.',
       'Wähle die passende Jugend beziehungsweise das betreffende Kind und öffne die Unterhaltung mit dem zuständigen Trainerteam.',
       'Sende eine kurze organisatorische Textnachricht. Anhänge sind bewusst nicht vorgesehen; eine Nachricht darf höchstens 2.000 Zeichen enthalten.',
       'Neue Antworten erscheinen in derselben Unterhaltung und können zusätzlich als Pushnachricht direkt dorthin führen.',

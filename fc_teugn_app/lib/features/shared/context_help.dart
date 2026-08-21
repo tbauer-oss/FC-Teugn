@@ -103,7 +103,7 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
           'Sende Vereinsmitteilungen oder nutze den kurzlebigen Direktkontakt zwischen Eltern und Trainerteam.',
       steps: [
         'Im Mitteilungscenter wählst du Mannschaften und Empfängergruppe; Push bleibt optional.',
-        'Unter „Direktkontakt“ können Eltern und Trainer kurze organisatorische Textnachrichten austauschen.',
+        'Unter „Direktkontakt“ können Eltern und Trainer kurze organisatorische Textnachrichten austauschen und beide Seiten eine Unterhaltung beginnen.',
         'Direktnachrichten haben keine Anhänge und werden nach 30 Tagen automatisch gelöscht.',
         'Lesestatus und Antworten findest du direkt beim jeweiligen Eintrag.',
       ],

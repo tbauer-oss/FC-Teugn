@@ -34,17 +34,18 @@ class _DashboardNotificationBellState
   List<AppNotificationModel> get _visibleNotifications {
     final values = widget.notifications
         .where(
-          (item) => !(widget.isTrainer &&
-              item.category == NotificationCategory.registration),
+          (item) =>
+              !item.isRead &&
+              !_locallyReadIds.contains(item.id) &&
+              !(widget.isTrainer &&
+                  item.category == NotificationCategory.registration),
         )
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return values;
   }
 
-  int get _unreadCount => _visibleNotifications
-      .where((item) => !item.isRead && !_locallyReadIds.contains(item.id))
-      .length;
+  int get _unreadCount => _visibleNotifications.length;
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +155,9 @@ class _DashboardNotificationPanelState
 
   @override
   Widget build(BuildContext context) {
-    final unreadCount = widget.notifications.where(_isUnread).length;
+    final unreadNotifications =
+        widget.notifications.where(_isUnread).toList(growable: false);
+    final unreadCount = unreadNotifications.length;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -225,18 +228,18 @@ class _DashboardNotificationPanelState
           ),
         const Divider(height: 1),
         Flexible(
-          child: widget.notifications.isEmpty
+          child: unreadNotifications.isEmpty
               ? const _EmptyNotificationPanel()
               : ListView.separated(
                   key: const ValueKey('dashboard-notification-list'),
                   padding: const EdgeInsets.symmetric(vertical: 6),
-                  itemCount: widget.notifications.length,
+                  itemCount: unreadNotifications.length,
                   separatorBuilder: (_, __) => const Divider(
                     height: 1,
                     indent: 58,
                   ),
                   itemBuilder: (context, index) {
-                    final item = widget.notifications[index];
+                    final item = unreadNotifications[index];
                     return _NotificationRow(
                       item: item,
                       unread: _isUnread(item),
@@ -467,11 +470,11 @@ class _EmptyNotificationPanel extends StatelessWidget {
             ),
             SizedBox(height: 10),
             Text(
-              'Keine Benachrichtigungen',
+              'Keine ungelesenen Benachrichtigungen',
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
             Text(
-              'Sobald es etwas Neues gibt, erscheint es hier.',
+              'Gelesene Hinweise findest du weiterhin im Mitteilungscenter.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.muted),
             ),

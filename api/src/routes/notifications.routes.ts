@@ -4,6 +4,7 @@ import {
   grantPushConsent,
   deleteAllDisabledAdminPushDevices,
   deleteAdminPushDevice,
+  deleteReadNotifications,
   deleteNotification,
   listAdminPushDevices,
   listNotifications,
@@ -51,6 +52,7 @@ router.delete(
   deleteAdminPushDevice,
 );
 router.post('/read-all', markAllNotificationsRead);
+router.delete('/read', deleteReadNotifications);
 router.post('/:id/read', markNotificationRead);
 router.delete(
   '/:id',

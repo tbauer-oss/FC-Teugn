@@ -11,12 +11,26 @@ class _CommunicationRepository extends DataRepository {
   _CommunicationRepository() : super(ApiClient(baseUrl: 'http://localhost'));
 
   bool notificationDeleted = false;
+  bool allNotificationsRead = false;
+  bool readNotificationsDeleted = false;
+  String? sentContactParentId;
+  String? sentContactTeamId;
+  String? sentContactMessage;
 
   @override
   Future<FamilyContactInbox> familyContacts() async => FamilyContactInbox(
         retentionDays: 30,
         teamOptions: const [
           FamilyContactTeam(id: 'team-e1', name: 'E1-Jugend'),
+        ],
+        contactOptions: const [
+          FamilyContactRecipient(
+            id: 'parent-1',
+            name: 'Familie Muster',
+            teamId: 'team-e1',
+            teamName: 'E1-Jugend',
+            playerNames: ['Max'],
+          ),
         ],
         messages: [
           FamilyContactMessage(
@@ -37,6 +51,18 @@ class _CommunicationRepository extends DataRepository {
       );
 
   @override
+  Future<void> sendFamilyContact({
+    required String message,
+    String? teamId,
+    String? conversationId,
+    String? parentId,
+  }) async {
+    sentContactMessage = message;
+    sentContactTeamId = teamId;
+    sentContactParentId = parentId;
+  }
+
+  @override
   Future<List<AnnouncementModel>> announcements({
     bool includeDrafts = false,
   }) async =>
@@ -44,15 +70,28 @@ class _CommunicationRepository extends DataRepository {
 
   @override
   Future<List<AppNotificationModel>> notifications() async => [
-        AppNotificationModel(
-          id: 'notification-1',
-          category: NotificationCategory.system,
-          title: 'Platzinformation',
-          body: 'Die Jugendmannschaft hat Vorrang.',
-          createdAt: DateTime(2026, 8, 5),
-          isRead: false,
-        ),
+        if (!readNotificationsDeleted)
+          AppNotificationModel(
+            id: 'notification-1',
+            category: NotificationCategory.system,
+            title: 'Platzinformation',
+            body: 'Die Jugendmannschaft hat Vorrang.',
+            createdAt: DateTime(2026, 8, 5),
+            isRead: allNotificationsRead,
+          ),
       ];
+
+  @override
+  Future<void> markAllNotificationsRead() async {
+    allNotificationsRead = true;
+  }
+
+  @override
+  Future<int> deleteReadNotifications() async {
+    if (!allNotificationsRead) return 0;
+    readNotificationsDeleted = true;
+    return 1;
+  }
 
   @override
   Future<void> deleteNotification(String notificationId) async {
@@ -126,6 +165,41 @@ void main() {
     expect(repository.notificationDeleted, isTrue);
   });
 
+  testWidgets(
+      'gelesene Benachrichtigungen können gesammelt gelöscht werden, ungelesene nicht',
+      (tester) async {
+    final repository = _CommunicationRepository();
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _page(staffView: false, repository: repository),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Benachrichtigungen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Benachrichtigungen'));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const ValueKey('delete-read-notifications')), findsNothing);
+    await tester.tap(find.text('Alle als gelesen markieren'));
+    await tester.pumpAndSettle();
+
+    expect(repository.allNotificationsRead, isTrue);
+    expect(find.byKey(const ValueKey('delete-read-notifications')),
+        findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('delete-read-notifications')));
+    await tester.pumpAndSettle();
+    expect(find.text('Gelesene Benachrichtigungen löschen?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Gelesene löschen'));
+    await tester.pumpAndSettle();
+
+    expect(repository.readNotificationsDeleted, isTrue);
+    expect(find.text('Alles erledigt'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('parents reach a compact 30 day trainer contact on mobile',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 720));
@@ -142,6 +216,39 @@ void main() {
     expect(find.textContaining('automatische Löschung nach 30 Tagen'),
         findsOneWidget);
     expect(find.text('Max kommt heute etwas später.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('trainers can start a compact direct contact with team parents',
+      (tester) async {
+    final repository = _CommunicationRepository();
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _page(staffView: true, repository: repository),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Direktkontakt'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Direktkontakt'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Eltern kontaktieren'), findsOneWidget);
+    await tester.tap(find.text('Eltern kontaktieren'));
+    await tester.pumpAndSettle();
+    expect(find.text('Familie Muster · Max'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Nachricht'),
+      'Bitte morgen zehn Minuten früher da sein.',
+    );
+    await tester.tap(find.text('Sicher senden'));
+    await tester.pumpAndSettle();
+
+    expect(repository.sentContactParentId, 'parent-1');
+    expect(repository.sentContactTeamId, 'team-e1');
+    expect(repository.sentContactMessage,
+        'Bitte morgen zehn Minuten früher da sein.');
     expect(tester.takeException(), isNull);
   });
 }

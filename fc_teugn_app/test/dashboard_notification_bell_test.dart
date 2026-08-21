@@ -1,10 +1,24 @@
 import 'package:fc_teugn_app/core/app_theme.dart';
+import 'package:fc_teugn_app/core/api_client.dart';
+import 'package:fc_teugn_app/core/data_repository.dart';
 import 'package:fc_teugn_app/core/models/communication.dart';
+import 'package:fc_teugn_app/core/providers.dart';
 import 'package:fc_teugn_app/features/shared/dashboard_notifications.dart';
 import 'package:fc_teugn_app/features/shared/page_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _NotificationRepository extends DataRepository {
+  _NotificationRepository() : super(ApiClient(baseUrl: 'http://localhost'));
+
+  bool markedAllRead = false;
+
+  @override
+  Future<void> markAllNotificationsRead() async {
+    markedAllRead = true;
+  }
+}
 
 void main() {
   final notifications = [
@@ -35,6 +49,15 @@ void main() {
       isRead: false,
       actionUrl: '/parent/messages',
     ),
+    AppNotificationModel(
+      id: 'notification-4',
+      category: NotificationCategory.system,
+      title: 'Bereits gelesen',
+      body: 'Dieser Hinweis gehört nur in das Mitteilungscenter.',
+      createdAt: DateTime(2026, 8, 20, 12),
+      isRead: true,
+      actionUrl: '/parent/messages',
+    ),
   ];
 
   for (final size in const [
@@ -48,8 +71,12 @@ void main() {
         await tester.binding.setSurfaceSize(size);
         addTearDown(() => tester.binding.setSurfaceSize(null));
 
+        final repository = _NotificationRepository();
         await tester.pumpWidget(
           ProviderScope(
+            overrides: [
+              repositoryProvider.overrideWithValue(repository),
+            ],
             child: MaterialApp(
               theme: buildAppTheme(),
               home: Scaffold(
@@ -82,6 +109,17 @@ void main() {
         expect(find.text('3 ungelesen'), findsOneWidget);
         expect(find.text('Alle als gelesen markieren'), findsOneWidget);
         expect(find.text('Rückmeldung fehlt'), findsOneWidget);
+        expect(find.text('Bereits gelesen'), findsNothing);
+
+        await tester.tap(find.text('Alle als gelesen markieren'));
+        await tester.pumpAndSettle();
+
+        expect(repository.markedAllRead, isTrue);
+        expect(find.text('Rückmeldung fehlt'), findsNothing);
+        expect(find.text('Neue Nominierung'), findsNothing);
+        expect(find.text('Vereinsinformation'), findsNothing);
+        expect(
+            find.text('Keine ungelesenen Benachrichtigungen'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );

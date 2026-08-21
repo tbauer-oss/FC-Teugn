@@ -75,6 +75,58 @@ async function familyContactStaffIds(teamId: string) {
   return users.map((user) => user.id);
 }
 
+async function familyContactParentOptions(teamIds: string[]) {
+  if (!teamIds.length) return [];
+  const links = await prisma.parentPlayerLink.findMany({
+    where: {
+      receivesCommunication: true,
+      player: { teamId: { in: teamIds } },
+      parent: {
+        status: AccountStatus.APPROVED,
+        accountDeletedAt: null,
+      },
+    },
+    select: {
+      parent: { select: { id: true, name: true } },
+      player: {
+        select: {
+          firstName: true,
+          lastName: true,
+          preferredName: true,
+          teamId: true,
+        },
+      },
+    },
+  });
+  const grouped = new Map<string, {
+    id: string;
+    name: string;
+    teamId: string;
+    playerNames: Set<string>;
+  }>();
+  links.forEach((link) => {
+    if (!link.player.teamId) return;
+    const key = `${link.parent.id}.${link.player.teamId}`;
+    const option = grouped.get(key) ?? {
+      id: link.parent.id,
+      name: link.parent.name,
+      teamId: link.player.teamId,
+      playerNames: new Set<string>(),
+    };
+    option.playerNames.add(
+      link.player.preferredName?.trim()
+        || `${link.player.firstName} ${link.player.lastName}`.trim(),
+    );
+    grouped.set(key, option);
+  });
+  return [...grouped.values()]
+    .map((option) => ({
+      ...option,
+      playerNames: [...option.playerNames].sort((a, b) => a.localeCompare(b, 'de')),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+}
+
 export async function listFamilyContacts(req: Request, res: Response) {
   const user = req.user!;
   const now = new Date();
@@ -105,11 +157,13 @@ export async function listFamilyContacts(req: Request, res: Response) {
         conversation: NonNullable<ReturnType<typeof familyContactConversation>>;
       } => Boolean(item.conversation && teamIds.includes(item.conversation.teamId)),
     );
-  const senderIds = [...new Set(visible.map((item) => item.senderId))];
+  const participantIds = [
+    ...new Set(visible.flatMap((item) => [item.senderId, item.conversation.parentId])),
+  ];
   const messageTeamIds = [...new Set(visible.map((item) => item.conversation.teamId))];
-  const [senders, teams] = await Promise.all([
+  const [participants, teams, contactOptions] = await Promise.all([
     prisma.user.findMany({
-      where: { id: { in: senderIds } },
+      where: { id: { in: participantIds } },
       select: { id: true, name: true, role: true },
     }),
     prisma.team.findMany({
@@ -121,8 +175,11 @@ export async function listFamilyContacts(req: Request, res: Response) {
       orderBy: [{ ageGroup: { code: 'asc' } }, { teamNumber: 'asc' }],
       select: { id: true, name: true, shortName: true },
     }),
+    isStaffRole(String(user.role))
+      ? familyContactParentOptions(teamIds)
+      : Promise.resolve([]),
   ]);
-  const senderById = new Map(senders.map((sender) => [sender.id, sender]));
+  const participantById = new Map(participants.map((participant) => [participant.id, participant]));
   const teamById = new Map(teams.map((team) => [team.id, team]));
   const readAt = new Date();
   const unreadIds = visible
@@ -142,8 +199,18 @@ export async function listFamilyContacts(req: Request, res: Response) {
         id: team.id,
         name: team.shortName || team.name,
       })),
+    contactOptions: contactOptions.map((option) => ({
+      id: option.id,
+      name: option.name,
+      teamId: option.teamId,
+      teamName: teamById.get(option.teamId)?.shortName
+        || teamById.get(option.teamId)?.name
+        || 'Mannschaft',
+      playerNames: option.playerNames,
+    })),
     messages: visible.map((item) => {
-      const sender = senderById.get(item.senderId);
+      const sender = participantById.get(item.senderId);
+      const parent = participantById.get(item.conversation.parentId);
       const team = teamById.get(item.conversation.teamId);
       return {
         id: item.notification.id,
@@ -153,6 +220,8 @@ export async function listFamilyContacts(req: Request, res: Response) {
         senderId: item.senderId,
         senderName: sender?.name || 'Vereinsmitglied',
         senderIsStaff: sender ? isStaffRole(sender.role) : false,
+        parentId: item.conversation.parentId,
+        parentName: parent?.name || 'Elternkontakt',
         sentByMe: item.senderId === user.id,
         message: item.notification.body,
         createdAt: item.notification.createdAt,
@@ -173,7 +242,8 @@ export async function sendFamilyContact(req: Request, res: Response) {
   const requestedConversation = familyContactConversation(
     text(req.body?.conversationId, 240),
   );
-  let parentId = user.id;
+  const senderIsStaff = isStaffRole(String(user.role));
+  let parentId = senderIsStaff ? text(req.body?.parentId, 100) ?? '' : user.id;
   let teamId = text(req.body?.teamId, 100);
   let conversationId: string;
   if (requestedConversation) {
@@ -181,13 +251,11 @@ export async function sendFamilyContact(req: Request, res: Response) {
     teamId = requestedConversation.teamId;
     conversationId = requestedConversation.id;
   } else {
-    if (isStaffRole(String(user.role))) {
-      return res.status(400).json({
-        message: 'Neue Direktkontakte werden von Eltern eröffnet. Bitte auf eine bestehende Nachricht antworten.',
-      });
-    }
     if (!teamId) {
       return res.status(400).json({ message: 'Bitte eine Mannschaft auswählen.' });
+    }
+    if (senderIsStaff && !parentId) {
+      return res.status(400).json({ message: 'Bitte einen Elternkontakt auswählen.' });
     }
     conversationId = `${randomUUID()}.${parentId}.${teamId}`;
   }
@@ -195,11 +263,21 @@ export async function sendFamilyContact(req: Request, res: Response) {
     return res.status(403).json({ message: 'Keine Berechtigung für diese Mannschaft.' });
   }
   const senderIsParent = user.id === parentId;
-  if (!senderIsParent && !isStaffRole(String(user.role))) {
+  if (!senderIsParent && !senderIsStaff) {
     return res.status(403).json({ message: 'Keine Berechtigung für diesen Direktkontakt.' });
   }
   const parent = await prisma.user.findFirst({
-    where: { id: parentId, status: AccountStatus.APPROVED, accountDeletedAt: null },
+    where: {
+      id: parentId,
+      status: AccountStatus.APPROVED,
+      accountDeletedAt: null,
+      parentLinks: {
+        some: {
+          receivesCommunication: true,
+          player: { teamId },
+        },
+      },
+    },
     select: { id: true },
   });
   if (!parent) {
@@ -227,7 +305,7 @@ export async function sendFamilyContact(req: Request, res: Response) {
     data: {
       userId: user.id,
       category: NotificationCategory.ANNOUNCEMENT,
-      title: senderIsParent ? 'Du · Nachricht an Trainerteam' : 'Du · Antwort an Eltern',
+      title: senderIsParent ? 'Du · Nachricht an Trainerteam' : 'Du · Nachricht an Eltern',
       body: message,
       actionUrl,
       entityType,

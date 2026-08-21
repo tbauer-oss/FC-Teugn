@@ -37,11 +37,13 @@ class FamilyContactInbox {
     required this.retentionDays,
     required this.teamOptions,
     required this.messages,
+    this.contactOptions = const [],
   });
 
   final int retentionDays;
   final List<FamilyContactTeam> teamOptions;
   final List<FamilyContactMessage> messages;
+  final List<FamilyContactRecipient> contactOptions;
 
   factory FamilyContactInbox.fromJson(Map<String, dynamic> json) =>
       FamilyContactInbox(
@@ -53,12 +55,49 @@ class FamilyContactInbox {
               ),
             )
             .toList(),
+        contactOptions: (json['contactOptions'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => FamilyContactRecipient.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
         messages: (json['messages'] as List<dynamic>? ?? const [])
             .map(
               (item) => FamilyContactMessage.fromJson(
                 item as Map<String, dynamic>,
               ),
             )
+            .toList(),
+      );
+}
+
+class FamilyContactRecipient {
+  const FamilyContactRecipient({
+    required this.id,
+    required this.name,
+    required this.teamId,
+    required this.teamName,
+    required this.playerNames,
+  });
+
+  final String id;
+  final String name;
+  final String teamId;
+  final String teamName;
+  final List<String> playerNames;
+
+  String get label =>
+      playerNames.isEmpty ? name : '$name · ${playerNames.join(', ')}';
+
+  factory FamilyContactRecipient.fromJson(Map<String, dynamic> json) =>
+      FamilyContactRecipient(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? 'Elternkontakt',
+        teamId: json['teamId'] as String? ?? '',
+        teamName: json['teamName'] as String? ?? 'Mannschaft',
+        playerNames: (json['playerNames'] as List<dynamic>? ?? const [])
+            .whereType<String>()
             .toList(),
       );
 }
@@ -90,6 +129,8 @@ class FamilyContactMessage {
     required this.createdAt,
     required this.expiresAt,
     required this.isRead,
+    this.parentId = '',
+    this.parentName = 'Elternkontakt',
   });
 
   final String id;
@@ -104,6 +145,8 @@ class FamilyContactMessage {
   final DateTime createdAt;
   final DateTime expiresAt;
   final bool isRead;
+  final String parentId;
+  final String parentName;
 
   factory FamilyContactMessage.fromJson(Map<String, dynamic> json) =>
       FamilyContactMessage(
@@ -114,6 +157,8 @@ class FamilyContactMessage {
         senderId: json['senderId'] as String? ?? '',
         senderName: json['senderName'] as String? ?? 'Vereinsmitglied',
         senderIsStaff: json['senderIsStaff'] as bool? ?? false,
+        parentId: json['parentId'] as String? ?? '',
+        parentName: json['parentName'] as String? ?? 'Elternkontakt',
         sentByMe: json['sentByMe'] as bool? ?? false,
         message: json['message'] as String? ?? '',
         createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),

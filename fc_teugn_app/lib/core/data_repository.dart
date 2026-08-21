@@ -2495,6 +2495,7 @@ class DataRepository {
     required String message,
     String? teamId,
     String? conversationId,
+    String? parentId,
   }) async {
     await client.dio.post(
       '/communications/family-contact',
@@ -2502,6 +2503,7 @@ class DataRepository {
         'message': message,
         if (teamId != null) 'teamId': teamId,
         if (conversationId != null) 'conversationId': conversationId,
+        if (parentId != null) 'parentId': parentId,
       },
       options: Options(
         headers: {
@@ -2580,6 +2582,15 @@ class DataRepository {
 
   Future<void> markAllNotificationsRead() async {
     await client.dio.post('/notifications/read-all');
+  }
+
+  Future<int> deleteReadNotifications() async {
+    final res = await client.dio.delete('/notifications/read');
+    final data = res.data;
+    if (data is Map<String, dynamic>) {
+      return (data['deletedCount'] as num?)?.toInt() ?? 0;
+    }
+    return 0;
   }
 
   Future<void> deleteNotification(String notificationId) async {

@@ -82,6 +82,10 @@ test('family contact is team scoped and expires after thirty days', () => {
   assert.match(communications, /familyContactRetentionDays\s*=\s*30/);
   assert.match(communications, /familyContactTeamIds\(user\)/);
   assert.match(communications, /familyContactStaffIds\(teamId\)/);
+  assert.match(communications, /familyContactParentOptions\(teamIds\)/);
+  assert.match(communications, /contactOptions:\s*contactOptions\.map/);
+  assert.match(communications, /parentId\s*=\s*senderIsStaff\s*\?\s*text\(req\.body\?\.parentId/);
+  assert.match(communications, /receivesCommunication:\s*true,[\s\S]*player:\s*\{\s*teamId\s*\}/);
   assert.match(communications, /expiresAt[\s\S]*familyContactRetentionDays/);
   assert.match(communications, /Textnachrichten|Bitte eine Nachricht eingeben/);
   assert.match(routes, /router\.get\('\/family-contact'/);

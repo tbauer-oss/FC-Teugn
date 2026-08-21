@@ -155,6 +155,30 @@ export async function markAllNotificationsRead(req: Request, res: Response) {
   return res.json({ updated: result.count });
 }
 
+export async function deleteReadNotifications(req: Request, res: Response) {
+  const result = await prisma.$transaction(async (tx) => {
+    const deleted = await tx.notification.deleteMany({
+      where: {
+        userId: req.user!.id,
+        readAt: { not: null },
+      },
+    });
+    if (deleted.count > 0) {
+      await tx.auditLog.create({
+        data: {
+          actorId: req.user!.id,
+          teamId: req.user!.teamId,
+          action: 'READ_NOTIFICATIONS_BULK_DELETED',
+          entityType: 'Notification',
+          metadata: { deletedCount: deleted.count },
+        },
+      });
+    }
+    return deleted;
+  });
+  return res.json({ deletedCount: result.count });
+}
+
 export async function deleteNotification(req: Request, res: Response) {
   const notification = await prisma.notification.findFirst({
     where: { id: req.params.id, userId: req.user!.id },
