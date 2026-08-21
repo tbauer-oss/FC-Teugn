@@ -113,8 +113,10 @@ void main() {
     const photoKey = ValueKey('player-photo-player-1');
     expect(find.byKey(photoKey), findsOneWidget);
     for (final mode in ['Liste', 'Details', 'Groß', 'Klein']) {
-      await tester.tap(find.text(mode));
-      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('player-view-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(mode).last);
+      await tester.pumpAndSettle();
       expect(
         find.byKey(photoKey),
         findsOneWidget,

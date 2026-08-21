@@ -14,43 +14,71 @@ import '../shared/app_about_sheet.dart';
 void _noOp() {}
 Future<void> _noOpAsync() async {}
 
+enum ShellAudience { staff, family }
+
 enum ShellSection {
   overview(
     'Übersicht',
-    'Dein schneller Einstieg',
+    'Das Wichtigste und offene Aufgaben',
     Icons.home_rounded,
+    'Übersicht',
+    'Dein Familien-Assistent',
   ),
   team(
     'Meine Mannschaft',
     'Spieler, Kader, Stammformation und Teamdaten',
     Icons.groups_rounded,
+    'Kinder & Mannschaft',
+    'Kinder, Spielerprofile und Mannschaft',
   ),
   schedule(
-    'Training & Spieltag',
+    'Training & Spielbetrieb',
     'Kalender, Training, Spiele und Auswertungen',
     Icons.sports_soccer_rounded,
+    'Termine & Spielbetrieb',
+    'Kalender, Rückmeldungen, Spiele und Ergebnisse',
   ),
   communication(
-    'Organisation & Kommunikation',
+    'Teamorganisation & Kommunikation',
     'Absprachen, Aufgaben und Ausrüstung',
     Icons.forum_rounded,
+    'Kommunikation & Mithelfen',
+    'Nachrichten, Umfragen und Teamaufgaben',
   ),
   administration(
     'Verein & Verwaltung',
     'Mitglieder, Strukturen und Einwilligungen',
     Icons.admin_panel_settings_rounded,
+    'Konto & Datenschutz',
+    'Persönliche Daten, Sicherheit und Einwilligungen',
   ),
   support(
     'Hilfe & Support',
     'Anleitungen, Antworten und Problemlösung',
     Icons.help_center_rounded,
+    'Hilfe & Support',
+    'Anleitungen, Antworten und Problemlösung',
   );
 
-  const ShellSection(this.label, this.description, this.icon);
+  const ShellSection(
+    this.label,
+    this.description,
+    this.icon,
+    this.familyLabel,
+    this.familyDescription,
+  );
 
   final String label;
   final String description;
   final IconData icon;
+  final String familyLabel;
+  final String familyDescription;
+
+  String labelFor(ShellAudience audience) =>
+      audience == ShellAudience.family ? familyLabel : label;
+
+  String descriptionFor(ShellAudience audience) =>
+      audience == ShellAudience.family ? familyDescription : description;
 }
 
 class ShellDestination {
@@ -88,11 +116,13 @@ class AppShell extends ConsumerWidget {
     required this.destinations,
     required this.child,
     required this.title,
+    this.audience = ShellAudience.staff,
   });
 
   final List<ShellDestination> destinations;
   final Widget child;
   final String title;
+  final ShellAudience audience;
 
   int? _matchingIndex(String location, List<ShellDestination> items) {
     for (var i = 0; i < items.length; i++) {
@@ -146,6 +176,7 @@ class AppShell extends ConsumerWidget {
         heightFactor: .9,
         child: MobileNavigationPanel(
           destinations: destinations,
+          audience: audience,
           location: location,
           contextLabel: contextLabel,
           seasonLabel: seasonLabel,
@@ -362,6 +393,7 @@ class AppShell extends ConsumerWidget {
                   DesktopSidebar(
                     title: title,
                     destinations: destinations,
+                    audience: audience,
                     selectedIndex: selectedIndex,
                     userName: authState.user?.name ?? '',
                     userRole: authState.user?.roleLabel ?? '',
@@ -572,7 +604,7 @@ class _ContextBackBar extends StatelessWidget {
               ),
               icon: const Icon(Icons.arrow_back_rounded, size: 18),
               label: Text(
-                'Zurück zu ${destination.label}',
+                'Zurück zu „${destination.label}“',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w700),
@@ -590,6 +622,7 @@ class DesktopSidebar extends StatelessWidget {
     super.key,
     required this.title,
     required this.destinations,
+    this.audience = ShellAudience.staff,
     required this.selectedIndex,
     required this.userName,
     required this.userRole,
@@ -607,6 +640,7 @@ class DesktopSidebar extends StatelessWidget {
 
   final String title;
   final List<ShellDestination> destinations;
+  final ShellAudience audience;
   final int selectedIndex;
   final String userName;
   final String userRole;
@@ -740,7 +774,10 @@ class DesktopSidebar extends StatelessWidget {
                     for (final section in ShellSection.values)
                       if (destinations
                           .any((item) => item.section == section)) ...[
-                        _DesktopSectionHeader(section: section),
+                        _DesktopSectionHeader(
+                          section: section,
+                          audience: audience,
+                        ),
                         for (var index = 0;
                             index < destinations.length;
                             index++)
@@ -805,7 +842,7 @@ class DesktopSidebar extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Hilfe-Center',
+                  tooltip: 'Hilfe & Anleitungen',
                   onPressed: onHelp,
                   color: Colors.white70,
                   icon: const Icon(Icons.help_outline_rounded, size: 20),
@@ -832,9 +869,13 @@ class DesktopSidebar extends StatelessWidget {
 }
 
 class _DesktopSectionHeader extends StatelessWidget {
-  const _DesktopSectionHeader({required this.section});
+  const _DesktopSectionHeader({
+    required this.section,
+    required this.audience,
+  });
 
   final ShellSection section;
+  final ShellAudience audience;
 
   @override
   Widget build(BuildContext context) {
@@ -867,7 +908,7 @@ class _DesktopSectionHeader extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              section.label.toUpperCase(),
+              section.labelFor(audience).toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -885,23 +926,27 @@ class _DesktopSectionHeader extends StatelessWidget {
 }
 
 class _MobileSectionHeading extends StatelessWidget {
-  const _MobileSectionHeading({required this.section});
+  const _MobileSectionHeading({
+    required this.section,
+    required this.audience,
+  });
 
   final ShellSection section;
+  final ShellAudience audience;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       key: ValueKey('mobile-menu-section-header-${section.name}'),
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(11, 10, 11, 11),
+      padding: const EdgeInsets.fromLTRB(9, 7, 9, 8),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [Color(0xFF171A18), Color(0xFF393500)],
         ),
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(13),
         border: Border.all(
           color: AppColors.yellow.withValues(alpha: .2),
         ),
@@ -909,15 +954,15 @@ class _MobileSectionHeading extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: AppColors.yellow,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(section.icon, size: 21, color: AppColors.black),
+            child: Icon(section.icon, size: 18, color: AppColors.black),
           ),
-          const SizedBox(width: 11),
+          const SizedBox(width: 9),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -933,24 +978,24 @@ class _MobileSectionHeading extends StatelessWidget {
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  section.label,
+                  section.labelFor(audience),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 15.5,
+                    fontSize: 14.5,
                     height: 1.1,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  section.description,
-                  maxLines: 2,
+                  section.descriptionFor(audience),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: .66),
-                    fontSize: 10.5,
+                    fontSize: 10,
                     height: 1.2,
                   ),
                 ),
@@ -1010,7 +1055,7 @@ class _DesktopNavigationItem extends StatelessWidget {
                 Expanded(
                   child: Text(
                     destination.label,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: selected
@@ -1040,6 +1085,7 @@ class MobileNavigationPanel extends StatelessWidget {
   const MobileNavigationPanel({
     super.key,
     required this.destinations,
+    this.audience = ShellAudience.staff,
     required this.location,
     required this.contextLabel,
     required this.seasonLabel,
@@ -1053,6 +1099,7 @@ class MobileNavigationPanel extends StatelessWidget {
   });
 
   final List<ShellDestination> destinations;
+  final ShellAudience audience;
   final String location;
   final String contextLabel;
   final String seasonLabel;
@@ -1079,6 +1126,7 @@ class MobileNavigationPanel extends StatelessWidget {
       context: context,
       builder: (context) => _MobileMenuSearchDialog(
         destinations: destinations,
+        audience: audience,
       ),
     );
     if (destination != null) onSelect(destination);
@@ -1092,17 +1140,17 @@ class MobileNavigationPanel extends StatelessWidget {
       child: ListView(
         // ignore: deprecated_member_use
         cacheExtent: 1800,
-        padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
+        padding: const EdgeInsets.fromLTRB(10, 2, 10, 18),
         children: [
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [Color(0xFF171A18), Color(0xFF383400)],
               ),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(18),
             ),
             child: Row(
               children: [
@@ -1113,18 +1161,18 @@ class MobileNavigationPanel extends StatelessWidget {
                     onTap: onHome,
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
-                      width: 54,
-                      height: 54,
-                      padding: const EdgeInsets.all(6),
+                      width: 44,
+                      height: 44,
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(13),
                       ),
-                      child: const ClubLogo(size: 42),
+                      child: const ClubLogo(size: 35),
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1133,19 +1181,19 @@ class MobileNavigationPanel extends StatelessWidget {
                         'FC TEUGN TALENTS · APP-MENÜ',
                         style: TextStyle(
                           color: AppColors.yellow.withValues(alpha: .9),
-                          fontSize: 10,
+                          fontSize: 9,
                           letterSpacing: 1.2,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 1),
                       Text(
                         contextLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -1153,7 +1201,7 @@ class MobileNavigationPanel extends StatelessWidget {
                         'Saison $seasonLabel',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: .62),
-                          fontSize: 12,
+                          fontSize: 11,
                         ),
                       ),
                     ],
@@ -1169,7 +1217,7 @@ class MobileNavigationPanel extends StatelessWidget {
             ),
           ),
           if (offerInstall && onInstall != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Material(
               color: AppColors.yellowSoft,
               borderRadius: BorderRadius.circular(18),
@@ -1177,7 +1225,7 @@ class MobileNavigationPanel extends StatelessWidget {
                 onTap: onInstall,
                 borderRadius: BorderRadius.circular(18),
                 child: const Padding(
-                  padding: EdgeInsets.all(14),
+                  padding: EdgeInsets.all(10),
                   child: Row(
                     children: [
                       _MenuIcon(
@@ -1210,11 +1258,12 @@ class MobileNavigationPanel extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           for (final section in ShellSection.values)
             if (destinations.any((item) => item.section == section)) ...[
               _MobileMenuSection(
                 section: section,
+                audience: audience,
                 destinations: destinations
                     .where((item) => item.section == section)
                     .toList(),
@@ -1222,7 +1271,7 @@ class MobileNavigationPanel extends StatelessWidget {
                     destination.route == selectedDestination?.route,
                 onSelect: onSelect,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
             ],
           TextButton.icon(
             onPressed: onAbout,
@@ -1238,7 +1287,7 @@ class MobileNavigationPanel extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
@@ -1281,8 +1330,12 @@ class MobileNavigationPanel extends StatelessWidget {
 }
 
 class _MobileMenuSearchDialog extends StatefulWidget {
-  const _MobileMenuSearchDialog({required this.destinations});
+  const _MobileMenuSearchDialog({
+    required this.destinations,
+    required this.audience,
+  });
   final List<ShellDestination> destinations;
+  final ShellAudience audience;
 
   @override
   State<_MobileMenuSearchDialog> createState() =>
@@ -1306,7 +1359,10 @@ class _MobileMenuSearchDialogState extends State<_MobileMenuSearchDialog> {
       return query.isEmpty ||
           destination.label.toLowerCase().contains(query) ||
           destination.hint.toLowerCase().contains(query) ||
-          destination.section.label.toLowerCase().contains(query);
+          destination.section
+              .labelFor(widget.audience)
+              .toLowerCase()
+              .contains(query);
     }).toList();
     return AlertDialog(
       title: const Text('Funktion suchen'),
@@ -1363,12 +1419,14 @@ class _MobileMenuSearchDialogState extends State<_MobileMenuSearchDialog> {
 class _MobileMenuSection extends StatelessWidget {
   const _MobileMenuSection({
     required this.section,
+    required this.audience,
     required this.destinations,
     required this.isSelected,
     required this.onSelect,
   });
 
   final ShellSection section;
+  final ShellAudience audience;
   final List<ShellDestination> destinations;
   final bool Function(ShellDestination destination) isSelected;
   final ValueChanged<ShellDestination> onSelect;
@@ -1377,10 +1435,10 @@ class _MobileMenuSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: ValueKey('mobile-menu-section-${section.name}'),
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.line),
         boxShadow: const [
           BoxShadow(
@@ -1392,8 +1450,8 @@ class _MobileMenuSection extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _MobileSectionHeading(section: section),
-          const SizedBox(height: 7),
+          _MobileSectionHeading(section: section, audience: audience),
+          const SizedBox(height: 4),
           for (final destination in destinations)
             _MobileMenuDestination(
               destination: destination,
@@ -1420,7 +1478,7 @@ class _MobileMenuDestination extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.only(bottom: 2),
       child: Material(
         color: selected ? AppColors.yellowSoft : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
@@ -1428,11 +1486,11 @@ class _MobileMenuDestination extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(14),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: [
                 _MenuIcon(icon: destination.icon, selected: selected),
-                const SizedBox(width: 11),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1481,8 +1539,8 @@ class _MenuIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 38,
-      height: 38,
+      width: 34,
+      height: 34,
       decoration: BoxDecoration(
         color: selected ? AppColors.yellow : AppColors.background,
         borderRadius: BorderRadius.circular(12),
@@ -1490,7 +1548,7 @@ class _MenuIcon extends StatelessWidget {
           color: selected ? AppColors.yellow : AppColors.line,
         ),
       ),
-      child: Icon(icon, size: 19, color: AppColors.black),
+      child: Icon(icon, size: 18, color: AppColors.black),
     );
   }
 }
@@ -1646,7 +1704,7 @@ class _MobileHeader extends StatelessWidget {
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(Icons.help_center_rounded),
-                        title: Text('Hilfe-Center'),
+                        title: Text('Hilfe & Anleitungen'),
                       ),
                     ),
                     PopupMenuItem(

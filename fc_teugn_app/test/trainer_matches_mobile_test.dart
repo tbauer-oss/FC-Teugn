@@ -11,6 +11,7 @@ import 'package:fc_teugn_app/core/widgets/adaptive_layout.dart';
 import 'package:fc_teugn_app/features/trainer/trainer_matches_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _ageGroup = AgeGroupSummary(
@@ -213,7 +214,11 @@ Widget _page({
     );
 
 void main() {
-  testWidgets('matches default to newest first and can be sorted oldest first',
+  setUp(() {
+    FlutterSecureStorage.setMockInitialValues({});
+  });
+
+  testWidgets('matches default to next first and can be sorted newest first',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -231,24 +236,6 @@ void main() {
     await tester.pumpWidget(_page(events: [older, newer]));
     await tester.pumpAndSettle();
 
-    expect(find.text('Neueste zuerst'), findsOneWidget);
-    expect(
-      tester
-          .getTopLeft(find.byKey(const ValueKey('match-card-newer-match')))
-          .dy,
-      lessThan(
-        tester
-            .getTopLeft(find.byKey(const ValueKey('match-card-older-match')))
-            .dy,
-      ),
-    );
-
-    await tester.tap(find.byKey(const ValueKey('match-sort-menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Älteste zuerst').last);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Älteste zuerst'), findsOneWidget);
     expect(
       tester
           .getTopLeft(find.byKey(const ValueKey('match-card-older-match')))
@@ -259,6 +246,45 @@ void main() {
             .dy,
       ),
     );
+
+    await tester.tap(find.byKey(const ValueKey('match-sort-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Neueste zuerst').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('match-card-newer-match')))
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('match-card-older-match')))
+            .dy,
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('very compact match view reduces the card height',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(_page());
+    await tester.pumpAndSettle();
+    final standardHeight = tester
+        .getRect(find.byKey(const ValueKey('match-card-tournament-1')))
+        .height;
+
+    await tester.tap(find.byKey(const ValueKey('match-view-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sehr kompakt').last);
+    await tester.pumpAndSettle();
+
+    final compactHeight = tester
+        .getRect(find.byKey(const ValueKey('match-card-tournament-1')))
+        .height;
+    expect(compactHeight, lessThan(standardHeight));
     expect(tester.takeException(), isNull);
   });
 

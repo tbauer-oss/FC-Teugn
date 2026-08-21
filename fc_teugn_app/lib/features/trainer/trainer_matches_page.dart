@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../../core/loading/loading_widgets.dart';
@@ -6,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/data_repository.dart';
 import '../../core/football_options.dart';
+import '../../core/match_view_preferences.dart';
 import '../../core/models/event.dart';
 import '../../core/models/competition.dart';
 import '../../core/models/organization.dart';
@@ -21,8 +24,6 @@ import '../../core/models/user.dart';
 import '../../core/widgets/adaptive_layout.dart';
 import '../calendar/tournament_plan_browser_page.dart';
 
-enum _MatchSortOrder { newestFirst, oldestFirst }
-
 class TrainerMatchesPage extends ConsumerStatefulWidget {
   const TrainerMatchesPage({super.key});
 
@@ -31,7 +32,52 @@ class TrainerMatchesPage extends ConsumerStatefulWidget {
 }
 
 class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
-  _MatchSortOrder _sortOrder = _MatchSortOrder.newestFirst;
+  final _viewPreferences = MatchViewPreferences();
+  MatchSortOrder _sortOrder = MatchSortOrder.nextFirst;
+  MatchViewMode _viewMode = MatchViewMode.standard;
+
+  String get _preferenceUserId =>
+      ref.read(authProvider).user?.id ?? 'anonymous';
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadPreferences());
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final values = await Future.wait([
+        _viewPreferences.loadSortOrder(_preferenceUserId),
+        _viewPreferences.loadViewMode(_preferenceUserId),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _sortOrder = values[0] as MatchSortOrder;
+        _viewMode = values[1] as MatchViewMode;
+      });
+    } catch (_) {
+      // Sichere Standardwerte bleiben auch ohne verfügbaren Gerätespeicher aktiv.
+    }
+  }
+
+  Future<void> _selectSortOrder(MatchSortOrder order) async {
+    setState(() => _sortOrder = order);
+    try {
+      await _viewPreferences.saveSortOrder(_preferenceUserId, order);
+    } catch (_) {
+      // Die Auswahl bleibt für die aktuelle Sitzung trotzdem wirksam.
+    }
+  }
+
+  Future<void> _selectViewMode(MatchViewMode mode) async {
+    setState(() => _viewMode = mode);
+    try {
+      await _viewPreferences.saveViewMode(_preferenceUserId, mode);
+    } catch (_) {
+      // Die Auswahl bleibt für die aktuelle Sitzung trotzdem wirksam.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +131,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
       ),
       child: events.when(
         data: (items) {
+          final now = DateTime.now();
           final matches = items
               .where(
                 (event) =>
@@ -93,9 +140,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
               )
               .toList()
             ..sort((a, b) {
-              final byDate = _sortOrder == _MatchSortOrder.newestFirst
-                  ? b.startAt.compareTo(a.startAt)
-                  : a.startAt.compareTo(b.startAt);
+              final byDate = _compareMatches(a, b, now, _sortOrder);
               return byDate != 0 ? byDate : a.title.compareTo(b.title);
             });
           if (matches.isEmpty) {
@@ -108,62 +153,13 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
           }
           return Column(
             children: [
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: PopupMenuButton<_MatchSortOrder>(
-                    key: const ValueKey('match-sort-menu'),
-                    tooltip: 'Spiele sortieren',
-                    initialValue: _sortOrder,
-                    onSelected: (value) => setState(() => _sortOrder = value),
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(
-                        value: _MatchSortOrder.newestFirst,
-                        child: Text('Neueste zuerst'),
-                      ),
-                      PopupMenuItem(
-                        value: _MatchSortOrder.oldestFirst,
-                        child: Text('Älteste zuerst'),
-                      ),
-                    ],
-                    child: Semantics(
-                      button: true,
-                      label: 'Spiele sortieren',
-                      value: _sortOrder == _MatchSortOrder.newestFirst
-                          ? 'Neueste zuerst'
-                          : 'Älteste zuerst',
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 11,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(color: AppColors.line),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.sort_rounded, size: 18),
-                            const SizedBox(width: 6),
-                            Text(
-                              _sortOrder == _MatchSortOrder.newestFirst
-                                  ? 'Neueste zuerst'
-                                  : 'Älteste zuerst',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(width: 2),
-                            const Icon(Icons.arrow_drop_down_rounded, size: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _MatchOverviewToolbar(
+                  sortOrder: _sortOrder,
+                  viewMode: _viewMode,
+                  onSortChanged: _selectSortOrder,
+                  onViewChanged: _selectViewMode,
                 ),
               ),
               for (final match in matches)
@@ -171,6 +167,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _MatchCard(
                     event: match,
+                    viewMode: _viewMode,
                     onOpen: match.category.isTournament
                         ? () => _manageTournament(
                               context,
@@ -1861,6 +1858,170 @@ class _MatchesPageActions extends StatelessWidget {
       );
 }
 
+int _compareMatches(
+  EventModel first,
+  EventModel second,
+  DateTime now,
+  MatchSortOrder order,
+) {
+  switch (order) {
+    case MatchSortOrder.nextFirst:
+      final firstUpcoming = !first.startAt.isBefore(now);
+      final secondUpcoming = !second.startAt.isBefore(now);
+      if (firstUpcoming != secondUpcoming) return firstUpcoming ? -1 : 1;
+      return firstUpcoming
+          ? first.startAt.compareTo(second.startAt)
+          : second.startAt.compareTo(first.startAt);
+    case MatchSortOrder.newestFirst:
+      return second.startAt.compareTo(first.startAt);
+    case MatchSortOrder.oldestFirst:
+      return first.startAt.compareTo(second.startAt);
+  }
+}
+
+String _matchSortLabel(MatchSortOrder order) => switch (order) {
+      MatchSortOrder.nextFirst => 'Nächste zuerst',
+      MatchSortOrder.newestFirst => 'Neueste zuerst',
+      MatchSortOrder.oldestFirst => 'Älteste zuerst',
+    };
+
+String _matchViewLabel(MatchViewMode mode) => switch (mode) {
+      MatchViewMode.veryCompact => 'Sehr kompakt',
+      MatchViewMode.compact => 'Kompakt',
+      MatchViewMode.standard => 'Standard',
+      MatchViewMode.detailed => 'Detailliert',
+    };
+
+IconData _matchViewIcon(MatchViewMode mode) => switch (mode) {
+      MatchViewMode.veryCompact => Icons.view_headline_rounded,
+      MatchViewMode.compact => Icons.view_agenda_outlined,
+      MatchViewMode.standard => Icons.view_stream_outlined,
+      MatchViewMode.detailed => Icons.subject_rounded,
+    };
+
+class _MatchOverviewToolbar extends StatelessWidget {
+  const _MatchOverviewToolbar({
+    required this.sortOrder,
+    required this.viewMode,
+    required this.onSortChanged,
+    required this.onViewChanged,
+  });
+
+  final MatchSortOrder sortOrder;
+  final MatchViewMode viewMode;
+  final ValueChanged<MatchSortOrder> onSortChanged;
+  final ValueChanged<MatchViewMode> onViewChanged;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final veryNarrow = constraints.maxWidth < 380;
+          return Align(
+            alignment: Alignment.centerRight,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              alignment: WrapAlignment.end,
+              children: [
+                _MatchToolbarMenu<MatchSortOrder>(
+                  menuKey: const ValueKey('match-sort-menu'),
+                  icon: Icons.sort_rounded,
+                  label: _matchSortLabel(sortOrder),
+                  triggerLabel: veryNarrow ? 'Sortierung' : null,
+                  values: MatchSortOrder.values,
+                  selected: sortOrder,
+                  itemLabel: _matchSortLabel,
+                  onSelected: onSortChanged,
+                ),
+                _MatchToolbarMenu<MatchViewMode>(
+                  menuKey: const ValueKey('match-view-menu'),
+                  icon: _matchViewIcon(viewMode),
+                  label: _matchViewLabel(viewMode),
+                  triggerLabel: veryNarrow ? '' : null,
+                  values: MatchViewMode.values,
+                  selected: viewMode,
+                  itemLabel: _matchViewLabel,
+                  itemIcon: _matchViewIcon,
+                  onSelected: onViewChanged,
+                ),
+              ],
+            ),
+          );
+        },
+      );
+}
+
+class _MatchToolbarMenu<T> extends StatelessWidget {
+  const _MatchToolbarMenu({
+    required this.menuKey,
+    required this.icon,
+    required this.label,
+    required this.values,
+    required this.selected,
+    required this.itemLabel,
+    required this.onSelected,
+    this.triggerLabel,
+    this.itemIcon,
+  });
+
+  final Key menuKey;
+  final IconData icon;
+  final String label;
+  final List<T> values;
+  final T selected;
+  final String Function(T value) itemLabel;
+  final IconData Function(T value)? itemIcon;
+  final ValueChanged<T> onSelected;
+  final String? triggerLabel;
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<T>(
+        key: menuKey,
+        tooltip: label,
+        initialValue: selected,
+        onSelected: onSelected,
+        itemBuilder: (context) => [
+          for (final value in values)
+            PopupMenuItem<T>(
+              value: value,
+              child: Row(
+                children: [
+                  Icon(itemIcon?.call(value) ?? Icons.sort_rounded, size: 19),
+                  const SizedBox(width: 9),
+                  Expanded(child: Text(itemLabel(value))),
+                  if (value == selected)
+                    const Icon(Icons.check_rounded, size: 19),
+                ],
+              ),
+            ),
+        ],
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 42),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 19),
+              if (triggerLabel != '') ...[
+                const SizedBox(width: 7),
+                Text(
+                  triggerLabel ?? label,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ],
+              const SizedBox(width: 4),
+              const Icon(Icons.arrow_drop_down_rounded, size: 20),
+            ],
+          ),
+        ),
+      );
+}
+
 class _TournamentOpponentDraft {
   const _TournamentOpponentDraft({
     required this.clubName,
@@ -2522,6 +2683,7 @@ class _TournamentFixtureReleaseStatus extends StatelessWidget {
 class _MatchCard extends StatelessWidget {
   const _MatchCard({
     required this.event,
+    required this.viewMode,
     required this.onEdit,
     required this.onOpen,
     this.onDelete,
@@ -2529,6 +2691,7 @@ class _MatchCard extends StatelessWidget {
     this.onReschedule,
   });
   final EventModel event;
+  final MatchViewMode viewMode;
   final VoidCallback onEdit;
   final VoidCallback onOpen;
   final VoidCallback? onDelete;
@@ -2557,8 +2720,11 @@ class _MatchCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact =
+          final responsiveCompact =
               constraints.maxWidth < (openTournamentPlan == null ? 680 : 960);
+          final compact = responsiveCompact ||
+              viewMode == MatchViewMode.compact ||
+              viewMode == MatchViewMode.veryCompact;
           final title = details == null
               ? event.title
               : 'FC Teugn ${details.isHome ? '–' : '@'} ${details.opponent}';
@@ -2702,6 +2868,35 @@ class _MatchCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: compact ? Theme.of(context).textTheme.bodySmall : null,
                 ),
+              if (viewMode == MatchViewMode.detailed) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 5,
+                  children: [
+                    if (event.meetingAt != null)
+                      _MatchDetailChip(
+                        icon: Icons.groups_rounded,
+                        text:
+                            'Treffen ${_timeOnly(event.meetingAt!.toLocal())}',
+                      ),
+                    _MatchDetailChip(
+                      icon: Icons.how_to_reg_rounded,
+                      text: '${event.attendanceSummary.yes} Zusagen',
+                    ),
+                    _MatchDetailChip(
+                      icon: Icons.schedule_rounded,
+                      text: '${event.attendanceSummary.unknown} offen',
+                    ),
+                    _MatchDetailChip(
+                      icon: event.isCancelled
+                          ? Icons.event_busy_rounded
+                          : Icons.event_available_rounded,
+                      text: event.isCancelled ? 'Abgesagt' : 'Geplant',
+                    ),
+                  ],
+                ),
+              ],
             ],
           );
           final actions = Wrap(
@@ -2757,31 +2952,61 @@ class _MatchCard extends StatelessWidget {
             ],
           );
           return Padding(
-            padding: EdgeInsets.all(compact ? 10 : 20),
-            child: compact
+            padding: EdgeInsets.all(
+              viewMode == MatchViewMode.veryCompact
+                  ? 8
+                  : compact
+                      ? 10
+                      : 20,
+            ),
+            child: viewMode == MatchViewMode.veryCompact
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _MatchLogos(
                             opponentLogoUrl: details?.opponentLogoUrl,
                             compact: true,
                             tournament: isTournament,
                           ),
-                          const SizedBox(width: 9),
-                          Expanded(child: information),
-                          if (hasResult) ...[
-                            const SizedBox(width: 8),
-                            Text(
-                              '${details!.ourGoals}:${details.theirGoals}',
-                              style: Theme.of(context).textTheme.headlineSmall,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w900),
+                                ),
+                                Text(
+                                  dateLocation,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(color: AppColors.muted),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
+                          if (hasResult)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: Text(
+                                '${details!.ourGoals}:${details.theirGoals}',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ),
                         ],
                       ),
-                      const SizedBox(height: 7),
+                      const SizedBox(height: 4),
                       _CompactMatchActions(
                         isTournament: isTournament,
                         onEdit: onEdit,
@@ -2794,31 +3019,103 @@ class _MatchCard extends StatelessWidget {
                       ),
                     ],
                   )
-                : Row(
-                    children: [
-                      _MatchLogos(
-                        opponentLogoUrl: details?.opponentLogoUrl,
-                        compact: false,
-                        tournament: isTournament,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(child: information),
-                      if (hasResult)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            '${details!.ourGoals} : ${details.theirGoals}',
-                            style: Theme.of(context).textTheme.headlineSmall,
+                : compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _MatchLogos(
+                                opponentLogoUrl: details?.opponentLogoUrl,
+                                compact: true,
+                                tournament: isTournament,
+                              ),
+                              const SizedBox(width: 9),
+                              Expanded(child: information),
+                              if (hasResult) ...[
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${details!.ourGoals}:${details.theirGoals}',
+                                  style:
+                                      Theme.of(context).textTheme.headlineSmall,
+                                ),
+                              ],
+                            ],
                           ),
-                        ),
-                      actions,
-                    ],
-                  ),
+                          const SizedBox(height: 7),
+                          _CompactMatchActions(
+                            isTournament: isTournament,
+                            onEdit: onEdit,
+                            onOpen: onOpen,
+                            onDelete: onDelete,
+                            onCancel: onCancel,
+                            onReschedule: onReschedule,
+                            onOpenTournamentPlan: openTournamentPlan,
+                            tournamentId: event.id,
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          _MatchLogos(
+                            opponentLogoUrl: details?.opponentLogoUrl,
+                            compact: false,
+                            tournament: isTournament,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(child: information),
+                          if (hasResult)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                '${details!.ourGoals} : ${details.theirGoals}',
+                                style:
+                                    Theme.of(context).textTheme.headlineSmall,
+                              ),
+                            ),
+                          actions,
+                        ],
+                      ),
           );
         },
       ),
     );
   }
+}
+
+String _timeOnly(DateTime value) => '${value.hour.toString().padLeft(2, '0')}:'
+    '${value.minute.toString().padLeft(2, '0')} Uhr';
+
+class _MatchDetailChip extends StatelessWidget {
+  const _MatchDetailChip({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: AppColors.gold),
+            const SizedBox(width: 5),
+            Text(
+              text,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      );
 }
 
 class _CompactMatchActions extends StatelessWidget {

@@ -64,12 +64,12 @@ class TrainerTeamPage extends ConsumerWidget {
                   onRetry: () => ref.invalidate(playersProvider),
                 ),
               ],
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
               const _SectionTitle(
                 title: 'Mannschaft verwalten',
                 subtitle: 'Alles, was deine eigene Mannschaft betrifft.',
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 7),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final columns = constraints.maxWidth >= 980
@@ -77,7 +77,7 @@ class TrainerTeamPage extends ConsumerWidget {
                       : constraints.maxWidth >= 560
                           ? 2
                           : 2;
-                  final gap = constraints.maxWidth < 560 ? 10.0 : 14.0;
+                  final gap = constraints.maxWidth < 560 ? 8.0 : 12.0;
                   final width =
                       (constraints.maxWidth - gap * (columns - 1)) / columns;
                   final actions = [
@@ -116,19 +116,19 @@ class TrainerTeamPage extends ConsumerWidget {
                       for (final action in actions)
                         SizedBox(
                           width: width,
-                          height: constraints.maxWidth < 560 ? 138 : 126,
+                          height: constraints.maxWidth < 560 ? 112 : 118,
                           child: action,
                         ),
                     ],
                   );
                 },
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 16),
               const _SectionTitle(
-                title: 'Training & Spieltag',
+                title: 'Training & Spielbetrieb',
                 subtitle: 'Planung und sportlicher Betrieb.',
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 7),
               _SportLinks(team: team),
             ],
           );
@@ -245,7 +245,7 @@ class _TeamHero extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).width < 600;
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(compact ? 16 : 22),
+      padding: EdgeInsets.all(compact ? 12 : 20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -257,8 +257,8 @@ class _TeamHero extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: compact ? 48 : 58,
-            height: compact ? 48 : 58,
+            width: compact ? 42 : 58,
+            height: compact ? 42 : 58,
             decoration: BoxDecoration(
               color: AppColors.yellow,
               borderRadius: BorderRadius.circular(16),
@@ -266,10 +266,10 @@ class _TeamHero extends StatelessWidget {
             child: const Icon(
               Icons.groups_rounded,
               color: AppColors.black,
-              size: 28,
+              size: 25,
             ),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: compact ? 10 : 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,22 +396,22 @@ class _TeamAction extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Container(
-                      width: 38,
-                      height: 38,
+                      width: 34,
+                      height: 34,
                       decoration: BoxDecoration(
                         color: emphasized
                             ? AppColors.yellow
                             : AppColors.background,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(icon, size: 21, color: AppColors.black),
+                      child: Icon(icon, size: 19, color: AppColors.black),
                     ),
                     const Spacer(),
                     const Icon(
@@ -467,19 +467,20 @@ class _SportLinks extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final vertical = constraints.maxWidth < 560;
-          if (vertical) {
-            return Column(
+          final compact = constraints.maxWidth < 560;
+          if (compact) {
+            final width = (constraints.maxWidth - 1) / 2;
+            return Wrap(
               children: [
-                for (var index = 0; index < links.length; index++) ...[
-                  _SportLink(
-                    icon: links[index].$1,
-                    label: links[index].$2,
-                    onTap: () => context.go(links[index].$3),
+                for (var index = 0; index < links.length; index++)
+                  SizedBox(
+                    width: width,
+                    child: _SportLink(
+                      icon: links[index].$1,
+                      label: links[index].$2,
+                      onTap: () => context.go(links[index].$3),
+                    ),
                   ),
-                  if (index < links.length - 1)
-                    const Divider(height: 1, indent: 56),
-                ],
               ],
             );
           }
@@ -520,7 +521,7 @@ class _SportLink extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
           child: Row(
             children: [
               Icon(icon, size: 20, color: AppColors.gold),

@@ -41,6 +41,7 @@ class PlayerProfilePage extends ConsumerWidget {
       title: 'Spielerprofil',
       subtitle:
           'Stammdaten, Entwicklung und wichtige Informationen an einem Ort.',
+      denseMobileHeader: true,
       action: MediaQuery.sizeOf(context).width < 600
           ? null
           : OutlinedButton.icon(
@@ -121,7 +122,7 @@ class _ProfileContent extends ConsumerWidget {
               ? () => _deletePlayer(context, ref)
               : null,
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 860;
@@ -638,7 +639,7 @@ class _ProfileHero extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             CircleAvatar(
-              radius: compact ? 36 : 42,
+              radius: compact ? 31 : 42,
               backgroundColor: AppColors.yellow,
               backgroundImage: player.photoUrl == null
                   ? null
@@ -648,7 +649,7 @@ class _ProfileHero extends StatelessWidget {
                       player.initials,
                       style: TextStyle(
                         color: AppColors.navy,
-                        fontSize: compact ? 18 : 21,
+                        fontSize: compact ? 16 : 21,
                         fontWeight: FontWeight.w900,
                       ),
                     )
@@ -656,8 +657,8 @@ class _ProfileHero extends StatelessWidget {
             ),
             if (onPhoto != null)
               Positioned(
-                right: -7,
-                bottom: -7,
+                right: -6,
+                bottom: -6,
                 child: PopupMenuButton<ImageSource>(
                   tooltip: 'Spielerfoto ändern',
                   onSelected: onPhoto,
@@ -678,7 +679,7 @@ class _ProfileHero extends StatelessWidget {
                     ),
                   ],
                   child: const CircleAvatar(
-                    radius: 16,
+                    radius: 15,
                     backgroundColor: Colors.white,
                     child: Icon(Icons.edit_rounded, size: 17),
                   ),
@@ -745,7 +746,7 @@ class _ProfileHero extends StatelessWidget {
         ];
         return Container(
           width: double.infinity,
-          padding: EdgeInsets.all(compact ? 18 : 24),
+          padding: EdgeInsets.all(compact ? 12 : 24),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [AppColors.black, Color(0xFF3A3400)],
@@ -762,72 +763,80 @@ class _ProfileHero extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         avatar,
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Expanded(child: identity),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: _StatusBadge(status: player.status),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _StatusBadge(status: player.status),
+                        const Spacer(),
+                        if (onEdit != null)
+                          OutlinedButton.icon(
+                            onPressed: onEdit,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: .4),
+                              ),
+                              minimumSize: const Size(48, 42),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 11),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            icon: const Icon(Icons.edit_rounded, size: 18),
+                            label: const Text('Bearbeiten'),
+                          ),
+                        if (onRemovePhoto != null || onDelete != null)
+                          PopupMenuButton<String>(
+                            tooltip: 'Weitere Aktionen',
+                            iconColor: Colors.white70,
+                            constraints: const BoxConstraints(
+                              minWidth: 48,
+                              minHeight: 48,
+                            ),
+                            onSelected: (value) {
+                              if (value == 'removePhoto') {
+                                onRemovePhoto?.call();
+                              }
+                              if (value == 'delete') onDelete?.call();
+                            },
+                            itemBuilder: (context) => [
+                              if (onRemovePhoto != null)
+                                const PopupMenuItem(
+                                  value: 'removePhoto',
+                                  child: ListTile(
+                                    leading: Icon(Icons.delete_outline_rounded),
+                                    title: Text('Foto entfernen'),
+                                  ),
+                                ),
+                              if (onDelete != null)
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: ListTile(
+                                    leading: Icon(
+                                      Icons.delete_forever_outlined,
+                                      color: Colors.red.shade700,
+                                    ),
+                                    title: const Text('Spieler löschen'),
+                                  ),
+                                ),
+                            ],
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     GridView.count(
-                      crossAxisCount: constraints.maxWidth < 420 ? 1 : 2,
-                      childAspectRatio: constraints.maxWidth < 420 ? 6.5 : 3.25,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
+                      crossAxisCount: constraints.maxWidth >= 520 ? 3 : 2,
+                      childAspectRatio:
+                          constraints.maxWidth >= 520 ? 3.4 : 3.05,
+                      crossAxisSpacing: 7,
+                      mainAxisSpacing: 7,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       children: statistics,
                     ),
-                    if (onEdit != null) ...[
-                      const SizedBox(height: 14),
-                      OutlinedButton.icon(
-                        onPressed: onEdit,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: BorderSide(
-                            color: Colors.white.withValues(alpha: .4),
-                          ),
-                        ),
-                        icon: const Icon(Icons.edit_rounded),
-                        label: const Text('Stammdaten bearbeiten'),
-                      ),
-                    ],
-                    if (onRemovePhoto != null || onDelete != null)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: PopupMenuButton<String>(
-                          tooltip: 'Weitere Aktionen',
-                          iconColor: Colors.white70,
-                          onSelected: (value) {
-                            if (value == 'removePhoto') onRemovePhoto?.call();
-                            if (value == 'delete') onDelete?.call();
-                          },
-                          itemBuilder: (context) => [
-                            if (onRemovePhoto != null)
-                              const PopupMenuItem(
-                                value: 'removePhoto',
-                                child: ListTile(
-                                  leading: Icon(Icons.delete_outline_rounded),
-                                  title: Text('Foto entfernen'),
-                                ),
-                              ),
-                            if (onDelete != null)
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: ListTile(
-                                  leading: Icon(
-                                    Icons.delete_forever_outlined,
-                                    color: Colors.red.shade700,
-                                  ),
-                                  title: const Text('Spieler löschen'),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
                   ],
                 )
               : Wrap(
@@ -1187,7 +1196,10 @@ class _CareerStatChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: expanded ? double.infinity : null,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: expanded ? 9 : 12,
+          vertical: expanded ? 7 : 8,
+        ),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: .12),
           borderRadius: BorderRadius.circular(999),
@@ -1195,8 +1207,8 @@ class _CareerStatChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 17, color: AppColors.yellow),
-            const SizedBox(width: 7),
+            Icon(icon, size: expanded ? 15 : 17, color: AppColors.yellow),
+            SizedBox(width: expanded ? 5 : 7),
             if (expanded)
               Expanded(
                 child: Text(
@@ -1205,6 +1217,7 @@ class _CareerStatChip extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

@@ -2485,11 +2485,15 @@ class _EventDetailsDialogState extends ConsumerState<EventDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     final event = _event;
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final players =
         ref.watch(playersProvider).valueOrNull ?? const <PlayerModel>[];
     final organization = ref.watch(organizationProvider).valueOrNull;
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 16,
+        vertical: compact ? 12 : 24,
+      ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 880, maxHeight: 820),
         child: Column(
@@ -2497,7 +2501,12 @@ class _EventDetailsDialogState extends ConsumerState<EventDetailsDialog> {
             _DetailsHeader(event: event),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                padding: EdgeInsets.fromLTRB(
+                  compact ? 12 : 24,
+                  0,
+                  compact ? 12 : 24,
+                  compact ? 12 : 24,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -3143,21 +3152,22 @@ class _DetailsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _categoryColor(event.category);
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(compact ? 14 : 24),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: compact ? 40 : 48,
+            height: compact ? 40 : 48,
             decoration: BoxDecoration(
               color: color.withValues(alpha: .12),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(_categoryIcon(event.category), color: color),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: compact ? 10 : 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3165,8 +3175,17 @@ class _DetailsHeader extends StatelessWidget {
                 Text(event.category.label,
                     style:
                         TextStyle(color: color, fontWeight: FontWeight.w800)),
-                Text(event.title,
-                    style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  event.title,
+                  maxLines: compact ? 2 : 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: compact
+                      ? Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w900)
+                      : Theme.of(context).textTheme.headlineSmall,
+                ),
                 if (event.isCancelled)
                   Text(
                     'Abgesagt${event.cancellationReason == null ? '' : ': ${event.cancellationReason}'}',
@@ -3180,6 +3199,7 @@ class _DetailsHeader extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Schließen',
+            visualDensity: VisualDensity.compact,
             onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.close_rounded),
           ),
@@ -3196,9 +3216,10 @@ class _EventFacts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(compact ? 12 : 18),
         child: Column(
           children: [
             _InfoRow(
@@ -3971,6 +3992,8 @@ class _CarpoolMetric extends StatelessWidget {
       );
 }
 
+enum _ManagementAction { edit, reschedule, cancel, deleteSeries, delete }
+
 class _ManagementBar extends ConsumerWidget {
   const _ManagementBar({required this.event, required this.organization});
 
@@ -3987,82 +4010,202 @@ class _ManagementBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final canFinalize =
+        !event.id.startsWith('training-plan:') && !event.attendanceFinalized;
+    final canEdit = !_isRegularTraining;
+    final canReschedule = event.type == EventType.match &&
+        !event.category.isTournament &&
+        event.capabilities.canReschedule;
+    final canCancel = !event.isCancelled && event.capabilities.canCancel;
+    final canDeleteSeries =
+        _isRegularTraining && organization.can('CONFIGURE_TRAINING_REMINDERS');
+    final canDelete = event.capabilities.canDelete &&
+        (!_isRegularTraining || event.isCancelled);
+    final deleteLabel = event.type == EventType.match
+        ? 'Spiel löschen'
+        : event.category == EventCategory.training && event.isCancelled
+            ? 'Abgesagtes Training endgültig löschen'
+            : 'Termin löschen';
+
+    void selectAction(_ManagementAction action) {
+      switch (action) {
+        case _ManagementAction.edit:
+        case _ManagementAction.reschedule:
+          _edit(context, ref);
+          return;
+        case _ManagementAction.cancel:
+          _cancel(context, ref);
+          return;
+        case _ManagementAction.deleteSeries:
+          _deleteRegularTrainingSeries(context, ref);
+          return;
+        case _ManagementAction.delete:
+          _deletePermanently(context, ref);
+          return;
+      }
+    }
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(10),
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.line)),
       ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        alignment: WrapAlignment.end,
-        children: [
-          if (!event.id.startsWith('training-plan:') &&
-              !event.attendanceFinalized)
-            TextButton.icon(
-              onPressed: () async {
-                await ref.read(repositoryProvider).finalizeAttendance(event.id);
-                ref.invalidate(eventsProvider);
-                ref.invalidate(calendarEventsProvider);
-                if (context.mounted) Navigator.pop(context);
-              },
-              icon: const Icon(Icons.lock_rounded),
-              label: const Text('Rückmeldungen abschließen'),
-            ),
-          if (!_isRegularTraining)
-            OutlinedButton.icon(
-              onPressed: () => _edit(context, ref),
-              icon: const Icon(Icons.edit_rounded),
-              label: const Text('Bearbeiten'),
-            ),
-          if (event.type == EventType.match &&
-              !event.category.isTournament &&
-              event.capabilities.canReschedule)
-            OutlinedButton.icon(
-              onPressed: () => _edit(context, ref),
-              icon: const Icon(Icons.event_repeat_rounded),
-              label: const Text('Spiel verlegen'),
-            ),
-          if (!event.isCancelled && event.capabilities.canCancel)
-            FilledButton.tonalIcon(
-              onPressed: () => _cancel(context, ref),
-              icon: const Icon(Icons.event_busy_rounded),
-              label: Text(
-                event.category == EventCategory.training
-                    ? 'Dieses Training absagen'
-                    : 'Absagen',
-              ),
-            ),
-          if (_isRegularTraining &&
-              organization.can('CONFIGURE_TRAINING_REMINDERS'))
-            OutlinedButton.icon(
-              onPressed: () => _deleteRegularTrainingSeries(context, ref),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
-              ),
-              icon: const Icon(Icons.delete_sweep_rounded),
-              label: const Text('Trainingsserie löschen'),
-            ),
-          if (event.capabilities.canDelete &&
-              (!_isRegularTraining || event.isCancelled))
-            OutlinedButton.icon(
-              onPressed: () => _deletePermanently(context, ref),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
-              ),
-              icon: const Icon(Icons.delete_forever_rounded),
-              label: Text(
-                event.type == EventType.match
-                    ? 'Spiel löschen'
-                    : event.category == EventCategory.training &&
-                            event.isCancelled
-                        ? 'Abgesagtes Training endgültig löschen'
-                        : 'Termin löschen',
-              ),
-            ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 600;
+          if (compact) {
+            return Row(
+              children: [
+                if (canFinalize)
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      onPressed: () => _finalize(context, ref),
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: const Icon(Icons.lock_rounded, size: 18),
+                      label: const Text('Rückmeldungen abschließen'),
+                    ),
+                  )
+                else
+                  const Spacer(),
+                if (canEdit ||
+                    canReschedule ||
+                    canCancel ||
+                    canDeleteSeries ||
+                    canDelete) ...[
+                  const SizedBox(width: 8),
+                  PopupMenuButton<_ManagementAction>(
+                    key: const ValueKey('event-management-menu'),
+                    tooltip: 'Termin verwalten',
+                    onSelected: selectAction,
+                    itemBuilder: (context) => [
+                      if (canEdit)
+                        const PopupMenuItem(
+                          value: _ManagementAction.edit,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.edit_rounded),
+                            title: Text('Bearbeiten'),
+                          ),
+                        ),
+                      if (canReschedule)
+                        const PopupMenuItem(
+                          value: _ManagementAction.reschedule,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.event_repeat_rounded),
+                            title: Text('Spiel verlegen'),
+                          ),
+                        ),
+                      if (canCancel)
+                        const PopupMenuItem(
+                          value: _ManagementAction.cancel,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.event_busy_rounded),
+                            title: Text('Absagen'),
+                          ),
+                        ),
+                      if (canDeleteSeries)
+                        const PopupMenuItem(
+                          value: _ManagementAction.deleteSeries,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.delete_sweep_rounded),
+                            title: Text('Trainingsserie löschen'),
+                          ),
+                        ),
+                      if (canDelete)
+                        PopupMenuItem(
+                          value: _ManagementAction.delete,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              Icons.delete_forever_rounded,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                            title: Text(deleteLabel),
+                          ),
+                        ),
+                    ],
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 44,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.line),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Icon(Icons.more_horiz_rounded),
+                    ),
+                  ),
+                ],
+              ],
+            );
+          }
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              if (canFinalize)
+                TextButton.icon(
+                  onPressed: () => _finalize(context, ref),
+                  icon: const Icon(Icons.lock_rounded),
+                  label: const Text('Rückmeldungen abschließen'),
+                ),
+              if (canEdit)
+                OutlinedButton.icon(
+                  onPressed: () => _edit(context, ref),
+                  icon: const Icon(Icons.edit_rounded),
+                  label: const Text('Bearbeiten'),
+                ),
+              if (canReschedule)
+                OutlinedButton.icon(
+                  onPressed: () => _edit(context, ref),
+                  icon: const Icon(Icons.event_repeat_rounded),
+                  label: const Text('Spiel verlegen'),
+                ),
+              if (canCancel)
+                FilledButton.tonalIcon(
+                  onPressed: () => _cancel(context, ref),
+                  icon: const Icon(Icons.event_busy_rounded),
+                  label: const Text('Absagen'),
+                ),
+              if (canDeleteSeries)
+                OutlinedButton.icon(
+                  onPressed: () => _deleteRegularTrainingSeries(context, ref),
+                  icon: const Icon(Icons.delete_sweep_rounded),
+                  label: const Text('Trainingsserie löschen'),
+                ),
+              if (canDelete)
+                OutlinedButton.icon(
+                  onPressed: () => _deletePermanently(context, ref),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  icon: const Icon(Icons.delete_forever_rounded),
+                  label: Text(deleteLabel),
+                ),
+            ],
+          );
+        },
       ),
     );
+  }
+
+  Future<void> _finalize(BuildContext context, WidgetRef ref) async {
+    await ref.read(repositoryProvider).finalizeAttendance(event.id);
+    ref.invalidate(eventsProvider);
+    ref.invalidate(calendarEventsProvider);
+    if (context.mounted) Navigator.pop(context);
   }
 
   Future<void> _edit(BuildContext context, WidgetRef ref) async {

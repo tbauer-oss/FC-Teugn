@@ -74,6 +74,7 @@ class _TrainerPlayersPageState extends ConsumerState<TrainerPlayersPage> {
       title: 'Spieler',
       subtitle:
           'Alle Jugenden und Mannschaften vereinsweit verwalten und Spieler sicher zuordnen.',
+      denseMobileHeader: true,
       action: FilledButton.icon(
         onPressed:
             teams.isEmpty ? null : () => _createPlayer(context, ref, teams),
@@ -256,6 +257,7 @@ class _PlayerViewToolbar extends StatelessWidget {
               onChanged: onSearchChanged,
               decoration: InputDecoration(
                 hintText: 'Spieler suchen',
+                isDense: true,
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: controller.text.isEmpty
                     ? null
@@ -271,7 +273,7 @@ class _PlayerViewToolbar extends StatelessWidget {
             ),
           );
           final switcher = constraints.maxWidth < 760
-              ? _MobilePlayerViewPicker(
+              ? _MobilePlayerViewMenu(
                   mode: mode,
                   onChanged: onModeChanged,
                 )
@@ -320,6 +322,7 @@ class _PlayerViewToolbar extends StatelessWidget {
               decoration: const InputDecoration(
                 labelText: 'Jugend / Mannschaft',
                 prefixIcon: Icon(Icons.account_tree_rounded),
+                isDense: true,
               ),
               items: [
                 const DropdownMenuItem<String?>(
@@ -343,13 +346,17 @@ class _PlayerViewToolbar extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                search,
-                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: search),
+                    const SizedBox(width: 8),
+                    switcher,
+                  ],
+                ),
+                const SizedBox(height: 8),
                 teamFilter,
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
                 counter,
-                const SizedBox(height: 10),
-                switcher,
               ],
             );
           }
@@ -370,8 +377,8 @@ class _PlayerViewToolbar extends StatelessWidget {
   }
 }
 
-class _MobilePlayerViewPicker extends StatelessWidget {
-  const _MobilePlayerViewPicker({required this.mode, required this.onChanged});
+class _MobilePlayerViewMenu extends StatelessWidget {
+  const _MobilePlayerViewMenu({required this.mode, required this.onChanged});
 
   final PlayerViewMode mode;
   final ValueChanged<PlayerViewMode> onChanged;
@@ -389,65 +396,40 @@ class _MobilePlayerViewPicker extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
-          final width = (constraints.maxWidth - 8) / 2;
-          return Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final option in options)
-                SizedBox(
-                  width: width,
-                  child: Material(
-                    color: mode == option.$1
-                        ? AppColors.yellow.withValues(alpha: .22)
-                        : AppColors.background,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => onChanged(option.$1),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 9,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(option.$2, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    option.$3,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  Text(
-                                    option.$4,
-                                    style: const TextStyle(
-                                      color: AppColors.muted,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (mode == option.$1)
-                              const Icon(Icons.check_circle_rounded, size: 17),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      );
+  Widget build(BuildContext context) {
+    final current = options.firstWhere((option) => option.$1 == mode);
+    return PopupMenuButton<PlayerViewMode>(
+      key: const ValueKey('player-view-menu'),
+      tooltip: 'Darstellung wählen',
+      initialValue: mode,
+      onSelected: onChanged,
+      itemBuilder: (context) => [
+        for (final option in options)
+          PopupMenuItem(
+            value: option.$1,
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(option.$2),
+              title: Text(option.$3),
+              subtitle: Text(option.$4),
+              trailing:
+                  mode == option.$1 ? const Icon(Icons.check_rounded) : null,
+            ),
+          ),
+      ],
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: AppColors.yellowSoft,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Icon(current.$2, size: 21),
+      ),
+    );
+  }
 }
 
 class _CategorizedPlayerCollection extends StatelessWidget {

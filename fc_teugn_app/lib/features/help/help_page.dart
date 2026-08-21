@@ -10,7 +10,7 @@ enum HelpCategory {
   start('Erste Schritte', Icons.rocket_launch_rounded),
   calendar('Kalender', Icons.calendar_month_rounded),
   team('Spieler & Team', Icons.groups_rounded),
-  matchday('Spielbetrieb', Icons.sports_soccer_rounded),
+  matchday('Spiele & Turniere', Icons.sports_soccer_rounded),
   training('Training', Icons.fitness_center_rounded),
   communication('Nachrichten', Icons.forum_rounded),
   organization('Organisation', Icons.account_tree_rounded),
@@ -133,7 +133,7 @@ class _HelpPageState extends State<HelpPage> {
     };
 
     return PageScaffold(
-      title: 'Hilfe-Center',
+      title: 'Hilfe & Anleitungen',
       showContextHelp: false,
       subtitle: widget.staffView
           ? 'Verlässliche Schritt-für-Schritt-Anleitungen für Trainerteam und Vereinsverwaltung.'
@@ -917,7 +917,7 @@ const helpArticles = <HelpArticle>[
       'Melde dich an, tippe in Safari auf „Teilen“ und anschließend auf „Zum Home-Bildschirm“. Fehlt der Eintrag, wähle unten „Aktionen bearbeiten“ und aktiviere ihn.',
       'Lass „Als Web-App öffnen“ eingeschaltet, bestätige den Namen „FC Teugn Talents“ und tippe oben auf „Hinzufügen“.',
       'Schließe den Safari-Tab und starte die App künftig ausschließlich über das neue FC-Teugn-Symbol auf dem Home-Bildschirm.',
-      'Öffne in der App „Mehr“ → „Nachrichten & Abstimmung“ → „Einstellungen“ und tippe dort auf „Push aktivieren“.',
+      'Öffne in der App „Mehr“ → „Nachrichten & Umfragen“ → „Einstellungen“ und tippe dort auf „Push aktivieren“.',
       'Bestätige die Einwilligung in der App und erlaube anschließend auch die iOS-Abfrage „Mitteilungen erlauben“.',
       'Prüfe unter iPhone „Einstellungen“ → „Mitteilungen“ → „FC Teugn Talents“, ob Mitteilungen, Sperrbildschirm, Mitteilungszentrale, Banner, Töne und Kennzeichen aktiviert sind.',
     ],
@@ -1023,7 +1023,7 @@ const helpArticles = <HelpArticle>[
     route: '/family',
     routeLabel: 'Meine Rückmeldungen öffnen',
     steps: [
-      'Öffne „Meine Kinder & Rückmeldungen“ oder rufe den Termin über Kalender, Startseite oder eine Benachrichtigung auf.',
+      'Öffne „Rückmeldungen für meine Kinder“ oder rufe den Termin über Kalender, Startseite oder eine Benachrichtigung auf.',
       'Oben ist zunächst „1 Woche“ ausgewählt. Bei Bedarf kannst du auf 2 Wochen, 4 Wochen oder alle kommenden Termine wechseln.',
       'Prüfe bei mehreren Kindern am Namen, für welches Spielerprofil du antwortest. Oben fassen „Offen“, „Zugesagt“, „Vielleicht“ und „Abgesagt“ alle Antworten zusammen.',
       'Wähle „Zusagen“ oder „Absagen“. Bei Trainings steht zusätzlich „Vielleicht“ zur Verfügung. Eine Antwort darfst du später jederzeit ändern, solange Rückmeldungen möglich sind.',
@@ -1050,7 +1050,7 @@ const helpArticles = <HelpArticle>[
     route: '/family',
     routeLabel: 'Rückmeldungen öffnen',
     steps: [
-      'Öffne „Meine Kinder & Rückmeldungen“. Direkt unter der Zusammenfassung findest du die Zeitraum-Auswahl.',
+      'Öffne „Rückmeldungen für meine Kinder“. Direkt unter der Zusammenfassung findest du die Zeitraum-Auswahl.',
       '„1 Woche“ ist vorausgewählt und zeigt die unmittelbar anstehenden Antworten für alle verknüpften Kinder.',
       'Wähle „2 Wochen“ oder „4 Wochen“, wenn du weiter vorausplanen möchtest.',
       'Mit „Alle kommenden“ werden sämtliche zukünftigen rückmeldefähigen Termine geladen.',
@@ -1220,9 +1220,9 @@ const helpArticles = <HelpArticle>[
     audience: HelpAudience.staff,
     keywords: ['Formation', 'Suffix', 'Stammformation', 'Positionen'],
     route: '/team',
-    routeLabel: 'Team-Zentrale öffnen',
+    routeLabel: 'Meine Mannschaft öffnen',
     steps: [
-      'Öffne die Team-Zentrale und wähle „Stammformation“.',
+      'Öffne „Meine Mannschaft“ und wähle „Stammformation“.',
       'Wähle eine Grundformation oder bearbeite eine vorhandene berechtigte Vorlage.',
       'Passe Positionsnamen und Anordnung an und ergänze bei Varianten ein Suffix.',
       'Speichere die Formation dauerhaft als Teamstandard oder nutze sie später nur für einen einzelnen Spieltag.',
@@ -1251,15 +1251,15 @@ const helpArticles = <HelpArticle>[
       'Ligaspiele',
     ],
     route: '/matches',
-    routeLabel: 'Spielbetrieb öffnen',
+    routeLabel: 'Spiele & Turniere öffnen',
     steps: [
-      'Öffne im Spielbetrieb „Liga & Gegner“ und den Reiter „Gegner“. Alle Trainer sehen hier denselben gemeinsamen Vereins-Pool.',
+      'Öffne unter „Spiele & Turniere“ den Bereich „Liga & Gegner“ und dort den Reiter „Gegner“. Alle Trainer sehen hier denselben gemeinsamen Vereins-Pool.',
       'Fehlt ein Verein, tippe auf „Verein hinzufügen“. Vereinsname ist Pflicht; Spielstätte und Adresse sind optional und werden zentral für alle Jugenden genutzt.',
       'Wähle oben deine Jugend. Öffne danach den gewünschten Verein und füge über „Mannschaft“ nur die Bezeichnung E1, E2, E3 beziehungsweise D1, D2, D3 usw. hinzu.',
       'Du kannst Mannschaften ausschließlich in einer Jugend verwalten, für die du als Trainer oder Funktionär berechtigt bist. Andere Trainer sehen denselben Verein, pflegen aber ihre eigenen Jugendmannschaften.',
       'Das Wappen wird einmal am Verein hochgeladen und dadurch bei allen zugehörigen Mannschaften, Spielen und im Liveticker verwendet.',
       'Beim Anlegen oder Bearbeiten eines Spiels wählst du zuerst den Verein und danach die Jugendmannschaft. Fehlt diese Kombination, legt die App sie beim Speichern automatisch in deiner Jugend an.',
-      'Für einen einmaligen Dateiimport öffnest du im Spielbetrieb „Spielplan importieren“, wählst die Mannschaft und lädst die BfV-ICS-Datei hoch. Vor dem Speichern erscheint immer eine vollständige Vorschau.',
+      'Für einen einmaligen Dateiimport öffnest du unter „Spiele & Turniere“ den Bereich „Spielplan importieren“, wählst die Mannschaft und lädst die BfV-ICS-Datei hoch. Vor dem Speichern erscheint immer eine vollständige Vorschau.',
       'Alle übernehmbaren Termine sind zunächst ausgewählt. Entferne bei einzelnen unerwünschten Einträgen den Haken – beispielsweise bei „SPIELFREI“ – oder nutze „Alle auswählen“ beziehungsweise „Auswahl aufheben“. Nur die angehakten Zeilen werden gespeichert.',
       'Für den automatischen BfV-Abgleich öffnest du den Reiter „BfV“, wählst die konkrete Mannschaft und hinterlegst deren offizielle BfV-Mannschaftsseite sowie die iCal-Adresse.',
       'Nach „Speichern“ kannst du sofort synchronisieren. Danach gleicht die Vereinsverwaltung die eigenen Spiele automatisch ab; neue Spiele werden angelegt und lokale Änderungen bei Konflikten geschützt.',
@@ -1288,7 +1288,7 @@ const helpArticles = <HelpArticle>[
     route: '/bfv',
     routeLabel: 'Tabelle & Ergebnisse öffnen',
     steps: [
-      'Öffne im App-Menü unter „Training & Spieltag“ den Bereich „Tabelle & Ergebnisse“.',
+      'Öffne „Tabelle & Ergebnisse“ im Menübereich „Training & Spielbetrieb“ beziehungsweise „Termine & Spielbetrieb“.',
       'Wähle oben die gewünschte Mannschaft. Eltern und Spieler sehen dabei nur die Mannschaften, denen sie zugeordnet sind.',
       'Tippe auf „Offizielle BfV-Ansicht öffnen“. Die Tabelle startet als interner Vollbildbrowser innerhalb der App. Dort findest du den amtlichen Tabellenstand, Liga-Ergebnisse, Spieltage und Gegnerpartien.',
       'Mit dem Zurückpfeil oben links gelangst du direkt zur vorherigen App-Seite zurück; ein Wechsel in den externen Browser ist nicht erforderlich.',
@@ -1315,7 +1315,7 @@ const helpArticles = <HelpArticle>[
     route: '/spielplus-browser',
     routeLabel: 'SpielPLUS öffnen',
     steps: [
-      'Öffne im Trainer-Menü unter „Training & Spieltag“ den Punkt „SpielPLUS · BfV“.',
+      'Öffne im Trainer-Menü unter „Training & Spielbetrieb“ den Punkt „BfV SpielPLUS“.',
       'In der Android- oder iPhone-App startet das vollständige SpielPLUS im internen Browser. Alle für dich freigeschalteten Bereiche bleiben erreichbar und bereits vorhandene DFBnet-Sitzungen werden weiterverwendet.',
       'Unter „Mein Konto“ oder über das Zugangssymbol im SpielPLUS-Kopf kannst du Kennung und Passwort für dieses Gerät speichern und die automatische Anmeldung aktivieren.',
       'Aktiviere „Automatisch anmelden“, wenn das Anmeldeformular nach dem Öffnen direkt ausgefüllt und abgeschickt werden soll.',
@@ -1368,7 +1368,7 @@ const helpArticles = <HelpArticle>[
     ],
     audience: HelpAudience.staff,
     route: '/matches',
-    routeLabel: 'Spielbetrieb öffnen',
+    routeLabel: 'Spiele & Turniere öffnen',
     steps: [
       'Beim Anlegen eines Liga-, Freundschafts-, Pokal- oder sonstigen Spiels ist „24 Stunden vorher“ standardmäßig aktiviert.',
       'Im Kalender kannst du unter „Automatische Erinnerung“ einen anderen Zeitpunkt wählen oder die Erinnerung ausschalten.',
@@ -1394,10 +1394,10 @@ const helpArticles = <HelpArticle>[
       'Fußballfestival',
     ],
     route: '/matches',
-    routeLabel: 'Spielbetrieb öffnen',
+    routeLabel: 'Spiele & Turniere öffnen',
     steps: [
       'Lege im Kalender einen Turnier-, Hallenturnier- oder Fußballfestival-Termin an. Dabei wird bewusst kein einzelner Gegner ausgewählt, weil der Termin das gesamte Turnier beschreibt.',
-      'Öffne anschließend im Spielbetrieb das Turnier und wähle „Partien planen“.',
+      'Öffne anschließend unter „Spiele & Turniere“ das Turnier und wähle „Partien planen“.',
       'Füge für jedes eigene Spiel eine Partie hinzu. Wähle jeweils Gegner, Anstoßzeit, Spielabschnitte, Minuten und bei Bedarf die Reihenfolge der Mannschaften.',
       'Speichere den Turnierplan. Jede Partie erscheint nun innerhalb des Turniers und besitzt einen eigenen Kader, eine eigene Aufstellung, einen eigenen Spielstand und Liveticker.',
       'Öffne eine gespeicherte Partie direkt aus dem Turnierplan, um Kader und Aufstellung vorzubereiten oder den Liveticker zu starten.',
@@ -1553,7 +1553,7 @@ const helpArticles = <HelpArticle>[
     route: '/training',
     routeLabel: 'Training öffnen',
     steps: [
-      'Öffne „Training & Platzplanung“ und die Trainingszeiten.',
+      'Öffne „Trainings- & Platzplanung“ und die Trainingszeiten.',
       'Lege Wochentag, Beginn, Ende und Ort für die Mannschaft fest.',
       'Wähle die automatische Erinnerung: keine, 30 Minuten, 1 Stunde, 2 Stunden oder benutzerdefiniert.',
       'Die Einstellung gilt für den aktiven Mannschafts- beziehungsweise Jugendkontext und berücksichtigt Europe/Berlin.',
@@ -1591,7 +1591,7 @@ const helpArticles = <HelpArticle>[
     routeLabel: 'Benachrichtigungen öffnen',
     steps: [
       'Bestätige beim ersten Start die Push-Abfrage der App und anschließend die Android- beziehungsweise Browserfreigabe. Auf dem iPhone muss die Seite vorher über Safari zum Home-Bildschirm hinzugefügt worden sein.',
-      'Öffne bei Bedarf „Nachrichten & Abstimmung“ und dort „Einstellungen“, um Push pro Kategorie zu aktivieren.',
+      'Öffne bei Bedarf „Nachrichten & Umfragen“ und dort „Einstellungen“, um Push pro Kategorie zu aktivieren.',
       'Jedes Gerät wird separat registriert; ein Benutzer kann mehrere Geräte verwenden.',
       'Beim Antippen einer Pushnachricht öffnet sich die App direkt im passenden Kalender, Spieltag oder Mitteilungscenter.',
     ],
@@ -1647,7 +1647,7 @@ const helpArticles = <HelpArticle>[
     route: '/messages?section=contact',
     routeLabel: 'Direktkontakt öffnen',
     steps: [
-      'Eltern öffnen auf der Startseite „Direktkontakt“ oder unter „Mehr“ den Bereich „Nachrichten & Abstimmung“. Trainer nutzen denselben Reiter im Mitteilungscenter.',
+      'Eltern öffnen auf der Startseite „Direktkontakt“ oder unter „Mehr“ den Bereich „Nachrichten & Umfragen“. Trainer nutzen denselben Reiter im Mitteilungscenter.',
       'Wähle die passende Jugend beziehungsweise das betreffende Kind und öffne die Unterhaltung mit dem zuständigen Trainerteam.',
       'Sende eine kurze organisatorische Textnachricht. Anhänge sind bewusst nicht vorgesehen; eine Nachricht darf höchstens 2.000 Zeichen enthalten.',
       'Neue Antworten erscheinen in derselben Unterhaltung und können zusätzlich als Pushnachricht direkt dorthin führen.',
@@ -1663,7 +1663,7 @@ const helpArticles = <HelpArticle>[
         'Der Bereich unterstützt wiederkehrende Organisation im Mannschaftsalltag.',
     keywords: ['Aufgabe', 'Ausrüstung', 'Material', 'Checkliste', 'Trikot'],
     route: '/operations',
-    routeLabel: 'Aufgaben & Ausrüstung öffnen',
+    routeLabel: 'Teamaufgaben & Ausrüstung öffnen',
     steps: [
       'Lege Aufgaben mit Verantwortlichem, Frist, Status und optionaler Erinnerung an.',
       'Pflege Materialbestand und Ausgaben; Rückgaben bleiben nachvollziehbar gespeichert.',
@@ -1702,7 +1702,7 @@ const helpArticles = <HelpArticle>[
     route: '/trainer/organization',
     routeLabel: 'Vereinsverwaltung öffnen',
     steps: [
-      'Öffne „Mannschaften & Verein“ und die Vereinsadministration.',
+      'Öffne „Verein & Mannschaften“ und die Vereinsadministration.',
       'Pflege Saisonbeginn taggenau und prüfe die freigegebenen Regelprofile.',
       'Erstelle eine Vorschau für Jugend-, Mannschafts- und Spielerwechsel; dabei werden noch keine Daten verändert.',
       'Führe den Wechsel erst nach vollständiger Prüfung aus. Die Transaktion übernimmt entweder alles oder nichts.',

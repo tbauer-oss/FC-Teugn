@@ -28,8 +28,8 @@ void main() {
       [
         'Übersicht',
         'Meine Mannschaft',
-        'Training & Spieltag',
-        'Organisation & Kommunikation',
+        'Training & Spielbetrieb',
+        'Teamorganisation & Kommunikation',
         'Verein & Verwaltung',
         'Hilfe & Support',
       ],
@@ -38,11 +38,23 @@ void main() {
       ShellSection.values.every((section) => section.description.isNotEmpty),
       isTrue,
     );
+    expect(
+      ShellSection.values
+          .map((section) => section.labelFor(ShellAudience.family)),
+      [
+        'Übersicht',
+        'Kinder & Mannschaft',
+        'Termine & Spielbetrieb',
+        'Kommunikation & Mithelfen',
+        'Konto & Datenschutz',
+        'Hilfe & Support',
+      ],
+    );
   });
 
-  test('Team-Zentrale erkennt untergeordnete Mannschaftsseiten', () {
+  test('Meine Mannschaft erkennt untergeordnete Mannschaftsseiten', () {
     const destination = ShellDestination(
-      label: 'Team-Zentrale',
+      label: 'Meine Mannschaft',
       mobileLabel: 'Team',
       icon: Icons.groups_rounded,
       route: '/trainer/team',
@@ -103,7 +115,7 @@ void main() {
         hint: 'Termine, Serien und Rückmeldungen',
       ),
       const ShellDestination(
-        label: 'Spielbetrieb',
+        label: 'Spiele & Turniere',
         icon: Icons.sports_soccer_rounded,
         route: '/trainer/matches',
         section: ShellSection.schedule,
@@ -188,7 +200,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('ÜBERSICHT'), findsOneWidget);
     expect(find.text('MEINE MANNSCHAFT'), findsOneWidget);
-    expect(find.text('TRAINING & SPIELTAG'), findsOneWidget);
+    expect(find.text('TRAINING & SPIELBETRIEB'), findsOneWidget);
     expect(find.byTooltip('Daten aktualisieren'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Daten aktualisieren'));
@@ -222,14 +234,14 @@ void main() {
         hint: 'Spielerprofile und Zuordnungen',
       ),
       ShellDestination(
-        label: 'Nachrichten & Abstimmung',
+        label: 'Nachrichten & Umfragen',
         icon: Icons.forum_rounded,
         route: '/trainer/messages',
         section: ShellSection.communication,
         hint: 'Absprachen im Verein',
       ),
       ShellDestination(
-        label: 'Mitglieder & Berechtigungen',
+        label: 'Mitglieder, Rollen & Zugänge',
         icon: Icons.manage_accounts_rounded,
         route: '/trainer/approvals',
         section: ShellSection.administration,
@@ -259,7 +271,7 @@ void main() {
     expect(find.text('FC TEUGN TALENTS · APP-MENÜ'), findsOneWidget);
     expect(find.text('Übersicht'), findsOneWidget);
     expect(find.text('Meine Mannschaft'), findsOneWidget);
-    expect(find.text('Organisation & Kommunikation'), findsOneWidget);
+    expect(find.text('Teamorganisation & Kommunikation'), findsOneWidget);
     expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('mobile-menu-home-logo')));
@@ -284,16 +296,16 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Verein & Verwaltung'), findsOneWidget);
-    expect(find.text('Mitglieder & Berechtigungen'), findsOneWidget);
+    expect(find.text('Mitglieder, Rollen & Zugänge'), findsOneWidget);
     expect(find.byTooltip('Funktion suchen'), findsOneWidget);
     await tester.tap(find.byTooltip('Funktion suchen'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Berechtigungen');
+    await tester.enterText(find.byType(TextField), 'Rollen');
     await tester.pumpAndSettle();
     expect(
       find.descendant(
         of: find.byType(AlertDialog),
-        matching: find.text('Mitglieder & Berechtigungen'),
+        matching: find.text('Mitglieder, Rollen & Zugänge'),
       ),
       findsOneWidget,
     );
@@ -321,7 +333,7 @@ void main() {
                 hint: 'Das Wichtigste auf einen Blick',
               ),
               ShellDestination(
-                label: 'Team-Zentrale',
+                label: 'Meine Mannschaft',
                 mobileLabel: 'Team',
                 icon: Icons.groups_rounded,
                 route: '/trainer/team',
@@ -336,7 +348,7 @@ void main() {
                 hint: 'Termine, Serien und Rückmeldungen',
               ),
               ShellDestination(
-                label: 'Spielbetrieb',
+                label: 'Spiele & Turniere',
                 mobileLabel: 'Spiele',
                 icon: Icons.sports_soccer_rounded,
                 route: '/trainer/matches',
@@ -399,7 +411,7 @@ void main() {
         hint: 'Das Wichtigste auf einen Blick',
       ),
       ShellDestination(
-        label: 'Spielbetrieb',
+        label: 'Spiele & Turniere',
         icon: Icons.sports_soccer_rounded,
         route: '/trainer/matches',
         section: ShellSection.schedule,
@@ -443,7 +455,7 @@ void main() {
 
     expect(find.text('Spieldetail'), findsOneWidget);
     expect(find.byKey(const ValueKey('context-back-button')), findsOneWidget);
-    expect(find.text('Zurück zu Spielbetrieb'), findsOneWidget);
+    expect(find.text('Zurück zu „Spiele & Turniere“'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('context-back-button')));
     await tester.pumpAndSettle();
@@ -470,7 +482,7 @@ void main() {
         hint: 'Das Wichtigste auf einen Blick',
       ),
       ShellDestination(
-        label: 'Team-Zentrale',
+        label: 'Meine Mannschaft',
         mobileLabel: 'Team',
         icon: Icons.groups_rounded,
         route: '/trainer/team',
@@ -485,7 +497,7 @@ void main() {
         hint: 'Termine, Serien und Rückmeldungen',
       ),
       ShellDestination(
-        label: 'Spielbetrieb',
+        label: 'Spiele & Turniere',
         mobileLabel: 'Spiele',
         icon: Icons.sports_soccer_rounded,
         route: '/trainer/matches',
@@ -493,7 +505,7 @@ void main() {
         hint: 'Spieltage, Kader und Liveticker',
       ),
       ShellDestination(
-        label: 'Nachrichten & Abstimmung',
+        label: 'Nachrichten & Umfragen',
         icon: Icons.forum_rounded,
         route: '/trainer/messages',
         section: ShellSection.communication,
@@ -546,9 +558,9 @@ void main() {
 
     await tester.tap(find.text('Mehr'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Nachrichten & Abstimmung'));
+    await tester.ensureVisible(find.text('Nachrichten & Umfragen'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Nachrichten & Abstimmung'));
+    await tester.tap(find.text('Nachrichten & Umfragen'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 800));
 

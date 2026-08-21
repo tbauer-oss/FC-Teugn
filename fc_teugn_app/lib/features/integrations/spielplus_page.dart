@@ -347,7 +347,7 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
           ),
           titleSpacing: 0,
           title: Text(
-            'SpielPLUS · BfV',
+            'BfV SpielPLUS',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -439,7 +439,7 @@ class SpielPlusSettingsCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('SpielPLUS · BfV',
+                      Text('BfV SpielPLUS',
                           style: Theme.of(context).textTheme.titleLarge),
                       const Text(
                         'Optionaler Gerätezugang für Trainer und Verwaltung.',

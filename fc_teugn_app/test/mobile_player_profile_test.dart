@@ -153,7 +153,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final editButton = find.text('Stammdaten bearbeiten');
+      final editButton = find.text('Bearbeiten');
       expect(tester.takeException(), isNull, reason: 'before edit dialog');
       expect(editButton, findsOneWidget);
       await tester.ensureVisible(editButton);

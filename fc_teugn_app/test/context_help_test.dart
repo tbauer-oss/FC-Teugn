@@ -8,7 +8,7 @@ import 'package:go_router/go_router.dart';
 void main() {
   test('context help reflects responses, opponents, and publication', () {
     final responses = contextHelpFor(
-      'Meine Kinder & Rückmeldungen',
+      'Rückmeldungen für meine Kinder',
       'Rückmeldungen für alle dir zugeordneten Kinder.',
     );
     expect(responses.steps.join(' '), contains('vielleicht'));
@@ -23,7 +23,7 @@ void main() {
     expect(calendar.steps.join(' '), contains('Legende'));
 
     final messages = contextHelpFor(
-      'Nachrichten & Abstimmung',
+      'Nachrichten & Umfragen',
       'Nachrichten zentral verwalten.',
     );
     expect(messages.steps.join(' '), contains('Direktkontakt'));
@@ -84,7 +84,7 @@ void main() {
     expect(find.text('Vereinskalender'), findsWidgets);
     expect(find.textContaining('Plane Termine'), findsOneWidget);
 
-    await tester.tap(find.text('Ausführliches Hilfe-Center öffnen'));
+    await tester.tap(find.text('Hilfe & Anleitungen öffnen'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('FAQ: Termin Kalender anlegen'), findsOneWidget);

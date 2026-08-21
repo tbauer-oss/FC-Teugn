@@ -39,7 +39,7 @@ void main() {
     await tester.pumpWidget(_app(staffView: false));
     await tester.pumpAndSettle();
 
-    expect(find.text('Hilfe-Center'), findsOneWidget);
+    expect(find.text('Hilfe & Anleitungen'), findsOneWidget);
     expect(find.byKey(const ValueKey('help-search-field')), findsOneWidget);
     expect(find.text('Wie gebe ich eine Rückmeldung ab?'), findsOneWidget);
     expect(find.text('Wie führe ich einen sicheren Saisonwechsel durch?'),

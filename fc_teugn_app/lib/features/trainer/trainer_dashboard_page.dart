@@ -755,9 +755,9 @@ class _TrainingResponsesSheet extends ConsumerWidget {
         .join(' · ');
     return FractionallySizedBox(
       key: const ValueKey('trainer-response-overview-sheet'),
-      heightFactor: .78,
+      heightFactor: .82,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        padding: const EdgeInsets.fromLTRB(12, 7, 12, 10),
         child: Column(
           children: [
             Container(
@@ -768,7 +768,7 @@ class _TrainingResponsesSheet extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -779,23 +779,24 @@ class _TrainingResponsesSheet extends ConsumerWidget {
                             ? 'Rückmeldungen zum Training'
                             : 'Rückmeldungen zum Termin',
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
                 IconButton(
                   tooltip: 'Schließen',
+                  visualDensity: VisualDensity.compact,
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close_rounded),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Container(
               key: const ValueKey('trainer-response-event-details'),
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border.all(color: AppColors.line),
@@ -810,10 +811,10 @@ class _TrainingResponsesSheet extends ConsumerWidget {
                         : event.type == EventType.training
                             ? Icons.sports_rounded
                             : Icons.event_rounded,
-                    size: 20,
+                    size: 18,
                     color: AppColors.gold,
                   ),
-                  const SizedBox(width: 9),
+                  const SizedBox(width: 7),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -823,18 +824,18 @@ class _TrainingResponsesSheet extends ConsumerWidget {
                             event.title,
                             if (teamLabels.isNotEmpty) teamLabels,
                           ].join(' · '),
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 1),
                         Text(
                           '${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr'
                           '${event.location.trim().isEmpty ? '' : ' · ${event.location}'}',
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: AppColors.muted,
@@ -850,14 +851,19 @@ class _TrainingResponsesSheet extends ConsumerWidget {
             ),
             if (event.capabilities.canManage &&
                 event.category == EventCategory.training) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 5),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   key: const ValueKey('trainer-training-reminder'),
                   onPressed: () =>
                       showEventAttendanceReminder(context, ref, event),
-                  icon: const Icon(Icons.notifications_active_rounded),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  icon:
+                      const Icon(Icons.notifications_active_rounded, size: 18),
                   label: const Text('Training erinnern'),
                 ),
               ),
@@ -908,7 +914,7 @@ class _TrainingResponseGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 14),
+        padding: const EdgeInsets.only(top: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -916,15 +922,17 @@ class _TrainingResponseGroup extends StatelessWidget {
               '$title (${entries.length})',
               style: TextStyle(fontWeight: FontWeight.w900, color: color),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 2),
             if (entries.isEmpty)
               const Text('Niemand', style: TextStyle(color: AppColors.muted))
             else
               for (final entry in entries)
                 ListTile(
                   dense: true,
+                  visualDensity: const VisualDensity(vertical: -4),
+                  minTileHeight: 38,
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.person_rounded, color: color),
+                  leading: Icon(Icons.person_rounded, color: color, size: 21),
                   title: Text(entry.name),
                   subtitle: entry.reason?.trim().isNotEmpty == true
                       ? Text(entry.reason!)

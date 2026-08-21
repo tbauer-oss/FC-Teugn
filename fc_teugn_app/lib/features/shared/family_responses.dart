@@ -137,7 +137,7 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
     final responses = ref.watch(personalResponsesProvider);
     final period = ref.watch(personalResponsePeriodProvider);
     return PageScaffold(
-      title: 'Meine Kinder & Rückmeldungen',
+      title: 'Rückmeldungen für meine Kinder',
       subtitle: 'Rückmeldungen für alle dir zugeordneten Kinder.',
       denseMobileHeader: true,
       child: responses.when(
