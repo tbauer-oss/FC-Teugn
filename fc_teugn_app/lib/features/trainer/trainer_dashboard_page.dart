@@ -120,13 +120,13 @@ class TrainerDashboardPage extends ConsumerWidget {
       subtitle:
           '${_germanDate(now)} · ${team?.displayName ?? 'Meine Mannschaft'}',
       denseMobileHeader: true,
+      headerAction: DashboardNotificationBell(
+        notifications: notifications,
+        isTrainer: true,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          DashboardNotifications(
-            notifications: notifications,
-            isTrainer: true,
-          ),
           if (organization?.can('MANAGE_MEMBERS') == true) ...[
             AdminMemberRequestsCard(
               pending: approvals,

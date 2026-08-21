@@ -21,7 +21,7 @@ void main() {
 
   test('dashboard notification can be acknowledged without navigation', () {
     expect(dashboard, contains('Ohne Öffnen als gelesen markieren'));
-    expect(dashboard, contains('_markRead(latest, showConfirmation: true)'));
+    expect(dashboard, contains('_markRead(item, confirm: true)'));
     expect(dashboard, contains('_locallyReadIds.add(item.id)'));
   });
 

@@ -12,6 +12,7 @@ import '../../core/models/player.dart';
 import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../shared/dashboard_event_navigation.dart';
+import '../shared/dashboard_notifications.dart';
 import '../shared/family_responses.dart';
 import '../shared/page_scaffold.dart';
 import 'family_assistant_model.dart';
@@ -75,6 +76,10 @@ class ParentDashboardPage extends ConsumerWidget {
       title: 'Hallo ${_firstName(user?.name)}!',
       subtitle: 'Dein Familien-Assistent – nur das, was jetzt wichtig ist.',
       denseMobileHeader: true,
+      headerAction: DashboardNotificationBell(
+        notifications: notifications,
+        isTrainer: false,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -114,8 +119,6 @@ class ParentDashboardPage extends ConsumerWidget {
             matches: matches,
             consents: consents,
           ),
-          const SizedBox(height: 10),
-          _NotificationGroupsCard(notifications: notifications),
           const SizedBox(height: 10),
           const _TrainerContactCard(),
         ],
@@ -847,54 +850,6 @@ class _ChildFact extends StatelessWidget {
           ]),
         ),
       );
-}
-
-class _NotificationGroupsCard extends StatelessWidget {
-  const _NotificationGroupsCard({required this.notifications});
-  final List<AppNotificationModel> notifications;
-
-  @override
-  Widget build(BuildContext context) {
-    final unread = notifications.where((item) => !item.isRead).toList();
-    final counts = <FamilyNotificationGroup, int>{
-      for (final group in FamilyNotificationGroup.values) group: 0
-    };
-    for (final item in unread) {
-      final group = familyNotificationGroup(item);
-      counts[group] = counts[group]! + 1;
-    }
-    return Card(
-      child: InkWell(
-        onTap: () => context.go('/parent/messages?section=notifications'),
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _SectionHeading(
-              icon: Icons.notifications_none_rounded,
-              title: 'Mitteilungen',
-              subtitle: unread.isEmpty
-                  ? 'Keine ungelesenen Nachrichten.'
-                  : '${unread.length} ungelesen – verständlich sortiert',
-              trailing: const Icon(Icons.chevron_right_rounded),
-            ),
-            if (unread.isNotEmpty) ...[
-              const SizedBox(height: 9),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                for (final group in FamilyNotificationGroup.values)
-                  if (counts[group]! > 0)
-                    Chip(
-                        visualDensity: VisualDensity.compact,
-                        label: Text(
-                            '${familyNotificationGroupLabel(group)} · ${counts[group]}')),
-              ]),
-            ],
-          ]),
-        ),
-      ),
-    );
-  }
 }
 
 class _TrainerContactCard extends StatelessWidget {

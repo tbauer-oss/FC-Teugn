@@ -10,6 +10,7 @@ class PageScaffold extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.action,
+    this.headerAction,
     this.denseMobileHeader = false,
     this.hideMobileHeader = false,
     this.hideHeader = false,
@@ -22,6 +23,7 @@ class PageScaffold extends StatelessWidget {
   final String subtitle;
   final Widget child;
   final Widget? action;
+  final Widget? headerAction;
   final bool denseMobileHeader;
   final bool hideMobileHeader;
   final bool hideHeader;
@@ -73,8 +75,12 @@ class PageScaffold extends StatelessWidget {
                 ],
               ),
             ),
+            if (headerAction != null) ...[
+              const SizedBox(width: 6),
+              headerAction!,
+            ],
             if (showContextHelp) ...[
-              const SizedBox(width: 10),
+              SizedBox(width: headerAction == null ? 10 : 2),
               ContextHelpButton(
                 pageTitle: title,
                 pageSubtitle: subtitle,

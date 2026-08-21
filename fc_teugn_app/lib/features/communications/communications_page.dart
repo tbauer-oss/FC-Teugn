@@ -1839,7 +1839,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                 onScenarioTest: _testOwnPushScenario,
               ),
               const SizedBox(height: 14),
-              _AdminPushDeviceCard(
+              AdminPushDeviceManagementCard(
                 devices: _devices,
                 searchController: _deviceSearch,
                 filter: _deviceFilter,
@@ -2382,8 +2382,9 @@ const _adminPushScenarios = <({
   (key: 'SUPPORT', label: 'Support', icon: Icons.support_agent_rounded),
 ];
 
-class _AdminPushDeviceCard extends StatelessWidget {
-  const _AdminPushDeviceCard({
+class AdminPushDeviceManagementCard extends StatelessWidget {
+  const AdminPushDeviceManagementCard({
+    super.key,
     required this.devices,
     required this.searchController,
     required this.filter,
@@ -2414,12 +2415,20 @@ class _AdminPushDeviceCard extends StatelessWidget {
     final filtered =
         values?.where((device) => _matches(device, query, filter)).toList() ??
             const <AdminPushDevice>[];
-    final active = values?.where((item) => item.isActive).length ?? 0;
-    final stale = values?.where((item) => item.isStale).length ?? 0;
-    final disabled = values?.where((item) => !item.isActive).length ?? 0;
+    final active = values
+            ?.where((item) => item.health == PushDeviceHealth.active)
+            .length ??
+        0;
+    final stale =
+        values?.where((item) => item.health == PushDeviceHealth.stale).length ??
+            0;
+    final disabled = values
+            ?.where((item) => item.health == PushDeviceHealth.disabled)
+            .length ??
+        0;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(16),
@@ -2430,19 +2439,33 @@ class _AdminPushDeviceCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.devices_other_rounded, color: AppColors.blue),
-              const SizedBox(width: 10),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.blue.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: const Icon(
+                  Icons.devices_other_rounded,
+                  color: AppColors.blue,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 9),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Push-Geräte verwalten',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                      style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                     Text(
-                      'Systemweite Kontrolle über registrierte App- und Browsergeräte.',
+                      'Status, Mitglied und letzter Kontakt',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -2452,98 +2475,90 @@ class _AdminPushDeviceCard extends StatelessWidget {
                 onPressed: changing ? null : onRefresh,
                 icon: const Icon(Icons.refresh_rounded),
               ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _DeviceMetric(label: 'Gesamt', value: values?.length ?? 0),
-              _DeviceMetric(label: 'Aktiv', value: active, color: Colors.green),
-              _DeviceMetric(
-                  label: 'Länger inaktiv',
-                  value: stale,
-                  color: AppColors.orange),
-              _DeviceMetric(
-                label: 'Deaktiviert',
-                value: disabled,
-                color: Theme.of(context).colorScheme.error,
+              PopupMenuButton<String>(
+                tooltip: 'Weitere Geräteaktionen',
+                enabled: !changing,
+                onSelected: (value) {
+                  if (value == 'DELETE_DISABLED') onDeleteDisabled();
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'DELETE_DISABLED',
+                    enabled: disabled > 0,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.delete_sweep_rounded),
+                      title: const Text('Alle deaktivierten Geräte löschen'),
+                      subtitle: Text('$disabled Geräte'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 36,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _DeviceFilterChip(
+                    label: 'Alle',
+                    value: values?.length ?? 0,
+                    selected: filter == 'ALL',
+                    onSelected: changing ? null : () => onFilterChanged('ALL'),
+                  ),
+                  _DeviceFilterChip(
+                    label: 'Aktiv',
+                    value: active,
+                    color: Colors.green,
+                    selected: filter == 'ACTIVE',
+                    onSelected:
+                        changing ? null : () => onFilterChanged('ACTIVE'),
+                  ),
+                  _DeviceFilterChip(
+                    label: 'Länger inaktiv',
+                    value: stale,
+                    color: AppColors.orange,
+                    selected: filter == 'STALE',
+                    onSelected:
+                        changing ? null : () => onFilterChanged('STALE'),
+                  ),
+                  _DeviceFilterChip(
+                    label: 'Deaktiviert',
+                    value: disabled,
+                    color: Theme.of(context).colorScheme.error,
+                    selected: filter == 'DISABLED',
+                    onSelected:
+                        changing ? null : () => onFilterChanged('DISABLED'),
+                  ),
+                ],
               ),
-              onPressed: changing || disabled == 0 ? null : onDeleteDisabled,
-              icon: const Icon(Icons.delete_sweep_rounded),
-              label: Text('Alle deaktivierten Geräte löschen ($disabled)'),
             ),
           ),
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final search = TextField(
-                controller: searchController,
-                onChanged: onSearchChanged,
-                decoration: InputDecoration(
-                  labelText: 'Gerät oder Mitglied suchen',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: query.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: 'Suche löschen',
-                          onPressed: () {
-                            searchController.clear();
-                            onSearchChanged('');
-                          },
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                ),
-              );
-              final selection = DropdownButtonFormField<String>(
-                initialValue: filter,
-                decoration: const InputDecoration(
-                  labelText: 'Status',
-                  prefixIcon: Icon(Icons.filter_alt_rounded),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'ALL', child: Text('Alle Geräte')),
-                  DropdownMenuItem(value: 'ACTIVE', child: Text('Aktiv')),
-                  DropdownMenuItem(
-                      value: 'STALE', child: Text('Länger inaktiv')),
-                  DropdownMenuItem(
-                      value: 'DISABLED', child: Text('Deaktiviert')),
-                ],
-                onChanged: changing
-                    ? null
-                    : (value) {
-                        if (value != null) onFilterChanged(value);
+          const SizedBox(height: 9),
+          TextField(
+            controller: searchController,
+            onChanged: onSearchChanged,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Gerät oder Mitglied suchen',
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+              suffixIcon: query.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Suche löschen',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () {
+                        searchController.clear();
+                        onSearchChanged('');
                       },
-              );
-              if (constraints.maxWidth < 620) {
-                return Column(
-                  children: [
-                    search,
-                    const SizedBox(height: 10),
-                    selection,
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(flex: 2, child: search),
-                  const SizedBox(width: 10),
-                  Expanded(child: selection),
-                ],
-              );
-            },
+                      icon: const Icon(Icons.close_rounded, size: 19),
+                    ),
+            ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           if (values == null)
             const Center(
               child: LogoLoadingPanel(
@@ -2572,7 +2587,7 @@ class _AdminPushDeviceCard extends StatelessWidget {
                     for (final device in filtered)
                       SizedBox(
                         width: width,
-                        child: _PushDeviceTile(
+                        child: _CompactPushDeviceTile(
                           device: device,
                           changing: changing,
                           onToggle: () => onToggle(device),
@@ -2583,11 +2598,24 @@ class _AdminPushDeviceCard extends StatelessWidget {
                 );
               },
             ),
-          const SizedBox(height: 10),
-          Text(
-            'Als „länger inaktiv“ gelten Geräte ohne erfolgreichen Kontakt seit mindestens 60 Tagen. '
-            'Eine administrative Deaktivierung kann durch einen App-Neustart nicht aufgehoben werden.',
-            style: Theme.of(context).textTheme.bodySmall,
+          const SizedBox(height: 8),
+          const Tooltip(
+            message:
+                '„Länger inaktiv“: seit mindestens 60 Tagen kein erfolgreicher Kontakt. '
+                'Eine administrative Deaktivierung bleibt auch nach einem App-Neustart bestehen.',
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded,
+                    size: 16, color: AppColors.muted),
+                SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    'Hinweise zu Status und Deaktivierung',
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -2613,33 +2641,46 @@ class _AdminPushDeviceCard extends StatelessWidget {
   }
 }
 
-class _DeviceMetric extends StatelessWidget {
-  const _DeviceMetric({required this.label, required this.value, this.color});
+class _DeviceFilterChip extends StatelessWidget {
+  const _DeviceFilterChip({
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.onSelected,
+    this.color,
+  });
 
   final String label;
   final int value;
+  final bool selected;
+  final VoidCallback? onSelected;
   final Color? color;
 
   @override
   Widget build(BuildContext context) {
     final effectiveColor = color ?? AppColors.blue;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: effectiveColor.withValues(alpha: .09),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: effectiveColor.withValues(alpha: .2)),
-      ),
-      child: Text(
-        '$value $label',
-        style: TextStyle(color: effectiveColor, fontWeight: FontWeight.w700),
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ChoiceChip(
+        selected: selected,
+        onSelected: onSelected == null ? null : (_) => onSelected!(),
+        visualDensity: VisualDensity.compact,
+        side: BorderSide(color: effectiveColor.withValues(alpha: .22)),
+        selectedColor: effectiveColor.withValues(alpha: .14),
+        avatar: Container(
+          width: 7,
+          height: 7,
+          decoration:
+              BoxDecoration(color: effectiveColor, shape: BoxShape.circle),
+        ),
+        label: Text('$label $value'),
       ),
     );
   }
 }
 
-class _PushDeviceTile extends StatelessWidget {
-  const _PushDeviceTile({
+class _CompactPushDeviceTile extends StatelessWidget {
+  const _CompactPushDeviceTile({
     required this.device,
     required this.changing,
     required this.onToggle,
@@ -2661,11 +2702,10 @@ class _PushDeviceTile extends StatelessWidget {
     final statusLabel = switch (device.health) {
       PushDeviceHealth.active => 'Aktiv',
       PushDeviceHealth.stale => 'Länger inaktiv',
-      PushDeviceHealth.disabled =>
-        device.isAdministrativelyDisabled ? 'Vom Admin deaktiviert' : 'Inaktiv',
+      PushDeviceHealth.disabled => 'Deaktiviert',
     };
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(10, 9, 5, 9),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
@@ -2675,38 +2715,75 @@ class _PushDeviceTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              CircleAvatar(
-                backgroundColor: color.withValues(alpha: .12),
-                foregroundColor: color,
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: Icon(
                   device.isAndroid
                       ? Icons.phone_android_rounded
                       : Icons.language_rounded,
+                  color: color,
+                  size: 19,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 9),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      device.deviceName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            device.deviceName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: .10),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              statusLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     Text(
                       '${device.userName} · ${device.teamName}',
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5),
                     ),
                     Text(
                       '${device.roleLabel} · ${device.userEmail}',
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style:
+                          const TextStyle(fontSize: 11, color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -2744,30 +2821,39 @@ class _PushDeviceTile extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
+          const SizedBox(height: 6),
+          Row(
             children: [
-              Chip(
-                avatar: Icon(Icons.circle, size: 10, color: color),
-                label: Text(statusLabel),
-                visualDensity: VisualDensity.compact,
+              Icon(
+                device.isAndroid
+                    ? Icons.phone_android_rounded
+                    : Icons.language_rounded,
+                size: 14,
+                color: AppColors.muted,
               ),
-              Chip(
-                label: Text(device.isAndroid ? 'Android' : 'Web'),
-                visualDensity: VisualDensity.compact,
+              const SizedBox(width: 3),
+              Text(
+                device.isAndroid ? 'Android' : 'Web',
+                style: const TextStyle(fontSize: 11, color: AppColors.muted),
               ),
-              Chip(
-                label: Text('${device.deliveryCount} Zustellungen'),
-                visualDensity: VisualDensity.compact,
+              const SizedBox(width: 9),
+              const Icon(Icons.schedule_rounded,
+                  size: 14, color: AppColors.muted),
+              const SizedBox(width: 3),
+              Expanded(
+                child: Text(
+                  _deviceDate(device.lastUsedAt),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${device.deliveryCount} Push',
+                style: const TextStyle(fontSize: 11, color: AppColors.muted),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Letzter Kontakt: ${_deviceDate(device.lastUsedAt)}',
-            style: Theme.of(context).textTheme.bodySmall,
           ),
           if (device.lastDeliveryError != null) ...[
             const SizedBox(height: 3),
