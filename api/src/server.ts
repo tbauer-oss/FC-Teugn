@@ -33,6 +33,7 @@ app.use(securityHeaders);
 
 const defaultAllowedOrigins = [
   'https://fcteugnapp.vercel.app',
+  'https://app.fc-teugn-talents.de',
   'https://fc-teugn.vercel.app',
   'http://localhost:3000',
   'http://localhost:4000',
