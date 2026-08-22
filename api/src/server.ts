@@ -20,7 +20,10 @@ import dashboardRoutes from './routes/dashboard.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { authRateLimit } from './middleware/rate-limit';
 import openApiDocument from '../openapi.json';
-import { readMediaAsset } from './controllers/media.controller';
+import {
+  readMediaAsset,
+  readPlayingCommunityLogo,
+} from './controllers/media.controller';
 import { asyncHandler } from './middleware/async-handler';
 import { securityHeaders } from './middleware/security-headers';
 
@@ -92,6 +95,10 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/', (_req, res) => res.json({ status: 'ok' }));
 app.get('/openapi.json', (_req, res) => res.json(openApiDocument));
+app.get(
+  '/media/playing-community-logo/:teamId',
+  asyncHandler(readPlayingCommunityLogo),
+);
 app.get('/media/:id', asyncHandler(readMediaAsset));
 
 app.use('/auth', authRateLimit, authRoutes);

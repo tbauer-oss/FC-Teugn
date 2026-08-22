@@ -77,10 +77,11 @@ class _OrganizationContent extends ConsumerWidget {
       ),
     );
     if (draft == null) return;
+    TeamSummary? savedTeam;
     try {
       final repository = ref.read(repositoryProvider);
       if (team == null) {
-        await repository.createTeam(
+        savedTeam = await repository.createTeam(
           ageGroupId: draft.ageGroupId,
           teamNumber: draft.teamNumber,
           name: draft.name,
@@ -88,7 +89,6 @@ class _OrganizationContent extends ConsumerWidget {
           isPlayingCommunity: draft.isPlayingCommunity,
           playingCommunityName: draft.playingCommunityName,
           playingCommunityShortName: draft.playingCommunityShortName,
-          playingCommunityLogoUrl: draft.playingCommunityLogoUrl,
           level: draft.level,
           teamType: draft.teamType,
           gender: draft.gender,
@@ -112,7 +112,7 @@ class _OrganizationContent extends ConsumerWidget {
           isActive: draft.isActive,
         );
       } else {
-        await repository.updateTeam(
+        savedTeam = await repository.updateTeam(
           teamId: team.id,
           teamNumber: draft.teamNumber,
           name: draft.name,
@@ -120,7 +120,6 @@ class _OrganizationContent extends ConsumerWidget {
           isPlayingCommunity: draft.isPlayingCommunity,
           playingCommunityName: draft.playingCommunityName,
           playingCommunityShortName: draft.playingCommunityShortName,
-          playingCommunityLogoUrl: draft.playingCommunityLogoUrl,
           level: draft.level,
           teamType: draft.teamType,
           gender: draft.gender,
@@ -144,6 +143,19 @@ class _OrganizationContent extends ConsumerWidget {
           isActive: draft.isActive,
         );
       }
+      if (draft.playingCommunityLogoBytes != null) {
+        await repository.uploadPlayingCommunityLogo(
+          teamId: savedTeam.id,
+          bytes: draft.playingCommunityLogoBytes!,
+          fileName: draft.playingCommunityLogoFileName ??
+              '${savedTeam.id}-sg-wappen.png',
+        );
+      } else if (team != null &&
+          draft.isPlayingCommunity &&
+          draft.removePlayingCommunityLogo &&
+          team.playingCommunityLogoUrl != null) {
+        await repository.removePlayingCommunityLogo(savedTeam.id);
+      }
       ref.invalidate(organizationProvider);
       ref.invalidate(eventsProvider);
       ref.invalidate(personalResponsesProvider);
@@ -159,10 +171,17 @@ class _OrganizationContent extends ConsumerWidget {
       final message = response is Map<String, dynamic>
           ? response['message'] as String?
           : null;
+      if (savedTeam != null) {
+        ref.invalidate(organizationProvider);
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content:
-              Text(message ?? 'Mannschaft konnte nicht gespeichert werden.'),
+          content: Text(
+            message ??
+                (savedTeam == null
+                    ? 'Mannschaft konnte nicht gespeichert werden.'
+                    : 'Die Mannschaft wurde gespeichert, das Wappen aber noch nicht. Bitte erneut versuchen.'),
+          ),
         ));
       }
     }
@@ -1012,7 +1031,6 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   late final TextEditingController _level;
   late final TextEditingController _playingCommunityName;
   late final TextEditingController _playingCommunityShortName;
-  late final TextEditingController _playingCommunityLogoUrl;
   late final TextEditingController _description;
   late final TextEditingController _trainingLocation;
   late final TextEditingController _trainingTimes;
@@ -1031,6 +1049,9 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   late bool _isActive;
   late bool _isPlayingCommunity;
   late Set<int> _birthYears;
+  Uint8List? _playingCommunityLogoBytes;
+  String? _playingCommunityLogoFileName;
+  late bool _removePlayingCommunityLogo;
   DateTime? _seasonStartDate;
   DateTime? _seasonEndDate;
   DateTime? _indoorSeasonStartDate;
@@ -1045,8 +1066,6 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         TextEditingController(text: team?.playingCommunityName);
     _playingCommunityShortName =
         TextEditingController(text: team?.playingCommunityShortName);
-    _playingCommunityLogoUrl =
-        TextEditingController(text: team?.playingCommunityLogoUrl);
     _birthYears = {...?team?.birthYears};
     _description = TextEditingController(text: team?.description);
     _trainingLocation = TextEditingController(text: team?.trainingLocation);
@@ -1076,6 +1095,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
     _periodMinutes = team?.periodMinutes ?? defaults.periodMinutes;
     _isActive = team?.isActive ?? true;
     _isPlayingCommunity = team?.isPlayingCommunity ?? false;
+    _removePlayingCommunityLogo = false;
   }
 
   @override
@@ -1084,7 +1104,6 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
       _level,
       _playingCommunityName,
       _playingCommunityShortName,
-      _playingCommunityLogoUrl,
       _description,
       _trainingLocation,
       _trainingTimes,
@@ -1102,6 +1121,140 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   String? _optional(TextEditingController controller) {
     final value = controller.text.trim();
     return value.isEmpty ? null : value;
+  }
+
+  Future<void> _pickPlayingCommunityLogo() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      requestFullMetadata: false,
+    );
+    if (picked == null) return;
+    final decoded = img.decodeImage(await picked.readAsBytes());
+    if (decoded == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Das ausgewählte Bild ist ungültig.')),
+        );
+      }
+      return;
+    }
+    final oriented = img.bakeOrientation(decoded);
+    final resized = oriented.width >= oriented.height && oriented.width > 1024
+        ? img.copyResize(oriented, width: 1024)
+        : oriented.height > 1024
+            ? img.copyResize(oriented, height: 1024)
+            : oriented;
+    setState(() {
+      _playingCommunityLogoBytes =
+          Uint8List.fromList(img.encodePng(resized, level: 6));
+      _playingCommunityLogoFileName = 'sg-wappen.png';
+      _removePlayingCommunityLogo = false;
+    });
+  }
+
+  Widget _playingCommunityLogoEditor() {
+    final existingUrl = widget.team?.playingCommunityLogoUrl;
+    final showExisting = !_removePlayingCommunityLogo &&
+        _playingCommunityLogoBytes == null &&
+        existingUrl != null;
+    Widget preview;
+    if (_playingCommunityLogoBytes != null) {
+      preview = Image.memory(
+        _playingCommunityLogoBytes!,
+        fit: BoxFit.contain,
+        semanticLabel: 'Ausgewähltes Wappen der Spielgemeinschaft',
+      );
+    } else if (showExisting) {
+      preview = Image.network(
+        existingUrl,
+        fit: BoxFit.contain,
+        semanticLabel: 'Wappen der Spielgemeinschaft',
+        errorBuilder: (_, __, ___) => const Icon(
+          Icons.groups_2_outlined,
+          size: 36,
+          color: AppColors.muted,
+        ),
+      );
+    } else {
+      preview = const Icon(
+        Icons.add_photo_alternate_outlined,
+        size: 36,
+        color: AppColors.muted,
+      );
+    }
+    final hasLogo = _playingCommunityLogoBytes != null || showExisting;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.line),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: preview,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Wappen der Spielgemeinschaft',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  hasLogo
+                      ? 'Wird in Mannschaft und Spielbetrieb angezeigt.'
+                      : 'PNG, JPEG oder WebP auswählen.',
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _pickPlayingCommunityLogo,
+                      icon: const Icon(Icons.upload_rounded, size: 18),
+                      label: Text(hasLogo ? 'Ersetzen' : 'Hochladen'),
+                    ),
+                    if (hasLogo)
+                      TextButton.icon(
+                        onPressed: () => setState(() {
+                          _playingCommunityLogoBytes = null;
+                          _playingCommunityLogoFileName = null;
+                          _removePlayingCommunityLogo = true;
+                        }),
+                        icon:
+                            const Icon(Icons.delete_outline_rounded, size: 18),
+                        label: const Text('Entfernen'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Set<int> _usedTeamNumbers(String ageGroupId) => widget.teams
@@ -1267,25 +1420,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                       hintText: 'SG Saal/Donau',
                     ),
                   ),
-                  TextFormField(
-                    controller: _playingCommunityLogoUrl,
-                    keyboardType: TextInputType.url,
-                    decoration: const InputDecoration(
-                      labelText: 'Wappen-URL (optional)',
-                      helperText:
-                          'Ohne Wappen wird ein neutrales Symbol verwendet.',
-                    ),
-                    validator: (value) {
-                      final text = value?.trim() ?? '';
-                      if (text.isEmpty) return null;
-                      final uri = Uri.tryParse(text);
-                      return uri != null &&
-                              (uri.scheme == 'https' || uri.scheme == 'http') &&
-                              uri.host.isNotEmpty
-                          ? null
-                          : 'Bitte eine gültige Webadresse eingeben.';
-                    },
-                  ),
+                  _playingCommunityLogoEditor(),
                 ),
               ],
               const SizedBox(height: 12),
@@ -1687,8 +1822,12 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
             _isPlayingCommunity ? _optional(_playingCommunityName) : null,
         playingCommunityShortName:
             _isPlayingCommunity ? _optional(_playingCommunityShortName) : null,
-        playingCommunityLogoUrl:
-            _isPlayingCommunity ? _optional(_playingCommunityLogoUrl) : null,
+        playingCommunityLogoBytes:
+            _isPlayingCommunity ? _playingCommunityLogoBytes : null,
+        playingCommunityLogoFileName:
+            _isPlayingCommunity ? _playingCommunityLogoFileName : null,
+        removePlayingCommunityLogo:
+            _removePlayingCommunityLogo || !_isPlayingCommunity,
         level: _optional(_level),
         teamType: _teamType,
         gender: _gender,
@@ -1967,7 +2106,9 @@ class _TeamDraft {
     this.shortName,
     this.playingCommunityName,
     this.playingCommunityShortName,
-    this.playingCommunityLogoUrl,
+    this.playingCommunityLogoBytes,
+    this.playingCommunityLogoFileName,
+    this.removePlayingCommunityLogo = false,
     this.level,
     this.description,
     this.trainingLocation,
@@ -1989,7 +2130,9 @@ class _TeamDraft {
   final bool isPlayingCommunity;
   final String? playingCommunityName;
   final String? playingCommunityShortName;
-  final String? playingCommunityLogoUrl;
+  final Uint8List? playingCommunityLogoBytes;
+  final String? playingCommunityLogoFileName;
+  final bool removePlayingCommunityLogo;
   final String? level;
   final String teamType;
   final String gender;

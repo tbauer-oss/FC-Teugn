@@ -415,7 +415,6 @@ class DataRepository {
     bool isPlayingCommunity = false,
     String? playingCommunityName,
     String? playingCommunityShortName,
-    String? playingCommunityLogoUrl,
     String? level,
     String teamType = 'COMPETITIVE',
     String gender = 'MIXED',
@@ -446,7 +445,6 @@ class DataRepository {
       'isPlayingCommunity': isPlayingCommunity,
       'playingCommunityName': playingCommunityName,
       'playingCommunityShortName': playingCommunityShortName,
-      'playingCommunityLogoUrl': playingCommunityLogoUrl,
       'level': level,
       'teamType': teamType,
       'gender': gender,
@@ -486,7 +484,6 @@ class DataRepository {
     required bool isPlayingCommunity,
     String? playingCommunityName,
     String? playingCommunityShortName,
-    String? playingCommunityLogoUrl,
     String? level,
     required String teamType,
     required String gender,
@@ -518,7 +515,6 @@ class DataRepository {
         'isPlayingCommunity': isPlayingCommunity,
         'playingCommunityName': playingCommunityName,
         'playingCommunityShortName': playingCommunityShortName,
-        'playingCommunityLogoUrl': playingCommunityLogoUrl,
         'level': level,
         'teamType': teamType,
         'gender': gender,
@@ -649,6 +645,30 @@ class DataRepository {
 
   Future<void> removeTeamPhoto(String teamId) async {
     await client.dio.delete('/organization/teams/$teamId/photo');
+  }
+
+  Future<TeamSummary> uploadPlayingCommunityLogo({
+    required String teamId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final res = await client.dio.post(
+      '/organization/teams/$teamId/playing-community-logo',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: fileName,
+          contentType: DioMediaType('image', 'png'),
+        ),
+      }),
+    );
+    return TeamSummary.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> removePlayingCommunityLogo(String teamId) async {
+    await client.dio.delete(
+      '/organization/teams/$teamId/playing-community-logo',
+    );
   }
 
   Future<Map<String, dynamic>> exportPersonalData() async {

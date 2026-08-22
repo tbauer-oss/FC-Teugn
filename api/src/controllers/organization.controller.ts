@@ -25,7 +25,10 @@ import {
   workingContextTeamIds,
 } from '../services/team-access';
 import { objectStorage } from '../services/object-storage';
-import { mediaAssetUrl } from '../services/media-access';
+import {
+  mediaAssetUrl,
+  playingCommunityLogoUrl,
+} from '../services/media-access';
 import {
   fieldSizeForGameFormat,
   syncSquadWithTeamDefaultLineup,
@@ -793,17 +796,39 @@ export async function updateTeam(req: Request, res: Response) {
     shortName: _shortName,
     ...profileData
   } = data;
+  const activePlayingCommunityLogoUrl = data.isPlayingCommunity
+    ? body.playingCommunityLogoUrl === undefined
+      ? existing.playingCommunityLogoUrl
+      : data.playingCommunityLogoUrl
+    : null;
+  const obsoletePlayingCommunityAssets = !data.isPlayingCommunity
+    ? await prisma.fileAsset.findMany({
+        where: {
+          ownerTeamId: teamId,
+          kind: 'PLAYING_COMMUNITY_LOGO',
+          deletedAt: null,
+        },
+        select: { id: true, pathname: true },
+      })
+    : [];
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.team.update({
       where: { id: teamId },
       data: {
         ...profileData,
+        playingCommunityLogoUrl: activePlayingCommunityLogoUrl,
         teamNumber,
         name: teamName,
         shortName: teamName,
       },
       include: hierarchyInclude,
     });
+    if (obsoletePlayingCommunityAssets.length > 0) {
+      await tx.fileAsset.updateMany({
+        where: { id: { in: obsoletePlayingCommunityAssets.map((asset) => asset.id) } },
+        data: { deletedAt: new Date() },
+      });
+    }
     const reconciledEventIds = await reconcileNextRegularTrainingOccurrence(
       tx,
       updated,
@@ -841,6 +866,11 @@ export async function updateTeam(req: Request, res: Response) {
   });
   await Promise.all(
     result.reconciledEventIds.map(syncScheduledRemindersForEvent),
+  );
+  await Promise.all(
+    obsoletePlayingCommunityAssets.map((asset) =>
+      objectStorage.delete(asset.pathname).catch(() => undefined),
+    ),
   );
   return res.json(await serializeTeam(result.team, true));
 }
@@ -1419,6 +1449,152 @@ export async function removeTeamPhoto(req: Request, res: Response) {
     return team.photoAsset?.pathname ?? null;
   });
   if (pathname) objectStorage.delete(pathname).catch(() => undefined);
+  return res.status(204).send();
+}
+
+export async function uploadPlayingCommunityLogo(req: Request, res: Response) {
+  const user = req.user!;
+  const teamId = req.params.id;
+  if (!(await canManageTeam(user, teamId))) {
+    return res.status(403).json({
+      message: 'Das Wappen der Spielgemeinschaft darf nicht geändert werden.',
+    });
+  }
+  if (!req.file || !imageTypes.has(req.file.mimetype)) {
+    return res.status(400).json({
+      message: 'Bitte ein JPEG-, PNG- oder WebP-Bild auswählen.',
+    });
+  }
+  const existingTeam = await prisma.team.findFirst({
+    where: { id: teamId, deletedAt: null },
+    select: { id: true, isPlayingCommunity: true },
+  });
+  if (!existingTeam) {
+    return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  }
+  if (!existingTeam.isPlayingCommunity) {
+    return res.status(409).json({
+      message: 'Ein eigenes Wappen kann nur für eine Spielgemeinschaft gespeichert werden.',
+    });
+  }
+
+  const extension = req.file.mimetype === 'image/png' ? 'png'
+    : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+  const stored = await objectStorage.uploadPrivate(
+    `teams/${teamId}/playing-community-logo/${randomUUID()}.${extension}`,
+    req.file.buffer,
+    req.file.mimetype,
+  );
+  let previousPathnames: string[] = [];
+  const team = await prisma.$transaction(async (tx) => {
+    const previousAssets = await tx.fileAsset.findMany({
+      where: {
+        ownerTeamId: teamId,
+        kind: 'PLAYING_COMMUNITY_LOGO',
+        deletedAt: null,
+      },
+      select: { id: true, pathname: true },
+    });
+    previousPathnames = previousAssets.map((asset) => asset.pathname);
+    const asset = await tx.fileAsset.create({
+      data: {
+        kind: 'PLAYING_COMMUNITY_LOGO',
+        pathname: stored.pathname,
+        storageUrl: stored.url,
+        originalName: req.file!.originalname,
+        contentType: req.file!.mimetype,
+        size: req.file!.size,
+        checksum: createHash('sha256').update(req.file!.buffer).digest('hex'),
+        uploadedById: user.id,
+        ownerTeamId: teamId,
+      },
+    });
+    const updated = await tx.team.update({
+      where: { id: teamId },
+      data: {
+        playingCommunityLogoUrl: playingCommunityLogoUrl(teamId, asset.id),
+      },
+      include: hierarchyInclude,
+    });
+    if (previousAssets.length > 0) {
+      await tx.fileAsset.updateMany({
+        where: { id: { in: previousAssets.map((previous) => previous.id) } },
+        data: { deletedAt: new Date() },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId,
+        action: 'PLAYING_COMMUNITY_LOGO_REPLACED',
+        entityType: 'FileAsset',
+        entityId: asset.id,
+        metadata: { size: asset.size },
+      },
+    });
+    return updated;
+  });
+  await Promise.all(
+    previousPathnames.map((pathname) =>
+      objectStorage.delete(pathname).catch(() => undefined),
+    ),
+  );
+  return res.status(201).json(await serializeTeam(team, true));
+}
+
+export async function removePlayingCommunityLogo(req: Request, res: Response) {
+  const user = req.user!;
+  const teamId = req.params.id;
+  if (!(await canManageTeam(user, teamId))) {
+    return res.status(403).json({
+      message: 'Das Wappen der Spielgemeinschaft darf nicht entfernt werden.',
+    });
+  }
+  let pathnames: string[] = [];
+  const found = await prisma.$transaction(async (tx) => {
+    const team = await tx.team.findFirst({
+      where: { id: teamId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!team) return false;
+    const assets = await tx.fileAsset.findMany({
+      where: {
+        ownerTeamId: teamId,
+        kind: 'PLAYING_COMMUNITY_LOGO',
+        deletedAt: null,
+      },
+      select: { id: true, pathname: true },
+    });
+    pathnames = assets.map((asset) => asset.pathname);
+    await tx.team.update({
+      where: { id: teamId },
+      data: { playingCommunityLogoUrl: null },
+    });
+    if (assets.length > 0) {
+      await tx.fileAsset.updateMany({
+        where: { id: { in: assets.map((asset) => asset.id) } },
+        data: { deletedAt: new Date() },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId,
+        action: 'PLAYING_COMMUNITY_LOGO_REMOVED',
+        entityType: 'Team',
+        entityId: teamId,
+      },
+    });
+    return true;
+  });
+  if (!found) {
+    return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  }
+  await Promise.all(
+    pathnames.map((pathname) =>
+      objectStorage.delete(pathname).catch(() => undefined),
+    ),
+  );
   return res.status(204).send();
 }
 

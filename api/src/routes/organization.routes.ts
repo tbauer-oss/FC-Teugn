@@ -4,10 +4,12 @@ import {
   organizationContext,
   updateOrganizationContext,
   publicOrganization,
+  removePlayingCommunityLogo,
   removeTeamPhoto,
   updateTeam,
   updateTeamDefaultLineup,
   updateTrainingSchedule,
+  uploadPlayingCommunityLogo,
   uploadTeamPhoto,
 } from '../controllers/organization.controller';
 import {
@@ -82,6 +84,21 @@ router.delete(
   requireApproved,
   requirePermission(Permission.MANAGE_TEAM),
   asyncHandler(removeTeamPhoto),
+);
+router.post(
+  '/teams/:id/playing-community-logo',
+  requireAuth,
+  requireApproved,
+  requirePermission(Permission.MANAGE_TEAM),
+  playerFileUpload.single('file'),
+  asyncHandler(uploadPlayingCommunityLogo),
+);
+router.delete(
+  '/teams/:id/playing-community-logo',
+  requireAuth,
+  requireApproved,
+  requirePermission(Permission.MANAGE_TEAM),
+  asyncHandler(removePlayingCommunityLogo),
 );
 router.get(
   '/rule-profiles',

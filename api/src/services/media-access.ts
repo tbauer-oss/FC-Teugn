@@ -4,7 +4,7 @@ import {
   verifyMediaAccessToken,
 } from '../lib/jwt';
 
-function apiPublicUrl() {
+export function apiPublicUrl() {
   const explicit = process.env.API_PUBLIC_URL?.trim();
   if (explicit) return explicit.replace(/\/+$/, '');
 
@@ -19,6 +19,11 @@ function apiPublicUrl() {
     return `http://localhost:${process.env.PORT || 4000}`;
   }
   return 'https://fc-teugn-backend.vercel.app';
+}
+
+export function playingCommunityLogoUrl(teamId: string, assetId?: string) {
+  const version = assetId ? `?v=${encodeURIComponent(assetId)}` : '';
+  return `${apiPublicUrl()}/media/playing-community-logo/${encodeURIComponent(teamId)}${version}`;
 }
 
 export function mediaAssetUrl(
