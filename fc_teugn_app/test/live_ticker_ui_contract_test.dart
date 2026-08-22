@@ -22,8 +22,8 @@ void main() {
     );
 
     expect(focusView, contains('clockControlLabel'));
-    expect(focusView, contains("? 'Tor FC Teugn'"));
-    expect(focusView, contains("'Tor für FC Teugn'"));
+    expect(focusView, contains("? 'Tor \${data.ownTeamName}'"));
+    expect(focusView, contains("'Tor für \${data.ownTeamName}'"));
     expect(focusView, contains("'Gegentor'"));
     expect(focusView, contains("'Spiel beenden'"));
     expect(

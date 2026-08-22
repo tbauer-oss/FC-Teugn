@@ -8,6 +8,7 @@ import {
 
 import { prisma } from '../lib/prisma';
 import { notifyUsers } from './notification.service';
+import { teamPlayingIdentity } from './team-playing-identity.service';
 
 export type LiveTickerNotificationEvent = {
   id: string;
@@ -30,8 +31,9 @@ export function liveTickerNotificationCopy(input: {
   event: LiveTickerNotificationEvent;
   opponent: string;
   fcIsHome: boolean;
+  ownTeamName?: string;
 }) {
-  const { event, opponent, fcIsHome } = input;
+  const { event, opponent, fcIsHome, ownTeamName = 'FC Teugn' } = input;
   const isOurGoal =
     (fcIsHome && event.type === TickerEventType.HOME_GOAL) ||
     (!fcIsHome && event.type === TickerEventType.AWAY_GOAL);
@@ -41,14 +43,14 @@ export function liveTickerNotificationCopy(input: {
   const score = `${event.ourGoals}:${event.theirGoals}`;
   if (event.type === TickerEventType.MATCH_START) {
     return {
-      title: 'Anpfiff – FC Teugn live',
+      title: `Anpfiff – ${ownTeamName} live`,
       body: `Das Spiel gegen ${opponent} läuft. Jetzt den Liveticker öffnen.`,
     };
   }
   if (isOurGoal) {
     return {
-      title: `Tor für FC Teugn! ${score}`,
-      body: `FC Teugn trifft gegen ${opponent}. Jetzt live mitfiebern.`,
+      title: `Tor für ${ownTeamName}! ${score}`,
+      body: `${ownTeamName} trifft gegen ${opponent}. Jetzt live mitfiebern.`,
     };
   }
   if (isTheirGoal) {
@@ -60,7 +62,7 @@ export function liveTickerNotificationCopy(input: {
   if (event.type === TickerEventType.MATCH_END) {
     return {
       title: `Abpfiff · Endstand ${score}`,
-      body: `Das Spiel von FC Teugn gegen ${opponent} ist beendet.`,
+      body: `Das Spiel von ${ownTeamName} gegen ${opponent} ist beendet.`,
     };
   }
   return null;
@@ -70,10 +72,32 @@ export async function sendLiveTickerNotification(
   match: LiveTickerNotificationMatch,
   event: LiveTickerNotificationEvent,
 ) {
+  const teamId = match.targetTeams[0]?.teamId ?? match.teamId;
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: {
+      isPlayingCommunity: true,
+      playingCommunityName: true,
+      playingCommunityShortName: true,
+      playingCommunityLogoUrl: true,
+      ageGroup: {
+        select: {
+          season: {
+            select: {
+              club: {
+                select: { name: true, shortName: true, logoUrl: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
   const copy = liveTickerNotificationCopy({
     event,
     opponent: match.matchDetails?.opponent || 'den Gegner',
     fcIsHome: match.matchDetails?.isHome !== false,
+    ownTeamName: team ? teamPlayingIdentity(team).name : 'FC Teugn',
   });
   if (!copy) return null;
   const recipientIds = await liveTickerNotificationAudience(match);

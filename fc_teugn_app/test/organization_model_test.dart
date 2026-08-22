@@ -9,6 +9,11 @@ void main() {
       'teamNumber': 1,
       'displayName': 'E1-Jugend',
       'shortName': 'E1',
+      'isPlayingCommunity': true,
+      'playingCommunityName': '(SG) SV Saal/Donau',
+      'playingCommunityShortName': 'SG Saal/Donau',
+      'playingName': '(SG) SV Saal/Donau',
+      'playingShortName': 'SG Saal/Donau',
       'level': 'Gruppe',
       'teamType': 'DEVELOPMENT',
       'gender': 'MIXED',
@@ -68,6 +73,9 @@ void main() {
     expect(team.teamType, 'DEVELOPMENT');
     expect(team.teamNumber, 1);
     expect(team.displayName, 'E1-Jugend');
+    expect(team.isPlayingCommunity, isTrue);
+    expect(team.playingName, '(SG) SV Saal/Donau');
+    expect(team.playingShortName, 'SG Saal/Donau');
     expect(team.birthYears, [2015, 2016]);
     expect(team.trainingTimes, ['Dienstag 17:00–18:30']);
     expect(team.seasonStartDate?.year, 2026);
@@ -104,6 +112,8 @@ void main() {
     expect(team.trainingTimes, isEmpty);
     expect(team.staff, isEmpty);
     expect(team.displayName, 'F1-Jugend');
+    expect(team.isPlayingCommunity, isFalse);
+    expect(team.playingName, 'FC Teugn');
     expect(team.photoStatus.stored, isFalse);
     expect(team.photoStatus.blockedByConsent, isFalse);
   });

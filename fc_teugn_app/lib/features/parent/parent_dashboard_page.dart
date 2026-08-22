@@ -223,7 +223,8 @@ class _LiveTickerCard extends StatelessWidget {
                     ]),
                     const SizedBox(height: 2),
                     Text(
-                      'FC Teugn ${ticker.ourGoals} : ${ticker.theirGoals} $opponent',
+                      '${match.ownTeamName} ${ticker.ourGoals} : '
+                      '${ticker.theirGoals} $opponent',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

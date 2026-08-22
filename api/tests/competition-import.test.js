@@ -9,6 +9,9 @@ const {
 const {
   competitionMatchTiming,
 } = require('../dist/src/services/competition-import-write.service.js');
+const {
+  matchTitleForPlayingIdentity,
+} = require('../dist/src/services/team-playing-identity.service.js');
 
 const fixture = fs.readFileSync(
   path.join(__dirname, 'fixtures', 'bfv-spielplan.ics'),
@@ -81,5 +84,37 @@ const explicitCsv = parseCompetitionSource(
 );
 assert.equal(explicitCsv[0].match.periodCount, 4);
 assert.equal(explicitCsv[0].match.periodMinutes, 15);
+
+const playingCommunityIcs = `BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:sg-a-jugend-1
+DTSTART:20260920T120000Z
+SUMMARY:(SG) SV Saal/Donau A-Jun. - TSV Beispiel A-Jun., Meisterschaften
+LOCATION:Sportplatz Saal
+END:VEVENT
+END:VCALENDAR`;
+const playingCommunityRows = parseCompetitionSource(
+  'ICS',
+  playingCommunityIcs,
+  {
+    ownTeamNames: ['(SG) SV Saal/Donau', 'SG Saal/Donau'],
+    displayOwnTeamName: '(SG) SV Saal/Donau',
+  },
+);
+assert.equal(playingCommunityRows.length, 1);
+assert.equal(playingCommunityRows[0].match.isHome, true);
+assert.equal(playingCommunityRows[0].match.opponent, 'TSV Beispiel A1');
+assert.equal(
+  playingCommunityRows[0].match.title,
+  '(SG) SV Saal/Donau – TSV Beispiel A1',
+);
+assert.equal(
+  matchTitleForPlayingIdentity({
+    ownTeamName: '(SG) SV Saal/Donau',
+    opponent: 'TSV Beispiel A1',
+    isHome: false,
+  }),
+  'TSV Beispiel A1 – (SG) SV Saal/Donau',
+);
 
 console.log('competition import tests passed');

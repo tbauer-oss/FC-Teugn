@@ -478,6 +478,10 @@ model Team {
   teamNumber                 Int                         @default(1)
   name                       String
   shortName                  String?
+  isPlayingCommunity         Boolean                     @default(false)
+  playingCommunityName       String?
+  playingCommunityShortName  String?
+  playingCommunityLogoUrl    String?
   level                      String?
   teamType                   TeamType                    @default(COMPETITIVE)
   gender                     TeamGender                  @default(MIXED)

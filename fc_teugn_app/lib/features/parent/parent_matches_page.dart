@@ -256,10 +256,10 @@ class _PublicMatchCard extends StatelessWidget {
           final teams = compact
               ? Column(
                   children: [
-                    const Text(
-                      'FC Teugn',
+                    Text(
+                      event.ownTeamName,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: AppColors.navy,
                         fontWeight: FontWeight.w800,
                         fontSize: 17,
@@ -284,11 +284,11 @@ class _PublicMatchCard extends StatelessWidget {
                 )
               : Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'FC Teugn',
+                        event.ownTeamName,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: AppColors.navy,
                           fontWeight: FontWeight.w800,
                           fontSize: 18,

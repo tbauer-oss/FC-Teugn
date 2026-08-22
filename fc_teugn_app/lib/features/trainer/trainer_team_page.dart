@@ -275,7 +275,7 @@ class _TeamHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  team.displayName,
+                  team.isPlayingCommunity ? team.playingName : team.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -286,6 +286,7 @@ class _TeamHero extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   [
+                    if (team.isPlayingCommunity) team.displayName,
                     '${playerCount ?? '–'} Spieler',
                     team.gameFormat.strength,
                     team.seasonName,

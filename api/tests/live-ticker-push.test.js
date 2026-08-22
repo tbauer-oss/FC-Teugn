@@ -69,6 +69,28 @@ test('away matches map FC Teugn and opponent goals correctly', () => {
   );
 });
 
+test('playing communities use their own identity in ticker notifications', () => {
+  const input = {
+    opponent: 'TSV Beispiel',
+    fcIsHome: true,
+    ownTeamName: '(SG) SV Saal/Donau',
+  };
+  assert.match(
+    liveTickerNotificationCopy({
+      ...input,
+      event: event('HOME_GOAL', 1, 0),
+    }).title,
+    /Tor für \(SG\) SV Saal\/Donau! 1:0/,
+  );
+  assert.match(
+    liveTickerNotificationCopy({
+      ...input,
+      event: event('MATCH_END', 2, 1),
+    }).body,
+    /Spiel von \(SG\) SV Saal\/Donau gegen TSV Beispiel/,
+  );
+});
+
 test('ticker commands notify once after the authoritative commit', () => {
   const controller = fs.readFileSync(
     path.join(__dirname, '../src/controllers/matches.controller.ts'),

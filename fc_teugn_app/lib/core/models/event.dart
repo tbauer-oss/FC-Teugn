@@ -227,11 +227,19 @@ class EventTeam {
     required this.id,
     required this.name,
     required this.ageGroupCode,
+    this.isPlayingCommunity = false,
+    this.playingName = 'FC Teugn',
+    this.playingShortName = 'FC Teugn',
+    this.playingLogoUrl,
   });
 
   final String id;
   final String name;
   final String ageGroupCode;
+  final bool isPlayingCommunity;
+  final String playingName;
+  final String playingShortName;
+  final String? playingLogoUrl;
 
   String get label => '$ageGroupCode-Jugend · $name';
 
@@ -239,10 +247,30 @@ class EventTeam {
     final team = (json['team'] as Map<String, dynamic>?) ?? json;
     final ageGroup =
         team['ageGroup'] as Map<String, dynamic>? ?? const <String, dynamic>{};
+    final club = ((ageGroup['season'] as Map<String, dynamic>?)?['club']
+            as Map<String, dynamic>?) ??
+        const <String, dynamic>{};
+    final isPlayingCommunity = team['isPlayingCommunity'] as bool? ?? false;
+    final playingCommunityName = team['playingCommunityName'] as String?;
+    final playingName =
+        isPlayingCommunity && playingCommunityName?.trim().isNotEmpty == true
+            ? playingCommunityName!.trim()
+            : club['name'] as String? ?? 'FC Teugn';
     return EventTeam(
       id: team['id'] as String,
       name: team['name'] as String? ?? 'Mannschaft',
       ageGroupCode: ageGroup['code'] as String? ?? '',
+      isPlayingCommunity: isPlayingCommunity,
+      playingName: playingName,
+      playingShortName: isPlayingCommunity
+          ? (team['playingCommunityShortName'] as String?)?.trim().isNotEmpty ==
+                  true
+              ? (team['playingCommunityShortName'] as String).trim()
+              : playingName
+          : club['shortName'] as String? ?? playingName,
+      playingLogoUrl: isPlayingCommunity
+          ? team['playingCommunityLogoUrl'] as String?
+          : club['logoUrl'] as String?,
     );
   }
 }
@@ -742,6 +770,10 @@ class EventModel {
     this.matchDetails,
     this.parentTournamentId,
     this.tournamentFixtures = const [],
+    this.ownTeamName = 'FC Teugn',
+    this.ownTeamShortName = 'FC Teugn',
+    this.ownTeamLogoUrl,
+    this.ownTeamIsPlayingCommunity = false,
   });
 
   final String id;
@@ -789,6 +821,10 @@ class EventModel {
   final MatchDetails? matchDetails;
   final String? parentTournamentId;
   final List<TournamentFixtureModel> tournamentFixtures;
+  final String ownTeamName;
+  final String ownTeamShortName;
+  final String? ownTeamLogoUrl;
+  final bool ownTeamIsPlayingCommunity;
   final List<EventAttendance> attendance;
   final AttendanceSummary attendanceSummary;
   final List<MissingAttendance> missingAttendance;
@@ -807,6 +843,8 @@ class EventModel {
   }
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
+    final ownTeam =
+        json['ownTeam'] as Map<String, dynamic>? ?? const <String, dynamic>{};
     return EventModel(
       id: json['id'] as String,
       teamId: json['teamId'] as String,
@@ -911,6 +949,13 @@ class EventModel {
                 ),
               )
               .toList(),
+      ownTeamName: ownTeam['name'] as String? ?? 'FC Teugn',
+      ownTeamShortName: ownTeam['shortName'] as String? ??
+          ownTeam['name'] as String? ??
+          'FC Teugn',
+      ownTeamLogoUrl: ownTeam['logoUrl'] as String?,
+      ownTeamIsPlayingCommunity:
+          ownTeam['isPlayingCommunity'] as bool? ?? false,
       attendance: (json['attendance'] as List<dynamic>? ?? [])
           .map((item) => EventAttendance.fromJson(item as Map<String, dynamic>))
           .toList(),

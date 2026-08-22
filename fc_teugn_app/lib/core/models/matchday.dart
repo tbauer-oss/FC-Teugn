@@ -79,6 +79,10 @@ class MatchdayModel {
     this.canReleaseFamily = false,
     this.canRatePlayers = false,
     this.playerRatings = const [],
+    this.ownTeamName = 'FC Teugn',
+    this.ownTeamShortName = 'FC Teugn',
+    this.ownTeamLogoUrl,
+    this.ownTeamIsPlayingCommunity = false,
   });
 
   final String id;
@@ -109,10 +113,16 @@ class MatchdayModel {
   final bool canReleaseFamily;
   final bool canRatePlayers;
   final List<PlayerMatchRatingModel> playerRatings;
+  final String ownTeamName;
+  final String ownTeamShortName;
+  final String? ownTeamLogoUrl;
+  final bool ownTeamIsPlayingCommunity;
 
   factory MatchdayModel.fromJson(Map<String, dynamic> json) {
     final squads = json['squads'] as List<dynamic>? ?? const [];
     final capabilities = json['capabilities'] as Map<String, dynamic>?;
+    final ownTeam =
+        json['ownTeam'] as Map<String, dynamic>? ?? const <String, dynamic>{};
     return MatchdayModel(
       id: json['id'] as String,
       title: json['title'] as String? ?? 'Spiel',
@@ -183,6 +193,13 @@ class MatchdayModel {
             ),
           )
           .toList(),
+      ownTeamName: ownTeam['name'] as String? ?? 'FC Teugn',
+      ownTeamShortName: ownTeam['shortName'] as String? ??
+          ownTeam['name'] as String? ??
+          'FC Teugn',
+      ownTeamLogoUrl: ownTeam['logoUrl'] as String?,
+      ownTeamIsPlayingCommunity:
+          ownTeam['isPlayingCommunity'] as bool? ?? false,
     );
   }
 

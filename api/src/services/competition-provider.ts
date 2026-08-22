@@ -143,6 +143,11 @@ export type CompetitionTeamIdentity = {
   displayName: string;
 };
 
+export type CompetitionSourceOptions = {
+  ownTeamNames?: string[];
+  displayOwnTeamName?: string;
+};
+
 function withoutPlayingCommunityPrefix(input: string) {
   return input
     .replace(/^\s*\(\s*SG\s*\)\s*/i, '')
@@ -185,37 +190,77 @@ export function competitionTeamIdentity(input: string): CompetitionTeamIdentity 
   };
 }
 
-function pairingFromSummary(summary: string) {
+function normalizedClubIdentity(input: string) {
+  return competitionTeamIdentity(input).clubName
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('de-DE')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function escapeRegExp(input: string) {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function ownTeamPattern(input: string) {
+  const clubName = competitionTeamIdentity(input).clubName;
+  if (!clubName) return null;
+  const flexibleClubName = escapeRegExp(clubName)
+    .replace(/\\ /g, '\\s+')
+    .replace(/\\\//g, '\\s*\/\\s*');
+  return new RegExp(
+    `(?:\\(\\s*SG\\s*\\)\\s*|SG\\s+)?${flexibleClubName}` +
+      '(?:\\s+[A-G](?:\\s*\\d{1,2})?(?:\\s*-?\\s*Jun\\.?)?(?:\\s+\\d{1,2})?)?',
+    'i',
+  );
+}
+
+function pairingFromSummary(
+  summary: string,
+  options: CompetitionSourceOptions = {},
+) {
   const [pairing = '', ...metadata] = summary
     .split(/\s*,\s*/)
     .map((part) => part.trim())
     .filter(Boolean);
-  const ownTeamPattern = /\bFC\s+Teugn(?:\s+[A-G]\d+(?:\s+\d{1,2})?)?/i;
-  const ownTeam = pairing.match(ownTeamPattern);
-  if (ownTeam?.index != null) {
+  const ownNames = options.ownTeamNames?.length
+    ? options.ownTeamNames
+    : ['FC Teugn'];
+  const ownIdentities = new Set(
+    ownNames.map(normalizedClubIdentity).filter(Boolean),
+  );
+  for (const ownName of ownNames) {
+    const pattern = ownTeamPattern(ownName);
+    const ownTeam = pattern ? pairing.match(pattern) : null;
+    if (ownTeam?.index == null) continue;
     const before = pairing.slice(0, ownTeam.index).replace(/\s*[-–—]\s*$/, '');
     const after = pairing
       .slice(ownTeam.index + ownTeam[0].length)
       .replace(/^\s*[-–—]\s*/, '');
     const isHome = ownTeam.index === 0;
     const opponentRaw = (isHome ? after : before).trim();
-    if (opponentRaw) {
-      return {
-        isHome,
-        ownTeam: competitionTeamIdentity(ownTeam[0]),
-        opponent: competitionTeamIdentity(opponentRaw),
-        competition: metadata[0] || null,
-        division: metadata.slice(1).join(', ') || null,
-      };
-    }
-  }
-  const fallback = pairing.split(/\s+(?:[-–—]|vs\.?|gegen)\s+/i);
-  if (fallback.length === 2) {
-    const isHome = /^fc\s+teugn/i.test(fallback[0]);
+    if (!opponentRaw) continue;
     return {
       isHome,
-      ownTeam: competitionTeamIdentity(isHome ? fallback[0] : fallback[1]),
-      opponent: competitionTeamIdentity(isHome ? fallback[1] : fallback[0]),
+      ownTeam: competitionTeamIdentity(ownTeam[0]),
+      opponent: competitionTeamIdentity(opponentRaw),
+      competition: metadata[0] || null,
+      division: metadata.slice(1).join(', ') || null,
+    };
+  }
+  const teams = pairing
+    .split(/\s+(?:[-–—]|vs\.?|gegen)\s+/i)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (teams.length === 2) {
+    const homeMatches = ownIdentities.has(normalizedClubIdentity(teams[0]));
+    const awayMatches = ownIdentities.has(normalizedClubIdentity(teams[1]));
+    if (homeMatches === awayMatches) return null;
+    const isHome = homeMatches;
+    return {
+      isHome,
+      ownTeam: competitionTeamIdentity(isHome ? teams[0] : teams[1]),
+      opponent: competitionTeamIdentity(isHome ? teams[1] : teams[0]),
       competition: metadata[0] || null,
       division: metadata.slice(1).join(', ') || null,
     };
@@ -403,7 +448,10 @@ function icsDate(value: string, timeZone = 'Europe/Berlin') {
   return Number.isNaN(result.getTime()) ? null : result;
 }
 
-function icsRows(content: string): ParsedCompetitionRow[] {
+function icsRows(
+  content: string,
+  options: CompetitionSourceOptions = {},
+): ParsedCompetitionRow[] {
   const unfolded = content.replace(/\r?\n[ \t]/g, '');
   const events = unfolded.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g) ?? [];
   if (!events.length) {
@@ -434,7 +482,7 @@ function icsRows(content: string): ParsedCompetitionRow[] {
     if (!start) messages.push('DTSTART fehlt oder ist ungültig.');
     if (!summary) messages.push('SUMMARY fehlt.');
     if (messages.length) return { rowNumber: index + 1, match: null, messages };
-    const pairing = pairingFromSummary(summary);
+    const pairing = pairingFromSummary(summary, options);
     if (!pairing) {
       return {
         rowNumber: index + 1,
@@ -464,8 +512,8 @@ function icsRows(content: string): ParsedCompetitionRow[] {
     );
     const base = {
       title: pairing.isHome
-        ? `FC Teugn – ${pairing.opponent.displayName}`
-        : `${pairing.opponent.displayName} – FC Teugn`,
+        ? `${options.displayOwnTeamName ?? 'FC Teugn'} – ${pairing.opponent.displayName}`
+        : `${pairing.opponent.displayName} – ${options.displayOwnTeamName ?? 'FC Teugn'}`,
       startAt: start!.toISOString(),
       endAt: end?.toISOString() ?? null,
       location: venue.location,
@@ -504,8 +552,9 @@ function icsRows(content: string): ParsedCompetitionRow[] {
 export function parseCompetitionSource(
   format: CompetitionImportFormat,
   content: string,
+  options: CompetitionSourceOptions = {},
 ) {
-  return format === 'ICS' ? icsRows(content) : csvRows(content);
+  return format === 'ICS' ? icsRows(content, options) : csvRows(content);
 }
 
 export function competitionMatchChecksum(match: NormalizedCompetitionMatch) {

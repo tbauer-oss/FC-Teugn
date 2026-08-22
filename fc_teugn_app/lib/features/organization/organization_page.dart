@@ -85,6 +85,10 @@ class _OrganizationContent extends ConsumerWidget {
           teamNumber: draft.teamNumber,
           name: draft.name,
           shortName: draft.shortName,
+          isPlayingCommunity: draft.isPlayingCommunity,
+          playingCommunityName: draft.playingCommunityName,
+          playingCommunityShortName: draft.playingCommunityShortName,
+          playingCommunityLogoUrl: draft.playingCommunityLogoUrl,
           level: draft.level,
           teamType: draft.teamType,
           gender: draft.gender,
@@ -113,6 +117,10 @@ class _OrganizationContent extends ConsumerWidget {
           teamNumber: draft.teamNumber,
           name: draft.name,
           shortName: draft.shortName,
+          isPlayingCommunity: draft.isPlayingCommunity,
+          playingCommunityName: draft.playingCommunityName,
+          playingCommunityShortName: draft.playingCommunityShortName,
+          playingCommunityLogoUrl: draft.playingCommunityLogoUrl,
           level: draft.level,
           teamType: draft.teamType,
           gender: draft.gender,
@@ -730,6 +738,13 @@ class _TeamCard extends StatelessWidget {
                   '${team.level?.isNotEmpty == true ? ' · ${team.level}' : ''}',
                   style: const TextStyle(color: AppColors.muted),
                 ),
+                if (team.isPlayingCommunity) ...[
+                  const SizedBox(height: 8),
+                  _InfoLine(
+                    icon: Icons.handshake_outlined,
+                    text: 'Spielgemeinschaft · ${team.playingName}',
+                  ),
+                ],
                 const SizedBox(height: 10),
                 _InfoLine(
                   icon: Icons.sports_soccer_rounded,
@@ -995,6 +1010,9 @@ class _TeamEditorDialog extends StatefulWidget {
 class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _level;
+  late final TextEditingController _playingCommunityName;
+  late final TextEditingController _playingCommunityShortName;
+  late final TextEditingController _playingCommunityLogoUrl;
   late final TextEditingController _description;
   late final TextEditingController _trainingLocation;
   late final TextEditingController _trainingTimes;
@@ -1011,6 +1029,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
   late int _periodCount;
   late int _periodMinutes;
   late bool _isActive;
+  late bool _isPlayingCommunity;
   late Set<int> _birthYears;
   DateTime? _seasonStartDate;
   DateTime? _seasonEndDate;
@@ -1022,6 +1041,12 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
     super.initState();
     final team = widget.team;
     _level = TextEditingController(text: team?.level);
+    _playingCommunityName =
+        TextEditingController(text: team?.playingCommunityName);
+    _playingCommunityShortName =
+        TextEditingController(text: team?.playingCommunityShortName);
+    _playingCommunityLogoUrl =
+        TextEditingController(text: team?.playingCommunityLogoUrl);
     _birthYears = {...?team?.birthYears};
     _description = TextEditingController(text: team?.description);
     _trainingLocation = TextEditingController(text: team?.trainingLocation);
@@ -1050,12 +1075,16 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
     _periodCount = team?.periodCount ?? defaults.periodCount;
     _periodMinutes = team?.periodMinutes ?? defaults.periodMinutes;
     _isActive = team?.isActive ?? true;
+    _isPlayingCommunity = team?.isPlayingCommunity ?? false;
   }
 
   @override
   void dispose() {
     for (final controller in [
       _level,
+      _playingCommunityName,
+      _playingCommunityShortName,
+      _playingCommunityLogoUrl,
       _description,
       _trainingLocation,
       _trainingTimes,
@@ -1202,6 +1231,63 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: _isPlayingCommunity,
+                onChanged: (value) =>
+                    setState(() => _isPlayingCommunity = value),
+                title: const Text('Spielgemeinschaft'),
+                subtitle: const Text(
+                  'Diese Jugend tritt unter einem gemeinsamen Vereinsnamen an.',
+                ),
+                secondary: const Icon(Icons.handshake_outlined),
+              ),
+              if (_isPlayingCommunity) ...[
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _playingCommunityName,
+                  decoration: const InputDecoration(
+                    labelText: 'Name auf Spielplan und Spieltag *',
+                    hintText: '(SG) SV Saal/Donau',
+                    helperText:
+                        'Ersetzt bei dieser Mannschaft überall „FC Teugn“.',
+                    prefixIcon: Icon(Icons.groups_2_outlined),
+                  ),
+                  validator: (value) => value?.trim().isNotEmpty == true
+                      ? null
+                      : 'Bitte den Namen der Spielgemeinschaft angeben.',
+                ),
+                const SizedBox(height: 12),
+                _twoColumns(
+                  TextFormField(
+                    controller: _playingCommunityShortName,
+                    decoration: const InputDecoration(
+                      labelText: 'Kurzname (optional)',
+                      hintText: 'SG Saal/Donau',
+                    ),
+                  ),
+                  TextFormField(
+                    controller: _playingCommunityLogoUrl,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(
+                      labelText: 'Wappen-URL (optional)',
+                      helperText:
+                          'Ohne Wappen wird ein neutrales Symbol verwendet.',
+                    ),
+                    validator: (value) {
+                      final text = value?.trim() ?? '';
+                      if (text.isEmpty) return null;
+                      final uri = Uri.tryParse(text);
+                      return uri != null &&
+                              (uri.scheme == 'https' || uri.scheme == 'http') &&
+                              uri.host.isNotEmpty
+                          ? null
+                          : 'Bitte eine gültige Webadresse eingeben.';
+                    },
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               DropdownButtonFormField<TeamGameFormat>(
                 initialValue: _gameFormat,
@@ -1596,6 +1682,13 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         name: compactName,
         displayName: _displayName(selectedAgeGroup),
         shortName: compactName,
+        isPlayingCommunity: _isPlayingCommunity,
+        playingCommunityName:
+            _isPlayingCommunity ? _optional(_playingCommunityName) : null,
+        playingCommunityShortName:
+            _isPlayingCommunity ? _optional(_playingCommunityShortName) : null,
+        playingCommunityLogoUrl:
+            _isPlayingCommunity ? _optional(_playingCommunityLogoUrl) : null,
         level: _optional(_level),
         teamType: _teamType,
         gender: _gender,
@@ -1870,7 +1963,11 @@ class _TeamDraft {
     required this.trainingTimes,
     required this.indoorTrainingTimes,
     required this.isActive,
+    required this.isPlayingCommunity,
     this.shortName,
+    this.playingCommunityName,
+    this.playingCommunityShortName,
+    this.playingCommunityLogoUrl,
     this.level,
     this.description,
     this.trainingLocation,
@@ -1889,6 +1986,10 @@ class _TeamDraft {
   final String name;
   final String displayName;
   final String? shortName;
+  final bool isPlayingCommunity;
+  final String? playingCommunityName;
+  final String? playingCommunityShortName;
+  final String? playingCommunityLogoUrl;
   final String? level;
   final String teamType;
   final String gender;

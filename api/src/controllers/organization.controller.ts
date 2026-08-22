@@ -87,6 +87,10 @@ type TeamInput = {
   teamNumber?: unknown;
   name?: string;
   shortName?: string | null;
+  isPlayingCommunity?: boolean;
+  playingCommunityName?: string | null;
+  playingCommunityShortName?: string | null;
+  playingCommunityLogoUrl?: string | null;
   level?: string | null;
   teamType?: TeamType;
   gender?: TeamGender;
@@ -248,6 +252,7 @@ function normalizedTeamData(body: TeamInput) {
   const parsedTeamNumber = Number(body.teamNumber);
   const parsedPeriodCount = Number(body.periodCount);
   const parsedPeriodMinutes = Number(body.periodMinutes);
+  const isPlayingCommunity = body.isPlayingCommunity === true;
   return {
     teamNumber:
       Number.isInteger(parsedTeamNumber) &&
@@ -257,6 +262,16 @@ function normalizedTeamData(body: TeamInput) {
         : null,
     name: optionalText(body.name, 120),
     shortName: optionalText(body.shortName, 40),
+    isPlayingCommunity,
+    playingCommunityName: isPlayingCommunity
+      ? optionalText(body.playingCommunityName, 120)
+      : null,
+    playingCommunityShortName: isPlayingCommunity
+      ? optionalText(body.playingCommunityShortName, 60)
+      : null,
+    playingCommunityLogoUrl: isPlayingCommunity
+      ? validUrl(body.playingCommunityLogoUrl)
+      : null,
     level: optionalText(body.level, 80),
     teamType: Object.values(TeamType).includes(body.teamType as TeamType)
       ? body.teamType!
@@ -305,6 +320,9 @@ function normalizedTeamData(body: TeamInput) {
 }
 
 function scheduleDateError(data: ReturnType<typeof normalizedTeamData>) {
+  if (data.isPlayingCommunity && !data.playingCommunityName) {
+    return 'Bitte den vollständigen Namen der Spielgemeinschaft angeben.';
+  }
   if (data.periodCount * data.periodMinutes > 180) {
     return 'Die gesamte Spielzeit darf 180 Minuten nicht überschreiten.';
   }
@@ -371,6 +389,10 @@ export async function publicOrganization(_req: Request, res: Response) {
               id: true,
               name: true,
               shortName: true,
+              isPlayingCommunity: true,
+              playingCommunityName: true,
+              playingCommunityShortName: true,
+              playingCommunityLogoUrl: true,
               level: true,
               teamNumber: true,
             },
@@ -397,6 +419,15 @@ export async function publicOrganization(_req: Request, res: Response) {
       ...ageGroup,
       teams: ageGroup.teams.map((team) => ({
         ...team,
+        playingName: team.isPlayingCommunity && team.playingCommunityName
+          ? team.playingCommunityName
+          : season.club.name,
+        playingShortName: team.isPlayingCommunity && team.playingCommunityName
+          ? team.playingCommunityShortName ?? team.playingCommunityName
+          : season.club.shortName ?? season.club.name,
+        playingLogoUrl: team.isPlayingCommunity && team.playingCommunityName
+          ? team.playingCommunityLogoUrl
+          : season.club.logoUrl,
         displayName: teamDisplayName(
           ageGroup.code,
           team.teamNumber,
@@ -623,6 +654,15 @@ export async function createTeam(req: Request, res: Response) {
   if (body.bfvTeamUrl && !data.bfvTeamUrl) {
     return res.status(400).json({ message: 'Die BFV-Adresse ist ungültig.' });
   }
+  if (
+    body.isPlayingCommunity === true &&
+    body.playingCommunityLogoUrl &&
+    !data.playingCommunityLogoUrl
+  ) {
+    return res.status(400).json({
+      message: 'Die Wappen-Adresse der Spielgemeinschaft ist ungültig.',
+    });
+  }
   const contextTeamId = await resolveContextTeamId(user);
   if (!contextTeamId) {
     return res.status(404).json({ message: 'Keine aktive Mannschaft gefunden.' });
@@ -718,6 +758,15 @@ export async function updateTeam(req: Request, res: Response) {
   }
   if (body.bfvTeamUrl && !data.bfvTeamUrl) {
     return res.status(400).json({ message: 'Die BFV-Adresse ist ungültig.' });
+  }
+  if (
+    body.isPlayingCommunity === true &&
+    body.playingCommunityLogoUrl &&
+    !data.playingCommunityLogoUrl
+  ) {
+    return res.status(400).json({
+      message: 'Die Wappen-Adresse der Spielgemeinschaft ist ungültig.',
+    });
   }
   const existing = await prisma.team.findUnique({ where: { id: teamId }, include: hierarchyInclude });
   if (!existing || existing.deletedAt) {
@@ -1378,6 +1427,10 @@ function teamSnapshot(team: ReturnType<typeof normalizedTeamData> & { ageGroupId
     teamNumber: team.teamNumber,
     name: team.name,
     shortName: team.shortName,
+    isPlayingCommunity: team.isPlayingCommunity,
+    playingCommunityName: team.playingCommunityName,
+    playingCommunityShortName: team.playingCommunityShortName,
+    playingCommunityLogoUrl: team.playingCommunityLogoUrl,
     level: team.level,
     teamType: team.teamType,
     gender: team.gender,
@@ -1407,6 +1460,10 @@ async function serializeTeam(team: {
   teamNumber: number;
   name: string;
   shortName: string | null;
+  isPlayingCommunity: boolean;
+  playingCommunityName: string | null;
+  playingCommunityShortName: string | null;
+  playingCommunityLogoUrl: string | null;
   level: string | null;
   teamType: TeamType;
   gender: TeamGender;
@@ -1465,7 +1522,11 @@ async function serializeTeam(team: {
     id: string;
     name: string;
     code: string;
-    season: { id: string; name: string };
+    season: {
+      id: string;
+      name: string;
+      club: { name: string; shortName: string | null; logoUrl: string | null };
+    };
   };
 }, includePrivate: boolean, ageGroupTeamCount?: number) {
   const teamCount = ageGroupTeamCount ?? await prisma.team.count({
@@ -1483,6 +1544,19 @@ async function serializeTeam(team: {
     teamNumber: team.teamNumber,
     name: team.name,
     shortName: team.shortName,
+    isPlayingCommunity: team.isPlayingCommunity,
+    playingCommunityName: team.playingCommunityName,
+    playingCommunityShortName: team.playingCommunityShortName,
+    playingCommunityLogoUrl: team.playingCommunityLogoUrl,
+    playingName: team.isPlayingCommunity && team.playingCommunityName
+      ? team.playingCommunityName
+      : team.ageGroup.season.club.name,
+    playingShortName: team.isPlayingCommunity && team.playingCommunityName
+      ? team.playingCommunityShortName ?? team.playingCommunityName
+      : team.ageGroup.season.club.shortName ?? team.ageGroup.season.club.name,
+    playingLogoUrl: team.isPlayingCommunity && team.playingCommunityName
+      ? team.playingCommunityLogoUrl
+      : team.ageGroup.season.club.logoUrl,
     displayName: teamDisplayName(
       team.ageGroup.code,
       team.teamNumber,

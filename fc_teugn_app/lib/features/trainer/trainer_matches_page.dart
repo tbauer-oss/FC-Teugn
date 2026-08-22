@@ -1349,8 +1349,9 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                       TextField(
                         controller: ourGoals,
                         keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'Tore FC Teugn'),
+                        decoration: InputDecoration(
+                          labelText: 'Tore ${event.ownTeamShortName}',
+                        ),
                       ),
                       TextField(
                         controller: theirGoals,
@@ -1731,6 +1732,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                   key: ValueKey(rows[index].id ?? 'new-$index'),
                   index: index,
                   row: rows[index],
+                  ownTeamName: team.playingShortName,
                   opponents: opponents,
                   onAddOpponent: () async {
                     final created = await _createTournamentOpponent(
@@ -2382,6 +2384,7 @@ class _TournamentFixtureEditor extends StatelessWidget {
     super.key,
     required this.index,
     required this.row,
+    required this.ownTeamName,
     required this.opponents,
     required this.onAddOpponent,
     required this.onChanged,
@@ -2394,6 +2397,7 @@ class _TournamentFixtureEditor extends StatelessWidget {
 
   final int index;
   final _TournamentFixtureDraftState row;
+  final String ownTeamName;
   final List<OpponentModel> opponents;
   final TournamentOpponentCreator onAddOpponent;
   final VoidCallback onChanged;
@@ -2450,9 +2454,12 @@ class _TournamentFixtureEditor extends StatelessWidget {
       initialValue: row.isHome,
       isExpanded: true,
       decoration: compactDecoration.copyWith(labelText: 'Anzeige'),
-      items: const [
-        DropdownMenuItem(value: true, child: Text('FC Teugn zuerst')),
-        DropdownMenuItem(value: false, child: Text('Gegner zuerst')),
+      items: [
+        DropdownMenuItem(
+          value: true,
+          child: Text('$ownTeamName zuerst'),
+        ),
+        const DropdownMenuItem(value: false, child: Text('Gegner zuerst')),
       ],
       onChanged: (value) {
         if (value == null) return;
@@ -2727,7 +2734,8 @@ class _MatchCard extends StatelessWidget {
               viewMode == MatchViewMode.veryCompact;
           final title = details == null
               ? event.title
-              : 'FC Teugn ${details.isHome ? '–' : '@'} ${details.opponent}';
+              : '${event.ownTeamName} '
+                  '${details.isHome ? '–' : '@'} ${details.opponent}';
           final dateLocation = [
             '${date.day}.${date.month}.${date.year}',
             if (event.location.trim().isNotEmpty) event.location.trim(),
@@ -2966,6 +2974,9 @@ class _MatchCard extends StatelessWidget {
                       Row(
                         children: [
                           _MatchLogos(
+                            ownTeamLogoUrl: event.ownTeamLogoUrl,
+                            ownTeamIsPlayingCommunity:
+                                event.ownTeamIsPlayingCommunity,
                             opponentLogoUrl: details?.opponentLogoUrl,
                             compact: true,
                             tournament: isTournament,
@@ -3027,6 +3038,9 @@ class _MatchCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _MatchLogos(
+                                ownTeamLogoUrl: event.ownTeamLogoUrl,
+                                ownTeamIsPlayingCommunity:
+                                    event.ownTeamIsPlayingCommunity,
                                 opponentLogoUrl: details?.opponentLogoUrl,
                                 compact: true,
                                 tournament: isTournament,
@@ -3059,6 +3073,9 @@ class _MatchCard extends StatelessWidget {
                     : Row(
                         children: [
                           _MatchLogos(
+                            ownTeamLogoUrl: event.ownTeamLogoUrl,
+                            ownTeamIsPlayingCommunity:
+                                event.ownTeamIsPlayingCommunity,
                             opponentLogoUrl: details?.opponentLogoUrl,
                             compact: false,
                             tournament: isTournament,
@@ -3306,10 +3323,14 @@ class _CompactMatchActions extends StatelessWidget {
 
 class _MatchLogos extends StatelessWidget {
   const _MatchLogos({
+    required this.ownTeamLogoUrl,
+    required this.ownTeamIsPlayingCommunity,
     required this.opponentLogoUrl,
     required this.compact,
     this.tournament = false,
   });
+  final String? ownTeamLogoUrl;
+  final bool ownTeamIsPlayingCommunity;
   final String? opponentLogoUrl;
   final bool compact;
   final bool tournament;
@@ -3320,7 +3341,11 @@ class _MatchLogos extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        TeamCrest.club(size: size),
+        TeamCrest.ownTeam(
+          size: size,
+          logoUrl: ownTeamLogoUrl,
+          isPlayingCommunity: ownTeamIsPlayingCommunity,
+        ),
         const SizedBox(width: 5),
         if (tournament)
           Container(

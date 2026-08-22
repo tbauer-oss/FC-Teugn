@@ -12,6 +12,11 @@ void main() {
       'communicationStatus': 'FAMILY_RELEASED',
       'visibility': 'TEAM',
       'title': 'Festival',
+      'ownTeam': {
+        'name': '(SG) SV Saal/Donau',
+        'shortName': 'SG Saal/Donau',
+        'isPlayingCommunity': true,
+      },
       'startAt': '2026-08-03T16:00:00.000Z',
       'endAt': '2026-08-03T18:00:00.000Z',
       'meetingAt': '2026-08-03T15:00:00.000Z',
@@ -96,6 +101,9 @@ void main() {
     });
 
     expect(event.category, EventCategory.footballFestival);
+    expect(event.ownTeamName, '(SG) SV Saal/Donau');
+    expect(event.ownTeamShortName, 'SG Saal/Donau');
+    expect(event.ownTeamIsPlayingCommunity, isTrue);
     expect(event.communicationStatus, EventCommunicationStatus.familyReleased);
     expect(
       event.familyReleasedAt,

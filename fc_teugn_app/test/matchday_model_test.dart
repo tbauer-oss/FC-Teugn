@@ -8,6 +8,12 @@ void main() {
       'id': 'event-1',
       'teamId': 'team-1',
       'title': 'Testspiel',
+      'ownTeam': {
+        'name': '(SG) SV Saal/Donau',
+        'shortName': 'SG Saal/Donau',
+        'logoUrl': 'https://example.test/sg.png',
+        'isPlayingCommunity': true,
+      },
       'startAt': '2026-08-12T16:00:00.000Z',
       'meetingAt': '2026-08-12T15:00:00.000Z',
       'meetingLocation': 'Vereinsheim Teugn',
@@ -137,6 +143,10 @@ void main() {
     });
 
     expect(match.details?.status, MatchStatus.live);
+    expect(match.ownTeamName, '(SG) SV Saal/Donau');
+    expect(match.ownTeamShortName, 'SG Saal/Donau');
+    expect(match.ownTeamLogoUrl, 'https://example.test/sg.png');
+    expect(match.ownTeamIsPlayingCommunity, isTrue);
     expect(match.meetingLocation, 'Vereinsheim Teugn');
     expect(
       match.communicationStatus,

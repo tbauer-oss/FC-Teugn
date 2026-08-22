@@ -5,6 +5,7 @@ import {
 } from './competition-provider';
 import { writeCompetitionMatch } from './competition-import-write.service';
 import { matchCompetitionOpponents } from './competition-opponent-match.service';
+import { teamPlayingIdentity } from './team-playing-identity.service';
 
 const PROVIDER = 'BFV_ICS';
 const MAX_ICS_BYTES = 2_000_000;
@@ -75,7 +76,30 @@ async function fetchOfficialIcs(initialUrl: URL) {
 }
 
 export async function runBfvTeamSync(teamId: string) {
-  const config = await prisma.bfvTeamSync.findUnique({ where: { teamId } });
+  const config = await prisma.bfvTeamSync.findUnique({
+    where: { teamId },
+    include: {
+      team: {
+        select: {
+          isPlayingCommunity: true,
+          playingCommunityName: true,
+          playingCommunityShortName: true,
+          playingCommunityLogoUrl: true,
+          ageGroup: {
+            select: {
+              season: {
+                select: {
+                  club: {
+                    select: { name: true, shortName: true, logoUrl: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
   if (!config?.icalUrl) {
     throw new Error('Für diese Mannschaft ist noch keine BfV-iCal-Adresse hinterlegt.');
   }
@@ -85,9 +109,13 @@ export async function runBfvTeamSync(teamId: string) {
   });
   try {
     const content = await fetchOfficialIcs(validatedBfvIcalUrl(config.icalUrl));
+    const ownTeam = teamPlayingIdentity(config.team);
     const parsed = (await matchCompetitionOpponents(
       teamId,
-      parseCompetitionSource('ICS', content),
+      parseCompetitionSource('ICS', content, {
+        ownTeamNames: [ownTeam.name, ownTeam.shortName],
+        displayOwnTeamName: ownTeam.name,
+      }),
     )).slice(0, 500);
     const matches = parsed.flatMap((row) => row.match ? [row.match] : []);
     const externalIds = [...new Set(matches.map((match) => match.externalId))];

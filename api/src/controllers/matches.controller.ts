@@ -65,6 +65,10 @@ import {
   reconcileKitLaundryDuty,
   respondToKitLaundryDuty,
 } from '../services/kit-laundry.service';
+import {
+  matchTitleForPlayingIdentity,
+  teamPlayingIdentity,
+} from '../services/team-playing-identity.service';
 
 const tournamentCategories = new Set<EventCategory>([
   EventCategory.TOURNAMENT,
@@ -79,10 +83,27 @@ const matchInclude = {
   team: {
     select: {
       id: true,
+      name: true,
+      shortName: true,
+      isPlayingCommunity: true,
+      playingCommunityName: true,
+      playingCommunityShortName: true,
+      playingCommunityLogoUrl: true,
       gameFormat: true,
       defaultFormation: true,
       customFormations: true,
-      ageGroup: { select: { code: true } },
+      ageGroup: {
+        select: {
+          code: true,
+          season: {
+            select: {
+              club: {
+                select: { name: true, shortName: true, logoUrl: true },
+              },
+            },
+          },
+        },
+      },
     },
   },
   targetTeams: {
@@ -92,9 +113,25 @@ const matchInclude = {
           id: true,
           name: true,
           shortName: true,
+          isPlayingCommunity: true,
+          playingCommunityName: true,
+          playingCommunityShortName: true,
+          playingCommunityLogoUrl: true,
           gameFormat: true,
           defaultFormation: true,
           customFormations: true,
+          ageGroup: {
+            select: {
+              code: true,
+              season: {
+                select: {
+                  club: {
+                    select: { name: true, shortName: true, logoUrl: true },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -207,9 +244,26 @@ const matchListInclude = {
   team: {
     select: {
       id: true,
+      name: true,
+      shortName: true,
+      isPlayingCommunity: true,
+      playingCommunityName: true,
+      playingCommunityShortName: true,
+      playingCommunityLogoUrl: true,
       gameFormat: true,
       defaultFormation: true,
-      ageGroup: { select: { code: true } },
+      ageGroup: {
+        select: {
+          code: true,
+          season: {
+            select: {
+              club: {
+                select: { name: true, shortName: true, logoUrl: true },
+              },
+            },
+          },
+        },
+      },
     },
   },
   targetTeams: {
@@ -219,8 +273,24 @@ const matchListInclude = {
           id: true,
           name: true,
           shortName: true,
+          isPlayingCommunity: true,
+          playingCommunityName: true,
+          playingCommunityShortName: true,
+          playingCommunityLogoUrl: true,
           gameFormat: true,
           defaultFormation: true,
+          ageGroup: {
+            select: {
+              code: true,
+              season: {
+                select: {
+                  club: {
+                    select: { name: true, shortName: true, logoUrl: true },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -465,8 +535,17 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
     squad?.publishedAt !== null &&
     squad?.members.some((member) => viewerPlayerIds.includes(member.playerId)) === true
   );
+  const ownTeam = teamPlayingIdentity(lineupTeam);
   return {
     ...match,
+    title: match.matchDetails
+      ? matchTitleForPlayingIdentity({
+          ownTeamName: ownTeam.name,
+          opponent: match.matchDetails.opponent,
+          isHome: match.matchDetails.isHome,
+        })
+      : match.title,
+    ownTeam,
     matchDetails: match.matchDetails
       ? {
           ...match.matchDetails,
@@ -568,8 +647,17 @@ function serializeMatchSummary<
   );
   const lineupTeam = match.targetTeams[0]?.team ?? match.team;
   const opponentRecord = match.matchDetails?.opponentRecord;
+  const ownTeam = teamPlayingIdentity(lineupTeam);
   return {
     ...match,
+    title: match.matchDetails
+      ? matchTitleForPlayingIdentity({
+          ownTeamName: ownTeam.name,
+          opponent: match.matchDetails.opponent,
+          isHome: match.matchDetails.isHome,
+        })
+      : match.title,
+    ownTeam,
     matchDetails: match.matchDetails
       ? {
           ...match.matchDetails,

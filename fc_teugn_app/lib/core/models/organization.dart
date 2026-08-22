@@ -80,6 +80,13 @@ class TeamSummary {
     this.teamNumber = 1,
     this.apiDisplayName,
     this.shortName,
+    this.isPlayingCommunity = false,
+    this.playingCommunityName,
+    this.playingCommunityShortName,
+    this.playingCommunityLogoUrl,
+    this.playingName = 'FC Teugn',
+    this.playingShortName = 'FC Teugn',
+    this.playingLogoUrl,
     this.level,
     this.isActive = true,
     this.teamType = 'COMPETITIVE',
@@ -120,6 +127,13 @@ class TeamSummary {
   final int teamNumber;
   final String? apiDisplayName;
   final String? shortName;
+  final bool isPlayingCommunity;
+  final String? playingCommunityName;
+  final String? playingCommunityShortName;
+  final String? playingCommunityLogoUrl;
+  final String playingName;
+  final String playingShortName;
+  final String? playingLogoUrl;
   final String? level;
   final bool isActive;
   final String teamType;
@@ -181,6 +195,19 @@ class TeamSummary {
         teamNumber: (json['teamNumber'] as num?)?.toInt() ?? 1,
         apiDisplayName: json['displayName'] as String?,
         shortName: json['shortName'] as String?,
+        isPlayingCommunity: json['isPlayingCommunity'] as bool? ?? false,
+        playingCommunityName: json['playingCommunityName'] as String?,
+        playingCommunityShortName: json['playingCommunityShortName'] as String?,
+        playingCommunityLogoUrl: json['playingCommunityLogoUrl'] as String?,
+        playingName: json['playingName'] as String? ??
+            json['playingCommunityName'] as String? ??
+            'FC Teugn',
+        playingShortName: json['playingShortName'] as String? ??
+            json['playingCommunityShortName'] as String? ??
+            json['playingCommunityName'] as String? ??
+            'FC Teugn',
+        playingLogoUrl: json['playingLogoUrl'] as String? ??
+            json['playingCommunityLogoUrl'] as String?,
         level: json['level'] as String?,
         isActive: json['isActive'] as bool? ?? true,
         teamType: json['teamType'] as String? ?? 'COMPETITIVE',

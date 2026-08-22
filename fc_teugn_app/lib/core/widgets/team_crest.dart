@@ -21,6 +21,14 @@ class TeamCrest extends StatelessWidget {
     super.key,
   }) : isClub = false;
 
+  const TeamCrest.ownTeam({
+    required this.size,
+    required bool isPlayingCommunity,
+    required this.logoUrl,
+    this.darkSurface = false,
+    super.key,
+  }) : isClub = !isPlayingCommunity;
+
   final bool isClub;
   final String? logoUrl;
   final double size;

@@ -58,6 +58,10 @@ import {
   HOME_MATCH_VENUE,
   isFcTeugnHomeVenue,
 } from '../services/match-venue.service';
+import {
+  matchTitleForPlayingIdentity,
+  teamPlayingIdentity,
+} from '../services/team-playing-identity.service';
 
 const eventInclude = {
   series: true,
@@ -81,6 +85,30 @@ const eventInclude = {
       },
     },
   },
+  team: {
+    select: {
+      id: true,
+      name: true,
+      shortName: true,
+      isPlayingCommunity: true,
+      playingCommunityName: true,
+      playingCommunityShortName: true,
+      playingCommunityLogoUrl: true,
+      ageGroup: {
+        select: {
+          code: true,
+          name: true,
+          season: {
+            select: {
+              club: {
+                select: { name: true, shortName: true, logoUrl: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   targetTeams: {
     include: {
       team: {
@@ -88,7 +116,23 @@ const eventInclude = {
           id: true,
           name: true,
           shortName: true,
-          ageGroup: { select: { code: true, name: true } },
+          isPlayingCommunity: true,
+          playingCommunityName: true,
+          playingCommunityShortName: true,
+          playingCommunityLogoUrl: true,
+          ageGroup: {
+            select: {
+              code: true,
+              name: true,
+              season: {
+                select: {
+                  club: {
+                    select: { name: true, shortName: true, logoUrl: true },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -419,15 +463,31 @@ async function serializeEvent(
       )
       .map((offer) => offer.id),
   );
+  const ownTeam = teamPlayingIdentity(event.team);
+  const displayTitle = event.matchDetails
+    ? matchTitleForPlayingIdentity({
+        ownTeamName: ownTeam.name,
+        opponent: event.matchDetails.opponent,
+        isHome: event.matchDetails.isHome,
+      })
+    : event.title;
 
   return {
     ...event,
+    title: displayTitle,
+    ownTeam,
     tournamentFixtures: event.tournamentFixtures
       .filter((fixture) => staff || fixture.familyReleasedAt !== null)
       .map((fixture) => ({
         id: fixture.id,
         parentTournamentId: fixture.parentTournamentId,
-        title: fixture.title,
+        title: fixture.matchDetails
+          ? matchTitleForPlayingIdentity({
+              ownTeamName: ownTeam.name,
+              opponent: fixture.matchDetails.opponent,
+              isHome: fixture.matchDetails.isHome,
+            })
+          : fixture.title,
         startAt: fixture.startAt,
         endAt: fixture.endAt,
         location: fixture.location,
@@ -1259,7 +1319,25 @@ export async function createEvent(req: Request, res: Response) {
   const teamTiming = singleMatch
     ? await prisma.team.findUnique({
         where: { id: teamIds[0] },
-        select: { periodCount: true, periodMinutes: true },
+        select: {
+          periodCount: true,
+          periodMinutes: true,
+          isPlayingCommunity: true,
+          playingCommunityName: true,
+          playingCommunityShortName: true,
+          playingCommunityLogoUrl: true,
+          ageGroup: {
+            select: {
+              season: {
+                select: {
+                  club: {
+                    select: { name: true, shortName: true, logoUrl: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       })
     : null;
   const timing = singleMatch
@@ -1310,6 +1388,13 @@ export async function createEvent(req: Request, res: Response) {
     if (data.homeAway === HomeAway.AWAY && !data.location) {
       data.location = opponentRecord?.venue ?? opponentRecord?.address ?? null;
       data.address = data.address ?? opponentRecord?.address ?? null;
+    }
+    if (teamTiming) {
+      data.title = matchTitleForPlayingIdentity({
+        ownTeamName: teamPlayingIdentity(teamTiming).name,
+        opponent: data.opponent,
+        isHome: data.homeAway !== HomeAway.AWAY,
+      });
     }
   }
   if (!data.location && !(singleMatch && data.homeAway === HomeAway.AWAY)) {
@@ -2969,6 +3054,28 @@ export async function publicCalendarSubscription(req: Request, res: Response) {
       ...(!isStaff(user.role) ? { visibility: { not: EventVisibility.STAFF_ONLY } } : {}),
     },
     orderBy: { startAt: 'asc' },
+    include: {
+      matchDetails: { select: { opponent: true, isHome: true } },
+      team: {
+        select: {
+          isPlayingCommunity: true,
+          playingCommunityName: true,
+          playingCommunityShortName: true,
+          playingCommunityLogoUrl: true,
+          ageGroup: {
+            select: {
+              season: {
+                select: {
+                  club: {
+                    select: { name: true, shortName: true, logoUrl: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   });
   const lines = [
     'BEGIN:VCALENDAR',
@@ -2979,13 +3086,20 @@ export async function publicCalendarSubscription(req: Request, res: Response) {
     'X-WR-CALNAME:FC Teugn',
   ];
   for (const event of events) {
+    const eventTitle = event.matchDetails
+      ? matchTitleForPlayingIdentity({
+          ownTeamName: teamPlayingIdentity(event.team).name,
+          opponent: event.matchDetails.opponent,
+          isHome: event.matchDetails.isHome,
+        })
+      : event.title;
     lines.push(
       'BEGIN:VEVENT',
       `UID:${event.id}@fc-teugn.de`,
       `DTSTAMP:${icsDate(event.updatedAt)}`,
       `DTSTART:${icsDate(event.startAt)}`,
       ...(event.endAt ? [`DTEND:${icsDate(event.endAt)}`] : []),
-      `SUMMARY:${icsEscape(event.status === EventStatus.CANCELLED ? `ABGESAGT: ${event.title}` : event.title)}`,
+      `SUMMARY:${icsEscape(event.status === EventStatus.CANCELLED ? `ABGESAGT: ${eventTitle}` : eventTitle)}`,
       `LOCATION:${icsEscape(event.address ?? event.location)}`,
       `DESCRIPTION:${icsEscape(event.description)}`,
       `STATUS:${event.status === EventStatus.CANCELLED ? 'CANCELLED' : 'CONFIRMED'}`,
@@ -3005,7 +3119,48 @@ export async function upsertMatchDetails(req: Request, res: Response) {
   const event = await prisma.event.findFirst({
     where: { id: req.params.id, ...eventScope(teamIds) },
     include: {
-      targetTeams: true,
+      team: {
+        select: {
+          isPlayingCommunity: true,
+          playingCommunityName: true,
+          playingCommunityShortName: true,
+          playingCommunityLogoUrl: true,
+          ageGroup: {
+            select: {
+              season: {
+                select: {
+                  club: {
+                    select: { name: true, shortName: true, logoUrl: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      targetTeams: {
+        include: {
+          team: {
+            select: {
+              isPlayingCommunity: true,
+              playingCommunityName: true,
+              playingCommunityShortName: true,
+              playingCommunityLogoUrl: true,
+              ageGroup: {
+                select: {
+                  season: {
+                    select: {
+                      club: {
+                        select: { name: true, shortName: true, logoUrl: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       matchDetails: {
         include: {
           opponentRecord: { select: { venue: true, address: true } },
@@ -3091,9 +3246,15 @@ export async function upsertMatchDetails(req: Request, res: Response) {
     typeof req.body.reminderPushEnabled === 'boolean'
       ? req.body.reminderPushEnabled
       : null;
+  const ownTeam = teamPlayingIdentity(event.targetTeams[0]?.team ?? event.team);
   await prisma.event.update({
     where: { id: event.id },
     data: {
+      title: matchTitleForPlayingIdentity({
+        ownTeamName: ownTeam.name,
+        opponent: opponentName,
+        isHome: isHome !== false,
+      }),
       opponent: opponentName,
       homeAway: isHome === false ? HomeAway.AWAY : HomeAway.HOME,
       ...(isHome === false

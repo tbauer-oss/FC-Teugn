@@ -16,6 +16,7 @@ import {
 } from '../services/competition-provider';
 import { recalculateMatchStatistics } from '../services/statistics.service';
 import { writeCompetitionMatch } from '../services/competition-import-write.service';
+import { teamPlayingIdentity } from '../services/team-playing-identity.service';
 
 export const competitionImportTransactionOptions = {
   // A seven-match BfV plan already performs several related writes per row.
@@ -82,9 +83,36 @@ export async function previewCompetitionImport(req: Request, res: Response) {
   if (!(await accessibleTeamIds(user)).includes(teamId)) {
     return res.status(403).json({ message: 'Kein Zugriff auf diese Mannschaft.' });
   }
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: {
+      isPlayingCommunity: true,
+      playingCommunityName: true,
+      playingCommunityShortName: true,
+      playingCommunityLogoUrl: true,
+      ageGroup: {
+        select: {
+          season: {
+            select: {
+              club: {
+                select: { name: true, shortName: true, logoUrl: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!team) {
+    return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+  }
+  const ownTeam = teamPlayingIdentity(team);
   const parsed = await matchCompetitionOpponents(
     teamId,
-    parseCompetitionSource(format as ImportFormat, content),
+    parseCompetitionSource(format as ImportFormat, content, {
+      ownTeamNames: [ownTeam.name, ownTeam.shortName],
+      displayOwnTeamName: ownTeam.name,
+    }),
   );
   const externalIds = parsed
     .map((row) => row.match?.externalId)

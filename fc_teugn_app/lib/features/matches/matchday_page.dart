@@ -376,6 +376,10 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           canReleaseFamily: current.canReleaseFamily,
           canRatePlayers: current.canRatePlayers,
           playerRatings: current.playerRatings,
+          ownTeamName: current.ownTeamName,
+          ownTeamShortName: current.ownTeamShortName,
+          ownTeamLogoUrl: current.ownTeamLogoUrl,
+          ownTeamIsPlayingCommunity: current.ownTeamIsPlayingCommunity,
         );
         _match = updatedMatch;
         _online = true;
@@ -445,6 +449,10 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         canReleaseFamily: current.canReleaseFamily,
         canRatePlayers: current.canRatePlayers,
         playerRatings: current.playerRatings,
+        ownTeamName: current.ownTeamName,
+        ownTeamShortName: current.ownTeamShortName,
+        ownTeamLogoUrl: current.ownTeamLogoUrl,
+        ownTeamIsPlayingCommunity: current.ownTeamIsPlayingCommunity,
       );
     });
   }
@@ -489,6 +497,10 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         canReleaseFamily: current.canReleaseFamily,
         canRatePlayers: current.canRatePlayers,
         playerRatings: current.playerRatings,
+        ownTeamName: current.ownTeamName,
+        ownTeamShortName: current.ownTeamShortName,
+        ownTeamLogoUrl: current.ownTeamLogoUrl,
+        ownTeamIsPlayingCommunity: current.ownTeamIsPlayingCommunity,
       );
     });
   }
@@ -525,6 +537,10 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         canReleaseFamily: current.canReleaseFamily,
         canRatePlayers: current.canRatePlayers,
         playerRatings: ratings,
+        ownTeamName: current.ownTeamName,
+        ownTeamShortName: current.ownTeamShortName,
+        ownTeamLogoUrl: current.ownTeamLogoUrl,
+        ownTeamIsPlayingCommunity: current.ownTeamIsPlayingCommunity,
       );
     });
   }
@@ -864,7 +880,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       length: tabCount,
       initialIndex: initialTabIndex,
       child: PageScaffold(
-        title: 'FC Teugn · $opponent',
+        title: '${match.ownTeamName} · $opponent',
         subtitle: _dateLine(match),
         denseMobileHeader: true,
         hideMobileHeader: true,
@@ -1857,10 +1873,12 @@ class _ScoreHero extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).width < 600;
     final details = match.details;
     final ticker = match.ticker;
-    final home =
-        details?.isHome != false ? 'FC Teugn' : details?.opponent ?? 'Gegner';
-    final away =
-        details?.isHome != false ? details?.opponent ?? 'Gegner' : 'FC Teugn';
+    final home = details?.isHome != false
+        ? match.ownTeamName
+        : details?.opponent ?? 'Gegner';
+    final away = details?.isHome != false
+        ? details?.opponent ?? 'Gegner'
+        : match.ownTeamName;
     final our = ticker?.ourGoals ?? details?.ourGoals;
     final their = ticker?.theirGoals ?? details?.theirGoals;
     final homeGoals = details?.isHome != false ? our : their;
@@ -1876,8 +1894,11 @@ class _ScoreHero extends StatelessWidget {
         Expanded(
           child: _ScoreTeam(
             name: home,
-            isClub: details?.isHome != false,
-            logoUrl: details?.opponentLogoUrl,
+            isOwnTeam: details?.isHome != false,
+            logoUrl: details?.isHome != false
+                ? match.ownTeamLogoUrl
+                : details?.opponentLogoUrl,
+            ownTeamIsPlayingCommunity: match.ownTeamIsPlayingCommunity,
             crestSize: crestSize,
             compact: compact,
           ),
@@ -1906,8 +1927,11 @@ class _ScoreHero extends StatelessWidget {
         Expanded(
           child: _ScoreTeam(
             name: away,
-            isClub: details?.isHome == false,
-            logoUrl: details?.opponentLogoUrl,
+            isOwnTeam: details?.isHome == false,
+            logoUrl: details?.isHome == false
+                ? match.ownTeamLogoUrl
+                : details?.opponentLogoUrl,
+            ownTeamIsPlayingCommunity: match.ownTeamIsPlayingCommunity,
             crestSize: crestSize,
             compact: compact,
           ),
@@ -2081,21 +2105,28 @@ class _CompactMatchTab extends StatelessWidget {
 class _ScoreTeam extends StatelessWidget {
   const _ScoreTeam({
     required this.name,
-    required this.isClub,
+    required this.isOwnTeam,
     required this.logoUrl,
+    required this.ownTeamIsPlayingCommunity,
     required this.crestSize,
     required this.compact,
   });
   final String name;
-  final bool isClub;
+  final bool isOwnTeam;
   final String? logoUrl;
+  final bool ownTeamIsPlayingCommunity;
   final double crestSize;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final crest = isClub
-        ? TeamCrest.club(size: crestSize, darkSurface: true)
+    final crest = isOwnTeam
+        ? TeamCrest.ownTeam(
+            size: crestSize,
+            logoUrl: logoUrl,
+            isPlayingCommunity: ownTeamIsPlayingCommunity,
+            darkSurface: true,
+          )
         : TeamCrest.opponent(
             size: crestSize,
             logoUrl: logoUrl,
@@ -5125,6 +5156,9 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       clock: _clockValue(ticker),
       ourGoals: scores.ours,
       theirGoals: scores.theirs,
+      ownTeamName: widget.match.ownTeamName,
+      ownTeamLogoUrl: widget.match.ownTeamLogoUrl,
+      ownTeamIsPlayingCommunity: widget.match.ownTeamIsPlayingCommunity,
       opponent: widget.match.details?.opponent ?? 'Gegner',
       opponentLogoUrl: widget.match.details?.opponentLogoUrl,
       periodLabel: matchPeriodLabel(ticker.currentPeriod, periodCount),
@@ -5196,6 +5230,9 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           clock: data.clock,
           ourGoals: data.ourGoals,
           theirGoals: data.theirGoals,
+          ownTeamName: data.ownTeamName,
+          ownTeamLogoUrl: data.ownTeamLogoUrl,
+          ownTeamIsPlayingCommunity: data.ownTeamIsPlayingCommunity,
           opponent: data.opponent,
           opponentLogoUrl: data.opponentLogoUrl,
           periodLabel: data.periodLabel,
@@ -5359,7 +5396,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
               FilledButton.icon(
                 onPressed: _busy ? null : () => _goal(true),
                 icon: const Icon(Icons.sports_soccer_rounded),
-                label: const Text('Tor FC Teugn'),
+                label: Text('Tor ${widget.match.ownTeamShortName}'),
               ),
               FilledButton.tonalIcon(
                 onPressed: _busy ? null : () => _goal(false),
@@ -5494,7 +5531,9 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
               ),
               onPressed: _busy ? null : () => _goal(true),
               icon: const Icon(Icons.sports_soccer_rounded, size: 18),
-              label: const AdaptiveButtonLabel('Tor FC Teugn'),
+              label: AdaptiveButtonLabel(
+                'Tor ${widget.match.ownTeamShortName}',
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -5636,7 +5675,13 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
             backgroundColor: _eventColor(event.type),
             child: Icon(_eventIcon(event.type), color: Colors.white),
           ),
-          title: Text(_eventTitle(event, fcIsHome: fcIsHome)),
+          title: Text(
+            _eventTitle(
+              event,
+              fcIsHome: fcIsHome,
+              ownTeamName: widget.match.ownTeamName,
+            ),
+          ),
           subtitle: _eventSubtitle(event, fcIsHome: fcIsHome),
           trailing: Text(
             "${event.elapsedSeconds ~/ 60}'\n"
@@ -5863,7 +5908,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Tor für FC Teugn'),
+          title: Text('Tor für ${widget.match.ownTeamName}'),
           content: SizedBox(
             width: 440,
             child: Column(
@@ -6235,6 +6280,9 @@ class _TickerFocusData {
     required this.clock,
     required this.ourGoals,
     required this.theirGoals,
+    required this.ownTeamName,
+    required this.ownTeamLogoUrl,
+    required this.ownTeamIsPlayingCommunity,
     required this.opponent,
     required this.opponentLogoUrl,
     required this.periodLabel,
@@ -6246,6 +6294,9 @@ class _TickerFocusData {
   final MatchClockValue clock;
   final int ourGoals;
   final int theirGoals;
+  final String ownTeamName;
+  final String? ownTeamLogoUrl;
+  final bool ownTeamIsPlayingCommunity;
   final String opponent;
   final String? opponentLogoUrl;
   final String periodLabel;
@@ -6259,6 +6310,9 @@ class _CountdownCard extends StatelessWidget {
     required this.clock,
     required this.ourGoals,
     required this.theirGoals,
+    required this.ownTeamName,
+    required this.ownTeamLogoUrl,
+    required this.ownTeamIsPlayingCommunity,
     required this.opponent,
     required this.opponentLogoUrl,
     required this.periodLabel,
@@ -6269,6 +6323,9 @@ class _CountdownCard extends StatelessWidget {
   final MatchClockValue clock;
   final int ourGoals;
   final int theirGoals;
+  final String ownTeamName;
+  final String? ownTeamLogoUrl;
+  final bool ownTeamIsPlayingCommunity;
   final String opponent;
   final String? opponentLogoUrl;
   final String periodLabel;
@@ -6339,14 +6396,19 @@ class _CountdownCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              TeamCrest.club(size: compact ? 30 : 42, darkSurface: true),
+              TeamCrest.ownTeam(
+                size: compact ? 30 : 42,
+                logoUrl: ownTeamLogoUrl,
+                isPlayingCommunity: ownTeamIsPlayingCommunity,
+                darkSurface: true,
+              ),
               SizedBox(width: compact ? 6 : 9),
-              const Flexible(
+              Flexible(
                 child: Text(
-                  'FC Teugn',
+                  ownTeamName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                   ),
@@ -6599,9 +6661,12 @@ class _TickerFocusView extends StatelessWidget {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       _FocusTeamScore(
-                                        team: 'FC Teugn',
+                                        team: data.ownTeamName,
                                         goals: data.ourGoals,
-                                        isClub: true,
+                                        isOwnTeam: true,
+                                        logoUrl: data.ownTeamLogoUrl,
+                                        ownTeamIsPlayingCommunity:
+                                            data.ownTeamIsPlayingCommunity,
                                         highlighted: true,
                                         compact: contentCompact || compactWidth,
                                       ),
@@ -6656,7 +6721,8 @@ class _TickerFocusView extends StatelessWidget {
                                 Expanded(
                                   child: Semantics(
                                     button: true,
-                                    label: 'Tor für FC Teugn erfassen',
+                                    label:
+                                        'Tor für ${data.ownTeamName} erfassen',
                                     child: SizedBox(
                                       height: compactHeight ? 48 : 54,
                                       child: FilledButton.icon(
@@ -6678,8 +6744,8 @@ class _TickerFocusView extends StatelessWidget {
                                         ),
                                         label: Text(
                                           compactWidth
-                                              ? 'Tor FC Teugn'
-                                              : 'Tor für FC Teugn',
+                                              ? 'Tor ${data.ownTeamName}'
+                                              : 'Tor für ${data.ownTeamName}',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -6881,16 +6947,18 @@ class _FocusTeamScore extends StatelessWidget {
   const _FocusTeamScore({
     required this.team,
     required this.goals,
-    this.isClub = false,
+    this.isOwnTeam = false,
     this.logoUrl,
+    this.ownTeamIsPlayingCommunity = false,
     this.highlighted = false,
     this.compact = false,
   });
 
   final String team;
   final int goals;
-  final bool isClub;
+  final bool isOwnTeam;
   final String? logoUrl;
+  final bool ownTeamIsPlayingCommunity;
   final bool highlighted;
   final bool compact;
 
@@ -6899,9 +6967,11 @@ class _FocusTeamScore extends StatelessWidget {
         width: min(MediaQuery.sizeOf(context).width * .28, 240.0),
         child: Column(
           children: [
-            isClub
-                ? TeamCrest.club(
+            isOwnTeam
+                ? TeamCrest.ownTeam(
                     size: compact ? 50 : 64,
+                    logoUrl: logoUrl,
+                    isPlayingCommunity: ownTeamIsPlayingCommunity,
                     darkSurface: true,
                   )
                 : TeamCrest.opponent(
@@ -7091,12 +7161,13 @@ bool _isOurGoal(TickerEventType type, {required bool fcIsHome}) =>
 String _eventTitle(
   TickerEventModel event, {
   required bool fcIsHome,
+  required String ownTeamName,
 }) =>
     switch (event.type) {
       TickerEventType.homeGoal ||
       TickerEventType.awayGoal =>
         _isOurGoal(event.type, fcIsHome: fcIsHome)
-            ? 'Tor durch ${event.scorer?.name ?? 'FC Teugn'}!'
+            ? 'Tor durch ${event.scorer?.name ?? ownTeamName}!'
             : 'Tor für den Gegner',
       TickerEventType.matchStart => 'Das Spiel läuft',
       TickerEventType.periodEnd => 'Abschnitt beendet',
