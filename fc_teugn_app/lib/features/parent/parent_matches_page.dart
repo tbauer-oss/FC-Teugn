@@ -21,14 +21,13 @@ class ParentMatchesPage extends ConsumerWidget {
       subtitle: 'Spielplan, Treffpunkt und Ergebnisse der Mannschaft.',
       child: events.when(
         data: (items) {
-          final matches = items
-              .where(
-                (event) =>
-                    event.type == EventType.match &&
-                    event.parentTournamentId == null,
-              )
-              .toList()
-            ..sort((a, b) => b.startAt.compareTo(a.startAt));
+          final matches = sortParentMatchesForOverview(
+            items.where(
+              (event) =>
+                  event.type == EventType.match &&
+                  event.parentTournamentId == null,
+            ),
+          );
           if (matches.isEmpty) {
             return const EmptyState(
               icon: Icons.sports_soccer_rounded,
@@ -68,6 +67,28 @@ class ParentMatchesPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Zeigt zuerst das zeitlich nächste anstehende Spiel. Bereits vergangene
+/// Spiele folgen anschließend, jeweils mit dem jüngsten Ergebnis zuerst.
+List<EventModel> sortParentMatchesForOverview(
+  Iterable<EventModel> values, {
+  DateTime? now,
+}) {
+  final reference = now ?? DateTime.now();
+  final upcoming = values
+      .where(
+        (event) => !(event.endAt ?? event.startAt).isBefore(reference),
+      )
+      .toList()
+    ..sort((a, b) => a.startAt.compareTo(b.startAt));
+  final past = values
+      .where(
+        (event) => (event.endAt ?? event.startAt).isBefore(reference),
+      )
+      .toList()
+    ..sort((a, b) => b.startAt.compareTo(a.startAt));
+  return [...upcoming, ...past];
 }
 
 class _PublicTournamentCard extends StatelessWidget {
@@ -245,155 +266,116 @@ class _PublicMatchCard extends StatelessWidget {
     final details = event.matchDetails;
     final date = event.startAt.toLocal();
     return Card(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 520;
-          final result = details?.ourGoals != null &&
-                  details?.theirGoals != null
-              ? '${details!.ourGoals} : ${details.theirGoals}'
-              : '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-          final opponent = details?.opponent ?? event.title;
-          final teams = compact
-              ? Column(
-                  children: [
-                    Text(
-                      event.ownTeamName,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.navy,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 17,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(result,
-                        style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: 5),
-                    Text(
-                      opponent,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.navy,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 17,
-                      ),
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        event.ownTeamName,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.navy,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      result,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    Expanded(
-                      child: Text(
-                        opponent,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.navy,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-          return Padding(
-            padding: EdgeInsets.all(compact ? 16 : 20),
-            child: Column(
-              children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Chip(label: Text(details?.competition ?? 'Spiel')),
-                    Text('${date.day}.${date.month}.${date.year}'),
-                  ],
-                ),
-                SizedBox(height: compact ? 14 : 18),
-                teams,
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: 18,
-                      color: AppColors.muted,
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        event.location.trim().isEmpty
-                            ? 'Ort noch offen'
-                            : event.location,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                ),
-                if (event.meetingAt != null ||
-                    event.meetingLocation?.trim().isNotEmpty == true) ...[
-                  const SizedBox(height: 10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 520;
+            final result = details?.ourGoals != null &&
+                    details?.theirGoals != null
+                ? '${details!.ourGoals} : ${details.theirGoals}'
+                : '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+            final opponent = details?.opponent ?? event.title;
+            return Padding(
+              padding: EdgeInsets.all(compact ? 12 : 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
-                        Icons.groups_rounded,
-                        size: 18,
-                        color: AppColors.muted,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          [
-                            if (event.meetingAt != null)
-                              'Treffpunkt ${event.meetingAt!.hour.toString().padLeft(2, '0')}:${event.meetingAt!.minute.toString().padLeft(2, '0')} Uhr',
-                            if (event.meetingLocation?.trim().isNotEmpty ==
-                                true)
-                              event.meetingLocation!.trim(),
-                          ].join(' · '),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                event.ownTeamName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 5),
+                              child: Text(
+                                details?.isHome == false ? '@' : '–',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                            ),
+                            Flexible(
+                              child: Text(
+                                opponent,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        result,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
                       ),
                     ],
                   ),
-                ],
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.tonalIcon(
-                    onPressed: onOpen,
-                    icon: const Icon(Icons.stadium_rounded),
-                    label: const Text('Spieltag öffnen'),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${date.day}.${date.month}.${date.year} · ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} Uhr · ${details?.competition ?? 'Spiel'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.muted),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                  if (event.location.trim().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '📍 ${event.location}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (event.meetingAt != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '👥 Treffpunkt ${event.meetingAt!.hour.toString().padLeft(2, '0')}:${event.meetingAt!.minute.toString().padLeft(2, '0')} Uhr',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.tonalIcon(
+                      onPressed: onOpen,
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 9,
+                        ),
+                      ),
+                      icon: const Icon(Icons.stadium_rounded),
+                      label: const Text('Spieltag öffnen'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

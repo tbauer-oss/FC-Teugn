@@ -451,6 +451,29 @@ class AppShell extends ConsumerWidget {
                           onAbout: () => showAppAboutSheet(context),
                           onRefresh: () => _refreshApp(ref),
                         ),
+                      if (authState.user?.isReadOnlyPreview == true)
+                        _ReadOnlyPreviewBanner(
+                          name: authState.user!.name,
+                          onExit: () async {
+                            try {
+                              await ref
+                                  .read(authProvider.notifier)
+                                  .exitReadOnlyPreview();
+                              if (context.mounted) {
+                                context.go('/trainer/view-as');
+                              }
+                            } catch (error) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(error
+                                      .toString()
+                                      .replaceFirst('Exception: ', '')),
+                                ),
+                              );
+                            }
+                          },
+                        ),
                       if (showContextBack)
                         _ContextBackBar(
                           destination: selectedDestination,
@@ -560,6 +583,45 @@ class AppShell extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _ReadOnlyPreviewBanner extends StatelessWidget {
+  const _ReadOnlyPreviewBanner({required this.name, required this.onExit});
+
+  final String name;
+  final Future<void> Function() onExit;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: AppColors.yellowSoft,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            child: Row(
+              children: [
+                const Icon(Icons.visibility_rounded, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Ansicht als $name · nur lesen',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: onExit,
+                  child: const Text('Adminansicht'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class _ContextBackBar extends StatelessWidget {

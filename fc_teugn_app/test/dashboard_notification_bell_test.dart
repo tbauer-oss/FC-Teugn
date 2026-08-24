@@ -97,6 +97,11 @@ void main() {
 
         expect(find.byKey(const ValueKey('dashboard-notification-bell')),
             findsOneWidget);
+        final tapTarget = tester.getSize(
+          find.byKey(const ValueKey('dashboard-notification-bell')),
+        );
+        expect(tapTarget.width, greaterThanOrEqualTo(48));
+        expect(tapTarget.height, greaterThanOrEqualTo(48));
         expect(find.text('3'), findsOneWidget);
         expect(find.text('Rückmeldung fehlt'), findsNothing);
 

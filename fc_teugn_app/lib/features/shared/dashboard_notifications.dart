@@ -50,17 +50,21 @@ class _DashboardNotificationBellState
   @override
   Widget build(BuildContext context) {
     final unreadCount = _unreadCount;
-    final button = IconButton(
-      key: const ValueKey('dashboard-notification-bell'),
-      tooltip: unreadCount == 0
-          ? 'Benachrichtigungen'
-          : '$unreadCount ungelesene Benachrichtigungen',
-      visualDensity: VisualDensity.compact,
-      onPressed: () => _showNotifications(context),
-      icon: Icon(
-        unreadCount == 0
-            ? Icons.notifications_none_rounded
-            : Icons.notifications_rounded,
+    final button = SizedBox.square(
+      dimension: 52,
+      child: IconButton(
+        key: const ValueKey('dashboard-notification-bell'),
+        tooltip: unreadCount == 0
+            ? 'Benachrichtigungen'
+            : '$unreadCount ungelesene Benachrichtigungen',
+        padding: const EdgeInsets.all(12),
+        constraints: const BoxConstraints.tightFor(width: 52, height: 52),
+        onPressed: () => _showNotifications(context),
+        icon: Icon(
+          unreadCount == 0
+              ? Icons.notifications_none_rounded
+              : Icons.notifications_rounded,
+        ),
       ),
     );
     return Semantics(

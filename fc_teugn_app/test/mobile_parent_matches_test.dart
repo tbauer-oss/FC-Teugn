@@ -7,6 +7,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('next active match is first and completed matches follow newest first',
+      () {
+    final now = DateTime(2026, 8, 24, 12);
+    final sorted = sortParentMatchesForOverview(
+      [
+        _match('past-old', DateTime(2026, 8, 10, 10)),
+        _match('future-later', DateTime(2026, 9, 5, 10)),
+        _match('past-new', DateTime(2026, 8, 20, 10)),
+        _match(
+          'currently-playing',
+          DateTime(2026, 8, 24, 11, 30),
+          endAt: DateTime(2026, 8, 24, 12, 30),
+        ),
+        _match('future-next', DateTime(2026, 8, 25, 10)),
+      ],
+      now: now,
+    );
+
+    expect(
+      sorted.map((event) => event.id),
+      [
+        'currently-playing',
+        'future-next',
+        'future-later',
+        'past-new',
+        'past-old',
+      ],
+    );
+  });
+
   testWidgets(
     'parent match cards stay readable on a narrow phone with large text',
     (tester) async {
@@ -177,3 +207,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
+
+EventModel _match(String id, DateTime startAt, {DateTime? endAt}) => EventModel(
+      id: id,
+      teamId: 'team-1',
+      type: EventType.match,
+      category: EventCategory.leagueMatch,
+      status: EventStatus.scheduled,
+      visibility: EventVisibility.team,
+      title: id,
+      startAt: startAt,
+      endAt: endAt,
+      location: 'Teugn',
+      attendanceFinalized: false,
+      targetTeams: const [],
+      attachments: const [],
+      attendance: const [],
+      attendanceSummary: const AttendanceSummary(),
+      missingAttendance: const [],
+      carpoolOffers: const [],
+      capabilities: const EventCapabilities(),
+      reminderMinutes: const [],
+    );

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../core/loading/loading_widgets.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -531,33 +530,14 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     await _execute(() async {
       final url =
           await ref.read(repositoryProvider).createCalendarSubscription();
-      await Clipboard.setData(ClipboardData(text: url));
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Kalender-Abo erstellt'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Die persönliche Abo-Adresse wurde in die Zwischenablage kopiert. '
-                'Sie enthält einen geheimen Zugriffsschlüssel und sollte nicht weitergegeben werden.',
-              ),
-              const SizedBox(height: 14),
-              SelectableText(url),
-            ],
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Verstanden'),
-            ),
-          ],
-        ),
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
       );
-    }, 'Kalender-Abo wurde kopiert.', showSuccess: false);
+      if (!opened) {
+        throw Exception('Die Kalenderdatei konnte nicht geöffnet werden.');
+      }
+    }, 'Kalenderdatei wird heruntergeladen.');
   }
 
   Future<void> _execute(
@@ -616,7 +596,7 @@ class _CalendarPageActions extends StatelessWidget {
     final subscribe = OutlinedButton.icon(
       onPressed: onSubscribe,
       icon: const Icon(Icons.event_repeat_rounded, size: 19),
-      label: AdaptiveButtonLabel(mobile ? 'Abo' : 'Kalender-Abo'),
+      label: AdaptiveButtonLabel(mobile ? 'ICS' : 'Kalender herunterladen'),
     );
     final create = FilledButton.icon(
       onPressed: canCreate && !saving ? onCreate : null,

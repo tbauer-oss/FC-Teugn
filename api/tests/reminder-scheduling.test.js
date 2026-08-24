@@ -11,6 +11,10 @@ const organization = fs.readFileSync(
   path.join(__dirname, '..', 'src', 'controllers', 'organization.controller.ts'),
   'utf8',
 );
+const events = fs.readFileSync(
+  path.join(__dirname, '..', 'src', 'controllers', 'events.controller.ts'),
+  'utf8',
+);
 
 test('regular training reminders support an explicit opt-out', () => {
   assert.match(service, /if \(reminderMinutes\.length === 0\) continue/);
@@ -42,4 +46,19 @@ test('team reminder lead time is validated, stored and serialized', () => {
   assert.match(organization, /defaultReminderMinutes < 1/);
   assert.match(organization, /defaultReminderMinutes > 10_080/);
   assert.match(organization, /defaultReminderMinutes: team\.defaultReminderMinutes/);
+});
+
+test('24-hour reminders clearly identify tomorrow without relabeling longer lead times', () => {
+  assert.match(service, /minutesBefore >= 23 \* 60/);
+  assert.match(service, /minutesBefore <= 25 \* 60/);
+  assert.match(service, /Training morgen/);
+  assert.match(service, /isDayBefore \? 'Morgen'/);
+  assert.match(service, /reguläres Training von/);
+});
+
+test('calendar downloads are scoped to the selected youth and include regular training series', () => {
+  assert.match(events, /selectedContextTeamIds\(req\.user!\)/);
+  assert.match(events, /\?ageGroupId=/);
+  assert.match(events, /RRULE:FREQ=WEEKLY/);
+  assert.match(events, /Content-Disposition', 'attachment/);
 });

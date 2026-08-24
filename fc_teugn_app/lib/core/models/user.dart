@@ -69,6 +69,7 @@ class AppUser {
   final List<UserTeamMembership> memberships;
   final List<UserParentPlayerLink> parentPlayers;
   final RegistrationRequestInfo? registrationRequest;
+  final AdminPreviewInfo? preview;
 
   AppUser({
     required this.id,
@@ -84,7 +85,10 @@ class AppUser {
     this.memberships = const [],
     this.parentPlayers = const [],
     this.registrationRequest,
+    this.preview,
   });
+
+  bool get isReadOnlyPreview => preview?.readOnly == true;
 
   String get resolvedFirstName {
     final stored = firstName?.trim();
@@ -119,6 +123,7 @@ class AppUser {
         memberships: memberships,
         parentPlayers: parentPlayers,
         registrationRequest: registrationRequest,
+        preview: preview,
       );
 
   bool get isTrainer => switch (role) {
@@ -200,6 +205,9 @@ class AppUser {
           : RegistrationRequestInfo.fromJson(
               json['registrationRequest'] as Map<String, dynamic>,
             ),
+      preview: json['preview'] is Map<String, dynamic>
+          ? AdminPreviewInfo.fromJson(json['preview'] as Map<String, dynamic>)
+          : null,
       role: switch (role) {
         'SUPER_ADMIN' => UserRole.superAdmin,
         'CLUB_ADMIN' => UserRole.clubAdmin,
@@ -216,6 +224,31 @@ class AppUser {
       status: accountStatusFromApi(status),
     );
   }
+}
+
+class AdminPreviewInfo {
+  const AdminPreviewInfo({
+    required this.readOnly,
+    required this.actorId,
+    required this.actorName,
+    required this.targetId,
+    required this.targetName,
+  });
+
+  final bool readOnly;
+  final String actorId;
+  final String actorName;
+  final String targetId;
+  final String targetName;
+
+  factory AdminPreviewInfo.fromJson(Map<String, dynamic> json) =>
+      AdminPreviewInfo(
+        readOnly: json['readOnly'] as bool? ?? true,
+        actorId: json['actorId'] as String? ?? '',
+        actorName: json['actorName'] as String? ?? 'Systemadministration',
+        targetId: json['targetId'] as String? ?? '',
+        targetName: json['targetName'] as String? ?? 'Mitglied',
+      );
 }
 
 class UserParentPlayerLink {

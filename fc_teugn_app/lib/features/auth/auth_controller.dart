@@ -281,6 +281,53 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  Future<AppUser> enterReadOnlyPreview(String userId) async {
+    final actor = state.user;
+    final token = state.accessToken;
+    if (actor == null || token == null || actor.role != UserRole.superAdmin) {
+      throw Exception(
+        'Die Ansicht aus Sicht eines Mitglieds steht nur der Systemadministration zur Verfügung.',
+      );
+    }
+    try {
+      final response = await ApiClient(
+        accessToken: token,
+        viewAsUserId: userId,
+        loadingController: _loadingController,
+      ).dio.get('/auth/me');
+      final previewUser =
+          AppUser.fromJson(response.data as Map<String, dynamic>);
+      state = state.copyWith(user: previewUser, error: null);
+      return previewUser;
+    } catch (error) {
+      throw Exception(_messageFromError(
+        error,
+        fallback: 'Die Mitgliedsansicht konnte nicht geöffnet werden.',
+      ));
+    }
+  }
+
+  Future<AppUser> exitReadOnlyPreview() async {
+    final token = state.accessToken;
+    if (token == null) {
+      throw Exception('Die Adminsitzung ist nicht mehr verfügbar.');
+    }
+    try {
+      final response = await ApiClient(
+        accessToken: token,
+        loadingController: _loadingController,
+      ).dio.get('/auth/me');
+      final actor = AppUser.fromJson(response.data as Map<String, dynamic>);
+      state = state.copyWith(user: actor, error: null);
+      return actor;
+    } catch (error) {
+      throw Exception(_messageFromError(
+        error,
+        fallback: 'Die Adminansicht konnte nicht wiederhergestellt werden.',
+      ));
+    }
+  }
+
   Future<String> updateOwnProfile({
     required String firstName,
     required String lastName,
@@ -372,6 +419,8 @@ class AuthController extends StateNotifier<AuthState> {
       _refreshFailureInvalidatesSession = !_refreshTokenReadFailed;
       return null;
     }
+    final previewUser =
+        state.user?.isReadOnlyPreview == true ? state.user : null;
     for (var attempt = 0; attempt < 3; attempt += 1) {
       try {
         final res =
@@ -383,7 +432,10 @@ class AuthController extends StateNotifier<AuthState> {
         final accessToken = data['accessToken'] as String;
         await _storeRefreshToken(data['refreshToken'] as String);
         state = AuthState(
-          user: AppUser.fromJson(data['user'] as Map<String, dynamic>),
+          // Die Mitgliedsvorschau hängt an der echten Adminsitzung. Eine
+          // transparente Token-Verlängerung darf sie nicht sichtbar beenden.
+          user: previewUser ??
+              AppUser.fromJson(data['user'] as Map<String, dynamic>),
           accessToken: accessToken,
         );
         _refreshFailureInvalidatesSession = false;
@@ -687,6 +739,7 @@ class AuthController extends StateNotifier<AuthState> {
 
   ApiClient get _client => ApiClient(
         accessToken: state.accessToken,
+        viewAsUserId: state.user?.preview?.targetId,
         loadingController: _loadingController,
       );
 

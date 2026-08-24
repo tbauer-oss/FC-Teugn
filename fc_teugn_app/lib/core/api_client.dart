@@ -13,6 +13,7 @@ class ApiClient {
   factory ApiClient({
     String? baseUrl,
     String? accessToken,
+    String? viewAsUserId,
     Future<String?> Function()? refreshAccessToken,
     VoidCallback? onSessionExpired,
     GeneralOfflineOutbox? offlineOutbox,
@@ -51,6 +52,9 @@ class ApiClient {
 
     if (accessToken != null) {
       dio.options.headers['Authorization'] = 'Bearer $accessToken';
+    }
+    if (viewAsUserId?.trim().isNotEmpty == true) {
+      dio.options.headers['X-View-As-User'] = viewAsUserId!.trim();
     }
     if (refreshAccessToken != null) {
       dio.interceptors.add(

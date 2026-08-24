@@ -1134,6 +1134,22 @@ export async function me(req: Request, res: Response) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
+      memberships: {
+        where: { status: AccountStatus.APPROVED },
+        orderBy: { team: { name: 'asc' } },
+        select: {
+          id: true,
+          role: true,
+          status: true,
+          team: {
+            select: {
+              id: true,
+              name: true,
+              ageGroup: { select: { name: true, code: true } },
+            },
+          },
+        },
+      },
       registrationRequest: {
         select: {
           id: true,
@@ -1161,8 +1177,18 @@ export async function me(req: Request, res: Response) {
     role: user.role,
     status: user.status,
     teamId: user.teamId,
+    memberships: user.memberships,
     parentLinks,
     registrationRequest: user.registrationRequest,
+    preview: req.user?.previewActorId
+      ? {
+          readOnly: true,
+          actorId: req.user.previewActorId,
+          actorName: req.user.previewActorName,
+          targetId: user.id,
+          targetName: user.name,
+        }
+      : null,
   });
 }
 

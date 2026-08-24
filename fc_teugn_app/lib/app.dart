@@ -21,6 +21,7 @@ import 'features/trainer/trainer_approvals_page.dart';
 import 'features/trainer/trainer_players_page.dart';
 import 'features/trainer/trainer_events_page.dart';
 import 'features/trainer/trainer_matches_page.dart';
+import 'features/trainer/admin_perspective_page.dart';
 import 'features/parent/parent_dashboard_page.dart';
 import 'features/parent/parent_players_page.dart';
 import 'features/parent/parent_events_page.dart';
@@ -580,15 +581,15 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
         ShellRoute(
           builder: (context, state, child) => AppShell(
             title: 'Trainer & Verwaltung',
-            destinations: const [
-              ShellDestination(
+            destinations: [
+              const ShellDestination(
                   label: 'Startseite',
                   mobileLabel: 'Start',
                   icon: Icons.grid_view_rounded,
                   route: '/trainer',
                   section: ShellSection.overview,
                   hint: 'Das Wichtigste und offene Aufgaben auf einen Blick'),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Mitglieder, Rollen & Zugänge',
                   icon: Icons.manage_accounts_rounded,
                   route: '/trainer/approvals',
@@ -596,14 +597,24 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   hint:
                       'Registrierungen prüfen, Konten freigeben und Rechte verwalten',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Mein Konto',
                   icon: Icons.manage_accounts_outlined,
                   route: '/trainer/account',
                   section: ShellSection.administration,
                   hint: 'Persönliche Daten, Sicherheit und Passwort verwalten',
                   showOnMobile: false),
-              ShellDestination(
+              if (ref.watch(authProvider).user?.role == UserRole.superAdmin)
+                const ShellDestination(
+                  label: 'Ansicht als Mitglied',
+                  icon: Icons.visibility_rounded,
+                  route: '/trainer/view-as',
+                  section: ShellSection.administration,
+                  hint:
+                      'Die App schreibgeschützt aus Sicht eines Mitglieds prüfen',
+                  showOnMobile: false,
+                ),
+              const ShellDestination(
                   label: 'Meine Mannschaft',
                   mobileLabel: 'Team',
                   icon: Icons.groups_rounded,
@@ -612,7 +623,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   hint:
                       'Mannschaft, Aufstellung und Teamdaten zentral verwalten',
                   relatedRoutes: ['/trainer/players']),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Spieler & Kader',
                   icon: Icons.badge_rounded,
                   route: '/trainer/players',
@@ -620,7 +631,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   hint:
                       'Spielerprofile, Rückennummern und Positionen verwalten',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Kalender & Termine',
                   mobileLabel: 'Kalender',
                   icon: Icons.calendar_month_rounded,
@@ -628,7 +639,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   section: ShellSection.schedule,
                   hint:
                       'Trainings, Spiele, Serien und Rückmeldungen verwalten'),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Spiele & Turniere',
                   mobileLabel: 'Spiele',
                   icon: Icons.sports_soccer_rounded,
@@ -636,21 +647,21 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   section: ShellSection.schedule,
                   hint:
                       'Spieltage planen, Kader festlegen und Liveticker führen'),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Tabelle & Ergebnisse',
                   icon: Icons.emoji_events_rounded,
                   route: '/trainer/bfv',
                   section: ShellSection.schedule,
                   hint: 'Offizielle BfV-Tabelle, Spielplan und Ergebnisse',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'BfV SpielPLUS',
                   icon: Icons.login_rounded,
                   route: '/spielplus-browser',
                   section: ShellSection.schedule,
                   hint: 'Spielberichte und Verbandsverwaltung öffnen',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Trainings- & Platzplanung',
                   icon: Icons.fitness_center_rounded,
                   route: '/trainer/training',
@@ -658,7 +669,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   hint:
                       'Trainingseinheiten planen und Sportplätze koordinieren',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Leistungszentrum',
                   icon: Icons.query_stats_rounded,
                   route: '/trainer/statistics',
@@ -666,20 +677,20 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   hint:
                       'Entwicklung, Bewertungen und Saisonstatistiken auswerten',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Nachrichten & Umfragen',
                   icon: Icons.forum_rounded,
                   route: '/trainer/messages',
                   section: ShellSection.communication,
                   hint: 'Informationen versenden und Abstimmungen durchführen'),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Teamaufgaben & Ausrüstung',
                   icon: Icons.assignment_turned_in_rounded,
                   route: '/trainer/operations',
                   section: ShellSection.communication,
                   hint:
                       'Aufgaben verteilen, Material und Ausrüstung organisieren'),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Verein & Mannschaften',
                   icon: Icons.account_tree_rounded,
                   route: '/trainer/organization',
@@ -687,14 +698,14 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   hint:
                       'Vereinsdaten, Mannschaften und Verantwortliche verwalten',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Datenschutz & Einwilligungen',
                   icon: Icons.shield_outlined,
                   route: '/trainer/privacy',
                   section: ShellSection.administration,
                   hint: 'Zustimmungen, Dokumente und Datenschutz verwalten',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                   label: 'Hilfe & Anleitungen',
                   icon: Icons.help_center_rounded,
                   route: '/trainer/help',
@@ -702,14 +713,14 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   hint:
                       'Funktionen verständlich erklärt und schnelle Antworten finden',
                   showOnMobile: false),
-              ShellDestination(
+              const ShellDestination(
                 label: 'Rückmeldungen für meine Kinder',
                 icon: Icons.family_restroom_rounded,
                 route: '/trainer/family',
                 section: ShellSection.overview,
                 hint: 'Für eigene Kinder zu Trainings und Spielen antworten',
               ),
-              ShellDestination(
+              const ShellDestination(
                 label: 'Technischer Support',
                 icon: Icons.support_agent_rounded,
                 route: '/trainer/support',
@@ -731,6 +742,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
             GoRoute(
               path: '/trainer/account',
               builder: (context, state) => const AccountSettingsPage(),
+            ),
+            GoRoute(
+              path: '/trainer/view-as',
+              builder: (context, state) => const AdminPerspectivePage(),
             ),
             GoRoute(
               path: '/trainer/team',

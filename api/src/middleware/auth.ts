@@ -14,7 +14,12 @@ export interface AuthUser {
   status: AccountStatus;
   teamId: string;
   permissions?: string[];
+  previewActorId?: string;
+  previewActorName?: string;
 }
+
+const previewHeader = 'x-view-as-user';
+const safePreviewMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 declare global {
   namespace Express {
@@ -33,6 +38,20 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = header.substring(7);
   try {
     const decoded = verifyAccessToken(token) as AuthUser;
+    const requestedPreviewId = req.get(previewHeader)?.trim();
+    if (requestedPreviewId) {
+      if (decoded.role !== Role.SUPER_ADMIN) {
+        return res.status(403).json({
+          message: 'Die Vorschau steht nur der Systemadministration zur Verfügung.',
+        });
+      }
+      if (!safePreviewMethods.has(req.method.toUpperCase())) {
+        return res.status(403).json({
+          message: 'Die Ansicht aus Sicht eines Mitglieds ist schreibgeschützt.',
+          readOnlyPreview: true,
+        });
+      }
+    }
     req.user = decoded;
     return next();
   } catch (err) {
@@ -78,7 +97,7 @@ export async function requireApproved(
   try {
     current = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { role: true, status: true, teamId: true },
+      select: { id: true, name: true, role: true, status: true, teamId: true },
     });
   } catch (error) {
     next(error);
@@ -87,18 +106,6 @@ export async function requireApproved(
   if (!current) {
     return res.status(401).json({ message: 'Account nicht gefunden.' });
   }
-  const permissions = await effectivePermissionsForUser(
-    req.user.id,
-    current.role as Role,
-  );
-  req.user = {
-    id: req.user.id,
-    role: current.role as Role,
-    status: current.status as AccountStatus,
-    teamId: current.teamId,
-    permissions,
-  };
-
   if (
     current.status === AccountStatus.BLOCKED ||
     current.status === AccountStatus.REJECTED ||
@@ -110,6 +117,48 @@ export async function requireApproved(
   if (current.status !== AccountStatus.APPROVED) {
     return res.status(403).json({ message: 'Account pending approval' });
   }
+
+  const requestedPreviewId = req.get(previewHeader)?.trim();
+  if (requestedPreviewId) {
+    if (current.role !== Role.SUPER_ADMIN) {
+      return res.status(403).json({
+        message: 'Die Vorschau steht nur der Systemadministration zur Verfügung.',
+      });
+    }
+    const target = await prisma.user.findUnique({
+      where: { id: requestedPreviewId },
+      select: { id: true, role: true, status: true, teamId: true },
+    });
+    if (!target || target.status !== AccountStatus.APPROVED) {
+      return res.status(404).json({
+        message: 'Das ausgewählte freigegebene Mitglied wurde nicht gefunden.',
+      });
+    }
+    req.user = {
+      id: target.id,
+      role: target.role as Role,
+      status: target.status as AccountStatus,
+      teamId: target.teamId,
+      permissions: await effectivePermissionsForUser(
+        target.id,
+        target.role as Role,
+      ),
+      previewActorId: current.id,
+      previewActorName: current.name,
+    };
+    return next();
+  }
+
+  req.user = {
+    id: current.id,
+    role: current.role as Role,
+    status: current.status as AccountStatus,
+    teamId: current.teamId,
+    permissions: await effectivePermissionsForUser(
+      current.id,
+      current.role as Role,
+    ),
+  };
 
   return next();
 }

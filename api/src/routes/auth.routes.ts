@@ -45,7 +45,7 @@ router.post('/refresh', refresh);
 router.post('/logout', logout);
 router.post('/logout-all', requireAuth, logoutAll);
 router.get('/consent-texts', activeConsentTexts);
-router.get('/me', requireAuth, me);
+router.get('/me', requireAuth, requireApproved, me);
 router.patch('/me', requireAuth, requireApproved, updateOwnProfile);
 router.put(
   '/me/password',

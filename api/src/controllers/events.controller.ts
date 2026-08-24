@@ -33,6 +33,7 @@ import {
   contextualTeamIds,
   eventReadScope,
   ownPlayerIds,
+  selectedContextTeamIds,
   youthPlayerPoolTeamIdsForTeam,
 } from '../services/team-access';
 import { rosterTeamIdsForMatch } from '../services/match-roster';
@@ -3020,8 +3021,16 @@ export async function calendarSubscription(req: Request, res: Response) {
   const baseUrl =
     process.env.PUBLIC_API_URL?.replace(/\/$/, '') ??
     `${req.protocol}://${req.get('host')}`;
+  const selectedTeams = await selectedContextTeamIds(req.user!);
+  const selectedAgeGroup = await prisma.team.findFirst({
+    where: { id: { in: selectedTeams }, deletedAt: null },
+    select: { ageGroupId: true },
+  });
+  const query = selectedAgeGroup
+    ? `?ageGroupId=${encodeURIComponent(selectedAgeGroup.ageGroupId)}`
+    : '';
   return res.json({
-    url: `${baseUrl}/events/subscription/${user.calendarToken}.ics`,
+    url: `${baseUrl}/events/subscription/${user.calendarToken}.ics${query}`,
   });
 }
 
@@ -3037,6 +3046,15 @@ export function icsDate(value: Date) {
   return value.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 }
 
+function icsLocalDate(value: Date) {
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(value.getUTCDate()).padStart(2, '0');
+  const hour = String(value.getUTCHours()).padStart(2, '0');
+  const minute = String(value.getUTCMinutes()).padStart(2, '0');
+  return `${year}${month}${day}T${hour}${minute}00`;
+}
+
 export async function publicCalendarSubscription(req: Request, res: Response) {
   const user = await prisma.user.findFirst({
     where: {
@@ -3046,7 +3064,36 @@ export async function publicCalendarSubscription(req: Request, res: Response) {
     select: { id: true, role: true, teamId: true },
   });
   if (!user) return res.status(404).send('Kalenderabonnement nicht gefunden.');
-  const teamIds = await accessibleTeamIds(user);
+  const accessibleIds = await accessibleTeamIds(user);
+  const requestedAgeGroupId = typeof req.query.ageGroupId === 'string'
+    ? req.query.ageGroupId.trim()
+    : '';
+  const scopedTeams = await prisma.team.findMany({
+    where: {
+      id: { in: accessibleIds },
+      deletedAt: null,
+      isActive: true,
+      ...(requestedAgeGroupId ? { ageGroupId: requestedAgeGroupId } : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      trainingLocation: true,
+      trainingTimes: true,
+      seasonStartDate: true,
+      seasonEndDate: true,
+      ageGroup: {
+        select: {
+          code: true,
+          season: { select: { startDate: true, endDate: true } },
+        },
+      },
+    },
+  });
+  if (requestedAgeGroupId && scopedTeams.length === 0) {
+    return res.status(404).send('Die gewählte Jugend ist für dieses Kalender-Abo nicht verfügbar.');
+  }
+  const teamIds = scopedTeams.map((team) => team.id);
   const events = await prisma.event.findMany({
     where: {
       ...eventScope(teamIds),
@@ -3084,6 +3131,7 @@ export async function publicCalendarSubscription(req: Request, res: Response) {
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'X-WR-CALNAME:FC Teugn',
+    'X-WR-TIMEZONE:Europe/Berlin',
   ];
   for (const event of events) {
     const eventTitle = event.matchDetails
@@ -3106,9 +3154,43 @@ export async function publicCalendarSubscription(req: Request, res: Response) {
       'END:VEVENT',
     );
   }
+  const weekdayCodes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+  for (const team of scopedTeams) {
+    const seasonStart = team.seasonStartDate ?? team.ageGroup.season.startDate;
+    const seasonEnd = team.seasonEndDate ?? team.ageGroup.season.endDate;
+    const recurrenceEnd = new Date(seasonEnd);
+    recurrenceEnd.setUTCHours(23, 59, 59, 0);
+    for (var index = 0; index < team.trainingTimes.length; index++) {
+      const slot = parseRegularTrainingSlot(team.trainingTimes[index]);
+      if (!slot) continue;
+      const first = new Date(Date.UTC(
+        seasonStart.getUTCFullYear(),
+        seasonStart.getUTCMonth(),
+        seasonStart.getUTCDate(),
+        slot.hour,
+        slot.minute,
+      ));
+      first.setUTCDate(first.getUTCDate() + ((slot.weekday - first.getUTCDay() + 7) % 7));
+      const end = new Date(first);
+      end.setUTCHours(slot.endHour, slot.endMinute, 0, 0);
+      lines.push(
+        'BEGIN:VEVENT',
+        `UID:regular-training-${team.id}-${index}@fc-teugn.de`,
+        `DTSTAMP:${icsDate(team.seasonStartDate ?? team.ageGroup.season.startDate)}`,
+        `DTSTART;TZID=Europe/Berlin:${icsLocalDate(first)}`,
+        `DTEND;TZID=Europe/Berlin:${icsLocalDate(end)}`,
+        `RRULE:FREQ=WEEKLY;BYDAY=${weekdayCodes[slot.weekday]};UNTIL=${icsDate(recurrenceEnd)}`,
+        `SUMMARY:${icsEscape(`Training · ${team.ageGroup.code || team.name}`)}`,
+        `LOCATION:${icsEscape(team.trainingLocation)}`,
+        `DESCRIPTION:${icsEscape(`Regeltraining ${team.name}`)}`,
+        'STATUS:CONFIRMED',
+        'END:VEVENT',
+      );
+    }
+  }
   lines.push('END:VCALENDAR');
   res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-  res.setHeader('Content-Disposition', 'inline; filename="fc-teugn-kalender.ics"');
+  res.setHeader('Content-Disposition', 'attachment; filename="fc-teugn-kalender.ics"');
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   return res.send(`${lines.join('\r\n')}\r\n`);
 }

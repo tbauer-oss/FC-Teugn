@@ -257,10 +257,12 @@ export async function processDueReminders(now = new Date()) {
         : job.event.category === EventCategory.TRAINING
           ? 'Training'
           : 'Termin';
+      const isDayBefore =
+        job.minutesBefore >= 23 * 60 && job.minutesBefore <= 25 * 60;
       await notifyUsers([job.recipientId], {
         category: NotificationCategory.EVENT_REMINDER,
-        title: `${eventLabel} steht an`,
-        body: `„${job.event.title}“ beginnt um ${job.event.startAt.toLocaleTimeString('de-DE', {
+        title: isDayBefore ? `${eventLabel} morgen` : `${eventLabel} steht an`,
+        body: `„${job.event.title}“ beginnt ${isDayBefore ? 'morgen ' : ''}um ${job.event.startAt.toLocaleTimeString('de-DE', {
           timeZone: 'Europe/Berlin',
           hour: '2-digit',
           minute: '2-digit',
@@ -316,11 +318,16 @@ export function parseRegularTrainingSlot(value: string) {
   if (!day || !time) return null;
   const hour = Number(time[1]);
   const minute = Number(time[2]);
+  const endHour = Number(time[3]);
+  const endMinute = Number(time[4]);
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  if (endHour < 0 || endHour > 23 || endMinute < 0 || endMinute > 59) return null;
   return {
     weekday: weekdays.get(day[1].toLocaleLowerCase('de-DE'))!,
     hour,
     minute,
+    endHour,
+    endMinute,
   };
 }
 
@@ -435,10 +442,12 @@ async function processRegularTrainingReminders(now: Date) {
         const minutesUntil = (start.getTime() - berlinNow.getTime()) / 60_000;
         if (minutesUntil > minutesBefore || minutesUntil <= minutesBefore - 5) continue;
         for (const recipientId of recipients) {
+          const isDayBefore =
+            minutesBefore >= 23 * 60 && minutesBefore <= 25 * 60;
           const result = await notifyUsers([recipientId], {
             category: NotificationCategory.EVENT_REMINDER,
-            title: 'Training steht an',
-            body: `Das reguläre Training von ${team.name} beginnt um ${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')} Uhr.`,
+            title: isDayBefore ? 'Training morgen' : 'Training steht an',
+            body: `${isDayBefore ? 'Morgen' : 'Das reguläre Training'}${isDayBefore ? ` um ${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')} Uhr: reguläres Training von ${team.name}.` : ` von ${team.name} beginnt um ${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')} Uhr.`}`,
             actionUrl: '/family',
             entityType: 'Team',
             entityId: team.id,

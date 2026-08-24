@@ -32,9 +32,12 @@ final repositoryProvider = Provider<DataRepository>((ref) {
   final controller = ref.read(authProvider.notifier);
   final client = ApiClient(
     accessToken: authState.accessToken,
+    viewAsUserId: authState.user?.preview?.targetId,
     refreshAccessToken: controller.refreshAccessToken,
     onSessionExpired: controller.clearSessionAfterRefreshFailure,
-    offlineOutbox: ref.watch(offlineOutboxProvider),
+    offlineOutbox: authState.user?.isReadOnlyPreview == true
+        ? null
+        : ref.watch(offlineOutboxProvider),
     userId: authState.user?.id,
     loadingController: ref.read(appLoadingProvider),
     onOfflineSynchronizationComplete: () {
@@ -64,6 +67,7 @@ final nativePushRegistrationProvider = FutureProvider<void>((ref) async {
   final user = authState.user;
   if (user == null ||
       user.status != AccountStatus.approved ||
+      user.isReadOnlyPreview ||
       authState.accessToken == null ||
       !nativePushService.supported) {
     return;

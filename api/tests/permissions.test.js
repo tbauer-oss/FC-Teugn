@@ -209,6 +209,17 @@ test('system administrators always receive every defined permission', () => {
   }
 });
 
+test('system-admin member previews are read-only and resolve the approved target identity', () => {
+  const middleware = fs.readFileSync('src/middleware/auth.ts', 'utf8');
+  const routes = fs.readFileSync('src/routes/auth.routes.ts', 'utf8');
+  assert.match(middleware, /x-view-as-user/);
+  assert.match(middleware, /decoded\.role !== Role\.SUPER_ADMIN/);
+  assert.match(middleware, /safePreviewMethods/);
+  assert.match(middleware, /readOnlyPreview: true/);
+  assert.match(middleware, /target\.status !== AccountStatus\.APPROVED/);
+  assert.match(routes, /router\.get\('\/me', requireAuth, requireApproved, me\)/);
+});
+
 test('only club-wide roles see the complete organization structure', () => {
   assert.equal(hasOrganizationWideTeamScope(Role.SUPER_ADMIN), true);
   assert.equal(hasOrganizationWideTeamScope(Role.CLUB_ADMIN), true);
