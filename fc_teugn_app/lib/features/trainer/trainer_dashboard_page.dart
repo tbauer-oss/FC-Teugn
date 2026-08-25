@@ -96,14 +96,8 @@ class TrainerDashboardPage extends ConsumerWidget {
         )
         .take(4)
         .toList();
-    final responseEvents = _nextResponseEventsByTeam(
-      upcoming,
-      contextTeamIds,
-    );
-    final openResponses = responseEvents.fold<int>(
-      0,
-      (sum, event) => sum + _openResponses(event),
-    );
+    final nextMatch =
+        upcoming.where((event) => event.type == EventType.match).firstOrNull;
     final approvalCount = approvals.valueOrNull?.length ?? 0;
     final overdueTasks =
         teamOperations?.tasks.where((task) => task.isOverdue).toList() ??
@@ -111,21 +105,13 @@ class TrainerDashboardPage extends ConsumerWidget {
     final openTasks =
         teamOperations?.tasks.where((task) => !task.isDone).toList() ??
             const <TeamTaskModel>[];
-    final totalOpen = openResponses + approvalCount + openTasks.length;
     final priorities = _priorities(
-      responseEvents: responseEvents,
       nextEvent: nextEvent,
       approvals: approvalCount,
       overdueTasks: overdueTasks,
       openTasks: openTasks,
       now: now,
       eventRoute: eventRoute,
-      eventTeamLabel: (event) => _eventTeamLabel(event, organization),
-      onOpenResponses: (event) => _showEventResponses(
-        context,
-        event,
-        _eventRoster(event, teamPlayers),
-      ),
     );
     final compactDashboard = MediaQuery.sizeOf(context).width < 600;
     final sectionGap = compactDashboard ? 8.0 : 12.0;
@@ -159,7 +145,7 @@ class TrainerDashboardPage extends ConsumerWidget {
               events: nextTrainings,
               players: teamPlayers,
               teamLabel: (event) => _eventTeamLabel(event, organization),
-              onOpen: (event) => context.push(eventRoute(event)),
+              onPlan: (event) => context.push(eventRoute(event)),
             ),
             SizedBox(height: sectionGap),
           ],
@@ -176,9 +162,19 @@ class TrainerDashboardPage extends ConsumerWidget {
             playersError: dashboard.hasError,
             activePlayers: activePlayers,
             injuredPlayers: injuredPlayers,
-            nextEvent: nextEvent,
-            totalOpen: totalOpen,
-            nextEventRoute: nextEvent == null ? null : eventRoute(nextEvent),
+            nextTrainings: nextTrainings,
+            players: teamPlayers,
+            nextMatch: nextMatch,
+            onOpenResponses: nextTrainings.isEmpty
+                ? () => context.go('/trainer/events')
+                : () => _showCombinedTrainingResponses(
+                      context,
+                      nextTrainings,
+                      teamPlayers,
+                    ),
+            onOpenNextMatch: nextMatch == null
+                ? () => context.go('/trainer/matches')
+                : () => context.push(eventRoute(nextMatch)),
             onRetryPlayers: () =>
                 ref.invalidate(trainerDashboardSummaryProvider),
           ),
@@ -188,7 +184,7 @@ class TrainerDashboardPage extends ConsumerWidget {
               onRetry: () => ref.invalidate(trainerDashboardSummaryProvider),
             ),
           ],
-          const SizedBox(height: 14),
+          SizedBox(height: sectionGap),
           LayoutBuilder(
             builder: (context, constraints) {
               final priorityCard = _PriorityCard(items: priorities);
@@ -200,7 +196,7 @@ class TrainerDashboardPage extends ConsumerWidget {
                 return Column(
                   children: [
                     priorityCard,
-                    const SizedBox(height: 12),
+                    SizedBox(height: sectionGap),
                     agendaCard,
                   ],
                 );
@@ -215,7 +211,7 @@ class TrainerDashboardPage extends ConsumerWidget {
               );
             },
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: sectionGap),
           const _QuickActions(),
         ],
       ),
@@ -226,37 +222,6 @@ class TrainerDashboardPage extends ConsumerWidget {
     if (teamIds.isEmpty) return true;
     return teamIds.contains(event.teamId) ||
         event.targetTeams.any((target) => teamIds.contains(target.id));
-  }
-
-  int _openResponses(EventModel? event) {
-    if (event == null) return 0;
-    if (event.missingAttendance.isNotEmpty) {
-      return event.missingAttendance.length;
-    }
-    return event.attendanceSummary.unknown;
-  }
-
-  List<EventModel> _nextResponseEventsByTeam(
-    List<EventModel> upcoming,
-    Set<String> contextTeamIds,
-  ) {
-    final coveredTeamIds = <String>{};
-    final result = <EventModel>[];
-    for (final event in upcoming) {
-      if (_openResponses(event) == 0) continue;
-      final eventTeamIds = {
-        event.teamId,
-        ...event.targetTeams.map((team) => team.id),
-      }.where(
-        (teamId) => contextTeamIds.isEmpty || contextTeamIds.contains(teamId),
-      );
-      if (eventTeamIds.isEmpty || eventTeamIds.every(coveredTeamIds.contains)) {
-        continue;
-      }
-      result.add(event);
-      coveredTeamIds.addAll(eventTeamIds);
-    }
-    return result;
   }
 
   String _eventTeamLabel(
@@ -288,31 +253,14 @@ class TrainerDashboardPage extends ConsumerWidget {
   }
 
   List<_DashboardPriority> _priorities({
-    required List<EventModel> responseEvents,
     required EventModel? nextEvent,
     required int approvals,
     required List<TeamTaskModel> overdueTasks,
     required List<TeamTaskModel> openTasks,
     required DateTime now,
     required String Function(EventModel event) eventRoute,
-    required String Function(EventModel event) eventTeamLabel,
-    required void Function(EventModel event) onOpenResponses,
   }) {
     final items = <_DashboardPriority>[];
-    for (final responseEvent in responseEvents) {
-      final openResponses = _openResponses(responseEvent);
-      items.add(
-        _DashboardPriority(
-          icon: Icons.how_to_reg_rounded,
-          color: AppColors.gold,
-          title: '$openResponses Rückmeldungen fehlen',
-          subtitle: '${eventTeamLabel(responseEvent)} · '
-              '${_shortDate(responseEvent.startAt)}, '
-              '${_time(responseEvent.startAt)} Uhr',
-          onTap: () => onOpenResponses(responseEvent),
-        ),
-      );
-    }
     if (overdueTasks.isNotEmpty) {
       items.add(
         _DashboardPriority(
@@ -503,17 +451,24 @@ class _NextTrainingsOverview extends StatelessWidget {
     required this.events,
     required this.players,
     required this.teamLabel,
-    required this.onOpen,
+    required this.onPlan,
   });
 
   final List<EventModel> events;
   final List<PlayerModel> players;
   final String Function(EventModel event) teamLabel;
-  final void Function(EventModel event) onOpen;
+  final void Function(EventModel event) onPlan;
 
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
+    final counts = combinedTrainingDashboardCounts(events, players);
+    final labels = events.map(teamLabel).toSet().toList();
+    final sameSchedule = events.every(
+      (event) =>
+          event.startAt == events.first.startAt &&
+          event.location.trim() == events.first.location.trim(),
+    );
     return Card(
       key: const ValueKey('next-training-overview'),
       clipBehavior: Clip.antiAlias,
@@ -540,51 +495,120 @@ class _NextTrainingsOverview extends StatelessWidget {
                 ),
                 const SizedBox(width: 9),
                 Expanded(
-                  child: Text(
-                    events.length == 1
-                        ? 'Nächstes Training'
-                        : 'Nächste Trainings',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Nächstes Training',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        labels.join(' + '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (events.length > 1) _TrainingTeamCount(count: events.length),
               ],
             ),
             SizedBox(height: compact ? 6 : 8),
-            for (var index = 0; index < events.length; index++) ...[
-              if (index > 0) const Divider(height: 9),
-              _NextTrainingRow(
-                event: events[index],
-                players: players,
-                teamLabel: teamLabel(events[index]),
-                onOpen: () => onOpen(events[index]),
-              ),
-            ],
+            if (sameSchedule)
+              _TrainingScheduleLine(
+                event: events.first,
+                teamLabel: labels.join(' + '),
+              )
+            else
+              for (final event in events)
+                _TrainingScheduleLine(
+                  event: event,
+                  teamLabel: teamLabel(event),
+                ),
+            SizedBox(height: compact ? 6 : 8),
+            Wrap(
+              spacing: 5,
+              runSpacing: 5,
+              children: [
+                _TrainingResponseMetric(
+                  icon: Icons.check_circle_rounded,
+                  label: 'Zugesagt',
+                  value: counts.yes,
+                  color: AppColors.success,
+                ),
+                _TrainingResponseMetric(
+                  icon: Icons.cancel_rounded,
+                  label: 'Abgesagt',
+                  value: counts.no,
+                  color: Colors.redAccent,
+                ),
+                _TrainingResponseMetric(
+                  icon: Icons.schedule_rounded,
+                  label: 'Offen',
+                  value: counts.open,
+                  color: AppColors.muted,
+                ),
+                _TrainingResponseMetric(
+                  icon: Icons.groups_rounded,
+                  label: 'Gesamt',
+                  value: counts.total,
+                  color: AppColors.blue,
+                ),
+              ],
+            ),
             SizedBox(height: compact ? 7 : 9),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.tonalIcon(
-                key: const ValueKey('all-training-responses'),
-                onPressed: () => _showCombinedTrainingResponses(
-                  context,
-                  events,
-                  players,
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    key: const ValueKey('all-training-responses'),
+                    onPressed: () => _showCombinedTrainingResponses(
+                      context,
+                      events,
+                      players,
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.yellowSoft,
+                      foregroundColor: AppColors.gold,
+                      padding: EdgeInsets.symmetric(vertical: compact ? 8 : 10),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: const Icon(Icons.groups_rounded, size: 18),
+                    label: const Text(
+                      'Rückmeldungen',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
                 ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.yellowSoft,
-                  foregroundColor: AppColors.gold,
-                  padding: EdgeInsets.symmetric(vertical: compact ? 9 : 11),
-                  visualDensity: VisualDensity.compact,
+                const SizedBox(width: 7),
+                OutlinedButton.icon(
+                  key: const ValueKey('next-training-planning'),
+                  onPressed: () => _openTrainingPlanning(
+                    context,
+                    events,
+                    teamLabel,
+                    onPlan,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.muted,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 9 : 12,
+                      vertical: compact ? 8 : 10,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.edit_calendar_outlined, size: 17),
+                  label: const Text('Planung'),
                 ),
-                icon: const Icon(Icons.groups_rounded, size: 19),
-                label: const Text(
-                  'Alle Rückmeldungen ansehen',
-                  style: TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
+              ],
             ),
           ],
         ),
@@ -616,115 +640,101 @@ class _TrainingTeamCount extends StatelessWidget {
       );
 }
 
-class _NextTrainingRow extends StatelessWidget {
-  const _NextTrainingRow({
-    required this.event,
-    required this.players,
-    required this.teamLabel,
-    required this.onOpen,
-  });
-
+class _TrainingScheduleLine extends StatelessWidget {
+  const _TrainingScheduleLine({required this.event, required this.teamLabel});
   final EventModel event;
-  final List<PlayerModel> players;
   final String teamLabel;
-  final VoidCallback onOpen;
 
   @override
-  Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 600;
-    final roster = _eventRoster(event, players);
-    final counts = trainingDashboardCounts(
-      event.attendanceSummary,
-      missingCount: event.missingAttendance.length,
-      rosterCount: roster.length,
-    );
-    return Material(
-      key: ValueKey('next-training-overview-${event.id}'),
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onOpen,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: compact ? 3 : 5),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          teamLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.black,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          '${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr'
-                          '${event.location.trim().isEmpty ? '' : ' · ${event.location.trim()}'}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: AppColors.muted,
-                    size: 20,
-                  ),
-                ],
-              ),
-              SizedBox(height: compact ? 5 : 7),
-              Wrap(
-                spacing: 5,
-                runSpacing: 5,
-                children: [
-                  _TrainingResponseMetric(
-                    icon: Icons.check_circle_rounded,
-                    label: 'Zu',
-                    value: counts.yes,
-                    color: AppColors.success,
-                  ),
-                  _TrainingResponseMetric(
-                    icon: Icons.cancel_rounded,
-                    label: 'Ab',
-                    value: counts.no,
-                    color: Colors.redAccent,
-                  ),
-                  _TrainingResponseMetric(
-                    icon: Icons.schedule_rounded,
-                    label: 'Offen',
-                    value: counts.open,
-                    color: AppColors.muted,
-                  ),
-                  _TrainingResponseMetric(
-                    icon: Icons.groups_rounded,
-                    label: 'Gesamt',
-                    value: counts.total,
-                    color: AppColors.blue,
-                  ),
-                ],
-              ),
-            ],
-          ),
+  Widget build(BuildContext context) => Container(
+        key: ValueKey('next-training-overview-${event.id}'),
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: AppColors.line),
         ),
-      ),
-    );
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.yellowSoft,
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Text(
+                teamLabel,
+                style:
+                    const TextStyle(fontSize: 10, fontWeight: FontWeight.w900),
+              ),
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                '${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr'
+                '${event.location.trim().isEmpty ? '' : ' · ${event.location.trim()}'}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+void _openTrainingPlanning(
+  BuildContext context,
+  List<EventModel> events,
+  String Function(EventModel event) teamLabel,
+  void Function(EventModel event) onPlan,
+) {
+  if (events.length == 1) {
+    onPlan(events.first);
+    return;
   }
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    useSafeArea: true,
+    builder: (sheetContext) => Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Training planen',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Wähle die Mannschaft, deren Trainingsplan du öffnen möchtest.',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          for (final event in events)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.edit_calendar_outlined),
+              title: Text(teamLabel(event)),
+              subtitle: Text(
+                  '${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                onPlan(event);
+              },
+            ),
+        ],
+      ),
+    ),
+  );
 }
 
 List<PlayerModel> _eventRoster(
@@ -743,22 +753,6 @@ List<PlayerModel> _eventRoster(
             teamIds.contains(player.teamId),
       )
       .toList();
-}
-
-void _showEventResponses(
-  BuildContext context,
-  EventModel event,
-  List<PlayerModel> roster,
-) {
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    builder: (context) => _TrainingResponsesSheet(
-      event: event,
-      roster: roster,
-    ),
-  );
 }
 
 void _showCombinedTrainingResponses(
@@ -914,7 +908,10 @@ _TrainingResponseGroups _trainingResponseGroups(
     open: open,
   );
   for (final entries in [result.yes, result.no, result.open]) {
-    entries.sort((a, b) => a.name.compareTo(b.name));
+    entries.sort((a, b) {
+      final byTeam = a.team.compareTo(b.team);
+      return byTeam != 0 ? byTeam : a.name.compareTo(b.name);
+    });
   }
   return result;
 }
@@ -980,8 +977,8 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
     }
     for (final entries in [yes, no, open]) {
       entries.sort((a, b) {
-        final byName = a.name.compareTo(b.name);
-        return byName != 0 ? byName : a.team.compareTo(b.team);
+        final byTeam = a.team.compareTo(b.team);
+        return byTeam != 0 ? byTeam : a.name.compareTo(b.name);
       });
     }
     final teamLabels = events
@@ -1133,37 +1130,10 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
               ),
             ],
             Expanded(
-              child: ListView(
-                children: [
-                  if (yes.isNotEmpty)
-                    _TrainingResponseGroup(
-                      title: 'Zugesagt',
-                      color: AppColors.success,
-                      entries: yes,
-                    ),
-                  if (no.isNotEmpty)
-                    _TrainingResponseGroup(
-                      title: 'Abgesagt',
-                      color: Colors.redAccent,
-                      entries: no,
-                    ),
-                  if (open.isNotEmpty)
-                    _TrainingResponseGroup(
-                      title: 'Keine Rückmeldung',
-                      color: AppColors.muted,
-                      entries: open,
-                    ),
-                  if (total == 0)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: Text(
-                          'Noch keine Rückmeldungen vorhanden.',
-                          style: TextStyle(color: AppColors.muted),
-                        ),
-                      ),
-                    ),
-                ],
+              child: _FilteredTrainingResponses(
+                yes: yes,
+                no: no,
+                open: open,
               ),
             ),
           ],
@@ -1194,187 +1164,114 @@ class _CombinedTrainingEventBadge extends StatelessWidget {
       );
 }
 
-class _TrainingResponsesSheet extends ConsumerWidget {
-  const _TrainingResponsesSheet({required this.event, required this.roster});
+enum _TrainingResponseFilter { all, yes, no, open }
 
-  final EventModel event;
-  final List<PlayerModel> roster;
+class _FilteredTrainingResponses extends StatefulWidget {
+  const _FilteredTrainingResponses({
+    required this.yes,
+    required this.no,
+    required this.open,
+  });
+
+  final List<_TrainingResponseEntry> yes;
+  final List<_TrainingResponseEntry> no;
+  final List<_TrainingResponseEntry> open;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final organization = ref.watch(organizationProvider).valueOrNull;
-    final groups = _trainingResponseGroups(event, roster, organization);
-    final yes = groups.yes;
-    final no = groups.no;
-    final open = groups.open;
-    final eventTeams = event.targetTeams.isNotEmpty
-        ? event.targetTeams.map(
-            (team) => team.ageGroupCode.isEmpty
-                ? team.name
-                : '${team.ageGroupCode}-Jugend',
-          )
-        : organization?.teams
-                .where((team) => team.id == event.teamId)
-                .map((team) => team.displayName) ??
-            const Iterable<String>.empty();
-    final teamLabels = eventTeams
-        .where((label) => label.trim().isNotEmpty)
-        .toSet()
-        .join(' · ');
-    return FractionallySizedBox(
-      key: const ValueKey('trainer-response-overview-sheet'),
-      heightFactor: .82,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 7, 12, 10),
-        child: Column(
-          children: [
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.line,
-                borderRadius: BorderRadius.circular(99),
+  State<_FilteredTrainingResponses> createState() =>
+      _FilteredTrainingResponsesState();
+}
+
+class _FilteredTrainingResponsesState
+    extends State<_FilteredTrainingResponses> {
+  _TrainingResponseFilter filter = _TrainingResponseFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.yes.length + widget.no.length + widget.open.length;
+    return Column(
+      children: [
+        const SizedBox(height: 6),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _filterChip('Alle', total, _TrainingResponseFilter.all),
+              _filterChip(
+                'Zugesagt',
+                widget.yes.length,
+                _TrainingResponseFilter.yes,
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    event.type == EventType.match
-                        ? 'Rückmeldungen zum Spiel'
-                        : event.type == EventType.training
-                            ? 'Rückmeldungen zum Training'
-                            : 'Rückmeldungen zum Termin',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Schließen',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Container(
-              key: const ValueKey('trainer-response-event-details'),
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: AppColors.line),
-                borderRadius: BorderRadius.circular(14),
+              _filterChip(
+                'Abgesagt',
+                widget.no.length,
+                _TrainingResponseFilter.no,
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    event.type == EventType.match
-                        ? Icons.sports_soccer_rounded
-                        : event.type == EventType.training
-                            ? Icons.sports_rounded
-                            : Icons.event_rounded,
-                    size: 18,
-                    color: AppColors.gold,
-                  ),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          [
-                            event.title,
-                            if (teamLabels.isNotEmpty) teamLabels,
-                          ].join(' · '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          '${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr'
-                          '${event.location.trim().isEmpty ? '' : ' · ${event.location}'}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (event.capabilities.canManage &&
-                event.category == EventCategory.training) ...[
-              const SizedBox(height: 5),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  key: const ValueKey('trainer-training-reminder'),
-                  onPressed: () =>
-                      showEventAttendanceReminder(context, ref, event),
-                  style: OutlinedButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                  icon:
-                      const Icon(Icons.notifications_active_rounded, size: 18),
-                  label: const Text('Training erinnern'),
-                ),
+              _filterChip(
+                'Offen',
+                widget.open.length,
+                _TrainingResponseFilter.open,
               ),
             ],
-            Expanded(
-              child: ListView(
-                children: [
-                  if (yes.isNotEmpty)
-                    _TrainingResponseGroup(
-                      title: 'Zugesagt',
-                      color: AppColors.success,
-                      entries: yes,
-                    ),
-                  if (no.isNotEmpty)
-                    _TrainingResponseGroup(
-                      title: 'Abgesagt',
-                      color: Colors.redAccent,
-                      entries: no,
-                    ),
-                  if (open.isNotEmpty)
-                    _TrainingResponseGroup(
-                      title: 'Keine Rückmeldung',
-                      color: AppColors.muted,
-                      entries: open,
-                    ),
-                  if (yes.isEmpty && no.isEmpty && open.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: Text(
-                          'Noch keine Rückmeldungen vorhanden.',
-                          style: TextStyle(color: AppColors.muted),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(height: 1),
+        Expanded(
+          child: total == 0
+              ? const Center(
+                  child: Text(
+                    'Noch keine Rückmeldungen vorhanden.',
+                    style: TextStyle(color: AppColors.muted),
+                  ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  children: [
+                    if ((filter == _TrainingResponseFilter.all ||
+                            filter == _TrainingResponseFilter.yes) &&
+                        widget.yes.isNotEmpty)
+                      _TrainingResponseGroup(
+                        title: 'Zugesagt',
+                        color: AppColors.success,
+                        entries: widget.yes,
+                      ),
+                    if ((filter == _TrainingResponseFilter.all ||
+                            filter == _TrainingResponseFilter.no) &&
+                        widget.no.isNotEmpty)
+                      _TrainingResponseGroup(
+                        title: 'Abgesagt',
+                        color: Colors.redAccent,
+                        entries: widget.no,
+                      ),
+                    if ((filter == _TrainingResponseFilter.all ||
+                            filter == _TrainingResponseFilter.open) &&
+                        widget.open.isNotEmpty)
+                      _TrainingResponseGroup(
+                        title: 'Keine Rückmeldung',
+                        color: AppColors.muted,
+                        entries: widget.open,
+                      ),
+                  ],
+                ),
+        ),
+      ],
     );
   }
+
+  Widget _filterChip(
+    String label,
+    int count,
+    _TrainingResponseFilter value,
+  ) =>
+      Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: ChoiceChip(
+          selected: filter == value,
+          onSelected: (_) => setState(() => filter = value),
+          visualDensity: VisualDensity.compact,
+          label: Text('$label $count'),
+        ),
+      );
 }
 
 class _TrainingResponseGroup extends StatelessWidget {
@@ -1439,17 +1336,28 @@ class _TrainingResponseGroup extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 7),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final entry in entries)
-                  _TrainingResponsePersonChip(
-                    entry: entry,
-                    color: color,
-                  ),
-              ],
+            const SizedBox(height: 5),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 560 ? 2 : 1;
+                const gap = 5.0;
+                final width =
+                    (constraints.maxWidth - gap * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final entry in entries)
+                      SizedBox(
+                        width: width,
+                        child: _TrainingResponsePersonChip(
+                          entry: entry,
+                          color: color,
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -1473,8 +1381,7 @@ class _TrainingResponsePersonChip extends StatelessWidget {
       container: true,
       child: Container(
         key: ValueKey('training-response-person-${entry.name}-${entry.team}'),
-        constraints: const BoxConstraints(maxWidth: 250),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
@@ -1795,9 +1702,11 @@ class _StatusGrid extends StatelessWidget {
     required this.playersError,
     required this.activePlayers,
     required this.injuredPlayers,
-    required this.nextEvent,
-    required this.totalOpen,
-    required this.nextEventRoute,
+    required this.nextTrainings,
+    required this.players,
+    required this.nextMatch,
+    required this.onOpenResponses,
+    required this.onOpenNextMatch,
     required this.onRetryPlayers,
   });
 
@@ -1805,21 +1714,28 @@ class _StatusGrid extends StatelessWidget {
   final bool playersError;
   final int activePlayers;
   final int injuredPlayers;
-  final EventModel? nextEvent;
-  final int totalOpen;
-  final String? nextEventRoute;
+  final List<EventModel> nextTrainings;
+  final List<PlayerModel> players;
+  final EventModel? nextMatch;
+  final VoidCallback onOpenResponses;
+  final VoidCallback onOpenNextMatch;
   final VoidCallback onRetryPlayers;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
           final columns = constraints.maxWidth >= 760 ? 4 : 2;
-          const gap = 10.0;
+          final compact = constraints.maxWidth < 600;
+          final gap = compact ? 7.0 : 10.0;
           final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
-          final response = nextEvent?.attendanceSummary;
-          final responseValue = response == null || response.total == 0
+          final responses =
+              combinedTrainingDashboardCounts(nextTrainings, players);
+          final responseValue = responses.total == 0
               ? '–'
-              : '${response.yes}/${response.total}';
+              : '${responses.yes}/${responses.total}';
+          final matchValue = nextMatch == null
+              ? '–'
+              : '${nextMatch!.startAt.day}.${nextMatch!.startAt.month}.';
           final items = [
             _StatusItem(
               label: 'Aktiver Kader',
@@ -1842,20 +1758,18 @@ class _StatusGrid extends StatelessWidget {
               onTap: () => context.go('/trainer/players'),
             ),
             _StatusItem(
-              label: 'Zusagen',
+              label: 'Rückmeldungen',
               value: responseValue,
               icon: Icons.how_to_reg_rounded,
               color: AppColors.success,
-              onTap: nextEvent == null
-                  ? () => context.go('/trainer/events')
-                  : () => context.push(nextEventRoute!),
+              onTap: onOpenResponses,
             ),
             _StatusItem(
-              label: 'Jetzt offen',
-              value: '$totalOpen',
-              icon: Icons.notification_important_rounded,
+              label: 'Nächstes Spiel',
+              value: matchValue,
+              icon: Icons.sports_soccer_rounded,
               color: AppColors.gold,
-              onTap: () => context.go('/trainer/operations'),
+              onTap: onOpenNextMatch,
             ),
           ];
           return Wrap(
@@ -1863,7 +1777,7 @@ class _StatusGrid extends StatelessWidget {
             runSpacing: gap,
             children: [
               for (final item in items)
-                SizedBox(width: width, height: 78, child: item),
+                SizedBox(width: width, height: compact ? 70 : 78, child: item),
             ],
           );
         },
@@ -2495,6 +2409,29 @@ List<EventModel> nextTrainingsByTeamForDashboard(
     open: open,
     total: summary.yes + summary.no + open,
   );
+}
+
+({int yes, int no, int open, int total}) combinedTrainingDashboardCounts(
+  Iterable<EventModel> events,
+  List<PlayerModel> players,
+) {
+  var yes = 0;
+  var no = 0;
+  var open = 0;
+  var total = 0;
+  for (final event in events) {
+    final roster = _eventRoster(event, players);
+    final counts = trainingDashboardCounts(
+      event.attendanceSummary,
+      missingCount: event.missingAttendance.length,
+      rosterCount: roster.length,
+    );
+    yes += counts.yes;
+    no += counts.no;
+    open += counts.open;
+    total += counts.total;
+  }
+  return (yes: yes, no: no, open: open, total: total);
 }
 
 String _time(DateTime value) =>

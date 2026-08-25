@@ -1,4 +1,7 @@
+import 'package:dio/dio.dart';
+import 'package:fc_teugn_app/core/api_client.dart';
 import 'package:fc_teugn_app/core/app_theme.dart';
+import 'package:fc_teugn_app/core/data_repository.dart';
 import 'package:fc_teugn_app/core/models/organization.dart';
 import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/providers.dart';
@@ -61,6 +64,7 @@ void main() {
             ref.keepAlive();
             return const [];
           }),
+          playersProvider.overrideWith((ref) async => const []),
           organizationProvider.overrideWith((ref) async => organization),
         ],
         child: MaterialApp(
@@ -279,9 +283,80 @@ void main() {
       );
     }
   });
+
+  testWidgets('empty mobile calendar day can create a preselected appointment',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final now = DateTime.now();
+    final organization = _organization(
+      now,
+      permissions: const {'MANAGE_EVENTS'},
+    );
+    final client = ApiClient(baseUrl: 'https://example.test');
+    client.dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) => handler.resolve(
+          Response<dynamic>(
+            requestOptions: options,
+            statusCode: 200,
+            data: options.path.contains('pitch-conflicts')
+                ? <String, dynamic>{'conflicts': <dynamic>[]}
+                : <dynamic>[],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          calendarEventsProvider.overrideWith((ref, range) async {
+            ref.keepAlive();
+            return const [];
+          }),
+          repositoryProvider.overrideWithValue(DataRepository(client)),
+          organizationProvider.overrideWith((ref) async => organization),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const Scaffold(body: CalendarPage(canManage: true)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final emptyDay = find.bySemanticsLabel(
+      RegExp(r'^15, keine Termine'),
+    );
+    expect(emptyDay, findsOneWidget);
+    await tester.tap(emptyDay);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Für diesen Tag sind noch keine Termine eingetragen.'),
+      findsOneWidget,
+    );
+    final create = find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text('Termin anlegen'),
+    );
+    expect(create, findsOneWidget);
+    await tester.tap(create);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(EventEditorDialog), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
-OrganizationContext _organization(DateTime now) {
+OrganizationContext _organization(
+  DateTime now, {
+  Set<String> permissions = const {},
+}) {
   const ageGroup = AgeGroupSummary(
     id: 'age-e',
     name: 'E-Jugend',
@@ -311,7 +386,7 @@ OrganizationContext _organization(DateTime now) {
     currentTeam: team,
     ageGroups: const [ageGroup],
     teams: const [team],
-    permissions: const {},
+    permissions: permissions,
     metrics: const OrganizationMetrics(
       players: 0,
       members: 0,

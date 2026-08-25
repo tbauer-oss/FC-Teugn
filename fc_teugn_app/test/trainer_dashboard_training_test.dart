@@ -278,37 +278,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final priority = find.text('1 Rückmeldungen fehlen');
-    await tester.ensureVisible(priority);
-    await tester.tap(priority);
+    final responses = find.byKey(
+      const ValueKey('all-training-responses'),
+    );
+    await tester.ensureVisible(responses);
+    await tester.tap(responses);
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const ValueKey('trainer-response-overview-sheet')),
+      find.byKey(const ValueKey('combined-training-responses-sheet')),
       findsOneWidget,
     );
-    expect(find.text('Rückmeldungen zum Training'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('trainer-response-event-details')),
-      findsOneWidget,
-    );
-    final eventDetails = find.byKey(
-      const ValueKey('trainer-response-event-details'),
-    );
-    expect(
-      find.descendant(
-        of: eventDetails,
-        matching: find.textContaining('Training · E1-Jugend'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: eventDetails,
-        matching: find.textContaining('Teugn Sportplatz'),
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Alle Rückmeldungen'), findsOneWidget);
+    expect(find.textContaining('E1'), findsWidgets);
+    expect(find.textContaining('Teugn Sportplatz'), findsOneWidget);
     expect(find.text('Anna Zugesagt'), findsOneWidget);
     expect(find.text('Ben Offen'), findsOneWidget);
     expect(
@@ -324,7 +307,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('dashboard shows missing responses for every selected team',
+  testWidgets('dashboard combines responses for every selected team',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -389,9 +372,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('2 Rückmeldungen fehlen'), findsOneWidget);
-    expect(find.text('3 Rückmeldungen fehlen'), findsOneWidget);
-    expect(find.text('Nächste Trainings'), findsOneWidget);
+    expect(find.textContaining('Rückmeldungen fehlen'), findsNothing);
+    expect(find.text('Nächstes Training'), findsOneWidget);
     expect(find.text('2 Mannschaften'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('next-training-overview-training-e1')),
@@ -401,8 +383,7 @@ void main() {
       find.byKey(const ValueKey('next-training-overview-training-e2')),
       findsOneWidget,
     );
-    expect(find.text('2 Offen'), findsOneWidget);
-    expect(find.text('3 Offen'), findsOneWidget);
+    expect(find.text('5 Offen'), findsOneWidget);
     expect(find.textContaining('E1-Jugend'), findsWidgets);
     expect(find.textContaining('E2-Jugend'), findsWidgets);
 

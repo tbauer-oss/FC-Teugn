@@ -22,6 +22,8 @@ class ParentDashboardPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final sectionGap = compact ? 8.0 : 10.0;
     final user = ref.watch(authProvider).user;
     final summaryAsync = ref.watch(parentDashboardSummaryProvider);
     final responsesAsync = ref.watch(personalResponsesProvider);
@@ -92,7 +94,7 @@ class ParentDashboardPage extends ConsumerWidget {
           ],
           for (final match in liveMatches) ...[
             _LiveTickerCard(match: match),
-            const SizedBox(height: 10),
+            SizedBox(height: sectionGap),
           ],
           _TodayImportantCard(
             openResponses: openResponses,
@@ -103,23 +105,23 @@ class ParentDashboardPage extends ConsumerWidget {
             consents: consents,
             notifications: notifications,
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: sectionGap),
           if (_needsSetup(players, pushReady)) ...[
             _FamilySetupCard(
               players: players,
               pushDone: pushReady == true,
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: sectionGap),
           ],
           _WeekTimelineCard(items: timeline),
-          const SizedBox(height: 10),
+          SizedBox(height: sectionGap),
           _ChildrenSection(
             players: players,
             responses: responses,
             matches: matches,
             consents: consents,
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: sectionGap),
           const _TrainerContactCard(),
         ],
       ),
@@ -152,18 +154,23 @@ class _SectionHeading extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
                 color: AppColors.yellowSoft,
                 borderRadius: BorderRadius.circular(11)),
-            child: Icon(icon, size: 20, color: AppColors.black),
+            child: Icon(icon, size: 19, color: AppColors.black),
           ),
           const SizedBox(width: 10),
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               Text(subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -283,7 +290,9 @@ class _TodayImportantCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 10 : 12,
+        ),
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _SectionHeading(
@@ -406,7 +415,7 @@ class _ImportantResponse extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
         decoration: BoxDecoration(
           color: item.isOverdue
               ? Colors.red.withValues(alpha: .06)
@@ -509,7 +518,9 @@ class _FamilySetupCard extends StatelessWidget {
     final done = [childDone, teamDone, pushDone].where((value) => value).length;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600 ? 10 : 12,
+        ),
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _SectionHeading(
@@ -564,7 +575,9 @@ class _WeekTimelineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(
+            MediaQuery.sizeOf(context).width < 600 ? 10 : 12,
+          ),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _SectionHeading(
@@ -660,7 +673,9 @@ class _ChildrenSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(
+            MediaQuery.sizeOf(context).width < 600 ? 10 : 12,
+          ),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _SectionHeading(

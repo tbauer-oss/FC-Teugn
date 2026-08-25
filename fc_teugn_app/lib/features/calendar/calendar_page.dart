@@ -150,6 +150,13 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                       cursor: DateTime(cursor.year, cursor.month - 1, 1),
                       events: filtered,
                       onOpen: _openEvent,
+                      canManage: canManage,
+                      onCreateForDate: organization == null
+                          ? null
+                          : (date) => _createEvent(
+                                organization,
+                                initialDate: date,
+                              ),
                     ),
                     nextChild: _MonthView(
                       key: ValueKey(
@@ -158,12 +165,26 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                       cursor: DateTime(cursor.year, cursor.month + 1, 1),
                       events: filtered,
                       onOpen: _openEvent,
+                      canManage: canManage,
+                      onCreateForDate: organization == null
+                          ? null
+                          : (date) => _createEvent(
+                                organization,
+                                initialDate: date,
+                              ),
                     ),
                     child: _MonthView(
                       key: ValueKey('calendar-${cursor.year}-${cursor.month}'),
                       cursor: cursor,
                       events: filtered,
                       onOpen: _openEvent,
+                      canManage: canManage,
+                      onCreateForDate: organization == null
+                          ? null
+                          : (date) => _createEvent(
+                                organization,
+                                initialDate: date,
+                              ),
                     ),
                   ),
                 CalendarView.week => _WeekView(
@@ -436,7 +457,10 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         cursor = _shift(cursor, direction);
       });
 
-  Future<void> _createEvent(OrganizationContext organization) async {
+  Future<void> _createEvent(
+    OrganizationContext organization, {
+    DateTime? initialDate,
+  }) async {
     final draft = await showDialog<EventWriteData>(
       context: context,
       builder: (context) => EventEditorDialog(
@@ -446,6 +470,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         seasonName: organization.season.name,
         seasonEnd: organization.currentTeam.seasonEndDate ??
             organization.season.endDate,
+        initialStartAt: initialDate,
       ),
     );
     if (draft == null) return;
@@ -1130,11 +1155,15 @@ class _MonthView extends StatelessWidget {
     required this.cursor,
     required this.events,
     required this.onOpen,
+    required this.canManage,
+    required this.onCreateForDate,
   });
 
   final DateTime cursor;
   final List<EventModel> events;
   final ValueChanged<EventModel> onOpen;
+  final bool canManage;
+  final ValueChanged<DateTime>? onCreateForDate;
 
   @override
   Widget build(BuildContext context) {
@@ -1149,6 +1178,8 @@ class _MonthView extends StatelessWidget {
             cursor: cursor,
             events: events,
             onOpen: onOpen,
+            canManage: canManage,
+            onCreateForDate: onCreateForDate,
           );
         }
 
@@ -1218,6 +1249,8 @@ class _MonthView extends StatelessWidget {
                         date: date,
                         events: dayEvents,
                         onOpen: onOpen,
+                        canManage: canManage,
+                        onCreateForDate: onCreateForDate,
                       );
                     },
                   ),
@@ -1236,11 +1269,15 @@ class _MobileMonthView extends StatelessWidget {
     required this.cursor,
     required this.events,
     required this.onOpen,
+    required this.canManage,
+    required this.onCreateForDate,
   });
 
   final DateTime cursor;
   final List<EventModel> events;
   final ValueChanged<EventModel> onOpen;
+  final bool canManage;
+  final ValueChanged<DateTime>? onCreateForDate;
 
   @override
   Widget build(BuildContext context) {
@@ -1313,20 +1350,18 @@ class _MobileMonthView extends StatelessWidget {
                         .toList();
                     final today = _sameDay(date, DateTime.now());
                     return Semantics(
-                      button: dayEvents.isNotEmpty,
+                      button: true,
                       label: dayEvents.isEmpty
                           ? '$day, keine Termine'
                           : '$day, ${dayEvents.map(_calendarEventSemanticLabel).join(', ')}',
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        onTap: dayEvents.isEmpty
-                            ? null
-                            : () => _showMobileDay(
-                                  context,
-                                  date,
-                                  dayEvents,
-                                  onOpen,
-                                ),
+                        onTap: () => _showMobileDay(
+                          context,
+                          date,
+                          dayEvents,
+                          onOpen,
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.all(2),
                           child: Column(
@@ -1456,6 +1491,14 @@ class _MobileMonthView extends StatelessWidget {
                 style: Theme.of(sheetContext).textTheme.headlineSmall,
               ),
               const SizedBox(height: 10),
+              if (dayEvents.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    'Für diesen Tag sind noch keine Termine eingetragen.',
+                    style: TextStyle(color: AppColors.muted),
+                  ),
+                ),
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
@@ -1482,6 +1525,20 @@ class _MobileMonthView extends StatelessWidget {
                   },
                 ),
               ),
+              if (canManage && onCreateForDate != null) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      onCreateForDate!(date);
+                    },
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Termin anlegen'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1687,11 +1744,15 @@ class _MonthDay extends StatelessWidget {
     required this.date,
     required this.events,
     required this.onOpen,
+    required this.canManage,
+    required this.onCreateForDate,
   });
 
   final DateTime date;
   final List<EventModel> events;
   final ValueChanged<EventModel> onOpen;
+  final bool canManage;
+  final ValueChanged<DateTime>? onCreateForDate;
 
   @override
   Widget build(BuildContext context) {
@@ -1702,7 +1763,7 @@ class _MonthDay extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         key: ValueKey('calendar-day-${date.toIso8601String()}'),
-        onTap: hasOverflow ? () => _showAllEvents(context) : null,
+        onTap: () => _showAllEvents(context),
         child: Container(
           padding: const EdgeInsets.all(7),
           decoration: const BoxDecoration(
@@ -1736,7 +1797,7 @@ class _MonthDay extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 3),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(7),
-                    onTap: hasOverflow ? null : () => onOpen(event),
+                    onTap: () => onOpen(event),
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
@@ -1791,33 +1852,53 @@ class _MonthDay extends StatelessWidget {
         title: Text('${_weekday(date)}, ${date.day}. ${_month(date.month)}'),
         content: SizedBox(
           width: 440,
-          height: sortedEvents.length <= 4 ? sortedEvents.length * 72.0 : 360,
-          child: ListView.separated(
-            itemCount: sortedEvents.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final event = sortedEvents[index];
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: _EventEmojiBadge(event: event),
-                title: Text(event.fixtureDisplayTitle),
-                subtitle: Text(
-                  [
-                    if (event.matchVenueType != null)
-                      event.matchVenueType!.label,
-                    '${_time(event.startAt)} Uhr',
-                    event.location,
-                  ].join(' · '),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+          height: sortedEvents.isEmpty
+              ? 76
+              : sortedEvents.length <= 4
+                  ? sortedEvents.length * 72.0
+                  : 360,
+          child: sortedEvents.isEmpty
+              ? const Align(
+                  alignment: Alignment.topLeft,
+                  child: Text(
+                    'Für diesen Tag sind noch keine Termine eingetragen.',
+                  ),
+                )
+              : ListView.separated(
+                  itemCount: sortedEvents.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final event = sortedEvents[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: _EventEmojiBadge(event: event),
+                      title: Text(event.fixtureDisplayTitle),
+                      subtitle: Text(
+                        [
+                          if (event.matchVenueType != null)
+                            event.matchVenueType!.label,
+                          '${_time(event.startAt)} Uhr',
+                          event.location,
+                        ].join(' · '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => Navigator.pop(dialogContext, event),
+                    );
+                  },
                 ),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => Navigator.pop(dialogContext, event),
-              );
-            },
-          ),
         ),
         actions: [
+          if (canManage && onCreateForDate != null)
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                onCreateForDate!(date);
+              },
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Termin anlegen'),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Schließen'),
@@ -4689,6 +4770,7 @@ class EventEditorDialog extends StatefulWidget {
     required this.initialTeamId,
     this.seasonName,
     this.seasonEnd,
+    this.initialStartAt,
     this.event,
   });
 
@@ -4697,6 +4779,7 @@ class EventEditorDialog extends StatefulWidget {
   final String initialTeamId;
   final String? seasonName;
   final DateTime? seasonEnd;
+  final DateTime? initialStartAt;
   final EventModel? event;
 
   @override
@@ -4848,8 +4931,18 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     if (event?.venue != null && pitchOptions.contains(event!.venue)) {
       selectedPitch = event.venue!;
     }
-    startAt =
-        event?.startAt ?? DateTime.now().add(const Duration(days: 1, hours: 1));
+    final defaultStart = DateTime.now().add(const Duration(days: 1, hours: 1));
+    final initialStart = widget.initialStartAt;
+    startAt = event?.startAt ??
+        (initialStart == null
+            ? defaultStart
+            : DateTime(
+                initialStart.year,
+                initialStart.month,
+                initialStart.day,
+                defaultStart.hour,
+                defaultStart.minute,
+              ));
     endAt = event?.endAt ?? startAt.add(const Duration(hours: 1, minutes: 30));
     meetingAt = event?.meetingAt;
     final savedMeetingOffset = standardMeetingOffset(startAt, meetingAt);
