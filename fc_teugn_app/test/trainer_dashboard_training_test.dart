@@ -138,6 +138,37 @@ void main() {
     expect(selected?.id, 'training-next');
   });
 
+  test('dashboard selects the next training for every context team', () {
+    final selected = nextTrainingsByTeamForDashboard(
+      [
+        _event(
+          id: 'training-e1-later',
+          teamId: 'team-e1',
+          category: EventCategory.training,
+          startAt: DateTime(2026, 8, 29, 17, 15),
+        ),
+        _event(
+          id: 'training-e2-next',
+          teamId: 'team-e2',
+          category: EventCategory.training,
+          startAt: DateTime(2026, 8, 25, 17, 15),
+        ),
+        _event(
+          id: 'training-e1-next',
+          teamId: 'team-e1',
+          category: EventCategory.training,
+          startAt: DateTime(2026, 8, 25, 17, 15),
+        ),
+      ],
+      const {'team-e1', 'team-e2'},
+    );
+
+    expect(selected.map((event) => event.id).toSet(), {
+      'training-e1-next',
+      'training-e2-next',
+    });
+  });
+
   test('dashboard counters include replies and every open player', () {
     final counts = trainingDashboardCounts(
       const AttendanceSummary(yes: 9, no: 2, maybe: 1, unknown: 3),
@@ -295,7 +326,7 @@ void main() {
 
   testWidgets('dashboard shows missing responses for every selected team',
       (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final startAt = DateTime.now().add(const Duration(hours: 2));
     final events = [
@@ -360,6 +391,18 @@ void main() {
 
     expect(find.text('2 Rückmeldungen fehlen'), findsOneWidget);
     expect(find.text('3 Rückmeldungen fehlen'), findsOneWidget);
+    expect(find.text('Nächste Trainings'), findsOneWidget);
+    expect(find.text('2 Mannschaften'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('next-training-overview-training-e1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('next-training-overview-training-e2')),
+      findsOneWidget,
+    );
+    expect(find.text('2 Offen'), findsOneWidget);
+    expect(find.text('3 Offen'), findsOneWidget);
     expect(find.textContaining('E1-Jugend'), findsWidgets);
     expect(find.textContaining('E2-Jugend'), findsWidgets);
     expect(tester.takeException(), isNull);

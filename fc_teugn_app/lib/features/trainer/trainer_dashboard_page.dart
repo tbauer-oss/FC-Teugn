@@ -79,8 +79,23 @@ class TrainerDashboardPage extends ConsumerWidget {
         .toList()
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
     final nextEvent = upcoming.firstOrNull;
-    final nextTraining = nextTrainingForDashboard(upcoming);
-    final nextEvents = upcoming.take(4).toList();
+    final nextTrainings = nextTrainingsByTeamForDashboard(
+      upcoming,
+      contextTeamIds,
+    );
+    final nextTrainingIds = nextTrainings.map((event) => event.id).toSet();
+    final nextEventHero =
+        nextEvent != null && !nextTrainingIds.contains(nextEvent.id)
+            ? nextEvent
+            : null;
+    final nextEvents = upcoming
+        .where(
+          (event) =>
+              !nextTrainingIds.contains(event.id) &&
+              event.id != nextEventHero?.id,
+        )
+        .take(4)
+        .toList();
     final responseEvents = _nextResponseEventsByTeam(
       upcoming,
       contextTeamIds,
@@ -117,8 +132,8 @@ class TrainerDashboardPage extends ConsumerWidget {
 
     return PageScaffold(
       title: '${_greeting(now)}, ${_firstName(user?.name)}',
-      subtitle:
-          '${_germanDate(now)} · ${team?.displayName ?? 'Meine Mannschaft'}',
+      subtitle: '${_germanDate(now)} · '
+          '${organization?.workingContext.includeAllTeams == true ? '${team?.ageGroup.name ?? 'Jugend'} · Alle Mannschaften' : team?.displayName ?? 'Meine Mannschaft'}',
       denseMobileHeader: true,
       headerAction: DashboardNotificationBell(
         notifications: notifications,
@@ -139,19 +154,19 @@ class TrainerDashboardPage extends ConsumerWidget {
             const PersonalResponsesCard(isTrainer: true),
             SizedBox(height: sectionGap),
           ],
-          if (nextTraining != null) ...[
-            _NextTrainingOverview(
-              event: nextTraining,
+          if (nextTrainings.isNotEmpty) ...[
+            _NextTrainingsOverview(
+              events: nextTrainings,
               players: teamPlayers,
-              opensPersonalResponse:
-                  personalResponseEventIds.contains(nextTraining.id),
-              onOpen: () => context.push(eventRoute(nextTraining)),
+              personalResponseEventIds: personalResponseEventIds,
+              teamLabel: (event) => _eventTeamLabel(event, organization),
+              onOpen: (event) => context.push(eventRoute(event)),
             ),
             SizedBox(height: sectionGap),
           ],
-          if (nextEvent?.id != nextTraining?.id) ...[
+          if (nextEventHero != null) ...[
             _NextEventHero(
-              event: nextEvent,
+              event: nextEventHero,
               now: now,
               eventRoute: eventRoute,
             ),
@@ -179,7 +194,7 @@ class TrainerDashboardPage extends ConsumerWidget {
             builder: (context, constraints) {
               final priorityCard = _PriorityCard(items: priorities);
               final agendaCard = _AgendaCard(
-                events: nextEvents.skip(1).toList(),
+                events: nextEvents,
                 eventRoute: eventRoute,
               );
               if (constraints.maxWidth < 780) {
@@ -484,108 +499,212 @@ class AdminMemberRequestsCard extends StatelessWidget {
   }
 }
 
-class _NextTrainingOverview extends StatelessWidget {
-  const _NextTrainingOverview({
+class _NextTrainingsOverview extends StatelessWidget {
+  const _NextTrainingsOverview({
+    required this.events,
+    required this.players,
+    required this.personalResponseEventIds,
+    required this.teamLabel,
+    required this.onOpen,
+  });
+
+  final List<EventModel> events;
+  final List<PlayerModel> players;
+  final Set<String> personalResponseEventIds;
+  final String Function(EventModel event) teamLabel;
+  final void Function(EventModel event) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return Card(
+      key: const ValueKey('next-training-overview'),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          compact ? 10 : 14,
+          compact ? 9 : 12,
+          compact ? 10 : 14,
+          compact ? 8 : 11,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: compact ? 32 : 36,
+                  height: compact ? 32 : 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.yellowSoft,
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: const Icon(Icons.sports_rounded, size: 19),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    events.length == 1
+                        ? 'Nächstes Training'
+                        : 'Nächste Trainings',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                if (events.length > 1) _TrainingTeamCount(count: events.length),
+              ],
+            ),
+            SizedBox(height: compact ? 6 : 8),
+            for (var index = 0; index < events.length; index++) ...[
+              if (index > 0) const Divider(height: 9),
+              _NextTrainingRow(
+                event: events[index],
+                players: players,
+                opensPersonalResponse:
+                    personalResponseEventIds.contains(events[index].id),
+                teamLabel: teamLabel(events[index]),
+                onOpen: () => onOpen(events[index]),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TrainingTeamCount extends StatelessWidget {
+  const _TrainingTeamCount({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.yellowSoft,
+          borderRadius: BorderRadius.circular(99),
+        ),
+        child: Text(
+          '$count Mannschaften',
+          style: const TextStyle(
+            color: AppColors.gold,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      );
+}
+
+class _NextTrainingRow extends StatelessWidget {
+  const _NextTrainingRow({
     required this.event,
     required this.players,
     required this.opensPersonalResponse,
+    required this.teamLabel,
     required this.onOpen,
   });
 
   final EventModel event;
   final List<PlayerModel> players;
   final bool opensPersonalResponse;
+  final String teamLabel;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
     final roster = _eventRoster(event, players);
-    final summary = event.attendanceSummary;
     final counts = trainingDashboardCounts(
-      summary,
+      event.attendanceSummary,
       missingCount: event.missingAttendance.length,
       rosterCount: roster.length,
     );
-    final teams = event.targetTeams.isEmpty
-        ? event.title
-        : event.targetTeams.map((team) => team.name).toSet().join(' · ');
-    return Card(
-      key: const ValueKey('next-training-overview'),
-      clipBehavior: Clip.antiAlias,
+    return Material(
+      key: ValueKey('next-training-overview-${event.id}'),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onOpen,
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: EdgeInsets.all(compact ? 10 : 14),
+          padding: EdgeInsets.symmetric(vertical: compact ? 3 : 5),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: compact ? 34 : 38,
-                    height: compact ? 34 : 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.yellowSoft,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.sports_rounded),
-                  ),
-                  SizedBox(width: compact ? 8 : 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Nächstes Training',
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
                         Text(
-                          '${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr · $teams',
-                          maxLines: 2,
+                          teamLabel,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.muted),
+                          style: const TextStyle(
+                            color: AppColors.black,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          '${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr'
+                          '${event.location.trim().isEmpty ? '' : ' · ${event.location.trim()}'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right_rounded),
+                  IconButton(
+                    key: ValueKey('next-training-participants-${event.id}'),
+                    tooltip: opensPersonalResponse
+                        ? 'Rückmeldung abgeben'
+                        : 'Teilnehmer ansehen',
+                    visualDensity: VisualDensity.compact,
+                    constraints:
+                        const BoxConstraints.tightFor(width: 38, height: 38),
+                    onPressed: opensPersonalResponse
+                        ? onOpen
+                        : () => _showEventResponses(context, event, roster),
+                    icon: Icon(
+                      opensPersonalResponse
+                          ? Icons.how_to_reg_rounded
+                          : Icons.people_alt_outlined,
+                      color: AppColors.gold,
+                      size: 20,
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.muted,
+                    size: 20,
+                  ),
                 ],
               ),
-              if (event.location.trim().isNotEmpty) ...[
-                SizedBox(height: compact ? 5 : 8),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: 18,
-                      color: AppColors.muted,
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Text(
-                        event.location,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              SizedBox(height: compact ? 7 : 12),
+              SizedBox(height: compact ? 5 : 7),
               Wrap(
-                spacing: 7,
-                runSpacing: 7,
+                spacing: 5,
+                runSpacing: 5,
                 children: [
                   _TrainingResponseMetric(
                     icon: Icons.check_circle_rounded,
-                    label: 'Zugesagt',
+                    label: 'Zu',
                     value: counts.yes,
                     color: AppColors.success,
                   ),
                   _TrainingResponseMetric(
                     icon: Icons.cancel_rounded,
-                    label: 'Abgesagt',
+                    label: 'Ab',
                     value: counts.no,
                     color: Colors.redAccent,
                   ),
@@ -609,30 +728,6 @@ class _NextTrainingOverview extends StatelessWidget {
                     color: AppColors.blue,
                   ),
                 ],
-              ),
-              SizedBox(height: compact ? 4 : 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  key: const ValueKey('next-training-participants'),
-                  onPressed: opensPersonalResponse
-                      ? onOpen
-                      : () => _showEventResponses(
-                            context,
-                            event,
-                            roster,
-                          ),
-                  icon: Icon(
-                    opensPersonalResponse
-                        ? Icons.how_to_reg_rounded
-                        : Icons.people_alt_outlined,
-                  ),
-                  label: Text(
-                    opensPersonalResponse
-                        ? 'Rückmeldung abgeben'
-                        : 'Teilnehmer ansehen',
-                  ),
-                ),
               ),
             ],
           ),
@@ -739,6 +834,9 @@ class _TrainingResponsesSheet extends ConsumerWidget {
               ),
             )
             .toList();
+    final yes = replies(AttendanceStatus.yes);
+    final maybe = replies(AttendanceStatus.maybe);
+    final no = replies(AttendanceStatus.no);
     final eventTeams = event.targetTeams.isNotEmpty
         ? event.targetTeams.map(
             (team) => team.ageGroupCode.isEmpty
@@ -871,26 +969,43 @@ class _TrainingResponsesSheet extends ConsumerWidget {
             Expanded(
               child: ListView(
                 children: [
-                  _TrainingResponseGroup(
-                    title: 'Zugesagt',
-                    color: AppColors.success,
-                    entries: replies(AttendanceStatus.yes),
-                  ),
-                  _TrainingResponseGroup(
-                    title: 'Vielleicht',
-                    color: AppColors.orange,
-                    entries: replies(AttendanceStatus.maybe),
-                  ),
-                  _TrainingResponseGroup(
-                    title: 'Abgesagt',
-                    color: Colors.redAccent,
-                    entries: replies(AttendanceStatus.no),
-                  ),
-                  _TrainingResponseGroup(
-                    title: 'Keine Rückmeldung',
-                    color: AppColors.muted,
-                    entries: open,
-                  ),
+                  if (yes.isNotEmpty)
+                    _TrainingResponseGroup(
+                      title: 'Zugesagt',
+                      color: AppColors.success,
+                      entries: yes,
+                    ),
+                  if (maybe.isNotEmpty)
+                    _TrainingResponseGroup(
+                      title: 'Vielleicht',
+                      color: AppColors.orange,
+                      entries: maybe,
+                    ),
+                  if (no.isNotEmpty)
+                    _TrainingResponseGroup(
+                      title: 'Abgesagt',
+                      color: Colors.redAccent,
+                      entries: no,
+                    ),
+                  if (open.isNotEmpty)
+                    _TrainingResponseGroup(
+                      title: 'Keine Rückmeldung',
+                      color: AppColors.muted,
+                      entries: open,
+                    ),
+                  if (yes.isEmpty &&
+                      maybe.isEmpty &&
+                      no.isEmpty &&
+                      open.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'Noch keine Rückmeldungen vorhanden.',
+                          style: TextStyle(color: AppColors.muted),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -913,34 +1028,129 @@ class _TrainingResponseGroup extends StatelessWidget {
   final List<({String name, String? reason})> entries;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 8),
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 7),
+        padding: const EdgeInsets.fromLTRB(9, 7, 9, 9),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .045),
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: color.withValues(alpha: .16)),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '$title (${entries.length})',
-              style: TextStyle(fontWeight: FontWeight.w900, color: color),
-            ),
-            const SizedBox(height: 2),
-            if (entries.isEmpty)
-              const Text('Niemand', style: TextStyle(color: AppColors.muted))
-            else
-              for (final entry in entries)
-                ListTile(
-                  dense: true,
-                  visualDensity: const VisualDensity(vertical: -4),
-                  minTileHeight: 38,
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.person_rounded, color: color, size: 21),
-                  title: Text(entry.name),
-                  subtitle: entry.reason?.trim().isNotEmpty == true
-                      ? Text(entry.reason!)
-                      : null,
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
                 ),
+                const SizedBox(width: 6),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                    fontSize: 13,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .1),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    '${entries.length}',
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final entry in entries)
+                  _TrainingResponsePersonChip(
+                    entry: entry,
+                    color: color,
+                  ),
+              ],
+            ),
           ],
         ),
       );
+}
+
+class _TrainingResponsePersonChip extends StatelessWidget {
+  const _TrainingResponsePersonChip({
+    required this.entry,
+    required this.color,
+  });
+
+  final ({String name, String? reason}) entry;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = entry.reason?.trim();
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 250),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: .18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.person_rounded, color: color, size: 16),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                if (reason?.isNotEmpty == true)
+                  Text(
+                    reason!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 10,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _NextEventHero extends StatelessWidget {
@@ -1841,6 +2051,38 @@ EventModel? nextTrainingForDashboard(Iterable<EventModel> events) {
       .toList()
     ..sort((left, right) => left.startAt.compareTo(right.startAt));
   return trainings.firstOrNull;
+}
+
+List<EventModel> nextTrainingsByTeamForDashboard(
+  Iterable<EventModel> events,
+  Set<String> contextTeamIds,
+) {
+  final trainings = events
+      .where((event) => event.category == EventCategory.training)
+      .toList()
+    ..sort((left, right) => left.startAt.compareTo(right.startAt));
+  final coveredTeamIds = <String>{};
+  final result = <EventModel>[];
+  for (final event in trainings) {
+    final eventTeamIds = {
+      event.teamId,
+      ...event.targetTeams.map((team) => team.id),
+    }
+        .where(
+          (teamId) => contextTeamIds.isEmpty || contextTeamIds.contains(teamId),
+        )
+        .toSet();
+    if (eventTeamIds.isEmpty || eventTeamIds.every(coveredTeamIds.contains)) {
+      continue;
+    }
+    result.add(event);
+    coveredTeamIds.addAll(eventTeamIds);
+    if (contextTeamIds.isNotEmpty &&
+        coveredTeamIds.containsAll(contextTeamIds)) {
+      break;
+    }
+  }
+  return result;
 }
 
 ({int yes, int no, int maybe, int open, int total}) trainingDashboardCounts(
