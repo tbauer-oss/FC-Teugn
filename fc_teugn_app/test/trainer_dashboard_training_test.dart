@@ -340,8 +340,8 @@ void main() {
         ],
         attendanceSummary: const AttendanceSummary(unknown: 2),
         missingAttendance: const [
-          MissingAttendance(id: 'player-e1-a', name: 'E1 A'),
-          MissingAttendance(id: 'player-e1-b', name: 'E1 B'),
+          MissingAttendance(id: 'player-e1-a', name: 'Anna Adler'),
+          MissingAttendance(id: 'player-e1-b', name: 'Ben Bauer'),
         ],
       ),
       _event(
@@ -354,9 +354,9 @@ void main() {
         ],
         attendanceSummary: const AttendanceSummary(unknown: 3),
         missingAttendance: const [
-          MissingAttendance(id: 'player-e2-a', name: 'E2 A'),
-          MissingAttendance(id: 'player-e2-b', name: 'E2 B'),
-          MissingAttendance(id: 'player-e2-c', name: 'E2 C'),
+          MissingAttendance(id: 'player-e2-a', name: 'Carla Christl'),
+          MissingAttendance(id: 'player-e2-b', name: 'David Dietl'),
+          MissingAttendance(id: 'player-e2-c', name: 'Eva Ebner'),
         ],
       ),
     ];
@@ -405,6 +405,32 @@ void main() {
     expect(find.text('3 Offen'), findsOneWidget);
     expect(find.textContaining('E1-Jugend'), findsWidgets);
     expect(find.textContaining('E2-Jugend'), findsWidgets);
+
+    final combinedButton = find.byKey(const ValueKey('all-training-responses'));
+    await tester.ensureVisible(combinedButton);
+    await tester.tap(combinedButton);
+    await tester.pumpAndSettle();
+
+    final combinedSheet =
+        find.byKey(const ValueKey('combined-training-responses-sheet'));
+    expect(combinedSheet, findsOneWidget);
+    expect(
+      find.descendant(
+        of: combinedSheet,
+        matching: find.text('Alle Rückmeldungen'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('training-response-person-Anna Adler-E1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('training-response-person-Carla Christl-E2')),
+      findsOneWidget,
+    );
+    expect(find.text('E1'), findsWidgets);
+    expect(find.text('E2'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 }

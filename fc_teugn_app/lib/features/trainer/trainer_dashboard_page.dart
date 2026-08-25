@@ -158,7 +158,6 @@ class TrainerDashboardPage extends ConsumerWidget {
             _NextTrainingsOverview(
               events: nextTrainings,
               players: teamPlayers,
-              personalResponseEventIds: personalResponseEventIds,
               teamLabel: (event) => _eventTeamLabel(event, organization),
               onOpen: (event) => context.push(eventRoute(event)),
             ),
@@ -503,14 +502,12 @@ class _NextTrainingsOverview extends StatelessWidget {
   const _NextTrainingsOverview({
     required this.events,
     required this.players,
-    required this.personalResponseEventIds,
     required this.teamLabel,
     required this.onOpen,
   });
 
   final List<EventModel> events;
   final List<PlayerModel> players;
-  final Set<String> personalResponseEventIds;
   final String Function(EventModel event) teamLabel;
   final void Function(EventModel event) onOpen;
 
@@ -562,12 +559,33 @@ class _NextTrainingsOverview extends StatelessWidget {
               _NextTrainingRow(
                 event: events[index],
                 players: players,
-                opensPersonalResponse:
-                    personalResponseEventIds.contains(events[index].id),
                 teamLabel: teamLabel(events[index]),
                 onOpen: () => onOpen(events[index]),
               ),
             ],
+            SizedBox(height: compact ? 7 : 9),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                key: const ValueKey('all-training-responses'),
+                onPressed: () => _showCombinedTrainingResponses(
+                  context,
+                  events,
+                  players,
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.yellowSoft,
+                  foregroundColor: AppColors.gold,
+                  padding: EdgeInsets.symmetric(vertical: compact ? 9 : 11),
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.groups_rounded, size: 19),
+                label: const Text(
+                  'Alle Rückmeldungen ansehen',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -602,14 +620,12 @@ class _NextTrainingRow extends StatelessWidget {
   const _NextTrainingRow({
     required this.event,
     required this.players,
-    required this.opensPersonalResponse,
     required this.teamLabel,
     required this.onOpen,
   });
 
   final EventModel event;
   final List<PlayerModel> players;
-  final bool opensPersonalResponse;
   final String teamLabel;
   final VoidCallback onOpen;
 
@@ -663,25 +679,6 @@ class _NextTrainingRow extends StatelessWidget {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                  IconButton(
-                    key: ValueKey('next-training-participants-${event.id}'),
-                    tooltip: opensPersonalResponse
-                        ? 'Rückmeldung abgeben'
-                        : 'Teilnehmer ansehen',
-                    visualDensity: VisualDensity.compact,
-                    constraints:
-                        const BoxConstraints.tightFor(width: 38, height: 38),
-                    onPressed: opensPersonalResponse
-                        ? onOpen
-                        : () => _showEventResponses(context, event, roster),
-                    icon: Icon(
-                      opensPersonalResponse
-                          ? Icons.how_to_reg_rounded
-                          : Icons.people_alt_outlined,
-                      color: AppColors.gold,
-                      size: 20,
                     ),
                   ),
                   const Icon(
@@ -771,6 +768,140 @@ void _showEventResponses(
   );
 }
 
+void _showCombinedTrainingResponses(
+  BuildContext context,
+  List<EventModel> events,
+  List<PlayerModel> players,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (context) => _CombinedTrainingResponsesSheet(
+      events: events,
+      players: players,
+    ),
+  );
+}
+
+typedef _TrainingResponseEntry = ({
+  String name,
+  String? reason,
+  String team,
+});
+
+typedef _TrainingResponseGroups = ({
+  List<_TrainingResponseEntry> yes,
+  List<_TrainingResponseEntry> maybe,
+  List<_TrainingResponseEntry> no,
+  List<_TrainingResponseEntry> open,
+});
+
+String _compactTeamLabel(
+  String? teamId,
+  EventModel event,
+  OrganizationContext? organization,
+) {
+  TeamSummary? organizationTeam;
+  for (final team in organization?.teams ?? const <TeamSummary>[]) {
+    if (team.id == teamId) {
+      organizationTeam = team;
+      break;
+    }
+  }
+  if (organizationTeam != null) {
+    final direct = organizationTeam.name.trim();
+    final match = RegExp(
+      r'([A-ZÄÖÜ]+)\s*[- ]?\s*(\d+)',
+      caseSensitive: false,
+    ).firstMatch(direct);
+    if (match != null) {
+      return '${match.group(1)}${match.group(2)}'.toUpperCase();
+    }
+    return '${organizationTeam.ageGroup.code}${organizationTeam.teamNumber}'
+        .toUpperCase();
+  }
+  for (final team in event.targetTeams) {
+    if (team.id != teamId) continue;
+    final code = team.ageGroupCode.trim();
+    if (code.isNotEmpty) return code.toUpperCase();
+    if (team.name.trim().isNotEmpty) return team.name.trim();
+  }
+  return 'Team';
+}
+
+String _eventCompactTeamLabels(
+  EventModel event,
+  OrganizationContext? organization,
+) {
+  final teamIds = <String>{
+    event.teamId,
+    ...event.targetTeams.map((team) => team.id),
+  };
+  return teamIds
+      .map((teamId) => _compactTeamLabel(teamId, event, organization))
+      .toSet()
+      .join(' + ');
+}
+
+_TrainingResponseGroups _trainingResponseGroups(
+  EventModel event,
+  List<PlayerModel> roster,
+  OrganizationContext? organization,
+) {
+  final playersById = {for (final player in roster) player.id: player};
+  String teamFor(String playerId) => _compactTeamLabel(
+        playersById[playerId]?.teamId ?? event.teamId,
+        event,
+        organization,
+      );
+  List<_TrainingResponseEntry> replies(AttendanceStatus status) =>
+      event.attendance
+          .where((item) => item.status == status)
+          .map(
+            (item) => (
+              name: item.playerName ??
+                  playersById[item.playerId]?.fullName ??
+                  'Spieler',
+              reason: item.reason,
+              team: teamFor(item.playerId),
+            ),
+          )
+          .toList();
+  final repliedIds = event.attendance.map((item) => item.playerId).toSet();
+  final explicitOpen = event.missingAttendance
+      .map(
+        (item) => (
+          name: item.name,
+          reason: null as String?,
+          team: teamFor(item.id),
+        ),
+      )
+      .toList();
+  final open = explicitOpen.isNotEmpty
+      ? explicitOpen
+      : roster
+          .where((player) => !repliedIds.contains(player.id))
+          .map(
+            (player) => (
+              name: player.fullName,
+              reason: null as String?,
+              team: teamFor(player.id),
+            ),
+          )
+          .toList();
+  final result = (
+    yes: replies(AttendanceStatus.yes),
+    maybe: replies(AttendanceStatus.maybe),
+    no: replies(AttendanceStatus.no),
+    open: open,
+  );
+  for (final entries in [result.yes, result.maybe, result.no, result.open]) {
+    entries.sort((a, b) => a.name.compareTo(b.name));
+  }
+  return result;
+}
+
 class _TrainingResponseMetric extends StatelessWidget {
   const _TrainingResponseMetric({
     required this.icon,
@@ -805,6 +936,255 @@ class _TrainingResponseMetric extends StatelessWidget {
       );
 }
 
+class _CombinedTrainingResponsesSheet extends ConsumerWidget {
+  const _CombinedTrainingResponsesSheet({
+    required this.events,
+    required this.players,
+  });
+
+  final List<EventModel> events;
+  final List<PlayerModel> players;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final organization = ref.watch(organizationProvider).valueOrNull;
+    final yes = <_TrainingResponseEntry>[];
+    final maybe = <_TrainingResponseEntry>[];
+    final no = <_TrainingResponseEntry>[];
+    final open = <_TrainingResponseEntry>[];
+    for (final event in events) {
+      final groups = _trainingResponseGroups(
+        event,
+        _eventRoster(event, players),
+        organization,
+      );
+      yes.addAll(groups.yes);
+      maybe.addAll(groups.maybe);
+      no.addAll(groups.no);
+      open.addAll(groups.open);
+    }
+    for (final entries in [yes, maybe, no, open]) {
+      entries.sort((a, b) {
+        final byName = a.name.compareTo(b.name);
+        return byName != 0 ? byName : a.team.compareTo(b.team);
+      });
+    }
+    final teamLabels = events
+        .expand(
+          (event) => <String>{
+            event.teamId,
+            ...event.targetTeams.map((team) => team.id),
+          }.map(
+            (teamId) => _compactTeamLabel(teamId, event, organization),
+          ),
+        )
+        .toSet()
+        .toList()
+      ..sort();
+    final total = yes.length + maybe.length + no.length + open.length;
+    final manageableEvents = events
+        .where(
+          (event) =>
+              event.capabilities.canManage &&
+              event.category == EventCategory.training,
+        )
+        .toList();
+
+    return FractionallySizedBox(
+      key: const ValueKey('combined-training-responses-sheet'),
+      heightFactor: .9,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 7, 12, 10),
+        child: Column(
+          children: [
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.line,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Alle Rückmeldungen',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        'Gemeinsame Übersicht aller Mannschaften',
+                        style: TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Schließen',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
+              decoration: BoxDecoration(
+                color: AppColors.yellowSoft.withValues(alpha: .72),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.gold.withValues(alpha: .2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.groups_rounded,
+                        size: 18,
+                        color: AppColors.gold,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${teamLabels.join(' + ')} · $total Spieler',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 5,
+                    children: [
+                      for (final event in events)
+                        _CombinedTrainingEventBadge(
+                          team: _eventCompactTeamLabels(event, organization),
+                          event: event,
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (manageableEvents.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 5,
+                children: [
+                  for (final event in manageableEvents)
+                    OutlinedButton.icon(
+                      key: ValueKey(
+                        events.length == 1
+                            ? 'trainer-training-reminder'
+                            : 'trainer-training-reminder-${event.id}',
+                      ),
+                      onPressed: () =>
+                          showEventAttendanceReminder(context, ref, event),
+                      style: OutlinedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.notifications_active_rounded,
+                        size: 17,
+                      ),
+                      label: Text(
+                        '${_eventCompactTeamLabels(event, organization)} erinnern',
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            Expanded(
+              child: ListView(
+                children: [
+                  if (yes.isNotEmpty)
+                    _TrainingResponseGroup(
+                      title: 'Zugesagt',
+                      color: AppColors.success,
+                      entries: yes,
+                    ),
+                  if (maybe.isNotEmpty)
+                    _TrainingResponseGroup(
+                      title: 'Vielleicht',
+                      color: AppColors.orange,
+                      entries: maybe,
+                    ),
+                  if (no.isNotEmpty)
+                    _TrainingResponseGroup(
+                      title: 'Abgesagt',
+                      color: Colors.redAccent,
+                      entries: no,
+                    ),
+                  if (open.isNotEmpty)
+                    _TrainingResponseGroup(
+                      title: 'Keine Rückmeldung',
+                      color: AppColors.muted,
+                      entries: open,
+                    ),
+                  if (total == 0)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'Noch keine Rückmeldungen vorhanden.',
+                          style: TextStyle(color: AppColors.muted),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CombinedTrainingEventBadge extends StatelessWidget {
+  const _CombinedTrainingEventBadge({required this.team, required this.event});
+
+  final String team;
+  final EventModel event;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Text(
+          '$team · ${_shortDate(event.startAt)}, ${_time(event.startAt)} Uhr',
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+        ),
+      );
+}
+
 class _TrainingResponsesSheet extends ConsumerWidget {
   const _TrainingResponsesSheet({required this.event, required this.roster});
 
@@ -814,29 +1194,11 @@ class _TrainingResponsesSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final organization = ref.watch(organizationProvider).valueOrNull;
-    final repliedIds = event.attendance.map((item) => item.playerId).toSet();
-    final explicitOpen = event.missingAttendance
-        .map((item) => (name: item.name, reason: null as String?))
-        .toList();
-    final open = explicitOpen.isNotEmpty
-        ? explicitOpen
-        : roster
-            .where((player) => !repliedIds.contains(player.id))
-            .map((player) => (name: player.fullName, reason: null as String?))
-            .toList();
-    List<({String name, String? reason})> replies(AttendanceStatus status) =>
-        event.attendance
-            .where((item) => item.status == status)
-            .map(
-              (item) => (
-                name: item.playerName ?? 'Spieler',
-                reason: item.reason,
-              ),
-            )
-            .toList();
-    final yes = replies(AttendanceStatus.yes);
-    final maybe = replies(AttendanceStatus.maybe);
-    final no = replies(AttendanceStatus.no);
+    final groups = _trainingResponseGroups(event, roster, organization);
+    final yes = groups.yes;
+    final maybe = groups.maybe;
+    final no = groups.no;
+    final open = groups.open;
     final eventTeams = event.targetTeams.isNotEmpty
         ? event.targetTeams.map(
             (team) => team.ageGroupCode.isEmpty
@@ -1025,7 +1387,7 @@ class _TrainingResponseGroup extends StatelessWidget {
 
   final String title;
   final Color color;
-  final List<({String name, String? reason})> entries;
+  final List<_TrainingResponseEntry> entries;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1101,53 +1463,84 @@ class _TrainingResponsePersonChip extends StatelessWidget {
     required this.color,
   });
 
-  final ({String name, String? reason}) entry;
+  final _TrainingResponseEntry entry;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
     final reason = entry.reason?.trim();
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 250),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: .18)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.person_rounded, color: color, size: 16),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
+    return Semantics(
+      label: '${entry.name}, ${entry.team}',
+      container: true,
+      child: Container(
+        key: ValueKey('training-response-person-${entry.name}-${entry.team}'),
+        constraints: const BoxConstraints(maxWidth: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: .18)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.person_rounded, color: color, size: 16),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          entry.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(left: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: .1),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          entry.team,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                if (reason?.isNotEmpty == true)
-                  Text(
-                    reason!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 10,
+                  if (reason?.isNotEmpty == true)
+                    Text(
+                      reason!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 10,
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
