@@ -13,7 +13,10 @@ test('placeholder attendance remains open until a real response arrives', () => 
     { playerId: 'player-3', status: 'MAYBE' },
   ];
 
-  assert.deepEqual(openAttendancePlayerIds(roster, replies), ['player-1']);
+  assert.deepEqual(openAttendancePlayerIds(roster, replies), [
+    'player-1',
+    'player-3',
+  ]);
 });
 
 test('every explicitly requested player stays open without a response', () => {

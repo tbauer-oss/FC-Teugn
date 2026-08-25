@@ -442,7 +442,7 @@ async function serializeEvent(
   const summary = {
     yes: visibleAttendance.filter((reply) => reply.status === AttendanceStatus.YES).length,
     no: visibleAttendance.filter((reply) => reply.status === AttendanceStatus.NO).length,
-    maybe: visibleAttendance.filter((reply) => reply.status === AttendanceStatus.MAYBE).length,
+    maybe: 0,
     unknown: staff ? openPlayerIds.size : 0,
     goalkeeperAvailable: visibleAttendance.filter(
       (reply) =>
@@ -1141,6 +1141,9 @@ export async function listPersonalResponses(req: Request, res: Response) {
       const deadlinePassed = Boolean(
         event.responseDeadline && event.responseDeadline.getTime() < now.getTime(),
       );
+      const responseStatus = response?.status === AttendanceStatus.MAYBE
+        ? AttendanceStatus.UNKNOWN
+        : response?.status ?? AttendanceStatus.UNKNOWN;
       return [{
         eventId: event.id,
         playerId: player.id,
@@ -1163,7 +1166,7 @@ export async function listPersonalResponses(req: Request, res: Response) {
         opponent: event.opponent,
         responseDeadline: event.responseDeadline,
         attendanceFinalized: event.attendanceFinalized,
-        responseStatus: response?.status ?? AttendanceStatus.UNKNOWN,
+        responseStatus,
         reason: response?.reason ?? null,
         respondedAt: response?.respondedAt ?? null,
         canRespond:
@@ -1174,7 +1177,9 @@ export async function listPersonalResponses(req: Request, res: Response) {
           event.status === EventStatus.SCHEDULED &&
           !event.attendanceFinalized &&
           deadlinePassed &&
-          (!response || response.status === AttendanceStatus.UNKNOWN),
+          (!response ||
+            response.status === AttendanceStatus.UNKNOWN ||
+            response.status === AttendanceStatus.MAYBE),
         opponentLogoUrl:
           event.matchDetails?.opponentRecord?.opponentClub.logoAsset &&
           event.matchDetails.opponentRecord.opponentClub.logoAsset.deletedAt === null
@@ -2315,9 +2320,9 @@ export async function setAttendance(req: Request, res: Response) {
     req.body.status,
     AttendanceStatus.UNKNOWN,
   );
-  if (event.type === EventType.MATCH && status === AttendanceStatus.MAYBE) {
+  if (status === AttendanceStatus.MAYBE) {
     return res.status(400).json({
-      message: 'Bei Spielen ist nur eine Zu- oder Absage möglich.',
+      message: 'Es ist nur eine Zu- oder Absage möglich.',
     });
   }
   const previous = event.attendance.find((item) => item.playerId === playerId);
@@ -2526,7 +2531,10 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
     : [event.teamId];
   const replied = new Set(
     event.attendance
-      .filter((attendance) => attendance.status !== AttendanceStatus.UNKNOWN)
+      .filter((attendance) =>
+        attendance.status === AttendanceStatus.YES ||
+        attendance.status === AttendanceStatus.NO,
+      )
       .map((attendance) => attendance.playerId),
   );
   const explicitlyRequested = event.participants

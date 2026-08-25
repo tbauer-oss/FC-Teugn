@@ -23,12 +23,12 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
       summary:
           'Hier beantwortest du Termine für alle zugeordneten Kinder und siehst den aktuellen Stand sofort.',
       steps: [
-        'Oben siehst du, wie viele Antworten offen, zugesagt, vielleicht oder abgesagt sind.',
+        'Oben siehst du, wie viele Antworten offen, zugesagt oder abgesagt sind.',
         'Der Zeitraum startet mit einer Woche. Bei Bedarf kannst du 2 Wochen, 4 Wochen oder alle kommenden Termine anzeigen.',
-        'Wähle beim passenden Kind „Zusagen“ oder „Absagen“. Bei Trainings ist zusätzlich „Vielleicht“ möglich. Bei einer Absage kannst du freiwillig einen Grund ergänzen.',
+        'Wähle beim passenden Kind verbindlich „Zusagen“ oder „Absagen“. Bei einer Absage kannst du freiwillig einen Grund ergänzen.',
         'Die Kalenderansicht wird direkt synchronisiert. Unter „Details“ findest du Termin, Treffpunkt und weitere Informationen.',
       ],
-      searchQuery: 'Rückmeldung Vielleicht Absage Grund',
+      searchQuery: 'Rückmeldung Zusage Absage Grund',
     );
   }
   if (title.contains('liga') || title.contains('gegner')) {

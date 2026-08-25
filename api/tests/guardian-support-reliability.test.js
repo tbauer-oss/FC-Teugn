@@ -42,13 +42,13 @@ test('family response endpoint is role-independent and auditable', () => {
   assert.match(events, /responderRelationship/);
 });
 
-test('matches accept only yes or no responses', () => {
+test('all attendance requests accept only yes or no responses', () => {
   const events = source('src/controllers/events.controller.ts');
   assert.match(
     events,
-    /event\.type === EventType\.MATCH && status === AttendanceStatus\.MAYBE/,
+    /if \(status === AttendanceStatus\.MAYBE\)/,
   );
-  assert.match(events, /Bei Spielen ist nur eine Zu- oder Absage möglich/);
+  assert.match(events, /Es ist nur eine Zu- oder Absage möglich/);
 });
 
 test('regular training materialization runs only after plan changes or controlled cron', () => {

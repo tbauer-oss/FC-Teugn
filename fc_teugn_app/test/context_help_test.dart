@@ -11,7 +11,8 @@ void main() {
       'Rückmeldungen für meine Kinder',
       'Rückmeldungen für alle dir zugeordneten Kinder.',
     );
-    expect(responses.steps.join(' '), contains('vielleicht'));
+    expect(responses.steps.join(' '), isNot(contains('vielleicht')));
+    expect(responses.steps.join(' '), contains('Zusagen'));
     expect(responses.steps.join(' '), contains('Grund'));
     expect(responses.steps.join(' '), contains('einer Woche'));
 

@@ -92,7 +92,8 @@ void main() {
       (article) => article.title == 'Wie gebe ich eine Rückmeldung ab?',
     );
     final responseText = responseArticle.steps.join(' ');
-    expect(responseText, contains('„Vielleicht“'));
+    expect(responseText, isNot(contains('„Vielleicht“')));
+    expect(responseText, contains('verbindlich „Zusagen“ oder „Absagen“'));
     expect(responseText, contains('Grund'));
     expect(responseText, contains('„1 Woche“'));
     expect(responseText, contains('Kalender synchronisiert'));

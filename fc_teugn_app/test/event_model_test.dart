@@ -264,4 +264,23 @@ void main() {
     expect(away.fixtureDisplayScore, '1 : 2');
     expect(away.matchVenueType, MatchVenueType.away);
   });
+
+  test('treats legacy maybe responses as open', () {
+    final attendance = EventAttendance.fromJson({
+      'id': 'attendance-legacy',
+      'playerId': 'player-legacy',
+      'status': 'MAYBE',
+    });
+    final summary = AttendanceSummary.fromJson({
+      'yes': 2,
+      'no': 1,
+      'maybe': 3,
+      'unknown': 4,
+    });
+
+    expect(attendance.status, AttendanceStatus.unknown);
+    expect(summary.maybe, 0);
+    expect(summary.unknown, 7);
+    expect(summary.total, 10);
+  });
 }

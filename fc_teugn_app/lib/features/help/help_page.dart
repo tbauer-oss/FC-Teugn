@@ -191,7 +191,7 @@ class _HelpPageState extends State<HelpPage> {
                     _QuickHelpAction(
                       icon: Icons.how_to_reg_rounded,
                       title: 'Rückmeldung',
-                      caption: 'Zusagen, vielleicht oder absagen',
+                      caption: 'Verbindlich zu- oder absagen',
                       onTap: () => context.go('/parent/family'),
                     ),
                     _QuickHelpAction(
@@ -1007,14 +1007,13 @@ const helpArticles = <HelpArticle>[
     category: HelpCategory.calendar,
     title: 'Wie gebe ich eine Rückmeldung ab?',
     summary:
-        'Du kannst für jedes zugeordnete Kind zusagen, vielleicht zusagen oder mit einem optionalen Grund absagen.',
+        'Du kannst für jedes zugeordnete Kind verbindlich zusagen oder mit einem optionalen Grund absagen.',
     audience: HelpAudience.family,
     keywords: [
       'Zusage',
       'Absage',
       'Absagegrund',
       'Grund',
-      'Vielleicht',
       'Offen',
       'Torhüter',
       'Rückmeldung',
@@ -1025,13 +1024,13 @@ const helpArticles = <HelpArticle>[
     steps: [
       'Öffne „Rückmeldungen für meine Kinder“ oder rufe den Termin über Kalender, Startseite oder eine Benachrichtigung auf.',
       'Oben ist zunächst „1 Woche“ ausgewählt. Bei Bedarf kannst du auf 2 Wochen, 4 Wochen oder alle kommenden Termine wechseln.',
-      'Prüfe bei mehreren Kindern am Namen, für welches Spielerprofil du antwortest. Oben fassen „Offen“, „Zugesagt“, „Vielleicht“ und „Abgesagt“ alle Antworten zusammen.',
-      'Wähle „Zusagen“ oder „Absagen“. Bei Trainings steht zusätzlich „Vielleicht“ zur Verfügung. Eine Antwort darfst du später jederzeit ändern, solange Rückmeldungen möglich sind.',
+      'Prüfe bei mehreren Kindern am Namen, für welches Spielerprofil du antwortest. Oben fassen „Offen“, „Zugesagt“ und „Abgesagt“ alle Antworten zusammen.',
+      'Wähle verbindlich „Zusagen“ oder „Absagen“. Eine Antwort darfst du später jederzeit ändern, solange Rückmeldungen möglich sind.',
       'Bei „Absagen“ kannst du im folgenden Fenster freiwillig einen Grund eintragen. Das Feld darf leer bleiben; ein gespeicherter Grund wird am Termin angezeigt und kann durch erneutes Absagen geändert werden.',
       'Die Antwort wird sofort mit der Terminansicht im Kalender synchronisiert. Gib zusätzlich an, ob das Kind als Torhüter verfügbar ist, sofern diese Auswahl angeboten wird.',
     ],
     tip:
-        'Bei Trainings ist „Vielleicht“ eine eigene Rückmeldung und wird weder als offene Antwort noch als feste Zusage gezählt. Für Spiele gibt es bewusst nur Zu- oder Absage.',
+        'Für Trainings, Spiele und alle weiteren Rückmeldungen gibt es bewusst nur eine klare Zu- oder Absage.',
   ),
   HelpArticle(
     category: HelpCategory.calendar,

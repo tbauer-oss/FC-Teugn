@@ -9,7 +9,7 @@ Stand: 18.08.2026
 - `Eltern-Hilfe/FC-Teugn-Talents_Eltern-Hilfe.pptx`
   - Familien-Assistent mit „Heute wichtig“, „Diese Woche“ und Kinderkarten
   - Rückmeldezeitraum: 1 Woche vorausgewählt, alternativ 2 Wochen, 4 Wochen oder alle kommenden Termine
-  - Bei Spielen nur Zusage oder Absage; „Vielleicht“ nur bei Trainings und passenden Veranstaltungen
+  - Bei allen Rückmeldungen nur eine klare Zusage oder Absage
   - Kalender-Legende mit eindeutigen Termin-Symbolen
   - Direktkontakt zum Trainerteam mit maximal 30 Tagen Speicherung
 

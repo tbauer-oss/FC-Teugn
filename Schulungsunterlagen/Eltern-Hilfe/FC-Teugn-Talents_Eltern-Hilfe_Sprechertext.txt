@@ -64,7 +64,7 @@ FOLIE 6 – RÜCKMELDUNGEN ZU TERMINEN
 
 Bei den Rückmeldungen ist zunächst ein Zeitraum von einer Woche ausgewählt. Wenn du weiter vorausplanen möchtest, kannst du auch zwei Wochen, vier Wochen oder alle kommenden Termine anzeigen lassen.
 
-Für ein Training kannst du zwischen Zusage, Vielleicht und Absage wählen. Deine Antwort lässt sich später jederzeit ändern.
+Für ein Training kannst du verbindlich zu- oder absagen. Deine Antwort lässt sich später jederzeit ändern.
 
 Bei einem Spiel gibt es bewusst nur eine eindeutige Entscheidung: Zusage oder Absage.
 

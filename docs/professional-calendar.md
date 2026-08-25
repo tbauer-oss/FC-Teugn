@@ -17,7 +17,7 @@ Termine, Spiele, Aufstellungen und Rückmeldungen bleiben erhalten.
 - wöchentliche, zweiwöchentliche und frei nach Wochentagen konfigurierte Serien
 - Änderung oder Absage eines einzelnen Vorkommnisses beziehungsweise aller
   folgenden Termine einer Serie
-- Zusage, Absage mit optionalem Grund, Vielleicht und offene Rückmeldung
+- Verbindliche Zusage, Absage mit optionalem Grund und offene Rückmeldung
 - getrennte Speicherung von geplanter Teilnahme und tatsächlicher Anwesenheit
 - Trainerübersicht mit Summen, offenen Rückmeldungen und
   Torhüterverfügbarkeit

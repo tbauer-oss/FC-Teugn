@@ -203,16 +203,6 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
                     ),
                     const SizedBox(width: 6),
                     ResponseSummaryPill(
-                      label: 'Vielleicht',
-                      count: sorted
-                          .where((item) =>
-                              item.responseStatus == AttendanceStatus.maybe)
-                          .length,
-                      color: AppColors.orange,
-                      dense: true,
-                    ),
-                    const SizedBox(width: 6),
-                    ResponseSummaryPill(
                       label: 'Abgesagt',
                       count: sorted
                           .where((item) =>
@@ -414,13 +404,13 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
     final statusLabel = switch (item.responseStatus) {
       AttendanceStatus.yes => 'Zugesagt',
       AttendanceStatus.no => 'Abgesagt',
-      AttendanceStatus.maybe => 'Vielleicht',
+      AttendanceStatus.maybe => 'Offen',
       AttendanceStatus.unknown => 'Offen',
     };
     final statusColor = switch (item.responseStatus) {
       AttendanceStatus.yes => AppColors.teal,
       AttendanceStatus.no => Colors.redAccent,
-      AttendanceStatus.maybe => AppColors.orange,
+      AttendanceStatus.maybe => AppColors.muted,
       AttendanceStatus.unknown => AppColors.muted,
     };
     void openDetails() {
@@ -547,7 +537,7 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
                   label: Text(switch (item.responseStatus) {
                     AttendanceStatus.yes => 'Zugesagt',
                     AttendanceStatus.no => 'Abgesagt',
-                    AttendanceStatus.maybe => 'Vielleicht',
+                    AttendanceStatus.maybe => 'Offen',
                     AttendanceStatus.unknown => 'Offen',
                   }),
                 );
@@ -672,7 +662,7 @@ class _PersonalResponseQuickActionsState
       if (mounted) {
         final result = switch (status) {
           AttendanceStatus.yes => 'Zusage',
-          AttendanceStatus.maybe => '„Vielleicht“',
+          AttendanceStatus.maybe => 'Rückmeldung',
           AttendanceStatus.no => 'Absage',
           AttendanceStatus.unknown => 'Rückmeldung',
         };
@@ -703,7 +693,6 @@ class _PersonalResponseQuickActionsState
   Widget build(BuildContext context) => _AttendanceResponseActions(
         expanded: widget.expanded,
         saving: _saving,
-        allowMaybe: !widget.item.isMatch,
         onAnswer: _answer,
       );
 }
@@ -712,13 +701,11 @@ class _AttendanceResponseActions extends StatelessWidget {
   const _AttendanceResponseActions({
     required this.expanded,
     required this.saving,
-    required this.allowMaybe,
     required this.onAnswer,
   });
 
   final bool expanded;
   final bool saving;
-  final bool allowMaybe;
   final ValueChanged<AttendanceStatus> onAnswer;
 
   @override
@@ -740,13 +727,6 @@ class _AttendanceResponseActions extends StatelessWidget {
         icon: Icon(Icons.check_rounded, size: expanded ? 15 : 18),
         label: const Text('Zusagen'),
       ),
-      if (allowMaybe)
-        FilledButton.tonalIcon(
-          style: expanded ? compactStyle : null,
-          onPressed: saving ? null : () => onAnswer(AttendanceStatus.maybe),
-          icon: Icon(Icons.help_outline_rounded, size: expanded ? 15 : 18),
-          label: const Text('Vielleicht'),
-        ),
       OutlinedButton.icon(
         style: expanded ? compactStyle : null,
         onPressed: saving ? null : () => onAnswer(AttendanceStatus.no),

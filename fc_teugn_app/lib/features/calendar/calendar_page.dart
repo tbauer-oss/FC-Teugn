@@ -2461,11 +2461,6 @@ class _EventCard extends StatelessWidget {
                           value: event.attendanceSummary.no,
                           color: Colors.redAccent,
                         ),
-                        _CountChip(
-                          icon: Icons.help_rounded,
-                          value: event.attendanceSummary.maybe,
-                          color: AppColors.orange,
-                        ),
                         if (event.capabilities.canManage)
                           _CountChip(
                             icon: Icons.hourglass_empty_rounded,
@@ -3449,11 +3444,6 @@ class _AttendanceSection extends ConsumerWidget {
                   label: 'Abgesagt',
                   value: summary.no,
                   color: Colors.redAccent),
-              if (event.type != EventType.match || summary.maybe > 0)
-                _StatusMetric(
-                    label: 'Vielleicht',
-                    value: summary.maybe,
-                    color: AppColors.orange),
               if (event.capabilities.canManage)
                 _StatusMetric(
                     label: 'Offen',
@@ -7015,9 +7005,7 @@ class _AttendanceDialogState extends State<_AttendanceDialog> {
             decoration: const InputDecoration(labelText: 'Status'),
             items: [
               for (final value in AttendanceStatus.values.where(
-                (value) =>
-                    widget.event.type != EventType.match ||
-                    value != AttendanceStatus.maybe,
+                (value) => value != AttendanceStatus.maybe,
               ))
                 DropdownMenuItem(value: value, child: Text(value.label)),
             ],
@@ -7606,14 +7594,14 @@ IconData _categoryIcon(EventCategory category) {
 IconData _attendanceIcon(AttendanceStatus status) => switch (status) {
       AttendanceStatus.yes => Icons.check_circle_rounded,
       AttendanceStatus.no => Icons.cancel_rounded,
-      AttendanceStatus.maybe => Icons.help_rounded,
+      AttendanceStatus.maybe => Icons.hourglass_empty_rounded,
       AttendanceStatus.unknown => Icons.hourglass_empty_rounded,
     };
 
 Color _attendanceColor(AttendanceStatus status) => switch (status) {
       AttendanceStatus.yes => AppColors.teal,
       AttendanceStatus.no => Colors.redAccent,
-      AttendanceStatus.maybe => AppColors.orange,
+      AttendanceStatus.maybe => AppColors.muted,
       AttendanceStatus.unknown => AppColors.muted,
     };
 

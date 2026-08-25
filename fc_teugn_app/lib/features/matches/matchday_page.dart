@@ -3586,9 +3586,9 @@ class _AttendanceMenu extends StatelessWidget {
         ),
       AttendanceStatus.no => ('Absage', Colors.red, Icons.close_rounded),
       AttendanceStatus.maybe => (
-          'Vielleicht',
-          Colors.orange,
-          Icons.help_outline_rounded
+          'Offen',
+          AppColors.muted,
+          Icons.schedule_rounded
         ),
       AttendanceStatus.unknown => (
           'Offen',

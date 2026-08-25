@@ -705,13 +705,6 @@ class _NextTrainingRow extends StatelessWidget {
                     value: counts.no,
                     color: Colors.redAccent,
                   ),
-                  if (counts.maybe > 0)
-                    _TrainingResponseMetric(
-                      icon: Icons.help_rounded,
-                      label: 'Vielleicht',
-                      value: counts.maybe,
-                      color: AppColors.orange,
-                    ),
                   _TrainingResponseMetric(
                     icon: Icons.schedule_rounded,
                     label: 'Offen',
@@ -792,7 +785,6 @@ typedef _TrainingResponseEntry = ({
 
 typedef _TrainingResponseGroups = ({
   List<_TrainingResponseEntry> yes,
-  List<_TrainingResponseEntry> maybe,
   List<_TrainingResponseEntry> no,
   List<_TrainingResponseEntry> open,
 });
@@ -868,7 +860,14 @@ _TrainingResponseGroups _trainingResponseGroups(
             ),
           )
           .toList();
-  final repliedIds = event.attendance.map((item) => item.playerId).toSet();
+  final repliedIds = event.attendance
+      .where((item) =>
+          item.status == AttendanceStatus.yes ||
+          item.status == AttendanceStatus.no)
+      .map((item) => item.playerId)
+      .toSet();
+  final explicitOpenIds =
+      event.missingAttendance.map((item) => item.id).toSet();
   final explicitOpen = event.missingAttendance
       .map(
         (item) => (
@@ -878,25 +877,43 @@ _TrainingResponseGroups _trainingResponseGroups(
         ),
       )
       .toList();
-  final open = explicitOpen.isNotEmpty
-      ? explicitOpen
-      : roster
+  final open = <_TrainingResponseEntry>[
+    ...explicitOpen,
+    ...event.attendance
+        .where((item) =>
+            item.status == AttendanceStatus.unknown &&
+            !explicitOpenIds.contains(item.playerId))
+        .map(
+          (item) => (
+            name: item.playerName ??
+                playersById[item.playerId]?.fullName ??
+                'Spieler',
+            reason: null as String?,
+            team: teamFor(item.playerId),
+          ),
+        ),
+    if (explicitOpen.isEmpty)
+      ...roster
           .where((player) => !repliedIds.contains(player.id))
+          .where((player) => !event.attendance.any(
+                (item) =>
+                    item.playerId == player.id &&
+                    item.status == AttendanceStatus.unknown,
+              ))
           .map(
             (player) => (
               name: player.fullName,
               reason: null as String?,
               team: teamFor(player.id),
             ),
-          )
-          .toList();
+          ),
+  ];
   final result = (
     yes: replies(AttendanceStatus.yes),
-    maybe: replies(AttendanceStatus.maybe),
     no: replies(AttendanceStatus.no),
     open: open,
   );
-  for (final entries in [result.yes, result.maybe, result.no, result.open]) {
+  for (final entries in [result.yes, result.no, result.open]) {
     entries.sort((a, b) => a.name.compareTo(b.name));
   }
   return result;
@@ -949,7 +966,6 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final organization = ref.watch(organizationProvider).valueOrNull;
     final yes = <_TrainingResponseEntry>[];
-    final maybe = <_TrainingResponseEntry>[];
     final no = <_TrainingResponseEntry>[];
     final open = <_TrainingResponseEntry>[];
     for (final event in events) {
@@ -959,11 +975,10 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
         organization,
       );
       yes.addAll(groups.yes);
-      maybe.addAll(groups.maybe);
       no.addAll(groups.no);
       open.addAll(groups.open);
     }
-    for (final entries in [yes, maybe, no, open]) {
+    for (final entries in [yes, no, open]) {
       entries.sort((a, b) {
         final byName = a.name.compareTo(b.name);
         return byName != 0 ? byName : a.team.compareTo(b.team);
@@ -981,7 +996,7 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
         .toSet()
         .toList()
       ..sort();
-    final total = yes.length + maybe.length + no.length + open.length;
+    final total = yes.length + no.length + open.length;
     final manageableEvents = events
         .where(
           (event) =>
@@ -1126,12 +1141,6 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
                       color: AppColors.success,
                       entries: yes,
                     ),
-                  if (maybe.isNotEmpty)
-                    _TrainingResponseGroup(
-                      title: 'Vielleicht',
-                      color: AppColors.orange,
-                      entries: maybe,
-                    ),
                   if (no.isNotEmpty)
                     _TrainingResponseGroup(
                       title: 'Abgesagt',
@@ -1196,7 +1205,6 @@ class _TrainingResponsesSheet extends ConsumerWidget {
     final organization = ref.watch(organizationProvider).valueOrNull;
     final groups = _trainingResponseGroups(event, roster, organization);
     final yes = groups.yes;
-    final maybe = groups.maybe;
     final no = groups.no;
     final open = groups.open;
     final eventTeams = event.targetTeams.isNotEmpty
@@ -1337,12 +1345,6 @@ class _TrainingResponsesSheet extends ConsumerWidget {
                       color: AppColors.success,
                       entries: yes,
                     ),
-                  if (maybe.isNotEmpty)
-                    _TrainingResponseGroup(
-                      title: 'Vielleicht',
-                      color: AppColors.orange,
-                      entries: maybe,
-                    ),
                   if (no.isNotEmpty)
                     _TrainingResponseGroup(
                       title: 'Abgesagt',
@@ -1355,10 +1357,7 @@ class _TrainingResponsesSheet extends ConsumerWidget {
                       color: AppColors.muted,
                       entries: open,
                     ),
-                  if (yes.isEmpty &&
-                      maybe.isEmpty &&
-                      no.isEmpty &&
-                      open.isEmpty)
+                  if (yes.isEmpty && no.isEmpty && open.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
                       child: Center(
@@ -2478,7 +2477,7 @@ List<EventModel> nextTrainingsByTeamForDashboard(
   return result;
 }
 
-({int yes, int no, int maybe, int open, int total}) trainingDashboardCounts(
+({int yes, int no, int open, int total}) trainingDashboardCounts(
   AttendanceSummary summary, {
   required int missingCount,
   required int rosterCount,
@@ -2486,16 +2485,15 @@ List<EventModel> nextTrainingsByTeamForDashboard(
   final fallbackOpen =
       summary.total == 0 && missingCount == 0 ? rosterCount : 0;
   final open = summary.unknown > 0
-      ? summary.unknown
+      ? summary.unknown + summary.maybe
       : missingCount > 0
-          ? missingCount
-          : fallbackOpen;
+          ? missingCount + summary.maybe
+          : fallbackOpen + summary.maybe;
   return (
     yes: summary.yes,
     no: summary.no,
-    maybe: summary.maybe,
     open: open,
-    total: summary.yes + summary.no + summary.maybe + open,
+    total: summary.yes + summary.no + open,
   );
 }
 

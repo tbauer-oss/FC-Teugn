@@ -74,7 +74,8 @@ class PersonalResponseModel {
       responseStatus: switch (rawStatus) {
         'YES' => AttendanceStatus.yes,
         'NO' => AttendanceStatus.no,
-        'MAYBE' => AttendanceStatus.maybe,
+        // Older MAYBE replies need a clear new decision.
+        'MAYBE' => AttendanceStatus.unknown,
         _ => AttendanceStatus.unknown,
       },
       respondedAt: json['respondedAt'] == null

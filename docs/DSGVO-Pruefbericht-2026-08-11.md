@@ -92,7 +92,7 @@ Aus dieser Kombination ergibt sich ein **hoher Schutzbedarf**. Eine Datenschutz-
 | Familie | Eltern-Kind-Verknüpfungen, Beziehung, Sorge-/Vertretungsinformationen | Eltern, Kinder |
 | Gesundheit/Notfall | Allergien, Medikamente, Erkrankungen, Arztname/-telefon, Notfallnotizen und Notfallkontakte | Spieler, Kontaktpersonen |
 | Einwilligungen | Zweck/Typ, Status, Version, Sorgeberechtigtenangabe, Signaturzüge, Dokument-Hash, Widerruf, Nachweise | Eltern, Kinder, Unterzeichner |
-| Termine und Teilnahme | Zeit, Ort, Adresse, Treffpunkt, Mannschaften, individuelle Teilnehmer, Zu-/Absage/Vielleicht, Gründe, Trainerkorrekturen | Spieler, Eltern, Trainer |
+| Termine und Teilnahme | Zeit, Ort, Adresse, Treffpunkt, Mannschaften, individuelle Teilnehmer, Zu-/Absage, Gründe, Trainerkorrekturen | Spieler, Eltern, Trainer |
 | Fahrgemeinschaften | Anbieter, benötigte/angebotene Plätze, Mitfahrer, Treffpunkt | Eltern, Spieler, Trainer |
 | Spielbetrieb | Kader, Aufstellung, Einsatzzeit, Position, Tore, Vorlagen, Kommentare, Tickerverlauf, Taktik | Spieler, Trainer |
 | Entwicklung | Beobachtungen, Trainerbewertungen, Saisondurchschnitt, interne Leistungsdaten | Spieler, Trainer |

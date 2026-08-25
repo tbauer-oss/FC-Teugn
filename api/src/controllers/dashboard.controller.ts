@@ -341,7 +341,9 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
       );
       const missing = roster.filter((player) => {
         const status = responseByPlayer.get(player.id)?.status;
-        return !status || status === AttendanceStatus.UNKNOWN;
+        return !status ||
+          status === AttendanceStatus.UNKNOWN ||
+          status === AttendanceStatus.MAYBE;
       });
       return {
         ...event,
@@ -352,7 +354,7 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
         attendanceSummary: {
           yes: event.attendance.filter((item) => item.status === AttendanceStatus.YES).length,
           no: event.attendance.filter((item) => item.status === AttendanceStatus.NO).length,
-          maybe: event.attendance.filter((item) => item.status === AttendanceStatus.MAYBE).length,
+          maybe: 0,
           unknown: missing.length,
           goalkeeperAvailable: event.attendance.filter(
             (item) => item.status === AttendanceStatus.YES &&

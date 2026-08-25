@@ -166,7 +166,9 @@ extension AttendanceStatusX on AttendanceStatus {
   String get label => switch (this) {
         AttendanceStatus.yes => 'Zugesagt',
         AttendanceStatus.no => 'Abgesagt',
-        AttendanceStatus.maybe => 'Vielleicht',
+        // MAYBE only remains in the enum so older server payloads can be read.
+        // New responses are binary and legacy MAYBE values are shown as open.
+        AttendanceStatus.maybe => 'Offen',
         AttendanceStatus.unknown => 'Offen',
       };
 }
@@ -485,11 +487,7 @@ class EventAttendance {
     return EventAttendance(
       id: json['id'] as String,
       playerId: json['playerId'] as String,
-      status: _enumFromApi(
-        json['status'] as String?,
-        AttendanceStatus.values,
-        AttendanceStatus.unknown,
-      ),
+      status: _attendanceStatusFromApi(json['status'] as String?),
       playerName: preferredName?.isNotEmpty == true
           ? preferredName
           : (fullName.isEmpty ? null : fullName),
@@ -502,11 +500,7 @@ class EventAttendance {
           : _localDate(json['respondedAt'] as String),
       actualAttendance: json['actualAttendance'] == null
           ? null
-          : _enumFromApi(
-              json['actualAttendance'] as String?,
-              AttendanceStatus.values,
-              AttendanceStatus.unknown,
-            ),
+          : _attendanceStatusFromApi(json['actualAttendance'] as String?),
       actualAttendanceNote: json['actualAttendanceNote'] as String?,
     );
   }
@@ -530,14 +524,26 @@ class AttendanceSummary {
   int get total => yes + no + maybe + unknown;
 
   factory AttendanceSummary.fromJson(Map<String, dynamic>? json) {
+    final legacyMaybe = json?['maybe'] as int? ?? 0;
     return AttendanceSummary(
       yes: json?['yes'] as int? ?? 0,
       no: json?['no'] as int? ?? 0,
-      maybe: json?['maybe'] as int? ?? 0,
-      unknown: json?['unknown'] as int? ?? 0,
+      // Keep the property for API compatibility, but never expose a third
+      // response state. Existing MAYBE replies become open responses.
+      maybe: 0,
+      unknown: (json?['unknown'] as int? ?? 0) + legacyMaybe,
       goalkeeperAvailable: json?['goalkeeperAvailable'] as int? ?? 0,
     );
   }
+}
+
+AttendanceStatus _attendanceStatusFromApi(String? value) {
+  final status = _enumFromApi(
+    value,
+    AttendanceStatus.values,
+    AttendanceStatus.unknown,
+  );
+  return status == AttendanceStatus.maybe ? AttendanceStatus.unknown : status;
 }
 
 class MissingAttendance {

@@ -176,7 +176,7 @@ void main() {
       rosterCount: 15,
     );
 
-    expect(counts, (yes: 9, no: 2, maybe: 1, open: 3, total: 15));
+    expect(counts, (yes: 9, no: 2, open: 4, total: 15));
   });
 
   test('dashboard uses the roster while no responses exist yet', () {

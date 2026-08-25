@@ -81,11 +81,13 @@ Future<void> _pumpPage(
 }
 
 void main() {
-  testWidgets('family response offers maybe and optional decline reason',
+  testWidgets(
+      'family response offers only yes or no and optional decline reason',
       (tester) async {
     await _pumpPage(tester, _response());
 
-    expect(find.widgetWithText(FilledButton, 'Vielleicht'), findsOneWidget);
+    expect(find.text('Vielleicht'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Zusagen'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Absagen'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Absagen'));
@@ -107,7 +109,7 @@ void main() {
     );
 
     expect(find.widgetWithText(FilledButton, 'Zusagen'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Vielleicht'), findsNothing);
+    expect(find.text('Vielleicht'), findsNothing);
     expect(find.widgetWithText(OutlinedButton, 'Absagen'), findsOneWidget);
   });
 

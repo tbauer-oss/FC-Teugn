@@ -27,4 +27,21 @@ void main() {
     expect(response.canRespond, isTrue);
     expect(response.responseDeadline, isNotNull);
   });
+
+  test('legacy maybe response remains actionable as open', () {
+    final response = PersonalResponseModel.fromJson({
+      'eventId': 'event-legacy',
+      'playerId': 'player-legacy',
+      'playerName': 'Legacy',
+      'title': 'Training',
+      'category': 'TRAINING',
+      'startAt': '2026-08-26T15:15:00.000Z',
+      'responseStatus': 'MAYBE',
+      'canRespond': true,
+      'isOverdue': false,
+    });
+
+    expect(response.responseStatus, AttendanceStatus.unknown);
+    expect(response.isOpen, isTrue);
+  });
 }
