@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/match_venue_badge.dart';
 import '../../core/widgets/team_crest.dart';
 import '../calendar/tournament_plan_browser_page.dart';
 import '../shared/page_scaffold.dart';
@@ -195,6 +196,7 @@ class _PublicTournamentCard extends StatelessWidget {
           else
             for (var index = 0; index < fixtures.length; index++) ...[
               _PublicTournamentFixtureTile(
+                event: event,
                 fixture: fixtures[index],
                 onOpen: () => onOpenFixture(fixtures[index].id),
               ),
@@ -208,10 +210,12 @@ class _PublicTournamentCard extends StatelessWidget {
 
 class _PublicTournamentFixtureTile extends StatelessWidget {
   const _PublicTournamentFixtureTile({
+    required this.event,
     required this.fixture,
     required this.onOpen,
   });
 
+  final EventModel event;
   final TournamentFixtureModel fixture;
   final VoidCallback onOpen;
 
@@ -221,9 +225,17 @@ class _PublicTournamentFixtureTile extends StatelessWidget {
     final time = fixture.startAt.toLocal();
     final hasResult = details?.ourGoals != null && details?.theirGoals != null;
     final score = hasResult
-        ? '${details!.ourGoals}:${details.theirGoals}'
+        ? details!.isHome
+            ? '${details.ourGoals}:${details.theirGoals}'
+            : '${details.theirGoals}:${details.ourGoals}'
         : '${time.hour.toString().padLeft(2, '0')}:'
             '${time.minute.toString().padLeft(2, '0')}';
+    final opponent = details?.opponent ?? 'Gegner noch offen';
+    final title = details == null
+        ? opponent
+        : details.isHome
+            ? '${event.ownTeamName} – $opponent'
+            : '$opponent – ${event.ownTeamName}';
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
       leading: TeamCrest.opponent(
@@ -231,12 +243,21 @@ class _PublicTournamentFixtureTile extends StatelessWidget {
         logoUrl: details?.opponentLogoUrl,
       ),
       title: Text(
-        details?.opponent ?? 'Gegner noch offen',
+        title,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
-      subtitle: Text(hasResult ? 'Ergebnis' : 'Anstoß'),
+      subtitle: details == null
+          ? Text(hasResult ? 'Ergebnis' : 'Anstoß')
+          : Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: MatchVenueBadge(
+                type:
+                    details.isHome ? MatchVenueType.home : MatchVenueType.away,
+                compact: true,
+              ),
+            ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -272,11 +293,8 @@ class _PublicMatchCard extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 520;
-            final result = details?.ourGoals != null &&
-                    details?.theirGoals != null
-                ? '${details!.ourGoals} : ${details.theirGoals}'
-                : '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-            final opponent = details?.opponent ?? event.title;
+            final result = event.fixtureDisplayScore ??
+                '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
             return Padding(
               padding: EdgeInsets.all(compact ? 12 : 16),
               child: Column(
@@ -285,41 +303,25 @@ class _PublicMatchCard extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Flexible(
-                              child: Text(
-                                event.ownTeamName,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w900),
-                              ),
+                            Text(
+                              event.fixtureDisplayTitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w900),
                             ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 5),
-                              child: Text(
-                                details?.isHome == false ? '@' : '–',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w900),
+                            if (event.matchVenueType != null) ...[
+                              const SizedBox(height: 5),
+                              MatchVenueBadge(
+                                type: event.matchVenueType!,
+                                compact: true,
                               ),
-                            ),
-                            Flexible(
-                              child: Text(
-                                opponent,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w900),
-                              ),
-                            ),
+                            ],
                           ],
                         ),
                       ),

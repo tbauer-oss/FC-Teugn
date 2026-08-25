@@ -88,11 +88,73 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('FC Teugn'), findsOneWidget);
+      expect(
+        find.text('FC Teugn – Sehr langer gegnerischer Vereinsname'),
+        findsOneWidget,
+      );
+      expect(find.text('Heim'), findsOneWidget);
       expect(find.text('Spieltag öffnen'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('away match shows the home side and home score first',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final match = EventModel.fromJson({
+      'id': 'away-match',
+      'teamId': 'team-1',
+      'type': 'MATCH',
+      'category': 'LEAGUE_MATCH',
+      'status': 'SCHEDULED',
+      'visibility': 'TEAM',
+      'title': 'Legacy-Titel',
+      'ownTeam': {
+        'name': '(SG) SV Saal/Donau',
+        'shortName': 'SG Saal/Donau',
+        'isPlayingCommunity': true,
+      },
+      'startAt': '2026-09-18T16:00:00.000Z',
+      'location': 'Thaldorf',
+      'targetTeams': [],
+      'attachments': [],
+      'attendance': [],
+      'missingAttendance': [],
+      'carpoolOffers': [],
+      'carpoolNeeds': [],
+      'matchDetails': {
+        'opponent': 'SC Thaldorf E1',
+        'isHome': false,
+        'ourGoals': 2,
+        'theirGoals': 3,
+        'competition': 'Pflichtspiel',
+      },
+      'capabilities': <String, dynamic>{},
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matchEventsProvider.overrideWith((ref) async => [match]),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const Scaffold(body: ParentMatchesPage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('SC Thaldorf E1 – (SG) SV Saal/Donau'),
+      findsOneWidget,
+    );
+    expect(find.text('Auswärts'), findsOneWidget);
+    expect(find.text('3 : 2'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'parents can open a live tournament plan directly from the overview',

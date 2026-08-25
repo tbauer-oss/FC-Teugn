@@ -18,6 +18,7 @@ import '../../core/models/player.dart';
 import '../../core/providers.dart';
 import '../../core/regular_training_schedule.dart';
 import '../../core/widgets/adaptive_layout.dart';
+import '../../core/widgets/match_venue_badge.dart';
 import '../../core/widgets/responsive_form_dialog.dart';
 import '../shared/attendance_reminder_action.dart';
 import '../shared/page_scaffold.dart';
@@ -1315,7 +1316,7 @@ class _MobileMonthView extends StatelessWidget {
                       button: dayEvents.isNotEmpty,
                       label: dayEvents.isEmpty
                           ? '$day, keine Termine'
-                          : '$day, ${dayEvents.map((event) => event.category.label).join(', ')}',
+                          : '$day, ${dayEvents.map(_calendarEventSemanticLabel).join(', ')}',
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
                         onTap: dayEvents.isEmpty
@@ -1399,10 +1400,22 @@ class _MobileMonthView extends StatelessWidget {
                   event: event,
                   footer: '${event.startAt.day}.',
                 ),
-                title: Text(
-                  event.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.fixtureDisplayTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (event.matchVenueType != null) ...[
+                      const SizedBox(height: 4),
+                      MatchVenueBadge(
+                        type: event.matchVenueType!,
+                        compact: true,
+                      ),
+                    ],
+                  ],
                 ),
                 subtitle: Text(
                   '${_time(event.startAt)} Uhr · ${event.location}',
@@ -1452,9 +1465,15 @@ class _MobileMonthView extends StatelessWidget {
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: _EventEmojiBadge(event: event),
-                      title: Text(event.title),
+                      title: Text(event.fixtureDisplayTitle),
                       subtitle: Text(
-                          '${_time(event.startAt)} Uhr · ${event.location}'),
+                        [
+                          if (event.matchVenueType != null)
+                            event.matchVenueType!.label,
+                          '${_time(event.startAt)} Uhr',
+                          event.location,
+                        ].join(' · '),
+                      ),
                       onTap: () {
                         Navigator.pop(sheetContext);
                         onOpen(event);
@@ -1532,12 +1551,70 @@ class _CalendarCategoryLegend extends StatelessWidget {
                 if (index != ordered.length - 1)
                   SizedBox(width: compact ? 5 : 7),
               ],
+              if (ordered.any((category) => category.isSingleMatch)) ...[
+                SizedBox(width: compact ? 5 : 7),
+                _CalendarVenueLegendItem(
+                  label: 'H Heim',
+                  icon: Icons.home_rounded,
+                  color: AppColors.gold,
+                  compact: compact,
+                ),
+                SizedBox(width: compact ? 5 : 7),
+                _CalendarVenueLegendItem(
+                  label: 'A Auswärts',
+                  icon: Icons.directions_bus_rounded,
+                  color: AppColors.blue,
+                  compact: compact,
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _CalendarVenueLegendItem extends StatelessWidget {
+  const _CalendarVenueLegendItem({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.compact,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 7 : 9,
+          vertical: compact ? 4 : 5,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .08),
+          border: Border.all(color: color.withValues(alpha: .24)),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: compact ? 12 : 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: compact ? 11 : 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _CompactEmojiPreview extends StatelessWidget {
@@ -1547,11 +1624,7 @@ class _CompactEmojiPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final emojis = events
-        .map((event) => _categoryEmoji(event.category))
-        .toSet()
-        .take(2)
-        .join();
+    final emojis = events.map(_calendarCompactMarker).toSet().take(2).join(' ');
     final overflow = events.length > 2 ? '+${events.length - 2}' : '';
     return Text(
       '$emojis$overflow',
@@ -1574,7 +1647,7 @@ class _EventEmojiBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-        label: event.category.label,
+        label: _calendarEventSemanticLabel(event),
         child: Container(
           width: 44,
           height: 44,
@@ -1677,7 +1750,7 @@ class _MonthDay extends StatelessWidget {
                         borderRadius: BorderRadius.circular(7),
                       ),
                       child: Text(
-                        '${_categoryEmoji(event.category)} ${_time(event.startAt)} ${event.title}',
+                        '${_calendarCompactMarker(event)} ${_time(event.startAt)} ${event.fixtureDisplayTitle}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1727,9 +1800,14 @@ class _MonthDay extends StatelessWidget {
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: _EventEmojiBadge(event: event),
-                title: Text(event.title),
+                title: Text(event.fixtureDisplayTitle),
                 subtitle: Text(
-                  '${_time(event.startAt)} Uhr · ${event.location}',
+                  [
+                    if (event.matchVenueType != null)
+                      event.matchVenueType!.label,
+                    '${_time(event.startAt)} Uhr',
+                    event.location,
+                  ].join(' · '),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1982,7 +2060,7 @@ class _WeekDayColumn extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  event.title,
+                  '${event.matchVenueType?.compactLabel == null ? '' : '${event.matchVenueType!.compactLabel} · '}${event.fixtureDisplayTitle}',
                   maxLines: height < 52 ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -2339,7 +2417,7 @@ class _EventCard extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          event.title,
+                          event.fixtureDisplayTitle,
                           style:
                               Theme.of(context).textTheme.titleLarge?.copyWith(
                                     decoration: event.isCancelled
@@ -2352,6 +2430,11 @@ class _EventCard extends StatelessWidget {
                               size: 17, color: AppColors.muted),
                         if (event.isCancelled)
                           const Chip(label: Text('Abgesagt')),
+                        if (event.matchVenueType != null)
+                          MatchVenueBadge(
+                            type: event.matchVenueType!,
+                            compact: true,
+                          ),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -2359,7 +2442,8 @@ class _EventCard extends StatelessWidget {
                       [
                         event.category.label,
                         event.location,
-                        if (event.opponent != null) 'vs. ${event.opponent}',
+                        if (event.matchVenueType != null)
+                          event.matchVenueType!.label,
                       ].join(' · '),
                     ),
                     const SizedBox(height: 8),
@@ -3152,11 +3236,27 @@ class _DetailsHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(event.category.label,
-                    style:
-                        TextStyle(color: color, fontWeight: FontWeight.w800)),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 5,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      event.category.label,
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (event.matchVenueType != null)
+                      MatchVenueBadge(
+                        type: event.matchVenueType!,
+                        compact: true,
+                      ),
+                  ],
+                ),
                 Text(
-                  event.title,
+                  event.fixtureDisplayTitle,
                   maxLines: compact ? 2 : 3,
                   overflow: TextOverflow.ellipsis,
                   style: compact
@@ -7474,6 +7574,26 @@ String _categoryEmoji(EventCategory category) => switch (category) {
       EventCategory.photoSession => '📸',
       EventCategory.specialEvent => '📌',
     };
+
+String _calendarCompactMarker(EventModel event) {
+  final venue = event.matchVenueType;
+  final emoji = _categoryEmoji(event.category);
+  return venue == null ? emoji : '$emoji ${venue.compactLabel}';
+}
+
+String _calendarEventSemanticLabel(EventModel event) {
+  final venue = event.matchVenueType;
+  final venueLabel = switch (venue) {
+    MatchVenueType.home => 'Heimspiel',
+    MatchVenueType.away => 'Auswärtsspiel',
+    MatchVenueType.tournament => 'Turnier',
+    null => null,
+  };
+  return [
+    event.category.label,
+    if (venueLabel != null) venueLabel,
+  ].join(', ');
+}
 
 IconData _categoryIcon(EventCategory category) {
   if (category == EventCategory.training) return Icons.fitness_center_rounded;

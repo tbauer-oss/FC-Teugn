@@ -980,6 +980,64 @@ class EventModel {
   }
 }
 
+enum MatchVenueType { home, away, tournament }
+
+extension MatchVenueTypeX on MatchVenueType {
+  String get label => switch (this) {
+        MatchVenueType.home => 'Heim',
+        MatchVenueType.away => 'Auswärts',
+        MatchVenueType.tournament => 'Turnier',
+      };
+
+  String get compactLabel => switch (this) {
+        MatchVenueType.home => 'H',
+        MatchVenueType.away => 'A',
+        MatchVenueType.tournament => 'T',
+      };
+}
+
+/// Einheitliche Darstellung eines Spiels in Übersichten, Kalendern und
+/// Detailansichten. Bei Auswärtsspielen steht immer die Heimmannschaft zuerst.
+extension EventMatchPresentationX on EventModel {
+  bool? get fixtureIsHome {
+    if (!category.isSingleMatch) return null;
+    if (matchDetails != null) return matchDetails!.isHome;
+    return switch (homeAway) {
+      HomeAway.home => true,
+      HomeAway.away => false,
+      _ => null,
+    };
+  }
+
+  MatchVenueType? get matchVenueType {
+    if (category.isTournament) return MatchVenueType.tournament;
+    return switch (fixtureIsHome) {
+      true => MatchVenueType.home,
+      false => MatchVenueType.away,
+      null => null,
+    };
+  }
+
+  String get fixtureDisplayTitle {
+    if (!category.isSingleMatch) return title;
+    final opponentName = (matchDetails?.opponent ?? opponent ?? '').trim();
+    if (opponentName.isEmpty || fixtureIsHome == null) return title;
+    final ownName =
+        ownTeamName.trim().isEmpty ? 'FC Teugn' : ownTeamName.trim();
+    return fixtureIsHome!
+        ? '$ownName – $opponentName'
+        : '$opponentName – $ownName';
+  }
+
+  String? get fixtureDisplayScore {
+    final details = matchDetails;
+    if (details?.ourGoals == null || details?.theirGoals == null) return null;
+    return fixtureIsHome == false
+        ? '${details!.theirGoals} : ${details.ourGoals}'
+        : '${details!.ourGoals} : ${details.theirGoals}';
+  }
+}
+
 class EventRecurrenceDraft {
   const EventRecurrenceDraft({
     required this.frequency,

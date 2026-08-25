@@ -222,4 +222,46 @@ void main() {
       'ATSV Kelheim E1',
     );
   });
+
+  test('presents home and away fixtures in the official team order', () {
+    EventModel fixture({required bool isHome}) => EventModel.fromJson({
+          'id': isHome ? 'home' : 'away',
+          'teamId': 'team-1',
+          'type': 'MATCH',
+          'category': 'LEAGUE_MATCH',
+          'status': 'SCHEDULED',
+          'visibility': 'TEAM',
+          'title': 'Legacy-Titel',
+          'ownTeam': {
+            'name': '(SG) SV Saal/Donau',
+            'shortName': 'SG Saal/Donau',
+            'isPlayingCommunity': true,
+          },
+          'startAt': '2026-09-18T16:00:00.000Z',
+          'location': 'Sportplatz',
+          'targetTeams': [],
+          'attachments': [],
+          'attendance': [],
+          'missingAttendance': [],
+          'carpoolOffers': [],
+          'carpoolNeeds': [],
+          'matchDetails': {
+            'opponent': 'SC Thaldorf E1',
+            'isHome': isHome,
+            'ourGoals': 2,
+            'theirGoals': 1,
+          },
+          'capabilities': <String, dynamic>{},
+        });
+
+    final home = fixture(isHome: true);
+    final away = fixture(isHome: false);
+
+    expect(home.fixtureDisplayTitle, '(SG) SV Saal/Donau – SC Thaldorf E1');
+    expect(home.fixtureDisplayScore, '2 : 1');
+    expect(home.matchVenueType, MatchVenueType.home);
+    expect(away.fixtureDisplayTitle, 'SC Thaldorf E1 – (SG) SV Saal/Donau');
+    expect(away.fixtureDisplayScore, '1 : 2');
+    expect(away.matchVenueType, MatchVenueType.away);
+  });
 }

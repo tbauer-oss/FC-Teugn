@@ -215,11 +215,21 @@ void main() {
         title: 'Pflichtspiel',
         startAt: date.add(const Duration(days: 1)),
         category: 'LEAGUE_MATCH',
+        opponent: 'SC Thaldorf E1',
+        isHome: true,
+      ),
+      _calendarEvent(
+        id: 'away-match',
+        title: 'Auswärtsspiel',
+        startAt: date.add(const Duration(days: 2)),
+        category: 'LEAGUE_MATCH',
+        opponent: 'TSV Abensberg E3',
+        isHome: false,
       ),
       _calendarEvent(
         id: 'party',
         title: 'Weihnachtsfeier',
-        startAt: date.add(const Duration(days: 2)),
+        startAt: date.add(const Duration(days: 3)),
         category: 'CHRISTMAS_PARTY',
       ),
     ];
@@ -244,6 +254,12 @@ void main() {
     expect(find.text('🏃 Training'), findsWidgets);
     expect(find.text('⚽ Pflichtspiel'), findsWidgets);
     expect(find.text('🎄 Weihnachtsfeier'), findsWidgets);
+    expect(find.text('⚽ H'), findsWidgets);
+    expect(find.text('⚽ A'), findsWidgets);
+    expect(find.text('H Heim'), findsOneWidget);
+    expect(find.text('A Auswärts'), findsOneWidget);
+    expect(find.text('FC Teugn – SC Thaldorf E1'), findsOneWidget);
+    expect(find.text('TSV Abensberg E3 – FC Teugn'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     for (final width in const [360.0, 390.0, 480.0, 599.0, 720.0, 884.0]) {
@@ -310,6 +326,8 @@ EventModel _calendarEvent({
   required String title,
   required DateTime startAt,
   String category = 'SPECIAL_EVENT',
+  String? opponent,
+  bool? isHome,
 }) {
   return EventModel.fromJson({
     'id': id,
@@ -319,8 +337,18 @@ EventModel _calendarEvent({
     'status': 'SCHEDULED',
     'visibility': 'TEAM',
     'title': title,
+    'ownTeam': {
+      'name': 'FC Teugn',
+      'shortName': 'FCT',
+      'isPlayingCommunity': false,
+    },
     'startAt': startAt.toIso8601String(),
     'location': 'Sportplatz Teugn',
+    if (opponent != null)
+      'matchDetails': {
+        'opponent': opponent,
+        'isHome': isHome ?? true,
+      },
     'attendanceFinalized': false,
     'targetTeams': <dynamic>[],
     'attachments': <dynamic>[],

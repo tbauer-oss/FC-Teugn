@@ -15,6 +15,7 @@ import '../../core/models/organization.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/responsive_form_dialog.dart';
 import '../../core/widgets/team_crest.dart';
+import '../../core/widgets/match_venue_badge.dart';
 import '../shared/page_scaffold.dart';
 import '../imports/competition_import_dialog.dart';
 import '../matches/competition_management_dialog.dart';
@@ -2719,7 +2720,8 @@ class _MatchCard extends StatelessWidget {
                   url: tournamentPlan.url,
                   tournamentName: event.title,
                 );
-    final hasResult = details?.ourGoals != null && details?.theirGoals != null;
+    final displayScore = event.fixtureDisplayScore;
+    final hasResult = displayScore != null;
     final isFriendly = event.category == EventCategory.friendlyMatch ||
         (details?.competition ?? '').toLowerCase().contains('freundschaft');
     return Card(
@@ -2732,10 +2734,7 @@ class _MatchCard extends StatelessWidget {
           final compact = responsiveCompact ||
               viewMode == MatchViewMode.compact ||
               viewMode == MatchViewMode.veryCompact;
-          final title = details == null
-              ? event.title
-              : '${event.ownTeamName} '
-                  '${details.isHome ? '–' : '@'} ${details.opponent}';
+          final title = event.fixtureDisplayTitle;
           final dateLocation = [
             '${date.day}.${date.month}.${date.year}',
             if (event.location.trim().isNotEmpty) event.location.trim(),
@@ -2743,14 +2742,28 @@ class _MatchCard extends StatelessWidget {
           final information = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                maxLines: compact ? 2 : 1,
-                overflow: TextOverflow.ellipsis,
-                style: (compact
-                        ? Theme.of(context).textTheme.titleMedium
-                        : Theme.of(context).textTheme.titleLarge)
-                    ?.copyWith(fontWeight: FontWeight.w900),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: compact ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: (compact
+                              ? Theme.of(context).textTheme.titleMedium
+                              : Theme.of(context).textTheme.titleLarge)
+                          ?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  if (event.matchVenueType != null) ...[
+                    const SizedBox(width: 7),
+                    MatchVenueBadge(
+                      type: event.matchVenueType!,
+                      compact: true,
+                    ),
+                  ],
+                ],
               ),
               SizedBox(height: compact ? 1 : 4),
               Text(
@@ -2978,6 +2991,7 @@ class _MatchCard extends StatelessWidget {
                             ownTeamIsPlayingCommunity:
                                 event.ownTeamIsPlayingCommunity,
                             opponentLogoUrl: details?.opponentLogoUrl,
+                            isHome: details?.isHome ?? true,
                             compact: true,
                             tournament: isTournament,
                           ),
@@ -3011,7 +3025,7 @@ class _MatchCard extends StatelessWidget {
                             Padding(
                               padding: const EdgeInsets.only(left: 6),
                               child: Text(
-                                '${details!.ourGoals}:${details.theirGoals}',
+                                displayScore,
                                 style: Theme.of(context).textTheme.titleLarge,
                               ),
                             ),
@@ -3042,6 +3056,7 @@ class _MatchCard extends StatelessWidget {
                                 ownTeamIsPlayingCommunity:
                                     event.ownTeamIsPlayingCommunity,
                                 opponentLogoUrl: details?.opponentLogoUrl,
+                                isHome: details?.isHome ?? true,
                                 compact: true,
                                 tournament: isTournament,
                               ),
@@ -3050,7 +3065,7 @@ class _MatchCard extends StatelessWidget {
                               if (hasResult) ...[
                                 const SizedBox(width: 8),
                                 Text(
-                                  '${details!.ourGoals}:${details.theirGoals}',
+                                  displayScore,
                                   style:
                                       Theme.of(context).textTheme.headlineSmall,
                                 ),
@@ -3077,6 +3092,7 @@ class _MatchCard extends StatelessWidget {
                             ownTeamIsPlayingCommunity:
                                 event.ownTeamIsPlayingCommunity,
                             opponentLogoUrl: details?.opponentLogoUrl,
+                            isHome: details?.isHome ?? true,
                             compact: false,
                             tournament: isTournament,
                           ),
@@ -3087,7 +3103,7 @@ class _MatchCard extends StatelessWidget {
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 16),
                               child: Text(
-                                '${details!.ourGoals} : ${details.theirGoals}',
+                                displayScore,
                                 style:
                                     Theme.of(context).textTheme.headlineSmall,
                               ),
@@ -3326,26 +3342,33 @@ class _MatchLogos extends StatelessWidget {
     required this.ownTeamLogoUrl,
     required this.ownTeamIsPlayingCommunity,
     required this.opponentLogoUrl,
+    required this.isHome,
     required this.compact,
     this.tournament = false,
   });
   final String? ownTeamLogoUrl;
   final bool ownTeamIsPlayingCommunity;
   final String? opponentLogoUrl;
+  final bool isHome;
   final bool compact;
   final bool tournament;
 
   @override
   Widget build(BuildContext context) {
     final size = compact ? 30.0 : 42.0;
+    final ownCrest = TeamCrest.ownTeam(
+      size: size,
+      logoUrl: ownTeamLogoUrl,
+      isPlayingCommunity: ownTeamIsPlayingCommunity,
+    );
+    final opponentCrest = TeamCrest.opponent(
+      size: size,
+      logoUrl: opponentLogoUrl,
+    );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        TeamCrest.ownTeam(
-          size: size,
-          logoUrl: ownTeamLogoUrl,
-          isPlayingCommunity: ownTeamIsPlayingCommunity,
-        ),
+        if (!tournament && !isHome) opponentCrest else ownCrest,
         const SizedBox(width: 5),
         if (tournament)
           Container(
@@ -3358,11 +3381,10 @@ class _MatchLogos extends StatelessWidget {
             child:
                 const Icon(Icons.emoji_events_rounded, color: AppColors.gold),
           )
+        else if (isHome)
+          opponentCrest
         else
-          TeamCrest.opponent(
-            size: size,
-            logoUrl: opponentLogoUrl,
-          ),
+          ownCrest,
       ],
     );
   }

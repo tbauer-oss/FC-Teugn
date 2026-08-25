@@ -880,7 +880,9 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       length: tabCount,
       initialIndex: initialTabIndex,
       child: PageScaffold(
-        title: '${match.ownTeamName} · $opponent',
+        title: match.details?.isHome == false
+            ? '$opponent – ${match.ownTeamName}'
+            : '${match.ownTeamName} – $opponent',
         subtitle: _dateLine(match),
         denseMobileHeader: true,
         hideMobileHeader: true,
