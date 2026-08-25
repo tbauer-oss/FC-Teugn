@@ -1041,6 +1041,20 @@ async function validatedTargetTeams(
   return ids.length > 0 && ids.every((id) => allowed.includes(id)) ? ids : null;
 }
 
+const regularTrainingDescriptionPrefix =
+  'Reguläre Trainingszeit laut Belegungsplan der Saison ';
+
+function isRegularTrainingOccurrence(event: {
+  id: string;
+  teamId: string;
+  category: EventCategory;
+  description: string | null;
+}) {
+  return event.category === EventCategory.TRAINING &&
+    (event.id.startsWith(`regular-training:${event.teamId}:`) ||
+      event.description?.startsWith(regularTrainingDescriptionPrefix) === true);
+}
+
 /**
  * App-wide family inbox. It deliberately ignores the currently selected
  * trainer/team context and derives access exclusively from real guardian and
@@ -1180,6 +1194,7 @@ export async function listPersonalResponses(req: Request, res: Response) {
           (!response ||
             response.status === AttendanceStatus.UNKNOWN ||
             response.status === AttendanceStatus.MAYBE),
+        isRegularTraining: isRegularTrainingOccurrence(event),
         opponentLogoUrl:
           event.matchDetails?.opponentRecord?.opponentClub.logoAsset &&
           event.matchDetails.opponentRecord.opponentClub.logoAsset.deletedAt === null
@@ -1195,6 +1210,192 @@ export async function listPersonalResponses(req: Request, res: Response) {
     });
   });
   return res.json(result);
+}
+
+export async function setRegularTrainingAttendancePreference(
+  req: Request,
+  res: Response,
+) {
+  const user = req.user!;
+  const playerId = clean(req.body.playerId);
+  if (!playerId) return res.status(400).json({ message: 'Spieler fehlt.' });
+  if (req.body.responseMode !== 'PERSONAL_GUARDIAN') {
+    return res.status(403).json({
+      message: 'Die Serienzusage ist nur für die eigene Familie möglich.',
+    });
+  }
+
+  const periodMonths = Number(req.body.periodMonths);
+  const throughSeasonEnd = req.body.throughSeasonEnd === true;
+  if (!throughSeasonEnd && ![1, 3, 6].includes(periodMonths)) {
+    return res.status(400).json({
+      message: 'Bitte 1, 3 oder 6 Monate beziehungsweise bis Saisonende wählen.',
+    });
+  }
+
+  const [parentLink, ownPlayer, event] = await Promise.all([
+    prisma.parentPlayerLink.findUnique({
+      where: { parentId_playerId: { parentId: user.id, playerId } },
+      select: { relationship: true },
+    }),
+    prisma.player.findFirst({
+      where: { id: playerId, userId: user.id },
+      select: { id: true },
+    }),
+    prisma.event.findUnique({
+      where: { id: req.params.id },
+      include: {
+        attendance: { where: { playerId } },
+        team: {
+          include: {
+            ageGroup: {
+              include: { season: { select: { endDate: true } } },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+  if (!parentLink && !ownPlayer) {
+    return res.status(403).json({
+      message: 'Keine familiäre Zuordnung für diesen Spieler.',
+    });
+  }
+  if (!event || event.status !== EventStatus.SCHEDULED) {
+    return res.status(404).json({ message: 'Training nicht gefunden oder abgesagt.' });
+  }
+  if (!isRegularTrainingOccurrence(event)) {
+    return res.status(400).json({
+      message: 'Eine Serienzusage ist nur für reguläre Trainingstermine möglich.',
+    });
+  }
+  if (event.attendanceFinalized) {
+    return res.status(409).json({
+      message: 'Die Rückmeldungen wurden bereits abgeschlossen.',
+    });
+  }
+  if (event.responseDeadline && event.responseDeadline < new Date()) {
+    return res.status(409).json({
+      message: 'Die Rückmeldefrist ist abgelaufen. Bitte das Trainerteam kontaktieren.',
+    });
+  }
+
+  const player = await prisma.player.findFirst({
+    where: { id: playerId, teamId: event.teamId },
+    select: { id: true, teamId: true },
+  });
+  if (!player?.teamId) {
+    return res.status(403).json({
+      message: 'Der Spieler gehört nicht zu dieser Trainingsmannschaft.',
+    });
+  }
+
+  const validFrom = event.startAt;
+  const seasonEnd = event.team.seasonEndDate ?? event.team.ageGroup.season.endDate;
+  const seasonEndInclusive = new Date(seasonEnd);
+  seasonEndInclusive.setHours(23, 59, 59, 999);
+  const requestedUntil = new Date(throughSeasonEnd ? seasonEndInclusive : validFrom);
+  if (!throughSeasonEnd) {
+    requestedUntil.setMonth(requestedUntil.getMonth() + periodMonths);
+  }
+  const validUntil = requestedUntil < seasonEndInclusive
+    ? requestedUntil
+    : seasonEndInclusive;
+  if (validUntil < validFrom) {
+    return res.status(409).json({
+      message: 'Für diese Saison gibt es keine weiteren Regeltrainings.',
+    });
+  }
+
+  const responseSource = parentLink
+    ? AttendanceResponseSource.GUARDIAN
+    : AttendanceResponseSource.PLAYER;
+  const preserveCurrentDecline = event.attendance[0]?.status === AttendanceStatus.NO;
+  const result = await prisma.$transaction(async (tx) => {
+    const preference = await tx.regularTrainingAttendancePreference.upsert({
+      where: { playerId_teamId: { playerId, teamId: player.teamId! } },
+      update: {
+        respondedById: user.id,
+        validFrom,
+        validUntil,
+        status: AttendanceStatus.YES,
+        responseSource,
+        responderRelationship: parentLink?.relationship ?? null,
+      },
+      create: {
+        playerId,
+        teamId: player.teamId!,
+        respondedById: user.id,
+        validFrom,
+        validUntil,
+        status: AttendanceStatus.YES,
+        responseSource,
+        responderRelationship: parentLink?.relationship ?? null,
+      },
+    });
+    let appliedCurrent = false;
+    if (!preserveCurrentDecline) {
+      await tx.attendance.upsert({
+        where: { eventId_playerId: { eventId: event.id, playerId } },
+        update: {
+          status: AttendanceStatus.YES,
+          reason: null,
+          respondedById: user.id,
+          respondedAt: new Date(),
+          responseSource,
+          responderRelationship: parentLink?.relationship ?? null,
+        },
+        create: {
+          eventId: event.id,
+          playerId,
+          status: AttendanceStatus.YES,
+          respondedById: user.id,
+          respondedAt: new Date(),
+          responseSource,
+          responderRelationship: parentLink?.relationship ?? null,
+        },
+      });
+      appliedCurrent = true;
+    }
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: player.teamId,
+        action: 'REGULAR_TRAINING_ATTENDANCE_PREFERENCE_SET',
+        entityType: 'RegularTrainingAttendancePreference',
+        entityId: preference.id,
+        metadata: {
+          eventId: event.id,
+          playerId,
+          validFrom: validFrom.toISOString(),
+          validUntil: validUntil.toISOString(),
+          currentDeclinePreserved: preserveCurrentDecline,
+        },
+      },
+    });
+    return { preference, appliedCurrent };
+  });
+
+  if (result.appliedCurrent) {
+    await prisma.notification.updateMany({
+      where: {
+        userId: user.id,
+        readAt: null,
+        OR: [
+          { entityId: `${event.id}:${playerId}` },
+          { entityType: 'AttendanceRequest', entityId: event.id },
+        ],
+      },
+      data: { readAt: new Date() },
+    });
+  }
+  return res.json({
+    status: AttendanceStatus.YES,
+    validFrom: result.preference.validFrom,
+    validUntil: result.preference.validUntil,
+    appliedCurrent: result.appliedCurrent,
+    preservedDeclines: preserveCurrentDecline ? 1 : 0,
+  });
 }
 
 export async function listEvents(req: Request, res: Response) {

@@ -18,6 +18,7 @@ import {
   attendanceReminderStatus,
   sendAttendanceReminders,
   setAttendance,
+  setRegularTrainingAttendancePreference,
   updateCarpoolPassenger,
   updateEvent,
   upsertMatchDetails,
@@ -86,6 +87,10 @@ router.put('/:id', requirePermission(Permission.MANAGE_EVENTS), updateEvent);
 // Controller geprüft. Dadurch funktionieren auch individuelle Rechte, ohne
 // dass ein allgemeines MANAGE_EVENTS-Recht als versteckte Voraussetzung wirkt.
 router.delete('/:id', deleteEvent);
+router.post(
+  '/:id/attendance/regular-series',
+  setRegularTrainingAttendancePreference,
+);
 router.post('/:id/attendance', setAttendance);
 router.post(
   '/:id/attendance/finalize',

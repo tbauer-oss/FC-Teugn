@@ -1,4 +1,5 @@
 import {
+  AttendanceStatus,
   EventCategory,
   EventStatus,
   EventType,
@@ -30,7 +31,10 @@ export type RegularTrainingTeamSchedule = {
 
 type RegularTrainingTransaction = Pick<
   Prisma.TransactionClient,
-  'event' | 'auditLog'
+  | 'event'
+  | 'auditLog'
+  | 'attendance'
+  | 'regularTrainingAttendancePreference'
 >;
 
 type CalendarParts = {
@@ -49,6 +53,81 @@ export type RegularTrainingOccurrence = {
   endAt: Date;
   location: string;
 };
+
+async function applyRegularTrainingAttendancePreferences(
+  tx: RegularTrainingTransaction,
+  eventId: string,
+  teamId: string,
+  startAt: Date,
+) {
+  // Einige isolierte Bestands-Tests verwenden bewusst einen schlanken
+  // Transaktions-Dummy. In der echten Prisma-Transaktion sind beide Delegates
+  // vorhanden; der Guard hält die Terminabgleich-Tests rückwärtskompatibel.
+  if (
+    !('regularTrainingAttendancePreference' in tx) ||
+    !('attendance' in tx)
+  ) {
+    return;
+  }
+  const preferences = await tx.regularTrainingAttendancePreference.findMany({
+    where: {
+      teamId,
+      status: AttendanceStatus.YES,
+      validFrom: { lte: startAt },
+      validUntil: { gte: startAt },
+    },
+    select: {
+      playerId: true,
+      respondedById: true,
+      responseSource: true,
+      responderRelationship: true,
+    },
+  });
+  if (preferences.length === 0) return;
+
+  const existing = await tx.attendance.findMany({
+    where: {
+      eventId,
+      playerId: { in: preferences.map((item) => item.playerId) },
+    },
+    select: { playerId: true, status: true },
+  });
+  const existingByPlayer = new Map(
+    existing.map((item) => [item.playerId, item.status]),
+  );
+  const now = new Date();
+  await Promise.all(
+    preferences.map(async (preference) => {
+      // Eine bewusst für diesen konkreten Termin eingetragene Absage ist eine
+      // Ausnahme und darf von der Serienzusage niemals überschrieben werden.
+      if (existingByPlayer.get(preference.playerId) === AttendanceStatus.NO) {
+        return;
+      }
+      await tx.attendance.upsert({
+        where: {
+          eventId_playerId: { eventId, playerId: preference.playerId },
+        },
+        update: {
+          status: AttendanceStatus.YES,
+          reason: null,
+          respondedById: preference.respondedById,
+          respondedAt: now,
+          responseSource: preference.responseSource,
+          responderRelationship: preference.responderRelationship,
+        },
+        create: {
+          eventId,
+          playerId: preference.playerId,
+          status: AttendanceStatus.YES,
+          respondedById: preference.respondedById,
+          respondedAt: now,
+          responseSource: preference.responseSource,
+          responderRelationship: preference.responderRelationship,
+        },
+      });
+    }),
+  );
+}
 
 const berlinPartsFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Europe/Berlin',
@@ -409,6 +488,12 @@ export async function reconcileNextRegularTrainingOccurrence(
       },
     });
   }
+  await applyRegularTrainingAttendancePreferences(
+    tx,
+    canonicalId,
+    team.id,
+    expected.startAt,
+  );
   const staleIds = visible
     .map((event) => event.id)
     .filter((id) => id !== canonicalId);

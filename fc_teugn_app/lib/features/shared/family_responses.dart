@@ -559,6 +559,10 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
                     ),
                   ],
                 ),
+                if (item.isRegularTraining && item.canRespond) ...[
+                  const SizedBox(height: 5),
+                  _RegularTrainingSeriesAction(item: item, expanded: true),
+                ],
               ],
             );
           }
@@ -569,6 +573,10 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 actions,
+                if (item.isRegularTraining && item.canRespond) ...[
+                  const SizedBox(height: 5),
+                  _RegularTrainingSeriesAction(item: item),
+                ],
                 TextButton.icon(
                   onPressed: openDetails,
                   icon: const Icon(Icons.open_in_new_rounded),
@@ -581,6 +589,283 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
       ),
     );
   }
+}
+
+class _RegularTrainingSeriesAction extends ConsumerWidget {
+  const _RegularTrainingSeriesAction(
+      {required this.item, this.expanded = false});
+
+  final PersonalResponseModel item;
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final button = OutlinedButton.icon(
+      key: ValueKey('regular-training-series-${item.eventId}-${item.playerId}'),
+      onPressed: () async {
+        final result = await showModalBottomSheet<
+            ({
+              DateTime validUntil,
+              int preservedDeclines,
+            })>(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (_) => _RegularTrainingSeriesSheet(item: item),
+        );
+        if (result == null || !context.mounted) return;
+        final until = result.validUntil;
+        final exceptionText = result.preservedDeclines > 0
+            ? ' Bereits eingetragene Absagen bleiben erhalten.'
+            : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Regeltraining bis ${until.day}.${until.month}.${until.year} zugesagt.$exceptionText',
+            ),
+          ),
+        );
+      },
+      icon: const Icon(Icons.event_repeat_rounded, size: 18),
+      label: const Text('Mehrere Trainings zusagen'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 38),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+    return expanded ? SizedBox(width: double.infinity, child: button) : button;
+  }
+}
+
+class _RegularTrainingSeriesSheet extends ConsumerStatefulWidget {
+  const _RegularTrainingSeriesSheet({required this.item});
+
+  final PersonalResponseModel item;
+
+  @override
+  ConsumerState<_RegularTrainingSeriesSheet> createState() =>
+      _RegularTrainingSeriesSheetState();
+}
+
+class _RegularTrainingSeriesSheetState
+    extends ConsumerState<_RegularTrainingSeriesSheet> {
+  int? _savingMonths;
+  bool _savingSeason = false;
+
+  Future<void> _save(int? months) async {
+    setState(() {
+      _savingMonths = months;
+      _savingSeason = months == null;
+    });
+    try {
+      final result =
+          await ref.read(repositoryProvider).confirmRegularTrainingSeries(
+                eventId: widget.item.eventId,
+                playerId: widget.item.playerId,
+                periodMonths: months,
+              );
+      ref.invalidate(personalResponsesProvider);
+      ref.invalidate(eventsProvider);
+      ref.invalidate(parentMatchdaysProvider);
+      ref.invalidate(parentDashboardSummaryProvider);
+      ref.invalidate(trainerDashboardSummaryProvider);
+      if (mounted) {
+        Navigator.pop(context, (
+          validUntil: result.validUntil,
+          preservedDeclines: result.preservedDeclines,
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Die Serienzusage konnte nicht gespeichert werden. Bitte erneut versuchen.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingMonths = null;
+          _savingSeason = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = _savingMonths != null || _savingSeason;
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.yellowSoft,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(Icons.event_repeat_rounded),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Regeltraining gesammelt zusagen',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        '${widget.item.playerName} · ${widget.item.teamName}',
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: .08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.success.withValues(alpha: .22),
+                ),
+              ),
+              child: const Text(
+                'Die Zusage gilt ab diesem Termin. Wenn dein Kind einmal nicht kann, kannst du den einzelnen Termin weiterhin absagen. Bereits eingetragene Absagen bleiben bestehen.',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final oneColumn = constraints.maxWidth < 340;
+                final width = oneColumn
+                    ? constraints.maxWidth
+                    : (constraints.maxWidth - 8) / 2;
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final months in const [1, 3, 6])
+                      SizedBox(
+                        width: width,
+                        child: _SeriesPeriodButton(
+                          label: months == 1 ? '1 Monat' : '$months Monate',
+                          subtitle: 'ab diesem Training',
+                          selected: _savingMonths == months,
+                          onPressed: busy ? null : () => _save(months),
+                        ),
+                      ),
+                    SizedBox(
+                      width: width,
+                      child: _SeriesPeriodButton(
+                        label: 'Bis Saisonende',
+                        subtitle: 'alle Regeltrainings',
+                        selected: _savingSeason,
+                        emphasized: true,
+                        onPressed: busy ? null : () => _save(null),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SeriesPeriodButton extends StatelessWidget {
+  const _SeriesPeriodButton({
+    required this.label,
+    required this.subtitle,
+    required this.selected,
+    required this.onPressed,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback? onPressed;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: emphasized ? AppColors.yellowSoft : AppColors.background,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 72),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: emphasized ? AppColors.gold : AppColors.line,
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                if (selected)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  )
+                else
+                  Icon(
+                    emphasized
+                        ? Icons.flag_rounded
+                        : Icons.calendar_month_rounded,
+                    color: AppColors.gold,
+                    size: 21,
+                  ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label,
+                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 /// Gemeinsame, kompakte Rückmeldeaktion für Familienseite und Dashboard.

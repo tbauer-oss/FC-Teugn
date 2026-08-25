@@ -169,6 +169,38 @@ void main() {
     });
   });
 
+  test('dashboard keeps every selected training from today visible', () {
+    final selected = todaysTrainingsForDashboard(
+      [
+        _event(
+          id: 'training-e1-today',
+          teamId: 'team-e1',
+          category: EventCategory.training,
+          startAt: DateTime(2026, 8, 25, 17, 15),
+        ),
+        _event(
+          id: 'training-e2-today',
+          teamId: 'team-e2',
+          category: EventCategory.training,
+          startAt: DateTime(2026, 8, 25, 18),
+        ),
+        _event(
+          id: 'training-tomorrow',
+          teamId: 'team-e1',
+          category: EventCategory.training,
+          startAt: DateTime(2026, 8, 26, 17, 15),
+        ),
+      ],
+      const {'team-e1', 'team-e2'},
+      DateTime(2026, 8, 25, 20),
+    );
+
+    expect(selected.map((event) => event.id).toList(), [
+      'training-e1-today',
+      'training-e2-today',
+    ]);
+  });
+
   test('dashboard counters include replies and every open player', () {
     final counts = trainingDashboardCounts(
       const AttendanceSummary(yes: 9, no: 2, maybe: 1, unknown: 3),
@@ -278,9 +310,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final responses = find.byKey(
-      const ValueKey('all-training-responses'),
-    );
+    final responses = find.byKey(const ValueKey('today-training-summary'));
     await tester.ensureVisible(responses);
     await tester.tap(responses);
     await tester.pumpAndSettle();
@@ -373,21 +403,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Rückmeldungen fehlen'), findsNothing);
-    expect(find.text('Nächstes Training'), findsOneWidget);
-    expect(find.text('2 Mannschaften'), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('next-training-overview-training-e1')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('next-training-overview-training-e2')),
-      findsOneWidget,
-    );
-    expect(find.text('5 Offen'), findsOneWidget);
+        find.byKey(const ValueKey('today-training-summary')), findsOneWidget);
+    expect(find.textContaining('Heute'), findsOneWidget);
+    expect(find.text('5 offen'), findsOneWidget);
     expect(find.textContaining('E1-Jugend'), findsWidgets);
     expect(find.textContaining('E2-Jugend'), findsWidgets);
 
-    final combinedButton = find.byKey(const ValueKey('all-training-responses'));
+    final combinedButton = find.byKey(const ValueKey('today-training-summary'));
     await tester.ensureVisible(combinedButton);
     await tester.tap(combinedButton);
     await tester.pumpAndSettle();

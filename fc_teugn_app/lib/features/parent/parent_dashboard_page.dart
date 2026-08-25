@@ -261,6 +261,42 @@ class _PulseDot extends StatelessWidget {
       );
 }
 
+class _FamilyDashboardPanel extends StatelessWidget {
+  const _FamilyDashboardPanel({
+    required this.child,
+    required this.accent,
+  });
+
+  final Widget child;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              accent.withValues(alpha: .075),
+              Colors.white,
+              Colors.white,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: accent.withValues(alpha: .18)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .035),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: child,
+      );
+}
+
 class _TodayImportantCard extends StatelessWidget {
   const _TodayImportantCard({
     required this.openResponses,
@@ -287,8 +323,8 @@ class _TodayImportantCard extends StatelessWidget {
         carpoolEvents.length +
         nominations.length +
         consents.length;
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    return _FamilyDashboardPanel(
+      accent: itemCount == 0 ? AppColors.success : AppColors.gold,
       child: Padding(
         padding: EdgeInsets.all(
           MediaQuery.sizeOf(context).width < 600 ? 10 : 12,
@@ -573,7 +609,8 @@ class _WeekTimelineCard extends StatelessWidget {
   final List<FamilyTimelineItem> items;
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => _FamilyDashboardPanel(
+        accent: AppColors.gold,
         child: Padding(
           padding: EdgeInsets.all(
             MediaQuery.sizeOf(context).width < 600 ? 10 : 12,
@@ -671,7 +708,8 @@ class _ChildrenSection extends StatelessWidget {
   final List<ParentConsentAttention> consents;
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => _FamilyDashboardPanel(
+        accent: AppColors.success,
         child: Padding(
           padding: EdgeInsets.all(
             MediaQuery.sizeOf(context).width < 600 ? 10 : 12,

@@ -38,6 +38,7 @@ PersonalResponseModel _response({
   String type = 'TRAINING',
   String category = 'TRAINING',
   DateTime? startAt,
+  bool isRegularTraining = false,
 }) {
   return PersonalResponseModel(
     eventId: eventId,
@@ -54,6 +55,7 @@ PersonalResponseModel _response({
     reason: reason,
     canRespond: canRespond,
     isOverdue: false,
+    isRegularTraining: isRegularTraining,
   );
 }
 
@@ -111,6 +113,29 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Zusagen'), findsOneWidget);
     expect(find.text('Vielleicht'), findsNothing);
     expect(find.widgetWithText(OutlinedButton, 'Absagen'), findsOneWidget);
+  });
+
+  testWidgets('regular training offers clear bulk confirmation periods',
+      (tester) async {
+    await _pumpPage(
+      tester,
+      _response(isRegularTraining: true),
+    );
+
+    expect(find.text('Mehrere Trainings zusagen'), findsOneWidget);
+    await tester.tap(find.text('Mehrere Trainings zusagen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Regeltraining gesammelt zusagen'), findsOneWidget);
+    expect(find.text('1 Monat'), findsOneWidget);
+    expect(find.text('3 Monate'), findsOneWidget);
+    expect(find.text('6 Monate'), findsOneWidget);
+    expect(find.text('Bis Saisonende'), findsOneWidget);
+    expect(
+      find.textContaining('Bereits eingetragene Absagen bleiben bestehen'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('saved decline reason is visible in family response',

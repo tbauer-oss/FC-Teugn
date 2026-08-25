@@ -71,6 +71,12 @@ typedef AttendanceReminderSendResult = ({
   int unavailablePushDevices,
 });
 
+typedef RegularTrainingSeriesConfirmation = ({
+  DateTime validUntil,
+  bool appliedCurrent,
+  int preservedDeclines,
+});
+
 int _nonNegativeInt(Map<String, dynamic> data, String key, [int fallback = 0]) {
   final value = data[key];
   return value is num && value >= 0 ? value.toInt() : fallback;
@@ -1342,6 +1348,34 @@ class DataRepository {
     });
     final payload = response.data as Map<String, dynamic>;
     return EventModel.fromJson(payload['event'] as Map<String, dynamic>);
+  }
+
+  Future<RegularTrainingSeriesConfirmation> confirmRegularTrainingSeries({
+    required String eventId,
+    required String playerId,
+    int? periodMonths,
+  }) async {
+    final response = await client.dio.post(
+      '/events/$eventId/attendance/regular-series',
+      data: {
+        'playerId': playerId,
+        'responseMode': 'PERSONAL_GUARDIAN',
+        if (periodMonths == null) 'throughSeasonEnd': true,
+        if (periodMonths != null) 'periodMonths': periodMonths,
+      },
+      options: Options(
+        extra: const {
+          'requireOnline': true,
+          'loadingMessage': 'Serienzusage wird gespeichert …',
+        },
+      ),
+    );
+    final data = response.data as Map<String, dynamic>;
+    return (
+      validUntil: DateTime.parse(data['validUntil'] as String).toLocal(),
+      appliedCurrent: data['appliedCurrent'] as bool? ?? false,
+      preservedDeclines: data['preservedDeclines'] as int? ?? 0,
+    );
   }
 
   Future<List<PersonalResponseModel>> personalResponses({

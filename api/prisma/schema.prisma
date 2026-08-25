@@ -474,78 +474,79 @@ enum ChecklistRunStatus {
 }
 
 model Team {
-  id                         String                      @id @default(cuid())
-  ageGroupId                 String
-  teamNumber                 Int                         @default(1)
-  name                       String
-  shortName                  String?
-  isPlayingCommunity         Boolean                     @default(false)
-  playingCommunityName       String?
-  playingCommunityShortName  String?
-  playingCommunityLogoUrl    String?
-  level                      String?
-  teamType                   TeamType                    @default(COMPETITIVE)
-  gender                     TeamGender                  @default(MIXED)
-  gameFormat                 TeamGameFormat              @default(FOOTBALL_7)
-  periodCount                Int                         @default(2)
-  periodMinutes              Int                         @default(30)
-  defaultFormation           String?
-  customFormations           String[]                    @default([])
-  formationTemplates         Json                        @default("[]")
-  birthYears                 Int[]                       @default([])
-  description                String?
-  trainingLocation           String?
-  trainingTimes              String[]                    @default([])
-  trainingPartnerIds         String[]                    @default([])
-  matchdayTimes              String[]                    @default([])
-  seasonStartDate            DateTime?
-  seasonEndDate              DateTime?
-  indoorSeasonStartDate      DateTime?
-  indoorSeasonEndDate        DateTime?
-  indoorTrainingLocation     String?
-  indoorTrainingTimes        String[]                    @default([])
-  indoorTrainingPartnerIds   String[]                    @default([])
-  homeVenue                  String?
-  bfvTeamId                  String?
-  dfbnetTeamId               String?
-  bfvTeamUrl                 String?
-  photoAssetId               String?                     @unique
-  isActive                   Boolean                     @default(true)
-  deletedAt                  DateTime?
-  createdAt                  DateTime                    @default(now())
-  updatedAt                  DateTime                    @updatedAt
-  ageGroup                   AgeGroup                    @relation(fields: [ageGroupId], references: [id])
-  users                      User[]
-  memberships                TeamMembership[]
-  players                    Player[]
-  events                     Event[]
-  eventTargets               EventTargetTeam[]
-  eventSeries                EventSeries[]
-  auditLogs                  AuditLog[]
-  ruleProfiles               RuleProfile[]
-  exercises                  TrainingExercise[]
-  announcements              AnnouncementTargetTeam[]
-  importJobs                 ImportJob[]
-  externalRefs               ExternalReference[]
-  bfvSyncConfig              BfvTeamSync?
-  playerSeasonAssignments    PlayerSeasonAssignment[]
-  registrationRequests       RegistrationTeamRequest[]
-  tasks                      TeamTask[]
-  equipmentItems             EquipmentItem[]
-  checklistTemplates         ChecklistTemplate[]
-  checklistRuns              ChecklistRun[]
-  photoAsset                 FileAsset?                  @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
-  ownedFileAssets            FileAsset[]                 @relation("TeamFileOwner")
-  pitchConflictRequests      PitchConflictRequest[]
-  defaultLineupPositions     TeamDefaultLineupPosition[]
-  contextPreferences         UserContextPreference[]
-  opponents                  Opponent[]
-  leagues                    League[]
-  leagueEntries              LeagueEntry[]
-  kitLaundryDuties           KitLaundryDuty[]
-  defaultReminderMinutes     Int?                        @default(60)
-  secondaryReminderMinutes   Int?                        @default(1440)
-  defaultReminderPushEnabled Boolean                     @default(true)
+  id                                   String                                @id @default(cuid())
+  ageGroupId                           String
+  teamNumber                           Int                                   @default(1)
+  name                                 String
+  shortName                            String?
+  isPlayingCommunity                   Boolean                               @default(false)
+  playingCommunityName                 String?
+  playingCommunityShortName            String?
+  playingCommunityLogoUrl              String?
+  level                                String?
+  teamType                             TeamType                              @default(COMPETITIVE)
+  gender                               TeamGender                            @default(MIXED)
+  gameFormat                           TeamGameFormat                        @default(FOOTBALL_7)
+  periodCount                          Int                                   @default(2)
+  periodMinutes                        Int                                   @default(30)
+  defaultFormation                     String?
+  customFormations                     String[]                              @default([])
+  formationTemplates                   Json                                  @default("[]")
+  birthYears                           Int[]                                 @default([])
+  description                          String?
+  trainingLocation                     String?
+  trainingTimes                        String[]                              @default([])
+  trainingPartnerIds                   String[]                              @default([])
+  matchdayTimes                        String[]                              @default([])
+  seasonStartDate                      DateTime?
+  seasonEndDate                        DateTime?
+  indoorSeasonStartDate                DateTime?
+  indoorSeasonEndDate                  DateTime?
+  indoorTrainingLocation               String?
+  indoorTrainingTimes                  String[]                              @default([])
+  indoorTrainingPartnerIds             String[]                              @default([])
+  homeVenue                            String?
+  bfvTeamId                            String?
+  dfbnetTeamId                         String?
+  bfvTeamUrl                           String?
+  photoAssetId                         String?                               @unique
+  isActive                             Boolean                               @default(true)
+  deletedAt                            DateTime?
+  createdAt                            DateTime                              @default(now())
+  updatedAt                            DateTime                              @updatedAt
+  ageGroup                             AgeGroup                              @relation(fields: [ageGroupId], references: [id])
+  users                                User[]
+  memberships                          TeamMembership[]
+  players                              Player[]
+  events                               Event[]
+  eventTargets                         EventTargetTeam[]
+  eventSeries                          EventSeries[]
+  auditLogs                            AuditLog[]
+  ruleProfiles                         RuleProfile[]
+  exercises                            TrainingExercise[]
+  announcements                        AnnouncementTargetTeam[]
+  importJobs                           ImportJob[]
+  externalRefs                         ExternalReference[]
+  bfvSyncConfig                        BfvTeamSync?
+  playerSeasonAssignments              PlayerSeasonAssignment[]
+  registrationRequests                 RegistrationTeamRequest[]
+  tasks                                TeamTask[]
+  equipmentItems                       EquipmentItem[]
+  checklistTemplates                   ChecklistTemplate[]
+  checklistRuns                        ChecklistRun[]
+  photoAsset                           FileAsset?                            @relation("TeamPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
+  ownedFileAssets                      FileAsset[]                           @relation("TeamFileOwner")
+  pitchConflictRequests                PitchConflictRequest[]
+  defaultLineupPositions               TeamDefaultLineupPosition[]
+  contextPreferences                   UserContextPreference[]
+  opponents                            Opponent[]
+  leagues                              League[]
+  leagueEntries                        LeagueEntry[]
+  kitLaundryDuties                     KitLaundryDuty[]
+  regularTrainingAttendancePreferences RegularTrainingAttendancePreference[]
+  defaultReminderMinutes               Int?                                  @default(60)
+  secondaryReminderMinutes             Int?                                  @default(1440)
+  defaultReminderPushEnabled           Boolean                               @default(true)
 
   @@index([ageGroupId, isActive, deletedAt])
 }
@@ -631,88 +632,89 @@ model AgeGroup {
 }
 
 model User {
-  id                           String                   @id @default(cuid())
-  email                        String                   @unique
-  password                     String
-  name                         String
-  firstName                    String?
-  lastName                     String?
-  phone                        String?
-  role                         Role                     @default(PARENT)
-  status                       AccountStatus            @default(PENDING)
-  teamId                       String
-  createdAt                    DateTime                 @default(now())
-  updatedAt                    DateTime                 @updatedAt
-  accountDeletedAt             DateTime?
-  team                         Team                     @relation(fields: [teamId], references: [id])
-  parentLinks                  ParentPlayerLink[]       @relation("ParentLinks")
-  memberships                  TeamMembership[]
-  auditLogs                    AuditLog[]               @relation("AuditActor")
-  developmentNotes             PlayerDevelopmentNote[]  @relation("DevelopmentAuthor")
-  medicalUpdates               PlayerMedicalProfile[]   @relation("MedicalUpdatedBy")
-  playerProfile                Player?                  @relation("PlayerAccount")
-  eventSeries                  EventSeries[]            @relation("EventSeriesCreator")
-  attendanceReplies            Attendance[]             @relation("AttendanceResponder")
-  carpoolOffers                CarpoolOffer[]           @relation("CarpoolDriver")
-  carpoolRequests              CarpoolPassenger[]       @relation("CarpoolRequester")
-  carpoolNeeds                 CarpoolNeed[]            @relation("CarpoolNeedRequester")
-  eventReminders               EventReminder[]          @relation("EventReminderRecipient")
-  calendarToken                String?                  @unique
-  tickerEvents                 LiveTickerEvent[]        @relation("TickerEventAuthor")
-  tickerDelegations            MatchTickerDelegate[]    @relation("TickerDelegate")
-  grantedTickerDelegations     MatchTickerDelegate[]    @relation("TickerDelegateGranter")
-  trainingPlans                TrainingPlan[]           @relation("TrainingPlanAuthor")
-  assignedTrainingPlans        TrainingPlanCoach[]
-  exercises                    TrainingExercise[]       @relation("ExerciseAuthor")
-  authoredAnnouncements        Announcement[]           @relation("AnnouncementAuthor")
-  announcementRecipients       AnnouncementRecipient[]
-  announcementReads            AnnouncementRead[]
-  notifications                Notification[]
-  pushSubscriptions            PushSubscription[]
-  notificationPreferences      NotificationPreference[]
-  notificationDeliveries       NotificationDelivery[]
-  importJobs                   ImportJob[]
-  createdBfvSyncConfigs        BfvTeamSync[]            @relation("BfvSyncCreator")
-  seasonTransitions            SeasonTransition[]       @relation("SeasonTransitionActor")
-  createdRuleProfiles          RuleProfile[]            @relation("RuleProfileCreator")
-  approvedRuleProfiles         RuleProfile[]            @relation("RuleProfileApprover")
-  registrationRequest          RegistrationRequest?
-  registrationReviews          RegistrationRequest[]    @relation("RegistrationReviewer")
-  registrationHistory          RegistrationHistory[]    @relation("RegistrationHistoryActor")
-  requestedPitchConflicts      PitchConflictRequest[]   @relation("PitchConflictRequester")
-  receivedPitchConflicts       PitchConflictRequest[]   @relation("PitchConflictRecipient")
-  answeredPitchConflicts       PitchConflictRequest[]   @relation("PitchConflictResponder")
-  consents                     UserConsent[]
-  uploadedFileAssets           FileAsset[]              @relation("FileAssetUploader")
-  refreshTokens                RefreshToken[]
-  biometricCredentials         BiometricCredential[]
-  passwordResetTokens          PasswordResetToken[]
-  createdTeamTasks             TeamTask[]               @relation("TeamTaskCreator")
-  assignedTeamTasks            TeamTask[]               @relation("TeamTaskAssignee")
-  createdEquipmentAssignments  EquipmentAssignment[]    @relation("EquipmentAssignmentCreator")
-  receivedEquipmentAssignments EquipmentAssignment[]    @relation("EquipmentAssignmentUser")
-  createdChecklistTemplates    ChecklistTemplate[]      @relation("ChecklistTemplateCreator")
-  createdChecklistRuns         ChecklistRun[]           @relation("ChecklistRunCreator")
-  completedChecklistItems      ChecklistRunItem[]       @relation("ChecklistRunItemCompleter")
-  dataSubjectRequests          DataSubjectRequest[]     @relation("DataSubjectRequester")
-  reviewedDataSubjectRequests  DataSubjectRequest[]     @relation("DataSubjectReviewer")
-  playerConsentEvidence        PlayerConsentEvidence[]  @relation("PlayerConsentSigner")
-  contextPreference            UserContextPreference?
-  permissionOverrides          UserPermissionOverride[] @relation("PermissionOverrideUser")
-  changedPermissionOverrides   UserPermissionOverride[] @relation("PermissionOverrideActor")
-  eventParticipantAssignments  EventParticipant[]
-  createdOpponents             Opponent[]               @relation("OpponentCreator")
-  createdOpponentClubs         OpponentClub[]           @relation("OpponentClubCreator")
-  createdLeagues               League[]                 @relation("LeagueCreator")
-  reminderJobs                 ScheduledReminder[]
-  idempotencyRecords           IdempotencyRecord[]
-  deletedAnnouncements         Announcement[]           @relation("AnnouncementDeleter")
-  supportTickets               SupportTicket[]          @relation("SupportTicketCreator")
-  assignedSupportTickets       SupportTicket[]          @relation("SupportTicketAssignee")
-  supportMessages              SupportMessage[]
-  authoredMatchRatings         PlayerMatchRating[]      @relation("PlayerMatchRatingAuthor")
-  authoredParentMatchRatings   ParentPlayerMatchRating[] @relation("ParentPlayerMatchRatingAuthor")
-  confirmedKitLaundryDuties    KitLaundryDuty[]         @relation("KitLaundryDutyConfirmation")
+  id                                   String                                @id @default(cuid())
+  email                                String                                @unique
+  password                             String
+  name                                 String
+  firstName                            String?
+  lastName                             String?
+  phone                                String?
+  role                                 Role                                  @default(PARENT)
+  status                               AccountStatus                         @default(PENDING)
+  teamId                               String
+  createdAt                            DateTime                              @default(now())
+  updatedAt                            DateTime                              @updatedAt
+  accountDeletedAt                     DateTime?
+  team                                 Team                                  @relation(fields: [teamId], references: [id])
+  parentLinks                          ParentPlayerLink[]                    @relation("ParentLinks")
+  memberships                          TeamMembership[]
+  auditLogs                            AuditLog[]                            @relation("AuditActor")
+  developmentNotes                     PlayerDevelopmentNote[]               @relation("DevelopmentAuthor")
+  medicalUpdates                       PlayerMedicalProfile[]                @relation("MedicalUpdatedBy")
+  playerProfile                        Player?                               @relation("PlayerAccount")
+  eventSeries                          EventSeries[]                         @relation("EventSeriesCreator")
+  attendanceReplies                    Attendance[]                          @relation("AttendanceResponder")
+  carpoolOffers                        CarpoolOffer[]                        @relation("CarpoolDriver")
+  carpoolRequests                      CarpoolPassenger[]                    @relation("CarpoolRequester")
+  carpoolNeeds                         CarpoolNeed[]                         @relation("CarpoolNeedRequester")
+  eventReminders                       EventReminder[]                       @relation("EventReminderRecipient")
+  calendarToken                        String?                               @unique
+  tickerEvents                         LiveTickerEvent[]                     @relation("TickerEventAuthor")
+  tickerDelegations                    MatchTickerDelegate[]                 @relation("TickerDelegate")
+  grantedTickerDelegations             MatchTickerDelegate[]                 @relation("TickerDelegateGranter")
+  trainingPlans                        TrainingPlan[]                        @relation("TrainingPlanAuthor")
+  assignedTrainingPlans                TrainingPlanCoach[]
+  exercises                            TrainingExercise[]                    @relation("ExerciseAuthor")
+  authoredAnnouncements                Announcement[]                        @relation("AnnouncementAuthor")
+  announcementRecipients               AnnouncementRecipient[]
+  announcementReads                    AnnouncementRead[]
+  notifications                        Notification[]
+  pushSubscriptions                    PushSubscription[]
+  notificationPreferences              NotificationPreference[]
+  notificationDeliveries               NotificationDelivery[]
+  importJobs                           ImportJob[]
+  createdBfvSyncConfigs                BfvTeamSync[]                         @relation("BfvSyncCreator")
+  seasonTransitions                    SeasonTransition[]                    @relation("SeasonTransitionActor")
+  createdRuleProfiles                  RuleProfile[]                         @relation("RuleProfileCreator")
+  approvedRuleProfiles                 RuleProfile[]                         @relation("RuleProfileApprover")
+  registrationRequest                  RegistrationRequest?
+  registrationReviews                  RegistrationRequest[]                 @relation("RegistrationReviewer")
+  registrationHistory                  RegistrationHistory[]                 @relation("RegistrationHistoryActor")
+  requestedPitchConflicts              PitchConflictRequest[]                @relation("PitchConflictRequester")
+  receivedPitchConflicts               PitchConflictRequest[]                @relation("PitchConflictRecipient")
+  answeredPitchConflicts               PitchConflictRequest[]                @relation("PitchConflictResponder")
+  consents                             UserConsent[]
+  uploadedFileAssets                   FileAsset[]                           @relation("FileAssetUploader")
+  refreshTokens                        RefreshToken[]
+  biometricCredentials                 BiometricCredential[]
+  passwordResetTokens                  PasswordResetToken[]
+  createdTeamTasks                     TeamTask[]                            @relation("TeamTaskCreator")
+  assignedTeamTasks                    TeamTask[]                            @relation("TeamTaskAssignee")
+  createdEquipmentAssignments          EquipmentAssignment[]                 @relation("EquipmentAssignmentCreator")
+  receivedEquipmentAssignments         EquipmentAssignment[]                 @relation("EquipmentAssignmentUser")
+  createdChecklistTemplates            ChecklistTemplate[]                   @relation("ChecklistTemplateCreator")
+  createdChecklistRuns                 ChecklistRun[]                        @relation("ChecklistRunCreator")
+  completedChecklistItems              ChecklistRunItem[]                    @relation("ChecklistRunItemCompleter")
+  dataSubjectRequests                  DataSubjectRequest[]                  @relation("DataSubjectRequester")
+  reviewedDataSubjectRequests          DataSubjectRequest[]                  @relation("DataSubjectReviewer")
+  playerConsentEvidence                PlayerConsentEvidence[]               @relation("PlayerConsentSigner")
+  contextPreference                    UserContextPreference?
+  permissionOverrides                  UserPermissionOverride[]              @relation("PermissionOverrideUser")
+  changedPermissionOverrides           UserPermissionOverride[]              @relation("PermissionOverrideActor")
+  eventParticipantAssignments          EventParticipant[]
+  createdOpponents                     Opponent[]                            @relation("OpponentCreator")
+  createdOpponentClubs                 OpponentClub[]                        @relation("OpponentClubCreator")
+  createdLeagues                       League[]                              @relation("LeagueCreator")
+  reminderJobs                         ScheduledReminder[]
+  idempotencyRecords                   IdempotencyRecord[]
+  deletedAnnouncements                 Announcement[]                        @relation("AnnouncementDeleter")
+  supportTickets                       SupportTicket[]                       @relation("SupportTicketCreator")
+  assignedSupportTickets               SupportTicket[]                       @relation("SupportTicketAssignee")
+  supportMessages                      SupportMessage[]
+  authoredMatchRatings                 PlayerMatchRating[]                   @relation("PlayerMatchRatingAuthor")
+  authoredParentMatchRatings           ParentPlayerMatchRating[]             @relation("ParentPlayerMatchRatingAuthor")
+  confirmedKitLaundryDuties            KitLaundryDuty[]                      @relation("KitLaundryDutyConfirmation")
+  regularTrainingAttendancePreferences RegularTrainingAttendancePreference[] @relation("RegularTrainingAttendanceResponder")
 
   @@index([accountDeletedAt])
 }
@@ -895,53 +897,54 @@ model TeamMembership {
 }
 
 model Player {
-  id                         String                      @id @default(cuid())
-  clubId                     String
-  teamId                     String?
-  userId                     String?                     @unique
-  firstName                  String
-  lastName                   String
-  preferredName              String?
-  birthDate                  DateTime?
-  nationality                String?
-  gender                     PlayerGender?
-  position                   String?
-  secondaryPosition          String?
-  dominantFoot               DominantFoot                @default(UNKNOWN)
-  shirtNumber                Int?
-  passNumber                 String?
-  status                     PlayerStatus                @default(ACTIVE)
-  joinedAt                   DateTime?
-  photoUrl                   String?
-  photoAssetId               String?                     @unique
-  createdAt                  DateTime                    @default(now())
-  updatedAt                  DateTime                    @updatedAt
-  club                       Club                        @relation(fields: [clubId], references: [id], onDelete: Restrict)
-  team                       Team?                       @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  user                       User?                       @relation("PlayerAccount", fields: [userId], references: [id], onDelete: SetNull)
-  parentLinks                ParentPlayerLink[]
-  attendance                 Attendance[]
-  squadMembers               SquadMember[]
-  medicalProfile             PlayerMedicalProfile?
-  emergencyContacts          PlayerEmergencyContact[]
-  developmentNotes           PlayerDevelopmentNote[]
-  consents                   PlayerConsent[]
-  carpoolPassengers          CarpoolPassenger[]
-  carpoolNeeds               CarpoolNeed[]
-  equipmentAssignments       EquipmentAssignment[]
-  lineupPositions            LineupPosition[]
-  teamDefaultLineupPositions TeamDefaultLineupPosition[]
-  tickerGoals                LiveTickerEvent[]           @relation("TickerScorer")
-  tickerAssists              LiveTickerEvent[]           @relation("TickerAssist")
-  matchStatistics            PlayerMatchStatistic[]
-  seasonAssignments          PlayerSeasonAssignment[]
-  photoAsset                 FileAsset?                  @relation("PlayerPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
-  documents                  PlayerDocument[]
-  ownedFileAssets            FileAsset[]                 @relation("PlayerFileOwner")
-  eventParticipants          EventParticipant[]
-  matchRatings               PlayerMatchRating[]
-  parentMatchRatings         ParentPlayerMatchRating[]
-  kitLaundryDuties           KitLaundryDuty[]
+  id                                   String                                @id @default(cuid())
+  clubId                               String
+  teamId                               String?
+  userId                               String?                               @unique
+  firstName                            String
+  lastName                             String
+  preferredName                        String?
+  birthDate                            DateTime?
+  nationality                          String?
+  gender                               PlayerGender?
+  position                             String?
+  secondaryPosition                    String?
+  dominantFoot                         DominantFoot                          @default(UNKNOWN)
+  shirtNumber                          Int?
+  passNumber                           String?
+  status                               PlayerStatus                          @default(ACTIVE)
+  joinedAt                             DateTime?
+  photoUrl                             String?
+  photoAssetId                         String?                               @unique
+  createdAt                            DateTime                              @default(now())
+  updatedAt                            DateTime                              @updatedAt
+  club                                 Club                                  @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  team                                 Team?                                 @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  user                                 User?                                 @relation("PlayerAccount", fields: [userId], references: [id], onDelete: SetNull)
+  parentLinks                          ParentPlayerLink[]
+  attendance                           Attendance[]
+  squadMembers                         SquadMember[]
+  medicalProfile                       PlayerMedicalProfile?
+  emergencyContacts                    PlayerEmergencyContact[]
+  developmentNotes                     PlayerDevelopmentNote[]
+  consents                             PlayerConsent[]
+  carpoolPassengers                    CarpoolPassenger[]
+  carpoolNeeds                         CarpoolNeed[]
+  equipmentAssignments                 EquipmentAssignment[]
+  lineupPositions                      LineupPosition[]
+  teamDefaultLineupPositions           TeamDefaultLineupPosition[]
+  tickerGoals                          LiveTickerEvent[]                     @relation("TickerScorer")
+  tickerAssists                        LiveTickerEvent[]                     @relation("TickerAssist")
+  matchStatistics                      PlayerMatchStatistic[]
+  seasonAssignments                    PlayerSeasonAssignment[]
+  photoAsset                           FileAsset?                            @relation("PlayerPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
+  documents                            PlayerDocument[]
+  ownedFileAssets                      FileAsset[]                           @relation("PlayerFileOwner")
+  eventParticipants                    EventParticipant[]
+  matchRatings                         PlayerMatchRating[]
+  parentMatchRatings                   ParentPlayerMatchRating[]
+  kitLaundryDuties                     KitLaundryDuty[]
+  regularTrainingAttendancePreferences RegularTrainingAttendancePreference[]
 
   @@index([clubId, teamId, status, lastName])
 }
@@ -1126,15 +1129,15 @@ model PlayerConsentEvidence {
 }
 
 model Event {
-  id                        String                   @id @default(cuid())
+  id                        String                    @id @default(cuid())
   teamId                    String
   seriesId                  String?
   parentTournamentId        String?
   type                      EventType
-  category                  EventCategory            @default(SPECIAL_EVENT)
-  status                    EventStatus              @default(SCHEDULED)
-  communicationStatus       EventCommunicationStatus @default(DRAFT)
-  visibility                EventVisibility          @default(TEAM)
+  category                  EventCategory             @default(SPECIAL_EVENT)
+  status                    EventStatus               @default(SCHEDULED)
+  communicationStatus       EventCommunicationStatus  @default(DRAFT)
+  visibility                EventVisibility           @default(TEAM)
   title                     String
   startAt                   DateTime
   endAt                     DateTime?
@@ -1152,27 +1155,27 @@ model Event {
   equipment                 String?
   clothing                  String?
   catering                  String?
-  carpoolRequired           Boolean                  @default(false)
+  carpoolRequired           Boolean                   @default(false)
   maxParticipants           Int?
   responseDeadline          DateTime?
   internalNote              String?
-  reminderMinutes           Int[]                    @default([])
-  reminderPushEnabled       Boolean                  @default(true)
-  isSeriesException         Boolean                  @default(false)
-  isHiddenRegularOccurrence Boolean                  @default(false)
+  reminderMinutes           Int[]                     @default([])
+  reminderPushEnabled       Boolean                   @default(true)
+  isSeriesException         Boolean                   @default(false)
+  isHiddenRegularOccurrence Boolean                   @default(false)
   internalPublishedAt       DateTime?
   familyReleasedAt          DateTime?
   familyReleaseAudience     String?
   cancellationReason        String?
   cancelledAt               DateTime?
-  attendanceFinalized       Boolean                  @default(false)
+  attendanceFinalized       Boolean                   @default(false)
   reminderSyncPendingAt     DateTime?
-  createdAt                 DateTime                 @default(now())
-  updatedAt                 DateTime                 @updatedAt
-  team                      Team                     @relation(fields: [teamId], references: [id])
-  series                    EventSeries?             @relation(fields: [seriesId], references: [id], onDelete: SetNull)
-  parentTournament          Event?                   @relation("TournamentFixtures", fields: [parentTournamentId], references: [id], onDelete: Cascade)
-  tournamentFixtures        Event[]                  @relation("TournamentFixtures")
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  team                      Team                      @relation(fields: [teamId], references: [id])
+  series                    EventSeries?              @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  parentTournament          Event?                    @relation("TournamentFixtures", fields: [parentTournamentId], references: [id], onDelete: Cascade)
+  tournamentFixtures        Event[]                   @relation("TournamentFixtures")
   targetTeams               EventTargetTeam[]
   attachments               EventAttachment[]
   attendance                Attendance[]
@@ -1468,6 +1471,29 @@ model Attendance {
 
   @@unique([eventId, playerId])
   @@index([eventId, status])
+}
+
+/// Befristete Zusage eines Spielers zu den automatisch materialisierten
+/// Regeltrainings seiner Mannschaft. Einzelne konkrete Absagen im Attendance-
+/// Datensatz bleiben als Ausnahme immer vorrangig erhalten.
+model RegularTrainingAttendancePreference {
+  id                    String                   @id @default(cuid())
+  playerId              String
+  teamId                String
+  respondedById         String
+  validFrom             DateTime
+  validUntil            DateTime
+  status                AttendanceStatus         @default(YES)
+  responseSource        AttendanceResponseSource
+  responderRelationship GuardianRelationship?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  player                Player                   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team                  Team                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  respondedBy           User                     @relation("RegularTrainingAttendanceResponder", fields: [respondedById], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, teamId])
+  @@index([teamId, validFrom, validUntil])
 }
 
 model CarpoolOffer {

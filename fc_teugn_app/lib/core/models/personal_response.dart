@@ -14,6 +14,7 @@ class PersonalResponseModel {
     required this.responseStatus,
     required this.canRespond,
     required this.isOverdue,
+    this.isRegularTraining = false,
     this.type = 'SPECIAL_EVENT',
     this.opponent,
     this.meetingAt,
@@ -42,6 +43,7 @@ class PersonalResponseModel {
   final String? reason;
   final bool canRespond;
   final bool isOverdue;
+  final bool isRegularTraining;
 
   bool get isOpen => responseStatus == AttendanceStatus.unknown;
   bool get isMatch =>
@@ -84,6 +86,7 @@ class PersonalResponseModel {
       reason: json['reason'] as String?,
       canRespond: json['canRespond'] as bool? ?? false,
       isOverdue: json['isOverdue'] as bool? ?? false,
+      isRegularTraining: json['isRegularTraining'] as bool? ?? false,
     );
   }
 }

@@ -123,6 +123,36 @@ test('hidden stale occurrences cannot recreate reminder jobs', () => {
   );
 });
 
+test('series confirmations are persisted and preserve explicit absences', () => {
+  const schema = fs.readFileSync(
+    path.join(__dirname, '../prisma/schema.prisma'),
+    'utf8',
+  );
+  const controller = fs.readFileSync(
+    path.join(__dirname, '../src/controllers/events.controller.ts'),
+    'utf8',
+  );
+  const reconciliation = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../src/services/regular-training-occurrence.service.ts',
+    ),
+    'utf8',
+  );
+
+  assert.match(schema, /model RegularTrainingAttendancePreference/);
+  assert.match(controller, /setRegularTrainingAttendancePreference/);
+  assert.match(controller, /validUntil/);
+  assert.match(
+    reconciliation,
+    /existingByPlayer\.get\(preference\.playerId\) === AttendanceStatus\.NO/,
+  );
+  assert.match(
+    reconciliation,
+    /regularTrainingAttendancePreference\.findMany/,
+  );
+});
+
 test('an explicitly deleted occurrence remains a tombstone after editing', async () => {
   const now = new Date('2026-08-16T10:00:00.000Z');
   const activeTeam = team(['Dienstag 17:30–19:00 · Platz: Platz 1']);

@@ -78,9 +78,18 @@ class TrainerDashboardPage extends ConsumerWidget {
         )
         .toList()
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
-    final nextEvent = upcoming.firstOrNull;
+    final todayTrainings = todaysTrainingsForDashboard(
+      eventItems,
+      contextTeamIds,
+      now,
+    );
+    final todayTrainingIds = todayTrainings.map((event) => event.id).toSet();
+    final upcomingAfterToday = upcoming
+        .where((event) => !todayTrainingIds.contains(event.id))
+        .toList();
+    final nextEvent = upcomingAfterToday.firstOrNull;
     final nextTrainings = nextTrainingsByTeamForDashboard(
-      upcoming,
+      upcomingAfterToday,
       contextTeamIds,
     );
     final nextTrainingIds = nextTrainings.map((event) => event.id).toSet();
@@ -88,7 +97,7 @@ class TrainerDashboardPage extends ConsumerWidget {
         nextEvent != null && !nextTrainingIds.contains(nextEvent.id)
             ? nextEvent
             : null;
-    final nextEvents = upcoming
+    final nextEvents = upcomingAfterToday
         .where(
           (event) =>
               !nextTrainingIds.contains(event.id) &&
@@ -138,6 +147,19 @@ class TrainerDashboardPage extends ConsumerWidget {
           ],
           if (user?.canUsePersonalResponses == true) ...[
             const PersonalResponsesCard(isTrainer: true),
+            SizedBox(height: sectionGap),
+          ],
+          if (todayTrainings.isNotEmpty) ...[
+            _TodayTrainingsStrip(
+              events: todayTrainings,
+              players: teamPlayers,
+              teamLabel: (event) => _eventTeamLabel(event, organization),
+              onOpen: () => _showCombinedTrainingResponses(
+                context,
+                todayTrainings,
+                teamPlayers,
+              ),
+            ),
             SizedBox(height: sectionGap),
           ],
           if (nextTrainings.isNotEmpty) ...[
@@ -446,6 +468,147 @@ class AdminMemberRequestsCard extends StatelessWidget {
   }
 }
 
+class _TodayTrainingsStrip extends StatelessWidget {
+  const _TodayTrainingsStrip({
+    required this.events,
+    required this.players,
+    required this.teamLabel,
+    required this.onOpen,
+  });
+
+  final List<EventModel> events;
+  final List<PlayerModel> players;
+  final String Function(EventModel event) teamLabel;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = combinedTrainingDashboardCounts(events, players);
+    final labels = events.map(teamLabel).toSet().toList();
+    final times = events
+        .map((event) =>
+            '${event.startAt.hour.toString().padLeft(2, '0')}:${event.startAt.minute.toString().padLeft(2, '0')} Uhr')
+        .toSet()
+        .join(' + ');
+    return Material(
+      key: const ValueKey('today-training-summary'),
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.success.withValues(alpha: .10),
+                AppColors.yellowSoft.withValues(alpha: .30),
+              ],
+            ),
+            border: Border.all(
+              color: AppColors.success.withValues(alpha: .24),
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .84),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: const Icon(
+                  Icons.today_rounded,
+                  color: AppColors.success,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Heute · ${labels.join(' + ')} · $times',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 3,
+                      children: [
+                        _InlineTodayCount(
+                          icon: Icons.check_circle_rounded,
+                          count: counts.yes,
+                          label: 'zu',
+                          color: AppColors.success,
+                        ),
+                        _InlineTodayCount(
+                          icon: Icons.cancel_rounded,
+                          count: counts.no,
+                          label: 'ab',
+                          color: Colors.redAccent,
+                        ),
+                        _InlineTodayCount(
+                          icon: Icons.schedule_rounded,
+                          count: counts.open,
+                          label: 'offen',
+                          color: AppColors.muted,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.people_alt_rounded, color: AppColors.gold),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineTodayCount extends StatelessWidget {
+  const _InlineTodayCount({
+    required this.icon,
+    required this.count,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final int count;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 3),
+          Text(
+            '$count $label',
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      );
+}
+
 class _NextTrainingsOverview extends StatelessWidget {
   const _NextTrainingsOverview({
     required this.events,
@@ -472,145 +635,159 @@ class _NextTrainingsOverview extends StatelessWidget {
     return Card(
       key: const ValueKey('next-training-overview'),
       clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          compact ? 10 : 14,
-          compact ? 9 : 12,
-          compact ? 10 : 14,
-          compact ? 8 : 11,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.yellowSoft.withValues(alpha: .20),
+              Colors.white,
+            ],
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: compact ? 32 : 36,
-                  height: compact ? 32 : 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.yellowSoft,
-                    borderRadius: BorderRadius.circular(11),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            compact ? 10 : 14,
+            compact ? 9 : 12,
+            compact ? 10 : 14,
+            compact ? 8 : 11,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: compact ? 32 : 36,
+                    height: compact ? 32 : 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.yellowSoft,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: const Icon(Icons.sports_rounded, size: 19),
                   ),
-                  child: const Icon(Icons.sports_rounded, size: 19),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Nächstes Training',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Nächstes Training',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
                         ),
-                      ),
-                      Text(
-                        labels.join(' + '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                        Text(
+                          labels.join(' + '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                if (events.length > 1) _TrainingTeamCount(count: events.length),
-              ],
-            ),
-            SizedBox(height: compact ? 6 : 8),
-            if (sameSchedule)
-              _TrainingScheduleLine(
-                event: events.first,
-                teamLabel: labels.join(' + '),
-              )
-            else
-              for (final event in events)
+                  if (events.length > 1)
+                    _TrainingTeamCount(count: events.length),
+                ],
+              ),
+              SizedBox(height: compact ? 6 : 8),
+              if (sameSchedule)
                 _TrainingScheduleLine(
-                  event: event,
-                  teamLabel: teamLabel(event),
-                ),
-            SizedBox(height: compact ? 6 : 8),
-            Wrap(
-              spacing: 5,
-              runSpacing: 5,
-              children: [
-                _TrainingResponseMetric(
-                  icon: Icons.check_circle_rounded,
-                  label: 'Zugesagt',
-                  value: counts.yes,
-                  color: AppColors.success,
-                ),
-                _TrainingResponseMetric(
-                  icon: Icons.cancel_rounded,
-                  label: 'Abgesagt',
-                  value: counts.no,
-                  color: Colors.redAccent,
-                ),
-                _TrainingResponseMetric(
-                  icon: Icons.schedule_rounded,
-                  label: 'Offen',
-                  value: counts.open,
-                  color: AppColors.muted,
-                ),
-                _TrainingResponseMetric(
-                  icon: Icons.groups_rounded,
-                  label: 'Gesamt',
-                  value: counts.total,
-                  color: AppColors.blue,
-                ),
-              ],
-            ),
-            SizedBox(height: compact ? 7 : 9),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.tonalIcon(
-                    key: const ValueKey('all-training-responses'),
-                    onPressed: () => _showCombinedTrainingResponses(
+                  event: events.first,
+                  teamLabel: labels.join(' + '),
+                )
+              else
+                for (final event in events)
+                  _TrainingScheduleLine(
+                    event: event,
+                    teamLabel: teamLabel(event),
+                  ),
+              SizedBox(height: compact ? 6 : 8),
+              Wrap(
+                spacing: 5,
+                runSpacing: 5,
+                children: [
+                  _TrainingResponseMetric(
+                    icon: Icons.check_circle_rounded,
+                    label: 'Zugesagt',
+                    value: counts.yes,
+                    color: AppColors.success,
+                  ),
+                  _TrainingResponseMetric(
+                    icon: Icons.cancel_rounded,
+                    label: 'Abgesagt',
+                    value: counts.no,
+                    color: Colors.redAccent,
+                  ),
+                  _TrainingResponseMetric(
+                    icon: Icons.schedule_rounded,
+                    label: 'Offen',
+                    value: counts.open,
+                    color: AppColors.muted,
+                  ),
+                  _TrainingResponseMetric(
+                    icon: Icons.groups_rounded,
+                    label: 'Gesamt',
+                    value: counts.total,
+                    color: AppColors.blue,
+                  ),
+                ],
+              ),
+              SizedBox(height: compact ? 7 : 9),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      key: const ValueKey('all-training-responses'),
+                      onPressed: () => _showCombinedTrainingResponses(
+                        context,
+                        events,
+                        players,
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.yellowSoft,
+                        foregroundColor: AppColors.gold,
+                        padding:
+                            EdgeInsets.symmetric(vertical: compact ? 8 : 10),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: const Icon(Icons.groups_rounded, size: 18),
+                      label: const Text(
+                        'Rückmeldungen',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  OutlinedButton.icon(
+                    key: const ValueKey('next-training-planning'),
+                    onPressed: () => _openTrainingPlanning(
                       context,
                       events,
-                      players,
+                      teamLabel,
+                      onPlan,
                     ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.yellowSoft,
-                      foregroundColor: AppColors.gold,
-                      padding: EdgeInsets.symmetric(vertical: compact ? 8 : 10),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.muted,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: compact ? 9 : 12,
+                        vertical: compact ? 8 : 10,
+                      ),
                       visualDensity: VisualDensity.compact,
                     ),
-                    icon: const Icon(Icons.groups_rounded, size: 18),
-                    label: const Text(
-                      'Rückmeldungen',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
+                    icon: const Icon(Icons.edit_calendar_outlined, size: 17),
+                    label: const Text('Planung'),
                   ),
-                ),
-                const SizedBox(width: 7),
-                OutlinedButton.icon(
-                  key: const ValueKey('next-training-planning'),
-                  onPressed: () => _openTrainingPlanning(
-                    context,
-                    events,
-                    teamLabel,
-                    onPlan,
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.muted,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: compact ? 9 : 12,
-                      vertical: compact ? 8 : 10,
-                    ),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  icon: const Icon(Icons.edit_calendar_outlined, size: 17),
-                  label: const Text('Planung'),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1158,7 +1335,10 @@ class _CombinedTrainingEventBadge extends StatelessWidget {
           border: Border.all(color: AppColors.line),
         ),
         child: Text(
-          '$team · ${_shortDate(event.startAt)}, ${_time(event.startAt)} Uhr',
+          '$team · ${_shortDate(event.startAt)}, ${_time(event.startAt)} Uhr'
+          '${event.location.trim().isEmpty ? '' : ' · ${event.location.trim()}'}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
         ),
       );
@@ -2357,6 +2537,33 @@ EventModel? nextTrainingForDashboard(Iterable<EventModel> events) {
       .toList()
     ..sort((left, right) => left.startAt.compareTo(right.startAt));
   return trainings.firstOrNull;
+}
+
+List<EventModel> todaysTrainingsForDashboard(
+  Iterable<EventModel> events,
+  Set<String> contextTeamIds,
+  DateTime now,
+) {
+  final localNow = now.toLocal();
+  final start = DateTime(localNow.year, localNow.month, localNow.day);
+  final end = start.add(const Duration(days: 1));
+  final seen = <String>{};
+  final result = events.where((event) {
+    if (!seen.add(event.id) ||
+        event.isCancelled ||
+        event.category != EventCategory.training) {
+      return false;
+    }
+    final eventStart = event.startAt.toLocal();
+    if (eventStart.isBefore(start) || !eventStart.isBefore(end)) {
+      return false;
+    }
+    if (contextTeamIds.isEmpty) return true;
+    return contextTeamIds.contains(event.teamId) ||
+        event.targetTeams.any((team) => contextTeamIds.contains(team.id));
+  }).toList()
+    ..sort((left, right) => left.startAt.compareTo(right.startAt));
+  return result;
 }
 
 List<EventModel> nextTrainingsByTeamForDashboard(
