@@ -137,6 +137,15 @@ class TrainerDashboardPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _TrainerCockpitBanner(
+            teamLabel: organization?.workingContext.includeAllTeams == true
+                ? '${team?.ageGroup.name ?? 'Jugend'} · Alle Mannschaften'
+                : team?.displayName ?? 'Trainerteam',
+            activePlayers: activePlayers,
+            trainingCount: todayTrainings.length + nextTrainings.length,
+            hasUpcomingMatch: nextMatch != null,
+          ),
+          SizedBox(height: sectionGap),
           if (organization?.can('MANAGE_MEMBERS') == true) ...[
             AdminMemberRequestsCard(
               pending: approvals,
@@ -342,6 +351,138 @@ class TrainerDashboardPage extends ConsumerWidget {
         < 18 => 'Guten Tag',
         _ => 'Guten Abend',
       };
+}
+
+class _TrainerCockpitBanner extends StatelessWidget {
+  const _TrainerCockpitBanner({
+    required this.teamLabel,
+    required this.activePlayers,
+    required this.trainingCount,
+    required this.hasUpcomingMatch,
+  });
+
+  final String teamLabel;
+  final int activePlayers;
+  final int trainingCount;
+  final bool hasUpcomingMatch;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF111410), Color(0xFF423B00)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1F000000),
+              blurRadius: 16,
+              offset: Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppColors.yellow,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(
+                Icons.dashboard_customize_rounded,
+                color: AppColors.black,
+              ),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'TRAINER-COCKPIT',
+                    style: TextStyle(
+                      color: AppColors.yellow,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    teamLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 6,
+                    children: [
+                      _CockpitChip(
+                        icon: Icons.groups_rounded,
+                        label: 'Spieler: $activePlayers',
+                      ),
+                      _CockpitChip(
+                        icon: Icons.sports_rounded,
+                        label: 'Trainings: $trainingCount',
+                      ),
+                      if (hasUpcomingMatch)
+                        const _CockpitChip(
+                          icon: Icons.sports_soccer_rounded,
+                          label: 'Spiel bereit',
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _CockpitChip extends StatelessWidget {
+  const _CockpitChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .11),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: .12)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: AppColors.yellow),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class AdminMemberRequestsCard extends StatelessWidget {

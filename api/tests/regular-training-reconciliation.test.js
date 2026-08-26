@@ -187,6 +187,62 @@ test('an explicitly deleted occurrence remains a tombstone after editing', async
   assert.deepEqual(ids, [expectedId]);
 });
 
+test('a deleted legacy occurrence remains a tombstone despite a different id', async () => {
+  const now = new Date('2026-08-16T10:00:00.000Z');
+  const activeTeam = team(['Dienstag 17:30–19:00 · Platz: Platz 1']);
+  const expected = nextRegularTrainingOccurrence(activeTeam, now);
+  const legacyId = 'legacy-regular-training-occurrence';
+  const tx = {
+    auditLog: {
+      findFirst: async (args) => {
+        assert.equal(args.where.entityId, legacyId);
+        assert.deepEqual(args.where.action.in, [
+          'CANCELLED_TRAINING_OCCURRENCE_DELETED',
+          'REGULAR_TRAINING_OCCURRENCE_DELETED',
+        ]);
+        return { id: 'audit-explicit-deletion' };
+      },
+    },
+    event: {
+      findMany: async () => [
+        {
+          id: legacyId,
+          startAt: new Date(expected.startAt.getTime() + 30_000),
+          isHiddenRegularOccurrence: true,
+          _count: { attendance: 0, participants: 0 },
+        },
+      ],
+      update: async () => assert.fail('tombstone must not be reactivated'),
+      upsert: async () => assert.fail('tombstone must not be recreated'),
+      updateMany: async () => assert.fail('tombstone is already hidden'),
+    },
+  };
+
+  const ids = await reconcileNextRegularTrainingOccurrence(
+    tx,
+    activeTeam,
+    now,
+  );
+
+  assert.deepEqual(ids, [legacyId]);
+});
+
+test('single regular-training deletion is silent and cancellation push is optional', () => {
+  const routes = fs.readFileSync(
+    path.join(__dirname, '../src/routes/events.routes.ts'),
+    'utf8',
+  );
+  const controller = fs.readFileSync(
+    path.join(__dirname, '../src/controllers/events.controller.ts'),
+    'utf8',
+  );
+
+  assert.match(routes, /regular-training-occurrences\/delete/);
+  assert.match(controller, /REGULAR_TRAINING_OCCURRENCE_DELETED/);
+  assert.match(controller, /silent:\s*true/);
+  assert.match(controller, /notifyParticipants\s*=\s*req\.body(?:\?)?\.notifyParticipants\s*!==\s*false/);
+});
+
 test('an automatically hidden expected occurrence is reactivated after a schedule edit', async () => {
   const now = new Date('2026-08-16T10:00:00.000Z');
   const activeTeam = team(['Dienstag 17:15–18:45 · Platz: Platz 1']);

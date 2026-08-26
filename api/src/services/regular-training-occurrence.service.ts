@@ -380,7 +380,10 @@ export async function reconcileNextRegularTrainingOccurrence(
   const expectedId =
     `regular-training:${team.id}:${expected.startAt.getTime()}`;
   const expectedTombstone = materialized.find(
-    (event) => event.id === expectedId && event.isHiddenRegularOccurrence,
+    (event) =>
+      event.isHiddenRegularOccurrence &&
+      Math.abs(event.startAt.getTime() - expected.startAt.getTime()) <
+        5 * 60_000,
   );
   if (expectedTombstone) {
     // Only an occurrence deliberately deleted by an administrator is a real
@@ -391,7 +394,12 @@ export async function reconcileNextRegularTrainingOccurrence(
       where: {
         entityType: 'Event',
         entityId: expectedTombstone.id,
-        action: 'CANCELLED_TRAINING_OCCURRENCE_DELETED',
+        action: {
+          in: [
+            'CANCELLED_TRAINING_OCCURRENCE_DELETED',
+            'REGULAR_TRAINING_OCCURRENCE_DELETED',
+          ],
+        },
       },
       select: { id: true },
     });

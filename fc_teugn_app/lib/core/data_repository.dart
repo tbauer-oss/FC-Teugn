@@ -1282,11 +1282,15 @@ class DataRepository {
     required String eventId,
     required String reason,
     bool entireSeries = false,
+    bool notifyParticipants = true,
   }) async {
     await client.dio.delete(
       '/events/$eventId',
       queryParameters: {'scope': entireSeries ? 'series' : 'single'},
-      data: {'reason': reason},
+      data: {
+        'reason': reason,
+        'notifyParticipants': notifyParticipants,
+      },
     );
   }
 
@@ -1297,6 +1301,7 @@ class DataRepository {
     DateTime? endAt,
     required String location,
     String? reason,
+    bool notifyParticipants = true,
   }) async {
     final response = await client.dio.post(
       '/events/regular-training-occurrences/cancel',
@@ -1307,10 +1312,31 @@ class DataRepository {
         'endAt': endAt?.toUtc().toIso8601String(),
         'location': location,
         'reason': reason,
+        'notifyParticipants': notifyParticipants,
       },
       options: Options(extra: const {'requireOnline': true}),
     );
     return EventModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteRegularTrainingOccurrence({
+    required String teamId,
+    required String title,
+    required DateTime startAt,
+    DateTime? endAt,
+    required String location,
+  }) async {
+    await client.dio.post(
+      '/events/regular-training-occurrences/delete',
+      data: {
+        'teamId': teamId,
+        'title': title,
+        'startAt': startAt.toUtc().toIso8601String(),
+        'endAt': endAt?.toUtc().toIso8601String(),
+        'location': location,
+      },
+      options: Options(extra: const {'requireOnline': true}),
+    );
   }
 
   Future<void> deleteEventPermanently({

@@ -92,6 +92,12 @@ class ParentDashboardPage extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
           ],
+          _FamilyCockpitBanner(
+            childCount: players.length,
+            weekCount: timeline.length,
+            openCount: openResponses.length,
+          ),
+          SizedBox(height: sectionGap),
           for (final match in liveMatches) ...[
             _LiveTickerCard(match: match),
             SizedBox(height: sectionGap),
@@ -136,6 +142,131 @@ class ParentDashboardPage extends ConsumerWidget {
   static String _firstName(String? name) => name == null || name.trim().isEmpty
       ? 'Fußballfamilie'
       : name.trim().split(RegExp(r'\s+')).first;
+}
+
+class _FamilyCockpitBanner extends StatelessWidget {
+  const _FamilyCockpitBanner({
+    required this.childCount,
+    required this.weekCount,
+    required this.openCount,
+  });
+
+  final int childCount;
+  final int weekCount;
+  final int openCount;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF111410), Color(0xFF423B00)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1F000000),
+              blurRadius: 16,
+              offset: Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppColors.yellow,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(
+                Icons.family_restroom_rounded,
+                color: AppColors.black,
+              ),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'FAMILIEN-COCKPIT',
+                    style: TextStyle(
+                      color: AppColors.yellow,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    openCount == 0
+                        ? 'Alles im grünen Bereich'
+                        : '$openCount ${openCount == 1 ? 'Rückmeldung' : 'Rückmeldungen'} offen',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 6,
+                    children: [
+                      _FamilyCockpitChip(
+                        icon: Icons.child_care_rounded,
+                        label: 'Kinder: $childCount',
+                      ),
+                      _FamilyCockpitChip(
+                        icon: Icons.calendar_view_week_rounded,
+                        label: 'Woche: $weekCount',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _FamilyCockpitChip extends StatelessWidget {
+  const _FamilyCockpitChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .11),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: .12)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: AppColors.yellow),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _SectionHeading extends StatelessWidget {

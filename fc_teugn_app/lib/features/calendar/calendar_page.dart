@@ -243,6 +243,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     required DateTime to,
   }) {
     if (organization == null) return events;
+    final hiddenRegularOccurrences =
+        events.where((event) => event.isHiddenRegularOccurrence).toList();
     final result =
         events.where((event) => !event.isHiddenRegularOccurrence).toList();
     for (final team in organization.teams) {
@@ -273,6 +275,16 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 !occurrence.$1.isAfter(pauseEnd)) {
               continue;
             }
+            final deliberatelyDeleted = hiddenRegularOccurrences.any(
+              (event) =>
+                  event.category == EventCategory.training &&
+                  (event.teamId == team.id ||
+                      event.targetTeams
+                          .any((target) => target.id == team.id)) &&
+                  event.startAt.difference(occurrence.$1).abs() <
+                      const Duration(minutes: 5),
+            );
+            if (deliberatelyDeleted) continue;
             final alreadyStored = result.any(
               (event) =>
                   event.category == EventCategory.training &&
@@ -312,6 +324,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 capabilities: EventCapabilities(
                   canManage: organization.can('CANCEL_TRAINING_OCCURRENCE'),
                   canCancel: organization.can('CANCEL_TRAINING_OCCURRENCE'),
+                  canDelete: organization.can('EVENT_DELETE'),
                 ),
                 reminderMinutes: const [],
                 description:
@@ -4170,12 +4183,11 @@ class _ManagementBar extends ConsumerWidget {
     final canCancel = !event.isCancelled && event.capabilities.canCancel;
     final canDeleteSeries =
         _isRegularTraining && organization.can('CONFIGURE_TRAINING_REMINDERS');
-    final canDelete = event.capabilities.canDelete &&
-        (!_isRegularTraining || event.isCancelled);
+    final canDelete = event.capabilities.canDelete;
     final deleteLabel = event.type == EventType.match
         ? 'Spiel löschen'
-        : event.category == EventCategory.training && event.isCancelled
-            ? 'Abgesagtes Training endgültig löschen'
+        : _isRegularTraining
+            ? 'Einzeltraining löschen'
             : 'Termin löschen';
 
     void selectAction(_ManagementAction action) {
@@ -4427,7 +4439,10 @@ class _ManagementBar extends ConsumerWidget {
   Future<void> _cancel(BuildContext context, WidgetRef ref) async {
     final result = await showDialog<_CancelDraft>(
       context: context,
-      builder: (context) => _CancelDialog(recurring: event.isRecurring),
+      builder: (context) => _CancelDialog(
+        recurring: event.isRecurring,
+        allowNotificationChoice: event.category == EventCategory.training,
+      ),
     );
     if (result == null) return;
     try {
@@ -4440,12 +4455,14 @@ class _ManagementBar extends ConsumerWidget {
               endAt: event.endAt,
               location: event.location,
               reason: result.reason,
+              notifyParticipants: result.notifyParticipants,
             )
           : await (() async {
               await repository.cancelEvent(
                 eventId: event.id,
                 reason: result.reason,
                 entireSeries: result.entireSeries,
+                notifyParticipants: result.notifyParticipants,
               );
               return repository.event(event.id);
             })();
@@ -4458,7 +4475,13 @@ class _ManagementBar extends ConsumerWidget {
         final messenger = ScaffoldMessenger.of(context);
         Navigator.pop(context);
         messenger.showSnackBar(
-          const SnackBar(content: Text('Termin wurde abgesagt.')),
+          SnackBar(
+            content: Text(
+              result.notifyParticipants
+                  ? 'Termin wurde abgesagt und die Mannschaft informiert.'
+                  : 'Termin wurde abgesagt – ohne Benachrichtigung.',
+            ),
+          ),
         );
       }
     } on DioException catch (error) {
@@ -4488,7 +4511,7 @@ class _ManagementBar extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final deleteScope = event.isRecurring
+    final deleteScope = event.isRecurring && !_isRegularTraining
         ? await showModalBottomSheet<String>(
             context: context,
             showDragHandle: true,
@@ -4542,11 +4565,13 @@ class _ManagementBar extends ConsumerWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  deleteScope == 'all'
-                      ? 'Die gesamte Serie wird mit Rückmeldungen, Erinnerungen und Verknüpfungen gelöscht.'
-                      : deleteScope == 'future'
-                          ? 'Dieser und alle folgenden Serientermine werden gelöscht. Vergangene Termine bleiben erhalten.'
-                          : 'Kader, Aufstellung, Rückmeldungen, Erinnerungen und Liveticker-Daten werden entfernt.',
+                  _isRegularTraining && deleteScope == 'single'
+                      ? 'Nur dieser Trainingstag wird dauerhaft aus der Regeltrainingsserie entfernt. Es wird keine Benachrichtigung versendet.'
+                      : deleteScope == 'all'
+                          ? 'Die gesamte Serie wird mit Rückmeldungen, Erinnerungen und Verknüpfungen gelöscht.'
+                          : deleteScope == 'future'
+                              ? 'Dieser und alle folgenden Serientermine werden gelöscht. Vergangene Termine bleiben erhalten.'
+                              : 'Kader, Aufstellung, Rückmeldungen, Erinnerungen und Liveticker-Daten werden entfernt.',
                 ),
                 if (event.matchDetails?.leagueId != null)
                   CheckboxListTile(
@@ -4589,11 +4614,21 @@ class _ManagementBar extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
     try {
       final repository = ref.read(repositoryProvider);
-      await repository.deleteEventPermanently(
-        eventId: event.id,
-        scope: deleteScope,
-        deleteLeagueMatch: deleteLeagueMatch,
-      );
+      if (event.id.startsWith('training-plan:')) {
+        await repository.deleteRegularTrainingOccurrence(
+          teamId: event.teamId,
+          title: event.title,
+          startAt: event.startAt,
+          endAt: event.endAt,
+          location: event.location,
+        );
+      } else {
+        await repository.deleteEventPermanently(
+          eventId: event.id,
+          scope: deleteScope,
+          deleteLeagueMatch: deleteLeagueMatch,
+        );
+      }
       ref.invalidate(eventsProvider);
       ref.invalidate(calendarEventsProvider);
       final refreshed = await ref.read(eventsProvider.future);
@@ -7442,9 +7477,13 @@ class _CarpoolPlayerSelectionDialogState
 }
 
 class _CancelDialog extends StatefulWidget {
-  const _CancelDialog({required this.recurring});
+  const _CancelDialog({
+    required this.recurring,
+    required this.allowNotificationChoice,
+  });
 
   final bool recurring;
+  final bool allowNotificationChoice;
 
   @override
   State<_CancelDialog> createState() => _CancelDialogState();
@@ -7453,6 +7492,7 @@ class _CancelDialog extends StatefulWidget {
 class _CancelDialogState extends State<_CancelDialog> {
   final reason = TextEditingController();
   bool entireSeries = false;
+  bool notifyParticipants = true;
 
   @override
   void dispose() {
@@ -7480,6 +7520,16 @@ class _CancelDialogState extends State<_CancelDialog> {
               onChanged: (value) =>
                   setState(() => entireSeries = value ?? false),
             ),
+          if (widget.allowNotificationChoice)
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: notifyParticipants,
+              title: const Text('Mannschaft informieren'),
+              subtitle: const Text(
+                'Eltern, Spieler und Trainerteam erhalten eine Push-Mitteilung.',
+              ),
+              onChanged: (value) => setState(() => notifyParticipants = value),
+            ),
         ],
       ),
       actions: [
@@ -7495,6 +7545,7 @@ class _CancelDialogState extends State<_CancelDialog> {
                     _CancelDraft(
                       reason: reason.text.trim(),
                       entireSeries: entireSeries,
+                      notifyParticipants: notifyParticipants,
                     ),
                   ),
           child: const Text('Absagen'),
@@ -7508,10 +7559,12 @@ class _CancelDraft {
   const _CancelDraft({
     required this.reason,
     required this.entireSeries,
+    required this.notifyParticipants,
   });
 
   final String reason;
   final bool entireSeries;
+  final bool notifyParticipants;
 }
 
 Future<bool?> _seriesScope(BuildContext context, String action) {

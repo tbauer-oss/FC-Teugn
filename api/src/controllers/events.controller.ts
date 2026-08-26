@@ -750,6 +750,7 @@ export async function cancelRegularTrainingOccurrence(req: Request, res: Respons
   });
   if (duplicate) return res.json(await serializeEvent(duplicate, user));
   const reason = clean(req.body.reason);
+  const notifyParticipants = req.body.notifyParticipants !== false;
   const title = clean(req.body.title) ?? `Training · ${team.name}`;
   const created = await prisma.event.create({
     data: {
@@ -768,21 +769,23 @@ export async function cancelRegularTrainingOccurrence(req: Request, res: Respons
     },
     include: eventInclude,
   });
-  const audience = await reminderRecipientsForEvent(created.id, { includeDeclined: true });
-  const delivery = await notifyUsers(
-    audience.recipientIds.filter((id) => id !== user.id),
-    {
-      category: NotificationCategory.EVENT_REMINDER,
-      title: 'Trainingsabsage',
-      body: `Das Training der ${team.ageGroup.code}${team.teamNumber} am ${local.weekday}, ${local.date}, um ${local.time} Uhr fällt aus.${reason ? ` Grund: ${reason}` : ''}`,
-      actionUrl: `/events/${created.id}`,
-      entityType: 'TrainingCancellation',
-      entityId: created.id,
-      dedupeKey: `training-cancelled:${teamId}:${startAt.toISOString()}`,
-      forceInApp: true,
-      forcePush: true,
-    },
-  );
+  const delivery = notifyParticipants
+    ? await reminderRecipientsForEvent(created.id, { includeDeclined: true })
+        .then((audience) => notifyUsers(
+          audience.recipientIds.filter((id) => id !== user.id),
+          {
+            category: NotificationCategory.EVENT_REMINDER,
+            title: 'Trainingsabsage',
+            body: `Das Training der ${team.ageGroup.code}${team.teamNumber} am ${local.weekday}, ${local.date}, um ${local.time} Uhr fällt aus.${reason ? ` Grund: ${reason}` : ''}`,
+            actionUrl: `/events/${created.id}`,
+            entityType: 'TrainingCancellation',
+            entityId: created.id,
+            dedupeKey: `training-cancelled:${teamId}:${startAt.toISOString()}`,
+            forceInApp: true,
+            forcePush: true,
+          },
+        ))
+    : null;
   await prisma.auditLog.create({
     data: {
       actorId: user.id,
@@ -790,10 +793,133 @@ export async function cancelRegularTrainingOccurrence(req: Request, res: Respons
       action: 'REGULAR_TRAINING_OCCURRENCE_CANCELLED',
       entityType: 'Event',
       entityId: created.id,
-      metadata: { startAt, reason, delivery },
+      metadata: { startAt, reason, notifyParticipants, delivery },
     },
   });
   return res.status(201).json(await serializeEvent(created, user));
+}
+
+/**
+ * Persists a silent tombstone for exactly one occurrence of a regular
+ * training. The weekly schedule remains untouched while calendar synthesis,
+ * reconciliation and reminder jobs can reliably recognise the exception.
+ */
+export async function deleteRegularTrainingOccurrence(req: Request, res: Response) {
+  const user = req.user!;
+  const teamId = clean(req.body.teamId);
+  const startAt = validDate(req.body.startAt);
+  const endAt = validDate(req.body.endAt);
+  if (!teamId || !startAt) {
+    return res.status(400).json({ message: 'Mannschaft und Trainingsbeginn fehlen.' });
+  }
+  const accessibleIds = await accessibleTeamIds(user);
+  if (!accessibleIds.includes(teamId)) {
+    return res.status(403).json({ message: 'Keine Berechtigung für diese Mannschaft.' });
+  }
+  const team = await prisma.team.findFirst({
+    where: { id: teamId, deletedAt: null },
+    include: { ageGroup: { include: { season: true } } },
+  });
+  if (!team) return res.status(404).json({ message: 'Mannschaft nicht gefunden.' });
+
+  const canonicalId = `regular-training:${teamId}:${startAt.getTime()}`;
+  const nearby = await prisma.event.findMany({
+    where: {
+      teamId,
+      category: EventCategory.TRAINING,
+      startAt: {
+        gte: new Date(startAt.getTime() - 5 * 60_000),
+        lte: new Date(startAt.getTime() + 5 * 60_000),
+      },
+      OR: [
+        { id: { startsWith: 'regular-training:' } },
+        { isSeriesException: true },
+        { description: { startsWith: 'Reguläre Trainingszeit laut Belegungsplan der Saison ' } },
+      ],
+    },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+  const tombstoneId = nearby.find((event) => event.id === canonicalId)?.id ??
+    nearby[0]?.id ?? canonicalId;
+  const description =
+    `Reguläre Trainingszeit laut Belegungsplan der Saison ${team.ageGroup.season.name}.`;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.event.upsert({
+      where: { id: tombstoneId },
+      update: {
+        status: EventStatus.CANCELLED,
+        cancellationReason: clean(req.body.reason) ?? 'Administrativ gelöscht',
+        cancelledAt: new Date(),
+        isSeriesException: true,
+        isHiddenRegularOccurrence: true,
+        reminderSyncPendingAt: new Date(),
+        visibility: EventVisibility.TEAM,
+      },
+      create: {
+        id: tombstoneId,
+        teamId,
+        type: EventType.TRAINING,
+        category: EventCategory.TRAINING,
+        status: EventStatus.CANCELLED,
+        visibility: EventVisibility.TEAM,
+        title: clean(req.body.title) ?? `Training · ${team.name}`,
+        startAt,
+        endAt,
+        location: clean(req.body.location) ?? team.trainingLocation ?? '',
+        description,
+        cancellationReason: clean(req.body.reason) ?? 'Administrativ gelöscht',
+        cancelledAt: new Date(),
+        isSeriesException: true,
+        isHiddenRegularOccurrence: true,
+        reminderSyncPendingAt: new Date(),
+        targetTeams: { create: [{ teamId }] },
+      },
+    });
+    const duplicateIds = nearby
+      .map((event) => event.id)
+      .filter((id) => id !== tombstoneId);
+    if (duplicateIds.length > 0) {
+      await tx.event.updateMany({
+        where: { id: { in: duplicateIds } },
+        data: {
+          status: EventStatus.CANCELLED,
+          isHiddenRegularOccurrence: true,
+          reminderSyncPendingAt: new Date(),
+        },
+      });
+    }
+    await tx.scheduledReminder.updateMany({
+      where: {
+        eventId: { in: [tombstoneId, ...duplicateIds] },
+        status: { in: ['SCHEDULED', 'FAILED', 'PROCESSING'] },
+      },
+      data: { status: 'CANCELLED', cancelledAt: new Date() },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId,
+        action: 'REGULAR_TRAINING_OCCURRENCE_DELETED',
+        entityType: 'Event',
+        entityId: tombstoneId,
+        metadata: {
+          startAt,
+          endAt,
+          silent: true,
+          hiddenDuplicateIds: duplicateIds,
+        },
+      },
+    });
+  });
+  return res.json({
+    status: 'DELETED',
+    scope: 'single',
+    eventId: tombstoneId,
+    startAt,
+    delivery: null,
+  });
 }
 
 async function validatedParticipants(
@@ -2161,19 +2287,12 @@ export async function deleteEvent(req: Request, res: Response) {
   if (
     permanent &&
     existing.category === EventCategory.TRAINING &&
-    existing.status === EventStatus.CANCELLED &&
-    existing.isSeriesException
+    existing.isSeriesException &&
+    (existing.id.startsWith('regular-training:') ||
+      existing.description?.startsWith(
+        'Reguläre Trainingszeit laut Belegungsplan der Saison ',
+      ))
   ) {
-    const ownTrainerRoles = new Set<PrismaRole>([
-      PrismaRole.COACH,
-      PrismaRole.TRAINER,
-      PrismaRole.ASSISTANT_COACH,
-      PrismaRole.TEAM_MANAGER,
-    ]);
-    const deletionRecipients = staffRecipients
-      .filter((item) => ownTrainerRoles.has(item.role))
-      .map((item) => item.userId)
-      .filter((id) => id !== user.id);
     await prisma.event.update({
       where: { id: existing.id },
       data: {
@@ -2184,17 +2303,6 @@ export async function deleteEvent(req: Request, res: Response) {
         visibility: EventVisibility.TEAM,
       },
     });
-    const delivery = await notifyUsers(deletionRecipients, {
-      category: NotificationCategory.EVENT_REMINDER,
-      title: 'Abgesagtes Training entfernt',
-      body: `„${existing.title}“ wurde endgültig aus dem Kalender entfernt. Die Trainingsserie bleibt unverändert.`,
-      actionUrl: '/events',
-      entityType: 'TrainingDeletion',
-      entityId: existing.id,
-      dedupeKey: `training-deleted:${existing.id}`,
-      forceInApp: true,
-      forcePush: true,
-    });
     await prisma.auditLog.create({
       data: {
         actorId: user.id,
@@ -2202,10 +2310,10 @@ export async function deleteEvent(req: Request, res: Response) {
         action: 'CANCELLED_TRAINING_OCCURRENCE_DELETED',
         entityType: 'Event',
         entityId: existing.id,
-        metadata: { informedTrainerIds: deletionRecipients, delivery },
+        metadata: { startAt: existing.startAt, silent: true },
       },
     });
-    return res.json({ status: 'DELETED', scope: 'single', delivery });
+    return res.json({ status: 'DELETED', scope: 'single', delivery: null });
   }
   if (permanent) {
     const deleted = await prisma.$transaction(async (tx) => {
@@ -2329,6 +2437,7 @@ export async function deleteEvent(req: Request, res: Response) {
     });
   }
   const reason = clean(req.body?.reason) ?? 'Abgesagt';
+  const notifyParticipants = req.body?.notifyParticipants !== false;
   const now = new Date();
   const cancellationAudience =
     existing.type === EventType.MATCH || existing.category === EventCategory.TRAINING
@@ -2395,7 +2504,12 @@ export async function deleteEvent(req: Request, res: Response) {
             : 'EVENT_CANCELLED',
         entityType: existing.type === EventType.MATCH ? 'Match' : 'Event',
         entityId: existing.id,
-        metadata: { scope, reason, seriesId: existing.seriesId },
+        metadata: {
+          scope,
+          reason,
+          seriesId: existing.seriesId,
+          notifyParticipants,
+        },
       },
     });
   });
@@ -2426,7 +2540,7 @@ export async function deleteEvent(req: Request, res: Response) {
           forcePush: true,
         },
       )
-    : existing.category === EventCategory.TRAINING
+    : existing.category === EventCategory.TRAINING && notifyParticipants
       ? await notifyUsers(
           [
             ...(cancellationAudience?.recipientIds ?? []),

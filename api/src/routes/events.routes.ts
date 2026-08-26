@@ -2,6 +2,7 @@ import { asyncRouter } from '../middleware/async-handler';
 import {
   calendarSubscription,
   cancelRegularTrainingOccurrence,
+  deleteRegularTrainingOccurrence,
   createCarpoolOffer,
   createCarpoolNeeds,
   createEvent,
@@ -52,6 +53,11 @@ router.post(
   '/regular-training-occurrences/cancel',
   requirePermission(Permission.CANCEL_TRAINING_OCCURRENCE),
   cancelRegularTrainingOccurrence,
+);
+router.post(
+  '/regular-training-occurrences/delete',
+  requirePermission(Permission.EVENT_DELETE),
+  deleteRegularTrainingOccurrence,
 );
 router.get(
   '/pitch-conflict-requests/list',
