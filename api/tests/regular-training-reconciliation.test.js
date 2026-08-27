@@ -359,3 +359,30 @@ test('legacy regular occurrences are included in automatic cleanup', async () =>
     /^Reguläre Trainingszeit laut Belegungsplan/,
   );
 });
+
+test('mobile actions persist a team-specific tombstone for every regular-training id', () => {
+  const calendarPage = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../../fc_teugn_app/lib/features/calendar/calendar_page.dart',
+    ),
+    'utf8',
+  );
+  const controller = fs.readFileSync(
+    path.join(__dirname, '../src/controllers/events.controller.ts'),
+    'utf8',
+  );
+
+  assert.match(
+    calendarPage,
+    /final confirmed = _isRegularTraining[\s\S]*cancelRegularTrainingOccurrence\([\s\S]*teamId: event\.teamId/,
+  );
+  assert.match(
+    calendarPage,
+    /if \(_isRegularTraining\)[\s\S]*deleteRegularTrainingOccurrence\([\s\S]*teamId: event\.teamId/,
+  );
+  assert.match(
+    controller,
+    /regular-training:\$\{teamId\}:\$\{startAt\.getTime\(\)\}/,
+  );
+});

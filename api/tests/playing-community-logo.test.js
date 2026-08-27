@@ -45,3 +45,48 @@ test('Flutter team editor offers an image upload instead of a crest URL field', 
   assert.match(repository, /uploadPlayingCommunityLogo[\s\S]*MultipartFile\.fromBytes/);
   assert.match(repository, /removePlayingCommunityLogo/);
 });
+
+test('match identity includes the concrete team without changing club identity', () => {
+  const {
+    teamPlayingIdentity,
+    teamPlayingMatchIdentity,
+  } = require('../dist/src/services/team-playing-identity.service.js');
+  const team = {
+    name: 'E2-Jugend',
+    shortName: 'E2',
+    isPlayingCommunity: false,
+    playingCommunityName: null,
+    playingCommunityShortName: null,
+    playingCommunityLogoUrl: null,
+    ageGroup: {
+      season: {
+        club: {
+          name: 'FC Teugn',
+          shortName: 'FC Teugn',
+          logoUrl: '/logo.png',
+        },
+      },
+    },
+  };
+
+  assert.equal(teamPlayingIdentity(team).name, 'FC Teugn');
+  assert.equal(teamPlayingMatchIdentity(team).name, 'FC Teugn E2');
+  assert.equal(teamPlayingMatchIdentity(team).shortName, 'FC Teugn E2');
+});
+
+test('playing-community match identity keeps its name and adds the concrete team', () => {
+  const {
+    teamPlayingMatchIdentity,
+  } = require('../dist/src/services/team-playing-identity.service.js');
+  const identity = teamPlayingMatchIdentity({
+    name: 'A-Jugend',
+    shortName: 'A',
+    isPlayingCommunity: true,
+    playingCommunityName: '(SG) SV Saal/Donau',
+    playingCommunityShortName: 'SG Saal',
+    playingCommunityLogoUrl: '/sg-logo.png',
+  });
+
+  assert.equal(identity.name, '(SG) SV Saal/Donau A');
+  assert.equal(identity.shortName, 'SG Saal A');
+});

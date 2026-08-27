@@ -62,6 +62,7 @@ import {
 import {
   matchTitleForPlayingIdentity,
   teamPlayingIdentity,
+  teamPlayingMatchIdentity,
 } from '../services/team-playing-identity.service';
 
 const eventInclude = {
@@ -464,7 +465,11 @@ async function serializeEvent(
       )
       .map((offer) => offer.id),
   );
-  const ownTeam = teamPlayingIdentity(event.team);
+  const lineupTeam = event.targetTeams[0]?.team ?? event.team;
+  const ownTeam = event.matchDetails
+    ? teamPlayingMatchIdentity(lineupTeam)
+    : teamPlayingIdentity(event.team);
+  const tournamentOwnTeam = teamPlayingMatchIdentity(lineupTeam);
   const displayTitle = event.matchDetails
     ? matchTitleForPlayingIdentity({
         ownTeamName: ownTeam.name,
@@ -484,7 +489,7 @@ async function serializeEvent(
         parentTournamentId: fixture.parentTournamentId,
         title: fixture.matchDetails
           ? matchTitleForPlayingIdentity({
-              ownTeamName: ownTeam.name,
+              ownTeamName: tournamentOwnTeam.name,
               opponent: fixture.matchDetails.opponent,
               isHome: fixture.matchDetails.isHome,
             })
@@ -1724,7 +1729,7 @@ export async function createEvent(req: Request, res: Response) {
     }
     if (teamTiming) {
       data.title = matchTitleForPlayingIdentity({
-        ownTeamName: teamPlayingIdentity(teamTiming).name,
+        ownTeamName: teamPlayingMatchIdentity(teamTiming).name,
         opponent: data.opponent,
         isHome: data.homeAway !== HomeAway.AWAY,
       });
@@ -2711,6 +2716,28 @@ export async function setAttendance(req: Request, res: Response) {
         select: { gameFormat: true },
       });
       if (squad && team) {
+        if (status === AttendanceStatus.NO) {
+          const lineup = await tx.lineup.findUnique({
+            where: { squadId: squad.id },
+            select: { id: true },
+          });
+          if (lineup) {
+            await Promise.all([
+              tx.plannedSubstitution.deleteMany({
+                where: {
+                  lineupId: lineup.id,
+                  OR: [{ playerInId: playerId }, { playerOutId: playerId }],
+                },
+              }),
+              tx.lineupPosition.deleteMany({
+                where: { lineupId: lineup.id, playerId },
+              }),
+            ]);
+          }
+          await tx.squadMember.deleteMany({
+            where: { squadId: squad.id, playerId },
+          });
+        }
         await syncSquadWithTeamDefaultLineup(tx, {
           teamId,
           squadId: squad.id,
@@ -3428,6 +3455,8 @@ export async function publicCalendarSubscription(req: Request, res: Response) {
       matchDetails: { select: { opponent: true, isHome: true } },
       team: {
         select: {
+          name: true,
+          shortName: true,
           isPlayingCommunity: true,
           playingCommunityName: true,
           playingCommunityShortName: true,
@@ -3438,6 +3467,32 @@ export async function publicCalendarSubscription(req: Request, res: Response) {
                 select: {
                   club: {
                     select: { name: true, shortName: true, logoUrl: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      targetTeams: {
+        take: 1,
+        select: {
+          team: {
+            select: {
+              name: true,
+              shortName: true,
+              isPlayingCommunity: true,
+              playingCommunityName: true,
+              playingCommunityShortName: true,
+              playingCommunityLogoUrl: true,
+              ageGroup: {
+                select: {
+                  season: {
+                    select: {
+                      club: {
+                        select: { name: true, shortName: true, logoUrl: true },
+                      },
+                    },
                   },
                 },
               },
@@ -3459,7 +3514,9 @@ export async function publicCalendarSubscription(req: Request, res: Response) {
   for (const event of events) {
     const eventTitle = event.matchDetails
       ? matchTitleForPlayingIdentity({
-          ownTeamName: teamPlayingIdentity(event.team).name,
+          ownTeamName: teamPlayingMatchIdentity(
+            event.targetTeams[0]?.team ?? event.team,
+          ).name,
           opponent: event.matchDetails.opponent,
           isHome: event.matchDetails.isHome,
         })
@@ -3651,7 +3708,7 @@ export async function upsertMatchDetails(req: Request, res: Response) {
     typeof req.body.reminderPushEnabled === 'boolean'
       ? req.body.reminderPushEnabled
       : null;
-  const ownTeam = teamPlayingIdentity(event.targetTeams[0]?.team ?? event.team);
+  const ownTeam = teamPlayingMatchIdentity(event.targetTeams[0]?.team ?? event.team);
   await prisma.event.update({
     where: { id: event.id },
     data: {

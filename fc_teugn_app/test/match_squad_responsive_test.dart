@@ -1,4 +1,5 @@
 import 'package:fc_teugn_app/core/app_theme.dart';
+import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/models/matchday.dart';
 import 'package:fc_teugn_app/core/models/player.dart';
 import 'package:fc_teugn_app/features/matches/matchday_page.dart';
@@ -26,7 +27,7 @@ void main() {
             find.text(
               viewport.width < 600
                   ? '2/3 im Kader'
-                  : '2 ausgewählt · 3 sichtbar',
+                  : '2 ausgewählt · 3 verfügbar',
             ),
             findsOneWidget,
           );
@@ -95,6 +96,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('declined players are excluded from squad count and selection',
+      (tester) async {
+    await _pumpSquad(
+      tester,
+      const Size(390, 844),
+      1,
+      match: _match(
+        attendance: const [
+          EventAttendance(
+            id: 'attendance-p2',
+            playerId: 'p2',
+            status: AttendanceStatus.no,
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('1/2 im Kader'), findsOneWidget);
+    expect(
+      find.text('Abgesagt · nicht für den Kader verfügbar'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('tournament-squad-select-all')),
+    );
+    await tester.pump();
+    expect(find.text('2/2 im Kader'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('long player name receives readable width on narrow phone',
       (tester) async {
     await _pumpSquad(tester, const Size(320, 568), 1.5);
@@ -146,8 +177,9 @@ void main() {
 Future<void> _pumpSquad(
   WidgetTester tester,
   Size viewport,
-  double scale,
-) async {
+  double scale, {
+  MatchdayModel? match,
+}) async {
   tester.view.physicalSize = viewport;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -165,7 +197,7 @@ Future<void> _pumpSquad(
             body: Padding(
               padding: const EdgeInsets.all(12),
               child: MatchSquadTab(
-                match: _match(),
+                match: match ?? _match(),
                 allPlayers: _players(),
                 editable: true,
                 onSaved: (_) async {},
@@ -180,12 +212,14 @@ Future<void> _pumpSquad(
   await tester.pump();
 }
 
-MatchdayModel _match() => MatchdayModel(
+MatchdayModel _match({List<EventAttendance> attendance = const []}) =>
+    MatchdayModel(
       id: 'match-responsive',
       title: 'FC Teugn · Gegner',
       startAt: DateTime(2026, 8, 15, 10),
       location: 'Sportplatz Teugn',
       teamId: 'team-e1',
+      attendance: attendance,
       squad: const MatchSquadModel(
         id: 'squad-1',
         members: [

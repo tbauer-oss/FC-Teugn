@@ -67,7 +67,7 @@ import {
 } from '../services/kit-laundry.service';
 import {
   matchTitleForPlayingIdentity,
-  teamPlayingIdentity,
+  teamPlayingMatchIdentity,
 } from '../services/team-playing-identity.service';
 
 const tournamentCategories = new Set<EventCategory>([
@@ -518,6 +518,14 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
 ) {
   const squad = match.squads[0] ?? null;
   const lineup = squad?.lineup;
+  const declinedPlayerIds = new Set(
+    match.attendance
+      .filter((reply) => reply.status === AttendanceStatus.NO)
+      .map((reply) => reply.playerId),
+  );
+  const availableSquadMembers = (squad?.members ?? []).filter(
+    (member) => !declinedPlayerIds.has(member.playerId),
+  );
   const lineupTeam = match.targetTeams[0]?.team ?? match.team;
   const familyDetailsVisible =
     familyTeamViewer && match.familyReleasedAt !== null;
@@ -528,14 +536,14 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now())) ||
     (match.familyReleasedAt !== null &&
       squad?.publishedAt !== null &&
-      squad?.members.some((member) => viewerPlayerIds.includes(member.playerId)) === true &&
+      availableSquadMembers.some((member) => viewerPlayerIds.includes(member.playerId)) &&
       lineup?.status === LineupStatus.PUBLISHED &&
       (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now()));
   const canSeePublishedSquad = staff || tickerEditable || familyDetailsVisible || (
     squad?.publishedAt !== null &&
-    squad?.members.some((member) => viewerPlayerIds.includes(member.playerId)) === true
+    availableSquadMembers.some((member) => viewerPlayerIds.includes(member.playerId))
   );
-  const ownTeam = teamPlayingIdentity(lineupTeam);
+  const ownTeam = teamPlayingMatchIdentity(lineupTeam);
   return {
     ...match,
     title: match.matchDetails
@@ -594,13 +602,21 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
           {
             ...squad,
             members: staff
-              ? squad.members
-              : squad.members.filter(
+              ? availableSquadMembers
+              : availableSquadMembers.filter(
                   (member) => member.status === NominationStatus.NOMINATED,
                 ),
             lineup: canSeeLineup
               ? {
                   ...lineup,
+                  positions: lineup?.positions.filter(
+                    (position) => !declinedPlayerIds.has(position.playerId),
+                  ),
+                  substitutions: lineup?.substitutions.filter(
+                    (substitution) =>
+                      !declinedPlayerIds.has(substitution.playerInId) &&
+                      !declinedPlayerIds.has(substitution.playerOutId),
+                  ),
                   tacticalNote: staff ? lineup?.tacticalNote : null,
                 }
               : null,
@@ -647,7 +663,7 @@ function serializeMatchSummary<
   );
   const lineupTeam = match.targetTeams[0]?.team ?? match.team;
   const opponentRecord = match.matchDetails?.opponentRecord;
-  const ownTeam = teamPlayingIdentity(lineupTeam);
+  const ownTeam = teamPlayingMatchIdentity(lineupTeam);
   return {
     ...match,
     title: match.matchDetails
@@ -1747,8 +1763,31 @@ export async function updateSquad(req: Request, res: Response) {
   // mehrere große Joins in der Produktionsdatenbank.
   const match = await findMatchForSquadUpdate(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
-  const members = Array.isArray(req.body?.members) ? req.body.members : [];
-  const ids = [...new Set(members.map((item: { playerId?: unknown }) => text(item.playerId, 100)).filter(Boolean))] as string[];
+  const requestedMembers: Record<string, unknown>[] = Array.isArray(req.body?.members)
+    ? req.body.members
+    : [];
+  const requestedIds = [...new Set(
+    requestedMembers
+      .map((item) => text(item.playerId, 100))
+      .filter(Boolean),
+  )] as string[];
+  const declinedReplies = requestedIds.length
+    ? await prisma.attendance.findMany({
+        where: {
+          eventId: match.id,
+          playerId: { in: requestedIds },
+          status: AttendanceStatus.NO,
+        },
+        select: { playerId: true },
+      })
+    : [];
+  const declinedIds = new Set(declinedReplies.map((reply) => reply.playerId));
+  const members = requestedMembers.filter(
+    (item) => !declinedIds.has(String(item.playerId)),
+  );
+  const ids = [...new Set(
+    members.map((item) => text(item.playerId, 100)).filter(Boolean),
+  )] as string[];
   const rosterTeamIds = rosterTeamIdsForMatch(
     await youthPlayerPoolTeamIdsForTeam(match.teamId),
   );
@@ -1782,16 +1821,14 @@ export async function updateSquad(req: Request, res: Response) {
         formation: text(req.body.formation, 50),
       },
     });
+    const retainedParticipantIds = [...new Set([...ids, ...declinedIds])];
     await Promise.all([
       tx.squadMember.deleteMany({ where: { squadId: saved.id } }),
       tx.eventParticipant.deleteMany({
         where: {
           eventId: match.id,
-          playerId: { not: null, notIn: ids },
+          playerId: { not: null, notIn: retainedParticipantIds },
         },
-      }),
-      tx.attendance.deleteMany({
-        where: { eventId: match.id, playerId: { notIn: ids } },
       }),
     ]);
     const writes: Prisma.PrismaPromise<unknown>[] = [
@@ -1806,7 +1843,10 @@ export async function updateSquad(req: Request, res: Response) {
           action: 'MATCH_SQUAD_UPDATED',
           entityType: 'Squad',
           entityId: saved.id,
-          metadata: { memberCount: members.length },
+          metadata: {
+            memberCount: members.length,
+            excludedDeclinedCount: declinedIds.size,
+          },
         },
       }),
     ];
@@ -1984,10 +2024,22 @@ export async function publishSquad(req: Request, res: Response) {
     },
   });
   if (!squad) return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
-  if (!squad.members.length) {
+  const declinedReplies = await prisma.attendance.findMany({
+    where: {
+      eventId: match.id,
+      playerId: { in: squad.members.map((member) => member.playerId) },
+      status: AttendanceStatus.NO,
+    },
+    select: { playerId: true },
+  });
+  const declinedIds = new Set(declinedReplies.map((reply) => reply.playerId));
+  const eligibleMembers = squad.members.filter(
+    (member) => !declinedIds.has(member.playerId),
+  );
+  if (!eligibleMembers.length) {
     return res.status(400).json({ message: 'Bitte mindestens einen Spieler nominieren.' });
   }
-  const selectedIds = squad.members.map((member) => member.playerId);
+  const selectedIds = eligibleMembers.map((member) => member.playerId);
   const previousRequests = await prisma.eventParticipant.findMany({
     where: { eventId: match.id, playerId: { not: null } },
     select: { playerId: true },
@@ -1996,18 +2048,40 @@ export async function publishSquad(req: Request, res: Response) {
   const removedIds = [...previousIds].filter((playerId) => !selectedIds.includes(playerId));
   const resendAll = req.body.resendAll === true;
   const playersToNotify = resendAll
-    ? squad.members
-    : squad.members.filter((member) => !previousIds.has(member.playerId));
+    ? eligibleMembers
+    : eligibleMembers.filter((member) => !previousIds.has(member.playerId));
   const updated = await prisma.$transaction(async (tx) => {
     const saved = await tx.squad.update({
       where: { id: squad.id },
       data: { publishedAt: new Date() },
     });
+    if (declinedIds.size) {
+      const lineup = await tx.lineup.findUnique({
+        where: { squadId: squad.id },
+        select: { id: true },
+      });
+      if (lineup) {
+        await Promise.all([
+          tx.plannedSubstitution.deleteMany({
+            where: {
+              lineupId: lineup.id,
+              OR: [
+                { playerInId: { in: [...declinedIds] } },
+                { playerOutId: { in: [...declinedIds] } },
+              ],
+            },
+          }),
+          tx.lineupPosition.deleteMany({
+            where: { lineupId: lineup.id, playerId: { in: [...declinedIds] } },
+          }),
+        ]);
+      }
+      await tx.squadMember.deleteMany({
+        where: { squadId: squad.id, playerId: { in: [...declinedIds] } },
+      });
+    }
     await tx.eventParticipant.deleteMany({
       where: { eventId: match.id, playerId: { not: null, notIn: selectedIds } },
-    });
-    await tx.attendance.deleteMany({
-      where: { eventId: match.id, playerId: { notIn: selectedIds } },
     });
     if (removedIds.length) {
       await tx.notification.deleteMany({
@@ -2046,6 +2120,7 @@ export async function publishSquad(req: Request, res: Response) {
         entityId: squad.id,
         metadata: {
           nominatedCount: selectedIds.length,
+          excludedDeclinedCount: declinedIds.size,
           newlyRequestedCount: playersToNotify.length,
           pushEnabled: req.body.pushEnabled !== false,
           resendAll,
@@ -2514,9 +2589,20 @@ export async function updateLineup(req: Request, res: Response) {
       message: `Für diese Mannschaft sind höchstens ${fieldSize} Startspieler vorgesehen.`,
     });
   }
+  const declinedReplies = await prisma.attendance.findMany({
+    where: { eventId: match.id, status: AttendanceStatus.NO },
+    select: { playerId: true },
+  });
+  const declinedPlayerIds = new Set(
+    declinedReplies.map((reply) => reply.playerId),
+  );
   const memberIds = new Set(
     squad.members
-      .filter((member) => member.status !== NominationStatus.DECLINED)
+      .filter(
+        (member) =>
+          member.status !== NominationStatus.DECLINED &&
+          !declinedPlayerIds.has(member.playerId),
+      )
       .map((member) => member.playerId),
   );
   for (const position of positions as Record<string, unknown>[]) {

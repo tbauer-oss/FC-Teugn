@@ -2954,7 +2954,9 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
       // Alt-Einträge dürfen den nächsten Speichervorgang nicht blockieren.
       _selected = retainEligibleSquadSelection(
         _selected,
-        widget.allPlayers.map((player) => player.id),
+        widget.allPlayers
+            .where((player) => !_isDeclined(player.id))
+            .map((player) => player.id),
       );
     }
     if (_teamFilterId != null &&
@@ -2968,6 +2970,14 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
       : widget.allPlayers
           .where((player) => player.teamId == _teamFilterId)
           .toList();
+
+  List<PlayerModel> get _eligibleVisiblePlayers =>
+      _visiblePlayers.where((player) => !_isDeclined(player.id)).toList();
+
+  int get _visibleSelectedCount {
+    final visibleIds = _eligibleVisiblePlayers.map((player) => player.id).toSet();
+    return _selected.keys.where(visibleIds.contains).length;
+  }
 
   List<({String id, String name})> get _availableTeams {
     final teams = <String, String>{};
@@ -3026,6 +3036,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
             );
           }
           final visiblePlayers = _visiblePlayers;
+          final eligibleVisiblePlayers = _eligibleVisiblePlayers;
           final availableTeams = _availableTeams;
           return ListView(
             key: const ValueKey('squad-responsive-list'),
@@ -3076,7 +3087,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                   children: [
                     Expanded(
                       child: Text(
-                        '${_selected.length}/${visiblePlayers.length} im Kader',
+                        '$_visibleSelectedCount/${eligibleVisiblePlayers.length} im Kader',
                         key: const ValueKey('squad-selection-summary'),
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w900,
@@ -3087,7 +3098,9 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                       key: const ValueKey('tournament-squad-select-all'),
                       tooltip: 'Alle auswählen',
                       onPressed:
-                          _saving || visiblePlayers.isEmpty ? null : _selectAll,
+                          _saving || eligibleVisiblePlayers.isEmpty
+                              ? null
+                              : _selectAll,
                       icon: const Icon(Icons.select_all_rounded, size: 20),
                       visualDensity: VisualDensity.compact,
                       style: IconButton.styleFrom(
@@ -3150,7 +3163,8 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                 ),
               ] else ...[
                 Text(
-                  '${_selected.length} ausgewählt · ${visiblePlayers.length} sichtbar',
+                  '$_visibleSelectedCount ausgewählt · '
+                  '${eligibleVisiblePlayers.length} verfügbar',
                   key: const ValueKey('squad-selection-summary'),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
@@ -3162,7 +3176,9 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                       label: 'Alle auswählen',
                       icon: Icons.select_all_rounded,
                       onPressed:
-                          _saving || visiblePlayers.isEmpty ? null : _selectAll,
+                          _saving || eligibleVisiblePlayers.isEmpty
+                              ? null
+                              : _selectAll,
                     ),
                     AdaptiveActionSpec(
                       label: 'Alle abwählen',
@@ -3218,9 +3234,13 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                 )
               else
                 for (final player in visiblePlayers)
-                  Card(
+                  Builder(
+                    builder: (context) {
+                      final declined = _isDeclined(player.id);
+                      return Card(
                     margin: EdgeInsets.only(bottom: compact ? 3 : 8),
                     child: ListTile(
+                      enabled: !declined,
                       dense: compact,
                       visualDensity:
                           compact ? const VisualDensity(vertical: -4) : null,
@@ -3244,7 +3264,9 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                         children: [
                           PlayerTeamChip(player: player, compact: true),
                           Text(
-                            player.status == PlayerStatus.injured
+                            declined
+                                ? 'Abgesagt · nicht für den Kader verfügbar'
+                                : player.status == PlayerStatus.injured
                                 ? 'Verletzt · ${player.position ?? 'Spieler'}'
                                 : player.position ?? 'Spieler',
                           ),
@@ -3257,8 +3279,12 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                         ],
                       ),
                       trailing: Checkbox(
-                        value: _selected.containsKey(player.id),
-                        onChanged: (value) => setState(() {
+                        value: declined
+                            ? false
+                            : _selected.containsKey(player.id),
+                        onChanged: declined
+                            ? null
+                            : (value) => setState(() {
                           if (value == true) {
                             _selected[player.id] = NominationStatus.nominated;
                           } else {
@@ -3266,7 +3292,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                           }
                         }),
                       ),
-                      onTap: () => setState(() {
+                      onTap: declined ? null : () => setState(() {
                         if (_selected.containsKey(player.id)) {
                           _selected.remove(player.id);
                         } else {
@@ -3274,6 +3300,8 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                         }
                       }),
                     ),
+                  );
+                    },
                   ),
             ],
           );
@@ -3284,7 +3312,10 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
     final repository = ref.read(repositoryProvider);
     setState(() => _saving = true);
     try {
-      final eligibleIds = widget.allPlayers.map((player) => player.id).toSet();
+      final eligibleIds = widget.allPlayers
+          .where((player) => !_isDeclined(player.id))
+          .map((player) => player.id)
+          .toSet();
       final removedUnavailable =
           _selected.keys.where((id) => !eligibleIds.contains(id)).length;
       if (removedUnavailable > 0) {
@@ -3469,7 +3500,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
 
   void _selectAll() {
     setState(() {
-      for (final player in _visiblePlayers) {
+      for (final player in _eligibleVisiblePlayers) {
         _selected[player.id] = NominationStatus.nominated;
       }
     });
@@ -3488,6 +3519,9 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
           .firstOrNull ??
       AttendanceStatus.unknown;
 
+  bool _isDeclined(String playerId) =>
+      _attendanceStatus(playerId) == AttendanceStatus.no;
+
   Future<void> _setAttendance(
     PlayerModel player,
     AttendanceStatus status,
@@ -3499,8 +3533,13 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
             playerId: player.id,
             status: status,
           );
+      if (status == AttendanceStatus.no && mounted) {
+        setState(() => _selected.remove(player.id));
+      }
       await widget.onReload();
-      if (mounted) _message('Zusage für ${player.displayName} gespeichert.');
+      if (mounted) {
+        _message('Rückmeldung für ${player.displayName} gespeichert.');
+      }
     } catch (_) {
       if (mounted) _message('Rückmeldung konnte nicht gespeichert werden.');
     } finally {
@@ -3516,7 +3555,16 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
   Map<String, NominationStatus> _eligibleSelection(MatchdayModel match) =>
       retainEligibleSquadSelection(
         _selectionFrom(match),
-        widget.allPlayers.map((player) => player.id),
+        widget.allPlayers
+            .where((player) {
+              final status = match.attendance
+                      .where((reply) => reply.playerId == player.id)
+                      .map((reply) => reply.status)
+                      .firstOrNull ??
+                  AttendanceStatus.unknown;
+              return status != AttendanceStatus.no;
+            })
+            .map((player) => player.id),
       );
 
   String _squadFingerprint(MatchdayModel match) {

@@ -4447,7 +4447,7 @@ class _ManagementBar extends ConsumerWidget {
     if (result == null) return;
     try {
       final repository = ref.read(repositoryProvider);
-      final confirmed = event.id.startsWith('training-plan:')
+      final confirmed = _isRegularTraining
           ? await repository.cancelRegularTrainingOccurrence(
               teamId: event.teamId,
               title: event.title,
@@ -4614,7 +4614,7 @@ class _ManagementBar extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
     try {
       final repository = ref.read(repositoryProvider);
-      if (event.id.startsWith('training-plan:')) {
+      if (_isRegularTraining) {
         await repository.deleteRegularTrainingOccurrence(
           teamId: event.teamId,
           title: event.title,
