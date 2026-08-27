@@ -2975,7 +2975,8 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
       _visiblePlayers.where((player) => !_isDeclined(player.id)).toList();
 
   int get _visibleSelectedCount {
-    final visibleIds = _eligibleVisiblePlayers.map((player) => player.id).toSet();
+    final visibleIds =
+        _eligibleVisiblePlayers.map((player) => player.id).toSet();
     return _selected.keys.where(visibleIds.contains).length;
   }
 
@@ -3097,10 +3098,9 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                     IconButton(
                       key: const ValueKey('tournament-squad-select-all'),
                       tooltip: 'Alle auswählen',
-                      onPressed:
-                          _saving || eligibleVisiblePlayers.isEmpty
-                              ? null
-                              : _selectAll,
+                      onPressed: _saving || eligibleVisiblePlayers.isEmpty
+                          ? null
+                          : _selectAll,
                       icon: const Icon(Icons.select_all_rounded, size: 20),
                       visualDensity: VisualDensity.compact,
                       style: IconButton.styleFrom(
@@ -3175,10 +3175,9 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                     AdaptiveActionSpec(
                       label: 'Alle auswählen',
                       icon: Icons.select_all_rounded,
-                      onPressed:
-                          _saving || eligibleVisiblePlayers.isEmpty
-                              ? null
-                              : _selectAll,
+                      onPressed: _saving || eligibleVisiblePlayers.isEmpty
+                          ? null
+                          : _selectAll,
                     ),
                     AdaptiveActionSpec(
                       label: 'Alle abwählen',
@@ -3238,69 +3237,74 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                     builder: (context) {
                       final declined = _isDeclined(player.id);
                       return Card(
-                    margin: EdgeInsets.only(bottom: compact ? 3 : 8),
-                    child: ListTile(
-                      enabled: !declined,
-                      dense: compact,
-                      visualDensity:
-                          compact ? const VisualDensity(vertical: -4) : null,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: compact ? 10 : 16,
-                        vertical: compact ? 0 : 4,
-                      ),
-                      leading: CircleAvatar(
-                        radius: compact ? 17 : null,
-                        child: Text(player.shirtNumber?.toString() ?? 'FC'),
-                      ),
-                      title: Text(
-                        player.displayName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Wrap(
-                        spacing: 7,
-                        runSpacing: compact ? 1 : 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          PlayerTeamChip(player: player, compact: true),
-                          Text(
-                            declined
-                                ? 'Abgesagt · nicht für den Kader verfügbar'
-                                : player.status == PlayerStatus.injured
-                                ? 'Verletzt · ${player.position ?? 'Spieler'}'
-                                : player.position ?? 'Spieler',
+                        margin: EdgeInsets.only(bottom: compact ? 3 : 8),
+                        child: ListTile(
+                          enabled: !declined,
+                          dense: compact,
+                          visualDensity: compact
+                              ? const VisualDensity(vertical: -4)
+                              : null,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: compact ? 10 : 16,
+                            vertical: compact ? 0 : 4,
                           ),
-                          _AttendanceMenu(
-                            status: _attendanceStatus(player.id),
-                            saving: _attendanceSaving.contains(player.id),
-                            onSelected: (status) =>
-                                _setAttendance(player, status),
+                          leading: CircleAvatar(
+                            radius: compact ? 17 : null,
+                            child: Text(player.shirtNumber?.toString() ?? 'FC'),
                           ),
-                        ],
-                      ),
-                      trailing: Checkbox(
-                        value: declined
-                            ? false
-                            : _selected.containsKey(player.id),
-                        onChanged: declined
-                            ? null
-                            : (value) => setState(() {
-                          if (value == true) {
-                            _selected[player.id] = NominationStatus.nominated;
-                          } else {
-                            _selected.remove(player.id);
-                          }
-                        }),
-                      ),
-                      onTap: declined ? null : () => setState(() {
-                        if (_selected.containsKey(player.id)) {
-                          _selected.remove(player.id);
-                        } else {
-                          _selected[player.id] = NominationStatus.nominated;
-                        }
-                      }),
-                    ),
-                  );
+                          title: Text(
+                            player.displayName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Wrap(
+                            spacing: 7,
+                            runSpacing: compact ? 1 : 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              PlayerTeamChip(player: player, compact: true),
+                              Text(
+                                declined
+                                    ? 'Abgesagt · nicht für den Kader verfügbar'
+                                    : player.status == PlayerStatus.injured
+                                        ? 'Verletzt · ${player.position ?? 'Spieler'}'
+                                        : player.position ?? 'Spieler',
+                              ),
+                              _AttendanceMenu(
+                                status: _attendanceStatus(player.id),
+                                saving: _attendanceSaving.contains(player.id),
+                                onSelected: (status) =>
+                                    _setAttendance(player, status),
+                              ),
+                            ],
+                          ),
+                          trailing: Checkbox(
+                            value: declined
+                                ? false
+                                : _selected.containsKey(player.id),
+                            onChanged: declined
+                                ? null
+                                : (value) => setState(() {
+                                      if (value == true) {
+                                        _selected[player.id] =
+                                            NominationStatus.nominated;
+                                      } else {
+                                        _selected.remove(player.id);
+                                      }
+                                    }),
+                          ),
+                          onTap: declined
+                              ? null
+                              : () => setState(() {
+                                    if (_selected.containsKey(player.id)) {
+                                      _selected.remove(player.id);
+                                    } else {
+                                      _selected[player.id] =
+                                          NominationStatus.nominated;
+                                    }
+                                  }),
+                        ),
+                      );
                     },
                   ),
             ],
@@ -3555,16 +3559,14 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
   Map<String, NominationStatus> _eligibleSelection(MatchdayModel match) =>
       retainEligibleSquadSelection(
         _selectionFrom(match),
-        widget.allPlayers
-            .where((player) {
-              final status = match.attendance
-                      .where((reply) => reply.playerId == player.id)
-                      .map((reply) => reply.status)
-                      .firstOrNull ??
-                  AttendanceStatus.unknown;
-              return status != AttendanceStatus.no;
-            })
-            .map((player) => player.id),
+        widget.allPlayers.where((player) {
+          final status = match.attendance
+                  .where((reply) => reply.playerId == player.id)
+                  .map((reply) => reply.status)
+                  .firstOrNull ??
+              AttendanceStatus.unknown;
+          return status != AttendanceStatus.no;
+        }).map((player) => player.id),
       );
 
   String _squadFingerprint(MatchdayModel match) {
