@@ -288,7 +288,7 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
         ...eventSummaryScalars,
         targetTeams: targetTeamSummary,
         participants: {
-          where: { responseRequired: true, playerId: { not: null } },
+          where: { playerId: { not: null } },
           select: { playerId: true, responseRequired: true },
         },
         attendance: {
@@ -328,12 +328,20 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
         ? event.targetTeams.map((target) => target.teamId)
         : [event.teamId];
       const explicitIds = event.participants
+        .filter((participant) => participant.responseRequired)
         .map((participant) => participant.playerId)
         .filter((id): id is string => Boolean(id));
+      const excludedIds = new Set(
+        event.participants
+          .filter((participant) => !participant.responseRequired)
+          .map((participant) => participant.playerId)
+          .filter((id): id is string => Boolean(id)),
+      );
       const roster = activeRoster.filter((player) =>
         player.teamId !== null &&
         eventTeamIds.includes(player.teamId) &&
-        (!explicitIds.length || explicitIds.includes(player.id)),
+        (!explicitIds.length || explicitIds.includes(player.id)) &&
+        !excludedIds.has(player.id),
       );
       const responseByPlayer = new Map(
         event.attendance.map((attendance) => [attendance.playerId, attendance]),

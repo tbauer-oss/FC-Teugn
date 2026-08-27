@@ -747,6 +747,7 @@ class EventModel {
     required this.reminderMinutes,
     this.reminderPushEnabled = true,
     this.participantPlayerIds = const [],
+    this.excludedParticipantPlayerIds = const [],
     this.series,
     this.endAt,
     this.meetingAt,
@@ -814,6 +815,7 @@ class EventModel {
   final List<int> reminderMinutes;
   final bool reminderPushEnabled;
   final List<String> participantPlayerIds;
+  final List<String> excludedParticipantPlayerIds;
   final bool isSeriesException;
   final bool isHiddenRegularOccurrence;
   final DateTime? internalPublishedAt;
@@ -917,9 +919,17 @@ class EventModel {
       reminderPushEnabled: json['reminderPushEnabled'] as bool? ?? true,
       participantPlayerIds: (json['participants'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
+          .where((item) => item['responseRequired'] != false)
           .map((item) => item['playerId'])
           .whereType<String>()
           .toList(),
+      excludedParticipantPlayerIds:
+          (json['participants'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .where((item) => item['responseRequired'] == false)
+              .map((item) => item['playerId'])
+              .whereType<String>()
+              .toList(),
       isSeriesException: json['isSeriesException'] as bool? ?? false,
       isHiddenRegularOccurrence:
           json['isHiddenRegularOccurrence'] as bool? ?? false,

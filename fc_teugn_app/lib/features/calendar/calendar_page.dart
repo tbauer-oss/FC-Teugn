@@ -3694,6 +3694,8 @@ class _AttendanceSection extends ConsumerWidget {
   }
 }
 
+enum _StaffAttendanceAction { unknown, yes, no, remove }
+
 class _StaffAttendanceStatusMenu extends ConsumerStatefulWidget {
   const _StaffAttendanceStatusMenu({
     required this.eventId,
@@ -3729,34 +3731,65 @@ class _StaffAttendanceStatusMenuState
         ),
       );
     }
-    return PopupMenuButton<AttendanceStatus>(
+    return PopupMenuButton<_StaffAttendanceAction>(
       key: ValueKey(
         'calendar-attendance-status-${widget.eventId}-${widget.playerId}',
       ),
       tooltip: 'Status von ${widget.playerName} ändern',
-      onSelected: _setStatus,
+      onSelected: (action) {
+        if (action == _StaffAttendanceAction.remove) {
+          _removeParticipant();
+          return;
+        }
+        _setStatus(switch (action) {
+          _StaffAttendanceAction.unknown => AttendanceStatus.unknown,
+          _StaffAttendanceAction.yes => AttendanceStatus.yes,
+          _StaffAttendanceAction.no => AttendanceStatus.no,
+          _StaffAttendanceAction.remove => AttendanceStatus.unknown,
+        });
+      },
       itemBuilder: (context) => [
-        for (final status in const [
-          AttendanceStatus.unknown,
-          AttendanceStatus.yes,
-          AttendanceStatus.no,
+        for (final entry in const [
+          (_StaffAttendanceAction.unknown, AttendanceStatus.unknown),
+          (_StaffAttendanceAction.yes, AttendanceStatus.yes),
+          (_StaffAttendanceAction.no, AttendanceStatus.no),
         ])
-          PopupMenuItem<AttendanceStatus>(
-            value: status,
+          PopupMenuItem<_StaffAttendanceAction>(
+            value: entry.$1,
             child: Row(
               children: [
                 Icon(
-                  _attendanceIcon(status),
+                  _attendanceIcon(entry.$2),
                   size: 19,
-                  color: _attendanceColor(status),
+                  color: _attendanceColor(entry.$2),
                 ),
                 const SizedBox(width: 9),
-                Expanded(child: Text(status.label)),
-                if (widget.currentStatus == status)
+                Expanded(child: Text(entry.$2.label)),
+                if (widget.currentStatus == entry.$2)
                   const Icon(Icons.check_rounded, size: 18),
               ],
             ),
           ),
+        const PopupMenuDivider(),
+        PopupMenuItem<_StaffAttendanceAction>(
+          key: ValueKey(
+            'calendar-attendance-remove-${widget.eventId}-${widget.playerId}',
+          ),
+          value: _StaffAttendanceAction.remove,
+          child: const Row(
+            children: [
+              Icon(Icons.person_remove_alt_1_rounded,
+                  size: 19, color: Colors.redAccent),
+              SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'Aus Termin entfernen',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
       child: Container(
         constraints: const BoxConstraints(minWidth: 78, minHeight: 40),
@@ -3813,6 +3846,62 @@ class _StaffAttendanceStatusMenuState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Die Rückmeldung konnte nicht geändert werden.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _removeParticipant() async {
+    if (_saving) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Aus Termin entfernen?'),
+        content: Text(
+          '${widget.playerName} wird nur aus diesem Termin entfernt. '
+          'Mannschaft und Spielerprofil bleiben erhalten.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-remove-event-participant'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Entfernen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(repositoryProvider).removeEventParticipant(
+            eventId: widget.eventId,
+            playerId: widget.playerId,
+          );
+      ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
+      ref.invalidate(trainerDashboardSummaryProvider);
+      ref.invalidate(personalResponsesProvider);
+      ref.invalidate(parentDashboardEventsProvider);
+      ref.invalidate(parentDashboardSummaryProvider);
+      widget.onRefresh();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${widget.playerName} wurde aus dem Termin entfernt.'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Der Spieler konnte nicht entfernt werden.'),
         ),
       );
     } finally {

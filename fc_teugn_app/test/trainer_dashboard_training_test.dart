@@ -46,12 +46,14 @@ const _operations = TeamOperationsOverview(
 );
 
 class _AttendanceCorrectionRepository extends DataRepository {
-  _AttendanceCorrectionRepository(this.updatedEvent)
+  _AttendanceCorrectionRepository(this.updatedEvent, {this.removedEvent})
       : super(ApiClient(baseUrl: 'http://localhost'));
 
   final EventModel updatedEvent;
+  final EventModel? removedEvent;
   final List<({String eventId, String playerId, AttendanceStatus status})>
       calls = [];
+  final List<({String eventId, String playerId})> removalCalls = [];
 
   @override
   Future<EventModel> setAttendance({
@@ -64,6 +66,15 @@ class _AttendanceCorrectionRepository extends DataRepository {
   }) async {
     calls.add((eventId: eventId, playerId: playerId, status: status));
     return updatedEvent;
+  }
+
+  @override
+  Future<EventModel> removeEventParticipant({
+    required String eventId,
+    required String playerId,
+  }) async {
+    removalCalls.add((eventId: eventId, playerId: playerId));
+    return removedEvent ?? updatedEvent;
   }
 }
 
@@ -111,6 +122,7 @@ EventModel _event({
   EventCapabilities capabilities = const EventCapabilities(),
   EventStatus status = EventStatus.scheduled,
   bool isHiddenRegularOccurrence = false,
+  List<String> excludedParticipantPlayerIds = const [],
 }) =>
     EventModel(
       id: id,
@@ -134,6 +146,7 @@ EventModel _event({
       capabilities: capabilities,
       reminderMinutes: const [],
       isHiddenRegularOccurrence: isHiddenRegularOccurrence,
+      excludedParticipantPlayerIds: excludedParticipantPlayerIds,
     );
 
 OrganizationContext _regularTrainingOrganization() {
@@ -373,7 +386,8 @@ void main() {
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    final startAt = DateTime.now().add(const Duration(hours: 2));
+    final now = DateTime.now();
+    final startAt = DateTime(now.year, now.month, now.day, 23);
     final event = _event(
       id: 'training-next',
       category: EventCategory.training,
@@ -412,6 +426,22 @@ void main() {
           ),
         ],
         attendanceSummary: const AttendanceSummary(yes: 2),
+        capabilities: const EventCapabilities(canManage: true),
+      ),
+      removedEvent: _event(
+        id: 'training-next',
+        category: EventCategory.training,
+        startAt: startAt,
+        attendance: const [
+          EventAttendance(
+            id: 'attendance-anna',
+            playerId: 'player-anna',
+            playerName: 'Anna Zugesagt',
+            status: AttendanceStatus.yes,
+          ),
+        ],
+        attendanceSummary: const AttendanceSummary(yes: 1),
+        excludedParticipantPlayerIds: const ['player-ben'],
         capabilities: const EventCapabilities(canManage: true),
       ),
     );
@@ -520,6 +550,34 @@ void main() {
     expect(find.text('Ben Offen: Zugesagt gespeichert.'), findsOneWidget);
 
     await tester.tap(
+      find.byKey(
+        const ValueKey('attendance-status-menu-training-next-player-ben'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(
+        const ValueKey(
+          'attendance-remove-choice-training-next-player-ben',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Aus Termin entfernen?'), findsOneWidget);
+    expect(
+      find.textContaining('Mannschaft und Spielerprofil bleiben erhalten'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('confirm-remove-event-participant')),
+    );
+    await tester.pumpAndSettle();
+    expect(repository.removalCalls, hasLength(1));
+    expect(repository.removalCalls.single.eventId, 'training-next');
+    expect(repository.removalCalls.single.playerId, 'player-ben');
+    expect(find.text('Ben Offen'), findsNothing);
+
+    await tester.tap(
       find.byKey(const ValueKey('trainer-training-reminder')),
     );
     await tester.pumpAndSettle();
@@ -532,7 +590,8 @@ void main() {
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    final startAt = DateTime.now().add(const Duration(hours: 2));
+    final now = DateTime.now();
+    final startAt = DateTime(now.year, now.month, now.day, 23);
     final events = [
       _event(
         id: 'training-e1',

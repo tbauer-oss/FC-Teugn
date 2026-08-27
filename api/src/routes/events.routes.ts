@@ -15,6 +15,7 @@ import {
   listPersonalResponses,
   publicCalendarSubscription,
   recordActualAttendance,
+  removeEventParticipant,
   requestCarpoolSeat,
   attendanceReminderStatus,
   sendAttendanceReminders,
@@ -98,6 +99,7 @@ router.post(
   setRegularTrainingAttendancePreference,
 );
 router.post('/:id/attendance', setAttendance);
+router.delete('/:id/attendance/:playerId', removeEventParticipant);
 router.post(
   '/:id/attendance/finalize',
   requirePermission(Permission.MANAGE_EVENTS),

@@ -25,7 +25,8 @@ test('manual attendance reminders honor the optional push selection', () => {
 test('manual training reminders can target either open or all players', () => {
   assert.match(handler, /req\.body\.audience/);
   assert.match(handler, /audience === 'ALL'/);
-  assert.match(handler, /audience === 'OPEN' \? \{ notIn: \[\.\.\.replied\] \} : \{\}/);
+  assert.match(handler, /audience === 'OPEN' \|\| explicitlyExcluded\.length/);
+  assert.match(handler, /\.\.\.explicitlyExcluded/);
   assert.match(handler, /title: audience === 'ALL'/);
   assert.match(handler, /Trainingserinnerung: \$\{event\.title\}/);
   assert.match(handler, /actionUrl: `\/family\?eventId=\$\{event\.id\}`/);

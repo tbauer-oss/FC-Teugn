@@ -47,6 +47,11 @@ export async function reminderRecipientsForEvent(
     (participant) =>
       participant.responseRequired && participant.playerId && participant.player,
   );
+  const excludedPlayerIds = new Set(
+    event.participants
+      .filter((participant) => !participant.responseRequired && participant.playerId)
+      .map((participant) => participant.playerId!),
+  );
   event.participants.forEach((participant) => {
     if (participant.userId) recipientIds.add(participant.userId);
   });
@@ -71,7 +76,13 @@ export async function reminderRecipientsForEvent(
       : [event.teamId];
     const [players, staff] = await Promise.all([
       prisma.player.findMany({
-        where: { teamId: { in: teamIds }, status: 'ACTIVE' },
+        where: {
+          teamId: { in: teamIds },
+          status: 'ACTIVE',
+          ...(excludedPlayerIds.size
+            ? { id: { notIn: [...excludedPlayerIds] } }
+            : {}),
+        },
         include: {
           parentLinks: {
             where: { receivesCommunication: true },

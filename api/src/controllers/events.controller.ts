@@ -381,6 +381,22 @@ async function rosterForTeamIds(teamIds: string[]) {
 
 type RosterPlayer = Awaited<ReturnType<typeof rosterForTeamIds>>[number];
 
+function requestedParticipantPlayerIds(
+  participants: Array<{ playerId: string | null; responseRequired: boolean }>,
+) {
+  return participants
+    .filter((participant) => participant.responseRequired && participant.playerId)
+    .map((participant) => participant.playerId!);
+}
+
+function excludedParticipantPlayerIds(
+  participants: Array<{ playerId: string | null; responseRequired: boolean }>,
+) {
+  return participants
+    .filter((participant) => !participant.responseRequired && participant.playerId)
+    .map((participant) => participant.playerId!);
+}
+
 async function rosterForEvent(event: CalendarEvent, accessibleIds: string[]) {
   const explicit = event.participants
     .filter((participant) => participant.responseRequired && participant.player)
@@ -393,7 +409,10 @@ async function rosterForEvent(event: CalendarEvent, accessibleIds: string[]) {
   const teamIds = targetIdsForEvent(event).filter((id) =>
     accessibleIds.includes(id),
   );
-  return rosterForTeamIds(teamIds);
+  const excludedIds = new Set(excludedParticipantPlayerIds(event.participants));
+  return (await rosterForTeamIds(teamIds)).filter(
+    (player) => !excludedIds.has(player.id),
+  );
 }
 
 async function serializeEvent(
@@ -417,6 +436,9 @@ async function serializeEvent(
   const explicitParticipantPlayers = event.participants
     .filter((participant) => participant.responseRequired && participant.player)
     .map((participant) => participant.player!);
+  const excludedParticipantIds = new Set(
+    excludedParticipantPlayerIds(event.participants),
+  );
   const roster = staff
     ? knownRoster
       ? knownRoster.filter(
@@ -424,7 +446,8 @@ async function serializeEvent(
             player.teamId !== null &&
             eventTargetIds.includes(player.teamId) &&
             (!explicitParticipantPlayers.length ||
-              explicitParticipantPlayers.some((item) => item.id === player.id)),
+              explicitParticipantPlayers.some((item) => item.id === player.id)) &&
+            !excludedParticipantIds.has(player.id),
         )
       : await rosterForEvent(event, accessibleIds)
     : [];
@@ -2630,10 +2653,12 @@ export async function setAttendance(req: Request, res: Response) {
   const attendanceTeamIds = event.type === EventType.MATCH
     ? rosterTeamIdsForMatch(await youthPlayerPoolTeamIdsForTeam(event.teamId))
     : eventTeamIds;
-  const requestedPlayerIds = event.participants
-    .filter((participant) => participant.responseRequired && participant.playerId)
-    .map((participant) => participant.playerId!);
-  if (event.participants.length && !requestedPlayerIds.includes(playerId)) {
+  const requestedPlayerIds = requestedParticipantPlayerIds(event.participants);
+  const excludedPlayerIds = excludedParticipantPlayerIds(event.participants);
+  if (
+    excludedPlayerIds.includes(playerId) ||
+    (requestedPlayerIds.length > 0 && !requestedPlayerIds.includes(playerId))
+  ) {
     return res.status(403).json({
       message: 'Für diesen Spieler wurde keine Rückmeldung angefragt.',
     });
@@ -2788,6 +2813,155 @@ export async function setAttendance(req: Request, res: Response) {
   });
 }
 
+export async function removeEventParticipant(req: Request, res: Response) {
+  const user = req.user!;
+  const playerId = clean(req.params.playerId);
+  if (!playerId) return res.status(400).json({ message: 'Spieler fehlt.' });
+
+  const teamIds = await accessibleTeamIds(user);
+  const event = await prisma.event.findFirst({
+    where: {
+      id: req.params.id,
+      status: EventStatus.SCHEDULED,
+      ...eventScope(teamIds),
+    },
+    include: { targetTeams: true, attendance: true, participants: true },
+  });
+  if (!event) return res.status(404).json({ message: 'Termin nicht gefunden oder abgesagt.' });
+  if (!(await canManageEvent(user, event))) {
+    return res.status(403).json({ message: 'Keine Berechtigung für diesen Termin.' });
+  }
+  if (event.attendanceFinalized) {
+    return res.status(409).json({ message: 'Die Rückmeldungen wurden bereits abgeschlossen.' });
+  }
+
+  const eventTeamIds = event.targetTeams.length
+    ? event.targetTeams.map((target) => target.teamId)
+    : [event.teamId];
+  const participantTeamIds = event.type === EventType.MATCH
+    ? rosterTeamIdsForMatch(await youthPlayerPoolTeamIdsForTeam(event.teamId))
+    : eventTeamIds;
+  const eligiblePlayers = await prisma.player.findMany({
+    where: { teamId: { in: participantTeamIds }, status: 'ACTIVE' },
+    select: { id: true, teamId: true },
+  });
+  const player = eligiblePlayers.find((item) => item.id === playerId);
+  if (!player) {
+    return res.status(404).json({ message: 'Spieler gehört nicht zum Teilnehmerkreis dieses Termins.' });
+  }
+
+  const requestedPlayerIds = requestedParticipantPlayerIds(event.participants);
+  const excludedPlayerIds = excludedParticipantPlayerIds(event.participants);
+  if (excludedPlayerIds.includes(playerId)) {
+    return res.status(409).json({ message: 'Spieler wurde bereits aus diesem Termin entfernt.' });
+  }
+  if (requestedPlayerIds.length > 0 && !requestedPlayerIds.includes(playerId)) {
+    return res.status(404).json({ message: 'Spieler gehört nicht zum Teilnehmerkreis dieses Termins.' });
+  }
+
+  const previous = event.attendance.find((item) => item.playerId === playerId);
+  const remainingRequestedIds = requestedPlayerIds.filter((id) => id !== playerId);
+  // Sobald die letzte explizite Einladung entfernt wird, darf die leere Liste
+  // nicht wieder als "gesamter Mannschaftskader" interpretiert werden. In
+  // diesem Sonderfall speichern wir deshalb den gesamten bisher möglichen
+  // Kader als terminbezogene Ausnahme.
+  const idsToExclude = requestedPlayerIds.length > 0 && remainingRequestedIds.length === 0
+    ? eligiblePlayers.map((item) => item.id)
+    : [playerId];
+  const reminderSyncPendingAt = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    for (const excludedPlayerId of idsToExclude) {
+      await tx.eventParticipant.upsert({
+        where: {
+          eventId_playerId: { eventId: event.id, playerId: excludedPlayerId },
+        },
+        update: { responseRequired: false },
+        create: {
+          eventId: event.id,
+          playerId: excludedPlayerId,
+          responseRequired: false,
+        },
+      });
+    }
+    await tx.attendance.deleteMany({ where: { eventId: event.id, playerId } });
+
+    if (event.type === EventType.MATCH) {
+      const squad = await tx.squad.findUnique({ where: { eventId: event.id } });
+      if (squad) {
+        const lineup = await tx.lineup.findUnique({
+          where: { squadId: squad.id },
+          select: { id: true },
+        });
+        if (lineup) {
+          await Promise.all([
+            tx.plannedSubstitution.deleteMany({
+              where: {
+                lineupId: lineup.id,
+                OR: [{ playerInId: playerId }, { playerOutId: playerId }],
+              },
+            }),
+            tx.lineupPosition.deleteMany({
+              where: { lineupId: lineup.id, playerId },
+            }),
+          ]);
+        }
+        await tx.squadMember.deleteMany({
+          where: { squadId: squad.id, playerId },
+        });
+      }
+    }
+
+    await tx.event.update({
+      where: { id: event.id },
+      data: { reminderSyncPendingAt },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: user.id,
+        teamId: player.teamId,
+        action: 'EVENT_PARTICIPANT_REMOVED',
+        entityType: 'EventParticipant',
+        entityId: `${event.id}:${playerId}`,
+        metadata: {
+          eventId: event.id,
+          playerId,
+          previousStatus: previous?.status ?? null,
+          excludedPlayers: idsToExclude.length,
+        },
+      },
+    });
+  });
+
+  await prisma.notification.updateMany({
+    where: {
+      userId: user.id,
+      readAt: null,
+      OR: [
+        { entityId: `${event.id}:${playerId}` },
+        { entityType: 'AttendanceRequest', entityId: event.id },
+      ],
+    },
+    data: { readAt: new Date() },
+  });
+  waitUntil(settlePostCommitTasks([{
+    name: 'removed-event-participant-reminder-sync',
+    promise: syncScheduledRemindersForEvent(event.id),
+  }]));
+
+  const refreshedEvent = await prisma.event.findUnique({
+    where: { id: event.id },
+    include: eventInclude,
+  });
+  if (!refreshedEvent) {
+    return res.status(404).json({ message: 'Termin nach der Änderung nicht gefunden.' });
+  }
+  return res.json({
+    removedPlayerId: playerId,
+    event: await serializeEvent(refreshedEvent, user),
+  });
+}
+
 export async function finalizeAttendance(req: Request, res: Response) {
   const user = req.user!;
   const teamIds = await accessibleTeamIds(user);
@@ -2895,13 +3069,19 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
   const explicitlyRequested = event.participants
     .filter((participant) => participant.responseRequired && participant.playerId)
     .map((participant) => participant.playerId!);
+  const explicitlyExcluded = excludedParticipantPlayerIds(event.participants);
   const audience = clean(req.body.audience)?.toUpperCase() === 'ALL' ? 'ALL' : 'OPEN';
   const players = await prisma.player.findMany({
     where: {
       teamId: { in: targetTeamIds },
       status: 'ACTIVE',
       id: {
-        ...(audience === 'OPEN' ? { notIn: [...replied] } : {}),
+        ...((audience === 'OPEN' || explicitlyExcluded.length)
+          ? { notIn: [...new Set([
+              ...(audience === 'OPEN' ? [...replied] : []),
+              ...explicitlyExcluded,
+            ])] }
+          : {}),
         // Nur eine ausdrueckliche Spielerliste schraenkt den Kader ein.
         // Reine Benutzer-Teilnehmer (z. B. Trainer) duerfen nicht dazu
         // fuehren, dass bei "Offene erinnern" keine Eltern gefunden werden.

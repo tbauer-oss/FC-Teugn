@@ -1063,12 +1063,17 @@ List<PlayerModel> _eventRoster(
     event.teamId,
     ...event.targetTeams.map((team) => team.id),
   };
+  final excludedPlayerIds = event.excludedParticipantPlayerIds.toSet();
+  final requestedPlayerIds = event.participantPlayerIds.toSet();
   return players
       .where(
         (player) =>
             player.status == PlayerStatus.active &&
             player.teamId != null &&
-            teamIds.contains(player.teamId),
+            teamIds.contains(player.teamId) &&
+            !excludedPlayerIds.contains(player.id) &&
+            (requestedPlayerIds.isEmpty ||
+                requestedPlayerIds.contains(player.id)),
       )
       .toList();
 }
@@ -1361,6 +1366,66 @@ class _CombinedTrainingResponsesSheetState
     }
   }
 
+  Future<void> _removeParticipant(_TrainingResponseEntry entry) async {
+    if (!entry.canManage) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Aus Termin entfernen?'),
+        content: Text(
+          '${entry.name} wird nur aus diesem Termin entfernt. '
+          'Mannschaft und Spielerprofil bleiben erhalten.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-remove-event-participant'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Entfernen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final key = _responseKey(entry);
+    setState(() => _savingResponses.add(key));
+    try {
+      final updated = await ref.read(repositoryProvider).removeEventParticipant(
+            eventId: entry.eventId,
+            playerId: entry.playerId,
+          );
+      if (!mounted) return;
+      setState(() {
+        _events = [
+          for (final event in _events)
+            if (event.id == updated.id) updated else event,
+        ];
+      });
+      ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
+      ref.invalidate(trainerDashboardSummaryProvider);
+      ref.invalidate(personalResponsesProvider);
+      ref.invalidate(parentDashboardEventsProvider);
+      ref.invalidate(parentDashboardSummaryProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${entry.name} wurde aus dem Termin entfernt.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Der Spieler konnte nicht entfernt werden.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingResponses.remove(key));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final organization = ref.watch(organizationProvider).valueOrNull;
@@ -1538,6 +1603,7 @@ class _CombinedTrainingResponsesSheetState
                 open: open,
                 savingResponses: _savingResponses,
                 onStatusChanged: _setAttendance,
+                onRemove: _removeParticipant,
               ),
             ),
           ],
@@ -1573,6 +1639,8 @@ class _CombinedTrainingEventBadge extends StatelessWidget {
 
 enum _TrainingResponseFilter { all, yes, no, open }
 
+enum _TrainingResponseAction { unknown, yes, no, remove }
+
 class _FilteredTrainingResponses extends StatefulWidget {
   const _FilteredTrainingResponses({
     required this.yes,
@@ -1580,6 +1648,7 @@ class _FilteredTrainingResponses extends StatefulWidget {
     required this.open,
     required this.savingResponses,
     required this.onStatusChanged,
+    required this.onRemove,
   });
 
   final List<_TrainingResponseEntry> yes;
@@ -1590,6 +1659,7 @@ class _FilteredTrainingResponses extends StatefulWidget {
     _TrainingResponseEntry entry,
     AttendanceStatus status,
   ) onStatusChanged;
+  final Future<void> Function(_TrainingResponseEntry entry) onRemove;
 
   @override
   State<_FilteredTrainingResponses> createState() =>
@@ -1650,6 +1720,7 @@ class _FilteredTrainingResponsesState
                         entries: widget.yes,
                         savingResponses: widget.savingResponses,
                         onStatusChanged: widget.onStatusChanged,
+                        onRemove: widget.onRemove,
                       ),
                     if ((filter == _TrainingResponseFilter.all ||
                             filter == _TrainingResponseFilter.no) &&
@@ -1660,6 +1731,7 @@ class _FilteredTrainingResponsesState
                         entries: widget.no,
                         savingResponses: widget.savingResponses,
                         onStatusChanged: widget.onStatusChanged,
+                        onRemove: widget.onRemove,
                       ),
                     if ((filter == _TrainingResponseFilter.all ||
                             filter == _TrainingResponseFilter.open) &&
@@ -1670,6 +1742,7 @@ class _FilteredTrainingResponsesState
                         entries: widget.open,
                         savingResponses: widget.savingResponses,
                         onStatusChanged: widget.onStatusChanged,
+                        onRemove: widget.onRemove,
                       ),
                   ],
                 ),
@@ -1701,6 +1774,7 @@ class _TrainingResponseGroup extends StatelessWidget {
     required this.entries,
     required this.savingResponses,
     required this.onStatusChanged,
+    required this.onRemove,
   });
 
   final String title;
@@ -1711,6 +1785,7 @@ class _TrainingResponseGroup extends StatelessWidget {
     _TrainingResponseEntry entry,
     AttendanceStatus status,
   ) onStatusChanged;
+  final Future<void> Function(_TrainingResponseEntry entry) onRemove;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1783,6 +1858,7 @@ class _TrainingResponseGroup extends StatelessWidget {
                           saving: savingResponses
                               .contains('${entry.eventId}:${entry.playerId}'),
                           onStatusChanged: onStatusChanged,
+                          onRemove: onRemove,
                         ),
                       ),
                   ],
@@ -1800,6 +1876,7 @@ class _TrainingResponsePersonChip extends StatelessWidget {
     required this.color,
     required this.saving,
     required this.onStatusChanged,
+    required this.onRemove,
   });
 
   final _TrainingResponseEntry entry;
@@ -1809,6 +1886,7 @@ class _TrainingResponsePersonChip extends StatelessWidget {
     _TrainingResponseEntry entry,
     AttendanceStatus status,
   ) onStatusChanged;
+  final Future<void> Function(_TrainingResponseEntry entry) onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -1893,47 +1971,89 @@ class _TrainingResponsePersonChip extends StatelessWidget {
                   ),
                 )
               else
-                PopupMenuButton<AttendanceStatus>(
+                PopupMenuButton<_TrainingResponseAction>(
                   key: ValueKey(
                     'attendance-status-menu-${entry.eventId}-${entry.playerId}',
                   ),
                   tooltip: 'Status von ${entry.name} ändern',
                   padding: EdgeInsets.zero,
                   iconSize: 19,
-                  onSelected: (status) => onStatusChanged(entry, status),
+                  onSelected: (action) {
+                    if (action == _TrainingResponseAction.remove) {
+                      onRemove(entry);
+                      return;
+                    }
+                    onStatusChanged(
+                      entry,
+                      switch (action) {
+                        _TrainingResponseAction.unknown =>
+                          AttendanceStatus.unknown,
+                        _TrainingResponseAction.yes => AttendanceStatus.yes,
+                        _TrainingResponseAction.no => AttendanceStatus.no,
+                        _TrainingResponseAction.remove =>
+                          AttendanceStatus.unknown,
+                      },
+                    );
+                  },
                   itemBuilder: (context) => [
-                    for (final status in const [
-                      AttendanceStatus.unknown,
-                      AttendanceStatus.yes,
-                      AttendanceStatus.no,
+                    for (final entryStatus in const [
+                      (
+                        _TrainingResponseAction.unknown,
+                        AttendanceStatus.unknown
+                      ),
+                      (_TrainingResponseAction.yes, AttendanceStatus.yes),
+                      (_TrainingResponseAction.no, AttendanceStatus.no),
                     ])
-                      PopupMenuItem<AttendanceStatus>(
+                      PopupMenuItem<_TrainingResponseAction>(
                         key: ValueKey(
-                          'attendance-status-choice-${entry.eventId}-${entry.playerId}-${status.apiName}',
+                          'attendance-status-choice-${entry.eventId}-${entry.playerId}-${entryStatus.$2.apiName}',
                         ),
-                        value: status,
+                        value: entryStatus.$1,
                         child: Row(
                           children: [
                             Icon(
-                              status == AttendanceStatus.yes
+                              entryStatus.$2 == AttendanceStatus.yes
                                   ? Icons.check_circle_rounded
-                                  : status == AttendanceStatus.no
+                                  : entryStatus.$2 == AttendanceStatus.no
                                       ? Icons.cancel_rounded
                                       : Icons.schedule_rounded,
                               size: 18,
-                              color: status == AttendanceStatus.yes
+                              color: entryStatus.$2 == AttendanceStatus.yes
                                   ? AppColors.success
-                                  : status == AttendanceStatus.no
+                                  : entryStatus.$2 == AttendanceStatus.no
                                       ? Colors.redAccent
                                       : AppColors.muted,
                             ),
                             const SizedBox(width: 8),
-                            Expanded(child: Text(status.label)),
-                            if (entry.status == status)
+                            Expanded(child: Text(entryStatus.$2.label)),
+                            if (entry.status == entryStatus.$2)
                               const Icon(Icons.check_rounded, size: 18),
                           ],
                         ),
                       ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem<_TrainingResponseAction>(
+                      key: ValueKey(
+                        'attendance-remove-choice-${entry.eventId}-${entry.playerId}',
+                      ),
+                      value: _TrainingResponseAction.remove,
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.person_remove_alt_1_rounded,
+                            size: 18,
+                            color: Colors.redAccent,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Aus Termin entfernen',
+                              style: TextStyle(color: Colors.redAccent),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                   icon: const Icon(Icons.more_vert_rounded),
                 ),

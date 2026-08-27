@@ -1376,6 +1376,23 @@ class DataRepository {
     return EventModel.fromJson(payload['event'] as Map<String, dynamic>);
   }
 
+  Future<EventModel> removeEventParticipant({
+    required String eventId,
+    required String playerId,
+  }) async {
+    final response = await client.dio.delete(
+      '/events/$eventId/attendance/$playerId',
+      options: Options(
+        extra: const {
+          'requireOnline': true,
+          'loadingMessage': 'Spieler wird aus dem Termin entfernt …',
+        },
+      ),
+    );
+    final payload = response.data as Map<String, dynamic>;
+    return EventModel.fromJson(payload['event'] as Map<String, dynamic>);
+  }
+
   Future<RegularTrainingSeriesConfirmation> confirmRegularTrainingSeries({
     required String eventId,
     required String playerId,
