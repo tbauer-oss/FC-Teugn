@@ -1,4 +1,6 @@
+import 'package:fc_teugn_app/core/api_client.dart';
 import 'package:fc_teugn_app/core/app_theme.dart';
+import 'package:fc_teugn_app/core/data_repository.dart';
 import 'package:fc_teugn_app/core/models/dashboard_summary.dart';
 import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/models/organization.dart';
@@ -42,6 +44,28 @@ const _operations = TeamOperationsOverview(
   members: [],
   players: [],
 );
+
+class _AttendanceCorrectionRepository extends DataRepository {
+  _AttendanceCorrectionRepository(this.updatedEvent)
+      : super(ApiClient(baseUrl: 'http://localhost'));
+
+  final EventModel updatedEvent;
+  final List<({String eventId, String playerId, AttendanceStatus status})>
+      calls = [];
+
+  @override
+  Future<EventModel> setAttendance({
+    required String eventId,
+    required String playerId,
+    required AttendanceStatus status,
+    String? reason,
+    bool? goalkeeperAvailable,
+    bool personalResponse = false,
+  }) async {
+    calls.add((eventId: eventId, playerId: playerId, status: status));
+    return updatedEvent;
+  }
+}
 
 OrganizationContext _organization() => OrganizationContext(
       club: const ClubSummary(
@@ -368,6 +392,29 @@ void main() {
       ],
       capabilities: const EventCapabilities(canManage: true),
     );
+    final repository = _AttendanceCorrectionRepository(
+      _event(
+        id: 'training-next',
+        category: EventCategory.training,
+        startAt: startAt,
+        attendance: const [
+          EventAttendance(
+            id: 'attendance-anna',
+            playerId: 'player-anna',
+            playerName: 'Anna Zugesagt',
+            status: AttendanceStatus.yes,
+          ),
+          EventAttendance(
+            id: 'attendance-ben',
+            playerId: 'player-ben',
+            playerName: 'Ben Offen',
+            status: AttendanceStatus.yes,
+          ),
+        ],
+        attendanceSummary: const AttendanceSummary(yes: 2),
+        capabilities: const EventCapabilities(canManage: true),
+      ),
+    );
     const players = [
       PlayerModel(
         id: 'player-anna',
@@ -405,6 +452,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          repositoryProvider.overrideWithValue(repository),
           playersProvider.overrideWith((ref) async => players),
           trainerDashboardSummaryProvider.overrideWith(
             (ref) async => DashboardSummary(
@@ -450,6 +498,27 @@ void main() {
       find.byKey(const ValueKey('trainer-training-reminder')),
       findsOneWidget,
     );
+
+    await tester.tap(
+      find.byKey(
+        const ValueKey('attendance-status-menu-training-next-player-ben'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(
+        const ValueKey(
+          'attendance-status-choice-training-next-player-ben-YES',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(repository.calls, hasLength(1));
+    expect(repository.calls.single.eventId, 'training-next');
+    expect(repository.calls.single.playerId, 'player-ben');
+    expect(repository.calls.single.status, AttendanceStatus.yes);
+    expect(find.text('Ben Offen: Zugesagt gespeichert.'), findsOneWidget);
+
     await tester.tap(
       find.byKey(const ValueKey('trainer-training-reminder')),
     );

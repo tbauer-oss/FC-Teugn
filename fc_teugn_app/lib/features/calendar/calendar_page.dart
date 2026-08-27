@@ -3524,6 +3524,26 @@ class _AttendanceSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = event.attendanceSummary;
+    final answered = event.attendance
+        .where(
+          (reply) =>
+              reply.status == AttendanceStatus.yes ||
+              reply.status == AttendanceStatus.no,
+        )
+        .toList();
+    final openByPlayerId = <String, ({String name, String? position})>{
+      for (final item in event.missingAttendance)
+        item.id: (name: item.name, position: item.position),
+      for (final reply in event.attendance)
+        if (reply.status == AttendanceStatus.unknown)
+          reply.playerId: (
+            name: reply.playerName ?? 'Spieler',
+            position: reply.position,
+          ),
+    };
+    final canCorrect = event.capabilities.canManage &&
+        !event.attendanceFinalized &&
+        !event.isCancelled;
     return _Section(
       title: 'Zu- und Absagen',
       child: Column(
@@ -3551,9 +3571,9 @@ class _AttendanceSection extends ConsumerWidget {
                     color: AppColors.blue),
             ],
           ),
-          if (event.attendance.isNotEmpty) ...[
+          if (answered.isNotEmpty) ...[
             const SizedBox(height: 12),
-            for (final reply in event.attendance)
+            for (final reply in answered)
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
@@ -3563,15 +3583,46 @@ class _AttendanceSection extends ConsumerWidget {
                 ),
                 title: Text(reply.playerName ?? 'Spieler'),
                 subtitle: reply.reason == null ? null : Text(reply.reason!),
-                trailing: Text(reply.status.label),
+                trailing: canCorrect
+                    ? _StaffAttendanceStatusMenu(
+                        eventId: event.id,
+                        playerId: reply.playerId,
+                        playerName: reply.playerName ?? 'Spieler',
+                        currentStatus: reply.status,
+                        onRefresh: onRefresh,
+                      )
+                    : Text(reply.status.label),
               ),
           ],
-          if (event.capabilities.canManage &&
-              event.missingAttendance.isNotEmpty) ...[
+          if (event.capabilities.canManage && openByPlayerId.isNotEmpty) ...[
             const Divider(height: 24),
-            Text(
-              'Rückmeldung fehlt: ${event.missingAttendance.map((item) => item.name).join(', ')}',
+            const Text(
+              'Keine Rückmeldung',
+              style: TextStyle(fontWeight: FontWeight.w900),
             ),
+            const SizedBox(height: 4),
+            for (final entry in openByPlayerId.entries)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(
+                  Icons.schedule_rounded,
+                  color: AppColors.muted,
+                ),
+                title: Text(entry.value.name),
+                subtitle: entry.value.position?.trim().isNotEmpty == true
+                    ? Text(entry.value.position!)
+                    : null,
+                trailing: canCorrect
+                    ? _StaffAttendanceStatusMenu(
+                        eventId: event.id,
+                        playerId: entry.key,
+                        playerName: entry.value.name,
+                        currentStatus: AttendanceStatus.unknown,
+                        onRefresh: onRefresh,
+                      )
+                    : const Text('Offen'),
+              ),
           ],
           const SizedBox(height: 12),
           Wrap(
@@ -3640,6 +3691,133 @@ class _AttendanceSection extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+class _StaffAttendanceStatusMenu extends ConsumerStatefulWidget {
+  const _StaffAttendanceStatusMenu({
+    required this.eventId,
+    required this.playerId,
+    required this.playerName,
+    required this.currentStatus,
+    required this.onRefresh,
+  });
+
+  final String eventId;
+  final String playerId;
+  final String playerName;
+  final AttendanceStatus currentStatus;
+  final VoidCallback onRefresh;
+
+  @override
+  ConsumerState<_StaffAttendanceStatusMenu> createState() =>
+      _StaffAttendanceStatusMenuState();
+}
+
+class _StaffAttendanceStatusMenuState
+    extends ConsumerState<_StaffAttendanceStatusMenu> {
+  bool _saving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_saving) {
+      return const SizedBox.square(
+        dimension: 28,
+        child: Padding(
+          padding: EdgeInsets.all(5),
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return PopupMenuButton<AttendanceStatus>(
+      key: ValueKey(
+        'calendar-attendance-status-${widget.eventId}-${widget.playerId}',
+      ),
+      tooltip: 'Status von ${widget.playerName} ändern',
+      onSelected: _setStatus,
+      itemBuilder: (context) => [
+        for (final status in const [
+          AttendanceStatus.unknown,
+          AttendanceStatus.yes,
+          AttendanceStatus.no,
+        ])
+          PopupMenuItem<AttendanceStatus>(
+            value: status,
+            child: Row(
+              children: [
+                Icon(
+                  _attendanceIcon(status),
+                  size: 19,
+                  color: _attendanceColor(status),
+                ),
+                const SizedBox(width: 9),
+                Expanded(child: Text(status.label)),
+                if (widget.currentStatus == status)
+                  const Icon(Icons.check_rounded, size: 18),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 78, minHeight: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: _attendanceColor(widget.currentStatus).withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.currentStatus.label,
+              style: TextStyle(
+                color: _attendanceColor(widget.currentStatus),
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(width: 3),
+            const Icon(Icons.arrow_drop_down_rounded, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _setStatus(AttendanceStatus status) async {
+    if (status == widget.currentStatus || _saving) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(repositoryProvider).setAttendance(
+            eventId: widget.eventId,
+            playerId: widget.playerId,
+            status: status,
+          );
+      ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
+      ref.invalidate(trainerDashboardSummaryProvider);
+      ref.invalidate(personalResponsesProvider);
+      ref.invalidate(parentDashboardEventsProvider);
+      ref.invalidate(parentDashboardSummaryProvider);
+      widget.onRefresh();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${widget.playerName}: ${status.label} gespeichert.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Die Rückmeldung konnte nicht geändert werden.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }
 

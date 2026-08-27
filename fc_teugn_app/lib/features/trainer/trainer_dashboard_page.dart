@@ -1090,9 +1090,13 @@ void _showCombinedTrainingResponses(
 }
 
 typedef _TrainingResponseEntry = ({
+  String eventId,
+  String playerId,
   String name,
   String? reason,
   String team,
+  AttendanceStatus status,
+  bool canManage,
 });
 
 typedef _TrainingResponseGroups = ({
@@ -1164,11 +1168,15 @@ _TrainingResponseGroups _trainingResponseGroups(
           .where((item) => item.status == status)
           .map(
             (item) => (
+              eventId: event.id,
+              playerId: item.playerId,
               name: item.playerName ??
                   playersById[item.playerId]?.fullName ??
                   'Spieler',
               reason: item.reason,
               team: teamFor(item.playerId),
+              status: item.status,
+              canManage: event.capabilities.canManage,
             ),
           )
           .toList();
@@ -1183,9 +1191,13 @@ _TrainingResponseGroups _trainingResponseGroups(
   final explicitOpen = event.missingAttendance
       .map(
         (item) => (
+          eventId: event.id,
+          playerId: item.id,
           name: item.name,
           reason: null as String?,
           team: teamFor(item.id),
+          status: AttendanceStatus.unknown,
+          canManage: event.capabilities.canManage,
         ),
       )
       .toList();
@@ -1197,11 +1209,15 @@ _TrainingResponseGroups _trainingResponseGroups(
             !explicitOpenIds.contains(item.playerId))
         .map(
           (item) => (
+            eventId: event.id,
+            playerId: item.playerId,
             name: item.playerName ??
                 playersById[item.playerId]?.fullName ??
                 'Spieler',
             reason: null as String?,
             team: teamFor(item.playerId),
+            status: AttendanceStatus.unknown,
+            canManage: event.capabilities.canManage,
           ),
         ),
     if (explicitOpen.isEmpty)
@@ -1214,9 +1230,13 @@ _TrainingResponseGroups _trainingResponseGroups(
               ))
           .map(
             (player) => (
+              eventId: event.id,
+              playerId: player.id,
               name: player.fullName,
               reason: null as String?,
               team: teamFor(player.id),
+              status: AttendanceStatus.unknown,
+              canManage: event.capabilities.canManage,
             ),
           ),
   ];
@@ -1268,7 +1288,7 @@ class _TrainingResponseMetric extends StatelessWidget {
       );
 }
 
-class _CombinedTrainingResponsesSheet extends ConsumerWidget {
+class _CombinedTrainingResponsesSheet extends ConsumerStatefulWidget {
   const _CombinedTrainingResponsesSheet({
     required this.events,
     required this.players,
@@ -1278,15 +1298,79 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
   final List<PlayerModel> players;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CombinedTrainingResponsesSheet> createState() =>
+      _CombinedTrainingResponsesSheetState();
+}
+
+class _CombinedTrainingResponsesSheetState
+    extends ConsumerState<_CombinedTrainingResponsesSheet> {
+  late List<EventModel> _events;
+  final Set<String> _savingResponses = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _events = [...widget.events];
+  }
+
+  String _responseKey(_TrainingResponseEntry entry) =>
+      '${entry.eventId}:${entry.playerId}';
+
+  Future<void> _setAttendance(
+    _TrainingResponseEntry entry,
+    AttendanceStatus status,
+  ) async {
+    if (status == entry.status || !entry.canManage) return;
+    final key = _responseKey(entry);
+    setState(() => _savingResponses.add(key));
+    try {
+      final updated = await ref.read(repositoryProvider).setAttendance(
+            eventId: entry.eventId,
+            playerId: entry.playerId,
+            status: status,
+          );
+      if (!mounted) return;
+      setState(() {
+        _events = [
+          for (final event in _events)
+            if (event.id == updated.id) updated else event,
+        ];
+      });
+      ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
+      ref.invalidate(trainerDashboardSummaryProvider);
+      ref.invalidate(personalResponsesProvider);
+      ref.invalidate(parentDashboardEventsProvider);
+      ref.invalidate(parentDashboardSummaryProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${entry.name}: ${status.label} gespeichert.'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Die Rückmeldung konnte nicht geändert werden.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _savingResponses.remove(key));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final organization = ref.watch(organizationProvider).valueOrNull;
     final yes = <_TrainingResponseEntry>[];
     final no = <_TrainingResponseEntry>[];
     final open = <_TrainingResponseEntry>[];
-    for (final event in events) {
+    for (final event in _events) {
       final groups = _trainingResponseGroups(
         event,
-        _eventRoster(event, players),
+        _eventRoster(event, widget.players),
         organization,
       );
       yes.addAll(groups.yes);
@@ -1299,7 +1383,7 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
         return byTeam != 0 ? byTeam : a.name.compareTo(b.name);
       });
     }
-    final teamLabels = events
+    final teamLabels = _events
         .expand(
           (event) => <String>{
             event.teamId,
@@ -1312,7 +1396,7 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
         .toList()
       ..sort();
     final total = yes.length + no.length + open.length;
-    final manageableEvents = events
+    final manageableEvents = _events
         .where(
           (event) =>
               event.capabilities.canManage &&
@@ -1404,7 +1488,7 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
                     spacing: 6,
                     runSpacing: 5,
                     children: [
-                      for (final event in events)
+                      for (final event in _events)
                         _CombinedTrainingEventBadge(
                           team: _eventCompactTeamLabels(event, organization),
                           event: event,
@@ -1423,7 +1507,7 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
                   for (final event in manageableEvents)
                     OutlinedButton.icon(
                       key: ValueKey(
-                        events.length == 1
+                        _events.length == 1
                             ? 'trainer-training-reminder'
                             : 'trainer-training-reminder-${event.id}',
                       ),
@@ -1452,6 +1536,8 @@ class _CombinedTrainingResponsesSheet extends ConsumerWidget {
                 yes: yes,
                 no: no,
                 open: open,
+                savingResponses: _savingResponses,
+                onStatusChanged: _setAttendance,
               ),
             ),
           ],
@@ -1492,11 +1578,18 @@ class _FilteredTrainingResponses extends StatefulWidget {
     required this.yes,
     required this.no,
     required this.open,
+    required this.savingResponses,
+    required this.onStatusChanged,
   });
 
   final List<_TrainingResponseEntry> yes;
   final List<_TrainingResponseEntry> no;
   final List<_TrainingResponseEntry> open;
+  final Set<String> savingResponses;
+  final Future<void> Function(
+    _TrainingResponseEntry entry,
+    AttendanceStatus status,
+  ) onStatusChanged;
 
   @override
   State<_FilteredTrainingResponses> createState() =>
@@ -1555,6 +1648,8 @@ class _FilteredTrainingResponsesState
                         title: 'Zugesagt',
                         color: AppColors.success,
                         entries: widget.yes,
+                        savingResponses: widget.savingResponses,
+                        onStatusChanged: widget.onStatusChanged,
                       ),
                     if ((filter == _TrainingResponseFilter.all ||
                             filter == _TrainingResponseFilter.no) &&
@@ -1563,6 +1658,8 @@ class _FilteredTrainingResponsesState
                         title: 'Abgesagt',
                         color: Colors.redAccent,
                         entries: widget.no,
+                        savingResponses: widget.savingResponses,
+                        onStatusChanged: widget.onStatusChanged,
                       ),
                     if ((filter == _TrainingResponseFilter.all ||
                             filter == _TrainingResponseFilter.open) &&
@@ -1571,6 +1668,8 @@ class _FilteredTrainingResponsesState
                         title: 'Keine Rückmeldung',
                         color: AppColors.muted,
                         entries: widget.open,
+                        savingResponses: widget.savingResponses,
+                        onStatusChanged: widget.onStatusChanged,
                       ),
                   ],
                 ),
@@ -1600,11 +1699,18 @@ class _TrainingResponseGroup extends StatelessWidget {
     required this.title,
     required this.color,
     required this.entries,
+    required this.savingResponses,
+    required this.onStatusChanged,
   });
 
   final String title;
   final Color color;
   final List<_TrainingResponseEntry> entries;
+  final Set<String> savingResponses;
+  final Future<void> Function(
+    _TrainingResponseEntry entry,
+    AttendanceStatus status,
+  ) onStatusChanged;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1674,6 +1780,9 @@ class _TrainingResponseGroup extends StatelessWidget {
                         child: _TrainingResponsePersonChip(
                           entry: entry,
                           color: color,
+                          saving: savingResponses
+                              .contains('${entry.eventId}:${entry.playerId}'),
+                          onStatusChanged: onStatusChanged,
                         ),
                       ),
                   ],
@@ -1689,10 +1798,17 @@ class _TrainingResponsePersonChip extends StatelessWidget {
   const _TrainingResponsePersonChip({
     required this.entry,
     required this.color,
+    required this.saving,
+    required this.onStatusChanged,
   });
 
   final _TrainingResponseEntry entry;
   final Color color;
+  final bool saving;
+  final Future<void> Function(
+    _TrainingResponseEntry entry,
+    AttendanceStatus status,
+  ) onStatusChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1766,6 +1882,62 @@ class _TrainingResponsePersonChip extends StatelessWidget {
                 ],
               ),
             ),
+            if (entry.canManage) ...[
+              const SizedBox(width: 3),
+              if (saving)
+                const SizedBox.square(
+                  dimension: 20,
+                  child: Padding(
+                    padding: EdgeInsets.all(2),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                PopupMenuButton<AttendanceStatus>(
+                  key: ValueKey(
+                    'attendance-status-menu-${entry.eventId}-${entry.playerId}',
+                  ),
+                  tooltip: 'Status von ${entry.name} ändern',
+                  padding: EdgeInsets.zero,
+                  iconSize: 19,
+                  onSelected: (status) => onStatusChanged(entry, status),
+                  itemBuilder: (context) => [
+                    for (final status in const [
+                      AttendanceStatus.unknown,
+                      AttendanceStatus.yes,
+                      AttendanceStatus.no,
+                    ])
+                      PopupMenuItem<AttendanceStatus>(
+                        key: ValueKey(
+                          'attendance-status-choice-${entry.eventId}-${entry.playerId}-${status.apiName}',
+                        ),
+                        value: status,
+                        child: Row(
+                          children: [
+                            Icon(
+                              status == AttendanceStatus.yes
+                                  ? Icons.check_circle_rounded
+                                  : status == AttendanceStatus.no
+                                      ? Icons.cancel_rounded
+                                      : Icons.schedule_rounded,
+                              size: 18,
+                              color: status == AttendanceStatus.yes
+                                  ? AppColors.success
+                                  : status == AttendanceStatus.no
+                                      ? Colors.redAccent
+                                      : AppColors.muted,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(status.label)),
+                            if (entry.status == status)
+                              const Icon(Icons.check_rounded, size: 18),
+                          ],
+                        ),
+                      ),
+                  ],
+                  icon: const Icon(Icons.more_vert_rounded),
+                ),
+            ],
           ],
         ),
       ),
