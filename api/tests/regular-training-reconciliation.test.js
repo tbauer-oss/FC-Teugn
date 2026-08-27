@@ -159,6 +159,13 @@ test('an explicitly deleted occurrence remains a tombstone after editing', async
   const expected = nextRegularTrainingOccurrence(activeTeam, now);
   const expectedId =
     `regular-training:team-e1:${expected.startAt.getTime()}`;
+  const following = nextRegularTrainingOccurrence(
+    activeTeam,
+    new Date(expected.startAt.getTime() + 5 * 60_000),
+  );
+  const followingId =
+    `regular-training:team-e1:${following.startAt.getTime()}`;
+  const upserts = [];
   const tx = {
     auditLog: {
       findFirst: async () => ({ id: 'audit-explicit-deletion' }),
@@ -173,7 +180,7 @@ test('an explicitly deleted occurrence remains a tombstone after editing', async
         },
       ],
       update: async () => assert.fail('tombstone must not be reactivated'),
-      upsert: async () => assert.fail('tombstone ID must not be recreated'),
+      upsert: async (args) => upserts.push(args),
       updateMany: async () => assert.fail('tombstone is already hidden'),
     },
   };
@@ -184,7 +191,13 @@ test('an explicitly deleted occurrence remains a tombstone after editing', async
     now,
   );
 
-  assert.deepEqual(ids, [expectedId]);
+  assert.deepEqual(ids, [expectedId, followingId]);
+  assert.equal(upserts[0].where.id, followingId);
+  assert.equal(
+    upserts[0].create.startAt.toISOString(),
+    following.startAt.toISOString(),
+  );
+  assert.equal(upserts[0].create.teamId, 'team-e1');
 });
 
 test('a deleted legacy occurrence remains a tombstone despite a different id', async () => {
@@ -192,6 +205,13 @@ test('a deleted legacy occurrence remains a tombstone despite a different id', a
   const activeTeam = team(['Dienstag 17:30–19:00 · Platz: Platz 1']);
   const expected = nextRegularTrainingOccurrence(activeTeam, now);
   const legacyId = 'legacy-regular-training-occurrence';
+  const following = nextRegularTrainingOccurrence(
+    activeTeam,
+    new Date(expected.startAt.getTime() + 5 * 60_000),
+  );
+  const followingId =
+    `regular-training:team-e1:${following.startAt.getTime()}`;
+  const upserts = [];
   const tx = {
     auditLog: {
       findFirst: async (args) => {
@@ -213,7 +233,7 @@ test('a deleted legacy occurrence remains a tombstone despite a different id', a
         },
       ],
       update: async () => assert.fail('tombstone must not be reactivated'),
-      upsert: async () => assert.fail('tombstone must not be recreated'),
+      upsert: async (args) => upserts.push(args),
       updateMany: async () => assert.fail('tombstone is already hidden'),
     },
   };
@@ -224,7 +244,8 @@ test('a deleted legacy occurrence remains a tombstone despite a different id', a
     now,
   );
 
-  assert.deepEqual(ids, [legacyId]);
+  assert.deepEqual(ids, [legacyId, followingId]);
+  assert.equal(upserts[0].where.id, followingId);
 });
 
 test('single regular-training deletion is silent and cancellation push is optional', () => {
@@ -384,5 +405,35 @@ test('mobile actions persist a team-specific tombstone for every regular-trainin
   assert.match(
     controller,
     /regular-training:\$\{teamId\}:\$\{startAt\.getTime\(\)\}/,
+  );
+  assert.match(
+    controller,
+    /where:\s*\{ id: canonicalId \}[\s\S]*teamId,[\s\S]*targetTeams:\s*\{[\s\S]*deleteMany:\s*\{\},[\s\S]*create:\s*\[\{ teamId \}\]/,
+  );
+});
+
+test('trainer dashboard receives tombstones and skips only their exact team occurrence', () => {
+  const dashboardController = fs.readFileSync(
+    path.join(__dirname, '../src/controllers/dashboard.controller.ts'),
+    'utf8',
+  );
+  const dashboardPage = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../../fc_teugn_app/lib/features/trainer/trainer_dashboard_page.dart',
+    ),
+    'utf8',
+  );
+  const trainerSummary = dashboardController.slice(
+    dashboardController.indexOf('export async function trainerDashboardSummary'),
+  );
+
+  assert.doesNotMatch(
+    trainerSummary.slice(0, trainerSummary.indexOf('select: {')),
+    /isHiddenRegularOccurrence:\s*false/,
+  );
+  assert.match(
+    dashboardPage,
+    /event\.isHiddenRegularOccurrence[\s\S]*event\.status == EventStatus\.cancelled[\s\S]*continue;[\s\S]*matching\.isNotEmpty/,
   );
 });

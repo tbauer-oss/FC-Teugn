@@ -845,25 +845,16 @@ export async function deleteRegularTrainingOccurrence(req: Request, res: Respons
     orderBy: { createdAt: 'asc' },
     select: { id: true },
   });
-  const tombstoneId = nearby.find((event) => event.id === canonicalId)?.id ??
-    nearby[0]?.id ?? canonicalId;
   const description =
     `Reguläre Trainingszeit laut Belegungsplan der Saison ${team.ageGroup.season.name}.`;
+  const cancelledAt = new Date();
+  const cancellationReason =
+    clean(req.body.reason) ?? 'Administrativ gelöscht';
 
   await prisma.$transaction(async (tx) => {
     await tx.event.upsert({
-      where: { id: tombstoneId },
+      where: { id: canonicalId },
       update: {
-        status: EventStatus.CANCELLED,
-        cancellationReason: clean(req.body.reason) ?? 'Administrativ gelöscht',
-        cancelledAt: new Date(),
-        isSeriesException: true,
-        isHiddenRegularOccurrence: true,
-        reminderSyncPendingAt: new Date(),
-        visibility: EventVisibility.TEAM,
-      },
-      create: {
-        id: tombstoneId,
         teamId,
         type: EventType.TRAINING,
         category: EventCategory.TRAINING,
@@ -874,17 +865,39 @@ export async function deleteRegularTrainingOccurrence(req: Request, res: Respons
         endAt,
         location: clean(req.body.location) ?? team.trainingLocation ?? '',
         description,
-        cancellationReason: clean(req.body.reason) ?? 'Administrativ gelöscht',
-        cancelledAt: new Date(),
+        cancellationReason,
+        cancelledAt,
         isSeriesException: true,
         isHiddenRegularOccurrence: true,
-        reminderSyncPendingAt: new Date(),
+        reminderSyncPendingAt: cancelledAt,
+        targetTeams: {
+          deleteMany: {},
+          create: [{ teamId }],
+        },
+      },
+      create: {
+        id: canonicalId,
+        teamId,
+        type: EventType.TRAINING,
+        category: EventCategory.TRAINING,
+        status: EventStatus.CANCELLED,
+        visibility: EventVisibility.TEAM,
+        title: clean(req.body.title) ?? `Training · ${team.name}`,
+        startAt,
+        endAt,
+        location: clean(req.body.location) ?? team.trainingLocation ?? '',
+        description,
+        cancellationReason,
+        cancelledAt,
+        isSeriesException: true,
+        isHiddenRegularOccurrence: true,
+        reminderSyncPendingAt: cancelledAt,
         targetTeams: { create: [{ teamId }] },
       },
     });
     const duplicateIds = nearby
       .map((event) => event.id)
-      .filter((id) => id !== tombstoneId);
+      .filter((id) => id !== canonicalId);
     if (duplicateIds.length > 0) {
       await tx.event.updateMany({
         where: { id: { in: duplicateIds } },
@@ -897,7 +910,7 @@ export async function deleteRegularTrainingOccurrence(req: Request, res: Respons
     }
     await tx.scheduledReminder.updateMany({
       where: {
-        eventId: { in: [tombstoneId, ...duplicateIds] },
+        eventId: { in: [canonicalId, ...duplicateIds] },
         status: { in: ['SCHEDULED', 'FAILED', 'PROCESSING'] },
       },
       data: { status: 'CANCELLED', cancelledAt: new Date() },
@@ -908,7 +921,7 @@ export async function deleteRegularTrainingOccurrence(req: Request, res: Respons
         teamId,
         action: 'REGULAR_TRAINING_OCCURRENCE_DELETED',
         entityType: 'Event',
-        entityId: tombstoneId,
+        entityId: canonicalId,
         metadata: {
           startAt,
           endAt,
@@ -921,7 +934,7 @@ export async function deleteRegularTrainingOccurrence(req: Request, res: Respons
   return res.json({
     status: 'DELETED',
     scope: 'single',
-    eventId: tombstoneId,
+    eventId: canonicalId,
     startAt,
     delivery: null,
   });

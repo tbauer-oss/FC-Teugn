@@ -359,13 +359,68 @@ export async function reconcileNextRegularTrainingOccurrence(
       _count: { select: { attendance: true, participants: true } },
     },
   });
-  const expected = nextRegularTrainingOccurrence(team, now);
+  let expected = nextRegularTrainingOccurrence(team, now);
   const visible = materialized.filter(
     (event) => !event.isHiddenRegularOccurrence,
   );
+  const preservedOccurrenceIds = new Set<string>();
+
+  // A deleted/cancelled item is an exception for exactly this team and this
+  // start time. Walk past such exceptions instead of treating the first
+  // weekly slot as the team's only future regular training. This keeps the
+  // tombstone intact while still materialising the next valid occurrence.
+  for (let guard = 0; expected && guard < 128; guard += 1) {
+    const matchingTombstone = materialized.find(
+      (event) =>
+        event.isHiddenRegularOccurrence &&
+        Math.abs(event.startAt.getTime() - expected!.startAt.getTime()) <
+          5 * 60_000,
+    );
+    if (matchingTombstone) {
+      const explicitDeletion = await tx.auditLog.findFirst({
+        where: {
+          entityType: 'Event',
+          entityId: matchingTombstone.id,
+          action: {
+            in: [
+              'CANCELLED_TRAINING_OCCURRENCE_DELETED',
+              'REGULAR_TRAINING_OCCURRENCE_DELETED',
+            ],
+          },
+        },
+        select: { id: true },
+      });
+      if (explicitDeletion) {
+        preservedOccurrenceIds.add(matchingTombstone.id);
+        expected = nextRegularTrainingOccurrence(
+          team,
+          new Date(expected.startAt.getTime() + 5 * 60_000),
+        );
+        continue;
+      }
+    }
+    const matchingCancellation = visible.find(
+      (event) =>
+        event.status === EventStatus.CANCELLED &&
+        Math.abs(event.startAt.getTime() - expected!.startAt.getTime()) <
+          5 * 60_000,
+    );
+    if (matchingCancellation) {
+      preservedOccurrenceIds.add(matchingCancellation.id);
+      expected = nextRegularTrainingOccurrence(
+        team,
+        new Date(expected.startAt.getTime() + 5 * 60_000),
+      );
+      continue;
+    }
+    break;
+  }
+  const reconcilableVisible = visible.filter(
+    (event) => !preservedOccurrenceIds.has(event.id),
+  );
   if (!expected) {
-    const hiddenIds = visible.map((event) => event.id);
-    if (visible.length > 0) {
+    const hiddenIds = reconcilableVisible.map((event) => event.id);
+    if (hiddenIds.length > 0) {
       await tx.event.updateMany({
         where: { id: { in: hiddenIds } },
         data: {
@@ -374,7 +429,7 @@ export async function reconcileNextRegularTrainingOccurrence(
         },
       });
     }
-    return hiddenIds;
+    return [...preservedOccurrenceIds, ...hiddenIds];
   }
 
   const expectedId =
@@ -385,64 +440,13 @@ export async function reconcileNextRegularTrainingOccurrence(
       Math.abs(event.startAt.getTime() - expected.startAt.getTime()) <
         5 * 60_000,
   );
-  if (expectedTombstone) {
-    // Only an occurrence deliberately deleted by an administrator is a real
-    // tombstone. Older reconciliation versions also hid obsolete generated
-    // rows with the same flag. Treating those automatic rows as tombstones
-    // made the newly configured regular time disappear after a later edit.
-    const explicitDeletion = await tx.auditLog.findFirst({
-      where: {
-        entityType: 'Event',
-        entityId: expectedTombstone.id,
-        action: {
-          in: [
-            'CANCELLED_TRAINING_OCCURRENCE_DELETED',
-            'REGULAR_TRAINING_OCCURRENCE_DELETED',
-          ],
-        },
-      },
-      select: { id: true },
-    });
-    if (explicitDeletion) {
-      const staleIds = visible.map((event) => event.id);
-      if (staleIds.length > 0) {
-        await tx.event.updateMany({
-          where: { id: { in: staleIds } },
-          data: {
-            isHiddenRegularOccurrence: true,
-            reminderSyncPendingAt: new Date(),
-          },
-        });
-      }
-      return [expectedTombstone.id, ...staleIds];
-    }
-  }
-  const cancelledExpected = visible.find(
-    (event) =>
-      event.status === EventStatus.CANCELLED &&
-      Math.abs(event.startAt.getTime() - expected.startAt.getTime()) <
-        5 * 60_000,
-  );
-  if (cancelledExpected) {
-    const staleIds = visible
-      .map((event) => event.id)
-      .filter((id) => id !== cancelledExpected.id);
-    if (staleIds.length > 0) {
-      await tx.event.updateMany({
-        where: { id: { in: staleIds } },
-        data: {
-          isHiddenRegularOccurrence: true,
-          reminderSyncPendingAt: new Date(),
-        },
-      });
-    }
-    return [cancelledExpected.id, ...staleIds];
-  }
-
   // Prefer the occurrence that already contains user data. This protects a
   // response-bearing event even if an earlier software version produced a
   // duplicate. The stable event ID keeps all dependent rows attached.
-  const canonical = [...visible, ...(expectedTombstone ? [expectedTombstone] : [])]
+  const canonical = [
+    ...reconcilableVisible,
+    ...(expectedTombstone ? [expectedTombstone] : []),
+  ]
     .filter((event) => event.status !== EventStatus.CANCELLED)
     .sort((left, right) => {
       const leftData = left._count.attendance + left._count.participants;
@@ -502,7 +506,7 @@ export async function reconcileNextRegularTrainingOccurrence(
     team.id,
     expected.startAt,
   );
-  const staleIds = visible
+  const staleIds = reconcilableVisible
     .map((event) => event.id)
     .filter((id) => id !== canonicalId);
   if (staleIds.length > 0) {
@@ -514,5 +518,5 @@ export async function reconcileNextRegularTrainingOccurrence(
       },
     });
   }
-  return [canonicalId, ...staleIds];
+  return [...preservedOccurrenceIds, canonicalId, ...staleIds];
 }

@@ -85,6 +85,8 @@ EventModel _event({
   AttendanceSummary attendanceSummary = const AttendanceSummary(),
   List<MissingAttendance> missingAttendance = const [],
   EventCapabilities capabilities = const EventCapabilities(),
+  EventStatus status = EventStatus.scheduled,
+  bool isHiddenRegularOccurrence = false,
 }) =>
     EventModel(
       id: id,
@@ -93,7 +95,7 @@ EventModel _event({
           ? EventType.training
           : EventType.event,
       category: category,
-      status: EventStatus.scheduled,
+      status: status,
       visibility: EventVisibility.team,
       title: category.label,
       startAt: startAt,
@@ -107,7 +109,72 @@ EventModel _event({
       carpoolOffers: const [],
       capabilities: capabilities,
       reminderMinutes: const [],
+      isHiddenRegularOccurrence: isHiddenRegularOccurrence,
     );
+
+OrganizationContext _regularTrainingOrganization() {
+  final seasonStart = DateTime(2026, 7);
+  final seasonEnd = DateTime(2027, 6, 30);
+  final teams = [
+    TeamSummary(
+      id: 'team-e1',
+      name: 'E1',
+      apiDisplayName: 'E1-Jugend',
+      ageGroup: _ageGroup,
+      seasonName: '2026/27',
+      trainingLocation: 'Platz 1 unten',
+      trainingTimes: const [
+        'Dienstag 17:15–18:30 · Platz: Platz 1 unten',
+      ],
+      seasonStartDate: seasonStart,
+      seasonEndDate: seasonEnd,
+    ),
+    TeamSummary(
+      id: 'team-e2',
+      name: 'E2',
+      apiDisplayName: 'E2-Jugend',
+      ageGroup: _ageGroup,
+      seasonName: '2026/27',
+      trainingLocation: 'Platz 1 unten',
+      trainingTimes: const [
+        'Dienstag 17:15–18:30 · Platz: Platz 1 unten',
+      ],
+      seasonStartDate: seasonStart,
+      seasonEndDate: seasonEnd,
+    ),
+  ];
+  return OrganizationContext(
+    club: const ClubSummary(
+      id: 'club-1',
+      name: 'FC Teugn',
+      shortName: 'FCT',
+      primaryColor: '#171918',
+      accentColor: '#FFE600',
+    ),
+    season: SeasonSummary(
+      id: 'season-1',
+      name: '2026/27',
+      startDate: seasonStart,
+      endDate: seasonEnd,
+      isActive: true,
+    ),
+    currentTeam: teams.first,
+    ageGroups: const [_ageGroup],
+    teams: teams,
+    permissions: const {},
+    metrics: const OrganizationMetrics(
+      players: 0,
+      members: 0,
+      upcomingEvents: 0,
+      pendingApprovals: 0,
+    ),
+    workingContext: const WorkingContext(
+      ageGroupId: 'age-e',
+      teamIds: ['team-e1', 'team-e2'],
+      includeAllTeams: true,
+    ),
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -199,6 +266,61 @@ void main() {
       'training-e1-today',
       'training-e2-today',
     ]);
+  });
+
+  test('a deleted E2 occurrence cannot suppress the parallel E1 occurrence',
+      () {
+    final deletedStart = DateTime(2026, 9, 1, 17, 15);
+    final events = dashboardEventsForContext(
+      [
+        _event(
+          id: 'regular-training:team-e2:${deletedStart.millisecondsSinceEpoch}',
+          teamId: 'team-e2',
+          category: EventCategory.training,
+          startAt: deletedStart,
+          targetTeams: const [
+            EventTeam(id: 'team-e1', name: 'E1', ageGroupCode: 'E1'),
+            EventTeam(id: 'team-e2', name: 'E2', ageGroupCode: 'E2'),
+          ],
+          status: EventStatus.cancelled,
+          isHiddenRegularOccurrence: true,
+        ),
+      ],
+      _regularTrainingOrganization(),
+      DateTime(2026, 8, 27),
+      const {'team-e1', 'team-e2'},
+    );
+
+    final e1 = events.singleWhere((event) => event.teamId == 'team-e1');
+    final e2 = events.singleWhere((event) => event.teamId == 'team-e2');
+    expect(e1.startAt, deletedStart);
+    expect(e2.startAt, DateTime(2026, 9, 8, 17, 15));
+  });
+
+  test('deleted parallel occurrences are skipped for both dashboard teams', () {
+    final deletedStart = DateTime(2026, 9, 1, 17, 15);
+    final events = dashboardEventsForContext(
+      [
+        for (final teamId in const ['team-e1', 'team-e2'])
+          _event(
+            id: 'regular-training:$teamId:${deletedStart.millisecondsSinceEpoch}',
+            teamId: teamId,
+            category: EventCategory.training,
+            startAt: deletedStart,
+            status: EventStatus.cancelled,
+            isHiddenRegularOccurrence: true,
+          ),
+      ],
+      _regularTrainingOrganization(),
+      DateTime(2026, 8, 27),
+      const {'team-e1', 'team-e2'},
+    );
+
+    expect(events, hasLength(2));
+    expect(
+      events.every((event) => event.startAt == DateTime(2026, 9, 8, 17, 15)),
+      isTrue,
+    );
   });
 
   test('dashboard counters include replies and every open player', () {

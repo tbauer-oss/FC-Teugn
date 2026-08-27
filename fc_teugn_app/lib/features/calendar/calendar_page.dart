@@ -278,9 +278,10 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             final deliberatelyDeleted = hiddenRegularOccurrences.any(
               (event) =>
                   event.category == EventCategory.training &&
-                  (event.teamId == team.id ||
-                      event.targetTeams
-                          .any((target) => target.id == team.id)) &&
+                  // A deletion tombstone belongs to exactly one team's
+                  // schedule. Legacy target-team rows must never suppress a
+                  // parallel training of another team at the same time.
+                  event.teamId == team.id &&
                   event.startAt.difference(occurrence.$1).abs() <
                       const Duration(minutes: 5),
             );
@@ -4631,6 +4632,9 @@ class _ManagementBar extends ConsumerWidget {
       }
       ref.invalidate(eventsProvider);
       ref.invalidate(calendarEventsProvider);
+      ref.invalidate(trainerDashboardSummaryProvider);
+      ref.invalidate(parentDashboardEventsProvider);
+      ref.invalidate(parentDashboardSummaryProvider);
       final refreshed = await ref.read(eventsProvider.future);
       if (refreshed.any(
         (item) => item.id == event.id && !item.isHiddenRegularOccurrence,
@@ -4660,6 +4664,9 @@ class _ManagementBar extends ConsumerWidget {
     } catch (_) {
       ref.invalidate(eventsProvider);
       ref.invalidate(calendarEventsProvider);
+      ref.invalidate(trainerDashboardSummaryProvider);
+      ref.invalidate(parentDashboardEventsProvider);
+      ref.invalidate(parentDashboardSummaryProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

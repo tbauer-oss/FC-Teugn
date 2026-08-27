@@ -63,7 +63,7 @@ class TrainerDashboardPage extends ConsumerWidget {
         .where((player) => player.status == PlayerStatus.injured)
         .length;
 
-    final eventItems = _dashboardEvents(
+    final eventItems = dashboardEventsForContext(
       dashboard.valueOrNull?.events ?? const <EventModel>[],
       organization,
       now,
@@ -2574,7 +2574,7 @@ class _PlayerLoadFailure extends StatelessWidget {
       );
 }
 
-List<EventModel> _dashboardEvents(
+List<EventModel> dashboardEventsForContext(
   List<EventModel> stored,
   OrganizationContext? organization,
   DateTime now,
@@ -2627,18 +2627,35 @@ List<EventModel> _dashboardEvents(
       );
     }
     candidates.sort((a, b) => a.$1.compareTo(b.$1));
-    final next = candidates.firstOrNull;
-    if (next == null ||
-        stored.any(
-          (event) =>
-              event.category == EventCategory.training &&
-              (event.teamId == team.id ||
-                  event.targetTeams.any((target) => target.id == team.id)) &&
-              event.startAt.difference(next.$1).abs() <
-                  const Duration(minutes: 5),
-        )) {
-      continue;
+    (DateTime, DateTime, String)? next;
+    for (final candidate in candidates) {
+      final matching = stored.where(
+        (event) =>
+            event.category == EventCategory.training &&
+            (event.isHiddenRegularOccurrence
+                ? event.teamId == team.id
+                : event.teamId == team.id ||
+                    event.targetTeams.any((target) => target.id == team.id)) &&
+            event.startAt.difference(candidate.$1).abs() <
+                const Duration(minutes: 5),
+      );
+      if (matching.any(
+        (event) =>
+            event.isHiddenRegularOccurrence ||
+            event.status == EventStatus.cancelled,
+      )) {
+        // This exact occurrence was deleted or cancelled for this team. The
+        // exception must suppress only this date, not the following week.
+        continue;
+      }
+      if (matching.isNotEmpty) {
+        // A stored, visible occurrence is already part of the result.
+        break;
+      }
+      next = candidate;
+      break;
     }
+    if (next == null) continue;
     result.add(
       EventModel(
         id: 'training-plan:${team.id}:${next.$1.millisecondsSinceEpoch}',

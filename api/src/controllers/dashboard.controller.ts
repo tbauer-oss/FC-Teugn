@@ -278,7 +278,6 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
     prisma.event.findMany({
       where: {
         parentTournamentId: null,
-        isHiddenRegularOccurrence: false,
         startAt: { gte: from, lte: to },
         OR: [
           { teamId: { in: teamIds } },
