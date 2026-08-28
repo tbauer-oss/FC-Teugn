@@ -29,7 +29,6 @@ export async function sendPasswordResetEmail(
 ) {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.RESEND_ACCOUNT_FROM_EMAIL?.trim() ||
-    process.env.RESEND_FROM_EMAIL?.trim() ||
     'FC Teugn Talents <account@fc-teugn-talents.de>';
   if (!apiKey) {
     console.warn(

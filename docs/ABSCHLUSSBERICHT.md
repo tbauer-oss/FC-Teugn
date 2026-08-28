@@ -156,8 +156,10 @@ Pflicht beziehungsweise produktiv relevant:
 - `BLOB_READ_WRITE_TOKEN` für private Spieler- und Mannschaftsdateien
 - `PUBLIC_APP_URL` für sichere Links zurück in die Web-App
 - `RESEND_API_KEY` mit auf die Versanddomain beschränktem `Sending access`
-- `RESEND_FROM_EMAIL` mit verifiziertem Absender
-- `RESEND_REPLY_TO` optional für eine betreute Antwortadresse
+- `RESEND_ACCOUNT_FROM_EMAIL` für Kontomails
+- `RESEND_SUPPORT_FROM_EMAIL` für Support- und Aktivierungsmails
+- `RESEND_ACCOUNT_REPLY_TO`, `RESEND_SUPPORT_REPLY_TO` oder gemeinsames
+  `RESEND_REPLY_TO` optional für betreute Antwortadressen
 
 Für Web Push:
 

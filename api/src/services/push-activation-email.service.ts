@@ -28,7 +28,6 @@ export async function sendPushActivationEmail(
 ) {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.RESEND_SUPPORT_FROM_EMAIL?.trim() ||
-    process.env.RESEND_FROM_EMAIL?.trim() ||
     'FC Teugn Talents Support <support@fc-teugn-talents.de>';
   if (!apiKey) {
     console.warn(
