@@ -2049,15 +2049,19 @@ export async function publishSquad(req: Request, res: Response) {
   }
   const selectedIds = eligibleMembers.map((member) => member.playerId);
   const previousRequests = await prisma.eventParticipant.findMany({
-    where: { eventId: match.id, playerId: { not: null } },
+    where: {
+      eventId: match.id,
+      playerId: { not: null },
+      responseRequired: true,
+    },
     select: { playerId: true },
   });
   const previousIds = new Set(previousRequests.map((item) => item.playerId!));
   const removedIds = [...previousIds].filter((playerId) => !selectedIds.includes(playerId));
-  const resendAll = req.body.resendAll === true;
-  const playersToNotify = resendAll
-    ? eligibleMembers
-    : eligibleMembers.filter((member) => !previousIds.has(member.playerId));
+  const playersToNotify = eligibleMembers.filter(
+    (member) => !previousIds.has(member.playerId),
+  );
+  const isLateNomination = previousIds.size > 0 && playersToNotify.length > 0;
   const updated = await prisma.$transaction(async (tx) => {
     const saved = await tx.squad.update({
       where: { id: squad.id },
@@ -2131,8 +2135,9 @@ export async function publishSquad(req: Request, res: Response) {
           excludedDeclinedCount: declinedIds.size,
           excludedUnavailableCount: unavailableIds.size - declinedIds.size,
           newlyRequestedCount: playersToNotify.length,
+          previouslyRequestedCount: previousIds.size,
+          isLateNomination,
           pushEnabled: req.body.pushEnabled !== false,
-          resendAll,
         },
       },
     });
@@ -2148,8 +2153,12 @@ export async function publishSquad(req: Request, res: Response) {
     ];
     summaries.push(await notifyUsers(recipientIds, {
       category: NotificationCategory.NOMINATION,
-      title: 'Kadernominierung – Rückmeldung erforderlich',
-      body: `${playerName} wurde für „${match.title}“ nominiert. Bitte jetzt zu- oder absagen.`,
+      title: isLateNomination
+        ? 'Nachnominierung – Rückmeldung erforderlich'
+        : 'Kadernominierung – Rückmeldung erforderlich',
+      body: isLateNomination
+        ? `${playerName} wurde für „${match.title}“ nachnominiert. Bitte jetzt zu- oder absagen.`
+        : `${playerName} wurde für „${match.title}“ nominiert. Bitte jetzt zu- oder absagen.`,
       actionUrl: `/family?eventId=${match.id}&playerId=${member.playerId}`,
       entityType: 'AttendanceRequest',
       entityId: `${match.id}:${member.playerId}`,
@@ -2162,6 +2171,8 @@ export async function publishSquad(req: Request, res: Response) {
     publication: {
       nominatedPlayers: selectedIds.length,
       requestedPlayers: playersToNotify.length,
+      previouslyRequestedPlayers: previousIds.size,
+      isLateNomination,
       recipients: summaries.reduce((sum, item) => sum + item.recipients, 0),
       notifications: summaries.reduce((sum, item) => sum + item.notifications, 0),
       deliveries: summaries.reduce((sum, item) => sum + item.deliveries, 0),
@@ -2323,20 +2334,55 @@ async function nominatedAudience(eventId: string) {
 export async function nominationPreview(req: Request, res: Response) {
   const match = await findMatch(req.params.id, req.user!);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
-  const { squad, recipients } = await nominatedAudience(match.id);
+  const { squad } = await nominatedAudience(match.id);
   if (!squad?.members.length) {
     return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
   }
+  const playerIds = squad.members.map((member) => member.playerId);
+  const [previousRequests, declinedReplies] = await Promise.all([
+    prisma.eventParticipant.findMany({
+      where: {
+        eventId: match.id,
+        playerId: { not: null },
+        responseRequired: true,
+      },
+      select: { playerId: true },
+    }),
+    prisma.attendance.findMany({
+      where: {
+        eventId: match.id,
+        playerId: { in: playerIds },
+        status: AttendanceStatus.NO,
+      },
+      select: { playerId: true },
+    }),
+  ]);
+  const previousIds = new Set(previousRequests.map((item) => item.playerId!));
+  const declinedIds = new Set(declinedReplies.map((item) => item.playerId));
+  const newMembers = squad.members.filter(
+    (member) => member.player.status === PlayerStatus.ACTIVE &&
+      !declinedIds.has(member.playerId) &&
+      !previousIds.has(member.playerId),
+  );
+  const recipients = new Set<string>();
+  newMembers.forEach((member) => {
+    if (member.player.userId) recipients.add(member.player.userId);
+    member.player.parentLinks.forEach((link) => recipients.add(link.parentId));
+  });
+  const isLateNomination = previousIds.size > 0 && newMembers.length > 0;
   return res.json({
     matchId: match.id,
     title: match.title,
     opponent: match.matchDetails?.opponent ?? match.opponent,
-    players: squad.members.map((member) => ({
+    players: newMembers.map((member) => ({
       id: member.playerId,
       name: member.player.preferredName ||
         `${member.player.firstName} ${member.player.lastName}`.trim(),
     })),
-    recipients: recipients.length,
+    recipients: recipients.size,
+    totalPlayers: squad.members.length,
+    previouslyRequestedPlayers: previousIds.size,
+    isLateNomination,
   });
 }
 

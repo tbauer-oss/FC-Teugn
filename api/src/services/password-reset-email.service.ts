@@ -28,10 +28,12 @@ export async function sendPasswordResetEmail(
   input: PasswordResetEmailInput,
 ) {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.RESEND_FROM_EMAIL?.trim();
-  if (!apiKey || !from) {
+  const from = process.env.RESEND_ACCOUNT_FROM_EMAIL?.trim() ||
+    process.env.RESEND_FROM_EMAIL?.trim() ||
+    'FC Teugn Talents <account@fc-teugn-talents.de>';
+  if (!apiKey) {
     console.warn(
-      '[password-reset-email] RESEND_API_KEY or RESEND_FROM_EMAIL is not configured',
+      '[password-reset-email] RESEND_API_KEY is not configured',
     );
     return false;
   }
@@ -45,7 +47,8 @@ export async function sendPasswordResetEmail(
   )}`;
   const safeName = escapeHtml(input.recipientName);
   const safeUrl = escapeHtml(resetUrl);
-  const replyTo = process.env.RESEND_REPLY_TO?.trim();
+  const replyTo = process.env.RESEND_ACCOUNT_REPLY_TO?.trim() ||
+    process.env.RESEND_REPLY_TO?.trim();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), resendTimeoutMs);
 
@@ -100,8 +103,9 @@ export async function sendPasswordResetEmail(
     });
 
     if (!response.ok) {
+      const providerMessage = await response.text();
       console.error(
-        `[password-reset-email] Resend rejected request with status ${response.status}`,
+        `[password-reset-email] Resend rejected request with status ${response.status}: ${providerMessage}`,
       );
       return false;
     }

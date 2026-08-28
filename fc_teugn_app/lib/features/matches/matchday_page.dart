@@ -3404,15 +3404,24 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
       return;
     }
     if (!mounted) return;
-    var pushEnabled = true;
+    final players = (preview['players'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList(growable: false);
+    final isLateNomination = preview['isLateNomination'] == true;
+    final hasNewPlayers = players.isNotEmpty;
+    var pushEnabled = hasNewPlayers;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text(
-            widget.tournamentPlanning
-                ? 'Turnier-Kader nominieren und Rückmeldung anfordern?'
-                : 'Kader nominieren und Rückmeldung anfordern?',
+            isLateNomination
+                ? 'Nachnominierte Spieler informieren?'
+                : hasNewPlayers
+                    ? widget.tournamentPlanning
+                        ? 'Turnier-Kader nominieren?'
+                        : 'Kader nominieren?'
+                    : 'Kader aktualisieren?',
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -3426,28 +3435,31 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                   style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  (preview['players'] as List<dynamic>? ?? const [])
-                      .map(
-                        (item) => (item as Map<String, dynamic>)['name'],
-                      )
-                      .join(', '),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${preview['recipients'] ?? 0} betroffene Spieleraccounts und Sorgeberechtigte erhalten eine In-App-Rückmeldungsanfrage.',
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: pushEnabled,
-                  onChanged: (value) =>
-                      setDialogState(() => pushEnabled = value),
-                  title: const Text('Zusätzlich als Pushnachricht senden'),
-                  subtitle: const Text(
-                    'In-App wird die Anfrage immer bereitgestellt.',
+                if (hasNewPlayers) ...[
+                  Text(
+                    isLateNomination
+                        ? 'Nur neu nachnominiert: ${players.map((item) => item['name']).join(', ')}'
+                        : players.map((item) => item['name']).join(', '),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${preview['recipients'] ?? 0} zugehörige Spieleraccounts und Sorgeberechtigte erhalten eine neue Rückmeldungsanfrage. Bereits informierte Familien werden nicht erneut benachrichtigt.',
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: pushEnabled,
+                    onChanged: (value) =>
+                        setDialogState(() => pushEnabled = value),
+                    title: const Text('Zusätzlich als Pushnachricht senden'),
+                    subtitle: const Text(
+                      'In-App wird die Anfrage immer bereitgestellt.',
+                    ),
+                  ),
+                ] else
+                  const Text(
+                    'Alle nominierten Spieler wurden bereits informiert. Der Kader wird aktualisiert, ohne eine neue Rückmeldungsanfrage zu versenden.',
+                  ),
               ],
             ),
           ),
@@ -3459,7 +3471,13 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
             FilledButton.icon(
               onPressed: () => Navigator.pop(dialogContext, true),
               icon: const Icon(Icons.campaign_rounded),
-              label: const Text('Verbindlich nominieren'),
+              label: Text(
+                isLateNomination
+                    ? 'Nachnominierung veröffentlichen'
+                    : hasNewPlayers
+                        ? 'Verbindlich nominieren'
+                        : 'Kader aktualisieren',
+              ),
             ),
           ],
         ),
@@ -3478,10 +3496,13 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
       if (mounted) {
         final publication = result['publication'] as Map<String, dynamic>?;
         final recipients = publication?['recipients'] as int? ?? 0;
+        final requestedPlayers =
+            publication?['requestedPlayers'] as int? ?? players.length;
         final sent = publication?['sent'] as int? ?? 0;
         _message(
-          'Nominierung veröffentlicht · $recipients Empfänger'
-          '${pushEnabled ? ' · $sent Push zugestellt' : ' · ohne Push'}',
+          requestedPlayers == 0
+              ? 'Kader aktualisiert · keine erneute Benachrichtigung'
+              : '${isLateNomination ? 'Nachnominierung' : 'Nominierung'} veröffentlicht · $requestedPlayers Spieler · $recipients Empfänger${pushEnabled ? ' · $sent Push zugestellt' : ' · ohne Push'}',
         );
       }
     } on DioException catch (error) {

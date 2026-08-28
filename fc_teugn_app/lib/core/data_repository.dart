@@ -1831,11 +1831,10 @@ class DataRepository {
   Future<Map<String, dynamic>> publishMatchSquad(
     String eventId, {
     bool pushEnabled = true,
-    bool resendAll = false,
   }) async {
     final response = await client.dio.post(
       '/matches/$eventId/squad/publish',
-      data: {'pushEnabled': pushEnabled, 'resendAll': resendAll},
+      data: {'pushEnabled': pushEnabled},
     );
     return response.data as Map<String, dynamic>;
   }

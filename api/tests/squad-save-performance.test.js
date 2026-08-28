@@ -33,8 +33,29 @@ test('publishing a squad atomically creates requests only for nominated players'
   assert.match(publishSquad, /eventParticipant\.createMany/);
   assert.match(publishSquad, /attendance\.createMany/);
   assert.match(publishSquad, /pushEnabled/);
+  assert.match(publishSquad, /responseRequired: true/);
+  assert.match(publishSquad, /playersToNotify = eligibleMembers\.filter/);
+  assert.match(publishSquad, /!previousIds\.has\(member\.playerId\)/);
+  assert.match(publishSquad, /Nachnominierung/);
+  assert.doesNotMatch(publishSquad, /resendAll/);
   assert.match(publishSquad, /publication:/);
   assert.match(publishSquad, /sent:[\s\S]*failed:[\s\S]*pending:/);
+});
+
+test('nomination preview contains only newly eligible players', () => {
+  const controller = source('src/controllers/matches.controller.ts');
+  const preview = controller.slice(
+    controller.indexOf('export async function nominationPreview'),
+    controller.indexOf('export async function notifyNominated'),
+  );
+
+  assert.match(preview, /responseRequired: true/);
+  assert.match(preview, /AttendanceStatus\.NO/);
+  assert.match(preview, /PlayerStatus\.ACTIVE/);
+  assert.match(preview, /!declinedIds\.has\(member\.playerId\)/);
+  assert.match(preview, /!previousIds\.has\(member\.playerId\)/);
+  assert.match(preview, /players: newMembers\.map/);
+  assert.match(preview, /isLateNomination/);
 });
 
 test('reminder rebuild uses bulk database operations', () => {

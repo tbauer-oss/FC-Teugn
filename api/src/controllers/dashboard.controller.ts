@@ -340,8 +340,14 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
         (!explicitIds.length || explicitIds.includes(player.id)) &&
         !excludedIds.has(player.id),
       );
+      const rosterIds = new Set(roster.map((player) => player.id));
+      const visibleAttendance = event.attendance.filter((attendance) =>
+        rosterIds.has(attendance.playerId) &&
+        attendance.player.teamId !== null &&
+        eventTeamIds.includes(attendance.player.teamId),
+      );
       const responseByPlayer = new Map(
-        event.attendance.map((attendance) => [attendance.playerId, attendance]),
+        visibleAttendance.map((attendance) => [attendance.playerId, attendance]),
       );
       const missing = roster.filter((player) => {
         const status = responseByPlayer.get(player.id)?.status;
@@ -355,12 +361,13 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
         tournamentFixtures: [],
         carpoolOffers: [],
         carpoolNeeds: [],
+        attendance: visibleAttendance,
         attendanceSummary: {
-          yes: event.attendance.filter((item) => item.status === AttendanceStatus.YES).length,
-          no: event.attendance.filter((item) => item.status === AttendanceStatus.NO).length,
+          yes: visibleAttendance.filter((item) => item.status === AttendanceStatus.YES).length,
+          no: visibleAttendance.filter((item) => item.status === AttendanceStatus.NO).length,
           maybe: 0,
           unknown: missing.length,
-          goalkeeperAvailable: event.attendance.filter(
+          goalkeeperAvailable: visibleAttendance.filter(
             (item) => item.status === AttendanceStatus.YES &&
               (item.goalkeeperAvailable === true ||
                 item.player.position?.toLowerCase().includes('tor')),

@@ -27,10 +27,12 @@ export async function sendPushActivationEmail(
   input: PushActivationEmailInput,
 ) {
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.RESEND_FROM_EMAIL?.trim();
-  if (!apiKey || !from) {
+  const from = process.env.RESEND_SUPPORT_FROM_EMAIL?.trim() ||
+    process.env.RESEND_FROM_EMAIL?.trim() ||
+    'FC Teugn Talents Support <support@fc-teugn-talents.de>';
+  if (!apiKey) {
     console.warn(
-      '[push-activation-email] RESEND_API_KEY or RESEND_FROM_EMAIL is not configured',
+      '[push-activation-email] RESEND_API_KEY is not configured',
     );
     return false;
   }
@@ -38,7 +40,8 @@ export async function sendPushActivationEmail(
   const settingsUrl = `${publicAppUrl()}/#${input.settingsPath}`;
   const safeName = escapeHtml(input.recipientName);
   const safeUrl = escapeHtml(settingsUrl);
-  const replyTo = process.env.RESEND_REPLY_TO?.trim();
+  const replyTo = process.env.RESEND_SUPPORT_REPLY_TO?.trim() ||
+    process.env.RESEND_REPLY_TO?.trim();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), resendTimeoutMs);
 
@@ -118,8 +121,9 @@ export async function sendPushActivationEmail(
     });
 
     if (!response.ok) {
+      const providerMessage = await response.text();
       console.error(
-        `[push-activation-email] Resend rejected request with status ${response.status}`,
+        `[push-activation-email] Resend rejected request with status ${response.status}: ${providerMessage}`,
       );
       return false;
     }

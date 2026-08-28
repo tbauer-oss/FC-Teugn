@@ -11,6 +11,7 @@ const reminders = read('src/services/reminder.service.ts');
 const auth = read('src/controllers/auth.controller.ts');
 const authRoutes = read('src/routes/auth.routes.ts');
 const resetEmail = read('src/services/password-reset-email.service.ts');
+const pushActivationEmail = read('src/services/push-activation-email.service.ts');
 const schema = read('prisma/schema.prisma');
 
 test('all newly created matches default to a 24 hour server reminder', () => {
@@ -36,7 +37,10 @@ test('password reset uses hashed expiring one-time tokens and email delivery', (
   assert.match(auth, /tokenHash: tokenHash\(token\)/);
   assert.match(auth, /sendPasswordResetEmail/);
   assert.match(resetEmail, /RESEND_API_KEY/);
-  assert.match(resetEmail, /RESEND_FROM_EMAIL/);
+  assert.match(resetEmail, /RESEND_ACCOUNT_FROM_EMAIL/);
+  assert.match(resetEmail, /account@fc-teugn-talents\.de/);
+  assert.match(resetEmail, /response\.status/);
+  assert.match(resetEmail, /providerMessage/);
   assert.match(resetEmail, /\}\/reset-password\?token=/);
   assert.doesNotMatch(resetEmail, /\/#\/reset-password\?token=/);
   assert.match(resetEmail, /Idempotency-Key/);
@@ -53,6 +57,16 @@ test('password reset uses hashed expiring one-time tokens and email delivery', (
   assert.match(auth, /deviceEndpoint/);
   assert.match(auth, /expiresAt: \{ gt: now \}/);
   assert.match(auth, /refreshToken\.updateMany/);
+});
+
+test('transactional emails use separate verified senders with one server-side key', () => {
+  assert.match(pushActivationEmail, /RESEND_API_KEY/);
+  assert.match(pushActivationEmail, /RESEND_SUPPORT_FROM_EMAIL/);
+  assert.match(pushActivationEmail, /support@fc-teugn-talents\.de/);
+  assert.match(pushActivationEmail, /response\.status/);
+  assert.match(pushActivationEmail, /providerMessage/);
+  assert.doesNotMatch(pushActivationEmail, /VITE_|DART_DEFINE|String\.fromEnvironment/);
+  assert.doesNotMatch(resetEmail, /VITE_|DART_DEFINE|String\.fromEnvironment/);
 });
 
 test('reset request does not disclose whether an account exists', () => {

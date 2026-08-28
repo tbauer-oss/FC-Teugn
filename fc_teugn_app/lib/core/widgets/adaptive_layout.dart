@@ -321,7 +321,12 @@ class _AdaptiveDialogHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.fromLTRB(dense ? 12 : 18, 12, 6, 12),
+        padding: EdgeInsets.fromLTRB(
+          dense ? 10 : 14,
+          dense ? 7 : 9,
+          3,
+          dense ? 5 : 7,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -331,9 +336,11 @@ class _AdaptiveDialogHeader extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    maxLines: 3,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontSize: dense ? 19 : 21,
+                          height: 1.08,
                           fontWeight: FontWeight.w900,
                         ),
                   ),
@@ -341,9 +348,11 @@ class _AdaptiveDialogHeader extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       subtitle!,
-                      maxLines: 3,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: dense ? 11 : 12,
+                            height: 1.15,
                             color:
                                 Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
@@ -353,6 +362,9 @@ class _AdaptiveDialogHeader extends StatelessWidget {
               ),
             ),
             IconButton(
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.all(8),
               tooltip: 'Schließen',
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(Icons.close_rounded),

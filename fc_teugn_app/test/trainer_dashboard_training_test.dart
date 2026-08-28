@@ -519,7 +519,15 @@ void main() {
       find.byKey(const ValueKey('combined-training-responses-sheet')),
       findsOneWidget,
     );
-    expect(find.text('Alle Rückmeldungen'), findsOneWidget);
+    final combinedSheet =
+        find.byKey(const ValueKey('combined-training-responses-sheet'));
+    expect(
+      find.descendant(
+        of: combinedSheet,
+        matching: find.text('Rückmeldungen'),
+      ),
+      findsOneWidget,
+    );
     expect(find.textContaining('E1'), findsWidgets);
     expect(find.textContaining('Teugn Sportplatz'), findsOneWidget);
     expect(find.text('Anna Zugesagt'), findsOneWidget);
@@ -623,14 +631,56 @@ void main() {
         ],
       ),
     ];
+    const players = [
+      PlayerModel(
+        id: 'player-e1-a',
+        teamId: 'team-e1',
+        firstName: 'Anna',
+        lastName: 'Adler',
+        status: PlayerStatus.active,
+        dominantFoot: DominantFoot.unknown,
+      ),
+      PlayerModel(
+        id: 'player-e1-b',
+        teamId: 'team-e1',
+        firstName: 'Ben',
+        lastName: 'Bauer',
+        status: PlayerStatus.active,
+        dominantFoot: DominantFoot.unknown,
+      ),
+      PlayerModel(
+        id: 'player-e2-a',
+        teamId: 'team-e2',
+        firstName: 'Carla',
+        lastName: 'Christl',
+        status: PlayerStatus.active,
+        dominantFoot: DominantFoot.unknown,
+      ),
+      PlayerModel(
+        id: 'player-e2-b',
+        teamId: 'team-e2',
+        firstName: 'David',
+        lastName: 'Dietl',
+        status: PlayerStatus.active,
+        dominantFoot: DominantFoot.unknown,
+      ),
+      PlayerModel(
+        id: 'player-e2-c',
+        teamId: 'team-e2',
+        firstName: 'Eva',
+        lastName: 'Ebner',
+        status: PlayerStatus.active,
+        dominantFoot: DominantFoot.unknown,
+      ),
+    ];
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          playersProvider.overrideWith((ref) async => <PlayerModel>[]),
+          playersProvider.overrideWith((ref) async => players),
           trainerDashboardSummaryProvider.overrideWith(
             (ref) async => DashboardSummary(
-              players: const [],
+              players: players,
               events: events,
               notifications: const [],
             ),
@@ -671,7 +721,7 @@ void main() {
     expect(
       find.descendant(
         of: combinedSheet,
-        matching: find.text('Alle Rückmeldungen'),
+        matching: find.text('Rückmeldungen'),
       ),
       findsOneWidget,
     );

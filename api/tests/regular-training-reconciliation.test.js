@@ -437,3 +437,26 @@ test('trainer dashboard receives tombstones and skips only their exact team occu
     /event\.isHiddenRegularOccurrence[\s\S]*event\.status == EventStatus\.cancelled[\s\S]*continue;[\s\S]*matching\.isNotEmpty/,
   );
 });
+
+test('trainer dashboard excludes stale responses from another team occurrence', () => {
+  const dashboardController = fs.readFileSync(
+    path.join(__dirname, '../src/controllers/dashboard.controller.ts'),
+    'utf8',
+  );
+  const trainerSummary = dashboardController.slice(
+    dashboardController.indexOf('export async function trainerDashboardSummary'),
+  );
+
+  assert.match(
+    trainerSummary,
+    /const rosterIds = new Set\(roster\.map\(\(player\) => player\.id\)\);/,
+  );
+  assert.match(
+    trainerSummary,
+    /const visibleAttendance = event\.attendance\.filter\(\(attendance\) =>[\s\S]*rosterIds\.has\(attendance\.playerId\)[\s\S]*eventTeamIds\.includes\(attendance\.player\.teamId\)/,
+  );
+  assert.match(
+    trainerSummary,
+    /attendance:\s*visibleAttendance,[\s\S]*yes:\s*visibleAttendance\.filter[\s\S]*no:\s*visibleAttendance\.filter/,
+  );
+});

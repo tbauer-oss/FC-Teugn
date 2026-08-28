@@ -1160,16 +1160,24 @@ String _eventCompactTeamLabels(
 _TrainingResponseGroups _trainingResponseGroups(
   EventModel event,
   List<PlayerModel> roster,
+  List<PlayerModel> allPlayers,
   OrganizationContext? organization,
 ) {
-  final playersById = {for (final player in roster) player.id: player};
+  final rosterIds = roster.map((player) => player.id).toSet();
+  final playersById = {for (final player in allPlayers) player.id: player};
+  final visibleAttendance = event.attendance
+      .where((item) => rosterIds.contains(item.playerId))
+      .toList(growable: false);
+  final visibleMissingAttendance = event.missingAttendance
+      .where((player) => rosterIds.contains(player.id))
+      .toList(growable: false);
   String teamFor(String playerId) => _compactTeamLabel(
         playersById[playerId]?.teamId ?? event.teamId,
         event,
         organization,
       );
   List<_TrainingResponseEntry> replies(AttendanceStatus status) =>
-      event.attendance
+      visibleAttendance
           .where((item) => item.status == status)
           .map(
             (item) => (
@@ -1185,15 +1193,15 @@ _TrainingResponseGroups _trainingResponseGroups(
             ),
           )
           .toList();
-  final repliedIds = event.attendance
+  final repliedIds = visibleAttendance
       .where((item) =>
           item.status == AttendanceStatus.yes ||
           item.status == AttendanceStatus.no)
       .map((item) => item.playerId)
       .toSet();
   final explicitOpenIds =
-      event.missingAttendance.map((item) => item.id).toSet();
-  final explicitOpen = event.missingAttendance
+      visibleMissingAttendance.map((item) => item.id).toSet();
+  final explicitOpen = visibleMissingAttendance
       .map(
         (item) => (
           eventId: event.id,
@@ -1208,7 +1216,7 @@ _TrainingResponseGroups _trainingResponseGroups(
       .toList();
   final open = <_TrainingResponseEntry>[
     ...explicitOpen,
-    ...event.attendance
+    ...visibleAttendance
         .where((item) =>
             item.status == AttendanceStatus.unknown &&
             !explicitOpenIds.contains(item.playerId))
@@ -1228,7 +1236,7 @@ _TrainingResponseGroups _trainingResponseGroups(
     if (explicitOpen.isEmpty)
       ...roster
           .where((player) => !repliedIds.contains(player.id))
-          .where((player) => !event.attendance.any(
+          .where((player) => !visibleAttendance.any(
                 (item) =>
                     item.playerId == player.id &&
                     item.status == AttendanceStatus.unknown,
@@ -1436,6 +1444,7 @@ class _CombinedTrainingResponsesSheetState
       final groups = _trainingResponseGroups(
         event,
         _eventRoster(event, widget.players),
+        widget.players,
         organization,
       );
       yes.addAll(groups.yes);
@@ -1471,9 +1480,9 @@ class _CombinedTrainingResponsesSheetState
 
     return FractionallySizedBox(
       key: const ValueKey('combined-training-responses-sheet'),
-      heightFactor: .9,
+      heightFactor: .94,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 7, 12, 10),
+        padding: const EdgeInsets.fromLTRB(10, 5, 10, 7),
         child: Column(
           children: [
             Container(
@@ -1484,23 +1493,26 @@ class _CombinedTrainingResponsesSheetState
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 5),
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Alle Rückmeldungen',
+                      const Text(
+                        'Rückmeldungen',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 17,
                           fontWeight: FontWeight.w900,
+                          height: 1.05,
                         ),
                       ),
                       Text(
-                        'Gemeinsame Übersicht aller Mannschaften',
-                        style: TextStyle(
+                        '${teamLabels.join(' + ')} · $total Spieler',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
                           color: AppColors.muted,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -1517,83 +1529,71 @@ class _CombinedTrainingResponsesSheetState
                 ),
               ],
             ),
-            const SizedBox(height: 7),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
-              decoration: BoxDecoration(
-                color: AppColors.yellowSoft.withValues(alpha: .72),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.gold.withValues(alpha: .2)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.groups_rounded,
-                        size: 18,
-                        color: AppColors.gold,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          '${teamLabels.join(' + ')} · $total Spieler',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                          ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (var index = 0; index < _events.length; index++) ...[
+                      _CombinedTrainingEventBadge(
+                        team: _eventCompactTeamLabels(
+                          _events[index],
+                          organization,
                         ),
+                        event: _events[index],
                       ),
+                      if (index != _events.length - 1) const SizedBox(width: 5),
                     ],
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 5,
-                    children: [
-                      for (final event in _events)
-                        _CombinedTrainingEventBadge(
-                          team: _eventCompactTeamLabels(event, organization),
-                          event: event,
-                        ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             if (manageableEvents.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 5,
-                children: [
-                  for (final event in manageableEvents)
-                    OutlinedButton.icon(
-                      key: ValueKey(
-                        _events.length == 1
-                            ? 'trainer-training-reminder'
-                            : 'trainer-training-reminder-${event.id}',
-                      ),
-                      onPressed: () =>
-                          showEventAttendanceReminder(context, ref, event),
-                      style: OutlinedButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 7,
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (var index = 0;
+                          index < manageableEvents.length;
+                          index++) ...[
+                        OutlinedButton.icon(
+                          key: ValueKey(
+                            _events.length == 1
+                                ? 'trainer-training-reminder'
+                                : 'trainer-training-reminder-${manageableEvents[index].id}',
+                          ),
+                          onPressed: () => showEventAttendanceReminder(
+                            context,
+                            ref,
+                            manageableEvents[index],
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 5,
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.notifications_active_rounded,
+                            size: 15,
+                          ),
+                          label: Text(
+                            '${_eventCompactTeamLabels(manageableEvents[index], organization)} erinnern',
+                            style: const TextStyle(fontSize: 11),
+                          ),
                         ),
-                      ),
-                      icon: const Icon(
-                        Icons.notifications_active_rounded,
-                        size: 17,
-                      ),
-                      label: Text(
-                        '${_eventCompactTeamLabels(event, organization)} erinnern',
-                      ),
-                    ),
-                ],
+                        if (index != manageableEvents.length - 1)
+                          const SizedBox(width: 5),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ],
             Expanded(
@@ -1621,7 +1621,7 @@ class _CombinedTrainingEventBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
@@ -1630,9 +1630,9 @@ class _CombinedTrainingEventBadge extends StatelessWidget {
         child: Text(
           '$team · ${_shortDate(event.startAt)}, ${_time(event.startAt)} Uhr'
           '${event.location.trim().isEmpty ? '' : ' · ${event.location.trim()}'}',
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
         ),
       );
 }
