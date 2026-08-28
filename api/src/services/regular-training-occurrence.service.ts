@@ -32,6 +32,7 @@ export type RegularTrainingTeamSchedule = {
 type RegularTrainingTransaction = Pick<
   Prisma.TransactionClient,
   | 'event'
+  | 'eventParticipant'
   | 'auditLog'
   | 'attendance'
   | 'regularTrainingAttendancePreference'
@@ -127,6 +128,65 @@ async function applyRegularTrainingAttendancePreferences(
       });
     }),
   );
+}
+
+async function removeForeignRegularTrainingParticipants(
+  tx: RegularTrainingTransaction,
+  eventId: string,
+  teamId: string,
+) {
+  // Schlanke Test-Transaktionen aus älteren Tests besitzen diesen Delegate
+  // teilweise noch nicht. In echten Prisma-Transaktionen ist er vorhanden.
+  if (!('eventParticipant' in tx) || !('attendance' in tx)) return;
+
+  const [attendance, participants] = await Promise.all([
+    tx.attendance.findMany({
+      where: { eventId },
+      select: {
+        id: true,
+        playerId: true,
+        player: { select: { teamId: true } },
+      },
+    }),
+    tx.eventParticipant.findMany({
+      where: { eventId, playerId: { not: null } },
+      select: {
+        id: true,
+        playerId: true,
+        player: { select: { teamId: true } },
+      },
+    }),
+  ]);
+  const foreignAttendanceIds = attendance
+    .filter((item) => item.player.teamId !== teamId)
+    .map((item) => item.id);
+  const foreignParticipantIds = participants
+    .filter((item) => item.player?.teamId !== teamId)
+    .map((item) => item.id);
+  if (foreignAttendanceIds.length === 0 && foreignParticipantIds.length === 0) {
+    return;
+  }
+
+  await Promise.all([
+    foreignAttendanceIds.length > 0
+      ? tx.attendance.deleteMany({ where: { id: { in: foreignAttendanceIds } } })
+      : Promise.resolve(),
+    foreignParticipantIds.length > 0
+      ? tx.eventParticipant.deleteMany({ where: { id: { in: foreignParticipantIds } } })
+      : Promise.resolve(),
+  ]);
+  await tx.auditLog.create({
+    data: {
+      teamId,
+      action: 'REGULAR_TRAINING_FOREIGN_PARTICIPANTS_CLEANED',
+      entityType: 'Event',
+      entityId: eventId,
+      metadata: {
+        removedAttendance: foreignAttendanceIds.length,
+        removedParticipants: foreignParticipantIds.length,
+      },
+    },
+  });
 }
 
 const berlinPartsFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -500,6 +560,7 @@ export async function reconcileNextRegularTrainingOccurrence(
       },
     });
   }
+  await removeForeignRegularTrainingParticipants(tx, canonicalId, team.id);
   await applyRegularTrainingAttendancePreferences(
     tx,
     canonicalId,

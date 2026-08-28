@@ -1041,7 +1041,9 @@ export async function getMatch(req: Request, res: Response) {
     return prisma.player.findMany({
       where: {
         teamId: { in: rosterTeamIds },
-        status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
+        // Verletzte Spieler bleiben im Spielerprofil sichtbar, gehören aber
+        // bis zur Reaktivierung ausdrücklich nicht zum nominierbaren Kader.
+        status: PlayerStatus.ACTIVE,
       },
       select: eligiblePlayerSelect,
       orderBy: [{ status: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
@@ -1795,7 +1797,7 @@ export async function updateSquad(req: Request, res: Response) {
     where: {
       id: { in: ids },
       teamId: { in: rosterTeamIds },
-      status: { in: [PlayerStatus.ACTIVE, PlayerStatus.INJURED] },
+      status: PlayerStatus.ACTIVE,
     },
     select: { id: true },
   });
@@ -2033,8 +2035,14 @@ export async function publishSquad(req: Request, res: Response) {
     select: { playerId: true },
   });
   const declinedIds = new Set(declinedReplies.map((reply) => reply.playerId));
+  const unavailableIds = new Set([
+    ...declinedIds,
+    ...squad.members
+      .filter((member) => member.player.status !== PlayerStatus.ACTIVE)
+      .map((member) => member.playerId),
+  ]);
   const eligibleMembers = squad.members.filter(
-    (member) => !declinedIds.has(member.playerId),
+    (member) => !unavailableIds.has(member.playerId),
   );
   if (!eligibleMembers.length) {
     return res.status(400).json({ message: 'Bitte mindestens einen Spieler nominieren.' });
@@ -2055,7 +2063,7 @@ export async function publishSquad(req: Request, res: Response) {
       where: { id: squad.id },
       data: { publishedAt: new Date() },
     });
-    if (declinedIds.size) {
+    if (unavailableIds.size) {
       const lineup = await tx.lineup.findUnique({
         where: { squadId: squad.id },
         select: { id: true },
@@ -2066,18 +2074,18 @@ export async function publishSquad(req: Request, res: Response) {
             where: {
               lineupId: lineup.id,
               OR: [
-                { playerInId: { in: [...declinedIds] } },
-                { playerOutId: { in: [...declinedIds] } },
+                { playerInId: { in: [...unavailableIds] } },
+                { playerOutId: { in: [...unavailableIds] } },
               ],
             },
           }),
           tx.lineupPosition.deleteMany({
-            where: { lineupId: lineup.id, playerId: { in: [...declinedIds] } },
+            where: { lineupId: lineup.id, playerId: { in: [...unavailableIds] } },
           }),
         ]);
       }
       await tx.squadMember.deleteMany({
-        where: { squadId: squad.id, playerId: { in: [...declinedIds] } },
+        where: { squadId: squad.id, playerId: { in: [...unavailableIds] } },
       });
     }
     await tx.eventParticipant.deleteMany({
@@ -2121,6 +2129,7 @@ export async function publishSquad(req: Request, res: Response) {
         metadata: {
           nominatedCount: selectedIds.length,
           excludedDeclinedCount: declinedIds.size,
+          excludedUnavailableCount: unavailableIds.size - declinedIds.size,
           newlyRequestedCount: playersToNotify.length,
           pushEnabled: req.body.pushEnabled !== false,
           resendAll,
@@ -2571,7 +2580,11 @@ export async function updateLineup(req: Request, res: Response) {
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   const squad = await prisma.squad.findUnique({
     where: { eventId: match.id },
-    include: { members: true },
+    include: {
+      members: {
+        include: { player: { select: { status: true } } },
+      },
+    },
   });
   if (!squad) return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
   const positions = Array.isArray(req.body?.positions) ? req.body.positions : [];
@@ -2601,6 +2614,7 @@ export async function updateLineup(req: Request, res: Response) {
       .filter(
         (member) =>
           member.status !== NominationStatus.DECLINED &&
+          member.player.status === PlayerStatus.ACTIVE &&
           !declinedPlayerIds.has(member.playerId),
       )
       .map((member) => member.playerId),

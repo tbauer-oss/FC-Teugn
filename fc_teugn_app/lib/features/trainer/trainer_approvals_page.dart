@@ -100,6 +100,8 @@ class TrainerApprovalsPage extends ConsumerWidget {
               onPasswordHelp: currentUser?.role == UserRole.superAdmin
                   ? (user) => _createPasswordResetLink(context, ref, user)
                   : null,
+              onPushReminder: (user) =>
+                  _sendPushActivationReminder(context, ref, user),
               onDelete: currentUser?.role == UserRole.superAdmin
                   ? (user) => _deleteMemberAccount(context, ref, user)
                   : null,
@@ -191,6 +193,8 @@ class TrainerApprovalsPage extends ConsumerWidget {
                                         user,
                                       )
                                   : null,
+                          onPushReminder: (user) =>
+                              _sendPushActivationReminder(context, ref, user),
                           onDelete: currentUser?.role == UserRole.superAdmin
                               ? (user) =>
                                   _deleteMemberAccount(context, ref, user)
@@ -605,6 +609,70 @@ class TrainerApprovalsPage extends ConsumerWidget {
     }
   }
 
+  Future<void> _sendPushActivationReminder(
+    BuildContext context,
+    WidgetRef ref,
+    AppUser user,
+  ) async {
+    if (user.status != AccountStatus.approved ||
+        user.activePushDeviceCount > 0) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.mark_email_unread_rounded),
+        title: const Text('Push-Aktivierung per E-Mail erinnern?'),
+        content: Text(
+          '${user.name} erhält an ${user.email} eine kurze Anleitung für '
+          'Android, iPhone und Web sowie einen direkten Link zu den '
+          'Push-Einstellungen. Die E-Mail enthält keine Zugangsdaten.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.send_rounded),
+            label: const Text('E-Mail senden'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final result = await ref
+          .read(repositoryProvider)
+          .sendMemberPushActivationReminder(user.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Die Push-Anleitung wurde an ${result.recipient} gesendet.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      final response = error is DioException ? error.response?.data : null;
+      final serverMessage = response is Map<String, dynamic>
+          ? response['message']?.toString().trim()
+          : null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            serverMessage?.isNotEmpty == true
+                ? serverMessage!
+                : 'Die Push-Anleitung konnte nicht versendet werden.',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _deleteMemberAccount(
     BuildContext context,
     WidgetRef ref,
@@ -874,6 +942,7 @@ class _MobileMemberTabs extends StatefulWidget {
     required this.onEdit,
     required this.onPermissions,
     required this.onPasswordHelp,
+    required this.onPushReminder,
     required this.onDelete,
     required this.currentUserId,
   });
@@ -890,6 +959,7 @@ class _MobileMemberTabs extends StatefulWidget {
   final ValueChanged<AppUser>? onEdit;
   final ValueChanged<AppUser>? onPermissions;
   final ValueChanged<AppUser>? onPasswordHelp;
+  final ValueChanged<AppUser>? onPushReminder;
   final ValueChanged<AppUser>? onDelete;
   final String? currentUserId;
 
@@ -947,6 +1017,7 @@ class _MobileMemberTabsState extends State<_MobileMemberTabs> {
             onEdit: widget.onEdit,
             onPermissions: widget.onPermissions,
             onPasswordHelp: widget.onPasswordHelp,
+            onPushReminder: widget.onPushReminder,
             onDelete: widget.onDelete,
             currentUserId: widget.currentUserId,
             embedded: true,
@@ -1211,6 +1282,8 @@ class _PendingListState extends State<_PendingList> {
                                 'Registriert am ${_date(user.createdAt!)}',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
+                            const SizedBox(height: 5),
+                            _MemberPushStatusBadge(user: user),
                           ],
                         ),
                       ),
@@ -1302,6 +1375,7 @@ class _MemberList extends StatefulWidget {
     required this.onEdit,
     required this.onPermissions,
     required this.onPasswordHelp,
+    required this.onPushReminder,
     required this.onDelete,
     required this.currentUserId,
     this.embedded = false,
@@ -1313,6 +1387,7 @@ class _MemberList extends StatefulWidget {
   final ValueChanged<AppUser>? onEdit;
   final ValueChanged<AppUser>? onPermissions;
   final ValueChanged<AppUser>? onPasswordHelp;
+  final ValueChanged<AppUser>? onPushReminder;
   final ValueChanged<AppUser>? onDelete;
   final String? currentUserId;
   final bool embedded;
@@ -1716,8 +1791,26 @@ class _MemberListState extends State<_MemberList> {
             ),
             label: Text(_accountStatusLabel(user.status)),
           );
+          final pushStatus = _MemberPushStatusBadge(user: user);
           final canDelete = widget.onDelete != null && user.id != currentUserId;
+          final canRemindPush = widget.onPushReminder != null &&
+              user.status == AccountStatus.approved &&
+              user.activePushDeviceCount == 0;
           final actions = <Widget>[
+            if (canRemindPush)
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => widget.onPushReminder!(user),
+                icon: const Icon(Icons.mark_email_unread_rounded, size: 17),
+                label: const Text('Push erinnern'),
+              ),
             if (widget.onPermissions != null)
               _memberActionButton(
                 tooltip: 'Individuelle Rechte festlegen',
@@ -1807,7 +1900,10 @@ class _MemberListState extends State<_MemberList> {
                         children: [
                           Expanded(child: identity),
                           const SizedBox(width: 6),
-                          statusChip,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [statusChip, pushStatus],
+                          ),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -1826,6 +1922,8 @@ class _MemberListState extends State<_MemberList> {
                       Expanded(child: identity),
                       const SizedBox(width: 10),
                       statusChip,
+                      const SizedBox(width: 6),
+                      pushStatus,
                       const SizedBox(width: 6),
                       ...actions,
                     ],
@@ -1911,6 +2009,52 @@ class _MemberListState extends State<_MemberList> {
         MemberSortOrder.role => 'Mitgliedstyp',
         MemberSortOrder.status => 'Kontostatus',
       };
+}
+
+class _MemberPushStatusBadge extends StatelessWidget {
+  const _MemberPushStatusBadge({required this.user});
+
+  final AppUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = user.activePushDeviceCount > 0;
+    final color =
+        enabled ? AppColors.teal : Theme.of(context).colorScheme.error;
+    return Tooltip(
+      message: enabled
+          ? 'Push ist auf ${user.activePushDeviceCount} Gerät${user.activePushDeviceCount == 1 ? '' : 'en'} aktiv.'
+          : 'Für dieses Mitglied ist kein aktives Push-Gerät registriert.',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: .28)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              enabled
+                  ? Icons.notifications_active_rounded
+                  : Icons.notifications_off_rounded,
+              size: 14,
+              color: color,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              enabled ? 'Push aktiv' : 'Kein Push',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class MemberPermissionsDialog extends StatefulWidget {

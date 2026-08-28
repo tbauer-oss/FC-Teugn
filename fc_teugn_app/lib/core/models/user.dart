@@ -66,6 +66,7 @@ class AppUser {
   final AccountStatus status;
   final String teamId;
   final DateTime? createdAt;
+  final int activePushDeviceCount;
   final List<UserTeamMembership> memberships;
   final List<UserParentPlayerLink> parentPlayers;
   final RegistrationRequestInfo? registrationRequest;
@@ -82,6 +83,7 @@ class AppUser {
     required this.status,
     required this.teamId,
     this.createdAt,
+    this.activePushDeviceCount = 0,
     this.memberships = const [],
     this.parentPlayers = const [],
     this.registrationRequest,
@@ -120,6 +122,7 @@ class AppUser {
         status: status,
         teamId: teamId,
         createdAt: createdAt,
+        activePushDeviceCount: activePushDeviceCount,
         memberships: memberships,
         parentPlayers: parentPlayers,
         registrationRequest: registrationRequest,
@@ -192,6 +195,11 @@ class AppUser {
       createdAt: json['createdAt'] == null
           ? null
           : DateTime.parse(json['createdAt'] as String),
+      activePushDeviceCount: ((json['_count']
+                  as Map<String, dynamic>?)?['pushSubscriptions'] as num?)
+              ?.toInt() ??
+          (json['activePushDeviceCount'] as num?)?.toInt() ??
+          0,
       memberships: (json['memberships'] as List<dynamic>? ?? [])
           .map((item) =>
               UserTeamMembership.fromJson(item as Map<String, dynamic>))

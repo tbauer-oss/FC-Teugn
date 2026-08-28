@@ -173,6 +173,29 @@ class DataRepository {
     );
   }
 
+  Future<({String memberName, String recipient})>
+      sendMemberPushActivationReminder(String userId) async {
+    final res = await client.dio.post(
+      '/admin/members/$userId/push-activation-reminder',
+      options: Options(
+        headers: {
+          'X-Idempotency-Key': _idempotencyKey(
+            'push-activation-reminder-$userId',
+          ),
+        },
+        extra: {
+          'requireOnline': true,
+          'loadingMessage': 'E-Mail wird versendet …',
+        },
+      ),
+    );
+    final data = res.data as Map<String, dynamic>;
+    return (
+      memberName: data['memberName'] as String,
+      recipient: data['recipient'] as String,
+    );
+  }
+
   Future<List<OpponentModel>> opponents(String ageGroupId) async {
     final res = await client.dio.get(
       '/competitions/opponents',

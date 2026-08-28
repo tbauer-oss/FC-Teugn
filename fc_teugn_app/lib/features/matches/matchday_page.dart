@@ -3236,10 +3236,12 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                   Builder(
                     builder: (context) {
                       final declined = _isDeclined(player.id);
+                      final unavailable =
+                          declined || player.status != PlayerStatus.active;
                       return Card(
                         margin: EdgeInsets.only(bottom: compact ? 3 : 8),
                         child: ListTile(
-                          enabled: !declined,
+                          enabled: !unavailable,
                           dense: compact,
                           visualDensity: compact
                               ? const VisualDensity(vertical: -4)
@@ -3267,7 +3269,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                                 declined
                                     ? 'Abgesagt · nicht für den Kader verfügbar'
                                     : player.status == PlayerStatus.injured
-                                        ? 'Verletzt · ${player.position ?? 'Spieler'}'
+                                        ? 'Verletzt · bis zur Aktivierung gesperrt'
                                         : player.position ?? 'Spieler',
                               ),
                               _AttendanceMenu(
@@ -3279,10 +3281,10 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                             ],
                           ),
                           trailing: Checkbox(
-                            value: declined
+                            value: unavailable
                                 ? false
                                 : _selected.containsKey(player.id),
-                            onChanged: declined
+                            onChanged: unavailable
                                 ? null
                                 : (value) => setState(() {
                                       if (value == true) {
@@ -3293,7 +3295,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                                       }
                                     }),
                           ),
-                          onTap: declined
+                          onTap: unavailable
                               ? null
                               : () => setState(() {
                                     if (_selected.containsKey(player.id)) {
@@ -4919,8 +4921,7 @@ List<PlayerModel> _mergeEligiblePlayers(
 ) {
   final byId = <String, PlayerModel>{};
   for (final player in [...matchPlayers, ...sharedPlayers]) {
-    if (player.status == PlayerStatus.active ||
-        player.status == PlayerStatus.injured) {
+    if (player.status == PlayerStatus.active) {
       byId[player.id] = player;
     }
   }

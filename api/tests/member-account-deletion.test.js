@@ -13,6 +13,10 @@ const routes = fs.readFileSync(
   'utf8',
 );
 const schema = fs.readFileSync(path.join(root, 'prisma/schema.prisma'), 'utf8');
+const pushActivationEmail = fs.readFileSync(
+  path.join(root, 'src/services/push-activation-email.service.ts'),
+  'utf8',
+);
 
 test('account deletion is restricted to system administrators', () => {
   assert.match(
@@ -51,4 +55,19 @@ test('account deletion revokes access, removes assignments and anonymizes the re
   assert.match(controller, /status: AccountStatus\.ARCHIVED/);
   assert.match(controller, /action: 'USER_ACCOUNT_DELETED'/);
   assert.match(controller, /accountDeletedAt: null/);
+});
+
+test('approved members without a push device can receive activation instructions by email', () => {
+  assert.match(
+    routes,
+    /router\.post\([\s\S]*?'\/members\/:id\/push-activation-reminder'[\s\S]*?sendMemberPushActivationReminder/,
+  );
+  assert.match(controller, /status !== AccountStatus\.APPROVED/);
+  assert.match(controller, /pushSubscriptions:\s*\{\s*where:\s*\{\s*isActive:\s*true/);
+  assert.match(controller, /sendPushActivationEmail/);
+  assert.match(controller, /PUSH_ACTIVATION_EMAIL_SENT_BY_STAFF/);
+  assert.match(pushActivationEmail, /RESEND_API_KEY/);
+  assert.match(pushActivationEmail, /Android/);
+  assert.match(pushActivationEmail, /iPhone/);
+  assert.match(pushActivationEmail, /Web/);
 });

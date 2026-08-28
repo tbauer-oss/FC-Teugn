@@ -24,6 +24,7 @@ import {
   memberManagementTeamIds,
 } from '../services/team-access';
 import { hashPassword } from '../lib/password';
+import { sendPushActivationEmail } from '../services/push-activation-email.service';
 
 const adminPasswordResetLifetimeMs = 60 * 60 * 1000;
 
@@ -44,6 +45,11 @@ const memberSelect = {
   status: true,
   teamId: true,
   createdAt: true,
+  _count: {
+    select: {
+      pushSubscriptions: { where: { isActive: true } },
+    },
+  },
   memberships: {
     orderBy: { team: { name: 'asc' as const } },
     select: {
@@ -557,6 +563,81 @@ export async function createMemberPasswordResetLink(
     // redirects cannot silently lose the reset route.
     url: `${appBaseUrl}${actionUrl}`,
     expiresAt,
+  });
+}
+
+export async function sendMemberPushActivationReminder(
+  req: Request,
+  res: Response,
+) {
+  const actor = req.user!;
+  const clubId = await actorClubId(actor.teamId);
+  const member = await prisma.user.findFirst({
+    where: {
+      id: req.params.id,
+      accountDeletedAt: null,
+      ...(await userScope(actor, clubId)),
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      status: true,
+      teamId: true,
+      _count: {
+        select: {
+          pushSubscriptions: { where: { isActive: true } },
+        },
+      },
+    },
+  });
+  if (!member) {
+    return res.status(404).json({ message: 'Mitglied nicht gefunden.' });
+  }
+  if (member.status !== AccountStatus.APPROVED) {
+    return res.status(400).json({
+      message: 'Der Zugang muss zuerst freigegeben werden.',
+    });
+  }
+  if (member._count.pushSubscriptions > 0) {
+    return res.status(409).json({
+      message: 'Für dieses Mitglied sind Pushnachrichten bereits aktiviert.',
+    });
+  }
+
+  const reminderId = randomBytes(12).toString('hex');
+  const settingsPath =
+    member.role === Role.PARENT
+      ? '/parent/messages?section=settings'
+      : '/trainer/messages?section=settings';
+  const sent = await sendPushActivationEmail({
+    recipient: member.email,
+    recipientName: member.name,
+    reminderId,
+    settingsPath,
+  });
+  if (!sent) {
+    return res.status(503).json({
+      message:
+        'Die E-Mail konnte derzeit nicht versendet werden. Bitte später erneut versuchen.',
+    });
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: actor.id,
+      teamId: member.teamId,
+      action: 'PUSH_ACTIVATION_EMAIL_SENT_BY_STAFF',
+      entityType: 'User',
+      entityId: member.id,
+      metadata: { recipient: member.email },
+    },
+  });
+  return res.status(202).json({
+    sent: true,
+    memberName: member.name,
+    recipient: member.email,
   });
 }
 

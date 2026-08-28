@@ -398,15 +398,19 @@ function excludedParticipantPlayerIds(
 }
 
 async function rosterForEvent(event: CalendarEvent, accessibleIds: string[]) {
+  const targetTeamIds = targetIdsForEvent(event);
   const explicit = event.participants
     .filter((participant) => participant.responseRequired && participant.player)
     .map((participant) => participant.player!);
   if (explicit.length) {
     return explicit.filter(
-      (player) => player.teamId !== null && accessibleIds.includes(player.teamId),
+      (player) =>
+        player.teamId !== null &&
+        accessibleIds.includes(player.teamId) &&
+        (!isRegularTrainingOccurrence(event) || targetTeamIds.includes(player.teamId)),
     );
   }
-  const teamIds = targetIdsForEvent(event).filter((id) =>
+  const teamIds = targetTeamIds.filter((id) =>
     accessibleIds.includes(id),
   );
   const excludedIds = new Set(excludedParticipantPlayerIds(event.participants));
@@ -435,7 +439,12 @@ async function serializeEvent(
   const eventTargetIds = targetIdsForEvent(event);
   const explicitParticipantPlayers = event.participants
     .filter((participant) => participant.responseRequired && participant.player)
-    .map((participant) => participant.player!);
+    .map((participant) => participant.player!)
+    .filter(
+      (player) =>
+        !isRegularTrainingOccurrence(event) ||
+        (player.teamId !== null && eventTargetIds.includes(player.teamId)),
+    );
   const excludedParticipantIds = new Set(
     excludedParticipantPlayerIds(event.participants),
   );
@@ -451,12 +460,17 @@ async function serializeEvent(
         )
       : await rosterForEvent(event, accessibleIds)
     : [];
-  const visibleAttendance = staff
+  const visibleAttendance = (staff
     ? event.attendance.filter((reply) =>
         reply.player.teamId !== null &&
         accessibleIds.includes(reply.player.teamId),
       )
-    : event.attendance.filter((reply) => personalPlayerIds.includes(reply.playerId));
+    : event.attendance.filter((reply) => personalPlayerIds.includes(reply.playerId)))
+    .filter(
+      (reply) =>
+        !isRegularTrainingOccurrence(event) ||
+        (reply.player.teamId !== null && eventTargetIds.includes(reply.player.teamId)),
+    );
   const openPlayerIds = new Set(
     openAttendancePlayerIds(
       roster.map((player) => player.id),
@@ -1222,6 +1236,29 @@ function isRegularTrainingOccurrence(event: {
       event.description?.startsWith(regularTrainingDescriptionPrefix) === true);
 }
 
+async function markEventResponseNotificationsRead(
+  userId: string,
+  eventId: string,
+  playerId: string,
+) {
+  await prisma.notification.updateMany({
+    where: {
+      userId,
+      readAt: null,
+      OR: [
+        { entityId: `${eventId}:${playerId}` },
+        { entityType: 'AttendanceRequest', entityId: eventId },
+        {
+          category: NotificationCategory.EVENT_REMINDER,
+          entityType: 'Event',
+          entityId: eventId,
+        },
+      ],
+    },
+    data: { readAt: new Date() },
+  });
+}
+
 /**
  * App-wide family inbox. It deliberately ignores the currently selected
  * trainer/team context and derives access exclusively from real guardian and
@@ -1544,17 +1581,7 @@ export async function setRegularTrainingAttendancePreference(
   });
 
   if (result.appliedCurrent) {
-    await prisma.notification.updateMany({
-      where: {
-        userId: user.id,
-        readAt: null,
-        OR: [
-          { entityId: `${event.id}:${playerId}` },
-          { entityType: 'AttendanceRequest', entityId: event.id },
-        ],
-      },
-      data: { readAt: new Date() },
-    });
+    await markEventResponseNotificationsRead(user.id, event.id, playerId);
   }
   return res.json({
     status: AttendanceStatus.YES,
@@ -2785,17 +2812,7 @@ export async function setAttendance(req: Request, res: Response) {
     }
     return reply;
   });
-  await prisma.notification.updateMany({
-    where: {
-      userId: user.id,
-      readAt: null,
-      OR: [
-        { entityId: `${event.id}:${playerId}` },
-        { entityType: 'AttendanceRequest', entityId: event.id },
-      ],
-    },
-    data: { readAt: new Date() },
-  });
+  await markEventResponseNotificationsRead(user.id, event.id, playerId);
   const refreshedEvent = await prisma.event.findUnique({
     where: { id: event.id },
     include: eventInclude,
@@ -2845,8 +2862,16 @@ export async function removeEventParticipant(req: Request, res: Response) {
     where: { teamId: { in: participantTeamIds }, status: 'ACTIVE' },
     select: { id: true, teamId: true },
   });
-  const player = eligiblePlayers.find((item) => item.id === playerId);
-  if (!player) {
+  const attachedPlayerIds = new Set([
+    ...event.attendance.map((item) => item.playerId),
+    ...event.participants.flatMap((item) => item.playerId ? [item.playerId] : []),
+  ]);
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    select: { id: true, teamId: true },
+  });
+  const eligible = eligiblePlayers.some((item) => item.id === playerId);
+  if (!player || (!eligible && !attachedPlayerIds.has(playerId))) {
     return res.status(404).json({ message: 'Spieler gehört nicht zum Teilnehmerkreis dieses Termins.' });
   }
 
@@ -2855,7 +2880,11 @@ export async function removeEventParticipant(req: Request, res: Response) {
   if (excludedPlayerIds.includes(playerId)) {
     return res.status(409).json({ message: 'Spieler wurde bereits aus diesem Termin entfernt.' });
   }
-  if (requestedPlayerIds.length > 0 && !requestedPlayerIds.includes(playerId)) {
+  if (
+    requestedPlayerIds.length > 0 &&
+    !requestedPlayerIds.includes(playerId) &&
+    !attachedPlayerIds.has(playerId)
+  ) {
     return res.status(404).json({ message: 'Spieler gehört nicht zum Teilnehmerkreis dieses Termins.' });
   }
 
@@ -2866,7 +2895,7 @@ export async function removeEventParticipant(req: Request, res: Response) {
   // diesem Sonderfall speichern wir deshalb den gesamten bisher möglichen
   // Kader als terminbezogene Ausnahme.
   const idsToExclude = requestedPlayerIds.length > 0 && remainingRequestedIds.length === 0
-    ? eligiblePlayers.map((item) => item.id)
+    ? [...new Set([...eligiblePlayers.map((item) => item.id), playerId])]
     : [playerId];
   const reminderSyncPendingAt = new Date();
 
@@ -2933,17 +2962,7 @@ export async function removeEventParticipant(req: Request, res: Response) {
     });
   });
 
-  await prisma.notification.updateMany({
-    where: {
-      userId: user.id,
-      readAt: null,
-      OR: [
-        { entityId: `${event.id}:${playerId}` },
-        { entityType: 'AttendanceRequest', entityId: event.id },
-      ],
-    },
-    data: { readAt: new Date() },
-  });
+  await markEventResponseNotificationsRead(user.id, event.id, playerId);
   waitUntil(settlePostCommitTasks([{
     name: 'removed-event-participant-reminder-sync',
     promise: syncScheduledRemindersForEvent(event.id),

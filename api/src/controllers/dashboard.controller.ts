@@ -112,10 +112,7 @@ async function dashboardNotifications(userId: string) {
         // Registrierungsanfragen have their own authoritative dashboard card.
         not: 'REGISTRATION',
       },
-      OR: [
-        { readAt: null },
-        { createdAt: { gte: new Date(Date.now() - 14 * dayMs) } },
-      ],
+      readAt: null,
       AND: [{ OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }],
     },
     orderBy: { createdAt: 'desc' },

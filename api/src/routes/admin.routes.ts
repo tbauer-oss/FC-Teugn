@@ -8,6 +8,7 @@ import {
   updateMemberPermission,
   createMember,
   createMemberPasswordResetLink,
+  sendMemberPushActivationReminder,
   deleteMemberAccount,
   listMembers,
   pendingUsers,
@@ -36,6 +37,10 @@ router.post(
   '/members/:id/password-reset-link',
   requireRoles([Role.SUPER_ADMIN]),
   createMemberPasswordResetLink,
+);
+router.post(
+  '/members/:id/push-activation-reminder',
+  sendMemberPushActivationReminder,
 );
 router.delete(
   '/members/:id',
