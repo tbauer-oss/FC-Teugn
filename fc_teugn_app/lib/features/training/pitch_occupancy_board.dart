@@ -133,7 +133,7 @@ class _PitchOccupancyBoardState extends State<PitchOccupancyBoard> {
         if (unparsedCount > 0)
           _Notice(
             icon: Icons.edit_calendar_outlined,
-            color: AppColors.blue,
+            color: context.appInfo,
             title: 'Zeitangaben ergänzen',
             message:
                 '$unparsedCount Einträge konnten nicht eingeordnet werden. Format: „Dienstag 17:00–18:30“.',
@@ -179,9 +179,9 @@ class _PitchOccupancyBoardState extends State<PitchOccupancyBoard> {
           },
         ],
         const SizedBox(height: 14),
-        const _Notice(
+        _Notice(
           icon: Icons.handshake_outlined,
-          color: AppColors.teal,
+          color: context.appSuccess,
           title: 'Fair koordinieren',
           message:
               'Trifft ein Spiel kurzfristig auf eine Trainingszeit, stimmen sich die betroffenen Trainer bitte direkt miteinander ab.',
@@ -201,7 +201,7 @@ class _PitchOccupancyBoardState extends State<PitchOccupancyBoard> {
         description:
             '${conflicts.length} bestätigte Überschneidung${conflicts.length == 1 ? '' : 'en'} gilt nicht mehr als offener Konflikt.',
         icon: Icons.verified_rounded,
-        color: AppColors.teal,
+        color: context.appSuccess,
         child: Column(
           children: [
             for (final conflict in conflicts)
@@ -234,7 +234,7 @@ class _PitchOccupancyBoardState extends State<PitchOccupancyBoard> {
         title: 'Gemeinsame Trainings',
         description: 'Diese Mannschaften nutzen ihre Trainingszeit gemeinsam.',
         icon: Icons.groups_2_rounded,
-        color: AppColors.blue,
+        color: context.appInfo,
         child: Column(
           children: [
             for (final label in labels)
@@ -453,7 +453,7 @@ class _SpecialOccupancySection extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.event_busy_rounded, color: AppColors.blue),
+                Icon(Icons.event_busy_rounded, color: context.appInfo),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(
@@ -466,10 +466,10 @@ class _SpecialOccupancySection extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Regelmäßige oder einmalige Nutzungen der Sporthalle durch '
               'andere Abteilungen, Vereine oder Veranstaltungen.',
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(color: context.appColors.textMuted),
             ),
             const SizedBox(height: 10),
             for (final entry in entries)
@@ -479,9 +479,9 @@ class _SpecialOccupancySection extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.appColors.surface,
                     borderRadius: BorderRadius.circular(13),
-                    border: Border.all(color: AppColors.line),
+                    border: Border.all(color: context.appColors.outline),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -525,15 +525,16 @@ class _SpecialOccupancySection extends StatelessWidget {
                                   ? 'Sporthalle · ${_date(entry.startAt)}–'
                                       '${_date(entry.recurrenceUntil!)}'
                                   : 'Sporthalle',
-                              style: const TextStyle(color: AppColors.muted),
+                              style:
+                                  TextStyle(color: context.appColors.textMuted),
                             ),
                             if (entry.notes?.trim().isNotEmpty == true)
                               Padding(
                                 padding: const EdgeInsets.only(top: 3),
                                 child: Text(
                                   entry.notes!,
-                                  style: const TextStyle(
-                                    color: AppColors.muted,
+                                  style: TextStyle(
+                                    color: context.appColors.textMuted,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -648,7 +649,7 @@ class _OccupancyViewSelector extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFFF0EEE4),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: context.appColors.outline),
           ),
           child: Row(
             children: [
@@ -718,7 +719,8 @@ class _OccupancyViewButton extends StatelessWidget {
                   Icon(
                     icon,
                     size: 17,
-                    color: selected ? AppColors.gold : AppColors.muted,
+                    color:
+                        selected ? AppColors.gold : context.appColors.textMuted,
                   ),
                   const SizedBox(width: 5),
                   Flexible(
@@ -773,19 +775,19 @@ class _TimelineBoard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
           decoration: BoxDecoration(
-            color: AppColors.blue.withValues(alpha: .09),
+            color: context.appInfo.withValues(alpha: .09),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
-              const Icon(Icons.info_outline_rounded,
-                  size: 17, color: AppColors.blue),
+              Icon(Icons.info_outline_rounded,
+                  size: 17, color: context.appInfo),
               const SizedBox(width: 7),
               Expanded(
                 child: Text(
                   'Grafische Wochenansicht · ${_clock(rangeStart)}–${_clock(rangeEnd)} Uhr',
-                  style: const TextStyle(
-                    color: AppColors.navy,
+                  style: TextStyle(
+                    color: context.appColors.text,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -835,9 +837,9 @@ class _TimelineDay extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.fromLTRB(10, 9, 10, 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.appColors.surface,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -851,8 +853,8 @@ class _TimelineDay extends StatelessWidget {
                 const Spacer(),
                 Text(
                   '${slots.length} ${slots.length == 1 ? 'Zeit' : 'Zeiten'}',
-                  style: const TextStyle(
-                    color: AppColors.muted,
+                  style: TextStyle(
+                    color: context.appColors.textMuted,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -887,8 +889,8 @@ class _TimelineDay extends StatelessWidget {
                             width: timeWidth,
                             child: Text(
                               slot.timeLabel.split('–').first,
-                              style: const TextStyle(
-                                color: AppColors.muted,
+                              style: TextStyle(
+                                color: context.appColors.textMuted,
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -902,7 +904,7 @@ class _TimelineDay extends StatelessWidget {
                                 Container(
                                   height: 3,
                                   decoration: BoxDecoration(
-                                    color: AppColors.line,
+                                    color: context.appColors.outline,
                                     borderRadius: BorderRadius.circular(99),
                                   ),
                                 ),
@@ -926,7 +928,7 @@ class _TimelineDay extends StatelessWidget {
                                           color: conflict
                                               ? Colors.deepOrange
                                               : approved
-                                                  ? AppColors.teal
+                                                  ? context.appSuccess
                                                   : Colors.transparent,
                                           width: conflict ? 2 : 1,
                                         ),
@@ -947,10 +949,10 @@ class _TimelineDay extends StatelessWidget {
                                           ),
                                           if (slot.kind ==
                                               PitchOccupancySlotKind.matchday)
-                                            const Icon(
+                                            Icon(
                                               Icons.sports_soccer_rounded,
                                               size: 12,
-                                              color: AppColors.blue,
+                                              color: context.appInfo,
                                             ),
                                         ],
                                       ),
@@ -1088,10 +1090,10 @@ class _DesktopTeamRow extends StatelessWidget {
               width: teamWidth,
               constraints: const BoxConstraints(minHeight: 62),
               padding: const EdgeInsets.all(9),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(
-                  right: BorderSide(color: AppColors.line),
-                  bottom: BorderSide(color: AppColors.line),
+                  right: BorderSide(color: context.appColors.outline),
+                  bottom: BorderSide(color: context.appColors.outline),
                 ),
               ),
               child: Column(
@@ -1100,8 +1102,8 @@ class _DesktopTeamRow extends StatelessWidget {
                 children: [
                   Text(
                     team.label,
-                    style: const TextStyle(
-                      color: AppColors.navy,
+                    style: TextStyle(
+                      color: context.appColors.text,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -1110,8 +1112,8 @@ class _DesktopTeamRow extends StatelessWidget {
                     team.locationLabel,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.muted,
+                    style: TextStyle(
+                      color: context.appColors.textMuted,
                       fontSize: 11,
                     ),
                   ),
@@ -1123,10 +1125,10 @@ class _DesktopTeamRow extends StatelessWidget {
                 width: dayWidth,
                 constraints: const BoxConstraints(minHeight: 62),
                 padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: AppColors.line),
-                    bottom: BorderSide(color: AppColors.line),
+                    right: BorderSide(color: context.appColors.outline),
+                    bottom: BorderSide(color: context.appColors.outline),
                   ),
                 ),
                 child: Column(
@@ -1209,8 +1211,8 @@ class _MobileBoard extends StatelessWidget {
                             ),
                             Text(
                               '${slots.where((slot) => slot.weekday == weekday).length}',
-                              style: const TextStyle(
-                                color: AppColors.muted,
+                              style: TextStyle(
+                                color: context.appColors.textMuted,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -1272,7 +1274,7 @@ class _SlotPill extends StatelessWidget {
               color: conflict
                   ? Colors.deepOrange
                   : approved
-                      ? AppColors.teal
+                      ? context.appSuccess
                       : Colors.transparent,
               width: conflict ? 2 : 1,
             ),
@@ -1316,15 +1318,15 @@ class _SlotPill extends StatelessWidget {
                   size: 18,
                 ),
               if (!conflict && approved)
-                const Icon(
+                Icon(
                   Icons.verified_rounded,
-                  color: AppColors.teal,
+                  color: context.appSuccess,
                   size: 17,
                 ),
               if (slot.kind == PitchOccupancySlotKind.matchday)
-                const Icon(
+                Icon(
                   Icons.sports_soccer_rounded,
-                  color: AppColors.blue,
+                  color: context.appInfo,
                   size: 17,
                 ),
             ],
@@ -1354,7 +1356,7 @@ class _OccupancyDetailShortcuts extends StatelessWidget {
               _OccupancyDetailButton(
                 key: const ValueKey('approved-conflicts-button'),
                 icon: Icons.verified_rounded,
-                color: AppColors.teal,
+                color: context.appSuccess,
                 label: 'Abgestimmt ($approvedConflictCount)',
                 tooltip: 'Abgestimmte Überschneidungen öffnen',
                 onPressed: onOpenApprovedConflicts!,
@@ -1363,7 +1365,7 @@ class _OccupancyDetailShortcuts extends StatelessWidget {
               _OccupancyDetailButton(
                 key: const ValueKey('joint-trainings-button'),
                 icon: Icons.groups_2_rounded,
-                color: AppColors.blue,
+                color: context.appInfo,
                 label: 'Gemeinsame Trainings ($jointTrainingCount)',
                 tooltip: 'Gemeinsame Trainings öffnen',
                 onPressed: onOpenJointTrainings!,
@@ -1417,7 +1419,7 @@ class _OccupancyDetailButton extends StatelessWidget {
               textAlign: TextAlign.left,
             ),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.navy,
+              foregroundColor: context.appColors.text,
               alignment: Alignment.centerLeft,
               minimumSize: const Size.fromHeight(48),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -1522,7 +1524,7 @@ class _OccupancyDetailsPanel extends StatelessWidget {
                       Text(
                         title,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppColors.navy,
+                              color: context.appColors.text,
                               fontWeight: FontWeight.w900,
                             ),
                       ),
@@ -1540,7 +1542,9 @@ class _OccupancyDetailsPanel extends StatelessWidget {
               ],
             ),
           ),
-          Divider(height: 1, color: AppColors.line.withValues(alpha: .8)),
+          Divider(
+              height: 1,
+              color: context.appColors.outline.withValues(alpha: .8)),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(18),
@@ -1561,19 +1565,19 @@ class _JointTrainingRow extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.blue.withValues(alpha: .06),
+          color: context.appInfo.withValues(alpha: .06),
           borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: AppColors.blue.withValues(alpha: .2)),
+          border: Border.all(color: context.appInfo.withValues(alpha: .2)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.groups_2_rounded, color: AppColors.blue),
+            Icon(Icons.groups_2_rounded, color: context.appInfo),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(
-                  color: AppColors.navy,
+                style: TextStyle(
+                  color: context.appColors.text,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1615,8 +1619,8 @@ class _Notice extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: AppColors.navy,
+                    style: TextStyle(
+                      color: context.appColors.text,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -1646,11 +1650,11 @@ class _ConflictRow extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: (conflict.approved ? AppColors.teal : Colors.deepOrange)
+          color: (conflict.approved ? context.appSuccess : Colors.deepOrange)
               .withValues(alpha: .06),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: (conflict.approved ? AppColors.teal : Colors.deepOrange)
+            color: (conflict.approved ? context.appSuccess : Colors.deepOrange)
                 .withValues(alpha: .2),
           ),
         ),
@@ -1660,7 +1664,7 @@ class _ConflictRow extends StatelessWidget {
               conflict.approved
                   ? Icons.verified_rounded
                   : Icons.compare_arrows_rounded,
-              color: conflict.approved ? AppColors.teal : Colors.deepOrange,
+              color: conflict.approved ? context.appSuccess : Colors.deepOrange,
             ),
             const SizedBox(width: 10),
             Expanded(

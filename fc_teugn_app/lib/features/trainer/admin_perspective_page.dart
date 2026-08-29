@@ -52,14 +52,15 @@ class _AdminPerspectivePageState extends ConsumerState<AdminPerspectivePage> {
             decoration: BoxDecoration(
               color: AppColors.yellowSoft,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.gold.withValues(alpha: .22)),
+              border:
+                  Border.all(color: context.appWarning.withValues(alpha: .22)),
             ),
-            child: const Row(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.visibility_rounded, color: AppColors.gold),
-                SizedBox(width: 10),
-                Expanded(
+                Icon(Icons.visibility_rounded, color: context.appWarning),
+                const SizedBox(width: 10),
+                const Expanded(
                   child: Text(
                     'Du siehst echte freigegebene Inhalte und Berechtigungen des gewählten Kontos. Änderungen, Antworten und andere Schreibaktionen sind in dieser Vorschau technisch gesperrt.',
                     style: TextStyle(fontWeight: FontWeight.w700),
@@ -222,7 +223,7 @@ class _PreviewMessage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 32),
         child: Column(
           children: [
-            Icon(icon, size: 38, color: AppColors.muted),
+            Icon(icon, size: 38, color: context.appColors.textMuted),
             const SizedBox(height: 10),
             Text(text, textAlign: TextAlign.center),
           ],

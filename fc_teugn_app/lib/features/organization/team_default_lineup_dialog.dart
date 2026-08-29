@@ -556,7 +556,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                     Expanded(
                       flex: 7,
                       child: Container(
-                        decoration: _desktopPanelDecoration(),
+                        decoration: _desktopPanelDecoration(context),
                         padding: const EdgeInsets.all(18),
                         child: Column(
                           children: [
@@ -575,7 +575,8 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFE9EBE4),
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: AppColors.line),
+                                  border: Border.all(
+                                      color: context.appColors.outline),
                                 ),
                                 padding: const EdgeInsets.all(14),
                                 child: Center(child: pitch),
@@ -591,7 +592,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                     Expanded(
                       flex: 4,
                       child: Container(
-                        decoration: _desktopPanelDecoration(),
+                        decoration: _desktopPanelDecoration(context),
                         clipBehavior: Clip.antiAlias,
                         child: Column(
                           children: [
@@ -621,10 +622,10 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
   }
 }
 
-BoxDecoration _desktopPanelDecoration() => BoxDecoration(
-      color: Colors.white,
+BoxDecoration _desktopPanelDecoration(BuildContext context) => BoxDecoration(
+      color: context.appColors.surface,
       borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: AppColors.line),
+      border: Border.all(color: context.appColors.outline),
       boxShadow: const [
         BoxShadow(
           color: Color(0x12000000),
@@ -665,10 +666,10 @@ class _DesktopTacticsHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'TAKTIKBOARD · STAMMFORMATION',
                   style: TextStyle(
-                    color: AppColors.gold,
+                    color: context.appWarning,
                     fontWeight: FontWeight.w900,
                     fontSize: 12,
                     letterSpacing: .8,
@@ -715,14 +716,14 @@ class _DesktopStatusBadge extends StatelessWidget {
         constraints: const BoxConstraints(minWidth: 90, maxWidth: 150),
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: context.appColors.surfaceMuted,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: AppColors.gold),
+            Icon(icon, size: 18, color: context.appWarning),
             const SizedBox(width: 7),
             Flexible(
               child: Column(
@@ -736,8 +737,8 @@ class _DesktopStatusBadge extends StatelessWidget {
                   ),
                   Text(
                     hint,
-                    style: const TextStyle(
-                      color: AppColors.muted,
+                    style: TextStyle(
+                      color: context.appColors.textMuted,
                       fontSize: 11,
                     ),
                   ),
@@ -801,17 +802,17 @@ class _DesktopPitchHint extends StatelessWidget {
   const _DesktopPitchHint();
 
   @override
-  Widget build(BuildContext context) => const Row(
+  Widget build(BuildContext context) => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.touch_app_rounded, size: 17, color: AppColors.gold),
-          SizedBox(width: 7),
+          Icon(Icons.touch_app_rounded, size: 17, color: context.appWarning),
+          const SizedBox(width: 7),
           Flexible(
             child: Text(
               'Spieler auswählen, direkt tauschen oder frei auf dem Feld verschieben.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.muted,
+                color: context.appColors.textMuted,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1361,7 +1362,7 @@ class _FormationPlayerPhoto extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         clipBehavior: Clip.antiAlias,
         child: photoUrl?.isNotEmpty != true
@@ -1476,8 +1477,8 @@ class _TeamManagerPanel extends StatelessWidget {
             ),
             Text(
               '${pool.length} verfügbar',
-              style: const TextStyle(
-                color: AppColors.muted,
+              style: TextStyle(
+                color: context.appColors.textMuted,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1488,7 +1489,7 @@ class _TeamManagerPanel extends StatelessWidget {
           selected == null
               ? 'Position auf dem Feld wählen, danach einen Spieler einsetzen.'
               : 'Spieler antippen, um ${selected.positionCode} neu zu besetzen.',
-          style: const TextStyle(color: AppColors.muted),
+          style: TextStyle(color: context.appColors.textMuted),
         ),
         const SizedBox(height: 10),
         if (pool.isEmpty)
@@ -1549,11 +1550,11 @@ class _SelectedSlotPanel extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.yellow.withValues(alpha: .5)),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.touch_app_rounded, color: AppColors.blue),
-            SizedBox(width: 10),
-            Expanded(
+            Icon(Icons.touch_app_rounded, color: context.appInfo),
+            const SizedBox(width: 10),
+            const Expanded(
               child: Text(
                 'Spieler auf dem Feld antippen. Zweiten Feldspieler antippen, '
                 'um beide direkt zu tauschen.',
@@ -1570,7 +1571,7 @@ class _SelectedSlotPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.appColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.yellow, width: 2),
       ),
@@ -1596,7 +1597,7 @@ class _SelectedSlotPanel extends StatelessWidget {
                           : '#${player.shirtNumber ?? '–'} · '
                               '${player.position ?? 'FLEX'}'
                               '${player.secondaryPosition == null ? '' : ' / ${player.secondaryPosition}'}',
-                      style: const TextStyle(color: AppColors.muted),
+                      style: TextStyle(color: context.appColors.textMuted),
                     ),
                   ],
                 ),
@@ -1610,7 +1611,9 @@ class _SelectedSlotPanel extends StatelessWidget {
                   'C',
                   style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    color: slot!.isCaptain ? AppColors.black : AppColors.muted,
+                    color: slot!.isCaptain
+                        ? AppColors.black
+                        : context.appColors.textMuted,
                   ),
                 ),
               ),
@@ -1659,7 +1662,7 @@ class _PlayerPoolCard extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
         width: 104,
         child: Material(
-          color: Colors.white,
+          color: context.appColors.surface,
           borderRadius: BorderRadius.circular(14),
           child: InkWell(
             onTap: onTap,
@@ -1668,7 +1671,7 @@ class _PlayerPoolCard extends StatelessWidget {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.line),
+                border: Border.all(color: context.appColors.outline),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1684,8 +1687,8 @@ class _PlayerPoolCard extends StatelessWidget {
                   Text(
                     '#${player.shirtNumber ?? '–'} · ${player.position ?? 'FLEX'}',
                     maxLines: 1,
-                    style: const TextStyle(
-                      color: AppColors.muted,
+                    style: TextStyle(
+                      color: context.appColors.textMuted,
                       fontSize: 12,
                     ),
                   ),
@@ -1726,14 +1729,14 @@ class _EmptyPlayerPool extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: context.appColors.surfaceMuted,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
-        child: const Text(
+        child: Text(
           'Alle verfügbaren Spieler stehen bereits in der Startelf.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.muted),
+          style: TextStyle(color: context.appColors.textMuted),
         ),
       );
 }
@@ -1742,18 +1745,18 @@ class _ManagerHint extends StatelessWidget {
   const _ManagerHint();
 
   @override
-  Widget build(BuildContext context) => const Row(
+  Widget build(BuildContext context) => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline_rounded, size: 18, color: AppColors.blue),
-          SizedBox(width: 8),
+          Icon(Icons.info_outline_rounded, size: 18, color: context.appInfo),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Formationswechsel sortieren die aktuelle Startelf automatisch '
               'positionsgerecht neu. Orange markierte Spieler stehen auf einer '
               'unpassenden Position. Positionsnamen und Verschiebungen werden '
               'für jede Formation dauerhaft gespeichert.',
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(color: context.appColors.textMuted),
             ),
           ),
         ],

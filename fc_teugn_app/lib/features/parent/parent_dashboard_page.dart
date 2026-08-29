@@ -455,7 +455,7 @@ class _TodayImportantCard extends StatelessWidget {
         nominations.length +
         consents.length;
     return _FamilyDashboardPanel(
-      accent: itemCount == 0 ? AppColors.success : AppColors.gold,
+      accent: itemCount == 0 ? context.appSuccess : AppColors.gold,
       child: Padding(
         padding: EdgeInsets.all(
           MediaQuery.sizeOf(context).width < 600 ? 10 : 12,
@@ -498,7 +498,7 @@ class _TodayImportantCard extends StatelessWidget {
               title: 'Neue Nominierung · ${nomination.playerName}',
               subtitle:
                   '${nomination.match.title} · ${_shortDate(nomination.match.startAt)}',
-              color: AppColors.success,
+              color: context.appSuccess,
               onTap: () => context.go('/parent/matches/${nomination.match.id}'),
             ),
             const SizedBox(height: 7),
@@ -508,7 +508,7 @@ class _TodayImportantCard extends StatelessWidget {
               icon: Icons.directions_car_filled_rounded,
               title: 'Mitfahrt verfügbar oder gesucht',
               subtitle: '${event.title} · ${_shortDate(event.startAt)}',
-              color: AppColors.success,
+              color: context.appSuccess,
               onTap: () => context.go(Uri(
                   path: '/parent/events',
                   queryParameters: {'eventId': event.id}).toString()),
@@ -607,8 +607,8 @@ class _ImportantResponse extends StatelessWidget {
               ),
             ),
             Text(_shortDate(item.startAt),
-                style: const TextStyle(
-                    color: AppColors.muted,
+                style: TextStyle(
+                    color: context.appColors.textMuted,
                     fontSize: 12,
                     fontWeight: FontWeight.w700)),
           ]),
@@ -730,7 +730,7 @@ class _SetupChip extends StatelessWidget {
         avatar: Icon(
             done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
             size: 18,
-            color: done ? AppColors.success : AppColors.gold),
+            color: done ? context.appSuccess : context.appWarning),
         label: Text(label),
       );
 }
@@ -788,7 +788,7 @@ class _TimelineRow extends StatelessWidget {
               decoration: BoxDecoration(
                 color: item.isMatch
                     ? AppColors.yellowSoft
-                    : AppColors.success.withValues(alpha: .10),
+                    : context.appSuccess.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(11),
               ),
               child: Column(children: [
@@ -840,7 +840,7 @@ class _ChildrenSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _FamilyDashboardPanel(
-        accent: AppColors.success,
+        accent: context.appSuccess,
         child: Padding(
           padding: EdgeInsets.all(
             MediaQuery.sizeOf(context).width < 600 ? 10 : 12,
@@ -915,8 +915,8 @@ class _ChildCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-            color: AppColors.background,
-            border: Border.all(color: AppColors.line),
+            color: context.appColors.surfaceMuted,
+            border: Border.all(color: context.appColors.outline),
             borderRadius: BorderRadius.circular(15)),
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -944,7 +944,7 @@ class _ChildCard extends StatelessWidget {
                   avatar: const Icon(Icons.schedule_rounded, size: 15),
                   label: Text('$open offen'))
             else
-              const Icon(Icons.check_circle_rounded, color: AppColors.success),
+              Icon(Icons.check_circle_rounded, color: context.appSuccess),
           ]),
           const SizedBox(height: 7),
           _ChildFact(
@@ -1017,7 +1017,7 @@ class _ChildFact extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Row(children: [
-            Icon(icon, size: 17, color: AppColors.gold),
+            Icon(icon, size: 17, color: context.appWarning),
             const SizedBox(width: 7),
             SizedBox(
                 width: 62,
@@ -1028,8 +1028,8 @@ class _ChildFact extends StatelessWidget {
                 child: Text(value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style:
-                        const TextStyle(fontSize: 12, color: AppColors.muted))),
+                    style: TextStyle(
+                        fontSize: 12, color: context.appColors.textMuted))),
             if (onTap != null)
               const Icon(Icons.chevron_right_rounded, size: 17),
           ]),

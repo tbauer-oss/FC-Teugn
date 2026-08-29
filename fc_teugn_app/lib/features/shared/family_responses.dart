@@ -51,14 +51,14 @@ class PersonalResponsesCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                color: AppColors.orange.withValues(alpha: .16),
+                color: context.appWarning.withValues(alpha: .16),
                 padding: const EdgeInsets.fromLTRB(18, 16, 14, 14),
                 child: Row(
                   children: [
-                    const CircleAvatar(
-                      backgroundColor: AppColors.orange,
-                      foregroundColor: AppColors.navy,
-                      child: Icon(Icons.how_to_reg_rounded),
+                    CircleAvatar(
+                      backgroundColor: context.appWarning,
+                      foregroundColor: context.appColors.text,
+                      child: const Icon(Icons.how_to_reg_rounded),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -67,10 +67,10 @@ class PersonalResponsesCard extends ConsumerWidget {
                         children: [
                           Text(
                             '${open.length} ${open.length == 1 ? 'Rückmeldung ist' : 'Rückmeldungen sind'} offen',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 17,
-                              color: AppColors.navy,
+                              color: context.appColors.text,
                             ),
                           ),
                           const Text(
@@ -188,7 +188,7 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
                     ResponseSummaryPill(
                       label: 'Offen',
                       count: sorted.where((item) => item.isOpen).length,
-                      color: AppColors.orange,
+                      color: context.appWarning,
                       dense: true,
                     ),
                     const SizedBox(width: 6),
@@ -198,7 +198,7 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
                           .where((item) =>
                               item.responseStatus == AttendanceStatus.yes)
                           .length,
-                      color: AppColors.teal,
+                      color: context.appSuccess,
                       dense: true,
                     ),
                     const SizedBox(width: 6),
@@ -233,7 +233,7 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
                               ? 'Aktuell sind keine kommenden persönlichen Rückmeldungen vorhanden.'
                               : 'Wähle bei Bedarf einen längeren Zeitraum aus.',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: AppColors.muted),
+                          style: TextStyle(color: context.appColors.textMuted),
                         ),
                       ],
                     ),
@@ -319,7 +319,7 @@ class _ResponsePeriodPicker extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(11, 7, 9, 7),
             decoration: BoxDecoration(
               color: AppColors.yellowSoft.withValues(alpha: .42),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.appColors.outline),
               borderRadius: BorderRadius.circular(15),
             ),
             child: LayoutBuilder(
@@ -331,7 +331,7 @@ class _ResponsePeriodPicker extends StatelessWidget {
                       width: 34,
                       height: 34,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: context.appColors.surface,
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Icon(Icons.date_range_rounded, size: 19),
@@ -344,11 +344,11 @@ class _ResponsePeriodPicker extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Zeitraum',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: AppColors.muted,
+                                color: context.appColors.textMuted,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -408,10 +408,10 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
       AttendanceStatus.unknown => 'Offen',
     };
     final statusColor = switch (item.responseStatus) {
-      AttendanceStatus.yes => AppColors.teal,
+      AttendanceStatus.yes => context.appSuccess,
       AttendanceStatus.no => Colors.redAccent,
-      AttendanceStatus.maybe => AppColors.muted,
-      AttendanceStatus.unknown => AppColors.muted,
+      AttendanceStatus.maybe => context.appColors.textMuted,
+      AttendanceStatus.unknown => context.appColors.textMuted,
     };
     void openDetails() {
       final trainer = ref.read(authProvider).user?.isTrainer ?? false;
@@ -432,13 +432,14 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
     return Container(
       padding: EdgeInsets.all(narrowPage ? 10 : 16),
       decoration: BoxDecoration(
-        color:
-            widget.highlighted ? AppColors.orange.withValues(alpha: .10) : null,
+        color: widget.highlighted
+            ? context.appWarning.withValues(alpha: .10)
+            : null,
         border: Border(
           left: widget.highlighted
-              ? const BorderSide(color: AppColors.orange, width: 4)
+              ? BorderSide(color: context.appWarning, width: 4)
               : BorderSide.none,
-          bottom: const BorderSide(color: AppColors.line),
+          bottom: BorderSide(color: context.appColors.outline),
         ),
       ),
       child: LayoutBuilder(
@@ -449,10 +450,10 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
             children: [
               CircleAvatar(
                 radius: narrow ? 17 : 20,
-                backgroundColor: AppColors.navy.withValues(alpha: .08),
+                backgroundColor: context.appInfo.withValues(alpha: .12),
                 child: Icon(
                   Icons.event_available_rounded,
-                  color: AppColors.navy,
+                  color: context.appInfo,
                   size: narrow ? 18 : 24,
                 ),
               ),
@@ -509,8 +510,8 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           'Grund: ${item.reason!.trim()}',
-                          style: const TextStyle(
-                            color: AppColors.muted,
+                          style: TextStyle(
+                            color: context.appColors.textMuted,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -732,8 +733,8 @@ class _RegularTrainingSeriesSheetState
                       ),
                       Text(
                         '${widget.item.playerName} · ${widget.item.teamName}',
-                        style: const TextStyle(
-                          color: AppColors.muted,
+                        style: TextStyle(
+                          color: context.appColors.textMuted,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -746,10 +747,10 @@ class _RegularTrainingSeriesSheetState
             Container(
               padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: .08),
+                color: context.appSuccess.withValues(alpha: .08),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: AppColors.success.withValues(alpha: .22),
+                  color: context.appSuccess.withValues(alpha: .22),
                 ),
               ),
               child: const Text(
@@ -816,7 +817,8 @@ class _SeriesPeriodButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: emphasized ? AppColors.yellowSoft : AppColors.background,
+        color:
+            emphasized ? AppColors.yellowSoft : context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onPressed,
@@ -826,7 +828,8 @@ class _SeriesPeriodButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               border: Border.all(
-                color: emphasized ? AppColors.gold : AppColors.line,
+                color:
+                    emphasized ? context.appWarning : context.appColors.outline,
               ),
               borderRadius: BorderRadius.circular(14),
             ),
@@ -843,7 +846,7 @@ class _SeriesPeriodButton extends StatelessWidget {
                     emphasized
                         ? Icons.flag_rounded
                         : Icons.calendar_month_rounded,
-                    color: AppColors.gold,
+                    color: context.appWarning,
                     size: 21,
                   ),
                 const SizedBox(width: 9),
@@ -1083,8 +1086,8 @@ class ResponseSummaryPill extends StatelessWidget {
             dense ? 3 : 5,
           ),
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: AppColors.line),
+            color: context.appColors.surface,
+            border: Border.all(color: context.appColors.outline),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(

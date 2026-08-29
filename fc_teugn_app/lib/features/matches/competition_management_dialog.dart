@@ -969,8 +969,8 @@ class _CompactOpponentClubTile extends StatelessWidget {
                           : details,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -985,11 +985,12 @@ class _CompactOpponentClubTile extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               if (opponents.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 3),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
                   child: Text(
                     'Noch keine Mannschaft',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    style: TextStyle(
+                        color: context.appColors.textMuted, fontSize: 12),
                   ),
                 )
               else
@@ -1082,7 +1083,7 @@ class _Logo extends StatelessWidget {
   final String label;
   @override
   Widget build(BuildContext context) => CircleAvatar(
-        backgroundColor: AppColors.background,
+        backgroundColor: context.appColors.surfaceMuted,
         backgroundImage: url == null ? null : NetworkImage(url!),
         child: url == null
             ? Text(label.isEmpty ? '?' : label[0].toUpperCase())
@@ -1098,7 +1099,7 @@ class _CompetitionEmpty extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.all(40),
         child: Column(children: [
-          Icon(icon, size: 50, color: AppColors.muted),
+          Icon(icon, size: 50, color: context.appColors.textMuted),
           const SizedBox(height: 12),
           Text(text)
         ]),

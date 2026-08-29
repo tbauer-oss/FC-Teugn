@@ -36,7 +36,8 @@ class TeamCrest extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = darkSurface ? Colors.white : AppColors.background;
+    final background =
+        darkSurface ? Colors.white : context.appColors.surfaceMuted;
     return Container(
       width: size,
       height: size,
@@ -45,7 +46,7 @@ class TeamCrest extends StatelessWidget {
         color: background,
         borderRadius: BorderRadius.circular(size * .24),
         border: Border.all(
-          color: darkSurface ? Colors.white24 : AppColors.line,
+          color: darkSurface ? Colors.white24 : context.appColors.outline,
         ),
       ),
       child: isClub
@@ -54,15 +55,15 @@ class TeamCrest extends StatelessWidget {
               ? Image.network(
                   logoUrl!,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => _placeholder(),
+                  errorBuilder: (_, __, ___) => _placeholder(context),
                 )
-              : _placeholder(),
+              : _placeholder(context),
     );
   }
 
-  Widget _placeholder() => Icon(
+  Widget _placeholder(BuildContext context) => Icon(
         Icons.shield_outlined,
         size: size * .52,
-        color: AppColors.blue,
+        color: context.appInfo,
       );
 }

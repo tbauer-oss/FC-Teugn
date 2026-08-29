@@ -36,7 +36,7 @@ class ParentConsentReminderCard extends StatelessWidget {
                   openCount == 1
                       ? 'Eine freiwillige Entscheidung ist noch offen.'
                       : '$openCount freiwillige Entscheidungen sind noch offen.',
-                  style: const TextStyle(color: AppColors.muted),
+                  style: TextStyle(color: context.appColors.textMuted),
                 ),
               ],
             );
@@ -93,9 +93,9 @@ class ParentConsentPromptDialog extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).width < 600;
     final openCount = items.fold<int>(0, (sum, item) => sum + item.openCount);
     return AlertDialog(
-      icon: const Icon(
+      icon: Icon(
         Icons.verified_user_outlined,
-        color: AppColors.gold,
+        color: context.appWarning,
         size: 34,
       ),
       title: const Text('Einwilligungen gemeinsam prüfen'),
@@ -112,12 +112,13 @@ class ParentConsentPromptDialog extends StatelessWidget {
                     : 'Für deine Kinder sind noch $openCount Einwilligungsentscheidungen offen.',
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 'Bitte prüfe jeden Bereich einzeln. Jede Einwilligung ist '
                 'freiwillig und kann erteilt oder ausdrücklich abgelehnt '
                 'werden. Eine erteilte Einwilligung lässt sich später jederzeit '
                 'für die Zukunft widerrufen.',
-                style: TextStyle(color: AppColors.muted, height: 1.4),
+                style:
+                    TextStyle(color: context.appColors.textMuted, height: 1.4),
               ),
               const SizedBox(height: 16),
               DecoratedBox(
@@ -144,8 +145,8 @@ class ParentConsentPromptDialog extends StatelessWidget {
                             ),
                             Text(
                               '${items[index].openCount} offen',
-                              style: const TextStyle(
-                                color: AppColors.gold,
+                              style: TextStyle(
+                                color: context.appWarning,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),

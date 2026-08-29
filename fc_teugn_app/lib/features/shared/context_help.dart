@@ -250,7 +250,7 @@ class _ContextHelpSheet extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
         child: Material(
-          color: Colors.white,
+          color: context.appColors.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           clipBehavior: Clip.antiAlias,
           child: SingleChildScrollView(
@@ -263,7 +263,7 @@ class _ContextHelpSheet extends StatelessWidget {
                     width: 46,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: AppColors.line,
+                      color: context.appColors.outline,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -292,7 +292,7 @@ class _ContextHelpSheet extends StatelessWidget {
                                 .textTheme
                                 .labelLarge
                                 ?.copyWith(
-                                  color: AppColors.gold,
+                                  color: context.appWarning,
                                   fontWeight: FontWeight.w900,
                                 ),
                           ),

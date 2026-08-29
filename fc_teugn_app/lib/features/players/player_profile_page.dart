@@ -899,7 +899,7 @@ class _SeasonStatisticsCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.query_stats_rounded, color: AppColors.blue),
+                  Icon(Icons.query_stats_rounded, color: context.appInfo),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -910,9 +910,9 @@ class _SeasonStatisticsCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Gesamtwerte und historische Saisonwerte aus Aufstellungen und Liveticker.',
-                style: TextStyle(color: AppColors.muted),
+                style: TextStyle(color: context.appColors.textMuted),
               ),
               const SizedBox(height: 14),
               _PlayerStatisticRow(
@@ -996,7 +996,7 @@ class _PlayerPerformanceSummaryCardState
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.stars_rounded, color: AppColors.gold),
+                      Icon(Icons.stars_rounded, color: context.appWarning),
                       const SizedBox(width: 9),
                       Expanded(
                         child: Text(
@@ -1007,9 +1007,9 @@ class _PlayerPerformanceSummaryCardState
                     ],
                   ),
                   const SizedBox(height: 5),
-                  const Text(
+                  Text(
                     'Nur das Trainerteam sieht Trainer- und anonyme Elternwerte.',
-                    style: TextStyle(color: AppColors.muted),
+                    style: TextStyle(color: context.appColors.textMuted),
                   ),
                   const SizedBox(height: 11),
                   if (snapshot.connectionState == ConnectionState.waiting)
@@ -1029,7 +1029,7 @@ class _PlayerPerformanceSummaryCardState
                                 ? null
                                 : performance.average,
                             detail: '${performance.ratedMatches} Spiele',
-                            color: AppColors.blue,
+                            color: context.appInfo,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -1039,7 +1039,7 @@ class _PlayerPerformanceSummaryCardState
                             value: performance.parentAverage,
                             detail:
                                 '${performance.parentRatingCount} anonyme Stimmen',
-                            color: AppColors.gold,
+                            color: context.appWarning,
                           ),
                         ),
                       ],
@@ -1100,7 +1100,8 @@ class _ProfileRatingValue extends StatelessWidget {
               detail,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10, color: AppColors.muted),
+              style:
+                  TextStyle(fontSize: 10, color: context.appColors.textMuted),
             ),
           ],
         ),
@@ -1137,12 +1138,12 @@ class _PlayerStatisticRow extends StatelessWidget {
         decoration: BoxDecoration(
           color: emphasized
               ? AppColors.yellow.withValues(alpha: .16)
-              : AppColors.navy.withValues(alpha: .035),
+              : context.appColors.surfaceMuted,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: emphasized
                 ? AppColors.yellow.withValues(alpha: .55)
-                : AppColors.line,
+                : context.appColors.outline,
           ),
         ),
         child: LayoutBuilder(
@@ -1162,7 +1163,8 @@ class _PlayerStatisticRow extends StatelessWidget {
                   Text(label,
                       style: const TextStyle(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 3),
-                  Text(values, style: const TextStyle(color: AppColors.muted)),
+                  Text(values,
+                      style: TextStyle(color: context.appColors.textMuted)),
                 ],
               );
             }
@@ -1174,7 +1176,8 @@ class _PlayerStatisticRow extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
-                Text(values, style: const TextStyle(color: AppColors.muted)),
+                Text(values,
+                    style: TextStyle(color: context.appColors.textMuted)),
               ],
             );
           },
@@ -1323,7 +1326,8 @@ class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
                                 '${_documentType(document.type)} · '
                                 'Version ${document.version} · '
                                 '${_fileSize(document.file.size)}',
-                                style: const TextStyle(color: AppColors.muted),
+                                style: TextStyle(
+                                    color: context.appColors.textMuted),
                               ),
                             ],
                           ),
@@ -1607,7 +1611,7 @@ class _Fact extends StatelessWidget {
       width: width,
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(13),
       ),
       child: Column(
@@ -1615,8 +1619,8 @@ class _Fact extends StatelessWidget {
         children: [
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
-              color: AppColors.muted,
+            style: TextStyle(
+              color: context.appColors.textMuted,
               fontSize: 9,
               letterSpacing: .8,
               fontWeight: FontWeight.w800,
@@ -1627,8 +1631,8 @@ class _Fact extends StatelessWidget {
             value,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.navy,
+            style: TextStyle(
+              color: context.appColors.text,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1670,9 +1674,9 @@ class _GuardiansCard extends StatelessWidget {
                 for (final guardian in guardians)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const CircleAvatar(
-                      backgroundColor: AppColors.background,
-                      child: Icon(Icons.person_outline_rounded),
+                    leading: CircleAvatar(
+                      backgroundColor: context.appColors.surfaceMuted,
+                      child: const Icon(Icons.person_outline_rounded),
                     ),
                     title: Text(
                       '${guardian.name} · '
@@ -1688,11 +1692,11 @@ class _GuardiansCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (guardian.isLegalGuardian)
-                          const Tooltip(
+                          Tooltip(
                             message: 'Sorgeberechtigt',
                             child: Icon(
                               Icons.verified_user_rounded,
-                              color: AppColors.teal,
+                              color: context.appSuccess,
                             ),
                           ),
                         if (onRemove != null)
@@ -1830,8 +1834,8 @@ class _MedicalLine extends StatelessWidget {
             width: 105,
             child: Text(
               label,
-              style: const TextStyle(
-                color: AppColors.muted,
+              style: TextStyle(
+                color: context.appColors.textMuted,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1891,10 +1895,10 @@ class _DevelopmentEntry extends StatelessWidget {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: AppColors.teal.withValues(alpha: .1),
+            color: context.appSuccess.withValues(alpha: .1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(Icons.insights_rounded, color: AppColors.teal),
+          child: Icon(Icons.insights_rounded, color: context.appSuccess),
         ),
         const SizedBox(width: 13),
         Expanded(
@@ -1906,8 +1910,8 @@ class _DevelopmentEntry extends StatelessWidget {
                   Expanded(
                     child: Text(
                       note.title,
-                      style: const TextStyle(
-                        color: AppColors.navy,
+                      style: TextStyle(
+                        color: context.appColors.text,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -1915,8 +1919,8 @@ class _DevelopmentEntry extends StatelessWidget {
                   if (note.rating != null)
                     Text(
                       '${List.filled(note.rating!, '●').join()}${List.filled(5 - note.rating!, '○').join()}',
-                      style: const TextStyle(
-                        color: AppColors.orange,
+                      style: TextStyle(
+                        color: context.appWarning,
                         letterSpacing: 1,
                       ),
                     ),
@@ -1989,9 +1993,9 @@ class _ConsentCard extends ConsumerWidget {
         data: (items) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Jede Einwilligung ist freiwillig, einzeln wählbar und jederzeit mit Wirkung für die Zukunft widerrufbar.',
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(color: context.appColors.textMuted),
             ),
             const SizedBox(height: 12),
             for (final template in items) ...[
@@ -2307,8 +2311,8 @@ class _ConsentTile extends StatelessWidget {
               height: 38,
               decoration: BoxDecoration(
                 color: granted
-                    ? AppColors.teal.withValues(alpha: .12)
-                    : AppColors.orange.withValues(alpha: .12),
+                    ? context.appSuccess.withValues(alpha: .12)
+                    : context.appWarning.withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -2317,7 +2321,7 @@ class _ConsentTile extends StatelessWidget {
                     : revoked
                         ? Icons.cancel_outlined
                         : Icons.pending_actions_outlined,
-                color: granted ? AppColors.teal : AppColors.orange,
+                color: granted ? context.appSuccess : context.appWarning,
               ),
             ),
             const SizedBox(width: 12),
@@ -2339,7 +2343,9 @@ class _ConsentTile extends StatelessWidget {
                                 : 'Widerrufen'
                             : 'Noch nicht erteilt',
                     style: TextStyle(
-                      color: granted ? AppColors.teal : AppColors.muted,
+                      color: granted
+                          ? context.appSuccess
+                          : context.appColors.textMuted,
                       fontSize: 13,
                     ),
                   ),
@@ -2474,8 +2480,8 @@ class _DigitalConsentDialogState extends State<_DigitalConsentDialog> {
                     const SizedBox(height: 8),
                     Text(
                       'Rechtsgrundlage: ${widget.template.legalBasis}',
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -2579,8 +2585,8 @@ class _DigitalConsentDialogState extends State<_DigitalConsentDialog> {
                     const SizedBox(height: 10),
                     Text(
                       'Vorlagenversion ${widget.template.version} · Der signierte Inhalt, Zeitpunkt und eine SHA-256-Nachweis-ID werden unveränderbar protokolliert.',
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 11,
                       ),
                     ),
@@ -2689,7 +2695,7 @@ class _Section extends StatelessWidget {
                 final stacked = trailing != null && constraints.maxWidth < 360;
                 final heading = Row(
                   children: [
-                    Icon(icon, color: AppColors.blue),
+                    Icon(icon, color: context.appInfo),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(

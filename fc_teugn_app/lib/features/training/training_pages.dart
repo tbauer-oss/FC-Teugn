@@ -469,8 +469,8 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
             const Spacer(),
             Text(
               '${upcoming.length} Termine',
-              style: const TextStyle(
-                color: AppColors.muted,
+              style: TextStyle(
+                color: context.appColors.textMuted,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -515,7 +515,8 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
                               ].join(' · '),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: AppColors.muted),
+                              style:
+                                  TextStyle(color: context.appColors.textMuted),
                             ),
                             SizedBox(height: compact ? 3 : 8),
                             Wrap(
@@ -1601,9 +1602,9 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.appColors.surface,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.line),
+                      border: Border.all(color: context.appColors.outline),
                     ),
                     child: const Text(
                       'Noch keine regelmäßige Trainingszeit ausgewählt.',
@@ -1658,10 +1659,10 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                           style: TextStyle(fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 4),
-                        const Text(
+                        Text(
                           'Wird serverseitig vor jedem regulären Training an '
                           'die berechtigten Spieler und Eltern gesendet.',
-                          style: TextStyle(color: AppColors.muted),
+                          style: TextStyle(color: context.appColors.textMuted),
                         ),
                         const SizedBox(height: 12),
                         _reminderPicker(
@@ -1710,9 +1711,9 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     'Wähle Mannschaften, die diese Zeiten gemeinsam nutzen. Identische Belegungen gelten dann nicht als Konflikt.',
-                    style: TextStyle(color: AppColors.muted),
+                    style: TextStyle(color: context.appColors.textMuted),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -1739,11 +1740,11 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Mögliche Spieltage',
                               style: TextStyle(
                                 fontSize: 16,
@@ -1752,7 +1753,8 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                             ),
                             Text(
                               'Nur informativ – Spieltage lösen keine Belegungskonflikte aus.',
-                              style: TextStyle(color: AppColors.muted),
+                              style:
+                                  TextStyle(color: context.appColors.textMuted),
                             ),
                           ],
                         ),
@@ -1825,7 +1827,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.teal.withValues(alpha: .08),
+                    color: context.appSuccess.withValues(alpha: .08),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
@@ -1968,9 +1970,9 @@ class _TrainingTimeRow extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.appColors.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -2165,9 +2167,9 @@ class _EmptyScheduleRow extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.appColors.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         child: Text(text, textAlign: TextAlign.center),
       );
@@ -2356,15 +2358,15 @@ class _RegularTrainingTimes extends StatelessWidget {
                           vertical: compact ? 7 : 8,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.appColors.surface,
                           borderRadius: BorderRadius.circular(11),
                         ),
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.schedule_rounded,
                               size: 17,
-                              color: AppColors.gold,
+                              color: context.appWarning,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
@@ -2373,7 +2375,7 @@ class _RegularTrainingTimes extends StatelessWidget {
                                 maxLines: compact ? 2 : 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: AppColors.black,
+                                  color: context.appColors.text,
                                   fontSize: compact ? 11 : 13,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -2410,22 +2412,22 @@ class _DateTile extends StatelessWidget {
         width: 58,
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.teal.withValues(alpha: .1),
+          color: context.appSuccess.withValues(alpha: .1),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           children: [
             Text(
               '${date.day}.${date.month}.',
-              style: const TextStyle(
-                color: AppColors.teal,
+              style: TextStyle(
+                color: context.appSuccess,
                 fontWeight: FontWeight.w900,
                 fontSize: 15,
               ),
             ),
             Text(
               '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
-              style: const TextStyle(color: AppColors.muted),
+              style: TextStyle(color: context.appColors.textMuted),
             ),
           ],
         ),
@@ -2768,12 +2770,12 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                       key: ValueKey('$index-${item.title}'),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor:
-                              _phaseColor(item.phase).withValues(alpha: .12),
+                          backgroundColor: _phaseColor(context, item.phase)
+                              .withValues(alpha: .12),
                           child: Text(
                             '${item.durationMinutes}',
                             style: TextStyle(
-                              color: _phaseColor(item.phase),
+                              color: _phaseColor(context, item.phase),
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -2892,11 +2894,12 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                                         ),
                                       ),
                                       if (exercise.isFavorite)
-                                        const Padding(
-                                          padding: EdgeInsets.only(left: 4),
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(left: 4),
                                           child: Icon(
                                             Icons.star_rounded,
-                                            color: AppColors.orange,
+                                            color: context.appWarning,
                                           ),
                                         ),
                                     ],
@@ -3311,9 +3314,10 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                                 style: Theme.of(context).textTheme.titleLarge,
                               ),
                               const SizedBox(height: 3),
-                              const Text(
+                              Text(
                                 'Mehrere Trainer der zugeordneten Jugend sind möglich.',
-                                style: TextStyle(color: AppColors.muted),
+                                style: TextStyle(
+                                    color: context.appColors.textMuted),
                               ),
                             ],
                           ),
@@ -3677,7 +3681,7 @@ class _CoachMultiSelectField extends StatelessWidget {
                 coaches.isEmpty
                     ? 'Keine freigegebenen Trainer'
                     : 'Trainer auswählen · Mehrfachauswahl',
-                style: const TextStyle(color: AppColors.muted),
+                style: TextStyle(color: context.appColors.textMuted),
               )
             : Wrap(
                 spacing: 6,
@@ -3723,10 +3727,10 @@ String _phaseLabel(TrainingPhase phase) => switch (phase) {
       TrainingPhase.coolDown => 'Abschluss',
     };
 
-Color _phaseColor(TrainingPhase phase) => switch (phase) {
-      TrainingPhase.warmUp => AppColors.orange,
-      TrainingPhase.mainPart => AppColors.blue,
-      TrainingPhase.gameForm => AppColors.teal,
+Color _phaseColor(BuildContext context, TrainingPhase phase) => switch (phase) {
+      TrainingPhase.warmUp => context.appWarning,
+      TrainingPhase.mainPart => context.appInfo,
+      TrainingPhase.gameForm => context.appSuccess,
       TrainingPhase.coolDown => Colors.blueGrey,
     };
 

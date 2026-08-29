@@ -318,10 +318,10 @@ class EmptyState extends StatelessWidget {
             width: 58,
             height: 58,
             decoration: BoxDecoration(
-              color: AppColors.blue.withValues(alpha: .1),
+              color: context.appInfo.withValues(alpha: .1),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: Icon(icon, color: AppColors.blue, size: 28),
+            child: Icon(icon, color: context.appInfo, size: 28),
           ),
           const SizedBox(height: 16),
           Text(title, style: Theme.of(context).textTheme.titleLarge),

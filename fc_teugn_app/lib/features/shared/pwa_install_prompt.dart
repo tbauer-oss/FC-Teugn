@@ -146,7 +146,7 @@ class _InstallHint extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        Icon(icon, color: AppColors.gold, size: 24),
+        Icon(icon, color: context.appWarning, size: 24),
         const SizedBox(width: 10),
         Expanded(child: Text(text)),
       ],

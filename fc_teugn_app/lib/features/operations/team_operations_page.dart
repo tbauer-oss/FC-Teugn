@@ -261,26 +261,26 @@ class _PageHeader extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: AppColors.blue.withValues(alpha: .1),
+                color: context.appInfo.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(15),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.assignment_turned_in_rounded,
-                color: AppColors.blue,
+                color: context.appInfo,
               ),
             ),
             const SizedBox(width: 14),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Team-Organisation',
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
                   ),
                   Text(
                     'Aufgaben, Material und wiederverwendbare Abläufe',
-                    style: TextStyle(color: AppColors.muted),
+                    style: TextStyle(color: context.appColors.textMuted),
                   ),
                 ],
               ),
@@ -375,10 +375,10 @@ class _TasksTab extends StatelessWidget {
                       ? Icons.warning_amber_rounded
                       : Icons.radio_button_unchecked_rounded,
               color: task.isDone
-                  ? AppColors.teal
+                  ? context.appSuccess
                   : task.isOverdue
                       ? Colors.red
-                      : AppColors.blue,
+                      : context.appInfo,
             ),
             title: task.title,
             badge: _taskStatus(task.status),
@@ -445,9 +445,9 @@ class _EquipmentTab extends StatelessWidget {
         for (final item in data.equipment)
           _OperationCard(
             width: 430,
-            leading: const Icon(
+            leading: Icon(
               Icons.sports_soccer_rounded,
-              color: AppColors.blue,
+              color: context.appInfo,
             ),
             title: item.name,
             badge: '${item.availableQuantity}/${item.quantity} frei',
@@ -476,7 +476,7 @@ class _EquipmentTab extends StatelessWidget {
                           style: TextStyle(
                             color: assignment.isOverdue
                                 ? Colors.red
-                                : AppColors.muted,
+                                : context.appColors.textMuted,
                             fontSize: 13,
                           ),
                         ),
@@ -617,9 +617,9 @@ class _ChecklistsTab extends StatelessWidget {
             for (final template in data.checklistTemplates)
               _OperationCard(
                 width: 360,
-                leading: const Icon(
+                leading: Icon(
                   Icons.library_add_check_rounded,
-                  color: AppColors.blue,
+                  color: context.appInfo,
                 ),
                 title: template.title,
                 badge: '${template.items.length} Punkte',
@@ -715,7 +715,8 @@ class _SectionHeader extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            Text(subtitle, style: const TextStyle(color: AppColors.muted)),
+            Text(subtitle,
+                style: TextStyle(color: context.appColors.textMuted)),
           ],
         );
         final action = actionLabel == null
@@ -800,7 +801,7 @@ class _OperationCard extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
                     line,
-                    style: const TextStyle(color: AppColors.muted),
+                    style: TextStyle(color: context.appColors.textMuted),
                   ),
                 ),
               ...actions,
@@ -822,13 +823,13 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.blue.withValues(alpha: .09),
+        color: context.appInfo.withValues(alpha: .09),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: AppColors.blue,
+        style: TextStyle(
+          color: context.appInfo,
           fontSize: 11,
           fontWeight: FontWeight.w800,
         ),
@@ -856,7 +857,7 @@ class _EmptyState extends StatelessWidget {
         child: Center(
           child: Column(
             children: [
-              Icon(icon, size: 44, color: AppColors.blue),
+              Icon(icon, size: 44, color: context.appInfo),
               const SizedBox(height: 12),
               Text(
                 title,
@@ -869,7 +870,7 @@ class _EmptyState extends StatelessWidget {
               Text(
                 text,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.muted),
+                style: TextStyle(color: context.appColors.textMuted),
               ),
             ],
           ),

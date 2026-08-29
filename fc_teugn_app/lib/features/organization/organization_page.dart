@@ -698,12 +698,12 @@ class _AgeGroupSection extends StatelessWidget {
               height: compact ? 34 : 42,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: AppColors.blue.withValues(alpha: .1),
+                color: context.appInfo.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(compact ? 11 : 13),
               ),
               child: Text(ageGroup.code,
-                  style: const TextStyle(
-                      color: AppColors.blue, fontWeight: FontWeight.w900)),
+                  style: TextStyle(
+                      color: context.appInfo, fontWeight: FontWeight.w900)),
             ),
             SizedBox(width: compact ? 9 : 12),
             Text(
@@ -849,7 +849,7 @@ class _TeamCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           gradient: LinearGradient(colors: [
                             AppColors.navy,
-                            AppColors.blue.withValues(alpha: .75),
+                            context.appInfo.withValues(alpha: .75),
                           ]),
                         ),
                         child: const Icon(Icons.groups_rounded,
@@ -868,10 +868,10 @@ class _TeamCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleLarge),
                     ),
                     if (isCurrent)
-                      const Tooltip(
+                      Tooltip(
                         message: 'Aktive Mannschaft',
                         child: Icon(Icons.check_circle_rounded,
-                            color: AppColors.teal),
+                            color: context.appSuccess),
                       ),
                     if (!team.isActive) const Chip(label: Text('Inaktiv')),
                   ],
@@ -880,7 +880,7 @@ class _TeamCard extends StatelessWidget {
                 Text(
                   '${_label(team.teamType)} · ${_gender(team.gender)}'
                   '${team.level?.isNotEmpty == true ? ' · ${team.level}' : ''}',
-                  style: const TextStyle(color: AppColors.muted),
+                  style: TextStyle(color: context.appColors.textMuted),
                 ),
                 if (team.isPlayingCommunity) ...[
                   const SizedBox(height: 8),
@@ -973,8 +973,8 @@ class _TeamCard extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.privacy_tip_outlined,
-                            color: AppColors.gold),
+                        Icon(Icons.privacy_tip_outlined,
+                            color: context.appWarning),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -1120,21 +1120,21 @@ class _TeamCard extends StatelessWidget {
                       ),
                     ),
                     if (isCurrent)
-                      const Tooltip(
+                      Tooltip(
                         message: 'Aktive Mannschaft',
                         child: Icon(
                           Icons.check_circle_rounded,
                           size: 19,
-                          color: AppColors.teal,
+                          color: context.appSuccess,
                         ),
                       ),
                     if (!team.isActive)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 5),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 5),
                         child: Text(
                           'Inaktiv',
                           style: TextStyle(
-                            color: AppColors.muted,
+                            color: context.appColors.textMuted,
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                           ),
@@ -1147,8 +1147,8 @@ class _TeamCard extends StatelessWidget {
                   '${team.level?.isNotEmpty == true ? ' · ${team.level}' : ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.muted,
+                  style: TextStyle(
+                    color: context.appColors.textMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -1224,7 +1224,7 @@ class _TeamCard extends StatelessWidget {
                     'Mannschaftsfoto bleibt wegen einer widerrufenen oder '
                     'eingeschränkten Einwilligung geschützt ausgeblendet.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.muted,
+                          color: context.appColors.textMuted,
                           fontSize: 10,
                         ),
                   ),
@@ -1419,7 +1419,7 @@ class _CompactTeamFact extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: AppColors.gold),
+            Icon(icon, size: 14, color: context.appWarning),
             const SizedBox(width: 4),
             Flexible(
               child: Text(
@@ -1451,7 +1451,7 @@ class _InfoLine extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: compact ? 15 : 18, color: AppColors.blue),
+          Icon(icon, size: compact ? 15 : 18, color: context.appInfo),
           SizedBox(width: compact ? 5 : 7),
           Expanded(
             child: Text(
@@ -1629,17 +1629,17 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         existingUrl,
         fit: BoxFit.contain,
         semanticLabel: 'Wappen der Spielgemeinschaft',
-        errorBuilder: (_, __, ___) => const Icon(
+        errorBuilder: (_, __, ___) => Icon(
           Icons.groups_2_outlined,
           size: 36,
-          color: AppColors.muted,
+          color: context.appColors.textMuted,
         ),
       );
     } else {
-      preview = const Icon(
+      preview = Icon(
         Icons.add_photo_alternate_outlined,
         size: 36,
-        color: AppColors.muted,
+        color: context.appColors.textMuted,
       );
     }
     final hasLogo = _playingCommunityLogoBytes != null || showExisting;
@@ -1681,8 +1681,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                   hasLogo
                       ? 'Wird in Mannschaft und Spielbetrieb angezeigt.'
                       : 'PNG, JPEG oder WebP auswählen.',
-                  style: const TextStyle(
-                    color: AppColors.muted,
+                  style: TextStyle(
+                    color: context.appColors.textMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -1820,15 +1820,15 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                   decoration: BoxDecoration(
                     color: AppColors.yellowSoft.withValues(alpha: .55),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.line),
+                    border: Border.all(color: context.appColors.outline),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Angezeigter Mannschaftsname',
                         style: TextStyle(
-                          color: AppColors.muted,
+                          color: context.appColors.textMuted,
                           fontSize: 12,
                         ),
                       ),
@@ -2003,10 +2003,10 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
               Text('Mannschaftssaison',
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Diese Grenzen steuern Saisonmarkierungen und die '
                 'automatische Trainingsserie im Kalender.',
-                style: TextStyle(color: AppColors.muted),
+                style: TextStyle(color: context.appColors.textMuted),
               ),
               const SizedBox(height: 10),
               _twoColumns(
@@ -2376,14 +2376,14 @@ class _MatchRuleEditor extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.yellowSoft.withValues(alpha: .35),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.timer_outlined, color: AppColors.blue),
+              Icon(Icons.timer_outlined, color: context.appInfo),
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
@@ -2405,7 +2405,7 @@ class _MatchRuleEditor extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: AppColors.muted),
+                ?.copyWith(color: context.appColors.textMuted),
           ),
           const SizedBox(height: 14),
           LayoutBuilder(
@@ -2474,7 +2474,7 @@ class _MatchRuleEditor extends StatelessWidget {
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.muted),
+                      ?.copyWith(color: context.appColors.textMuted),
                 ),
               ),
               if (enabled && customized)
@@ -2515,9 +2515,9 @@ class _BirthYearMultiSelectField extends StatelessWidget {
           suffixIcon: Icon(Icons.arrow_drop_down_rounded),
         ),
         child: years.isEmpty
-            ? const Text(
+            ? Text(
                 'Jahrgänge auswählen',
-                style: TextStyle(color: AppColors.muted),
+                style: TextStyle(color: context.appColors.textMuted),
               )
             : Wrap(
                 spacing: 6,

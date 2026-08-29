@@ -59,6 +59,30 @@ void main() {
         find.text('Aktuell ist keine Freigabe erforderlich.'), findsOneWidget);
   });
 
+  testWidgets('all-clear state remains readable in dark mode', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(brightness: Brightness.dark),
+        home: Scaffold(
+          body: AdminMemberRequestsCard(
+            pending: const AsyncData(<AppUser>[]),
+            onOpen: () {},
+            onRefresh: () {},
+          ),
+        ),
+      ),
+    );
+
+    final title = tester.widget<Text>(
+      find.text('Keine offenen Mitgliedsanfragen'),
+    );
+    final subtitle = tester.widget<Text>(
+      find.text('Aktuell ist keine Freigabe erforderlich.'),
+    );
+    expect(title.style?.color, AppSurfaceColors.dark.text);
+    expect(subtitle.style?.color, AppSurfaceColors.dark.textMuted);
+  });
+
   testWidgets(
       'does not contradict the authoritative request card with a stale notification',
       (tester) async {

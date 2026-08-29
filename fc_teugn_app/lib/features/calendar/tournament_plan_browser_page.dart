@@ -148,7 +148,7 @@ class _TournamentPlanBrowserPageState extends State<TournamentPlanBrowserPage> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 680;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appColors.surfaceMuted,
       appBar: AppBar(
         toolbarHeight: compact ? 48 : 52,
         automaticallyImplyLeading: false,
@@ -184,7 +184,7 @@ class _TournamentPlanBrowserPageState extends State<TournamentPlanBrowserPage> {
                 child: LinearProgressIndicator(
                   value: _progress > 0 ? _progress / 100 : null,
                   minHeight: 3,
-                  color: AppColors.gold,
+                  color: context.appWarning,
                   backgroundColor: AppColors.yellowSoft,
                 ),
               )
@@ -219,8 +219,8 @@ class _TournamentPrivacyNotice extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.emoji_events_rounded,
-                        size: 54, color: AppColors.gold),
+                    Icon(Icons.emoji_events_rounded,
+                        size: 54, color: context.appWarning),
                     const SizedBox(height: 16),
                     Text('Turnierplan live öffnen',
                         style: Theme.of(context).textTheme.headlineSmall,
@@ -267,8 +267,8 @@ class _TournamentLoadError extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off_rounded,
-                  size: 48, color: AppColors.gold),
+              Icon(Icons.cloud_off_rounded,
+                  size: 48, color: context.appWarning),
               const SizedBox(height: 14),
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 16),

@@ -23,19 +23,19 @@ class PlayerTeamChip extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: unassigned
-            ? AppColors.orange.withValues(alpha: .12)
-            : AppColors.blue.withValues(alpha: .1),
+            ? context.appWarning.withValues(alpha: .12)
+            : context.appInfo.withValues(alpha: .1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: unassigned
-              ? AppColors.orange.withValues(alpha: .35)
-              : AppColors.blue.withValues(alpha: .22),
+              ? context.appWarning.withValues(alpha: .35)
+              : context.appInfo.withValues(alpha: .22),
         ),
       ),
       child: Text(
         player.teamCode,
         style: TextStyle(
-          color: unassigned ? AppColors.orange : AppColors.blue,
+          color: unassigned ? context.appWarning : context.appInfo,
           fontSize: compact ? 10 : 11,
           fontWeight: FontWeight.w900,
         ),

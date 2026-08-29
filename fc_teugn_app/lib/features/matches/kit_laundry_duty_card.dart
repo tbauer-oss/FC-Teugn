@@ -181,9 +181,9 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
         child: Container(
           height: widget.compact ? 50 : 62,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.appColors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: context.appColors.outline),
           ),
           child: const Center(child: LinearProgressIndicator()),
         ),

@@ -2002,7 +2002,7 @@ class _MatchToolbarMenu<T> extends StatelessWidget {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(13),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: context.appColors.outline),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -2182,14 +2182,14 @@ class _TournamentPlanToolbar extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.yellowSoft,
               borderRadius: BorderRadius.circular(compact ? 14 : 18),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.appColors.outline),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.emoji_events_rounded,
                   size: compact ? 20 : 24,
-                  color: AppColors.gold,
+                  color: context.appWarning,
                 ),
                 SizedBox(width: compact ? 8 : 12),
                 Expanded(
@@ -2211,7 +2211,7 @@ class _TournamentPlanToolbar extends StatelessWidget {
                         maxLines: compact ? 1 : 2,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.muted,
+                              color: context.appColors.textMuted,
                             ),
                       ),
                     ],
@@ -2248,7 +2248,7 @@ class _CompactTournamentEmptyState extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         child: Row(
           children: [
@@ -2256,13 +2256,13 @@ class _CompactTournamentEmptyState extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: AppColors.blue.withValues(alpha: .08),
+                color: context.appInfo.withValues(alpha: .08),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.sports_soccer_outlined,
                 size: 21,
-                color: AppColors.blue,
+                color: context.appInfo,
               ),
             ),
             const SizedBox(width: 10),
@@ -2282,7 +2282,7 @@ class _CompactTournamentEmptyState extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.muted,
+                          color: context.appColors.textMuted,
                         ),
                   ),
                 ],
@@ -2306,7 +2306,7 @@ class _TournamentPlanningAccessCard extends StatelessWidget {
             'Ein Kader und eine Grundaufstellung für das gesamte Turnier. '
             'Einzelne Partien können optional separat geplant werden.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.muted,
+                  color: context.appColors.textMuted,
                 ),
           );
           final action = FilledButton.icon(
@@ -2321,17 +2321,17 @@ class _TournamentPlanningAccessCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.appColors.outline),
             ),
             child: compact
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          Icon(Icons.groups_rounded, color: AppColors.gold),
-                          SizedBox(width: 9),
-                          Expanded(
+                          Icon(Icons.groups_rounded, color: context.appWarning),
+                          const SizedBox(width: 9),
+                          const Expanded(
                             child: Text(
                               'Turnier-Kader & Aufstellung',
                               style: TextStyle(fontWeight: FontWeight.w900),
@@ -2347,9 +2347,9 @@ class _TournamentPlanningAccessCard extends StatelessWidget {
                   )
                 : Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.groups_rounded,
-                        color: AppColors.gold,
+                        color: context.appWarning,
                         size: 28,
                       ),
                       const SizedBox(width: 12),
@@ -2662,22 +2662,22 @@ class _TournamentFixtureReleaseStatus extends StatelessWidget {
         key: const ValueKey('tournament-fixture-release-status'),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: AppColors.success.withValues(alpha: .1),
+          color: context.appSuccess.withValues(alpha: .1),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: AppColors.success.withValues(alpha: .35),
+            color: context.appSuccess.withValues(alpha: .35),
           ),
         ),
-        child: const Wrap(
+        child: Wrap(
           spacing: 6,
           runSpacing: 2,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Icon(Icons.verified_rounded, size: 18, color: AppColors.success),
+            Icon(Icons.verified_rounded, size: 18, color: context.appSuccess),
             Text(
               'Für Familien sichtbar',
               style: TextStyle(
-                color: AppColors.success,
+                color: context.appSuccess,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -2769,7 +2769,7 @@ class _MatchCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: compact
                     ? Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.muted,
+                          color: context.appColors.textMuted,
                         )
                     : null,
               ),
@@ -2780,12 +2780,12 @@ class _MatchCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: isFriendly
                           ? AppColors.yellowSoft
-                          : AppColors.blue.withValues(alpha: 0.10),
+                          : context.appInfo.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
                         color: isFriendly
                             ? AppColors.gold
-                            : AppColors.blue.withValues(alpha: 0.28),
+                            : context.appInfo.withValues(alpha: 0.28),
                       ),
                     ),
                     child: Padding(
@@ -2798,7 +2798,8 @@ class _MatchCard extends StatelessWidget {
                             ? 'Freundschaftsspiel'
                             : details!.competition!,
                         style: TextStyle(
-                          color: isFriendly ? AppColors.gold : AppColors.blue,
+                          color:
+                              isFriendly ? context.appWarning : context.appInfo,
                           fontWeight: FontWeight.w800,
                           fontSize: compact ? 11 : 12,
                         ),
@@ -2810,10 +2811,10 @@ class _MatchCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.emoji_events_rounded,
                       size: 15,
-                      color: AppColors.gold,
+                      color: context.appWarning,
                     ),
                     const SizedBox(width: 5),
                     Expanded(
@@ -3013,7 +3014,8 @@ class _MatchCard extends StatelessWidget {
                                   style: Theme.of(context)
                                       .textTheme
                                       .bodySmall
-                                      ?.copyWith(color: AppColors.muted),
+                                      ?.copyWith(
+                                          color: context.appColors.textMuted),
                                 ),
                               ],
                             ),
@@ -3128,13 +3130,13 @@ class _MatchDetailChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: context.appColors.surfaceMuted,
           borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: AppColors.gold),
+            Icon(icon, size: 15, color: context.appWarning),
             const SizedBox(width: 5),
             Text(
               text,
@@ -3375,8 +3377,7 @@ class _MatchLogos extends StatelessWidget {
               color: AppColors.yellowSoft,
               borderRadius: BorderRadius.circular(10),
             ),
-            child:
-                const Icon(Icons.emoji_events_rounded, color: AppColors.gold),
+            child: Icon(Icons.emoji_events_rounded, color: context.appWarning),
           )
         else if (isHome)
           opponentCrest

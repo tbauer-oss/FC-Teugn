@@ -163,7 +163,7 @@ class _BfvBrowserPageState extends State<BfvBrowserPage> {
                 child: LinearProgressIndicator(
                   value: _progress > 0 ? _progress / 100 : null,
                   minHeight: 3,
-                  color: AppColors.gold,
+                  color: context.appWarning,
                   backgroundColor: AppColors.yellowSoft,
                 ),
               )
@@ -179,10 +179,10 @@ class _BfvBrowserPageState extends State<BfvBrowserPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.cloud_off_rounded,
                         size: 48,
-                        color: AppColors.gold,
+                        color: context.appWarning,
                       ),
                       const SizedBox(height: 14),
                       Text(

@@ -80,8 +80,8 @@ class _SupportPageState extends ConsumerState<SupportPage> {
                         padding: const EdgeInsets.all(28),
                         child: Column(
                           children: [
-                            const Icon(Icons.support_agent_rounded,
-                                size: 52, color: AppColors.teal),
+                            Icon(Icons.support_agent_rounded,
+                                size: 52, color: context.appSuccess),
                             const SizedBox(height: 12),
                             Text(
                               administrator
@@ -144,18 +144,19 @@ class _SupportHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          gradient:
-              const LinearGradient(colors: [AppColors.navy, AppColors.blue]),
+          gradient: const LinearGradient(
+            colors: [AppColors.navy, AppColors.blue],
+          ),
           borderRadius: BorderRadius.circular(22),
         ),
         padding: const EdgeInsets.all(22),
         child: Row(
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               radius: 28,
-              backgroundColor: AppColors.orange,
+              backgroundColor: context.appWarning,
               foregroundColor: AppColors.navy,
-              child: Icon(Icons.support_agent_rounded, size: 30),
+              child: const Icon(Icons.support_agent_rounded, size: 30),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -202,8 +203,9 @@ class _TicketTile extends StatelessWidget {
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: _statusColor(ticket.status).withValues(alpha: .14),
-          foregroundColor: _statusColor(ticket.status),
+          backgroundColor:
+              _statusColor(context, ticket.status).withValues(alpha: .14),
+          foregroundColor: _statusColor(context, ticket.status),
           child: const Icon(Icons.confirmation_number_outlined),
         ),
         title: Text(ticket.subject,
@@ -490,7 +492,7 @@ class _TicketDialogState extends ConsumerState<_TicketDialog> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: message.internal
-                              ? AppColors.orange.withValues(alpha: .13)
+                              ? context.appWarning.withValues(alpha: .13)
                               : AppColors.navy.withValues(alpha: .06),
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -550,10 +552,11 @@ class _TicketDialogState extends ConsumerState<_TicketDialog> {
       );
 }
 
-Color _statusColor(SupportStatus status) => switch (status) {
-      SupportStatus.open => AppColors.orange,
-      SupportStatus.inProgress => AppColors.blue,
+Color _statusColor(BuildContext context, SupportStatus status) =>
+    switch (status) {
+      SupportStatus.open => context.appWarning,
+      SupportStatus.inProgress => context.appInfo,
       SupportStatus.question => Colors.deepPurple,
-      SupportStatus.resolved => AppColors.teal,
-      SupportStatus.closed => AppColors.muted,
+      SupportStatus.resolved => context.appSuccess,
+      SupportStatus.closed => context.appColors.textMuted,
     };

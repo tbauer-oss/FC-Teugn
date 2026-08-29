@@ -286,10 +286,10 @@ class _AdminPanel extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.blue.withValues(alpha: .1),
+                    color: context.appInfo.withValues(alpha: .1),
                     borderRadius: BorderRadius.circular(13),
                   ),
-                  child: Icon(icon, color: AppColors.blue),
+                  child: Icon(icon, color: context.appInfo),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -303,7 +303,7 @@ class _AdminPanel extends StatelessWidget {
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
-                            ?.copyWith(color: AppColors.muted),
+                            ?.copyWith(color: context.appColors.textMuted),
                       ),
                     ],
                   ),
@@ -349,7 +349,7 @@ class _RuleProfileList extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(13),
               decoration: BoxDecoration(
-                color: AppColors.background,
+                color: context.appColors.surfaceMuted,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
@@ -369,7 +369,7 @@ class _RuleProfileList extends StatelessWidget {
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
-                              ?.copyWith(color: AppColors.muted),
+                              ?.copyWith(color: context.appColors.textMuted),
                         ),
                       ],
                     ),
@@ -412,15 +412,15 @@ class _SeasonTransitionList extends StatelessWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
-              backgroundColor:
-                  _statusColor(transition.status).withValues(alpha: .12),
+              backgroundColor: _statusColor(context, transition.status)
+                  .withValues(alpha: .12),
               child: Icon(
                 transition.status == 'APPLIED'
                     ? Icons.check_rounded
                     : transition.status == 'FAILED'
                         ? Icons.error_outline_rounded
                         : Icons.visibility_outlined,
-                color: _statusColor(transition.status),
+                color: _statusColor(context, transition.status),
               ),
             ),
             title: Text(
@@ -446,7 +446,7 @@ class _InlineEmpty extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Text(message, textAlign: TextAlign.center),
@@ -809,7 +809,7 @@ class _SeasonPreviewDialog extends StatelessWidget {
                   margin: const EdgeInsets.only(top: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.orange.withValues(alpha: .12),
+                    color: context.appWarning.withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(warning.toString()),
@@ -848,7 +848,7 @@ class _PreviewMetric extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.blue.withValues(alpha: .08),
+        color: context.appInfo.withValues(alpha: .08),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -917,8 +917,8 @@ String _statusLabel(String status) => switch (status) {
       'FAILED' => 'Fehlgeschlagen',
       _ => 'Vorschau',
     };
-Color _statusColor(String status) => switch (status) {
-      'APPLIED' => AppColors.teal,
+Color _statusColor(BuildContext context, String status) => switch (status) {
+      'APPLIED' => context.appSuccess,
       'FAILED' => Colors.red,
-      _ => AppColors.blue,
+      _ => context.appInfo,
     };

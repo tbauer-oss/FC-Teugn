@@ -331,7 +331,7 @@ class _AutopilotHero extends StatelessWidget {
               minHeight: 6,
               backgroundColor: Colors.white.withValues(alpha: .12),
               valueColor: AlwaysStoppedAnimation<Color>(
-                missing == 0 ? AppColors.success : AppColors.yellow,
+                missing == 0 ? context.appSuccess : AppColors.yellow,
               ),
             ),
           ),
@@ -397,7 +397,7 @@ class _StrategySelector extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.tune_rounded, color: AppColors.blue),
+                Icon(Icons.tune_rounded, color: context.appInfo),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(
@@ -415,7 +415,7 @@ class _StrategySelector extends StatelessWidget {
               maxLines: compact ? 2 : null,
               overflow: compact ? TextOverflow.ellipsis : null,
               style: TextStyle(
-                color: AppColors.muted,
+                color: context.appColors.textMuted,
                 fontSize: compact ? 12 : null,
               ),
             ),
@@ -481,7 +481,7 @@ class _StrategySelector extends StatelessWidget {
                         color: AppColors.yellowSoft.withValues(alpha: .55),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
-                          side: const BorderSide(color: AppColors.line),
+                          side: BorderSide(color: context.appColors.outline),
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: SwitchListTile.adaptive(
@@ -496,9 +496,9 @@ class _StrategySelector extends StatelessWidget {
                           contentPadding: EdgeInsets.symmetric(
                             horizontal: compact ? 10 : 16,
                           ),
-                          secondary: const Icon(
+                          secondary: Icon(
                             Icons.settings_backup_restore_rounded,
-                            color: AppColors.gold,
+                            color: context.appWarning,
                           ),
                           title: const Text(
                             'Stammspieler auf Stammplätze zurückführen',
@@ -647,7 +647,7 @@ class _ReadinessRow extends StatelessWidget {
               item.ready
                   ? Icons.check_circle_rounded
                   : Icons.warning_amber_rounded,
-              color: item.ready ? AppColors.success : AppColors.gold,
+              color: item.ready ? context.appSuccess : context.appWarning,
               size: 24,
             ),
             const SizedBox(width: 10),
@@ -680,13 +680,13 @@ class _ReadyState extends StatelessWidget {
   const _ReadyState();
 
   @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 7),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
         child: Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: AppColors.success),
-            SizedBox(width: 10),
-            Expanded(
+            Icon(Icons.check_circle_rounded, color: context.appSuccess),
+            const SizedBox(width: 10),
+            const Expanded(
               child: Text(
                 'Bereit für die Trainerfreigabe',
                 style: TextStyle(fontWeight: FontWeight.w800),
@@ -786,10 +786,11 @@ class _LineupPlayerTile extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: 62),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: context.appColors.surfaceMuted,
           borderRadius: BorderRadius.circular(13),
           border: Border.all(
-            color: position.isCaptain ? AppColors.gold : AppColors.line,
+            color:
+                position.isCaptain ? AppColors.gold : context.appColors.outline,
           ),
         ),
         child: Row(
@@ -878,13 +879,14 @@ class _RotationCardState extends State<_RotationCard> {
         ready: true,
       ),
       child: plan.substitutions.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 7),
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
               child: Row(
                 children: [
-                  Icon(Icons.event_available_rounded, color: AppColors.success),
-                  SizedBox(width: 10),
-                  Expanded(
+                  Icon(Icons.event_available_rounded,
+                      color: context.appSuccess),
+                  const SizedBox(width: 10),
+                  const Expanded(
                     child: Text(
                       'Alle nominierten Spieler starten auf dem Feld.',
                       style: TextStyle(fontWeight: FontWeight.w700),
@@ -962,8 +964,8 @@ class _SubstitutionRow extends StatelessWidget {
             ),
             child: Text(
               '${substitution.period}.${substitution.minute}',
-              style: const TextStyle(
-                color: AppColors.gold,
+              style: TextStyle(
+                color: context.appWarning,
                 fontSize: 10,
                 fontWeight: FontWeight.w900,
               ),
@@ -982,8 +984,8 @@ class _SubstitutionRow extends StatelessWidget {
                         playerIn,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.success,
+                        style: TextStyle(
+                          color: context.appSuccess,
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
@@ -999,8 +1001,8 @@ class _SubstitutionRow extends StatelessWidget {
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.gold,
+                          style: TextStyle(
+                            color: context.appWarning,
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                           ),
@@ -1008,10 +1010,10 @@ class _SubstitutionRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 5),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
                   child: Icon(Icons.swap_horiz_rounded,
-                      color: AppColors.muted, size: 17),
+                      color: context.appColors.textMuted, size: 17),
                 ),
                 Expanded(
                   child: Text(
@@ -1019,8 +1021,8 @@ class _SubstitutionRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.end,
-                    style: const TextStyle(
-                      color: AppColors.muted,
+                    style: TextStyle(
+                      color: context.appColors.textMuted,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1151,7 +1153,7 @@ class _MetricGrid extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
                   decoration: BoxDecoration(
-                    color: AppColors.background,
+                    color: context.appColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
@@ -1196,7 +1198,7 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: (ready ? AppColors.success : AppColors.gold)
+          color: (ready ? context.appSuccess : context.appWarning)
               .withValues(alpha: .1),
           borderRadius: BorderRadius.circular(20),
         ),
@@ -1204,7 +1206,7 @@ class _StatusPill extends StatelessWidget {
           label,
           maxLines: 1,
           style: TextStyle(
-            color: ready ? AppColors.success : AppColors.gold,
+            color: ready ? context.appSuccess : context.appWarning,
             fontSize: 10,
             fontWeight: FontWeight.w900,
           ),
@@ -1233,7 +1235,7 @@ class _SectionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1248,7 +1250,7 @@ class _SectionCard extends StatelessWidget {
                     color: AppColors.yellowSoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, color: AppColors.gold, size: 19),
+                  child: Icon(icon, color: context.appWarning, size: 19),
                 ),
                 const SizedBox(width: 9),
                 Expanded(

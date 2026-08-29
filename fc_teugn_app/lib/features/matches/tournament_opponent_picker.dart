@@ -82,7 +82,7 @@ class TournamentOpponentPickerField extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: selected == null
                 ? Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.muted,
+                      color: context.appColors.textMuted,
                     )
                 : Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
@@ -292,7 +292,7 @@ class _TournamentOpponentPickerSheetState
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
-                                ?.copyWith(color: AppColors.muted),
+                                ?.copyWith(color: context.appColors.textMuted),
                           ),
                         ),
                       )

@@ -268,9 +268,9 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.teal.withValues(alpha: .08),
+            color: context.appSuccess.withValues(alpha: .08),
             border: Border.all(
-              color: AppColors.teal.withValues(alpha: .22),
+              color: context.appSuccess.withValues(alpha: .22),
             ),
             borderRadius: BorderRadius.circular(17),
           ),
@@ -283,12 +283,12 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.appColors.surfaceRaised,
                       borderRadius: BorderRadius.circular(13),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.lock_clock_rounded,
-                      color: AppColors.teal,
+                      color: context.appSuccess,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -512,8 +512,8 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                           ),
                           Text(
                             'Vollständige Löschung inkl. Sicherungen nach ${_inbox?.retentionDays ?? 30} Tagen',
-                            style: const TextStyle(
-                              color: AppColors.teal,
+                            style: TextStyle(
+                              color: context.appSuccess,
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1045,7 +1045,7 @@ class _FamilyContactThreadPane extends StatelessWidget {
                           'Automatische vollständige Löschung inkl. Sicherungen nach $retentionDays Tagen',
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.teal,
+                                    color: context.appSuccess,
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -1473,8 +1473,8 @@ class _FamilyContactBubble extends StatelessWidget {
                 if (!message.sentByMe)
                   Text(
                     message.senderName,
-                    style: const TextStyle(
-                      color: AppColors.teal,
+                    style: TextStyle(
+                      color: context.appSuccess,
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
                     ),
@@ -1482,7 +1482,10 @@ class _FamilyContactBubble extends StatelessWidget {
                 if (message.message.isNotEmpty &&
                     !(message.attachment != null &&
                         message.message == '📎 ${message.attachment!.name}'))
-                  Text(message.message),
+                  Text(
+                    message.message,
+                    style: TextStyle(color: colors.text),
+                  ),
                 if (message.attachment != null) ...[
                   if (message.message.isNotEmpty) const SizedBox(height: 6),
                   _FamilyContactAttachmentView(
@@ -1502,10 +1505,10 @@ class _FamilyContactBubble extends StatelessWidget {
                     ),
                     if (message.sentByMe) ...[
                       const SizedBox(width: 3),
-                      const Icon(
+                      Icon(
                         Icons.done_all_rounded,
                         size: 13,
-                        color: AppColors.teal,
+                        color: context.appSuccess,
                       ),
                     ],
                   ],
@@ -1737,10 +1740,16 @@ class _CommunicationNavigationItem extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: selected ? AppColors.yellow : AppColors.background,
+                  color: selected
+                      ? AppColors.yellow
+                      : context.appColors.surfaceMuted,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(destination.icon, size: 21, color: AppColors.navy),
+                child: Icon(
+                  destination.icon,
+                  size: 21,
+                  color: selected ? AppColors.black : context.appColors.text,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1751,7 +1760,7 @@ class _CommunicationNavigationItem extends StatelessWidget {
                       destination.label,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w800,
-                            color: AppColors.navy,
+                            color: context.appColors.text,
                           ),
                     ),
                     const SizedBox(height: 2),
@@ -1760,7 +1769,7 @@ class _CommunicationNavigationItem extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.muted,
+                            color: context.appColors.textMuted,
                           ),
                     ),
                   ],
@@ -1797,9 +1806,9 @@ class _PitchConflictRequestList extends ConsumerWidget {
         final isSystemAdmin =
             ref.read(authProvider).user?.role == UserRole.superAdmin;
         final priorityInfo = Card(
-          color: AppColors.teal.withValues(alpha: .08),
+          color: context.appSuccess.withValues(alpha: .08),
           child: ListTile(
-            leading: const Icon(Icons.shield_rounded, color: AppColors.teal),
+            leading: Icon(Icons.shield_rounded, color: context.appSuccess),
             title: const Text('Jugendmannschaften haben immer Vorrang'),
             subtitle: const Text(
               'Bei einer Überschneidung mit Freizeitkickern entsteht keine '
@@ -1938,12 +1947,12 @@ class _PitchConflictRequestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final incoming = request.direction == 'INCOMING';
     final color = switch (request.status) {
-      PitchConflictRequestStatus.pending => AppColors.orange,
+      PitchConflictRequestStatus.pending => context.appWarning,
       PitchConflictRequestStatus.approved => Colors.green,
       PitchConflictRequestStatus.declined =>
         Theme.of(context).colorScheme.error,
-      PitchConflictRequestStatus.callbackRequested => AppColors.blue,
-      PitchConflictRequestStatus.cancelled => AppColors.muted,
+      PitchConflictRequestStatus.callbackRequested => context.appInfo,
+      PitchConflictRequestStatus.cancelled => context.appColors.textMuted,
     };
     return Card(
       child: Padding(
@@ -2375,8 +2384,8 @@ class _AnnouncementCard extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).width < 720;
     final color = switch (announcement.priority) {
       AnnouncementPriority.urgent => Colors.redAccent,
-      AnnouncementPriority.important => AppColors.orange,
-      AnnouncementPriority.normal => AppColors.blue,
+      AnnouncementPriority.important => context.appWarning,
+      AnnouncementPriority.normal => context.appInfo,
     };
     return Card(
       child: InkWell(
@@ -2587,7 +2596,8 @@ class _NotificationList extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(4, 10, 4, 7),
                   child: Row(
                     children: [
-                      Icon(_groupIcon(group), size: 20, color: AppColors.gold),
+                      Icon(_groupIcon(group),
+                          size: 20, color: context.appWarning),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -2597,8 +2607,8 @@ class _NotificationList extends ConsumerWidget {
                       ),
                       Text(
                         '${grouped[group]!.length}',
-                        style: const TextStyle(
-                          color: AppColors.muted,
+                        style: TextStyle(
+                          color: context.appColors.textMuted,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -2616,12 +2626,15 @@ class _NotificationList extends ConsumerWidget {
                       ),
                       leading: CircleAvatar(
                         radius: compact ? 17 : 20,
-                        backgroundColor:
-                            (item.isRead ? AppColors.muted : AppColors.blue)
-                                .withValues(alpha: .12),
+                        backgroundColor: (item.isRead
+                                ? context.appColors.textMuted
+                                : context.appInfo)
+                            .withValues(alpha: .12),
                         child: Icon(
                           Icons.notifications_rounded,
-                          color: item.isRead ? AppColors.muted : AppColors.blue,
+                          color: item.isRead
+                              ? context.appColors.textMuted
+                              : context.appInfo,
                         ),
                       ),
                       title: Text(
@@ -2640,12 +2653,12 @@ class _NotificationList extends ConsumerWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 if (!item.isRead)
-                                  const Padding(
-                                    padding: EdgeInsets.only(right: 2),
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 2),
                                     child: Icon(
                                       Icons.circle,
                                       size: 10,
-                                      color: AppColors.orange,
+                                      color: context.appWarning,
                                     ),
                                   ),
                                 IconButton(
@@ -2662,10 +2675,10 @@ class _NotificationList extends ConsumerWidget {
                             )
                           : item.isRead
                               ? null
-                              : const Icon(
+                              : Icon(
                                   Icons.circle,
                                   size: 10,
-                                  color: AppColors.orange,
+                                  color: context.appWarning,
                                 ),
                       onTap: item.isRead
                           ? null
@@ -3298,11 +3311,11 @@ class _AdminPushTestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final value = result;
     final color = value == null
-        ? AppColors.blue
+        ? context.appInfo
         : value.allSent
             ? Colors.green
             : value.subscriptions == 0
-                ? AppColors.orange
+                ? context.appWarning
                 : Theme.of(context).colorScheme.error;
     return Container(
       padding: const EdgeInsets.all(16),
@@ -3499,21 +3512,21 @@ class AdminPushDeviceManagementCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: AppColors.blue.withValues(alpha: .10),
+                  color: context.appInfo.withValues(alpha: .10),
                   borderRadius: BorderRadius.circular(11),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.devices_other_rounded,
-                  color: AppColors.blue,
+                  color: context.appInfo,
                   size: 21,
                 ),
               ),
               const SizedBox(width: 9),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Push-Geräte verwalten',
                       style: TextStyle(fontWeight: FontWeight.w900),
                     ),
@@ -3521,7 +3534,8 @@ class AdminPushDeviceManagementCard extends StatelessWidget {
                       'Status, Mitglied und letzter Kontakt',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: AppColors.muted),
+                      style: TextStyle(
+                          fontSize: 12, color: context.appColors.textMuted),
                     ),
                   ],
                 ),
@@ -3576,7 +3590,7 @@ class AdminPushDeviceManagementCard extends StatelessWidget {
                   _DeviceFilterChip(
                     label: 'Länger inaktiv',
                     value: stale,
-                    color: AppColors.orange,
+                    color: context.appWarning,
                     selected: filter == 'STALE',
                     onSelected:
                         changing ? null : () => onFilterChanged('STALE'),
@@ -3655,19 +3669,20 @@ class AdminPushDeviceManagementCard extends StatelessWidget {
               },
             ),
           const SizedBox(height: 8),
-          const Tooltip(
+          Tooltip(
             message:
                 '„Länger inaktiv“: seit mindestens 60 Tagen kein erfolgreicher Kontakt. '
                 'Eine administrative Deaktivierung bleibt auch nach einem App-Neustart bestehen.',
             child: Row(
               children: [
                 Icon(Icons.info_outline_rounded,
-                    size: 16, color: AppColors.muted),
-                SizedBox(width: 5),
+                    size: 16, color: context.appColors.textMuted),
+                const SizedBox(width: 5),
                 Expanded(
                   child: Text(
                     'Hinweise zu Status und Deaktivierung',
-                    style: TextStyle(fontSize: 12, color: AppColors.muted),
+                    style: TextStyle(
+                        fontSize: 12, color: context.appColors.textMuted),
                   ),
                 ),
               ],
@@ -3714,7 +3729,7 @@ class _DeviceFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? AppColors.blue;
+    final effectiveColor = color ?? context.appInfo;
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: ChoiceChip(
@@ -3752,7 +3767,7 @@ class _CompactPushDeviceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = switch (device.health) {
       PushDeviceHealth.active => Colors.green,
-      PushDeviceHealth.stale => AppColors.orange,
+      PushDeviceHealth.stale => context.appWarning,
       PushDeviceHealth.disabled => Theme.of(context).colorScheme.error,
     };
     final statusLabel = switch (device.health) {
@@ -3765,7 +3780,7 @@ class _CompactPushDeviceTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3838,8 +3853,8 @@ class _CompactPushDeviceTile extends StatelessWidget {
                       '${device.roleLabel} · ${device.userEmail}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(fontSize: 11, color: AppColors.muted),
+                      style: TextStyle(
+                          fontSize: 11, color: context.appColors.textMuted),
                     ),
                   ],
                 ),
@@ -3885,29 +3900,32 @@ class _CompactPushDeviceTile extends StatelessWidget {
                     ? Icons.phone_android_rounded
                     : Icons.language_rounded,
                 size: 14,
-                color: AppColors.muted,
+                color: context.appColors.textMuted,
               ),
               const SizedBox(width: 3),
               Text(
                 device.isAndroid ? 'Android' : 'Web',
-                style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                style:
+                    TextStyle(fontSize: 11, color: context.appColors.textMuted),
               ),
               const SizedBox(width: 9),
-              const Icon(Icons.schedule_rounded,
-                  size: 14, color: AppColors.muted),
+              Icon(Icons.schedule_rounded,
+                  size: 14, color: context.appColors.textMuted),
               const SizedBox(width: 3),
               Expanded(
                 child: Text(
                   _deviceDate(device.lastUsedAt),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                  style: TextStyle(
+                      fontSize: 11, color: context.appColors.textMuted),
                 ),
               ),
               const SizedBox(width: 6),
               Text(
                 '${device.deliveryCount} Push',
-                style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                style:
+                    TextStyle(fontSize: 11, color: context.appColors.textMuted),
               ),
             ],
           ),
@@ -3978,9 +3996,9 @@ class _PushRegistrationCard extends StatelessWidget {
           );
           final information = Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.notifications_active_rounded,
-                color: AppColors.blue,
+                color: context.appInfo,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -4107,9 +4125,10 @@ class _PreferenceRow extends StatelessWidget {
                 ),
               ),
               if (isLiveTicker)
-                const Text(
+                Text(
                   'Nur Spielstart, Tore, Gegentore und Spielende',
-                  style: TextStyle(fontSize: 12, color: AppColors.muted),
+                  style: TextStyle(
+                      fontSize: 12, color: context.appColors.textMuted),
                 ),
             ],
           );
@@ -4285,7 +4304,7 @@ class _ComposeAnnouncementDialogState
                   style: Theme.of(context)
                       .textTheme
                       .bodyMedium
-                      ?.copyWith(color: AppColors.muted),
+                      ?.copyWith(color: context.appColors.textMuted),
                 ),
               ],
             ),
@@ -4495,7 +4514,7 @@ class _ComposeAnnouncementDialogState
             Text(
               '${_teamIds.length} gewählt',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: AppColors.gold,
+                    color: context.appWarning,
                     fontWeight: FontWeight.w800,
                   ),
             ),
@@ -4539,7 +4558,7 @@ class _ComposeAnnouncementDialogState
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.outgoing_mail, color: AppColors.gold),
+              Icon(Icons.outgoing_mail, color: context.appWarning),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -4602,7 +4621,7 @@ class _ComposeAnnouncementDialogState
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
-                            ?.copyWith(color: AppColors.muted),
+                            ?.copyWith(color: context.appColors.textMuted),
                       ),
                     ),
                     cancel,
@@ -4704,7 +4723,7 @@ class _SectionHeading extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
-                    ?.copyWith(color: AppColors.muted),
+                    ?.copyWith(color: context.appColors.textMuted),
               ),
             ],
           ),
@@ -4739,7 +4758,7 @@ class _OptionSwitch extends StatelessWidget {
       ),
       child: SwitchListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
-        secondary: Icon(icon, color: AppColors.gold),
+        secondary: Icon(icon, color: context.appWarning),
         title: Text(title),
         subtitle: Text(subtitle),
         value: value,

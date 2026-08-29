@@ -75,9 +75,10 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                               style: Theme.of(context).textTheme.headlineSmall,
                             ),
                             const SizedBox(height: 8),
-                            const Text(
+                            Text(
                               'Der sichere Link ist 15 Minuten und nur einmal gültig. Nach dem Speichern meldest du dich auf allen Geräten neu an.',
-                              style: TextStyle(color: AppColors.muted),
+                              style:
+                                  TextStyle(color: context.appColors.textMuted),
                             ),
                             const SizedBox(height: 22),
                             if (_exchanging)

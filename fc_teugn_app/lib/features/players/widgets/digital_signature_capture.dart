@@ -48,7 +48,9 @@ class DigitalSignatureCapture extends StatelessWidget {
                   ? Icons.check_circle_rounded
                   : Icons.info_outline_rounded,
               size: 18,
-              color: hasSignature ? AppColors.success : AppColors.muted,
+              color: hasSignature
+                  ? context.appSuccess
+                  : context.appColors.textMuted,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -57,7 +59,9 @@ class DigitalSignatureCapture extends StatelessWidget {
                     ? 'Unterschrift wurde übernommen.'
                     : 'Öffnet ein großes Feld für Finger, Eingabestift oder Maus.',
                 style: TextStyle(
-                  color: hasSignature ? AppColors.success : AppColors.muted,
+                  color: hasSignature
+                      ? context.appSuccess
+                      : context.appColors.textMuted,
                   fontSize: 12,
                   fontWeight:
                       hasSignature ? FontWeight.w700 : FontWeight.normal,
@@ -143,10 +147,10 @@ class _DigitalSignatureDialogState extends State<_DigitalSignatureDialog> {
                             'Digital unterschreiben',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          const Text(
+                          Text(
                             'Mit Finger, Eingabestift oder Maus unterschreiben.',
                             style: TextStyle(
-                              color: AppColors.muted,
+                              color: context.appColors.textMuted,
                               fontSize: 12,
                             ),
                           ),
@@ -327,23 +331,23 @@ class _SignaturePadState extends State<_SignaturePad> {
               painter: _SignaturePainter(strokes),
               size: size,
               child: strokes.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Padding(
-                        padding: EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(24),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
                               Icons.gesture_rounded,
                               size: 42,
-                              color: AppColors.muted,
+                              color: context.appColors.textMuted,
                             ),
-                            SizedBox(height: 10),
+                            const SizedBox(height: 10),
                             Text(
                               'Hier unterschreiben',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: AppColors.muted,
+                                color: context.appColors.textMuted,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),

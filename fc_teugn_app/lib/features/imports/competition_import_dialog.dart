@@ -382,7 +382,8 @@ class _StepBadge extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 15,
-              backgroundColor: active ? AppColors.yellow : AppColors.background,
+              backgroundColor:
+                  active ? AppColors.yellow : context.appColors.surfaceMuted,
               foregroundColor: AppColors.black,
               child: Text('$number',
                   style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -582,12 +583,12 @@ class _SelectedImportSource extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.blue.withValues(alpha: .07),
+          color: context.appInfo.withValues(alpha: .07),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           children: [
-            const Icon(Icons.description_rounded, color: AppColors.blue),
+            Icon(Icons.description_rounded, color: context.appInfo),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -630,10 +631,12 @@ class _PreviewSummary extends StatelessWidget {
             spacing: 7,
             runSpacing: 7,
             children: [
-              _CountChip('Neu', preview.createCount, AppColors.teal),
-              _CountChip('Aktualisieren', preview.updateCount, AppColors.blue),
-              _CountChip('Unverändert', preview.skipCount, AppColors.muted),
-              _CountChip('Konflikte', preview.conflictCount, AppColors.orange),
+              _CountChip('Neu', preview.createCount, context.appSuccess),
+              _CountChip('Aktualisieren', preview.updateCount, context.appInfo),
+              _CountChip('Unverändert', preview.skipCount,
+                  context.appColors.textMuted),
+              _CountChip(
+                  'Konflikte', preview.conflictCount, context.appWarning),
               _CountChip('Ungültig', preview.invalidCount, Colors.redAccent),
             ],
           ),
@@ -733,22 +736,22 @@ class _ImportRowTile extends StatelessWidget {
     final (icon, color, label) = switch (row.action) {
       CompetitionImportAction.create => (
           Icons.add_circle_rounded,
-          AppColors.teal,
+          context.appSuccess,
           'Neu'
         ),
       CompetitionImportAction.update => (
           Icons.sync_rounded,
-          AppColors.blue,
+          context.appInfo,
           'Aktualisieren'
         ),
       CompetitionImportAction.skip => (
           Icons.done_rounded,
-          AppColors.muted,
+          context.appColors.textMuted,
           'Unverändert'
         ),
       CompetitionImportAction.conflict => (
           Icons.warning_rounded,
-          AppColors.orange,
+          context.appWarning,
           'Konflikt'
         ),
       CompetitionImportAction.invalid => (
@@ -782,7 +785,9 @@ class _ImportRowTile extends StatelessWidget {
                 : Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? AppColors.gold : Theme.of(context).dividerColor,
+              color: selected
+                  ? context.appWarning
+                  : Theme.of(context).dividerColor,
               width: selected ? 1.4 : 1,
             ),
           ),
@@ -828,8 +833,8 @@ class _ImportRowTile extends StatelessWidget {
                           : Icons.info_outline_rounded,
                       size: 17,
                       color: row.opponentId != null
-                          ? AppColors.teal
-                          : AppColors.muted,
+                          ? context.appSuccess
+                          : context.appColors.textMuted,
                     ),
                     const SizedBox(width: 6),
                     Expanded(

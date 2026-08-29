@@ -1286,34 +1286,34 @@ class MobileNavigationPanel extends StatelessWidget {
               child: InkWell(
                 onTap: onInstall,
                 borderRadius: BorderRadius.circular(18),
-                child: const Padding(
-                  padding: EdgeInsets.all(10),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
                   child: Row(
                     children: [
-                      _MenuIcon(
+                      const _MenuIcon(
                         icon: Icons.install_mobile_rounded,
                         selected: true,
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               '${AppIdentity.name} installieren',
                               style: TextStyle(fontWeight: FontWeight.w800),
                             ),
                             Text(
                               'Direkt auf dem Startbildschirm öffnen',
                               style: TextStyle(
-                                color: AppColors.muted,
+                                color: context.appColors.textMuted,
                                 fontSize: 12,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Icon(Icons.chevron_right_rounded),
+                      const Icon(Icons.chevron_right_rounded),
                     ],
                   ),
                 ),
@@ -1340,7 +1340,7 @@ class MobileNavigationPanel extends StatelessWidget {
             icon: const Icon(Icons.info_outline_rounded, size: 18),
             label: const Text('Über ${AppIdentity.name}'),
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.muted,
+              foregroundColor: context.appColors.textMuted,
               textStyle: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -1381,7 +1381,7 @@ class MobileNavigationPanel extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.verified_user_outlined, color: AppColors.gold),
+                Icon(Icons.verified_user_outlined, color: context.appWarning),
               ],
             ),
           ),
@@ -1453,7 +1453,7 @@ class _MobileMenuSearchDialogState extends State<_MobileMenuSearchDialog> {
                   final destination = results[index];
                   return ListTile(
                     dense: true,
-                    leading: Icon(destination.icon, color: AppColors.gold),
+                    leading: Icon(destination.icon, color: context.appWarning),
                     title: Text(destination.label),
                     subtitle: Text(
                       destination.hint,
@@ -1611,7 +1611,11 @@ class _MenuIcon extends StatelessWidget {
           color: selected ? AppColors.yellow : context.appColors.outline,
         ),
       ),
-      child: Icon(icon, size: 18, color: AppColors.black),
+      child: Icon(
+        icon,
+        size: 18,
+        color: selected ? AppColors.black : context.appColors.text,
+      ),
     );
   }
 }
@@ -1703,8 +1707,8 @@ class _MobileHeader extends StatelessWidget {
                                 overflow: allowHeaderWrap
                                     ? TextOverflow.visible
                                     : TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.gold,
+                                style: TextStyle(
+                                  color: context.appWarning,
                                   fontSize: 9,
                                   letterSpacing: .8,
                                   fontWeight: FontWeight.w900,
@@ -1928,7 +1932,7 @@ class _Avatar extends StatelessWidget {
         .join();
     return CircleAvatar(
       radius: small ? 17 : 19,
-      backgroundColor: AppColors.teal,
+      backgroundColor: context.appSuccess,
       child: Text(
         initials.isEmpty ? 'FC' : initials,
         style: const TextStyle(

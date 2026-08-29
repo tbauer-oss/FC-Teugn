@@ -1032,14 +1032,14 @@ class _TournamentPlanningNotice extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.yellowSoft,
               borderRadius: BorderRadius.circular(compact ? 12 : 14),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.appColors.outline),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
                   Icons.emoji_events_rounded,
-                  color: AppColors.gold,
+                  color: context.appWarning,
                   size: compact ? 18 : 22,
                 ),
                 SizedBox(width: compact ? 7 : 10),
@@ -1169,14 +1169,14 @@ class _PlayerRatingsTabState extends ConsumerState<_PlayerRatingsTab> {
         children: [
           Card(
             color: Theme.of(context).colorScheme.surfaceContainerLow,
-            child: const Padding(
-              padding: EdgeInsets.all(14),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.visibility_off_outlined, color: AppColors.blue),
-                  SizedBox(width: 10),
-                  Expanded(
+                  Icon(Icons.visibility_off_outlined, color: context.appInfo),
+                  const SizedBox(width: 10),
+                  const Expanded(
                     child: Text(
                       'Trainerintern · Die Bewertungen sind für Eltern und Spieler nicht sichtbar. Pro Spiel gilt eine gemeinsame, später korrigierbare Bewertung.',
                       style: TextStyle(fontWeight: FontWeight.w700),
@@ -1211,7 +1211,8 @@ class _PlayerRatingsTabState extends ConsumerState<_PlayerRatingsTab> {
                                 .whereType<String>()
                                 .where((value) => value.trim().isNotEmpty)
                                 .join(' / '),
-                            style: const TextStyle(color: AppColors.muted),
+                            style:
+                                TextStyle(color: context.appColors.textMuted),
                           ),
                         ],
                       ),
@@ -1379,16 +1380,17 @@ class _ParentPlayerRatingsTabState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Card(
+          Card(
             color: AppColors.yellowSoft,
             child: Padding(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.visibility_off_outlined, color: AppColors.gold),
-                  SizedBox(width: 9),
-                  Expanded(
+                  Icon(Icons.visibility_off_outlined,
+                      color: context.appWarning),
+                  const SizedBox(width: 9),
+                  const Expanded(
                     child: Text(
                       'Optional und anonym · Bewerte die nominierten Spieler wie das Trainerteam von 1 bis 10. Trainer sehen nur den zusammengefassten Elternwert – niemals, wer wie bewertet hat.',
                       style: TextStyle(fontWeight: FontWeight.w700),
@@ -1766,22 +1768,22 @@ class MatchCommunicationActions extends StatelessWidget {
                 height: 34,
                 padding: const EdgeInsets.symmetric(horizontal: 9),
                 decoration: BoxDecoration(
-                  color: AppColors.teal.withValues(alpha: .09),
+                  color: context.appSuccess.withValues(alpha: .09),
                   borderRadius: BorderRadius.circular(11),
                   border: Border.all(
-                    color: AppColors.teal.withValues(alpha: .24),
+                    color: context.appSuccess.withValues(alpha: .24),
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.verified_rounded,
                       size: 16,
-                      color: AppColors.teal,
+                      color: context.appSuccess,
                     ),
-                    SizedBox(width: 5),
-                    Flexible(
+                    const SizedBox(width: 5),
+                    const Flexible(
                       child: Text(
                         'Familien freigegeben',
                         maxLines: 1,
@@ -2340,7 +2342,7 @@ class MatchOverview extends StatelessWidget {
       MatchStatus.interrupted =>
         const Color(0xFF0F8A5F),
       MatchStatus.cancelled => const Color(0xFFC62828),
-      MatchStatus.finished || MatchStatus.recorded => AppColors.blue,
+      MatchStatus.finished || MatchStatus.recorded => context.appInfo,
       _ => AppColors.yellowDark,
     };
     final statusIcon = switch (details?.status) {
@@ -2514,10 +2516,10 @@ class _OverviewStatusCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'SPIELSTATUS',
                   style: TextStyle(
-                    color: AppColors.muted,
+                    color: context.appColors.textMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
                     letterSpacing: .8,
@@ -2531,7 +2533,7 @@ class _OverviewStatusCard extends StatelessWidget {
                           : Theme.of(context).textTheme.titleLarge)
                       ?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: AppColors.navy,
+                    color: context.appColors.text,
                   ),
                 ),
                 Text(
@@ -2539,7 +2541,7 @@ class _OverviewStatusCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.muted,
+                        color: context.appColors.textMuted,
                       ),
                 ),
               ],
@@ -2607,7 +2609,7 @@ class _OverviewSectionHeader extends StatelessWidget {
                         : Theme.of(context).textTheme.titleMedium)
                     ?.copyWith(
                   fontWeight: FontWeight.w900,
-                  color: AppColors.navy,
+                  color: context.appColors.text,
                 ),
               ),
               Text(
@@ -2615,7 +2617,7 @@ class _OverviewSectionHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.muted,
+                      color: context.appColors.textMuted,
                     ),
               ),
             ],
@@ -2693,7 +2695,7 @@ class _OverviewTile extends StatelessWidget {
             ),
             child: Icon(
               entry.icon,
-              color: AppColors.blue,
+              color: context.appInfo,
               size: compact ? 19 : 23,
             ),
           ),
@@ -2705,8 +2707,8 @@ class _OverviewTile extends StatelessWidget {
               children: [
                 Text(
                   entry.label.toUpperCase(),
-                  style: const TextStyle(
-                    color: AppColors.muted,
+                  style: TextStyle(
+                    color: context.appColors.textMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
                     letterSpacing: .7,
@@ -2718,7 +2720,9 @@ class _OverviewTile extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: entry.missing ? AppColors.muted : AppColors.navy,
+                    color: entry.missing
+                        ? context.appColors.textMuted
+                        : context.appColors.text,
                     fontSize: compact ? 14 : 16,
                     fontWeight: FontWeight.w900,
                   ),
@@ -2729,7 +2733,7 @@ class _OverviewTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.muted,
+                        color: context.appColors.textMuted,
                         fontSize: 10.5,
                       ),
                 ),
@@ -2815,9 +2819,9 @@ class _SquadTeamFilter extends StatelessWidget {
                       color: AppColors.yellowSoft,
                       borderRadius: BorderRadius.circular(11),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.groups_2_rounded,
-                      color: AppColors.gold,
+                      color: context.appWarning,
                       size: 21,
                     ),
                   ),
@@ -2841,7 +2845,7 @@ class _SquadTeamFilter extends StatelessWidget {
                           style: Theme.of(sheetContext)
                               .textTheme
                               .bodySmall
-                              ?.copyWith(color: AppColors.muted),
+                              ?.copyWith(color: context.appColors.textMuted),
                         ),
                       ],
                     ),
@@ -2890,7 +2894,7 @@ class _SquadTeamFilter extends StatelessWidget {
         color: Theme.of(context).colorScheme.surfaceContainerLowest,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: AppColors.line),
+          side: BorderSide(color: context.appColors.outline),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -2906,10 +2910,10 @@ class _SquadTeamFilter extends StatelessWidget {
                     color: AppColors.yellowSoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.shield_outlined,
                     size: 20,
-                    color: AppColors.gold,
+                    color: context.appWarning,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -2921,7 +2925,7 @@ class _SquadTeamFilter extends StatelessWidget {
                       Text(
                         'Mannschaft anzeigen',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: AppColors.muted,
+                              color: context.appColors.textMuted,
                               fontWeight: FontWeight.w700,
                             ),
                       ),
@@ -2936,7 +2940,8 @@ class _SquadTeamFilter extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.expand_more_rounded, color: AppColors.muted),
+                Icon(Icons.expand_more_rounded,
+                    color: context.appColors.textMuted),
               ],
             ),
           ),
@@ -2971,7 +2976,8 @@ class _SquadTeamFilterOption extends StatelessWidget {
             onTap: onTap,
             leading: Icon(
               selected ? Icons.check_circle_rounded : Icons.shield_outlined,
-              color: selected ? AppColors.success : AppColors.muted,
+              color:
+                  selected ? context.appSuccess : context.appColors.textMuted,
             ),
             title: Text(
               label,
@@ -2980,10 +2986,10 @@ class _SquadTeamFilterOption extends StatelessWidget {
               ),
             ),
             trailing: selected
-                ? const Text(
+                ? Text(
                     'Aktiv',
                     style: TextStyle(
-                      color: AppColors.success,
+                      color: context.appSuccess,
                       fontWeight: FontWeight.w800,
                     ),
                   )
@@ -3280,7 +3286,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                         : 'Die automatische Startelf berücksichtigt nur zugesagte Spieler. '
                             'Trainer können Rückmeldungen hier direkt korrigieren.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.muted,
+                          color: context.appColors.textMuted,
                         ),
                   ),
                 ),
@@ -3722,18 +3728,18 @@ class _AttendanceMenu extends StatelessWidget {
     final (label, color, icon) = switch (status) {
       AttendanceStatus.yes => (
           'Zusage',
-          AppColors.success,
+          context.appSuccess,
           Icons.check_rounded
         ),
       AttendanceStatus.no => ('Absage', Colors.red, Icons.close_rounded),
       AttendanceStatus.maybe => (
           'Offen',
-          AppColors.muted,
+          context.appColors.textMuted,
           Icons.schedule_rounded
         ),
       AttendanceStatus.unknown => (
           'Offen',
-          AppColors.muted,
+          context.appColors.textMuted,
           Icons.schedule_rounded
         ),
     };
@@ -4448,8 +4454,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                       ),
                       Text(
                         player.position ?? 'FLEX',
-                        style: const TextStyle(
-                          color: AppColors.muted,
+                        style: TextStyle(
+                          color: context.appColors.textMuted,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
@@ -4957,12 +4963,12 @@ class _AutomaticLineupNotice extends StatelessWidget {
         decoration: BoxDecoration(
           color: replacements > 0
               ? AppColors.yellowSoft
-              : AppColors.teal.withValues(alpha: .1),
+              : context.appSuccess.withValues(alpha: .1),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: replacements > 0
                 ? AppColors.yellow.withValues(alpha: .55)
-                : AppColors.teal.withValues(alpha: .25),
+                : context.appSuccess.withValues(alpha: .25),
           ),
         ),
         child: Row(
@@ -4971,7 +4977,7 @@ class _AutomaticLineupNotice extends StatelessWidget {
               replacements > 0
                   ? Icons.swap_horiz_rounded
                   : Icons.auto_awesome_rounded,
-              color: replacements > 0 ? AppColors.blue : AppColors.teal,
+              color: replacements > 0 ? context.appInfo : context.appSuccess,
               size: compact ? 18 : 24,
             ),
             SizedBox(width: compact ? 7 : 10),
@@ -5011,7 +5017,7 @@ class _SquadLoadingStatus extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.yellow.withValues(alpha: .12),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: context.appColors.outline),
           ),
           child: const Padding(
             padding: EdgeInsets.fromLTRB(12, 9, 12, 10),
@@ -5872,7 +5878,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         child: ListTile(
           dense: true,
           leading: CircleAvatar(
-            backgroundColor: _eventColor(event.type),
+            backgroundColor: _eventColor(context, event.type),
             child: Icon(_eventIcon(event.type), color: Colors.white),
           ),
           title: Text(
@@ -6566,7 +6572,7 @@ class _CountdownCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: status == TickerStatus.live
                       ? const Color(0xFF22C55E)
-                      : AppColors.muted,
+                      : context.appColors.textMuted,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -7221,9 +7227,9 @@ class _ConnectionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = syncing
-        ? AppColors.blue
+        ? context.appInfo
         : online
-            ? AppColors.teal
+            ? context.appSuccess
             : const Color(0xFFB45309);
     final label = syncing
         ? 'Synchronisiert …'
@@ -7312,13 +7318,14 @@ class _TickerMetric extends StatelessWidget {
         vertical: compact ? 7 : 10,
       ),
       decoration: BoxDecoration(
-        color: AppColors.blue.withValues(alpha: .08),
+        color: context.appInfo.withValues(alpha: .08),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         children: [
           Text(label,
-              style: const TextStyle(fontSize: 10, color: AppColors.muted)),
+              style:
+                  TextStyle(fontSize: 10, color: context.appColors.textMuted)),
           Text(value,
               style: TextStyle(
                 fontSize: compact ? 15 : 18,
@@ -7404,8 +7411,8 @@ IconData _eventIcon(TickerEventType type) => switch (type) {
       _ => Icons.bolt_rounded,
     };
 
-Color _eventColor(TickerEventType type) => switch (type) {
-      TickerEventType.homeGoal => AppColors.blue,
+Color _eventColor(BuildContext context, TickerEventType type) => switch (type) {
+      TickerEventType.homeGoal => context.appInfo,
       TickerEventType.awayGoal => Colors.deepOrange,
       TickerEventType.matchEnd => AppColors.navy,
       TickerEventType.eventRevoked => Colors.orange,

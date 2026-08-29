@@ -90,9 +90,9 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
     return PopScope(
       canPop: !manifest.mandatory && !_working,
       child: AlertDialog(
-        icon: const Icon(
+        icon: Icon(
           Icons.system_update_alt_rounded,
-          color: AppColors.gold,
+          color: context.appWarning,
           size: 34,
         ),
         title: const Text(
@@ -118,12 +118,12 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Padding(
-                            padding: EdgeInsets.only(top: 7),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 7),
                             child: Icon(
                               Icons.circle,
                               size: 5,
-                              color: AppColors.gold,
+                              color: context.appWarning,
                             ),
                           ),
                           const SizedBox(width: 9),
@@ -141,8 +141,8 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                     percent == null
                         ? 'Update wird sicher heruntergeladen …'
                         : 'Update wird sicher heruntergeladen … $percent %',
-                    style: const TextStyle(
-                      color: AppColors.muted,
+                    style: TextStyle(
+                      color: context.appColors.textMuted,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),

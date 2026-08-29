@@ -161,7 +161,7 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
                       overview.selectedSeason == null
                           ? 'Vereins- und Spielerwerte über alle verfügbaren Saisons'
                           : 'Saisonwerte mit direktem Vergleich zur Gesamtstatistik',
-                      style: const TextStyle(color: AppColors.muted),
+                      style: TextStyle(color: context.appColors.textMuted),
                     ),
                   ],
                 );
@@ -227,7 +227,7 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
                   label: 'Siege',
                   value: '${team.wins}',
                   icon: Icons.emoji_events_rounded,
-                  color: AppColors.teal,
+                  color: context.appSuccess,
                 ),
                 _MetricCard(
                   width: cardWidth,
@@ -242,7 +242,7 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
                   label: 'Tore',
                   value: '${team.goalsFor}:${team.goalsAgainst}',
                   icon: Icons.scoreboard_rounded,
-                  color: AppColors.orange,
+                  color: context.appWarning,
                 ),
                 _MetricCard(
                   width: cardWidth,
@@ -378,55 +378,58 @@ class _MetricCard extends StatelessWidget {
     required this.icon,
     this.width = 190,
     this.compact = false,
-    this.color = AppColors.blue,
+    this.color,
   });
   final String label;
   final String value;
   final IconData icon;
-  final Color color;
+  final Color? color;
   final double width;
   final bool compact;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: width,
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(compact ? 12 : 18),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: compact ? 18 : 20,
-                  backgroundColor: color.withValues(alpha: .1),
-                  child: Icon(icon, color: color, size: compact ? 20 : 24),
+  Widget build(BuildContext context) {
+    final accent = color ?? context.appInfo;
+    return SizedBox(
+      width: width,
+      child: Card(
+        child: Padding(
+          padding: EdgeInsets.all(compact ? 12 : 18),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: compact ? 18 : 20,
+                backgroundColor: accent.withValues(alpha: .1),
+                child: Icon(icon, color: accent, size: compact ? 20 : 24),
+              ),
+              SizedBox(width: compact ? 8 : 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: compact
+                          ? Theme.of(context).textTheme.titleLarge
+                          : Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: context.appColors.textMuted),
+                    ),
+                  ],
                 ),
-                SizedBox(width: compact ? 8 : 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: compact
-                            ? Theme.of(context).textTheme.titleLarge
-                            : Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      Text(
-                        label,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppColors.muted),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _FormCard extends StatelessWidget {
@@ -442,7 +445,7 @@ class _FormCard extends StatelessWidget {
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Icon(Icons.timeline_rounded, color: AppColors.blue),
+              Icon(Icons.timeline_rounded, color: context.appInfo),
               Text(
                 'Letzte Form',
                 style: Theme.of(context).textTheme.titleMedium,
@@ -454,7 +457,7 @@ class _FormCard extends StatelessWidget {
                   CircleAvatar(
                     radius: 16,
                     backgroundColor: switch (result) {
-                      'WIN' => AppColors.teal,
+                      'WIN' => context.appSuccess,
                       'LOSS' => Colors.deepOrange,
                       _ => Colors.blueGrey,
                     },
@@ -819,10 +822,10 @@ class _PlayerPerformanceRow extends StatelessWidget {
             ? Icons.trending_down_rounded
             : Icons.trending_flat_rounded;
     final trendColor = player.trend > .15
-        ? AppColors.teal
+        ? context.appSuccess
         : player.trend < -.15
             ? Colors.deepOrange
-            : AppColors.muted;
+            : context.appColors.textMuted;
     return InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () => showModalBottomSheet<void>(
@@ -853,7 +856,7 @@ class _PlayerPerformanceRow extends StatelessWidget {
                           .whereType<String>()
                           .where((value) => value.trim().isNotEmpty)
                           .join(' / '),
-                      style: const TextStyle(color: AppColors.muted),
+                      style: TextStyle(color: context.appColors.textMuted),
                     ),
                     const SizedBox(height: 6),
                     Wrap(
@@ -865,21 +868,22 @@ class _PlayerPerformanceRow extends StatelessWidget {
                           value:
                               player.ratedMatches == 0 ? null : player.average,
                           detail: '${player.ratedMatches} Spiele',
-                          color: AppColors.blue,
+                          color: context.appInfo,
                         ),
                         _RatingValueChip(
                           label: 'Eltern',
                           value: player.parentAverage,
                           detail: '${player.parentRatingCount} anonyme Stimmen',
-                          color: AppColors.gold,
+                          color: context.appWarning,
                         ),
                       ],
                     ),
                     if (player.timeline.isNotEmpty) ...[
                       const SizedBox(height: 5),
-                      const Text(
+                      Text(
                         'Antippen für Entwicklungskurve und Zeitleiste',
-                        style: TextStyle(color: AppColors.muted, fontSize: 11),
+                        style: TextStyle(
+                            color: context.appColors.textMuted, fontSize: 11),
                       ),
                     ],
                   ],
@@ -925,7 +929,8 @@ class _RatingValueChip extends StatelessWidget {
             ),
             Text(
               detail,
-              style: const TextStyle(fontSize: 9.5, color: AppColors.muted),
+              style:
+                  TextStyle(fontSize: 9.5, color: context.appColors.textMuted),
             ),
           ],
         ),
@@ -953,9 +958,9 @@ class _PerformanceDetailSheet extends StatelessWidget {
                       .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900),
                 ),
-                const Text(
+                Text(
                   'Entwicklung · nur für das Trainerteam sichtbar',
-                  style: TextStyle(color: AppColors.muted),
+                  style: TextStyle(color: context.appColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -965,7 +970,7 @@ class _PerformanceDetailSheet extends StatelessWidget {
                         label: 'Trainer',
                         value: player.ratedMatches == 0 ? null : player.average,
                         detail: '${player.ratedMatches} Spiele',
-                        color: AppColors.blue,
+                        color: context.appInfo,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -974,7 +979,7 @@ class _PerformanceDetailSheet extends StatelessWidget {
                         label: 'Eltern',
                         value: player.parentAverage,
                         detail: '${player.parentRatingCount} anonyme Stimmen',
-                        color: AppColors.gold,
+                        color: context.appWarning,
                       ),
                     ),
                   ],
@@ -999,17 +1004,25 @@ class _PerformanceDetailSheet extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: CustomPaint(
-                      painter: _PerformanceChartPainter(player.timeline),
+                      painter: _PerformanceChartPainter(
+                        player.timeline,
+                        gridColor: context.appColors.outline,
+                        labelColor: context.appColors.textMuted,
+                        trainerColor: context.appInfo,
+                        parentColor: context.appWarning,
+                      ),
                       child: const SizedBox.expand(),
                     ),
                   ),
                 const SizedBox(height: 8),
-                const Wrap(
+                Wrap(
                   spacing: 14,
                   children: [
-                    _ChartLegend(label: 'Trainer', color: AppColors.blue),
+                    _ChartLegend(label: 'Trainer', color: context.appInfo),
                     _ChartLegend(
-                        label: 'Eltern · anonym', color: AppColors.gold),
+                      label: 'Eltern · anonym',
+                      color: context.appWarning,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 18),
@@ -1067,8 +1080,18 @@ class _ChartLegend extends StatelessWidget {
 }
 
 class _PerformanceChartPainter extends CustomPainter {
-  const _PerformanceChartPainter(this.points);
+  const _PerformanceChartPainter(
+    this.points, {
+    required this.gridColor,
+    required this.labelColor,
+    required this.trainerColor,
+    required this.parentColor,
+  });
   final List<PerformanceTimelinePoint> points;
+  final Color gridColor;
+  final Color labelColor;
+  final Color trainerColor;
+  final Color parentColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1078,7 +1101,7 @@ class _PerformanceChartPainter extends CustomPainter {
     final chartWidth = size.width - left - 6;
     final chartHeight = size.height - top - bottom;
     final grid = Paint()
-      ..color = AppColors.line
+      ..color = gridColor
       ..strokeWidth = 1;
     final label = TextPainter(textDirection: TextDirection.ltr);
     for (final score in [1, 5, 10]) {
@@ -1087,7 +1110,7 @@ class _PerformanceChartPainter extends CustomPainter {
       label
         ..text = TextSpan(
           text: '$score',
-          style: const TextStyle(fontSize: 9, color: AppColors.muted),
+          style: TextStyle(fontSize: 9, color: labelColor),
         )
         ..layout();
       label.paint(canvas, Offset(1, y - label.height / 2));
@@ -1124,13 +1147,17 @@ class _PerformanceChartPainter extends CustomPainter {
       }
     }
 
-    drawSeries((point) => point.trainerScore, AppColors.blue);
-    drawSeries((point) => point.parentAverage, AppColors.gold);
+    drawSeries((point) => point.trainerScore, trainerColor);
+    drawSeries((point) => point.parentAverage, parentColor);
   }
 
   @override
   bool shouldRepaint(covariant _PerformanceChartPainter oldDelegate) =>
-      oldDelegate.points != points;
+      oldDelegate.points != points ||
+      oldDelegate.gridColor != gridColor ||
+      oldDelegate.labelColor != labelColor ||
+      oldDelegate.trainerColor != trainerColor ||
+      oldDelegate.parentColor != parentColor;
 }
 
 class _MatchHistory extends StatelessWidget {
@@ -1162,7 +1189,7 @@ class _MatchHistory extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: CircleAvatar(
                       backgroundColor: match.result == 'WIN'
-                          ? AppColors.teal.withValues(alpha: .12)
+                          ? context.appSuccess.withValues(alpha: .12)
                           : match.result == 'LOSS'
                               ? Colors.deepOrange.withValues(alpha: .12)
                               : Colors.blueGrey.withValues(alpha: .12),
@@ -1217,7 +1244,7 @@ class _PlayerStatistics extends StatelessWidget {
                 ownOnly
                     ? 'Nur Werte der zugeordneten Kinder beziehungsweise des eigenen Profils.'
                     : 'Interne Arbeitsansicht – keine öffentliche Rangliste.',
-                style: const TextStyle(color: AppColors.muted),
+                style: TextStyle(color: context.appColors.textMuted),
               ),
               const SizedBox(height: 10),
               if (players.isEmpty)

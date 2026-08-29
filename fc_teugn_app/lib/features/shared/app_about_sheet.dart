@@ -9,7 +9,7 @@ Future<void> showAppAboutSheet(BuildContext context) {
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    backgroundColor: AppColors.background,
+    backgroundColor: context.appColors.surfaceMuted,
     constraints: const BoxConstraints(maxWidth: 520),
     builder: (context) => const _AppAboutSheet(),
   );
@@ -59,11 +59,11 @@ class _AppAboutSheet extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               AppIdentity.claim,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.gold,
+                color: context.appWarning,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -82,17 +82,17 @@ class _AppAboutSheet extends StatelessWidget {
                     vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.appColors.surface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.line),
+                    border: Border.all(color: context.appColors.outline),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.verified_rounded,
                         size: 18,
-                        color: AppColors.gold,
+                        color: context.appWarning,
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -105,19 +105,19 @@ class _AppAboutSheet extends StatelessWidget {
               },
             ),
             const SizedBox(height: 22),
-            const Text(
+            Text(
               AppIdentity.copyright,
               style: TextStyle(
-                color: AppColors.muted,
+                color: context.appColors.textMuted,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Entwickelt von ${AppIdentity.developer}',
               style: TextStyle(
-                color: AppColors.muted,
+                color: context.appColors.textMuted,
                 fontSize: 12,
               ),
             ),

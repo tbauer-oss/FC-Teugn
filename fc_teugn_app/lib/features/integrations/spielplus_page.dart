@@ -334,7 +334,7 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
         if (!didPop) unawaited(_handleSystemBack());
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: context.appColors.surfaceMuted,
         appBar: AppBar(
           toolbarHeight: compact ? 48 : 52,
           automaticallyImplyLeading: false,
@@ -385,7 +385,7 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
                   child: LinearProgressIndicator(
                     value: _progress > 0 ? _progress / 100 : null,
                     minHeight: 3,
-                    color: AppColors.gold,
+                    color: context.appWarning,
                     backgroundColor: AppColors.yellowSoft,
                   ),
                 )
@@ -429,10 +429,10 @@ class SpielPlusSettingsCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   backgroundColor: AppColors.yellowSoft,
-                  foregroundColor: AppColors.gold,
-                  child: Icon(Icons.sports_soccer_rounded),
+                  foregroundColor: context.appWarning,
+                  child: const Icon(Icons.sports_soccer_rounded),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -441,9 +441,9 @@ class SpielPlusSettingsCard extends StatelessWidget {
                     children: [
                       Text('BfV SpielPLUS',
                           style: Theme.of(context).textTheme.titleLarge),
-                      const Text(
+                      Text(
                         'Optionaler Gerätezugang für Trainer und Verwaltung.',
-                        style: TextStyle(color: AppColors.muted),
+                        style: TextStyle(color: context.appColors.textMuted),
                       ),
                     ],
                   ),
@@ -495,7 +495,7 @@ Future<bool?> showSpielPlusSettingsSheet(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    backgroundColor: AppColors.background,
+    backgroundColor: context.appColors.surfaceMuted,
     constraints: const BoxConstraints(maxWidth: 620),
     builder: (sheetContext) => SafeArea(
       child: SingleChildScrollView(
@@ -511,9 +511,9 @@ Future<bool?> showSpielPlusSettingsSheet(
             Text('SpielPLUS-Zugang',
                 style: Theme.of(sheetContext).textTheme.headlineSmall),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Die Angaben gelten nur auf diesem Gerät und werden nicht an FC Teugn übertragen.',
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(color: context.appColors.textMuted),
             ),
             const SizedBox(height: 16),
             _SpielPlusCredentialForm(
@@ -746,12 +746,12 @@ class _LocalCredentialNotice extends StatelessWidget {
           color: AppColors.yellowSoft,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Row(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.phonelink_lock_rounded, color: AppColors.gold),
-            SizedBox(width: 9),
-            Expanded(
+            Icon(Icons.phonelink_lock_rounded, color: context.appWarning),
+            const SizedBox(width: 9),
+            const Expanded(
               child: Text(
                 'Verschlüsselte Gerätespeicherung: Das Kennwort wird weder synchronisiert noch in der Vereinsdatenbank gespeichert. Bei einem gemeinsam genutzten Gerät den Zugang anschließend entfernen.',
               ),
@@ -778,12 +778,12 @@ class _SpielPlusWebNoticeBody extends StatelessWidget {
           color: AppColors.yellowSoft,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Row(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.shield_outlined, color: AppColors.gold),
-            SizedBox(width: 10),
-            Expanded(
+            Icon(Icons.shield_outlined, color: context.appWarning),
+            const SizedBox(width: 10),
+            const Expanded(
               child: Text(
                 'Auf der Web-App verhindert die Sicherheitsrichtlinie von DFBnet eine eingebettete Anmeldung. Nutze dort den Passwortmanager des Browsers. Der interne Browser mit Gerätezugang steht in der Android- und iPhone-App bereit.',
               ),
@@ -814,8 +814,8 @@ class _SpielPlusWebFallback extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.sports_soccer_rounded,
-                        size: 52, color: AppColors.gold),
+                    Icon(Icons.sports_soccer_rounded,
+                        size: 52, color: context.appWarning),
                     const SizedBox(height: 12),
                     Text('SpielPLUS öffnen',
                         style: Theme.of(context).textTheme.headlineSmall),
@@ -852,8 +852,8 @@ class _SpielPlusLoadError extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off_rounded,
-                  size: 48, color: AppColors.gold),
+              Icon(Icons.cloud_off_rounded,
+                  size: 48, color: context.appWarning),
               const SizedBox(height: 14),
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 16),

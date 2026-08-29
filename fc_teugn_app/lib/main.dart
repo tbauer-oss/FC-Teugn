@@ -28,36 +28,41 @@ Future<void> main() async {
   unawaited(
     preloadBrandingAssets(launchAsset: launchAsset).catchError((_) {}),
   );
-  ErrorWidget.builder = (details) => ColoredBox(
-        color: AppColors.background,
-        child: Center(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 420),
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.line),
-            ),
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.sync_problem_rounded,
-                    color: AppColors.gold, size: 32),
-                SizedBox(height: 10),
-                Text(
-                  'Dieser Bereich konnte nicht dargestellt werden.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.w900),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'Bitte öffne den Bereich erneut oder ziehe zum Aktualisieren nach unten.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.muted),
-                ),
-              ],
+  ErrorWidget.builder = (details) => Builder(
+        builder: (context) => ColoredBox(
+          color: context.appColors.surfaceMuted,
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 420),
+              margin: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: context.appColors.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: context.appColors.outline),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.sync_problem_rounded,
+                    color: context.appWarning,
+                    size: 32,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Dieser Bereich konnte nicht dargestellt werden.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Bitte öffne den Bereich erneut oder ziehe zum Aktualisieren nach unten.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: context.appColors.textMuted),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

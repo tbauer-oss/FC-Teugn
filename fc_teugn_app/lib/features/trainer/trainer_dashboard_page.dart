@@ -115,6 +115,7 @@ class TrainerDashboardPage extends ConsumerWidget {
         teamOperations?.tasks.where((task) => !task.isDone).toList() ??
             const <TeamTaskModel>[];
     final priorities = _priorities(
+      context: context,
       nextEvent: nextEvent,
       approvals: approvalCount,
       overdueTasks: overdueTasks,
@@ -284,6 +285,7 @@ class TrainerDashboardPage extends ConsumerWidget {
   }
 
   List<_DashboardPriority> _priorities({
+    required BuildContext context,
     required EventModel? nextEvent,
     required int approvals,
     required List<TeamTaskModel> overdueTasks,
@@ -307,7 +309,7 @@ class TrainerDashboardPage extends ConsumerWidget {
       items.add(
         _DashboardPriority(
           icon: Icons.person_add_alt_1_rounded,
-          color: AppColors.success,
+          color: context.appSuccess,
           title: '$approvals Mitglieder warten auf Freigabe',
           subtitle: 'Rolle und Mannschaft kontrollieren',
           route: '/trainer/approvals',
@@ -320,7 +322,7 @@ class TrainerDashboardPage extends ConsumerWidget {
       items.add(
         _DashboardPriority(
           icon: Icons.auto_awesome_rounded,
-          color: AppColors.gold,
+          color: context.appWarning,
           title: 'Spieltag vorbereiten',
           subtitle: '${nextMatch.title} · Kader und Aufstellung prüfen',
           route: eventRoute(nextMatch),
@@ -331,7 +333,7 @@ class TrainerDashboardPage extends ConsumerWidget {
       items.add(
         _DashboardPriority(
           icon: Icons.task_alt_rounded,
-          color: AppColors.blue,
+          color: context.appInfo,
           title: '${openTasks.length} offene Teamaufgaben',
           subtitle: openTasks.first.title,
           route: '/trainer/operations',
@@ -505,10 +507,10 @@ class AdminMemberRequestsCard extends StatelessWidget {
     final failed = pending.hasError;
     final loading = pending.isLoading && users == null;
     final color = failed
-        ? Theme.of(context).colorScheme.error
+        ? context.appDanger
         : hasRequests
-            ? AppColors.gold
-            : AppColors.success;
+            ? context.appWarning
+            : context.appSuccess;
     final title = failed
         ? 'Mitgliedsanfragen konnten nicht geladen werden'
         : loading
@@ -573,9 +575,9 @@ class AdminMemberRequestsCard extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w900,
-                        color: AppColors.black,
+                        color: context.appColors.text,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -583,8 +585,8 @@ class AdminMemberRequestsCard extends StatelessWidget {
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -641,12 +643,12 @@ class _TodayTrainingsStrip extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppColors.success.withValues(alpha: .10),
+                context.appSuccess.withValues(alpha: .10),
                 AppColors.yellowSoft.withValues(alpha: .30),
               ],
             ),
             border: Border.all(
-              color: AppColors.success.withValues(alpha: .24),
+              color: context.appSuccess.withValues(alpha: .24),
             ),
             borderRadius: BorderRadius.circular(16),
           ),
@@ -657,12 +659,12 @@ class _TodayTrainingsStrip extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .84),
+                  color: context.appColors.surfaceRaised,
                   borderRadius: BorderRadius.circular(11),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.today_rounded,
-                  color: AppColors.success,
+                  color: context.appSuccess,
                   size: 19,
                 ),
               ),
@@ -689,7 +691,7 @@ class _TodayTrainingsStrip extends StatelessWidget {
                           icon: Icons.check_circle_rounded,
                           count: counts.yes,
                           label: 'zu',
-                          color: AppColors.success,
+                          color: context.appSuccess,
                         ),
                         _InlineTodayCount(
                           icon: Icons.cancel_rounded,
@@ -701,7 +703,7 @@ class _TodayTrainingsStrip extends StatelessWidget {
                           icon: Icons.schedule_rounded,
                           count: counts.open,
                           label: 'offen',
-                          color: AppColors.muted,
+                          color: context.appColors.textMuted,
                         ),
                       ],
                     ),
@@ -709,7 +711,7 @@ class _TodayTrainingsStrip extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              const Icon(Icons.people_alt_rounded, color: AppColors.gold),
+              Icon(Icons.people_alt_rounded, color: context.appWarning),
               const Icon(Icons.chevron_right_rounded),
             ],
           ),
@@ -824,8 +826,8 @@ class _NextTrainingsOverview extends StatelessWidget {
                           labels.join(' + '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.muted,
+                          style: TextStyle(
+                            color: context.appColors.textMuted,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                           ),
@@ -858,7 +860,7 @@ class _NextTrainingsOverview extends StatelessWidget {
                     icon: Icons.check_circle_rounded,
                     label: 'Zugesagt',
                     value: counts.yes,
-                    color: AppColors.success,
+                    color: context.appSuccess,
                   ),
                   _TrainingResponseMetric(
                     icon: Icons.cancel_rounded,
@@ -870,13 +872,13 @@ class _NextTrainingsOverview extends StatelessWidget {
                     icon: Icons.schedule_rounded,
                     label: 'Offen',
                     value: counts.open,
-                    color: AppColors.muted,
+                    color: context.appColors.textMuted,
                   ),
                   _TrainingResponseMetric(
                     icon: Icons.groups_rounded,
                     label: 'Gesamt',
                     value: counts.total,
-                    color: AppColors.blue,
+                    color: context.appInfo,
                   ),
                 ],
               ),
@@ -893,7 +895,7 @@ class _NextTrainingsOverview extends StatelessWidget {
                       ),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.yellowSoft,
-                        foregroundColor: AppColors.gold,
+                        foregroundColor: context.appWarning,
                         padding:
                             EdgeInsets.symmetric(vertical: compact ? 8 : 10),
                         visualDensity: VisualDensity.compact,
@@ -915,7 +917,7 @@ class _NextTrainingsOverview extends StatelessWidget {
                       onPlan,
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.muted,
+                      foregroundColor: context.appColors.textMuted,
                       padding: EdgeInsets.symmetric(
                         horizontal: compact ? 9 : 12,
                         vertical: compact ? 8 : 10,
@@ -949,8 +951,8 @@ class _TrainingTeamCount extends StatelessWidget {
         ),
         child: Text(
           '$count Mannschaften',
-          style: const TextStyle(
-            color: AppColors.gold,
+          style: TextStyle(
+            color: context.appWarning,
             fontSize: 11,
             fontWeight: FontWeight.w900,
           ),
@@ -969,9 +971,9 @@ class _TrainingScheduleLine extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: context.appColors.surfaceMuted,
           borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         child: Row(
           children: [
@@ -994,8 +996,8 @@ class _TrainingScheduleLine extends StatelessWidget {
                 '${event.location.trim().isEmpty ? '' : ' · ${event.location.trim()}'}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.muted,
+                style: TextStyle(
+                  color: context.appColors.textMuted,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1031,9 +1033,9 @@ void _openTrainingPlanning(
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Wähle die Mannschaft, deren Trainingsplan du öffnen möchtest.',
-            style: TextStyle(color: AppColors.muted, fontSize: 12),
+            style: TextStyle(color: context.appColors.textMuted, fontSize: 12),
           ),
           const SizedBox(height: 10),
           for (final event in events)
@@ -1489,7 +1491,7 @@ class _CombinedTrainingResponsesSheetState
               width: 42,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.line,
+                color: context.appColors.outline,
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
@@ -1512,8 +1514,8 @@ class _CombinedTrainingResponsesSheetState
                         '${teamLabels.join(' + ')} · $total Spieler',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.muted,
+                        style: TextStyle(
+                          color: context.appColors.textMuted,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1623,9 +1625,9 @@ class _CombinedTrainingEventBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.appColors.surface,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         child: Text(
           '$team · ${_shortDate(event.startAt)}, ${_time(event.startAt)} Uhr'
@@ -1702,10 +1704,10 @@ class _FilteredTrainingResponsesState
         const SizedBox(height: 1),
         Expanded(
           child: total == 0
-              ? const Center(
+              ? Center(
                   child: Text(
                     'Noch keine Rückmeldungen vorhanden.',
-                    style: TextStyle(color: AppColors.muted),
+                    style: TextStyle(color: context.appColors.textMuted),
                   ),
                 )
               : ListView(
@@ -1716,7 +1718,7 @@ class _FilteredTrainingResponsesState
                         widget.yes.isNotEmpty)
                       _TrainingResponseGroup(
                         title: 'Zugesagt',
-                        color: AppColors.success,
+                        color: context.appSuccess,
                         entries: widget.yes,
                         savingResponses: widget.savingResponses,
                         onStatusChanged: widget.onStatusChanged,
@@ -1738,7 +1740,7 @@ class _FilteredTrainingResponsesState
                         widget.open.isNotEmpty)
                       _TrainingResponseGroup(
                         title: 'Keine Rückmeldung',
-                        color: AppColors.muted,
+                        color: context.appColors.textMuted,
                         entries: widget.open,
                         savingResponses: widget.savingResponses,
                         onStatusChanged: widget.onStatusChanged,
@@ -1898,7 +1900,7 @@ class _TrainingResponsePersonChip extends StatelessWidget {
         key: ValueKey('training-response-person-${entry.name}-${entry.team}'),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.appColors.surface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: color.withValues(alpha: .18)),
         ),
@@ -1952,8 +1954,8 @@ class _TrainingResponsePersonChip extends StatelessWidget {
                       reason!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 10,
                       ),
                     ),
@@ -2019,10 +2021,10 @@ class _TrainingResponsePersonChip extends StatelessWidget {
                                       : Icons.schedule_rounded,
                               size: 18,
                               color: entryStatus.$2 == AttendanceStatus.yes
-                                  ? AppColors.success
+                                  ? context.appSuccess
                                   : entryStatus.$2 == AttendanceStatus.no
                                       ? Colors.redAccent
-                                      : AppColors.muted,
+                                      : context.appColors.textMuted,
                             ),
                             const SizedBox(width: 8),
                             Expanded(child: Text(entryStatus.$2.label)),
@@ -2358,7 +2360,7 @@ class _StatusGrid extends StatelessWidget {
                       ? '–'
                       : '$activePlayers',
               icon: Icons.groups_rounded,
-              color: AppColors.blue,
+              color: context.appInfo,
               onTap: playersError
                   ? onRetryPlayers
                   : () => context.go('/trainer/players'),
@@ -2374,14 +2376,14 @@ class _StatusGrid extends StatelessWidget {
               label: 'Rückmeldungen',
               value: responseValue,
               icon: Icons.how_to_reg_rounded,
-              color: AppColors.success,
+              color: context.appSuccess,
               onTap: onOpenResponses,
             ),
             _StatusItem(
               label: 'Nächstes Spiel',
               value: matchValue,
               icon: Icons.sports_soccer_rounded,
-              color: AppColors.gold,
+              color: context.appWarning,
               onTap: onOpenNextMatch,
             ),
           ];
@@ -2414,10 +2416,10 @@ class _StatusItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white,
+        color: context.appColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.line),
+          side: BorderSide(color: context.appColors.outline),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -2444,8 +2446,8 @@ class _StatusItem extends StatelessWidget {
                       Text(
                         value,
                         maxLines: 1,
-                        style: const TextStyle(
-                          color: AppColors.black,
+                        style: TextStyle(
+                          color: context.appColors.text,
                           fontSize: 20,
                           height: 1,
                           fontWeight: FontWeight.w900,
@@ -2456,8 +2458,8 @@ class _StatusItem extends StatelessWidget {
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.muted,
+                        style: TextStyle(
+                          color: context.appColors.textMuted,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
@@ -2544,25 +2546,25 @@ class _PriorityRow extends StatelessWidget {
                       item.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.black,
+                        color: context.appColors.text,
                       ),
                     ),
                     Text(
                       item.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded,
-                  color: AppColors.muted, size: 20),
+              Icon(Icons.chevron_right_rounded,
+                  color: context.appColors.textMuted, size: 20),
             ],
           ),
         ),
@@ -2573,13 +2575,13 @@ class _AllDoneState extends StatelessWidget {
   const _AllDoneState();
 
   @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
             Icon(Icons.check_circle_rounded,
-                color: AppColors.success, size: 34),
-            SizedBox(width: 12),
+                color: context.appSuccess, size: 34),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2587,13 +2589,14 @@ class _AllDoneState extends StatelessWidget {
                   Text(
                     'Alles im grünen Bereich',
                     style: TextStyle(
-                      color: AppColors.black,
+                      color: context.appColors.text,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   Text(
                     'Aktuell gibt es nichts Dringendes zu erledigen.',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    style: TextStyle(
+                        color: context.appColors.textMuted, fontSize: 12),
                   ),
                 ],
               ),
@@ -2615,12 +2618,12 @@ class _AgendaCard extends StatelessWidget {
         trailing: 'Kalender',
         onTrailingTap: () => context.go('/trainer/events'),
         child: events.isEmpty
-            ? const Padding(
-                padding: EdgeInsets.symmetric(vertical: 18),
+            ? Padding(
+                padding: const EdgeInsets.symmetric(vertical: 18),
                 child: Center(
                   child: Text(
                     'Keine weiteren Termine geplant',
-                    style: TextStyle(color: AppColors.muted),
+                    style: TextStyle(color: context.appColors.textMuted),
                   ),
                 ),
               )
@@ -2664,16 +2667,16 @@ class _AgendaRow extends StatelessWidget {
                   children: [
                     Text(
                       _month(event.startAt.month),
-                      style: const TextStyle(
-                        color: AppColors.gold,
+                      style: TextStyle(
+                        color: context.appWarning,
                         fontSize: 8,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     Text(
                       '${event.startAt.day}',
-                      style: const TextStyle(
-                        color: AppColors.black,
+                      style: TextStyle(
+                        color: context.appColors.text,
                         height: 1,
                         fontWeight: FontWeight.w900,
                       ),
@@ -2690,15 +2693,15 @@ class _AgendaRow extends StatelessWidget {
                       event.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.black,
+                      style: TextStyle(
+                        color: context.appColors.text,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     Text(
                       '${_weekdayShort(event.startAt.weekday)} · ${_time(event.startAt)} Uhr',
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -2711,7 +2714,7 @@ class _AgendaRow extends StatelessWidget {
                     : event.type == EventType.training
                         ? Icons.sports_rounded
                         : Icons.event_rounded,
-                color: AppColors.muted,
+                color: context.appColors.textMuted,
                 size: 18,
               ),
             ],
@@ -2751,8 +2754,8 @@ class _DashboardSection extends StatelessWidget {
                   if (onTrailingTap == null)
                     Text(
                       trailing,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -2799,10 +2802,10 @@ class _QuickActions extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Schnellzugriff',
                 style: TextStyle(
-                  color: AppColors.muted,
+                  color: context.appColors.textMuted,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
@@ -2845,8 +2848,8 @@ class _PlayerLoadFailure extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.sync_problem_rounded,
-                color: AppColors.gold, size: 20),
+            Icon(Icons.sync_problem_rounded,
+                color: context.appWarning, size: 20),
             const SizedBox(width: 9),
             const Expanded(
               child: Text(

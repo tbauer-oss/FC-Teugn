@@ -553,9 +553,9 @@ class TrainerApprovalsPage extends ConsumerWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.background,
+                    color: context.appColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.line),
+                    border: Border.all(color: context.appColors.outline),
                   ),
                   child: SelectableText(result.url),
                 ),
@@ -563,7 +563,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
                 Text(
                   'Gültig bis ${_date(result.expiresAt)} · '
                   '${TimeOfDay.fromDateTime(result.expiresAt).format(context)} Uhr',
-                  style: const TextStyle(color: AppColors.muted),
+                  style: TextStyle(color: context.appColors.textMuted),
                 ),
               ],
             ),
@@ -1214,11 +1214,11 @@ class _PendingListState extends State<_PendingList> {
                       CircleAvatar(
                         radius: compact ? 21 : 24,
                         backgroundColor:
-                            AppColors.orange.withValues(alpha: .18),
+                            context.appWarning.withValues(alpha: .18),
                         child: Text(
                           _initials(user.name),
-                          style: const TextStyle(
-                            color: AppColors.navy,
+                          style: TextStyle(
+                            color: context.appColors.text,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -1251,16 +1251,16 @@ class _PendingListState extends State<_PendingList> {
                                 ),
                                 decoration: BoxDecoration(
                                   color:
-                                      AppColors.orange.withValues(alpha: .12),
+                                      context.appWarning.withValues(alpha: .12),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.child_care_rounded,
                                       size: 15,
-                                      color: AppColors.navy,
+                                      color: context.appColors.text,
                                     ),
                                     const SizedBox(width: 5),
                                     Flexible(
@@ -1842,11 +1842,11 @@ class _MemberListState extends State<_MemberList> {
             children: [
               CircleAvatar(
                 radius: compact ? 19 : 20,
-                backgroundColor: AppColors.orange.withValues(alpha: .2),
+                backgroundColor: context.appWarning.withValues(alpha: .2),
                 child: Text(
                   _initials(user.name),
-                  style: const TextStyle(
-                    color: AppColors.navy,
+                  style: TextStyle(
+                    color: context.appColors.text,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -1869,7 +1869,7 @@ class _MemberListState extends State<_MemberList> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.muted,
+                            color: context.appColors.textMuted,
                           ),
                     ),
                     const SizedBox(height: 2),
@@ -1971,11 +1971,11 @@ class _MemberListState extends State<_MemberList> {
   Color _accountStatusColor(BuildContext context, AccountStatus value) =>
       switch (value) {
         AccountStatus.pending => Colors.orange.shade800,
-        AccountStatus.approved => AppColors.teal,
+        AccountStatus.approved => context.appSuccess,
         AccountStatus.rejected ||
         AccountStatus.blocked =>
           Theme.of(context).colorScheme.error,
-        AccountStatus.archived => AppColors.muted,
+        AccountStatus.archived => context.appColors.textMuted,
       };
 
   String _memberTypeLabel(MemberTypeFilter value) => switch (value) {
@@ -2020,7 +2020,7 @@ class _MemberPushStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = user.activePushDeviceCount > 0;
     final color =
-        enabled ? AppColors.teal : Theme.of(context).colorScheme.error;
+        enabled ? context.appSuccess : Theme.of(context).colorScheme.error;
     return Tooltip(
       message: enabled
           ? 'Push ist auf ${user.activePushDeviceCount} Gerät${user.activePushDeviceCount == 1 ? '' : 'en'} aktiv.'
@@ -2306,7 +2306,7 @@ class _PermissionRow extends StatelessWidget {
             children: [
               Icon(
                 effective ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                color: effective ? AppColors.success : Colors.redAccent,
+                color: effective ? context.appSuccess : Colors.redAccent,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -2841,14 +2841,13 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.blue.withValues(alpha: .07),
+                  color: context.appInfo.withValues(alpha: .07),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.info_outline_rounded,
-                        color: AppColors.blue),
+                    Icon(Icons.info_outline_rounded, color: context.appInfo),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -3034,9 +3033,9 @@ class _PermissionPreview extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.navy.withValues(alpha: .045),
+        color: context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.navy.withValues(alpha: .12)),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3111,9 +3110,9 @@ class _GuardianChildCard extends StatelessWidget {
       key: ValueKey('guardian-child-${player.id}'),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3146,8 +3145,8 @@ class _GuardianChildCard extends StatelessWidget {
                         if (player.ageGroupCode?.trim().isNotEmpty == true)
                           '${player.ageGroupCode}-Jugend',
                       }.join(' · '),
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -3234,7 +3233,7 @@ class _GuardianChildPickerSheetState extends State<_GuardianChildPickerSheet> {
               width: 42,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.line,
+                color: context.appColors.outline,
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
@@ -3284,7 +3283,7 @@ class _GuardianChildPickerSheetState extends State<_GuardianChildPickerSheet> {
                           leading: CircleAvatar(
                             backgroundColor: requested
                                 ? AppColors.yellowSoft
-                                : AppColors.background,
+                                : context.appColors.surfaceMuted,
                             child: Text(player.initials),
                           ),
                           title: Text(

@@ -339,7 +339,7 @@ class _PublicMatchCard extends StatelessWidget {
                     '${date.day}.${date.month}.${date.year} · ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} Uhr · ${details?.competition ?? 'Spiel'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.muted),
+                    style: TextStyle(color: context.appColors.textMuted),
                   ),
                   if (event.location.trim().isNotEmpty) ...[
                     const SizedBox(height: 4),

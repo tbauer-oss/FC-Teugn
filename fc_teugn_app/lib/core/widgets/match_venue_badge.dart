@@ -24,9 +24,9 @@ class MatchVenueBadge extends StatelessWidget {
         ),
       MatchVenueType.away => (
           Icons.directions_bus_rounded,
-          AppColors.blue,
-          AppColors.blue.withValues(alpha: .08),
-          AppColors.blue.withValues(alpha: .28),
+          context.appInfo,
+          context.appInfo.withValues(alpha: .08),
+          context.appInfo.withValues(alpha: .28),
         ),
       MatchVenueType.tournament => (
           Icons.emoji_events_rounded,

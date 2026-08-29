@@ -128,7 +128,7 @@ class _PushBenefit extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: AppColors.gold),
+        Icon(icon, size: 20, color: context.appWarning),
         const SizedBox(width: 10),
         Expanded(child: Text(text)),
       ],

@@ -109,7 +109,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               Expanded(
                 flex: 6,
                 child: ColoredBox(
-                  color: Colors.white,
+                  color: context.appColors.surface,
                   child: SafeArea(
                     child: Center(
                       child: SingleChildScrollView(
@@ -244,7 +244,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                                 .textTheme
                                                 .labelSmall
                                                 ?.copyWith(
-                                                  color: AppColors.muted,
+                                                  color: context
+                                                      .appColors.textMuted,
                                                   fontWeight: FontWeight.w800,
                                                 ),
                                           ),
@@ -268,21 +269,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     ),
                                   ],
                                   const SizedBox(height: 10),
-                                  const Row(
+                                  Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Icon(
                                         Icons.lock_clock_outlined,
                                         size: 17,
-                                        color: AppColors.muted,
+                                        color: context.appColors.textMuted,
                                       ),
-                                      SizedBox(width: 7),
+                                      const SizedBox(width: 7),
                                       Flexible(
                                         child: Text(
                                           'Du bleibst auf diesem Gerät automatisch angemeldet.',
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
-                                            color: AppColors.muted,
+                                            color: context.appColors.textMuted,
                                             fontSize: 12,
                                           ),
                                         ),
@@ -471,7 +472,7 @@ class _LoginBrand extends StatelessWidget {
                 maxLines: 2,
                 softWrap: true,
                 style: TextStyle(
-                  color: dark ? AppColors.navy : Colors.white,
+                  color: dark ? context.appColors.text : Colors.white,
                   fontWeight: FontWeight.w900,
                   fontSize: 19,
                 ),
@@ -481,7 +482,7 @@ class _LoginBrand extends StatelessWidget {
                 maxLines: 2,
                 softWrap: true,
                 style: TextStyle(
-                  color: dark ? AppColors.muted : Colors.white60,
+                  color: dark ? context.appColors.textMuted : Colors.white60,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.25,

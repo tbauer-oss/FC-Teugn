@@ -147,7 +147,7 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
             height: MediaQuery.sizeOf(context).height * .65,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: AppColors.background,
+                color: context.appColors.surfaceMuted,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: SingleChildScrollView(
@@ -261,7 +261,7 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
                     width: width,
                     child: _PrivacyActionCard(
                       icon: Icons.download_for_offline_outlined,
-                      color: AppColors.blue,
+                      color: context.appInfo,
                       title: 'Auskunft & Datenkopie',
                       description:
                           'Die gespeicherten Kontodaten und rechtmäßig verknüpften Kinderdaten als strukturierte Kopie einsehen.',
@@ -273,7 +273,7 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
                     width: width,
                     child: _PrivacyActionCard(
                       icon: Icons.person_off_outlined,
-                      color: AppColors.orange,
+                      color: context.appWarning,
                       title: 'Löschung beantragen',
                       description:
                           'Der Verein prüft den Antrag, bestehende Aufbewahrungspflichten und Rechte Dritter und dokumentiert das Ergebnis.',
@@ -287,7 +287,7 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
                     width: width,
                     child: _PrivacyActionCard(
                       icon: Icons.rule_folder_outlined,
-                      color: AppColors.success,
+                      color: context.appSuccess,
                       title: 'Weitere Betroffenenrechte',
                       description:
                           'Berichtigung, Einschränkung, Widerspruch, Datenübertragbarkeit oder Widerruf nachvollziehbar beantragen.',
@@ -727,9 +727,9 @@ class PrivacyInformationCenter extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Rechts- und Informationsstand: August 2026 · DSGVO und BDSG in der jeweils geltenden Fassung. Maßgeblich sind zusätzlich die konkreten Einwilligungs- und Verarbeitungshinweise zum jeweiligen Vorgang.',
-          style: TextStyle(color: AppColors.muted, fontSize: 12),
+          style: TextStyle(color: context.appColors.textMuted, fontSize: 12),
         ),
       ],
     );
@@ -761,7 +761,7 @@ class _PrivacyDisclosure extends StatelessWidget {
               color: AppColors.yellowSoft,
               borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(icon, color: AppColors.gold),
+            child: Icon(icon, color: context.appWarning),
           ),
           title: Text(
             title,
@@ -824,8 +824,8 @@ class _PrivacyRight extends StatelessWidget {
               child: Text(
                 article,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.gold,
+                style: TextStyle(
+                  color: context.appWarning,
                   fontSize: 11,
                   fontWeight: FontWeight.w900,
                 ),
@@ -883,7 +883,7 @@ class _AdminRequestTile extends StatelessWidget {
                     '${_privacyRequestLabel(type)} · ${user['email'] ?? ''} · $status'),
                 if (request['reason'] != null)
                   Text(request['reason'] as String,
-                      style: const TextStyle(color: AppColors.muted)),
+                      style: TextStyle(color: context.appColors.textMuted)),
               ],
             ),
           ),

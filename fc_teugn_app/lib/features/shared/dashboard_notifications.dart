@@ -176,9 +176,9 @@ class _DashboardNotificationPanelState
                   color: AppColors.yellowSoft,
                   borderRadius: BorderRadius.circular(11),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.notifications_rounded,
-                  color: AppColors.gold,
+                  color: context.appWarning,
                   size: 21,
                 ),
               ),
@@ -199,7 +199,7 @@ class _DashboardNotificationPanelState
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: AppColors.muted),
+                          ?.copyWith(color: context.appColors.textMuted),
                     ),
                   ],
                 ),
@@ -412,7 +412,7 @@ class _NotificationRow extends StatelessWidget {
                           style: Theme.of(context)
                               .textTheme
                               .labelSmall
-                              ?.copyWith(color: AppColors.muted),
+                              ?.copyWith(color: context.appColors.textMuted),
                         ),
                       ],
                     ),
@@ -424,7 +424,7 @@ class _NotificationRow extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: AppColors.muted),
+                          ?.copyWith(color: context.appColors.textMuted),
                     ),
                   ],
                 ),
@@ -442,12 +442,12 @@ class _NotificationRow extends StatelessWidget {
                       : const Icon(Icons.done_rounded, size: 20),
                 )
               else
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(11, 11, 11, 0),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(11, 11, 11, 0),
                   child: Icon(
                     Icons.done_all_rounded,
                     size: 18,
-                    color: AppColors.muted,
+                    color: context.appColors.textMuted,
                   ),
                 ),
             ],
@@ -462,25 +462,25 @@ class _EmptyNotificationPanel extends StatelessWidget {
   const _EmptyNotificationPanel();
 
   @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.notifications_off_outlined,
               size: 38,
-              color: AppColors.muted,
+              color: context.appColors.textMuted,
             ),
-            SizedBox(height: 10),
-            Text(
+            const SizedBox(height: 10),
+            const Text(
               'Keine ungelesenen Benachrichtigungen',
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
             Text(
               'Gelesene Hinweise findest du weiterhin im Mitteilungscenter.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.muted),
+              style: TextStyle(color: context.appColors.textMuted),
             ),
           ],
         ),

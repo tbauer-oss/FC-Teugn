@@ -216,7 +216,7 @@ class _TeamPlayerLoadFailure extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.cloud_off_rounded, color: AppColors.gold),
+            Icon(Icons.cloud_off_rounded, color: context.appWarning),
             const SizedBox(width: 10),
             const Expanded(
               child: Text(
@@ -360,7 +360,7 @@ class _SectionTitle extends StatelessWidget {
           Text(
             subtitle,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.muted,
+                  color: context.appColors.textMuted,
                 ),
           ),
         ],
@@ -390,7 +390,7 @@ class _TeamAction extends StatelessWidget {
           side: BorderSide(
             color: emphasized
                 ? AppColors.yellow.withValues(alpha: .7)
-                : AppColors.line,
+                : context.appColors.outline,
           ),
         ),
         clipBehavior: Clip.antiAlias,
@@ -409,16 +409,22 @@ class _TeamAction extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: emphasized
                             ? AppColors.yellow
-                            : AppColors.background,
+                            : context.appColors.surfaceMuted,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(icon, size: 19, color: AppColors.black),
+                      child: Icon(
+                        icon,
+                        size: 19,
+                        color: emphasized
+                            ? AppColors.black
+                            : context.appColors.text,
+                      ),
                     ),
                     const Spacer(),
-                    const Icon(
+                    Icon(
                       Icons.arrow_forward_rounded,
                       size: 19,
-                      color: AppColors.muted,
+                      color: context.appColors.textMuted,
                     ),
                   ],
                 ),
@@ -434,8 +440,8 @@ class _TeamAction extends StatelessWidget {
                   subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.muted,
+                  style: TextStyle(
+                    color: context.appColors.textMuted,
                     fontSize: 11,
                     height: 1.2,
                   ),
@@ -462,9 +468,9 @@ class _SportLinks extends StatelessWidget {
     ];
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.appColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -525,7 +531,7 @@ class _SportLink extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: AppColors.gold),
+              Icon(icon, size: 20, color: context.appWarning),
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
@@ -533,10 +539,10 @@ class _SportLink extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
                 size: 18,
-                color: AppColors.muted,
+                color: context.appColors.textMuted,
               ),
             ],
           ),

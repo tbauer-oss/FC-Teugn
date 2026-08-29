@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:fc_teugn_app/core/api_client.dart';
+import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/data_repository.dart';
 import 'package:fc_teugn_app/core/models/communication.dart';
 import 'package:fc_teugn_app/core/providers.dart';
@@ -107,6 +108,7 @@ class _CommunicationRepository extends DataRepository {
 Widget _page({
   required bool staffView,
   _CommunicationRepository? repository,
+  Brightness brightness = Brightness.light,
 }) {
   return ProviderScope(
     overrides: [
@@ -115,6 +117,7 @@ Widget _page({
       ),
     ],
     child: MaterialApp(
+      theme: buildAppTheme(brightness: brightness),
       home: Scaffold(
         body: CommunicationsPage(staffView: staffView),
       ),
@@ -275,6 +278,42 @@ void main() {
 
     expect(repository.sentContactTeamId, 'team-e1');
     expect(repository.sentContactMessage, 'Danke für die Info!');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'direct contact message and deletion date stay readable in dark mode',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _page(staffView: false, brightness: Brightness.dark),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Direktkontakt'));
+    await tester.tap(find.text('Direktkontakt'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(
+        const ValueKey('family-contact-thread-thread.parent.team-e1'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final bubble = find.byKey(
+      const ValueKey('family-contact-message-message-1'),
+    );
+    final body = tester.widget<Text>(find.descendant(
+      of: bubble,
+      matching: find.text('Max kommt heute etwas später.'),
+    ));
+    final deletion = tester.widget<Text>(find.descendant(
+      of: bubble,
+      matching: find.text('Löschung: 17.09.2026, 08:00 Uhr'),
+    ));
+    expect(body.style?.color, AppSurfaceColors.dark.text);
+    expect(deletion.style?.color, AppSurfaceColors.dark.textMuted);
     expect(tester.takeException(), isNull);
   });
 

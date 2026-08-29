@@ -71,8 +71,8 @@ class LogoLoadingIndicator extends StatelessWidget {
         child: CircularProgressIndicator(
           value: normalizedProgress ?? (reduceMotion ? .72 : null),
           strokeWidth: size < 40 ? 2.2 : 3.2,
-          backgroundColor: AppColors.line,
-          color: AppColors.gold,
+          backgroundColor: context.appColors.outline,
+          color: context.appWarning,
           strokeCap: StrokeCap.round,
         ),
       ),
@@ -210,7 +210,7 @@ class _BlockingLoadingOverlay extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (fullscreen)
-              const ColoredBox(color: AppColors.background)
+              ColoredBox(color: context.appColors.surfaceMuted)
             else ...[
               BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
@@ -221,7 +221,7 @@ class _BlockingLoadingOverlay extends StatelessWidget {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 360),
                 child: Material(
-                  color: Colors.white,
+                  color: context.appColors.surface,
                   elevation: 12,
                   shadowColor: Colors.black26,
                   borderRadius: BorderRadius.circular(24),

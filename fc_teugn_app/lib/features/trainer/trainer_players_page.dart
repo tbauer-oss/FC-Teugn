@@ -244,9 +244,9 @@ class _PlayerViewToolbar extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.appColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -309,8 +309,8 @@ class _PlayerViewToolbar extends StatelessWidget {
             visiblePlayers == totalPlayers
                 ? '$totalPlayers Spieler'
                 : '$visiblePlayers von $totalPlayers Spielern',
-            style: const TextStyle(
-              color: AppColors.muted,
+            style: TextStyle(
+              color: context.appColors.textMuted,
               fontWeight: FontWeight.w700,
             ),
           );
@@ -424,7 +424,7 @@ class _MobilePlayerViewMenu extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.yellowSoft,
           borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         child: Icon(current.$2, size: 21),
       ),
@@ -474,7 +474,7 @@ class _CategorizedPlayerCollection extends StatelessWidget {
             runSpacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Icon(Icons.groups_rounded, size: 20, color: AppColors.blue),
+              Icon(Icons.groups_rounded, size: 20, color: context.appInfo),
               Text(
                 entries[index].key,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -483,7 +483,7 @@ class _CategorizedPlayerCollection extends StatelessWidget {
               ),
               Text(
                 '${entries[index].value.length} Spieler',
-                style: const TextStyle(color: AppColors.muted),
+                style: TextStyle(color: context.appColors.textMuted),
               ),
             ],
           ),
@@ -576,12 +576,12 @@ class _PlayerListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = _statusStyle(player.status);
+    final status = _statusStyle(context, player.status);
     return Material(
-      color: Colors.white,
+      color: context.appColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(13),
-        side: const BorderSide(color: AppColors.line),
+        side: BorderSide(color: context.appColors.outline),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -616,7 +616,7 @@ class _PlayerListRow extends StatelessWidget {
                           _playerSummary(player),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.muted),
+                          style: TextStyle(color: context.appColors.textMuted),
                         ),
                       ],
                     ),
@@ -626,16 +626,16 @@ class _PlayerListRow extends StatelessWidget {
                       padding: const EdgeInsets.only(left: 8),
                       child: Text(
                         '#${player.shirtNumber}',
-                        style: const TextStyle(
-                          color: AppColors.blue,
+                        style: TextStyle(
+                          color: context.appInfo,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
                   if (compact)
-                    const Icon(
+                    Icon(
                       Icons.chevron_right_rounded,
-                      color: AppColors.muted,
+                      color: context.appColors.textMuted,
                     ),
                 ],
               );
@@ -668,8 +668,8 @@ class _PlayerListRow extends StatelessWidget {
                       child: Text(
                         '#${player.shirtNumber}',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.blue,
+                        style: TextStyle(
+                          color: context.appInfo,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -678,9 +678,9 @@ class _PlayerListRow extends StatelessWidget {
                   const SizedBox(width: 6),
                   _StatusBadge(status: status, compact: true),
                   const SizedBox(width: 6),
-                  const Icon(
+                  Icon(
                     Icons.chevron_right_rounded,
-                    color: AppColors.muted,
+                    color: context.appColors.textMuted,
                   ),
                 ],
               );
@@ -700,7 +700,7 @@ class _PlayerDetailsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = _statusStyle(player.status);
+    final status = _statusStyle(context, player.status);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -740,8 +740,8 @@ class _PlayerDetailsCard extends StatelessWidget {
                   if (player.shirtNumber != null)
                     Text(
                       '#${player.shirtNumber}',
-                      style: const TextStyle(
-                        color: AppColors.blue,
+                      style: TextStyle(
+                        color: context.appInfo,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -796,13 +796,13 @@ class _MobileDetailChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: AppColors.blue),
+          Icon(icon, size: 13, color: context.appInfo),
           const SizedBox(width: 4),
           Text(
             label,
@@ -822,7 +822,7 @@ class _CompactPlayerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = _statusStyle(player.status);
+    final status = _statusStyle(context, player.status);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -849,8 +849,8 @@ class _CompactPlayerCard extends StatelessWidget {
                       _playerSummary(player),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -869,8 +869,8 @@ class _CompactPlayerCard extends StatelessWidget {
               if (player.shirtNumber != null)
                 Text(
                   '#${player.shirtNumber}',
-                  style: const TextStyle(
-                    color: AppColors.blue,
+                  style: TextStyle(
+                    color: context.appInfo,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -890,7 +890,7 @@ class _LargePlayerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = _statusStyle(player.status);
+    final status = _statusStyle(context, player.status);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -920,8 +920,8 @@ class _LargePlayerCard extends StatelessWidget {
                   if (player.shirtNumber != null)
                     Text(
                       '#${player.shirtNumber}',
-                      style: const TextStyle(
-                        color: AppColors.blue,
+                      style: TextStyle(
+                        color: context.appInfo,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -932,7 +932,7 @@ class _LargePlayerCard extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   _positionSummary(player),
-                  style: const TextStyle(color: AppColors.muted),
+                  style: TextStyle(color: context.appColors.textMuted),
                 ),
               ),
               const SizedBox(height: 10),
@@ -985,9 +985,9 @@ class _LargePlayerCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(
+                  Icon(
                     Icons.chevron_right_rounded,
-                    color: AppColors.muted,
+                    color: context.appColors.textMuted,
                   ),
                 ],
               ),
@@ -1035,13 +1035,13 @@ class _LargeCardFact extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: context.appColors.surfaceMuted,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 13, color: AppColors.blue),
+            Icon(icon, size: 13, color: context.appInfo),
             const SizedBox(width: 4),
             Text(
               label,
@@ -1070,7 +1070,7 @@ class _CardStatistic extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(color: AppColors.muted, fontSize: 11),
+            style: TextStyle(color: context.appColors.textMuted, fontSize: 11),
           ),
         ],
       );
@@ -1087,11 +1087,11 @@ class _PlayerAvatar extends StatelessWidget {
     final hasPhoto = player.photoUrl?.trim().isNotEmpty == true;
     final fallback = Container(
       alignment: Alignment.center,
-      color: AppColors.blue.withValues(alpha: .1),
+      color: context.appInfo.withValues(alpha: .1),
       child: Text(
         player.initials,
-        style: const TextStyle(
-          color: AppColors.blue,
+        style: TextStyle(
+          color: context.appInfo,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -1186,11 +1186,12 @@ String _largeCardGenderLabel(PlayerGender? gender) => switch (gender) {
       null => 'Geschlecht offen',
     };
 
-(String, Color) _statusStyle(PlayerStatus status) => switch (status) {
-      PlayerStatus.active => ('Aktiv', AppColors.teal),
+(String, Color) _statusStyle(BuildContext context, PlayerStatus status) =>
+    switch (status) {
+      PlayerStatus.active => ('Aktiv', context.appSuccess),
       PlayerStatus.injured => ('Verletzt', Colors.redAccent),
-      PlayerStatus.paused => ('Pausiert', AppColors.orange),
-      PlayerStatus.left => ('Ausgetreten', AppColors.muted),
+      PlayerStatus.paused => ('Pausiert', context.appWarning),
+      PlayerStatus.left => ('Ausgetreten', context.appColors.textMuted),
     };
 
 class _CreatePlayerDialog extends StatefulWidget {

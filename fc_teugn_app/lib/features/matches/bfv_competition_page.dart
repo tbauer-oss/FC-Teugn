@@ -214,14 +214,14 @@ class _PageHeading extends StatelessWidget {
                       ? 'Offizielle BfV-Daten und eigene Spieltage sauber getrennt an einem Ort.'
                       : 'Alle offiziellen Liga-Informationen der ausgewählten Mannschaft auf einen Blick.',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.muted,
+                        color: context.appColors.textMuted,
                       ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          const Icon(Icons.verified_rounded, color: AppColors.gold),
+          Icon(Icons.verified_rounded, color: context.appWarning),
         ],
       );
 }
@@ -364,7 +364,7 @@ class _BfvActionCard extends StatelessWidget {
                       color: AppColors.yellowSoft,
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(icon, color: AppColors.gold),
+                    child: Icon(icon, color: context.appWarning),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -410,12 +410,12 @@ class _EmptyBfvState extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.yellowSoft.withValues(alpha: .55),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.gold.withValues(alpha: .18)),
+          border: Border.all(color: context.appWarning.withValues(alpha: .18)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.info_outline_rounded, color: AppColors.gold),
+            Icon(Icons.info_outline_rounded, color: context.appWarning),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

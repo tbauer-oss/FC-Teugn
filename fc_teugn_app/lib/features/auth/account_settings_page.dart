@@ -106,7 +106,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
-          icon: const Icon(Icons.verified_user_rounded, color: AppColors.teal),
+          icon: Icon(Icons.verified_user_rounded, color: context.appSuccess),
           title: const Text('Passwort geändert'),
           content: Text(message),
           actions: [
@@ -512,7 +512,9 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
                   settings.enabled
                       ? Icons.verified_user_rounded
                       : Icons.security_rounded,
-                  color: settings.enabled ? AppColors.teal : AppColors.gold,
+                  color: settings.enabled
+                      ? context.appSuccess
+                      : context.appWarning,
                 ),
         ),
         if (settings.enabled)
@@ -544,7 +546,7 @@ class _BiometricHint extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.gold),
+          Icon(icon, color: context.appWarning),
           const SizedBox(width: 10),
           Expanded(child: Text(text)),
         ],
@@ -578,7 +580,7 @@ class _SettingsCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   backgroundColor: AppColors.yellowSoft,
-                  foregroundColor: AppColors.gold,
+                  foregroundColor: context.appWarning,
                   child: Icon(icon),
                 ),
                 const SizedBox(width: 12),
@@ -590,7 +592,7 @@ class _SettingsCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleLarge),
                       Text(
                         subtitle,
-                        style: const TextStyle(color: AppColors.muted),
+                        style: TextStyle(color: context.appColors.textMuted),
                       ),
                     ],
                   ),

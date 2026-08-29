@@ -130,6 +130,17 @@ extension AppThemeContext on BuildContext {
       Theme.of(this).extension<AppSurfaceColors>() ?? AppSurfaceColors.light;
 
   bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
+
+  Color get appSuccess =>
+      isDarkMode ? const Color(0xFF72E2B4) : AppColors.success;
+
+  Color get appWarning => isDarkMode ? const Color(0xFFFFE875) : AppColors.gold;
+
+  Color get appInfo =>
+      isDarkMode ? const Color(0xFF91CBFF) : const Color(0xFF17628C);
+
+  Color get appDanger =>
+      isDarkMode ? const Color(0xFFFF9A92) : Theme.of(this).colorScheme.error;
 }
 
 ThemeData buildAppTheme({Brightness brightness = Brightness.light}) {

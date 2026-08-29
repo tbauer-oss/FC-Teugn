@@ -960,7 +960,7 @@ class _CalendarToolbarPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 17, color: AppColors.gold),
+            Icon(icon, size: 17, color: context.appWarning),
             const SizedBox(width: 6),
             Text(
               label,
@@ -1369,13 +1369,15 @@ class _MonthView extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final day = index - offset + 1;
                       if (day < 1 || day > days) {
-                        return const DecoratedBox(
+                        return DecoratedBox(
                           decoration: BoxDecoration(
                             border: Border(
-                              right: BorderSide(color: AppColors.line),
-                              bottom: BorderSide(color: AppColors.line),
+                              right:
+                                  BorderSide(color: context.appColors.outline),
+                              bottom:
+                                  BorderSide(color: context.appColors.outline),
                             ),
-                            color: Color(0xFFF9FBFC),
+                            color: const Color(0xFFF9FBFC),
                           ),
                         );
                       }
@@ -1524,6 +1526,7 @@ class _MobileMonthView extends StatelessWidget {
                                         ? AppColors.yellow
                                         : dayEvents.isNotEmpty
                                             ? _categoryColor(
+                                                context,
                                                 dayEvents.first.category,
                                               ).withValues(alpha: .10)
                                             : Colors.transparent,
@@ -1531,6 +1534,7 @@ class _MobileMonthView extends StatelessWidget {
                                         ? null
                                         : Border.all(
                                             color: _categoryColor(
+                                              context,
                                               dayEvents.first.category,
                                             ).withValues(alpha: .28),
                                           ),
@@ -1637,11 +1641,11 @@ class _MobileMonthView extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               if (dayEvents.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 10),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
                   child: Text(
                     'Für diesen Tag sind noch keine Termine eingetragen.',
-                    style: TextStyle(color: AppColors.muted),
+                    style: TextStyle(color: context.appColors.textMuted),
                   ),
                 ),
               Flexible(
@@ -1706,7 +1710,7 @@ class _CompactCalendarEventRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final color = _categoryColor(event.category);
+    final color = _categoryColor(context, event.category);
     final date = event.startAt.toLocal();
     return Material(
       key: ValueKey('calendar-compact-event-${event.id}'),
@@ -1843,9 +1847,9 @@ class _CalendarCategoryLegend extends StatelessWidget {
     if (ordered.isEmpty) {
       return Padding(
         padding: EdgeInsets.symmetric(vertical: compact ? 2 : 10),
-        child: const Text(
+        child: Text(
           'Noch keine Termine in diesem Zeitraum',
-          style: TextStyle(color: AppColors.muted),
+          style: TextStyle(color: context.appColors.textMuted),
         ),
       );
     }
@@ -1867,11 +1871,11 @@ class _CalendarCategoryLegend extends StatelessWidget {
                     vertical: compact ? 4 : 5,
                   ),
                   decoration: BoxDecoration(
-                    color:
-                        _categoryColor(ordered[index]).withValues(alpha: .09),
+                    color: _categoryColor(context, ordered[index])
+                        .withValues(alpha: .09),
                     border: Border.all(
-                      color:
-                          _categoryColor(ordered[index]).withValues(alpha: .22),
+                      color: _categoryColor(context, ordered[index])
+                          .withValues(alpha: .22),
                     ),
                     borderRadius: BorderRadius.circular(999),
                   ),
@@ -1882,7 +1886,7 @@ class _CalendarCategoryLegend extends StatelessWidget {
                         width: compact ? 6 : 7,
                         height: compact ? 6 : 7,
                         decoration: BoxDecoration(
-                          color: _categoryColor(ordered[index]),
+                          color: _categoryColor(context, ordered[index]),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -1890,7 +1894,7 @@ class _CalendarCategoryLegend extends StatelessWidget {
                       Text(
                         ordered[index].label,
                         style: TextStyle(
-                          color: _categoryColor(ordered[index]),
+                          color: _categoryColor(context, ordered[index]),
                           fontSize: compact ? 10 : 12,
                           fontWeight: FontWeight.w800,
                         ),
@@ -1906,14 +1910,14 @@ class _CalendarCategoryLegend extends StatelessWidget {
                 _CalendarVenueLegendItem(
                   label: 'H Heim',
                   icon: Icons.home_rounded,
-                  color: AppColors.gold,
+                  color: context.appWarning,
                   compact: compact,
                 ),
                 SizedBox(width: compact ? 5 : 7),
                 _CalendarVenueLegendItem(
                   label: 'A Auswärts',
                   icon: Icons.directions_bus_rounded,
-                  color: AppColors.blue,
+                  color: context.appInfo,
                   compact: compact,
                 ),
               ],
@@ -1985,7 +1989,7 @@ class _CompactEmojiPreview extends StatelessWidget {
               width: 4,
               height: 4,
               decoration: BoxDecoration(
-                color: _categoryColor(category),
+                color: _categoryColor(context, category),
                 shape: BoxShape.circle,
               ),
             ),
@@ -1994,8 +1998,8 @@ class _CompactEmojiPreview extends StatelessWidget {
           if (events.length > 3)
             Text(
               '+${events.length - 3}',
-              style: const TextStyle(
-                color: AppColors.muted,
+              style: TextStyle(
+                color: context.appColors.textMuted,
                 fontSize: 7,
                 height: 1,
                 fontWeight: FontWeight.w900,
@@ -2020,9 +2024,11 @@ class _EventEmojiBadge extends StatelessWidget {
           height: 44,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: _categoryColor(event.category).withValues(alpha: .10),
+            color:
+                _categoryColor(context, event.category).withValues(alpha: .10),
             border: Border.all(
-              color: _categoryColor(event.category).withValues(alpha: .22),
+              color: _categoryColor(context, event.category)
+                  .withValues(alpha: .22),
             ),
             borderRadius: BorderRadius.circular(13),
           ),
@@ -2061,10 +2067,10 @@ class _MonthDay extends StatelessWidget {
         onTap: () => _showAllEvents(context),
         child: Container(
           padding: const EdgeInsets.all(7),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             border: Border(
-              right: BorderSide(color: AppColors.line),
-              bottom: BorderSide(color: AppColors.line),
+              right: BorderSide(color: context.appColors.outline),
+              bottom: BorderSide(color: context.appColors.outline),
             ),
           ),
           child: Column(
@@ -2075,14 +2081,14 @@ class _MonthDay extends StatelessWidget {
                 height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: today ? AppColors.blue : Colors.transparent,
+                  color: today ? context.appInfo : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
                 child: Text(
                   '${date.day}',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    color: today ? Colors.white : AppColors.navy,
+                    color: today ? Colors.white : context.appColors.text,
                   ),
                 ),
               ),
@@ -2100,7 +2106,8 @@ class _MonthDay extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: _categoryColor(event.category).withValues(
+                        color:
+                            _categoryColor(context, event.category).withValues(
                           alpha: event.isCancelled ? .07 : .13,
                         ),
                         borderRadius: BorderRadius.circular(7),
@@ -2115,7 +2122,7 @@ class _MonthDay extends StatelessWidget {
                           decoration: event.isCancelled
                               ? TextDecoration.lineThrough
                               : null,
-                          color: _categoryColor(event.category),
+                          color: _categoryColor(context, event.category),
                         ),
                       ),
                     ),
@@ -2126,7 +2133,7 @@ class _MonthDay extends StatelessWidget {
                   '+ ${events.length - previewLimit} weitere',
                   key: const ValueKey('calendar-day-overflow'),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.blue,
+                        color: context.appInfo,
                         fontWeight: FontWeight.w800,
                       ),
                 ),
@@ -2292,8 +2299,8 @@ class _WeekDayHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final today = _sameDay(date, DateTime.now());
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        border: Border(left: BorderSide(color: AppColors.line)),
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: context.appColors.outline)),
       ),
       child: Center(
         child: Column(
@@ -2301,8 +2308,8 @@ class _WeekDayHeader extends StatelessWidget {
           children: [
             Text(
               _weekday(date).substring(0, 2).toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.muted,
+              style: TextStyle(
+                color: context.appColors.textMuted,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: .8,
@@ -2319,8 +2326,8 @@ class _WeekDayHeader extends StatelessWidget {
               ),
               child: Text(
                 '${date.day}',
-                style: const TextStyle(
-                  color: AppColors.black,
+                style: TextStyle(
+                  color: today ? AppColors.black : context.appColors.text,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -2345,8 +2352,8 @@ class _TimeScale extends StatelessWidget {
             right: 9,
             child: Text(
               '${hour.toString().padLeft(2, '0')}:00',
-              style: const TextStyle(
-                color: AppColors.muted,
+              style: TextStyle(
+                color: context.appColors.textMuted,
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
               ),
@@ -2414,7 +2421,7 @@ class _WeekDayColumn extends StatelessWidget {
     final height = (durationMinutes / 60 * _WeekView.hourHeight)
         .clamp(34.0, 310.0)
         .toDouble();
-    final color = _categoryColor(event.category);
+    final color = _categoryColor(context, event.category);
     return Positioned(
       top: start * _WeekView.hourHeight + 1,
       left: 4,
@@ -2580,8 +2587,8 @@ class _MiniMonth extends StatelessWidget {
                       child: Text(
                         label,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.muted,
+                        style: TextStyle(
+                          color: context.appColors.textMuted,
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
                         ),
@@ -2619,8 +2626,10 @@ class _MiniMonth extends StatelessWidget {
                           ),
                           child: Text(
                             '$day',
-                            style: const TextStyle(
-                              color: AppColors.black,
+                            style: TextStyle(
+                              color: today
+                                  ? AppColors.black
+                                  : context.appColors.text,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                             ),
@@ -2633,7 +2642,8 @@ class _MiniMonth extends StatelessWidget {
                               width: 4,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: _categoryColor(dayEvents.first.category),
+                                color: _categoryColor(
+                                    context, dayEvents.first.category),
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -2752,11 +2762,11 @@ class _NoEventsRow extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
         borderRadius: BorderRadius.circular(16),
       ),
-      child:
-          const Text('Keine Termine', style: TextStyle(color: AppColors.muted)),
+      child: Text('Keine Termine',
+          style: TextStyle(color: context.appColors.textMuted)),
     );
   }
 }
@@ -2769,7 +2779,7 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _categoryColor(event.category);
+    final color = _categoryColor(context, event.category);
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 680) {
@@ -2838,8 +2848,8 @@ class _EventCard extends StatelessWidget {
                                   ),
                             ),
                             if (event.isRecurring)
-                              const Icon(Icons.repeat_rounded,
-                                  size: 17, color: AppColors.muted),
+                              Icon(Icons.repeat_rounded,
+                                  size: 17, color: context.appColors.textMuted),
                             if (event.isCancelled)
                               const Chip(label: Text('Abgesagt')),
                             if (event.matchVenueType != null)
@@ -2866,7 +2876,7 @@ class _EventCard extends StatelessWidget {
                             _CountChip(
                               icon: Icons.check_circle_rounded,
                               value: event.attendanceSummary.yes,
-                              color: AppColors.teal,
+                              color: context.appSuccess,
                             ),
                             _CountChip(
                               icon: Icons.cancel_rounded,
@@ -2877,7 +2887,7 @@ class _EventCard extends StatelessWidget {
                               _CountChip(
                                 icon: Icons.hourglass_empty_rounded,
                                 value: event.attendanceSummary.unknown,
-                                color: AppColors.muted,
+                                color: context.appColors.textMuted,
                               ),
                           ],
                         ),
@@ -3077,7 +3087,7 @@ class _TournamentPlanCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.yellowSoft,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.gold.withValues(alpha: .28)),
+          border: Border.all(color: context.appWarning.withValues(alpha: .28)),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -3103,7 +3113,7 @@ class _TournamentPlanCard extends StatelessWidget {
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.muted),
+                      ?.copyWith(color: context.appColors.textMuted),
                 ),
               ],
             );
@@ -3114,8 +3124,8 @@ class _TournamentPlanCard extends StatelessWidget {
                   )
                 : Row(
                     children: [
-                      const Icon(Icons.emoji_events_rounded,
-                          color: AppColors.gold, size: 34),
+                      Icon(Icons.emoji_events_rounded,
+                          color: context.appWarning, size: 34),
                       const SizedBox(width: 14),
                       Expanded(child: info),
                       const SizedBox(width: 14),
@@ -3255,7 +3265,7 @@ class _EmergencyPasswordDialogState extends State<_EmergencyPasswordDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      icon: const Icon(Icons.verified_user_rounded, color: AppColors.blue),
+      icon: Icon(Icons.verified_user_rounded, color: context.appInfo),
       title: const Text('Identität bestätigen'),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
@@ -3581,7 +3591,7 @@ class _EmergencyContactTile extends StatelessWidget {
     final phoneAvailable = _hasText(phone);
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: AppColors.blue),
+      leading: Icon(icon, color: context.appInfo),
       title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
       subtitle: Text(
         [
@@ -3624,7 +3634,7 @@ class _DetailsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _categoryColor(event.category);
+    final color = _categoryColor(context, event.category);
     final compact = MediaQuery.sizeOf(context).width < 600;
     return Padding(
       padding: EdgeInsets.all(compact ? 14 : 24),
@@ -3813,7 +3823,7 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 19, color: AppColors.blue),
+          Icon(icon, size: 19, color: context.appInfo),
           const SizedBox(width: 12),
           SizedBox(
             width: 118,
@@ -3873,7 +3883,9 @@ class _AttendanceSection extends ConsumerWidget {
             runSpacing: 8,
             children: [
               _StatusMetric(
-                  label: 'Zugesagt', value: summary.yes, color: AppColors.teal),
+                  label: 'Zugesagt',
+                  value: summary.yes,
+                  color: context.appSuccess),
               _StatusMetric(
                   label: 'Abgesagt',
                   value: summary.no,
@@ -3882,12 +3894,12 @@ class _AttendanceSection extends ConsumerWidget {
                 _StatusMetric(
                     label: 'Offen',
                     value: summary.unknown,
-                    color: AppColors.muted),
+                    color: context.appColors.textMuted),
               if (event.capabilities.canManage)
                 _StatusMetric(
                     label: 'Torhüter',
                     value: summary.goalkeeperAvailable,
-                    color: AppColors.blue),
+                    color: context.appInfo),
             ],
           ),
           if (answered.isNotEmpty) ...[
@@ -3898,7 +3910,7 @@ class _AttendanceSection extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(
                   _attendanceIcon(reply.status),
-                  color: _attendanceColor(reply.status),
+                  color: _attendanceColor(context, reply.status),
                 ),
                 title: Text(reply.playerName ?? 'Spieler'),
                 subtitle: reply.reason == null ? null : Text(reply.reason!),
@@ -3924,9 +3936,9 @@ class _AttendanceSection extends ConsumerWidget {
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(
+                leading: Icon(
                   Icons.schedule_rounded,
-                  color: AppColors.muted,
+                  color: context.appColors.textMuted,
                 ),
                 title: Text(entry.value.name),
                 subtitle: entry.value.position?.trim().isNotEmpty == true
@@ -4080,7 +4092,7 @@ class _StaffAttendanceStatusMenuState
                 Icon(
                   _attendanceIcon(entry.$2),
                   size: 19,
-                  color: _attendanceColor(entry.$2),
+                  color: _attendanceColor(context, entry.$2),
                 ),
                 const SizedBox(width: 9),
                 Expanded(child: Text(entry.$2.label)),
@@ -4114,7 +4126,8 @@ class _StaffAttendanceStatusMenuState
         constraints: const BoxConstraints(minWidth: 78, minHeight: 40),
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
         decoration: BoxDecoration(
-          color: _attendanceColor(widget.currentStatus).withValues(alpha: .1),
+          color: _attendanceColor(context, widget.currentStatus)
+              .withValues(alpha: .1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
@@ -4123,7 +4136,7 @@ class _StaffAttendanceStatusMenuState
             Text(
               widget.currentStatus.label,
               style: TextStyle(
-                color: _attendanceColor(widget.currentStatus),
+                color: _attendanceColor(context, widget.currentStatus),
                 fontWeight: FontWeight.w800,
                 fontSize: 12,
               ),
@@ -4291,12 +4304,12 @@ class _CarpoolSection extends ConsumerWidget {
                 color: AppColors.yellow.withValues(alpha: .45),
               ),
             ),
-            child: const Row(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.route_rounded, color: AppColors.blue),
-                SizedBox(width: 10),
-                Expanded(
+                Icon(Icons.route_rounded, color: context.appInfo),
+                const SizedBox(width: 10),
+                const Expanded(
                   child: Text(
                     'Einfach auswählen: Braucht dein Kind eine Mitfahrt oder '
                     'kannst du freie Plätze anbieten? Mehrere Kinder können '
@@ -4316,19 +4329,19 @@ class _CarpoolSection extends ConsumerWidget {
                 icon: Icons.airline_seat_recline_normal_rounded,
                 value: '$freeSeats',
                 label: 'freie Plätze',
-                color: AppColors.teal,
+                color: context.appSuccess,
               ),
               _CarpoolMetric(
                 icon: Icons.front_hand_outlined,
                 value: '${openNeeds.length}',
                 label: 'Mitfahrbedarf',
-                color: AppColors.blue,
+                color: context.appInfo,
               ),
               _CarpoolMetric(
                 icon: Icons.directions_car_rounded,
                 value: '${event.carpoolOffers.length}',
                 label: 'Fahrangebote',
-                color: AppColors.navy,
+                color: context.appInfo,
               ),
             ],
           ),
@@ -4382,7 +4395,7 @@ class _CarpoolSection extends ConsumerWidget {
                   ),
                   decoration: BoxDecoration(
                     color: need.status == CarpoolNeedStatus.matched
-                        ? AppColors.teal.withValues(alpha: .09)
+                        ? context.appSuccess.withValues(alpha: .09)
                         : context.appColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(13),
                     border: Border.all(color: context.appColors.outline),
@@ -4394,8 +4407,8 @@ class _CarpoolSection extends ConsumerWidget {
                             ? Icons.check_circle_rounded
                             : Icons.front_hand_outlined,
                         color: need.status == CarpoolNeedStatus.matched
-                            ? AppColors.teal
-                            : AppColors.blue,
+                            ? context.appSuccess
+                            : context.appInfo,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -4413,8 +4426,8 @@ class _CarpoolSection extends ConsumerWidget {
                                   : need.note?.trim().isNotEmpty == true
                                       ? need.note!
                                       : 'Mitfahrplatz wird gesucht',
-                              style: const TextStyle(
-                                color: AppColors.muted,
+                              style: TextStyle(
+                                color: context.appColors.textMuted,
                                 fontSize: 12,
                               ),
                             ),
@@ -4464,8 +4477,8 @@ class _CarpoolSection extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.directions_car_rounded,
-                              color: AppColors.blue),
+                          Icon(Icons.directions_car_rounded,
+                              color: context.appInfo),
                           const SizedBox(width: 9),
                           Expanded(
                             child: Text(
@@ -4512,8 +4525,8 @@ class _CarpoolSection extends ConsumerWidget {
                                     passenger,
                                     CarpoolRequestStatus.confirmed,
                                   ),
-                                  icon: const Icon(Icons.check_circle_rounded,
-                                      color: AppColors.teal),
+                                  icon: Icon(Icons.check_circle_rounded,
+                                      color: context.appSuccess),
                                 ),
                                 IconButton(
                                   tooltip: 'Ablehnen',
@@ -4797,8 +4810,8 @@ class _ManagementBar extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.line)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: context.appColors.outline)),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -4890,7 +4903,7 @@ class _ManagementBar extends ConsumerWidget {
                         minHeight: 44,
                       ),
                       decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.line),
+                        border: Border.all(color: context.appColors.outline),
                         borderRadius: BorderRadius.circular(13),
                       ),
                       child: const Icon(Icons.more_horiz_rounded),
@@ -6439,9 +6452,10 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: AppColors.teal.withValues(alpha: .08),
+                            color: context.appSuccess.withValues(alpha: .08),
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.line),
+                            border:
+                                Border.all(color: context.appColors.outline),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -6455,7 +6469,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 category.isMatch
                                     ? 'Spiele bleiben zunächst Entwurf und werden später über „Für Eltern & Spieler freigeben“ kommuniziert.'
                                     : 'Empfängerkreis: ${limitParticipants ? '${participantPlayerIds.length} ausgewählte Kinder mit ihren Sorgeberechtigten' : '${teamIds.length} ausgewählte Mannschaft(en)'}.',
-                                style: const TextStyle(color: AppColors.muted),
+                                style: TextStyle(
+                                    color: context.appColors.textMuted),
                               ),
                               if (!category.isMatch) ...[
                                 Material(
@@ -6575,7 +6590,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             decoration: BoxDecoration(
                               color: AppColors.yellow.withValues(alpha: .1),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: AppColors.line),
+                              border:
+                                  Border.all(color: context.appColors.outline),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -6589,8 +6605,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                   category.isMatch
                                       ? 'Für Spiele sind 24 Stunden standardmäßig aktiv. Die Push-Nachricht geht an die relevanten Eltern und Spieler.'
                                       : 'Die Push-Nachricht wird zuverlässig vom Server an die ausgewählten Personen gesendet.',
-                                  style:
-                                      const TextStyle(color: AppColors.muted),
+                                  style: TextStyle(
+                                      color: context.appColors.textMuted),
                                 ),
                                 const SizedBox(height: 10),
                                 DropdownButtonFormField<String>(
@@ -6722,7 +6738,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 color: AppColors.yellowSoft,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: AppColors.gold.withValues(alpha: .25),
+                                  color:
+                                      context.appWarning.withValues(alpha: .25),
                                 ),
                               ),
                               child: Column(
@@ -6857,8 +6874,9 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                 mobile ? 12 : 16,
                 mobile ? 10 : 16,
               ),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.line)),
+              decoration: BoxDecoration(
+                border:
+                    Border(top: BorderSide(color: context.appColors.outline)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -7411,18 +7429,18 @@ class _PitchConflictPanel extends StatelessWidget {
                 margin: EdgeInsets.only(top: requestable > 0 ? 12 : 0),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.teal.withValues(alpha: .1),
+                  color: context.appSuccess.withValues(alpha: .1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.teal.withValues(alpha: .25),
+                    color: context.appSuccess.withValues(alpha: .25),
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline_rounded, color: AppColors.teal),
-                    SizedBox(width: 10),
-                    Expanded(
+                    Icon(Icons.info_outline_rounded, color: context.appSuccess),
+                    const SizedBox(width: 10),
+                    const Expanded(
                       child: Text(
                         'Jugendmannschaften haben gegenüber den Freizeitkickern '
                         'immer Vorrang. Beim Speichern wird deshalb keine Anfrage '
@@ -7479,14 +7497,14 @@ class _SeasonSeriesInfo extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.teal.withValues(alpha: .08),
+        color: context.appSuccess.withValues(alpha: .08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.teal.withValues(alpha: .22)),
+        border: Border.all(color: context.appSuccess.withValues(alpha: .22)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.event_repeat_rounded, color: AppColors.teal),
+          Icon(Icons.event_repeat_rounded, color: context.appSuccess),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -8282,14 +8300,14 @@ String _apiErrorMessage(DioException error, String fallback) {
   return fallback;
 }
 
-Color _categoryColor(EventCategory category) {
-  if (category == EventCategory.training) return AppColors.teal;
-  if (category.isMatch) return AppColors.blue;
+Color _categoryColor(BuildContext context, EventCategory category) {
+  if (category == EventCategory.training) return context.appSuccess;
+  if (category.isMatch) return context.appInfo;
   if (category == EventCategory.parentsMeeting ||
       category == EventCategory.teamMeeting) {
     return const Color(0xFF7C4DFF);
   }
-  return AppColors.orange;
+  return context.appWarning;
 }
 
 String _categoryEmoji(EventCategory category) => switch (category) {
@@ -8345,11 +8363,12 @@ IconData _attendanceIcon(AttendanceStatus status) => switch (status) {
       AttendanceStatus.unknown => Icons.hourglass_empty_rounded,
     };
 
-Color _attendanceColor(AttendanceStatus status) => switch (status) {
-      AttendanceStatus.yes => AppColors.teal,
+Color _attendanceColor(BuildContext context, AttendanceStatus status) =>
+    switch (status) {
+      AttendanceStatus.yes => context.appSuccess,
       AttendanceStatus.no => Colors.redAccent,
-      AttendanceStatus.maybe => AppColors.muted,
-      AttendanceStatus.unknown => AppColors.muted,
+      AttendanceStatus.maybe => context.appColors.textMuted,
+      AttendanceStatus.unknown => context.appColors.textMuted,
     };
 
 String _homeAway(HomeAway value) => switch (value) {

@@ -230,7 +230,7 @@ class _HelpPageState extends State<HelpPage> {
               Text(
                 '${filtered.length} ${filtered.length == 1 ? 'Antwort' : 'Antworten'}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.muted,
+                      color: context.appColors.textMuted,
                       fontWeight: FontWeight.w700,
                     ),
               ),
@@ -375,7 +375,7 @@ class _HelpHero extends StatelessWidget {
                 height: 64,
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.appColors.surface,
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: const ClubLogo(size: 50),
@@ -497,11 +497,11 @@ class _HelpTrustStrip extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppColors.yellowSoft.withValues(alpha: .52),
                     borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: AppColors.line),
+                    border: Border.all(color: context.appColors.outline),
                   ),
                   child: Row(
                     children: [
-                      Icon(entry.$1, size: 21, color: AppColors.gold),
+                      Icon(entry.$1, size: 21, color: context.appWarning),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -553,10 +553,10 @@ class _QuickHelpGrid extends StatelessWidget {
               SizedBox(
                 width: width,
                 child: Material(
-                  color: Colors.white,
+                  color: context.appColors.surface,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
-                    side: const BorderSide(color: AppColors.line),
+                    side: BorderSide(color: context.appColors.outline),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
@@ -591,8 +591,8 @@ class _QuickHelpGrid extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const Icon(Icons.chevron_right_rounded,
-                              color: AppColors.muted),
+                          Icon(Icons.chevron_right_rounded,
+                              color: context.appColors.textMuted),
                         ],
                       ),
                     ),
@@ -740,8 +740,8 @@ class _ArticleContent extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.lightbulb_outline_rounded,
-                    size: 20, color: AppColors.gold),
+                Icon(Icons.lightbulb_outline_rounded,
+                    size: 20, color: context.appWarning),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(

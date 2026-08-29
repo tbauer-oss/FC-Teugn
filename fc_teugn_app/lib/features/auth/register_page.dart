@@ -436,7 +436,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           style: Theme.of(context)
               .textTheme
               .bodySmall
-              ?.copyWith(color: AppColors.muted),
+              ?.copyWith(color: context.appColors.textMuted),
         ),
       ],
     );
@@ -551,7 +551,8 @@ class _LoadError extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.muted),
+          Icon(Icons.cloud_off_rounded,
+              size: 48, color: context.appColors.textMuted),
           const SizedBox(height: 12),
           Text(
             'Registrierung derzeit nicht erreichbar',
