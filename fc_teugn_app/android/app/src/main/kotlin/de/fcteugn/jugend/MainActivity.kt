@@ -23,16 +23,19 @@ import java.io.File
 class MainActivity : FlutterFragmentActivity() {
     companion object {
         private const val CHANNEL = "de.fcteugn.jugend/notifications"
+        private const val LIVE_MATCH_CHANNEL = "de.fcteugn.jugend/live_match"
         private const val UPDATE_CHANNEL = "de.fcteugn.jugend/app_update"
         private const val NOTIFICATION_CHANNEL_ID = "fc_teugn_important"
         private const val ACTION_URL_EXTRA = "fc_teugn_action_url"
     }
 
     private var notificationMethodChannel: MethodChannel? = null
+    private var liveMatchMethodChannel: MethodChannel? = null
     private var updateMethodChannel: MethodChannel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         createNotificationChannel()
+        LiveMatchNotification.createChannel(this)
         super.onCreate(savedInstanceState)
     }
 
@@ -70,6 +73,26 @@ class MainActivity : FlutterFragmentActivity() {
                         } else {
                             installApk(path, result)
                         }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
+        liveMatchMethodChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            LIVE_MATCH_CHANNEL,
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "updateLiveMatch" -> {
+                        result.success(LiveMatchNotification.update(this, call.argumentsMap()))
+                    }
+                    "cancelLiveMatch" -> {
+                        LiveMatchNotification.cancel(
+                            this,
+                            call.argument<String>("matchId") ?: "",
+                        )
+                        result.success(null)
                     }
                     else -> result.notImplemented()
                 }
@@ -193,4 +216,10 @@ class MainActivity : FlutterFragmentActivity() {
         manager.notify(notificationId, builder.build())
         return true
     }
+
+    private fun io.flutter.plugin.common.MethodCall.argumentsMap(): Map<String, Any?> =
+        (arguments as? Map<*, *>)
+            ?.entries
+            ?.associate { (key, value) -> key.toString() to value }
+            ?: emptyMap()
 }

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:dio/dio.dart';
 import 'package:fc_teugn_app/core/api_client.dart';
 import 'package:fc_teugn_app/core/app_theme.dart';
@@ -360,6 +362,66 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(EventEditorDialog), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('foldable calendar separates month grid and compact agenda',
+      (tester) async {
+    const viewport = Size(673, 841);
+    tester.view.physicalSize = viewport;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final now = DateTime.now();
+    final events = [
+      _calendarEvent(
+        id: 'foldable-training',
+        title: 'Foldable-Training',
+        startAt: DateTime(now.year, now.month, 18, 17),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          calendarEventsProvider.overrideWith((ref, range) async {
+            ref.keepAlive();
+            return events;
+          }),
+          organizationProvider.overrideWith((ref) async => _organization(now)),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const MediaQuery(
+            data: MediaQueryData(
+              size: viewport,
+              displayFeatures: [
+                DisplayFeature(
+                  bounds: Rect.fromLTWH(330, 0, 13, 841),
+                  type: DisplayFeatureType.hinge,
+                  state: DisplayFeatureState.unknown,
+                ),
+              ],
+            ),
+            child: Scaffold(body: CalendarPage(canManage: false)),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('calendar-foldable-month')),
+      findsOneWidget,
+    );
+    final grid = tester.getRect(
+      find.byKey(const ValueKey('calendar-mobile-month-grid')),
+    );
+    final event = tester.getRect(
+      find.byKey(const ValueKey('calendar-compact-event-foldable-training')),
+    );
+    expect(grid.right, lessThanOrEqualTo(330));
+    expect(event.left, greaterThanOrEqualTo(343));
     expect(tester.takeException(), isNull);
   });
 }

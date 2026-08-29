@@ -2,6 +2,7 @@ import {
   AccountStatus,
   NotificationCategory,
   NotificationDeliveryStatus,
+  Prisma,
   PushPlatform,
 } from '@prisma/client';
 import webPush from 'web-push';
@@ -34,6 +35,7 @@ export type NotificationInput = {
   forcePush?: boolean;
   forceInApp?: boolean;
   dedupeKey?: string | null;
+  metadata?: Prisma.InputJsonValue;
 };
 
 export type QueuedNotificationBatch = {
@@ -94,23 +96,66 @@ export function androidPushMessage(
     actionUrl?: string | null;
     entityType?: string | null;
     entityId?: string | null;
+    metadata?: unknown;
   },
 ) {
   const preview = externalPushPreview(notification);
+  const metadata = notification.metadata &&
+      typeof notification.metadata === 'object' &&
+      !Array.isArray(notification.metadata)
+    ? notification.metadata as Record<string, unknown>
+    : {};
+  const liveMatch = notification.category === NotificationCategory.LIVE_TICKER &&
+    metadata.kind === 'LIVE_MATCH';
+  const homeTeam = String(metadata.homeTeam ?? 'Heim');
+  const awayTeam = String(metadata.awayTeam ?? 'Gast');
+  const homeScore = String(metadata.homeScore ?? 0);
+  const awayScore = String(metadata.awayScore ?? 0);
+  const minute = String(metadata.minute ?? 1);
+  const status = String(metadata.status ?? 'Live');
+  const data = {
+    // Live-Match-Daten sind auch im FCM-Payload strikt kinder-namensfrei.
+    // Dadurch kann weder ein OEM-Fallback noch ein Diagnose-Preview versehentlich
+    // einen Ereignistext mit Spielernamen auf dem Sperrbildschirm verwenden.
+    title: liveMatch
+      ? `${homeTeam} ${homeScore}:${awayScore} ${awayTeam}`
+      : preview.title,
+    body: liveMatch ? `${status} · ${minute}. Minute` : preview.body,
+    actionUrl: notification.actionUrl ?? '',
+    notificationId: notification.id,
+    entityType: notification.entityType ?? '',
+    entityId: notification.entityId ?? '',
+    ...(liveMatch
+      ? {
+          liveMatch: 'true',
+          matchId: String(metadata.matchId ?? ''),
+          homeTeam,
+          awayTeam,
+          homeScore,
+          awayScore,
+          minute,
+          status,
+          finished: String(metadata.finished === true),
+        }
+      : {}),
+  };
+  if (liveMatch) {
+    return {
+      token,
+      data,
+      android: {
+        priority: 'high' as const,
+        ttl: 60 * 60 * 1000,
+      },
+    };
+  }
   return {
     token,
     notification: {
       title: preview.title,
       body: preview.body,
     },
-    data: {
-      title: preview.title,
-      body: preview.body,
-      actionUrl: notification.actionUrl ?? '',
-      notificationId: notification.id,
-      entityType: notification.entityType ?? '',
-      entityId: notification.entityId ?? '',
-    },
+    data,
     android: {
       priority: 'high' as const,
       ttl: 60 * 60 * 1000,
@@ -186,6 +231,7 @@ export async function queueUserNotifications(
                 entityId: input.entityId,
                 expiresAt: input.expiresAt,
                 dedupeKey: `${input.dedupeKey}:${userId}`,
+                metadata: input.metadata,
               },
             })
           : await prisma.notification.create({ data: {
@@ -197,6 +243,7 @@ export async function queueUserNotifications(
               entityType: input.entityType,
               entityId: input.entityId,
               expiresAt: input.expiresAt,
+              metadata: input.metadata,
             } });
         if (!push) {
           return { notifications: 1, deliveries: 0, deliveryIds: [] as string[] };

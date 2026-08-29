@@ -14,6 +14,7 @@ import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
 import '../../core/team_game_format.dart';
+import '../../core/widgets/adaptive_layout.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import 'organization_admin_tools.dart';
@@ -726,6 +727,48 @@ class _AgeGroupSection extends StatelessWidget {
           )
         else
           LayoutBuilder(builder: (context, constraints) {
+            Widget teamCard(TeamSummary team) => _TeamCard(
+                  team: team,
+                  isCurrent: team.id == currentTeamId,
+                  canEdit: canEdit(team),
+                  canDelete: canDelete,
+                  onEdit: () => onEdit(team),
+                  onLineup: () => onLineup(team),
+                  onPhoto: () => onPhoto(team),
+                  onRemovePhoto: () => onRemovePhoto(team),
+                  onDelete: () => onDelete(team),
+                );
+            final hinge = verticalSeparatingFeatureFor(
+              context,
+              availableWidth: constraints.maxWidth,
+            );
+            if (hinge != null &&
+                hinge.left >= 270 &&
+                constraints.maxWidth - hinge.right >= 270) {
+              final left = <TeamSummary>[];
+              final right = <TeamSummary>[];
+              for (var index = 0; index < teams.length; index++) {
+                (index.isEven ? left : right).add(teams[index]);
+              }
+              Widget pane(List<TeamSummary> items) => Column(
+                    children: [
+                      for (var index = 0; index < items.length; index++) ...[
+                        teamCard(items[index]),
+                        if (index != items.length - 1)
+                          const SizedBox(height: 7),
+                      ],
+                    ],
+                  );
+              return Row(
+                key: const ValueKey('organization-foldable-team-grid'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: hinge.left, child: pane(left)),
+                  SizedBox(width: hinge.width),
+                  Expanded(child: pane(right)),
+                ],
+              );
+            }
             final width = constraints.maxWidth >= 1050
                 ? (constraints.maxWidth - 24) / 3
                 : constraints.maxWidth >= 680
@@ -738,17 +781,7 @@ class _AgeGroupSection extends StatelessWidget {
                 for (final team in teams)
                   SizedBox(
                     width: width,
-                    child: _TeamCard(
-                      team: team,
-                      isCurrent: team.id == currentTeamId,
-                      canEdit: canEdit(team),
-                      canDelete: canDelete,
-                      onEdit: () => onEdit(team),
-                      onLineup: () => onLineup(team),
-                      onPhoto: () => onPhoto(team),
-                      onRemovePhoto: () => onRemovePhoto(team),
-                      onDelete: () => onDelete(team),
-                    ),
+                    child: teamCard(team),
                   ),
               ],
             );
@@ -1379,9 +1412,9 @@ class _CompactTeamFact extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 250),
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: context.appColors.surfaceMuted,
           borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.appColors.outline),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1613,8 +1646,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColors.line),
+        color: context.appColors.surfaceRaised,
+        border: Border.all(color: context.appColors.outline),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -1625,9 +1658,9 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
             height: 68,
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: AppColors.background,
+              color: context.appColors.surfaceMuted,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.appColors.outline),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),

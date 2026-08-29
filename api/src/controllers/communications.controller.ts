@@ -3,11 +3,12 @@ import {
   AnnouncementAudience,
   AnnouncementPriority,
   AnnouncementStatus,
+  FileAssetKind,
   NotificationCategory,
   Prisma,
   Role as PrismaRole,
 } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { hasPermission, Permission } from '../security/permissions';
@@ -17,6 +18,12 @@ import {
   type TeamScopedUser,
 } from '../services/team-access';
 import { notifyUsers } from '../services/notification.service';
+import { mediaAssetUrl } from '../services/media-access';
+import { objectStorage } from '../services/object-storage';
+import {
+  familyContactRetentionDays,
+  purgeExpiredFamilyContacts,
+} from '../services/privacy-retention.service';
 import { Role } from '../types/enums';
 
 const staffRoles = new Set<string>([
@@ -30,7 +37,6 @@ const staffRoles = new Set<string>([
   PrismaRole.TRAINER,
 ]);
 
-const familyContactRetentionDays = 30;
 const familyContactEntityPrefix = 'FamilyContact:';
 
 function isStaffRole(role: string) {
@@ -41,6 +47,11 @@ function familyContactConversation(value: string | null | undefined) {
   const [threadId, parentId, teamId, ...rest] = String(value ?? '').split('.');
   if (!threadId || !parentId || !teamId || rest.length) return null;
   return { id: `${threadId}.${parentId}.${teamId}`, threadId, parentId, teamId };
+}
+
+function familyContactMessageId(value: string | null | undefined) {
+  const match = /^family-contact:([^:]+):/.exec(String(value ?? ''));
+  return match?.[1] ?? null;
 }
 
 async function familyContactTeamIds(user: TeamScopedUser) {
@@ -130,12 +141,7 @@ async function familyContactParentOptions(teamIds: string[]) {
 export async function listFamilyContacts(req: Request, res: Response) {
   const user = req.user!;
   const now = new Date();
-  await prisma.notification.deleteMany({
-    where: {
-      entityType: { startsWith: familyContactEntityPrefix },
-      expiresAt: { lte: now },
-    },
-  });
+  await purgeExpiredFamilyContacts(now);
   const teamIds = await familyContactTeamIds(user);
   const notifications = await prisma.notification.findMany({
     where: {
@@ -161,7 +167,10 @@ export async function listFamilyContacts(req: Request, res: Response) {
     ...new Set(visible.flatMap((item) => [item.senderId, item.conversation.parentId])),
   ];
   const messageTeamIds = [...new Set(visible.map((item) => item.conversation.teamId))];
-  const [participants, teams, contactOptions] = await Promise.all([
+  const messageIds = visible
+    .map((item) => familyContactMessageId(item.notification.dedupeKey))
+    .filter((id): id is string => id != null);
+  const [participants, teams, contactOptions, attachments] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: participantIds } },
       select: { id: true, name: true, role: true },
@@ -178,9 +187,28 @@ export async function listFamilyContacts(req: Request, res: Response) {
     isStaffRole(String(user.role))
       ? familyContactParentOptions(teamIds)
       : Promise.resolve([]),
+    prisma.familyContactAttachment.findMany({
+      where: {
+        messageId: { in: [...new Set(messageIds)] },
+        expiresAt: { gt: now },
+      },
+      include: {
+        fileAsset: {
+          select: {
+            id: true,
+            originalName: true,
+            contentType: true,
+            size: true,
+          },
+        },
+      },
+    }),
   ]);
   const participantById = new Map(participants.map((participant) => [participant.id, participant]));
   const teamById = new Map(teams.map((team) => [team.id, team]));
+  const attachmentByMessageId = new Map(
+    attachments.map((attachment) => [attachment.messageId, attachment]),
+  );
   const readAt = new Date();
   const unreadIds = visible
     .filter((item) => item.notification.readAt == null && item.senderId !== user.id)
@@ -212,6 +240,10 @@ export async function listFamilyContacts(req: Request, res: Response) {
       const sender = participantById.get(item.senderId);
       const parent = participantById.get(item.conversation.parentId);
       const team = teamById.get(item.conversation.teamId);
+      const messageId = familyContactMessageId(item.notification.dedupeKey);
+      const attachment = messageId
+        ? attachmentByMessageId.get(messageId)
+        : null;
       return {
         id: item.notification.id,
         conversationId: item.conversation.id,
@@ -227,6 +259,16 @@ export async function listFamilyContacts(req: Request, res: Response) {
         createdAt: item.notification.createdAt,
         expiresAt: item.notification.expiresAt,
         isRead: item.notification.readAt != null || unreadIds.includes(item.notification.id),
+        attachment: attachment
+          ? {
+              id: attachment.fileAsset.id,
+              name: attachment.fileAsset.originalName,
+              contentType: attachment.fileAsset.contentType,
+              sizeBytes: attachment.fileAsset.size,
+              downloadUrl: mediaAssetUrl(attachment.fileAsset.id, '15m'),
+              expiresAt: attachment.expiresAt,
+            }
+          : null,
       };
     }),
   });
@@ -235,8 +277,8 @@ export async function listFamilyContacts(req: Request, res: Response) {
 export async function sendFamilyContact(req: Request, res: Response) {
   const user = req.user!;
   const message = text(req.body?.message, 2000);
-  if (!message) {
-    return res.status(400).json({ message: 'Bitte eine Nachricht eingeben.' });
+  if (!message && !req.file) {
+    return res.status(400).json({ message: 'Bitte eine Nachricht oder Datei auswählen.' });
   }
   const allowedTeamIds = await familyContactTeamIds(user);
   const requestedConversation = familyContactConversation(
@@ -298,30 +340,76 @@ export async function sendFamilyContact(req: Request, res: Response) {
     Date.now() + familyContactRetentionDays * 24 * 60 * 60 * 1000,
   );
   const messageId = randomUUID();
+  const notificationBody = message || `📎 ${req.file?.originalname ?? 'Anhang'}`;
   const entityType = `${familyContactEntityPrefix}${user.id}`;
   const dedupeKey = `family-contact:${messageId}`;
   const actionUrl = '/messages?section=contact';
-  await prisma.notification.create({
-    data: {
-      userId: user.id,
-      category: NotificationCategory.ANNOUNCEMENT,
-      title: senderIsParent ? 'Du · Nachricht an Trainerteam' : 'Du · Nachricht an Eltern',
-      body: message,
-      actionUrl,
-      entityType,
-      entityId: conversationId,
-      expiresAt,
-      readAt: new Date(),
-      dedupeKey: `${dedupeKey}:${user.id}`,
-    },
-  });
+  let stored: Awaited<ReturnType<typeof objectStorage.uploadPrivate>> | null = null;
+  if (req.file) {
+    const extension = req.file.originalname
+      .split('.')
+      .pop()
+      ?.replace(/[^a-z0-9]/gi, '') || 'bin';
+    stored = await objectStorage.uploadPrivate(
+      `family-contact/${teamId}/${messageId}.${extension.toLowerCase()}`,
+      req.file.buffer,
+      req.file.mimetype,
+    );
+  }
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (req.file && stored) {
+        const asset = await tx.fileAsset.create({
+          data: {
+            kind: FileAssetKind.FAMILY_CONTACT_ATTACHMENT,
+            pathname: stored.pathname,
+            storageUrl: stored.url,
+            originalName: req.file.originalname.slice(0, 255),
+            contentType: req.file.mimetype,
+            size: req.file.size,
+            checksum: createHash('sha256').update(req.file.buffer).digest('hex'),
+            uploadedById: user.id,
+            ownerTeamId: teamId,
+            isPrivate: true,
+          },
+        });
+        await tx.familyContactAttachment.create({
+          data: {
+            messageId,
+            conversationId,
+            teamId,
+            uploadedById: user.id,
+            fileAssetId: asset.id,
+            expiresAt,
+          },
+        });
+      }
+      await tx.notification.create({
+        data: {
+          userId: user.id,
+          category: NotificationCategory.ANNOUNCEMENT,
+          title: senderIsParent ? 'Du · Nachricht an Trainerteam' : 'Du · Nachricht an Eltern',
+          body: notificationBody,
+          actionUrl,
+          entityType,
+          entityId: conversationId,
+          expiresAt,
+          readAt: new Date(),
+          dedupeKey: `${dedupeKey}:${user.id}`,
+        },
+      });
+    });
+  } catch (error) {
+    if (stored) await objectStorage.delete(stored.pathname).catch(() => undefined);
+    throw error;
+  }
   const recipientIds = recipients.filter((id) => id !== user.id);
   await notifyUsers(recipientIds, {
     category: NotificationCategory.ANNOUNCEMENT,
     title: senderIsParent
       ? `Elternnachricht · ${sender?.name || 'Elternteil'}`
       : `Trainerteam · ${sender?.name || 'Trainerteam'}`,
-    body: message,
+    body: notificationBody,
     actionUrl,
     entityType,
     entityId: conversationId,
@@ -334,6 +422,13 @@ export async function sendFamilyContact(req: Request, res: Response) {
     conversationId,
     expiresAt,
     recipients: recipientIds.length,
+    attachment: req.file
+      ? {
+          name: req.file.originalname,
+          contentType: req.file.mimetype,
+          sizeBytes: req.file.size,
+        }
+      : null,
   });
 }
 

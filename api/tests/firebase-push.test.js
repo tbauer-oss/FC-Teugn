@@ -90,6 +90,38 @@ test('live ticker push is opt-in and exposes the requested score event', () => {
   );
 });
 
+test('Android live match surface is data-only and never exposes player names', () => {
+  const message = androidPushMessage('token', {
+    id: 'live-1',
+    category: 'LIVE_TICKER',
+    title: 'Tor von Max Mustermann',
+    body: 'Max Mustermann trifft.',
+    actionUrl: '/matches/match-1?tab=live',
+    entityType: 'MATCH',
+    entityId: 'match-1',
+    metadata: {
+      kind: 'LIVE_MATCH',
+      matchId: 'match-1',
+      homeTeam: 'FC Teugn E1',
+      awayTeam: 'TSV Beispiel E1',
+      homeScore: 2,
+      awayScore: 1,
+      minute: 37,
+      status: 'Live',
+      finished: false,
+      privacy: 'NO_PLAYER_NAMES',
+    },
+  });
+
+  assert.equal(message.notification, undefined);
+  assert.equal(message.data.liveMatch, 'true');
+  assert.equal(message.data.homeTeam, 'FC Teugn E1');
+  assert.equal(message.data.awayTeam, 'TSV Beispiel E1');
+  assert.equal(message.data.homeScore, '2');
+  assert.equal(message.data.minute, '37');
+  assert.doesNotMatch(JSON.stringify(message.data), /Max Mustermann/);
+});
+
 test('admin can preview concrete push scenarios with functional targets', () => {
   assert.deepEqual(externalPushPreview(adminPushScenarios.TRAINING), {
     title: 'Rückmeldung fehlt: Training E-Jugend',

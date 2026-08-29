@@ -47,6 +47,7 @@ import 'core/models/communication.dart';
 import 'core/models/user.dart';
 import 'core/app_identity.dart';
 import 'core/app_theme.dart';
+import 'core/app_theme_controller.dart';
 import 'core/app_update/app_update_service.dart';
 import 'core/providers.dart';
 import 'core/loading/loading_widgets.dart';
@@ -391,6 +392,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
 
   @override
   Widget build(BuildContext context) {
+    final themePreference = ref.watch(appThemePreferenceProvider);
     final authState = ref.watch(authProvider);
     ref.listen<AuthState>(authProvider, (previous, next) {
       if (previous?.user?.id != next.user?.id) {
@@ -436,6 +438,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
         title: AppIdentity.name,
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
+        darkTheme: buildAppTheme(brightness: Brightness.dark),
+        themeMode: themePreference.themeMode,
         locale: _germanLocale,
         supportedLocales: _supportedLocales,
         localizationsDelegates: _localizationsDelegates,
@@ -1049,6 +1053,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
       routerConfig: router,
       scaffoldMessengerKey: _scaffoldMessengerKey,
       theme: buildAppTheme(),
+      darkTheme: buildAppTheme(brightness: Brightness.dark),
+      themeMode: themePreference.themeMode,
       locale: _germanLocale,
       supportedLocales: _supportedLocales,
       localizationsDelegates: _localizationsDelegates,
@@ -1120,9 +1126,10 @@ const _localizationsDelegates = [
 
 Widget _buildAppContent(BuildContext context, Widget? child) => MediaQuery(
       data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-      child: AdaptiveHingePane(
-        child: AppLoadingHost(child: child ?? const SizedBox.shrink()),
-      ),
+      // Feature-Seiten erhalten die vollständige Fenstergeometrie inklusive
+      // DisplayFeature. So können Master/Detail-Flächen beide Foldable-Panes
+      // nutzen, ohne Inhalte unter dem Scharnier zu zeichnen.
+      child: AppLoadingHost(child: child ?? const SizedBox.shrink()),
     );
 
 @visibleForTesting

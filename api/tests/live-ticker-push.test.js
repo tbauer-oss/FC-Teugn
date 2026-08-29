@@ -119,6 +119,8 @@ test('notification uses the optional live ticker preference and deep link', () =
   assert.match(service, /dedupeKey: `live-ticker:\$\{event\.id\}`/);
   assert.match(service, /prisma\.teamMembership\.findMany/);
   assert.match(service, /familyReleasedAt/);
+  assert.match(service, /kind:\s*'LIVE_MATCH'/);
+  assert.match(service, /privacy:\s*'NO_PLAYER_NAMES'/);
   assert.doesNotMatch(service, /forcePush:/);
 });
 

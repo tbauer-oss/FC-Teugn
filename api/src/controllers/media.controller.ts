@@ -19,10 +19,23 @@ export async function readMediaAsset(req: Request, res: Response) {
 
   const asset = await prisma.fileAsset.findFirst({
     where: { id: assetId, deletedAt: null },
-    select: { pathname: true, contentType: true, size: true },
+    select: {
+      pathname: true,
+      contentType: true,
+      size: true,
+      familyContactAttachment: { select: { expiresAt: true } },
+    },
   });
   if (!asset) {
     return res.status(404).json({ message: 'Die Datei wurde nicht gefunden.' });
+  }
+  if (
+    asset.familyContactAttachment &&
+    asset.familyContactAttachment.expiresAt.getTime() <= Date.now()
+  ) {
+    return res.status(410).json({
+      message: 'Die Datei wurde entsprechend der 30-Tage-Frist gelöscht.',
+    });
   }
 
   const stored = await objectStorage.readPrivate(asset.pathname);

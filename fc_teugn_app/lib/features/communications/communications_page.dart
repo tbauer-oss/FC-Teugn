@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/loading/loading_widgets.dart';
@@ -205,6 +206,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
   Object? _error;
   bool _loading = true;
   bool _sending = false;
+  String? _activeConversationId;
 
   @override
   void initState() {
@@ -305,7 +307,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                           style: const TextStyle(fontWeight: FontWeight.w900),
                         ),
                         Text(
-                          'Textnachrichten ohne Anhänge · automatische Löschung nach ${inbox.retentionDays} Tagen',
+                          'Nachrichten, Medien und Sicherungen · vollständige automatische Löschung nach ${inbox.retentionDays} Tagen',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -373,38 +375,102 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                 ? 'Hier kannst du Eltern deiner ausgewählten Mannschaft direkt anschreiben.'
                 : 'Hier kannst du eine kurze organisatorische Frage direkt an das zuständige Trainerteam senden.',
           )
-        else ...[
-          Text(
-            'Unterhaltungen',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 5),
-          for (final messages in conversations)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 5),
-              child: _FamilyContactThreadCard(
-                messages: messages,
+        else
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final selectedId = _activeConversationId ??
+                  conversations.first.first.conversationId;
+              final selected = conversations.firstWhere(
+                (messages) => messages.first.conversationId == selectedId,
+                orElse: () => conversations.first,
+              );
+              final conversationList = _FamilyConversationList(
+                conversations: conversations,
                 staffView: widget.staffView,
-                onOpen: () => _openThread(messages),
-                onReply: () => _compose(
+                selectedConversationId: selected.first.conversationId,
+                onOpen: (messages) {
+                  if (constraints.maxWidth < 720) {
+                    _openThread(messages);
+                    return;
+                  }
+                  setState(() =>
+                      _activeConversationId = messages.first.conversationId);
+                },
+                onReply: (messages) => _compose(
                   inbox: inbox,
                   messages: messages,
                 ),
-              ),
-            ),
-        ],
+              );
+              if (constraints.maxWidth < 720) return conversationList;
+              final availableHeight = MediaQuery.sizeOf(context).height - 250;
+              return SizedBox(
+                height: availableHeight.clamp(520.0, 760.0),
+                child: AdaptiveTwoPane(
+                  minimumTwoPaneWidth: 720,
+                  primaryWidth: 318,
+                  primary: conversationList,
+                  secondary: _FamilyContactThreadPane(
+                    messages: selected,
+                    staffView: widget.staffView,
+                    retentionDays: inbox.retentionDays,
+                    sending: _sending,
+                    onSend: (draft) => _sendReply(
+                      selected,
+                      draft,
+                    ),
+                  ),
+                  compact: conversationList,
+                ),
+              );
+            },
+          ),
       ],
     );
+  }
+
+  Future<void> _sendReply(
+    List<FamilyContactMessage> messages,
+    _FamilyContactReplyDraft draft,
+  ) async {
+    if (_sending || !mounted) return;
+    setState(() => _sending = true);
+    try {
+      await ref.read(repositoryProvider).sendFamilyContact(
+            message: draft.message,
+            teamId: messages.first.teamId,
+            conversationId: messages.first.conversationId,
+            attachmentBytes: draft.attachmentBytes,
+            attachmentName: draft.attachmentName,
+            attachmentMimeType: draft.attachmentMimeType,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nachricht wurde sicher gesendet.')),
+      );
+      await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Die Nachricht konnte nicht gesendet werden. Bitte Verbindung prüfen und erneut versuchen.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   Future<void> _openThread(List<FamilyContactMessage> messages) async {
     final replyController = TextEditingController();
     var replyText = '';
-    final reply = await showModalBottomSheet<String>(
+    PlatformFile? replyAttachment;
+    final reply = await showModalBottomSheet<_FamilyContactReplyDraft>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appColors.canvas,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => FractionallySizedBox(
           heightFactor: .9,
@@ -413,19 +479,20 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
             children: [
               Container(
                 padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  border: Border(bottom: BorderSide(color: AppColors.line)),
+                decoration: BoxDecoration(
+                  color: context.appColors.surface,
+                  border: Border(
+                    bottom: BorderSide(color: context.appColors.outline),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const CircleAvatar(
+                    CircleAvatar(
                       radius: 18,
-                      backgroundColor: AppColors.yellowSoft,
-                      child: Icon(
+                      backgroundColor: context.appColors.brandSoft,
+                      child: const Icon(
                         Icons.forum_rounded,
                         size: 19,
-                        color: AppColors.navy,
                       ),
                     ),
                     const SizedBox(width: 9),
@@ -444,7 +511,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                             ),
                           ),
                           Text(
-                            'Geschützt · ${_inbox?.retentionDays ?? 30} Tage',
+                            'Vollständige Löschung inkl. Sicherungen nach ${_inbox?.retentionDays ?? 30} Tagen',
                             style: const TextStyle(
                               color: AppColors.teal,
                               fontSize: 11,
@@ -508,39 +575,75 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                   8,
                   8 + MediaQuery.viewInsetsOf(sheetContext).bottom,
                 ),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  border: Border(top: BorderSide(color: AppColors.line)),
+                decoration: BoxDecoration(
+                  color: context.appColors.surface,
+                  border: Border(
+                    top: BorderSide(color: context.appColors.outline),
+                  ),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: replyController,
-                        minLines: 1,
-                        maxLines: 4,
-                        maxLength: 2000,
-                        textCapitalization: TextCapitalization.sentences,
-                        onChanged: (value) =>
-                            setSheetState(() => replyText = value),
-                        decoration: const InputDecoration(
-                          hintText: 'Nachricht schreiben …',
-                          counterText: '',
-                          isDense: true,
-                        ),
+                    if (replyAttachment != null)
+                      _PendingMessengerAttachment(
+                        file: replyAttachment!,
+                        onRemove: () =>
+                            setSheetState(() => replyAttachment = null),
                       ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          tooltip: 'Bild, Video, Audio oder PDF anhängen',
+                          onPressed: () async {
+                            final file = await _pickFamilyContactFile();
+                            if (file != null) {
+                              setSheetState(() => replyAttachment = file);
+                            }
+                          },
+                          icon: const Icon(Icons.add_circle_outline_rounded),
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: replyController,
+                            minLines: 1,
+                            maxLines: 4,
+                            maxLength: 2000,
+                            textCapitalization: TextCapitalization.sentences,
+                            onChanged: (value) =>
+                                setSheetState(() => replyText = value),
+                            decoration: const InputDecoration(
+                              hintText: 'Nachricht schreiben …',
+                              counterText: '',
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton.filled(
+                          tooltip: 'Nachricht senden',
+                          onPressed: replyText.trim().isEmpty &&
+                                  replyAttachment == null
+                              ? null
+                              : () => Navigator.pop(
+                                    sheetContext,
+                                    _FamilyContactReplyDraft.fromFile(
+                                      message: replyText.trim(),
+                                      file: replyAttachment,
+                                    ),
+                                  ),
+                          icon: const Icon(Icons.send_rounded, size: 19),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    IconButton.filled(
-                      tooltip: 'Nachricht senden',
-                      onPressed: replyText.trim().isEmpty
-                          ? null
-                          : () => Navigator.pop(
-                                sheetContext,
-                                replyText.trim(),
-                              ),
-                      icon: const Icon(Icons.send_rounded, size: 19),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, left: 48),
+                      child: Text(
+                        'Alles wird inkl. Sicherungen nach 30 Tagen vollständig gelöscht.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontSize: 10,
+                            ),
+                      ),
                     ),
                   ],
                 ),
@@ -551,31 +654,8 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
       ),
     );
     replyController.dispose();
-    if (reply == null || reply.isEmpty || !mounted) return;
-    setState(() => _sending = true);
-    try {
-      await ref.read(repositoryProvider).sendFamilyContact(
-            message: reply,
-            teamId: messages.first.teamId,
-            conversationId: messages.first.conversationId,
-          );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nachricht wurde sicher gesendet.')),
-      );
-      await _load();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Die Nachricht konnte nicht gesendet werden. Bitte Verbindung prüfen und erneut versuchen.',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
+    if (reply == null || !mounted) return;
+    await _sendReply(messages, reply);
   }
 
   Future<void> _compose({
@@ -583,6 +663,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
     List<FamilyContactMessage>? messages,
   }) async {
     var messageText = '';
+    PlatformFile? selectedAttachment;
     var selectedTeamId = messages?.first.teamId ??
         (inbox.teamOptions.length == 1 ? inbox.teamOptions.first.id : null);
     var selectedParentId = messages?.first.parentId;
@@ -719,11 +800,37 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                       alignLabelWithHint: true,
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  if (selectedAttachment != null)
+                    _PendingMessengerAttachment(
+                      file: selectedAttachment!,
+                      onRemove: () =>
+                          setSheetState(() => selectedAttachment = null),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final file = await _pickFamilyContactFile();
+                      if (file != null) {
+                        setSheetState(() => selectedAttachment = file);
+                      }
+                    },
+                    icon: const Icon(Icons.attach_file_rounded),
+                    label: Text(
+                      selectedAttachment == null
+                          ? 'Bild, Video, Audio oder PDF anhängen'
+                          : 'Anderen Anhang auswählen',
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Nachricht und Anhang werden am selben Tag nach 30 Tagen vollständig gelöscht.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                   const SizedBox(height: 8),
                   FilledButton.icon(
                     onPressed: () {
                       final text = messageText.trim();
-                      if (text.isEmpty ||
+                      if ((text.isEmpty && selectedAttachment == null) ||
                           selectedTeamId == null ||
                           (widget.staffView &&
                               messages == null &&
@@ -737,6 +844,11 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                           teamId: selectedTeamId!,
                           conversationId: messages?.first.conversationId,
                           parentId: messages == null ? selectedParentId : null,
+                          attachmentBytes: selectedAttachment?.bytes,
+                          attachmentName: selectedAttachment?.name,
+                          attachmentMimeType: selectedAttachment == null
+                              ? null
+                              : _familyContactMimeType(selectedAttachment!),
                         ),
                       );
                     },
@@ -758,6 +870,9 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
             teamId: draft.teamId,
             conversationId: draft.conversationId,
             parentId: draft.parentId,
+            attachmentBytes: draft.attachmentBytes,
+            attachmentName: draft.attachmentName,
+            attachmentMimeType: draft.attachmentMimeType,
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -779,18 +894,441 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
   }
 }
 
+class _FamilyContactReplyDraft {
+  const _FamilyContactReplyDraft({
+    required this.message,
+    this.attachmentBytes,
+    this.attachmentName,
+    this.attachmentMimeType,
+  });
+
+  factory _FamilyContactReplyDraft.fromFile({
+    required String message,
+    PlatformFile? file,
+  }) =>
+      _FamilyContactReplyDraft(
+        message: message,
+        attachmentBytes: file?.bytes,
+        attachmentName: file?.name,
+        attachmentMimeType: file == null ? null : _familyContactMimeType(file),
+      );
+
+  final String message;
+  final Uint8List? attachmentBytes;
+  final String? attachmentName;
+  final String? attachmentMimeType;
+}
+
+class _FamilyConversationList extends StatelessWidget {
+  const _FamilyConversationList({
+    required this.conversations,
+    required this.staffView,
+    required this.selectedConversationId,
+    required this.onOpen,
+    required this.onReply,
+  });
+
+  final List<List<FamilyContactMessage>> conversations;
+  final bool staffView;
+  final String selectedConversationId;
+  final ValueChanged<List<FamilyContactMessage>> onOpen;
+  final ValueChanged<List<FamilyContactMessage>> onReply;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final cards = <Widget>[
+            for (final messages in conversations)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    border:
+                        messages.first.conversationId == selectedConversationId
+                            ? Border.all(
+                                color: Theme.of(context).colorScheme.primary,
+                                width: 2,
+                              )
+                            : null,
+                  ),
+                  child: _FamilyContactThreadCard(
+                    messages: messages,
+                    staffView: staffView,
+                    onOpen: () => onOpen(messages),
+                    onReply: () => onReply(messages),
+                  ),
+                ),
+              ),
+          ];
+          final header = Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Unterhaltungen',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                Text(
+                  '${conversations.length}',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ],
+            ),
+          );
+          if (!constraints.hasBoundedHeight) {
+            return Column(children: [header, ...cards]);
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              header,
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: cards,
+                ),
+              ),
+            ],
+          );
+        },
+      );
+}
+
+class _FamilyContactThreadPane extends StatelessWidget {
+  const _FamilyContactThreadPane({
+    required this.messages,
+    required this.staffView,
+    required this.retentionDays,
+    required this.sending,
+    required this.onSend,
+  });
+
+  final List<FamilyContactMessage> messages;
+  final bool staffView;
+  final int retentionDays;
+  final bool sending;
+  final Future<void> Function(_FamilyContactReplyDraft draft) onSend;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 10, 12, 9),
+              color: context.appColors.surfaceRaised,
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: context.appColors.brandSoft,
+                    child: const Icon(Icons.forum_rounded, size: 19),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          staffView
+                              ? _parentConversationTitle(messages)
+                              : 'Trainerteam · ${messages.first.teamName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          'Automatische vollständige Löschung inkl. Sicherungen nach $retentionDays Tagen',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.teal,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Tooltip(
+                    message:
+                        'Texte, Bilder, Videos, Audiodateien und Dokumente werden vollständig gelöscht.',
+                    child: Icon(Icons.verified_user_outlined, size: 20),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: context.appColors.outline),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                reverse: true,
+                itemCount: messages.length,
+                itemBuilder: (context, reverseIndex) {
+                  final index = messages.length - reverseIndex - 1;
+                  return _FamilyContactBubble(message: messages[index]);
+                },
+              ),
+            ),
+            _FamilyContactComposer(
+              sending: sending,
+              onSend: onSend,
+            ),
+          ],
+        ),
+      );
+}
+
+class _FamilyContactComposer extends StatefulWidget {
+  const _FamilyContactComposer({required this.sending, required this.onSend});
+
+  final bool sending;
+  final Future<void> Function(_FamilyContactReplyDraft draft) onSend;
+
+  @override
+  State<_FamilyContactComposer> createState() => _FamilyContactComposerState();
+}
+
+class _FamilyContactComposerState extends State<_FamilyContactComposer> {
+  final _controller = TextEditingController();
+  PlatformFile? _attachment;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final message = _controller.text.trim();
+    if (widget.sending || (message.isEmpty && _attachment == null)) return;
+    final draft = _FamilyContactReplyDraft.fromFile(
+      message: message,
+      file: _attachment,
+    );
+    await widget.onSend(draft);
+    if (!mounted) return;
+    _controller.clear();
+    setState(() => _attachment = null);
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 9),
+        decoration: BoxDecoration(
+          color: context.appColors.surfaceRaised,
+          border: Border(top: BorderSide(color: context.appColors.outline)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final suggestion in const [
+                    'Danke für die Info!',
+                    'Alles klar 👍',
+                    'Ich melde mich später.',
+                  ]) ...[
+                    ActionChip(
+                      visualDensity: VisualDensity.compact,
+                      label: Text(suggestion),
+                      onPressed: widget.sending
+                          ? null
+                          : () {
+                              _controller.text = suggestion;
+                              _controller.selection = TextSelection.collapsed(
+                                offset: suggestion.length,
+                              );
+                              setState(() {});
+                            },
+                    ),
+                    const SizedBox(width: 5),
+                  ],
+                ],
+              ),
+            ),
+            if (_attachment != null)
+              _PendingMessengerAttachment(
+                file: _attachment!,
+                onRemove: () => setState(() => _attachment = null),
+              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                IconButton(
+                  tooltip: 'Bild, Video, Audio oder PDF anhängen',
+                  onPressed: widget.sending
+                      ? null
+                      : () async {
+                          final file = await _pickFamilyContactFile();
+                          if (mounted && file != null) {
+                            setState(() => _attachment = file);
+                          }
+                        },
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    minLines: 1,
+                    maxLines: 4,
+                    maxLength: 2000,
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _send(),
+                    decoration: const InputDecoration(
+                      hintText: 'Nachricht schreiben …',
+                      counterText: '',
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton.filled(
+                  tooltip: 'Sicher senden',
+                  onPressed: widget.sending ||
+                          (_controller.text.trim().isEmpty &&
+                              _attachment == null)
+                      ? null
+                      : _send,
+                  icon: widget.sending
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_rounded, size: 19),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 48),
+              child: Text(
+                'Nachrichten, Medien und Sicherungen werden nach 30 Tagen vollständig gelöscht.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontSize: 10,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _PendingMessengerAttachment extends StatelessWidget {
+  const _PendingMessengerAttachment(
+      {required this.file, required this.onRemove});
+
+  final PlatformFile file;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.fromLTRB(9, 6, 4, 6),
+        decoration: BoxDecoration(
+          color: context.appColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: context.appColors.outline),
+        ),
+        child: Row(
+          children: [
+            Icon(_familyContactFileIcon(_familyContactMimeType(file)),
+                size: 19),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                '${file.name} · ${_fileSizeLabel(file.size)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Anhang entfernen',
+              visualDensity: VisualDensity.compact,
+              onPressed: onRemove,
+              icon: const Icon(Icons.close_rounded, size: 18),
+            ),
+          ],
+        ),
+      );
+}
+
+Future<PlatformFile?> _pickFamilyContactFile() async {
+  final result = await FilePicker.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: const [
+      'jpg',
+      'jpeg',
+      'png',
+      'webp',
+      'mp4',
+      'webm',
+      'mp3',
+      'm4a',
+      'aac',
+      'ogg',
+      'pdf',
+    ],
+    withData: true,
+    allowMultiple: false,
+  );
+  final file = result?.files.firstOrNull;
+  return file?.bytes == null ? null : file;
+}
+
+String _familyContactMimeType(PlatformFile file) =>
+    switch (file.extension?.toLowerCase()) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'mp4' => 'video/mp4',
+      'webm' => 'video/webm',
+      'mp3' => 'audio/mpeg',
+      'm4a' => 'audio/mp4',
+      'aac' => 'audio/aac',
+      'ogg' => 'audio/ogg',
+      'pdf' => 'application/pdf',
+      _ => 'application/octet-stream',
+    };
+
+IconData _familyContactFileIcon(String contentType) {
+  if (contentType.startsWith('image/')) return Icons.image_rounded;
+  if (contentType.startsWith('video/')) return Icons.videocam_rounded;
+  if (contentType.startsWith('audio/')) return Icons.graphic_eq_rounded;
+  return Icons.picture_as_pdf_rounded;
+}
+
+String _fileSizeLabel(int bytes) {
+  if (bytes >= 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+  return '${(bytes / 1024).ceil()} KB';
+}
+
 class _FamilyContactDraft {
   const _FamilyContactDraft({
     required this.message,
     required this.teamId,
     this.conversationId,
     this.parentId,
+    this.attachmentBytes,
+    this.attachmentName,
+    this.attachmentMimeType,
   });
 
   final String message;
   final String teamId;
   final String? conversationId;
   final String? parentId;
+  final Uint8List? attachmentBytes;
+  final String? attachmentName;
+  final String? attachmentMimeType;
 }
 
 class _FamilyContactThreadCard extends StatelessWidget {
@@ -824,7 +1362,7 @@ class _FamilyContactThreadCard extends StatelessWidget {
                 height: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.yellowSoft,
+                  color: context.appColors.brandSoft,
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: const Icon(Icons.chat_bubble_outline_rounded),
@@ -853,8 +1391,8 @@ class _FamilyContactThreadCard extends StatelessWidget {
                       '${messages.length} ${messages.length == 1 ? 'Nachricht' : 'Nachrichten'} · ${_contactTimestamp(last.createdAt)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
@@ -886,85 +1424,178 @@ class _FamilyContactBubble extends StatelessWidget {
   final FamilyContactMessage message;
 
   @override
-  Widget build(BuildContext context) => Align(
-        alignment:
-            message.sentByMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Semantics(
-          button: true,
-          hint: 'Lange drücken, um die Nachricht zu kopieren',
-          child: InkWell(
-            key: ValueKey('family-contact-message-${message.id}'),
-            borderRadius: BorderRadius.circular(16),
-            onLongPress: () async {
-              await Clipboard.setData(ClipboardData(text: message.message));
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Nachricht kopiert.')),
-              );
-            },
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(context).width * .78,
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final maximum =
+        (MediaQuery.sizeOf(context).width * .78).clamp(220.0, 520.0).toDouble();
+    return Align(
+      alignment:
+          message.sentByMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Semantics(
+        button: true,
+        hint: 'Lange drücken, um die Nachricht zu kopieren',
+        child: InkWell(
+          key: ValueKey('family-contact-message-${message.id}'),
+          borderRadius: BorderRadius.circular(16),
+          onLongPress: () async {
+            await Clipboard.setData(ClipboardData(text: message.message));
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Nachricht kopiert.')),
+            );
+          },
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: maximum,
+            ),
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+            decoration: BoxDecoration(
+              color: message.sentByMe ? colors.brandSoft : colors.surfaceRaised,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(message.sentByMe ? 16 : 4),
+                bottomRight: Radius.circular(message.sentByMe ? 4 : 16),
               ),
-              margin: const EdgeInsets.only(bottom: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-              decoration: BoxDecoration(
-                color: message.sentByMe ? AppColors.yellowSoft : Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(message.sentByMe ? 16 : 4),
-                  bottomRight: Radius.circular(message.sentByMe ? 4 : 16),
+              border: Border.all(color: colors.outline),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.shadow,
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
-                border: Border.all(color: AppColors.line),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x08000000),
-                    blurRadius: 8,
-                    offset: Offset(0, 3),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!message.sentByMe)
+                  Text(
+                    message.senderName,
+                    style: const TextStyle(
+                      color: AppColors.teal,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                if (message.message.isNotEmpty &&
+                    !(message.attachment != null &&
+                        message.message == '📎 ${message.attachment!.name}'))
+                  Text(message.message),
+                if (message.attachment != null) ...[
+                  if (message.message.isNotEmpty) const SizedBox(height: 6),
+                  _FamilyContactAttachmentView(
+                    attachment: message.attachment!,
                   ),
                 ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!message.sentByMe)
+                const SizedBox(height: 3),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      message.senderName,
-                      style: const TextStyle(
-                        color: AppColors.teal,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
+                      _contactTime(message.createdAt),
+                      style: TextStyle(
+                        color: colors.textMuted,
+                        fontSize: 9,
                       ),
                     ),
-                  Text(message.message),
-                  const SizedBox(height: 2),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _contactTime(message.createdAt),
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 9,
-                        ),
+                    if (message.sentByMe) ...[
+                      const SizedBox(width: 3),
+                      const Icon(
+                        Icons.done_all_rounded,
+                        size: 13,
+                        color: AppColors.teal,
                       ),
-                      if (message.sentByMe) ...[
-                        const SizedBox(width: 3),
-                        const Icon(
-                          Icons.done_all_rounded,
-                          size: 13,
-                          color: AppColors.teal,
-                        ),
-                      ],
                     ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Löschung: ${_contactDeletionDate(message.expiresAt)}',
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
-      );
+      ),
+    );
+  }
+}
+
+class _FamilyContactAttachmentView extends StatelessWidget {
+  const _FamilyContactAttachmentView({required this.attachment});
+
+  final FamilyContactAttachment attachment;
+
+  Future<void> _open() async {
+    final uri = Uri.tryParse(attachment.downloadUrl);
+    if (uri != null) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = Row(
+      children: [
+        Icon(_familyContactFileIcon(attachment.contentType), size: 18),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            attachment.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900),
+          ),
+        ),
+        Text(
+          _fileSizeLabel(attachment.sizeBytes),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 9),
+        ),
+        const SizedBox(width: 3),
+        const Icon(Icons.open_in_new_rounded, size: 15),
+      ],
+    );
+    return Material(
+      color: context.appColors.surfaceMuted,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _open,
+        child: Padding(
+          padding: const EdgeInsets.all(7),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (attachment.isImage)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(9),
+                  child: Image.network(
+                    attachment.downloadUrl,
+                    height: 128,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 72,
+                      alignment: Alignment.center,
+                      color: context.appColors.surface,
+                      child: const Icon(Icons.broken_image_outlined),
+                    ),
+                  ),
+                ),
+              if (attachment.isImage) const SizedBox(height: 7),
+              label,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 String _parentConversationTitle(List<FamilyContactMessage> messages) {
@@ -983,6 +1614,14 @@ String _contactTime(DateTime value) {
   final local = value.toLocal();
   return '${local.hour.toString().padLeft(2, '0')}:'
       '${local.minute.toString().padLeft(2, '0')}';
+}
+
+String _contactDeletionDate(DateTime value) {
+  final local = value.toLocal();
+  return '${local.day.toString().padLeft(2, '0')}.'
+      '${local.month.toString().padLeft(2, '0')}.${local.year}, '
+      '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')} Uhr';
 }
 
 class _CommunicationDestination {
@@ -1040,14 +1679,14 @@ class _CommunicationNavigation extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.appColors.surface,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.line),
-            boxShadow: const [
+            border: Border.all(color: context.appColors.outline),
+            boxShadow: [
               BoxShadow(
-                color: Color(0x0A000000),
+                color: context.appColors.shadow,
                 blurRadius: 18,
-                offset: Offset(0, 6),
+                offset: const Offset(0, 6),
               ),
             ],
           ),
@@ -1629,9 +2268,9 @@ class _AnnouncementToolbar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.appColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1671,7 +2310,7 @@ class _AnnouncementToolbar extends StatelessWidget {
           final count = Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.background,
+              color: context.appColors.surfaceMuted,
               borderRadius: BorderRadius.circular(9),
             ),
             child: Text(
@@ -2847,9 +3486,9 @@ class AdminPushDeviceManagementCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3325,9 +3964,9 @@ class _PushRegistrationCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -4094,9 +4733,9 @@ class _OptionSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.appColors.surfaceRaised,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: SwitchListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
@@ -4126,7 +4765,7 @@ class _TeamSelectionTile extends StatelessWidget {
     return Material(
       color: selected
           ? AppColors.yellow.withValues(alpha: .16)
-          : AppColors.background,
+          : context.appColors.surfaceMuted,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () => onChanged(!selected),
@@ -4140,7 +4779,9 @@ class _TeamSelectionTile extends StatelessWidget {
                 height: 34,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: selected ? AppColors.yellow : Colors.white,
+                  color: selected
+                      ? AppColors.yellow
+                      : context.appColors.surfaceRaised,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.groups_rounded, size: 19),

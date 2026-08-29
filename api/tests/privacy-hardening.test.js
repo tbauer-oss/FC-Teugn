@@ -13,6 +13,10 @@ const {
 } = require(
   '../dist/src/services/consent-policy',
 );
+const {
+  messengerBackupRetentionPolicy,
+  assertMessengerBackupRetentionPolicy,
+} = require('../dist/src/services/privacy-retention.service');
 
 function consent(type, selections, overrides = {}) {
   return {
@@ -203,4 +207,15 @@ test('operational retention excludes domain and consent evidence', () => {
   assert.match(retention, /notification\.deleteMany/);
   assert.doesNotMatch(retention, /auditLog\.deleteMany/);
   assert.doesNotMatch(retention, /playerConsentEvidence\.deleteMany/);
+});
+
+test('messenger backup retention can never be configured above thirty days', () => {
+  const previous = process.env.MESSENGER_BACKUP_RETENTION_DAYS;
+  process.env.MESSENGER_BACKUP_RETENTION_DAYS = '30';
+  assert.equal(messengerBackupRetentionPolicy().compliant, true);
+  process.env.MESSENGER_BACKUP_RETENTION_DAYS = '31';
+  assert.equal(messengerBackupRetentionPolicy().compliant, false);
+  assert.throws(() => assertMessengerBackupRetentionPolicy(), /zwischen 1 und 30/);
+  if (previous == null) delete process.env.MESSENGER_BACKUP_RETENTION_DAYS;
+  else process.env.MESSENGER_BACKUP_RETENTION_DAYS = previous;
 });

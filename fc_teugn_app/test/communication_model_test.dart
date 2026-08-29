@@ -79,6 +79,14 @@ void main() {
           'createdAt': '2026-08-18T08:00:00.000Z',
           'expiresAt': '2026-09-17T08:00:00.000Z',
           'isRead': true,
+          'attachment': {
+            'id': 'asset-1',
+            'name': 'Treffpunkt.pdf',
+            'contentType': 'application/pdf',
+            'sizeBytes': 12040,
+            'downloadUrl': 'https://example.test/media/asset-1?token=signed',
+            'expiresAt': '2026-09-17T08:00:00.000Z',
+          },
         },
       ],
     });
@@ -89,6 +97,8 @@ void main() {
     expect(inbox.messages.single.sentByMe, isTrue);
     expect(inbox.messages.single.parentId, 'parent-1');
     expect(inbox.messages.single.message, 'Kurze organisatorische Frage');
+    expect(inbox.messages.single.attachment?.name, 'Treffpunkt.pdf');
+    expect(inbox.messages.single.attachment?.isImage, isFalse);
   });
 
   test('parses notification preferences and push configuration', () {

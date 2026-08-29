@@ -7,7 +7,6 @@ import '../../core/club_logo.dart';
 import '../auth/auth_controller.dart';
 import '../../core/providers.dart';
 import '../../core/models/organization.dart';
-import '../../core/widgets/adaptive_layout.dart';
 import '../shared/pwa_install_prompt.dart';
 import '../shared/app_about_sheet.dart';
 
@@ -170,7 +169,7 @@ class AppShell extends ConsumerWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appColors.canvas,
       constraints: const BoxConstraints(maxWidth: 680),
       builder: (sheetContext) => FractionallySizedBox(
         heightFactor: .9,
@@ -381,206 +380,207 @@ class AppShell extends ConsumerWidget {
         : '/parent/account';
     final homeRoute = destinations.first.route;
 
-    return AdaptiveHingePane(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 920;
+    // Feature surfaces receive the complete live window and its display
+    // features. They can therefore use both halves of an unfolded device
+    // instead of being constrained to only one hinge pane.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 920;
 
-          return Scaffold(
-            body: Row(
-              children: [
-                if (isWide)
-                  DesktopSidebar(
-                    title: title,
-                    destinations: destinations,
-                    audience: audience,
-                    selectedIndex: selectedIndex,
-                    userName: authState.user?.name ?? '',
-                    userRole: authState.user?.roleLabel ?? '',
-                    contextLabel: contextLabel,
-                    seasonLabel: seasonLabel,
-                    onContextTap: organization == null
-                        ? _noOp
-                        : () => _showWorkingContextSwitcher(
-                              context,
-                              ref,
-                              organization,
-                            ),
-                    onHome: () => context.go(homeRoute),
-                    onSelect: (index) => context.go(destinations[index].route),
-                    onAccount: () => context.go(accountRoute),
-                    onLogout: () => ref.read(authProvider.notifier).logout(),
-                    onHelp: helpDestination == null
-                        ? _noOp
-                        : () => context.go(helpDestination.route),
-                    onAbout: () => showAppAboutSheet(context),
-                    onRefresh: () => _refreshApp(ref),
-                  ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      if (!isWide)
-                        _MobileHeader(
-                          title: title,
-                          userName: authState.user?.name ?? '',
-                          contextLabel: contextLabel,
-                          onContextTap: organization == null
-                              ? _noOp
-                              : () => _showWorkingContextSwitcher(
-                                    context,
-                                    ref,
-                                    organization,
-                                  ),
-                          onHome: () => context.go(homeRoute),
-                          onLogout: () =>
-                              ref.read(authProvider.notifier).logout(),
-                          onAccount: () => context.go(accountRoute),
-                          onPrivacy: () {
-                            ShellDestination? privacy;
-                            for (final item in destinations) {
-                              if (item.route.endsWith('/privacy')) {
-                                privacy = item;
-                                break;
-                              }
-                            }
-                            if (privacy != null) context.go(privacy.route);
-                          },
-                          onHelp: helpDestination == null
-                              ? _noOp
-                              : () => context.go(helpDestination.route),
-                          onAbout: () => showAppAboutSheet(context),
-                          onRefresh: () => _refreshApp(ref),
-                        ),
-                      if (authState.user?.isReadOnlyPreview == true)
-                        _ReadOnlyPreviewBanner(
-                          name: authState.user!.name,
-                          onExit: () async {
-                            try {
-                              await ref
-                                  .read(authProvider.notifier)
-                                  .exitReadOnlyPreview();
-                              if (context.mounted) {
-                                context.go('/trainer/view-as');
-                              }
-                            } catch (error) {
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(error
-                                      .toString()
-                                      .replaceFirst('Exception: ', '')),
-                                ),
-                              );
-                            }
-                          },
-                        ),
-                      if (showContextBack)
-                        _ContextBackBar(
-                          destination: selectedDestination,
-                          compact: !isWide,
-                          onPressed: () => _navigateContextBack(
+        return Scaffold(
+          body: Row(
+            children: [
+              if (isWide)
+                DesktopSidebar(
+                  title: title,
+                  destinations: destinations,
+                  audience: audience,
+                  selectedIndex: selectedIndex,
+                  userName: authState.user?.name ?? '',
+                  userRole: authState.user?.roleLabel ?? '',
+                  contextLabel: contextLabel,
+                  seasonLabel: seasonLabel,
+                  onContextTap: organization == null
+                      ? _noOp
+                      : () => _showWorkingContextSwitcher(
                             context,
-                            selectedDestination,
+                            ref,
+                            organization,
                           ),
+                  onHome: () => context.go(homeRoute),
+                  onSelect: (index) => context.go(destinations[index].route),
+                  onAccount: () => context.go(accountRoute),
+                  onLogout: () => ref.read(authProvider.notifier).logout(),
+                  onHelp: helpDestination == null
+                      ? _noOp
+                      : () => context.go(helpDestination.route),
+                  onAbout: () => showAppAboutSheet(context),
+                  onRefresh: () => _refreshApp(ref),
+                ),
+              Expanded(
+                child: Column(
+                  children: [
+                    if (!isWide)
+                      _MobileHeader(
+                        title: title,
+                        userName: authState.user?.name ?? '',
+                        contextLabel: contextLabel,
+                        onContextTap: organization == null
+                            ? _noOp
+                            : () => _showWorkingContextSwitcher(
+                                  context,
+                                  ref,
+                                  organization,
+                                ),
+                        onHome: () => context.go(homeRoute),
+                        onLogout: () =>
+                            ref.read(authProvider.notifier).logout(),
+                        onAccount: () => context.go(accountRoute),
+                        onPrivacy: () {
+                          ShellDestination? privacy;
+                          for (final item in destinations) {
+                            if (item.route.endsWith('/privacy')) {
+                              privacy = item;
+                              break;
+                            }
+                          }
+                          if (privacy != null) context.go(privacy.route);
+                        },
+                        onHelp: helpDestination == null
+                            ? _noOp
+                            : () => context.go(helpDestination.route),
+                        onAbout: () => showAppAboutSheet(context),
+                        onRefresh: () => _refreshApp(ref),
+                      ),
+                    if (authState.user?.isReadOnlyPreview == true)
+                      _ReadOnlyPreviewBanner(
+                        name: authState.user!.name,
+                        onExit: () async {
+                          try {
+                            await ref
+                                .read(authProvider.notifier)
+                                .exitReadOnlyPreview();
+                            if (context.mounted) {
+                              context.go('/trainer/view-as');
+                            }
+                          } catch (error) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(error
+                                    .toString()
+                                    .replaceFirst('Exception: ', '')),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    if (showContextBack)
+                      _ContextBackBar(
+                        destination: selectedDestination,
+                        compact: !isWide,
+                        onPressed: () => _navigateContextBack(
+                          context,
+                          selectedDestination,
                         ),
-                      if (queuedWrites > 0)
-                        Material(
-                          color: AppColors.yellowSoft,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 7,
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.cloud_upload_outlined,
-                                    size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    '$queuedWrites Änderung${queuedWrites == 1 ? ' wartet' : 'en warten'} auf die Übertragung – die App versucht es automatisch erneut.',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                      ),
+                    if (queuedWrites > 0)
+                      Material(
+                        color: AppColors.yellowSoft,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 7,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.cloud_upload_outlined, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '$queuedWrites Änderung${queuedWrites == 1 ? ' wartet' : 'en warten'} auf die Übertragung – die App versucht es automatisch erneut.',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
-                      Expanded(
-                        child: RefreshIndicator.adaptive(
-                          onRefresh: () => _refreshApp(ref),
-                          child: child,
+                      ),
+                    Expanded(
+                      child: RefreshIndicator.adaptive(
+                        onRefresh: () => _refreshApp(ref),
+                        child: child,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          bottomNavigationBar: isWide
+              ? null
+              : Container(
+                  decoration: BoxDecoration(
+                    color: context.appColors.surface,
+                    border: Border(
+                      top: BorderSide(color: context.appColors.outline),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.black.withValues(alpha: .05),
+                        blurRadius: 18,
+                        offset: const Offset(0, -5),
+                      ),
+                    ],
+                  ),
+                  child: NavigationBar(
+                    height: 72,
+                    backgroundColor: context.appColors.surface,
+                    surfaceTintColor: Colors.transparent,
+                    indicatorColor:
+                        Theme.of(context).navigationBarTheme.indicatorColor,
+                    selectedIndex: mobileSelectedIndex,
+                    onDestinationSelected: (index) {
+                      if (index < mobileDestinations.length) {
+                        context.go(mobileDestinations[index].route);
+                        return;
+                      }
+                      _showMoreMenu(
+                        context,
+                        destinations,
+                        location,
+                        contextLabel,
+                        seasonLabel,
+                        authState.user?.name ?? '',
+                        authState.user?.roleLabel ?? '',
+                      );
+                    },
+                    destinations: [
+                      for (final destination in mobileDestinations)
+                        NavigationDestination(
+                          icon: Icon(destination.icon),
+                          selectedIcon: Icon(
+                            destination.icon,
+                            color: context.appColors.text,
+                          ),
+                          label: destination.mobileLabel,
                         ),
+                      NavigationDestination(
+                        icon: const Icon(Icons.apps_rounded),
+                        selectedIcon: Icon(
+                          Icons.apps_rounded,
+                          color: context.appColors.text,
+                        ),
+                        label: 'Mehr',
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            bottomNavigationBar: isWide
-                ? null
-                : Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: const Border(
-                        top: BorderSide(color: AppColors.line),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.black.withValues(alpha: .05),
-                          blurRadius: 18,
-                          offset: const Offset(0, -5),
-                        ),
-                      ],
-                    ),
-                    child: NavigationBar(
-                      height: 72,
-                      backgroundColor: Colors.white,
-                      surfaceTintColor: Colors.transparent,
-                      indicatorColor: AppColors.yellowSoft,
-                      selectedIndex: mobileSelectedIndex,
-                      onDestinationSelected: (index) {
-                        if (index < mobileDestinations.length) {
-                          context.go(mobileDestinations[index].route);
-                          return;
-                        }
-                        _showMoreMenu(
-                          context,
-                          destinations,
-                          location,
-                          contextLabel,
-                          seasonLabel,
-                          authState.user?.name ?? '',
-                          authState.user?.roleLabel ?? '',
-                        );
-                      },
-                      destinations: [
-                        for (final destination in mobileDestinations)
-                          NavigationDestination(
-                            icon: Icon(destination.icon),
-                            selectedIcon: Icon(
-                              destination.icon,
-                              color: AppColors.black,
-                            ),
-                            label: destination.mobileLabel,
-                          ),
-                        const NavigationDestination(
-                          icon: Icon(Icons.apps_rounded),
-                          selectedIcon: Icon(
-                            Icons.apps_rounded,
-                            color: AppColors.black,
-                          ),
-                          label: 'Mehr',
-                        ),
-                      ],
-                    ),
-                  ),
-          );
-        },
-      ),
+        );
+      },
     );
   }
 }
@@ -639,9 +639,9 @@ class _ContextBackBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.background.withValues(alpha: .96),
-        border: const Border(
-          bottom: BorderSide(color: AppColors.line),
+        color: context.appColors.canvas.withValues(alpha: .96),
+        border: Border(
+          bottom: BorderSide(color: context.appColors.outline),
         ),
       ),
       child: Align(
@@ -657,7 +657,7 @@ class _ContextBackBar extends StatelessWidget {
               key: const ValueKey('context-back-button'),
               onPressed: onPressed,
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.muted,
+                foregroundColor: context.appColors.textMuted,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 9,
                   vertical: 7,
@@ -1351,9 +1351,9 @@ class MobileNavigationPanel extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.appColors.surfaceRaised,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.appColors.outline),
             ),
             child: Row(
               children: [
@@ -1373,8 +1373,8 @@ class MobileNavigationPanel extends StatelessWidget {
                         userRole,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.muted,
+                        style: TextStyle(
+                          color: context.appColors.textMuted,
                           fontSize: 12,
                         ),
                       ),
@@ -1499,14 +1499,14 @@ class _MobileMenuSection extends StatelessWidget {
       key: ValueKey('mobile-menu-section-${section.name}'),
       padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.appColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.line),
-        boxShadow: const [
+        border: Border.all(color: context.appColors.outline),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0A000000),
+            color: context.appColors.shadow,
             blurRadius: 12,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -1568,8 +1568,8 @@ class _MobileMenuDestination extends StatelessWidget {
                         destination.hint,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.muted,
+                        style: TextStyle(
+                          color: context.appColors.textMuted,
                           fontSize: 11,
                         ),
                       ),
@@ -1581,7 +1581,8 @@ class _MobileMenuDestination extends StatelessWidget {
                       ? Icons.check_circle_rounded
                       : Icons.chevron_right_rounded,
                   size: 20,
-                  color: selected ? AppColors.gold : AppColors.muted,
+                  color:
+                      selected ? AppColors.gold : context.appColors.textMuted,
                 ),
               ],
             ),
@@ -1604,10 +1605,10 @@ class _MenuIcon extends StatelessWidget {
       width: 34,
       height: 34,
       decoration: BoxDecoration(
-        color: selected ? AppColors.yellow : AppColors.background,
+        color: selected ? AppColors.yellow : context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: selected ? AppColors.yellow : AppColors.line,
+          color: selected ? AppColors.yellow : context.appColors.outline,
         ),
       ),
       child: Icon(icon, size: 18, color: AppColors.black),
@@ -1651,9 +1652,11 @@ class _MobileHeader extends StatelessWidget {
             constraints.maxWidth >= 360 && textScale < 1.5;
         final allowHeaderWrap = constraints.maxWidth < 360 || textScale >= 1.3;
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(bottom: BorderSide(color: AppColors.line)),
+          decoration: BoxDecoration(
+            color: context.appColors.surface,
+            border: Border(
+              bottom: BorderSide(color: context.appColors.outline),
+            ),
           ),
           padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
           child: SafeArea(
@@ -1672,9 +1675,9 @@ class _MobileHeader extends StatelessWidget {
                         height: 42,
                         padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(
-                          color: AppColors.background,
+                          color: context.appColors.surfaceMuted,
                           borderRadius: BorderRadius.circular(13),
-                          border: Border.all(color: AppColors.line),
+                          border: Border.all(color: context.appColors.outline),
                         ),
                         child: const ClubLogo(size: 36),
                       ),
@@ -1713,8 +1716,8 @@ class _MobileHeader extends StatelessWidget {
                                 overflow: allowHeaderWrap
                                     ? TextOverflow.visible
                                     : TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.navy,
+                                style: TextStyle(
+                                  color: context.appColors.text,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -1728,7 +1731,7 @@ class _MobileHeader extends StatelessWidget {
                 ),
                 _RefreshIconButton(
                   onRefresh: onRefresh,
-                  color: AppColors.muted,
+                  color: context.appColors.textMuted,
                   compact: true,
                 ),
                 if (showDecorativeIdentity) ...[

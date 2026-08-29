@@ -15,6 +15,7 @@ export type LiveTickerNotificationEvent = {
   type: TickerEventType;
   ourGoals: number;
   theirGoals: number;
+  elapsedSeconds: number;
 };
 
 type LiveTickerNotificationMatch = {
@@ -100,6 +101,14 @@ export async function sendLiveTickerNotification(
     ownTeamName: team ? teamPlayingIdentity(team).name : 'FC Teugn',
   });
   if (!copy) return null;
+  const ownTeam = team ? teamPlayingIdentity(team).name : 'FC Teugn';
+  const fcIsHome = match.matchDetails?.isHome !== false;
+  const homeTeam = fcIsHome
+    ? ownTeam
+    : match.matchDetails?.opponent || 'Gegner';
+  const awayTeam = fcIsHome
+    ? match.matchDetails?.opponent || 'Gegner'
+    : ownTeam;
   const recipientIds = await liveTickerNotificationAudience(match);
   if (!recipientIds.length) return null;
   return notifyUsers(recipientIds, {
@@ -111,6 +120,22 @@ export async function sendLiveTickerNotification(
     entityId: event.id,
     dedupeKey: `live-ticker:${event.id}`,
     pushEnabled: true,
+    metadata: {
+      kind: 'LIVE_MATCH',
+      matchId: match.id,
+      homeTeam,
+      awayTeam,
+      homeScore: fcIsHome ? event.ourGoals : event.theirGoals,
+      awayScore: fcIsHome ? event.theirGoals : event.ourGoals,
+      minute: Math.max(1, Math.floor(event.elapsedSeconds / 60) + 1),
+      status: event.type === TickerEventType.MATCH_END
+        ? 'Abpfiff'
+        : event.type === TickerEventType.MATCH_START
+          ? 'Anpfiff'
+          : 'Live',
+      finished: event.type === TickerEventType.MATCH_END,
+      privacy: 'NO_PLAYER_NAMES',
+    },
   });
 }
 

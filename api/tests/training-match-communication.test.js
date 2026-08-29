@@ -79,7 +79,12 @@ test('family contact is team scoped and expires after thirty days', () => {
   const communications = source('src/controllers/communications.controller.ts');
   const routes = source('src/routes/communications.routes.ts');
   const retention = source('src/services/privacy-retention.service.ts');
-  assert.match(communications, /familyContactRetentionDays\s*=\s*30/);
+  const media = source('src/controllers/media.controller.ts');
+  const schema = source('prisma/schema.prisma');
+  const migration = source(
+    'prisma/migrations/20260829120000_messenger_2_live_surfaces/migration.sql',
+  );
+  assert.match(retention, /familyContactRetentionDays\s*=\s*30/);
   assert.match(communications, /familyContactTeamIds\(user\)/);
   assert.match(communications, /familyContactStaffIds\(teamId\)/);
   assert.match(communications, /familyContactParentOptions\(teamIds\)/);
@@ -87,10 +92,20 @@ test('family contact is team scoped and expires after thirty days', () => {
   assert.match(communications, /parentId\s*=\s*senderIsStaff\s*\?\s*text\(req\.body\?\.parentId/);
   assert.match(communications, /receivesCommunication:\s*true,[\s\S]*player:\s*\{\s*teamId\s*\}/);
   assert.match(communications, /expiresAt[\s\S]*familyContactRetentionDays/);
-  assert.match(communications, /Textnachrichten|Bitte eine Nachricht eingeben/);
+  assert.match(communications, /Bitte eine Nachricht oder Datei auswählen/);
+  assert.match(communications, /objectStorage\.uploadPrivate/);
+  assert.match(communications, /mediaAssetUrl\(attachment\.fileAsset\.id/);
+  assert.match(schema, /model FamilyContactAttachment/);
+  assert.match(schema, /FAMILY_CONTACT_ATTACHMENT/);
+  assert.match(migration, /ON DELETE SET NULL/);
   assert.match(routes, /router\.get\('\/family-contact'/);
   assert.match(routes, /router\.post\('\/family-contact'/);
   assert.match(retention, /expiresAt:\s*\{\s*lte:\s*now\s*\}/);
+  assert.match(retention, /objectStorage\.delete/);
+  assert.match(retention, /assertMessengerBackupRetentionPolicy/);
+  assert.match(media, /familyContactAttachment:\s*\{\s*select:\s*\{\s*expiresAt:/);
+  assert.match(media, /familyContactAttachment\.expiresAt\.getTime\(\)\s*<=\s*Date\.now\(\)/);
+  assert.match(media, /status\(410\)/);
 });
 
 test('away matches never inherit the Teugn home ground', () => {

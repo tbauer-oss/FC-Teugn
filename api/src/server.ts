@@ -26,8 +26,10 @@ import {
 } from './controllers/media.controller';
 import { asyncHandler } from './middleware/async-handler';
 import { securityHeaders } from './middleware/security-headers';
+import { assertMessengerBackupRetentionPolicy } from './services/privacy-retention.service';
 
 dotenv.config();
+assertMessengerBackupRetentionPolicy();
 
 const app = express();
 app.set('trust proxy', 1);

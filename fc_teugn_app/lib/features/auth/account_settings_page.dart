@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/app_theme_controller.dart';
 import '../../core/biometric_auth/biometric_auth.dart';
 import '../../core/models/user.dart';
 import '../integrations/spielplus_page.dart';
@@ -155,6 +156,63 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
       subtitle: 'Persönliche Daten und Passwort sicher selbst verwalten.',
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final themePreference = ref.watch(appThemePreferenceProvider);
+          final appearance = _SettingsCard(
+            title: 'Darstellung',
+            subtitle:
+                'System folgt automatisch der Hell-/Dunkel-Einstellung des Geräts.',
+            icon: Icons.contrast_rounded,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SegmentedButton<AppThemePreference>(
+                  key: const ValueKey('app-theme-selection'),
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(
+                      value: AppThemePreference.system,
+                      icon: Icon(Icons.brightness_auto_rounded),
+                      label: Text('System'),
+                    ),
+                    ButtonSegment(
+                      value: AppThemePreference.light,
+                      icon: Icon(Icons.light_mode_rounded),
+                      label: Text('Hell'),
+                    ),
+                    ButtonSegment(
+                      value: AppThemePreference.dark,
+                      icon: Icon(Icons.dark_mode_rounded),
+                      label: Text('Dunkel'),
+                    ),
+                  ],
+                  selected: {themePreference},
+                  onSelectionChanged: (selection) => unawaited(
+                    ref
+                        .read(appThemePreferenceProvider.notifier)
+                        .select(selection.first),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.visibility_rounded,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Kontraste, Statusfarben, Wappen und Bedienelemente bleiben in beiden Modi vollständig erkennbar.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
           final profile = _SettingsCard(
             title: 'Persönliche Daten',
             subtitle: 'Diese Angaben werden für dein Vereinskonto verwendet.',
@@ -367,6 +425,8 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
           if (constraints.maxWidth >= 820) {
             return Column(
               children: [
+                appearance,
+                const SizedBox(height: 18),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -386,6 +446,8 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
           }
           return Column(
             children: [
+              appearance,
+              const SizedBox(height: 16),
               profile,
               const SizedBox(height: 16),
               password,

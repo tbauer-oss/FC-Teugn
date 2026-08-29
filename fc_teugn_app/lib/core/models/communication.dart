@@ -131,6 +131,7 @@ class FamilyContactMessage {
     required this.isRead,
     this.parentId = '',
     this.parentName = 'Elternkontakt',
+    this.attachment,
   });
 
   final String id;
@@ -147,6 +148,7 @@ class FamilyContactMessage {
   final bool isRead;
   final String parentId;
   final String parentName;
+  final FamilyContactAttachment? attachment;
 
   factory FamilyContactMessage.fromJson(Map<String, dynamic> json) =>
       FamilyContactMessage(
@@ -164,6 +166,44 @@ class FamilyContactMessage {
         createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
         expiresAt: DateTime.parse(json['expiresAt'] as String).toLocal(),
         isRead: json['isRead'] as bool? ?? false,
+        attachment: json['attachment'] == null
+            ? null
+            : FamilyContactAttachment.fromJson(
+                json['attachment'] as Map<String, dynamic>,
+              ),
+      );
+}
+
+class FamilyContactAttachment {
+  const FamilyContactAttachment({
+    required this.id,
+    required this.name,
+    required this.contentType,
+    required this.sizeBytes,
+    required this.downloadUrl,
+    required this.expiresAt,
+  });
+
+  final String id;
+  final String name;
+  final String contentType;
+  final int sizeBytes;
+  final String downloadUrl;
+  final DateTime expiresAt;
+
+  bool get isImage => contentType.startsWith('image/');
+  bool get isVideo => contentType.startsWith('video/');
+  bool get isAudio => contentType.startsWith('audio/');
+
+  factory FamilyContactAttachment.fromJson(Map<String, dynamic> json) =>
+      FamilyContactAttachment(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? 'Anhang',
+        contentType:
+            json['contentType'] as String? ?? 'application/octet-stream',
+        sizeBytes: (json['sizeBytes'] as num?)?.toInt() ?? 0,
+        downloadUrl: json['downloadUrl'] as String? ?? '',
+        expiresAt: DateTime.parse(json['expiresAt'] as String).toLocal(),
       );
 }
 

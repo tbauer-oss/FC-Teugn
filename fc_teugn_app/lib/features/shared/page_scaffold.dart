@@ -70,7 +70,7 @@ class PageScaffold extends StatelessWidget {
                                 ? Theme.of(context).textTheme.bodySmall
                                 : Theme.of(context).textTheme.bodyMedium
                             : Theme.of(context).textTheme.bodyLarge)
-                        ?.copyWith(color: AppColors.muted),
+                        ?.copyWith(color: context.appColors.textMuted),
                   ),
                 ],
               ),
@@ -221,12 +221,13 @@ class MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
+    final colors = context.appColors;
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(18),
-      side: const BorderSide(color: AppColors.line),
+      side: BorderSide(color: colors.outline),
     );
     return Material(
-      color: Colors.white,
+      color: colors.surface,
       shape: shape,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -258,7 +259,7 @@ class MetricCard extends StatelessWidget {
                       label,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: AppColors.navy,
+                            color: colors.text,
                           ),
                     ),
                     if (caption != null)
@@ -267,16 +268,16 @@ class MetricCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.muted,
+                              color: colors.textMuted,
                             ),
                       ),
                   ],
                 ),
               ),
               if (onTap != null)
-                const Icon(
+                Icon(
                   Icons.chevron_right_rounded,
-                  color: AppColors.muted,
+                  color: colors.textMuted,
                 ),
             ],
           ),
@@ -306,9 +307,9 @@ class EmptyState extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 54),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.appColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

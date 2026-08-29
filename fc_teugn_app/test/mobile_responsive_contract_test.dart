@@ -41,18 +41,37 @@ void main() {
     expect(approvals, contains("'Kind: \$childName'"));
   });
 
-  test('the complete app surface is constrained to a foldable pane', () {
+  test('foldables expose the full window to feature-specific two-pane layouts',
+      () {
     final app = File('lib/app.dart').readAsStringSync();
     final shell = File('lib/features/shell/app_shell.dart').readAsStringSync();
     final adaptive = File(
       'lib/core/widgets/adaptive_layout.dart',
     ).readAsStringSync();
+    final calendar =
+        File('lib/features/calendar/calendar_page.dart').readAsStringSync();
+    final organization = File(
+      'lib/features/organization/organization_page.dart',
+    ).readAsStringSync();
+    final communications = File(
+      'lib/features/communications/communications_page.dart',
+    ).readAsStringSync();
+    final matchday =
+        File('lib/features/matches/matchday_page.dart').readAsStringSync();
 
-    expect(shell, contains('AdaptiveHingePane('));
-    expect(app, contains('child: AdaptiveHingePane('));
+    expect(shell, isNot(contains('AdaptiveHingePane(')));
+    expect(app, contains('child: AppLoadingHost('));
     expect(app, contains('AdaptiveHingePane(child: child'));
     expect(adaptive, contains('class AdaptiveHingePane'));
+    expect(adaptive, contains('class AdaptiveTwoPane'));
     expect(adaptive, contains('separatesHorizontally'));
     expect(adaptive, contains('separatesVertically'));
+    expect(calendar, contains("ValueKey('calendar-foldable-month')"));
+    expect(
+      organization,
+      contains("ValueKey('organization-foldable-team-grid')"),
+    );
+    expect(communications, contains('AdaptiveTwoPane('));
+    expect(matchday, contains("ValueKey('matchday-foldable-lineup')"));
   });
 }

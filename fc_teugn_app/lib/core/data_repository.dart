@@ -2631,15 +2631,33 @@ class DataRepository {
     String? teamId,
     String? conversationId,
     String? parentId,
+    Uint8List? attachmentBytes,
+    String? attachmentName,
+    String? attachmentMimeType,
   }) async {
+    final data = attachmentBytes == null
+        ? {
+            'message': message,
+            if (teamId != null) 'teamId': teamId,
+            if (conversationId != null) 'conversationId': conversationId,
+            if (parentId != null) 'parentId': parentId,
+          }
+        : FormData.fromMap({
+            'message': message,
+            if (teamId != null) 'teamId': teamId,
+            if (conversationId != null) 'conversationId': conversationId,
+            if (parentId != null) 'parentId': parentId,
+            'file': MultipartFile.fromBytes(
+              attachmentBytes,
+              filename: attachmentName ?? 'anhang.bin',
+              contentType: attachmentMimeType == null
+                  ? null
+                  : DioMediaType.parse(attachmentMimeType),
+            ),
+          });
     await client.dio.post(
       '/communications/family-contact',
-      data: {
-        'message': message,
-        if (teamId != null) 'teamId': teamId,
-        if (conversationId != null) 'conversationId': conversationId,
-        if (parentId != null) 'parentId': parentId,
-      },
+      data: data,
       options: Options(
         headers: {
           'X-Idempotency-Key': _idempotencyKey('family-contact'),

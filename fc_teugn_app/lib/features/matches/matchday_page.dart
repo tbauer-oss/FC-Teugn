@@ -17,6 +17,7 @@ import '../../core/models/player.dart';
 import '../../core/offline_outbox.dart';
 import '../../core/offline_ticker.dart';
 import '../../core/providers.dart';
+import '../../core/push/live_match_surface.dart';
 import '../../core/squad_selection.dart';
 import '../../core/ticker_signal.dart';
 import '../../core/widgets/adaptive_layout.dart';
@@ -122,6 +123,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         _lastTickerConnectionAt = DateTime.now();
         _consecutiveTickerFailures = 0;
       });
+      _syncSystemLiveDisplay(match);
       if (userId != null) {
         unawaited(
           _cacheMatchInBackground(
@@ -321,6 +323,44 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     await _refreshTickerRequest();
   }
 
+  void _syncSystemLiveDisplay(MatchdayModel match) {
+    final ticker = match.ticker;
+    if (ticker == null || ticker.status == TickerStatus.notStarted) {
+      unawaited(liveMatchSurface.cancel(match.id));
+      return;
+    }
+    final details = match.details;
+    final ownHome = details?.isHome != false;
+    final opponent = details?.opponent ?? 'Gegner';
+    final homeTeam = ownHome ? match.ownTeamName : opponent;
+    final awayTeam = ownHome ? opponent : match.ownTeamName;
+    final homeScore = ownHome ? ticker.ourGoals : ticker.theirGoals;
+    final awayScore = ownHome ? ticker.theirGoals : ticker.ourGoals;
+    final status = switch (ticker.status) {
+      TickerStatus.live => 'Live',
+      TickerStatus.halfTime => 'Pause',
+      TickerStatus.paused => 'Pausiert',
+      TickerStatus.interrupted => 'Unterbrochen',
+      TickerStatus.finished => 'Abpfiff',
+      TickerStatus.notStarted => 'Noch nicht gestartet',
+    };
+    unawaited(
+      liveMatchSurface.update(
+        matchId: match.id,
+        homeTeam: homeTeam,
+        awayTeam: awayTeam,
+        homeScore: homeScore,
+        awayScore: awayScore,
+        minute:
+            ticker.elapsedSeconds <= 0 ? 1 : ticker.elapsedSeconds ~/ 60 + 1,
+        status: status,
+        finished: ticker.status == TickerStatus.finished,
+        actionUrl:
+            '${widget.staffView ? '/trainer' : '/parent'}/matches/${match.id}?tab=live',
+      ),
+    );
+  }
+
   Future<bool> _refreshTickerRequest({bool waitForChanges = false}) async {
     if (widget.tournamentPlanning ||
         !mounted ||
@@ -397,6 +437,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           // Keep the live ticker usable even if local cache storage fails.
         }
       }
+      _syncSystemLiveDisplay(updatedMatch);
       return true;
     } catch (error) {
       if (mounted && _isConnectivityFailure(error)) {
@@ -745,7 +786,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       return PageScaffold(
         title: widget.tournamentPlanning
             ? 'Turnier-Kader & Aufstellung'
-            : 'Spieltag',
+            : 'Matchday Space',
         subtitle: widget.tournamentPlanning
             ? 'Turnierplanung wird vorbereitet …'
             : 'Spiel wird vorbereitet …',
@@ -762,7 +803,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       return PageScaffold(
         title: widget.tournamentPlanning
             ? 'Turnier-Kader & Aufstellung'
-            : 'Spieltag',
+            : 'Matchday Space',
         subtitle: widget.tournamentPlanning
             ? 'Die Turnierplanung ist gerade nicht verfügbar.'
             : 'Die Spieldaten sind gerade nicht verfügbar.',
@@ -1985,7 +2026,7 @@ class _ScoreHero extends StatelessWidget {
                 score,
                 const SizedBox(height: 3),
                 Text(
-                  dateLine,
+                  'MATCHDAY SPACE · $dateLine',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -2001,7 +2042,7 @@ class _ScoreHero extends StatelessWidget {
                 score,
                 const SizedBox(height: 5),
                 Text(
-                  dateLine,
+                  'MATCHDAY SPACE · $dateLine',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 12.5,
@@ -2439,12 +2480,12 @@ class _OverviewStatusCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.white,
+            context.appColors.surfaceRaised,
             AppColors.yellow.withValues(alpha: .08),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withValues(alpha: .035),
@@ -2618,14 +2659,14 @@ class _OverviewTile extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white,
+            context.appColors.surfaceRaised,
             entry.missing
-                ? AppColors.background
+                ? context.appColors.surfaceMuted
                 : AppColors.yellow.withValues(alpha: .035),
           ],
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.appColors.outline),
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withValues(alpha: .025),
@@ -3955,9 +3996,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                             height: compact ? 42 : 48,
                             padding: const EdgeInsets.only(left: 12, right: 8),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: context.appColors.surfaceRaised,
                               borderRadius: BorderRadius.circular(13),
-                              border: Border.all(color: AppColors.line),
+                              border:
+                                  Border.all(color: context.appColors.outline),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
@@ -4105,7 +4147,41 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 980;
+              final hinge = verticalSeparatingFeatureFor(
+                context,
+                availableWidth: constraints.maxWidth,
+              );
+              if (hinge != null &&
+                  hinge.left >= 250 &&
+                  constraints.maxWidth - hinge.right >= 250) {
+                final leftWidth = hinge.left;
+                final rightWidth = constraints.maxWidth - hinge.right;
+                final pitchWidth = min(leftWidth, 720.0).toDouble();
+                final pitchHeight = min(
+                  constraints.maxHeight - (widget.editable ? 32 : 0),
+                  pitchWidth * .9,
+                ).toDouble();
+                return Row(
+                  key: const ValueKey('matchday-foldable-lineup'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: leftWidth,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: _buildPitch(pitchWidth, pitchHeight),
+                      ),
+                    ),
+                    SizedBox(width: hinge.width),
+                    SizedBox(
+                      width: rightWidth,
+                      height: constraints.maxHeight,
+                      child: _buildBench(vertical: true),
+                    ),
+                  ],
+                );
+              }
+              final wide = constraints.maxWidth >= 720;
               if (wide) {
                 final pitchWidth =
                     min(constraints.maxWidth - 320, 720.0).toDouble();
@@ -4332,7 +4408,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         : null;
     if (compact) {
       return Material(
-        color: AppColors.background,
+        color: context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -4342,7 +4418,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.appColors.outline),
             ),
             child: Row(
               children: [
@@ -4390,7 +4466,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
       );
     }
     return Card(
-      color: AppColors.background,
+      color: context.appColors.surfaceMuted,
       child: ListTile(
         dense: true,
         leading: CircleAvatar(

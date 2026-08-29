@@ -17,6 +17,7 @@ import {
   requireRoles,
 } from '../middleware/auth';
 import { idempotencyMiddleware } from '../middleware/idempotency';
+import { familyContactUpload } from '../middleware/player-files';
 import { Permission } from '../security/permissions';
 import { Role } from '../types/enums';
 
@@ -25,7 +26,7 @@ router.use(requireAuth);
 router.use(requireApproved);
 router.use(idempotencyMiddleware);
 router.get('/family-contact', listFamilyContacts);
-router.post('/family-contact', sendFamilyContact);
+router.post('/family-contact', familyContactUpload.single('file'), sendFamilyContact);
 router.get('/', listAnnouncements);
 router.get('/:id', getAnnouncement);
 router.post('/', requirePermission(Permission.SEND_ANNOUNCEMENTS), saveAnnouncement);

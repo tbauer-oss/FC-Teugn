@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:fc_teugn_app/core/api_client.dart';
 import 'package:fc_teugn_app/core/data_repository.dart';
 import 'package:fc_teugn_app/core/models/communication.dart';
@@ -56,6 +58,9 @@ class _CommunicationRepository extends DataRepository {
     String? teamId,
     String? conversationId,
     String? parentId,
+    Uint8List? attachmentBytes,
+    String? attachmentName,
+    String? attachmentMimeType,
   }) async {
     sentContactMessage = message;
     sentContactTeamId = teamId;
@@ -250,7 +255,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Geschützt · 30 Tage'), findsOneWidget);
+    expect(
+      find.text('Vollständige Löschung inkl. Sicherungen nach 30 Tagen'),
+      findsOneWidget,
+    );
+    expect(find.text('Löschung: 17.09.2026, 08:00 Uhr'), findsOneWidget);
     expect(find.text('Alles klar 👍'), findsOneWidget);
     expect(find.byTooltip('Nachricht senden'), findsOneWidget);
 

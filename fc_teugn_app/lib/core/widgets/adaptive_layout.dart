@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 enum AppLayoutSize { veryNarrow, narrow, compact, medium, wide }
 
+enum AppWindowSize { compact, medium, expanded }
+
 abstract final class AppBreakpoints {
   static const double veryNarrow = 360;
   static const double narrow = 480;
@@ -20,6 +22,101 @@ abstract final class AppBreakpoints {
   }
 
   static bool isCompact(double width) => width < compact;
+
+  static AppWindowSize windowSize(double width) {
+    if (width < 600) return AppWindowSize.compact;
+    if (width < 840) return AppWindowSize.medium;
+    return AppWindowSize.expanded;
+  }
+}
+
+/// A true adaptive list/detail surface for phones, tablets and foldables.
+///
+/// On a normal compact phone only [compact] is shown. Medium and expanded
+/// windows show both panes. A separating vertical hinge always becomes the
+/// gutter, so neither pane can render underneath the fold.
+class AdaptiveTwoPane extends StatelessWidget {
+  const AdaptiveTwoPane({
+    super.key,
+    required this.primary,
+    required this.secondary,
+    required this.compact,
+    this.minimumTwoPaneWidth = 720,
+    this.primaryWidth = 320,
+    this.gap = 12,
+  });
+
+  final Widget primary;
+  final Widget secondary;
+  final Widget compact;
+  final double minimumTwoPaneWidth;
+  final double primaryWidth;
+  final double gap;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final hinge = verticalSeparatingFeatureFor(
+            context,
+            availableWidth: width,
+          );
+          if (hinge != null &&
+              hinge.left >= 260 &&
+              width - hinge.right >= 300) {
+            return Row(
+              key: const ValueKey('adaptive-foldable-two-pane'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(width: hinge.left, child: primary),
+                SizedBox(width: hinge.width),
+                Expanded(child: secondary),
+              ],
+            );
+          }
+          if (width < minimumTwoPaneWidth) return compact;
+          final resolvedPrimary = math
+              .min(
+                math.max(280, primaryWidth),
+                width * .42,
+              )
+              .toDouble();
+          return Row(
+            key: const ValueKey('adaptive-window-two-pane'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(width: resolvedPrimary, child: primary),
+              SizedBox(width: gap),
+              Expanded(child: secondary),
+            ],
+          );
+        },
+      );
+}
+
+/// Returns the vertical separating feature within the current window.
+///
+/// Feature pages use this to place an exact gutter at a physical hinge rather
+/// than relying on one generic tablet breakpoint.
+Rect? verticalSeparatingFeatureFor(
+  BuildContext context, {
+  double? availableWidth,
+}) {
+  final media = MediaQuery.of(context);
+  final width = availableWidth ?? media.size.width;
+  for (final feature in media.displayFeatures) {
+    final bounds = feature.bounds;
+    final horizontalInset =
+        math.max(0, (media.size.width - width) / 2).toDouble();
+    final localBounds = bounds.shift(Offset(-horizontalInset, 0));
+    if (bounds.width > 0 &&
+        bounds.height >= media.size.height * .45 &&
+        localBounds.left > 0 &&
+        localBounds.right < width) {
+      return localBounds;
+    }
+  }
+  return null;
 }
 
 /// Keeps a complete application surface inside one usable foldable pane.

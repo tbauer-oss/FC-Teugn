@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/models/organization.dart';
 import 'package:fc_teugn_app/core/providers.dart';
@@ -41,9 +43,59 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('foldable team management uses both panes around the hinge',
+      (tester) async {
+    const viewport = Size(673, 900);
+    tester.view.physicalSize = viewport;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          organizationProvider.overrideWith(
+            (ref) async => _organization(twoTeams: true),
+          ),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const MediaQuery(
+            data: MediaQueryData(
+              size: viewport,
+              displayFeatures: [
+                DisplayFeature(
+                  bounds: Rect.fromLTWH(330, 0, 13, 900),
+                  type: DisplayFeatureType.hinge,
+                  state: DisplayFeatureState.unknown,
+                ),
+              ],
+            ),
+            child: Scaffold(body: OrganizationPage()),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('organization-foldable-team-grid')),
+      findsOneWidget,
+    );
+    final first = tester.getRect(
+      find.byKey(const ValueKey('compact-team-card-team-e1')),
+    );
+    final second = tester.getRect(
+      find.byKey(const ValueKey('compact-team-card-team-e2')),
+    );
+    expect(first.right, lessThanOrEqualTo(330));
+    expect(second.left, greaterThanOrEqualTo(343));
+    expect(tester.takeException(), isNull);
+  });
 }
 
-OrganizationContext _organization() {
+OrganizationContext _organization({bool twoTeams = false}) {
   const ageGroup = AgeGroupSummary(
     id: 'age-e',
     name: 'E-Jugend',
@@ -67,6 +119,15 @@ OrganizationContext _organization() {
       ),
     ],
   );
+  const secondTeam = TeamSummary(
+    id: 'team-e2',
+    name: 'E2',
+    ageGroup: ageGroup,
+    seasonName: '2026/27',
+    birthYears: [2016],
+    trainingLocation: 'Platz 2 oben',
+    trainingTimes: ['Donnerstag 17:00–18:30'],
+  );
   return OrganizationContext(
     club: const ClubSummary(
       id: 'club-1',
@@ -84,13 +145,18 @@ OrganizationContext _organization() {
     ),
     currentTeam: team,
     ageGroups: const [ageGroup],
-    teams: [team],
+    teams: [team, if (twoTeams) secondTeam],
     permissions: const {'MANAGE_TEAM'},
     metrics: const OrganizationMetrics(
       players: 25,
       members: 25,
       upcomingEvents: 24,
       pendingApprovals: 0,
+    ),
+    workingContext: WorkingContext(
+      ageGroupId: 'age-e',
+      teamIds: ['team-e1', if (twoTeams) 'team-e2'],
+      includeAllTeams: twoTeams,
     ),
   );
 }

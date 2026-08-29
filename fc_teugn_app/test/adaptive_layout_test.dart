@@ -158,6 +158,60 @@ void main() {
     expectNoFlutterLayoutException(tester);
   });
 
+  testWidgets('adaptive two pane uses both sides without covering the hinge',
+      (tester) async {
+    const viewport = Size(673, 841);
+    tester.view.physicalSize = viewport;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(
+            size: viewport,
+            displayFeatures: [
+              DisplayFeature(
+                bounds: Rect.fromLTWH(330, 0, 13, 841),
+                type: DisplayFeatureType.hinge,
+                state: DisplayFeatureState.unknown,
+              ),
+            ],
+          ),
+          child: Scaffold(
+            body: SizedBox.expand(
+              child: AdaptiveTwoPane(
+                primary: ColoredBox(
+                  key: ValueKey('foldable-primary'),
+                  color: Colors.blue,
+                ),
+                secondary: ColoredBox(
+                  key: ValueKey('foldable-secondary'),
+                  color: Colors.green,
+                ),
+                compact: SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final primary =
+        tester.getRect(find.byKey(const ValueKey('foldable-primary')));
+    final secondary =
+        tester.getRect(find.byKey(const ValueKey('foldable-secondary')));
+    expect(primary.right, lessThanOrEqualTo(330));
+    expect(secondary.left, greaterThanOrEqualTo(343));
+    expect(
+      find.byKey(const ValueKey('adaptive-foldable-two-pane')),
+      findsOneWidget,
+    );
+    expectNoFlutterLayoutException(tester);
+  });
+
   testWidgets('app surface uses one pane and exposes its usable width',
       (tester) async {
     const viewport = Size(673, 841);

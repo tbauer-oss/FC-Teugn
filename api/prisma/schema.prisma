@@ -396,6 +396,7 @@ enum FileAssetKind {
   PLAYING_COMMUNITY_LOGO
   OPPONENT_LOGO
   SUPPORT_ATTACHMENT
+  FAMILY_CONTACT_ATTACHMENT
 }
 
 enum TeamType {
@@ -544,6 +545,7 @@ model Team {
   leagueEntries                        LeagueEntry[]
   kitLaundryDuties                     KitLaundryDuty[]
   regularTrainingAttendancePreferences RegularTrainingAttendancePreference[]
+  familyContactAttachments             FamilyContactAttachment[]
   defaultReminderMinutes               Int?                                  @default(60)
   secondaryReminderMinutes             Int?                                  @default(1440)
   defaultReminderPushEnabled           Boolean                               @default(true)
@@ -715,6 +717,7 @@ model User {
   authoredParentMatchRatings           ParentPlayerMatchRating[]             @relation("ParentPlayerMatchRatingAuthor")
   confirmedKitLaundryDuties            KitLaundryDuty[]                      @relation("KitLaundryDutyConfirmation")
   regularTrainingAttendancePreferences RegularTrainingAttendancePreference[] @relation("RegularTrainingAttendanceResponder")
+  familyContactAttachments             FamilyContactAttachment[]             @relation("FamilyContactAttachmentUploader")
 
   @@index([accountDeletedAt])
 }
@@ -950,30 +953,31 @@ model Player {
 }
 
 model FileAsset {
-  id                String          @id @default(cuid())
-  kind              FileAssetKind
-  pathname          String          @unique
-  storageUrl        String
-  originalName      String
-  contentType       String
-  size              Int
-  checksum          String
-  isPrivate         Boolean         @default(true)
-  uploadedById      String
-  ownerPlayerId     String?
-  ownerTeamId       String?
-  deletedAt         DateTime?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  uploadedBy        User            @relation("FileAssetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  ownerPlayer       Player?         @relation("PlayerFileOwner", fields: [ownerPlayerId], references: [id], onDelete: SetNull)
-  playerPhoto       Player?         @relation("PlayerPhotoAsset")
-  ownerTeam         Team?           @relation("TeamFileOwner", fields: [ownerTeamId], references: [id], onDelete: SetNull)
-  teamPhoto         Team?           @relation("TeamPhotoAsset")
-  opponentLogo      Opponent?       @relation("OpponentLogoAsset")
-  opponentClubLogo  OpponentClub?   @relation("OpponentClubLogoAsset")
-  document          PlayerDocument?
-  supportAttachment SupportTicket?  @relation("SupportAttachment")
+  id                      String                   @id @default(cuid())
+  kind                    FileAssetKind
+  pathname                String                   @unique
+  storageUrl              String
+  originalName            String
+  contentType             String
+  size                    Int
+  checksum                String
+  isPrivate               Boolean                  @default(true)
+  uploadedById            String
+  ownerPlayerId           String?
+  ownerTeamId             String?
+  deletedAt               DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  uploadedBy              User                     @relation("FileAssetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  ownerPlayer             Player?                  @relation("PlayerFileOwner", fields: [ownerPlayerId], references: [id], onDelete: SetNull)
+  playerPhoto             Player?                  @relation("PlayerPhotoAsset")
+  ownerTeam               Team?                    @relation("TeamFileOwner", fields: [ownerTeamId], references: [id], onDelete: SetNull)
+  teamPhoto               Team?                    @relation("TeamPhotoAsset")
+  opponentLogo            Opponent?                @relation("OpponentLogoAsset")
+  opponentClubLogo        OpponentClub?            @relation("OpponentClubLogoAsset")
+  document                PlayerDocument?
+  supportAttachment       SupportTicket?           @relation("SupportAttachment")
+  familyContactAttachment FamilyContactAttachment?
 
   @@index([ownerPlayerId, kind, deletedAt])
   @@index([ownerTeamId, kind, deletedAt])
@@ -2060,10 +2064,28 @@ model Notification {
   createdAt  DateTime               @default(now())
   expiresAt  DateTime?
   dedupeKey  String?                @unique
+  metadata   Json?
   user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   deliveries NotificationDelivery[]
 
   @@index([userId, readAt, createdAt])
+}
+
+model FamilyContactAttachment {
+  id             String    @id @default(cuid())
+  messageId      String    @unique
+  conversationId String
+  teamId         String?
+  uploadedById   String
+  fileAssetId    String    @unique
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  team           Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  uploadedBy     User      @relation("FamilyContactAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  fileAsset      FileAsset @relation(fields: [fileAssetId], references: [id], onDelete: Restrict)
+
+  @@index([conversationId, createdAt])
+  @@index([expiresAt])
 }
 
 model IdempotencyRecord {
