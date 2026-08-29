@@ -265,26 +265,31 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('very compact match view reduces the card height',
+  testWidgets('compact is the default and normal view increases card detail',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(360, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(_page());
     await tester.pumpAndSettle();
-    final standardHeight = tester
+    final compactHeight = tester
         .getRect(find.byKey(const ValueKey('match-card-tournament-1')))
         .height;
 
     await tester.tap(find.byKey(const ValueKey('match-view-menu')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Sehr kompakt').last);
+    expect(find.text('Kompakt'), findsWidgets);
+    expect(find.text('Normal'), findsOneWidget);
+    expect(find.text('Detailliert'), findsOneWidget);
+    expect(find.text('Sehr kompakt'), findsNothing);
+    expect(find.text('Standard'), findsNothing);
+    await tester.tap(find.text('Normal').last);
     await tester.pumpAndSettle();
 
-    final compactHeight = tester
+    final normalHeight = tester
         .getRect(find.byKey(const ValueKey('match-card-tournament-1')))
         .height;
-    expect(compactHeight, lessThan(standardHeight));
+    expect(normalHeight, greaterThan(compactHeight));
     expect(tester.takeException(), isNull);
   });
 

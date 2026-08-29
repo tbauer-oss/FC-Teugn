@@ -867,7 +867,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       );
     }
     final opponent = match.details?.opponent ?? 'Gegner';
-    final mobile = MediaQuery.sizeOf(context).width < 600;
+    final mobile = MediaQuery.sizeOf(context).width < 720;
     final finished = match.details?.status == MatchStatus.finished ||
         match.details?.status == MatchStatus.recorded ||
         match.ticker?.status == TickerStatus.finished;
@@ -1719,12 +1719,45 @@ class MatchCommunicationActions extends StatelessWidget {
         )
     ];
     final releaseStatus = match.familyReleasedAt != null
-        ? Chip(
-            avatar: const Icon(Icons.verified_rounded, size: 17),
-            label: const Text('Familien freigegeben'),
-            visualDensity:
-                denseMobile ? VisualDensity.compact : VisualDensity.standard,
-          )
+        ? denseMobile
+            ? Container(
+                key: const ValueKey('compact-family-release-status'),
+                height: 34,
+                padding: const EdgeInsets.symmetric(horizontal: 9),
+                decoration: BoxDecoration(
+                  color: AppColors.teal.withValues(alpha: .09),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(
+                    color: AppColors.teal.withValues(alpha: .24),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.verified_rounded,
+                      size: 16,
+                      color: AppColors.teal,
+                    ),
+                    SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        'Familien freigegeben',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : const Chip(
+                avatar: Icon(Icons.verified_rounded, size: 17),
+                label: Text('Familien freigegeben'),
+              )
         : null;
     if (compact && denseMobile) {
       final buttons = <Widget>[
@@ -1741,7 +1774,7 @@ class MatchCommunicationActions extends StatelessWidget {
                 semanticsLabel: 'Mit Trainerteam teilen',
               ),
               style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, 44),
+                minimumSize: const Size(0, 36),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 visualDensity: VisualDensity.compact,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1761,7 +1794,7 @@ class MatchCommunicationActions extends StatelessWidget {
                 semanticsLabel: 'Für Eltern und Spieler freigeben',
               ),
               style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 44),
+                minimumSize: const Size(0, 36),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 visualDensity: VisualDensity.compact,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1769,23 +1802,17 @@ class MatchCommunicationActions extends StatelessWidget {
             ),
           ),
       ];
-      return Column(
+      final items = <Widget>[
+        ...buttons,
+        if (releaseStatus != null) releaseStatus,
+      ];
+      return Row(
         key: const ValueKey('match-communication-dense-mobile-actions'),
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (buttons.isNotEmpty)
-            Row(
-              children: [
-                for (var index = 0; index < buttons.length; index++) ...[
-                  Expanded(child: buttons[index]),
-                  if (index != buttons.length - 1) const SizedBox(width: 6),
-                ],
-              ],
-            ),
-          if (buttons.isNotEmpty && releaseStatus != null)
-            const SizedBox(height: 4),
-          if (releaseStatus != null)
-            Align(alignment: Alignment.center, child: releaseStatus),
+          for (var index = 0; index < items.length; index++) ...[
+            Expanded(child: items[index]),
+            if (index != items.length - 1) const SizedBox(width: 5),
+          ],
         ],
       );
     }
@@ -3988,34 +4015,57 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                         ),
                       ],
                     ),
-                    SizedBox(height: compact ? 4 : 6),
+                    const SizedBox(height: 6),
                     Row(
+                      key: compact
+                          ? const ValueKey('compact-lineup-save-actions')
+                          : null,
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: _saving
                                 ? null
                                 : () => _save(LineupStatus.draft),
-                            icon: const Icon(Icons.save_outlined),
-                            label: const Text('Speichern'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: Size(0, compact ? 40 : 44),
-                              visualDensity: VisualDensity.compact,
+                            icon: Icon(
+                              Icons.save_outlined,
+                              size: compact ? 16 : 18,
                             ),
+                            label: const Text('Speichern'),
+                            style: compact
+                                ? OutlinedButton.styleFrom(
+                                    minimumSize: const Size(0, 34),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  )
+                                : null,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: FilledButton.icon(
                             onPressed: _saving
                                 ? null
                                 : () => _save(LineupStatus.internallyApproved),
-                            icon: const Icon(Icons.publish_rounded),
-                            label: const Text('Intern speichern'),
-                            style: FilledButton.styleFrom(
-                              minimumSize: Size(0, compact ? 40 : 44),
-                              visualDensity: VisualDensity.compact,
+                            icon: Icon(
+                              Icons.publish_rounded,
+                              size: compact ? 16 : 18,
                             ),
+                            label: const Text('Intern speichern'),
+                            style: compact
+                                ? FilledButton.styleFrom(
+                                    minimumSize: const Size(0, 34),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  )
+                                : null,
                           ),
                         ),
                       ],

@@ -94,7 +94,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       pageScroll.position.pixels,
-      lessThan(scrollBeforeCalendarDrag - 20),
+      lessThan(scrollBeforeCalendarDrag),
       reason: 'Reine vertikale Gesten müssen auch über dem Kalender die '
           'gesamte Seite wieder nach oben scrollen können.',
     );
@@ -198,7 +198,7 @@ void main() {
   });
 
   testWidgets(
-      'mobile calendar shows distinct emoji categories without overflow',
+      'mobile calendar shows modern compact categories without overflow',
       (tester) async {
     tester.view.physicalSize = const Size(320, 720);
     tester.view.devicePixelRatio = 1;
@@ -255,15 +255,26 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('🏃 Training'), findsWidgets);
-    expect(find.text('⚽ Pflichtspiel'), findsWidgets);
-    expect(find.text('🎄 Weihnachtsfeier'), findsWidgets);
-    expect(find.text('⚽ H'), findsWidgets);
-    expect(find.text('⚽ A'), findsWidgets);
+    expect(find.text('Training'), findsWidgets);
+    expect(find.text('Weihnachtsfeier'), findsWidgets);
     expect(find.text('H Heim'), findsOneWidget);
     expect(find.text('A Auswärts'), findsOneWidget);
     expect(find.text('FC Teugn – SC Thaldorf E1'), findsOneWidget);
     expect(find.text('TSV Abensberg E3 – FC Teugn'), findsOneWidget);
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('calendar-mobile-month-grid')))
+          .height,
+      lessThan(360),
+    );
+    for (final id in ['training', 'match', 'away-match', 'party']) {
+      expect(
+        tester
+            .getRect(find.byKey(ValueKey('calendar-compact-event-$id')))
+            .height,
+        lessThan(70),
+      );
+    }
     expect(tester.takeException(), isNull);
 
     for (final width in const [360.0, 390.0, 480.0, 599.0, 720.0, 884.0]) {

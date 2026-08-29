@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -91,6 +92,7 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
       title: 'Mitteilungscenter',
       subtitle:
           'Alle Informationen, Abstimmungen und Benachrichtigungen zentral organisiert.',
+      denseMobileHeader: true,
       action:
           widget.staffView && effectiveView == _CommunicationView.announcements
               ? FilledButton.icon(
@@ -108,7 +110,7 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
             onSelected: (value) =>
                 setState(() => _view = destinations[value].view),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: MediaQuery.sizeOf(context).width < 720 ? 10 : 24),
           if (effectiveView == _CommunicationView.announcements)
             _AnnouncementList(
               key: ValueKey('announcements-$_revision'),
@@ -294,8 +296,12 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                       children: [
                         Text(
                           widget.staffView
-                              ? 'Direkter Draht zu den Eltern'
-                              : 'Kurzer Draht zum Trainerteam',
+                              ? compact
+                                  ? 'Eltern kontaktieren'
+                                  : 'Direkter Draht zu den Eltern'
+                              : compact
+                                  ? 'Trainerteam schreiben'
+                                  : 'Kurzer Draht zum Trainerteam',
                           style: const TextStyle(fontWeight: FontWeight.w900),
                         ),
                         Text(
@@ -319,12 +325,29 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                 ),
               );
               if (compact) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                return Row(
                   children: [
-                    info,
-                    const SizedBox(height: 10),
-                    compose,
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: _sending || !canStartConversation
+                            ? null
+                            : () => _compose(inbox: inbox),
+                        child: info,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Tooltip(
+                      message: widget.staffView
+                          ? 'Eltern kontaktieren'
+                          : 'Trainerteam schreiben',
+                      child: IconButton.filled(
+                        onPressed: _sending || !canStartConversation
+                            ? null
+                            : () => _compose(inbox: inbox),
+                        icon: const Icon(Icons.edit_rounded, size: 19),
+                      ),
+                    ),
                   ],
                 );
               }
@@ -338,7 +361,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         if (_loading) const LinearProgressIndicator(minHeight: 3),
         if (conversations.isEmpty)
           EmptyState(
@@ -355,10 +378,10 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
             'Unterhaltungen',
             style: Theme.of(context).textTheme.titleLarge,
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 5),
           for (final messages in conversations)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 5),
               child: _FamilyContactThreadCard(
                 messages: messages,
                 staffView: widget.staffView,
@@ -375,49 +398,183 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
   }
 
   Future<void> _openThread(List<FamilyContactMessage> messages) async {
-    final reply = await showModalBottomSheet<bool>(
+    final replyController = TextEditingController();
+    var replyText = '';
+    final reply = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      showDragHandle: true,
-      builder: (sheetContext) => FractionallySizedBox(
-        heightFactor: .82,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+      backgroundColor: AppColors.background,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => FractionallySizedBox(
+          heightFactor: .9,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                widget.staffView
-                    ? _parentConversationTitle(messages)
-                    : 'Trainerteam · ${messages.first.teamName}',
-                style: Theme.of(sheetContext).textTheme.headlineSmall,
-              ),
-              Text(
-                'Nachrichten werden nach ${_inbox?.retentionDays ?? 30} Tagen automatisch entfernt.',
-                style: Theme.of(sheetContext).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) =>
-                      _FamilyContactBubble(message: messages[index]),
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(bottom: BorderSide(color: AppColors.line)),
+                ),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 18,
+                      backgroundColor: AppColors.yellowSoft,
+                      child: Icon(
+                        Icons.forum_rounded,
+                        size: 19,
+                        color: AppColors.navy,
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.staffView
+                                ? _parentConversationTitle(messages)
+                                : 'Trainerteam · ${messages.first.teamName}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          Text(
+                            'Geschützt · ${_inbox?.retentionDays ?? 30} Tage',
+                            style: const TextStyle(
+                              color: AppColors.teal,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Unterhaltung schließen',
+                      onPressed: () => Navigator.pop(sheetContext),
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              FilledButton.icon(
-                onPressed: () => Navigator.pop(sheetContext, true),
-                icon: const Icon(Icons.reply_rounded),
-                label: const Text('Antworten'),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 5),
+                  reverse: true,
+                  itemCount: messages.length,
+                  itemBuilder: (context, reverseIndex) {
+                    final index = messages.length - reverseIndex - 1;
+                    return _FamilyContactBubble(message: messages[index]);
+                  },
+                ),
+              ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(10, 3, 10, 5),
+                child: Row(
+                  children: [
+                    for (final suggestion in const [
+                      'Danke für die Info!',
+                      'Alles klar 👍',
+                      'Ich melde mich später.',
+                    ]) ...[
+                      ActionChip(
+                        visualDensity: VisualDensity.compact,
+                        avatar: const Icon(Icons.bolt_rounded, size: 15),
+                        label: Text(suggestion),
+                        onPressed: () {
+                          replyController.text = suggestion;
+                          replyController.selection = TextSelection.collapsed(
+                            offset: suggestion.length,
+                          );
+                          setSheetState(() => replyText = suggestion);
+                        },
+                      ),
+                      const SizedBox(width: 5),
+                    ],
+                  ],
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  10,
+                  7,
+                  8,
+                  8 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+                ),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: AppColors.line)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: replyController,
+                        minLines: 1,
+                        maxLines: 4,
+                        maxLength: 2000,
+                        textCapitalization: TextCapitalization.sentences,
+                        onChanged: (value) =>
+                            setSheetState(() => replyText = value),
+                        decoration: const InputDecoration(
+                          hintText: 'Nachricht schreiben …',
+                          counterText: '',
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton.filled(
+                      tooltip: 'Nachricht senden',
+                      onPressed: replyText.trim().isEmpty
+                          ? null
+                          : () => Navigator.pop(
+                                sheetContext,
+                                replyText.trim(),
+                              ),
+                      icon: const Icon(Icons.send_rounded, size: 19),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
       ),
     );
-    if (reply == true && mounted) {
-      await _compose(inbox: _inbox!, messages: messages);
+    replyController.dispose();
+    if (reply == null || reply.isEmpty || !mounted) return;
+    setState(() => _sending = true);
+    try {
+      await ref.read(repositoryProvider).sendFamilyContact(
+            message: reply,
+            teamId: messages.first.teamId,
+            conversationId: messages.first.conversationId,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nachricht wurde sicher gesendet.')),
+      );
+      await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Die Nachricht konnte nicht gesendet werden. Bitte Verbindung prüfen und erneut versuchen.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
@@ -653,25 +810,26 @@ class _FamilyContactThreadCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final last = messages.last;
     return Card(
+      key: ValueKey('family-contact-thread-${last.conversationId}'),
       margin: EdgeInsets.zero,
       child: InkWell(
         onTap: onOpen,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(15),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 11, 9, 11),
+          padding: const EdgeInsets.fromLTRB(9, 8, 5, 8),
           child: Row(
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: 36,
+                height: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppColors.yellowSoft,
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius: BorderRadius.circular(11),
                 ),
                 child: const Icon(Icons.chat_bubble_outline_rounded),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,13 +844,15 @@ class _FamilyContactThreadCard extends StatelessWidget {
                     ),
                     Text(
                       last.message,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 1),
                     Text(
                       '${messages.length} ${messages.length == 1 ? 'Nachricht' : 'Nachrichten'} · ${_contactTimestamp(last.createdAt)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.muted,
                         fontSize: 11,
@@ -705,9 +865,13 @@ class _FamilyContactThreadCard extends StatelessWidget {
               IconButton(
                 onPressed: onReply,
                 tooltip: 'Antworten',
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(
+                  width: 36,
+                  height: 36,
+                ),
                 icon: const Icon(Icons.reply_rounded),
               ),
-              const Icon(Icons.chevron_right_rounded, size: 20),
             ],
           ),
         ),
@@ -725,35 +889,79 @@ class _FamilyContactBubble extends StatelessWidget {
   Widget build(BuildContext context) => Align(
         alignment:
             message.sentByMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 520),
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: message.sentByMe
-                ? AppColors.yellowSoft
-                : AppColors.teal.withValues(alpha: .09),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: AppColors.line),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                message.sentByMe ? 'Du' : message.senderName,
-                style: const TextStyle(fontWeight: FontWeight.w900),
+        child: Semantics(
+          button: true,
+          hint: 'Lange drücken, um die Nachricht zu kopieren',
+          child: InkWell(
+            key: ValueKey('family-contact-message-${message.id}'),
+            borderRadius: BorderRadius.circular(16),
+            onLongPress: () async {
+              await Clipboard.setData(ClipboardData(text: message.message));
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Nachricht kopiert.')),
+              );
+            },
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * .78,
               ),
-              const SizedBox(height: 3),
-              Text(message.message),
-              const SizedBox(height: 4),
-              Text(
-                _contactTimestamp(message.createdAt),
-                style: const TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 10,
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              decoration: BoxDecoration(
+                color: message.sentByMe ? AppColors.yellowSoft : Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: Radius.circular(message.sentByMe ? 16 : 4),
+                  bottomRight: Radius.circular(message.sentByMe ? 4 : 16),
                 ),
+                border: Border.all(color: AppColors.line),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x08000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 3),
+                  ),
+                ],
               ),
-            ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!message.sentByMe)
+                    Text(
+                      message.senderName,
+                      style: const TextStyle(
+                        color: AppColors.teal,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  Text(message.message),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _contactTime(message.createdAt),
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 9,
+                        ),
+                      ),
+                      if (message.sentByMe) ...[
+                        const SizedBox(width: 3),
+                        const Icon(
+                          Icons.done_all_rounded,
+                          size: 13,
+                          color: AppColors.teal,
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       );
@@ -769,6 +977,12 @@ String _contactTimestamp(DateTime value) {
   return '${local.day}.${local.month}.${local.year} · '
       '${local.hour.toString().padLeft(2, '0')}:'
       '${local.minute.toString().padLeft(2, '0')} Uhr';
+}
+
+String _contactTime(DateTime value) {
+  final local = value.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
 }
 
 class _CommunicationDestination {
@@ -812,9 +1026,12 @@ class _CommunicationNavigation extends StatelessWidget {
                     label: Text(destinations[index].label),
                     selected: selectedIndex == index,
                     onSelected: (_) => onSelected(index),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 3),
                   ),
                   if (index != destinations.length - 1)
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 5),
                 ],
               ],
             ),
@@ -1410,10 +1627,10 @@ class _AnnouncementToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.line),
       ),
       child: LayoutBuilder(
@@ -1431,9 +1648,10 @@ class _AnnouncementToolbar extends StatelessWidget {
           final status = DropdownButtonFormField<AnnouncementStatus?>(
             key: ValueKey(statusFilter),
             initialValue: statusFilter,
-            decoration: const InputDecoration(
-              labelText: 'Status',
-              prefixIcon: Icon(Icons.filter_list_rounded),
+            decoration: InputDecoration(
+              labelText: compact ? null : 'Status',
+              prefixIcon:
+                  compact ? null : const Icon(Icons.filter_list_rounded),
               isDense: true,
             ),
             items: [
@@ -1451,10 +1669,10 @@ class _AnnouncementToolbar extends StatelessWidget {
             onChanged: onStatusChanged,
           );
           final count = Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
               color: AppColors.background,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(9),
             ),
             child: Text(
               '$itemCount ${itemCount == 1 ? 'Mitteilung' : 'Mitteilungen'}',
@@ -1467,13 +1685,17 @@ class _AnnouncementToolbar extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                search,
-                if (staffView) ...[
-                  const SizedBox(height: 10),
-                  status,
-                ],
-                const SizedBox(height: 10),
-                Align(alignment: Alignment.centerLeft, child: count),
+                Row(
+                  children: [
+                    Expanded(child: search),
+                    if (staffView) ...[
+                      const SizedBox(width: 6),
+                      SizedBox(width: 122, child: status),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Align(alignment: Alignment.centerRight, child: count),
               ],
             );
           }
@@ -1511,6 +1733,7 @@ class _AnnouncementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 720;
     final color = switch (announcement.priority) {
       AnnouncementPriority.urgent => Colors.redAccent,
       AnnouncementPriority.important => AppColors.orange,
@@ -1518,7 +1741,7 @@ class _AnnouncementCard extends StatelessWidget {
     };
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(compact ? 15 : 20),
         onTap: () async {
           await showDialog<void>(
             context: context,
@@ -1561,47 +1784,57 @@ class _AnnouncementCard extends StatelessWidget {
           await onOpened();
         },
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(compact ? 11 : 20),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 46,
-                height: 46,
+                width: compact ? 36 : 46,
+                height: compact ? 36 : 46,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(compact ? 11 : 14),
                 ),
                 child: Icon(Icons.campaign_rounded, color: color),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: compact ? 9 : 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: compact ? 5 : 8,
+                      runSpacing: compact ? 4 : 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
                           announcement.title,
-                          style: Theme.of(context).textTheme.titleLarge,
+                          style: compact
+                              ? Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w900)
+                              : Theme.of(context).textTheme.titleLarge,
                         ),
                         if (!announcement.isRead &&
                             announcement.status == AnnouncementStatus.published)
                           const Badge(label: Text('Neu')),
                         if (staffView)
-                          Chip(label: Text(_status(announcement.status))),
+                          Chip(
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                            label: Text(_status(announcement.status)),
+                          ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: compact ? 3 : 6),
                     Text(
                       announcement.body,
-                      maxLines: 3,
+                      maxLines: compact ? 2 : 3,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: compact ? 5 : 12),
                     Text(
                       '${announcement.authorName} · ${announcement.teamNames.join(', ')}'
                       '${staffView && announcement.readCount != null ? ' · ${announcement.readCount} gelesen' : ''}',
@@ -1617,12 +1850,17 @@ class _AnnouncementCard extends StatelessWidget {
                       : 'Mitteilung löschen',
                   onPressed: onDelete,
                   color: Theme.of(context).colorScheme.error,
+                  visualDensity:
+                      compact ? VisualDensity.compact : VisualDensity.standard,
                   icon: Icon(deletePermanently
                       ? Icons.delete_forever_rounded
                       : Icons.delete_outline_rounded),
                 )
               else
-                const Icon(Icons.chevron_right_rounded),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: compact ? 19 : 24,
+                ),
             ],
           ),
         ),
@@ -1643,6 +1881,7 @@ class _NotificationList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final compact = MediaQuery.sizeOf(context).width < 720;
     return FutureBuilder<List<AppNotificationModel>>(
       future: ref.read(repositoryProvider).notifications(),
       builder: (context, snapshot) {
@@ -1729,10 +1968,15 @@ class _NotificationList extends ConsumerWidget {
                 ),
                 for (final item in grouped[group]!)
                   Card(
-                    margin: const EdgeInsets.only(bottom: 8),
+                    margin: EdgeInsets.only(bottom: compact ? 5 : 8),
                     child: ListTile(
-                      contentPadding: const EdgeInsets.all(14),
+                      dense: compact,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: compact ? 9 : 14,
+                        vertical: compact ? 2 : 8,
+                      ),
                       leading: CircleAvatar(
+                        radius: compact ? 17 : 20,
                         backgroundColor:
                             (item.isRead ? AppColors.muted : AppColors.blue)
                                 .withValues(alpha: .12),
@@ -1741,8 +1985,17 @@ class _NotificationList extends ConsumerWidget {
                           color: item.isRead ? AppColors.muted : AppColors.blue,
                         ),
                       ),
-                      title: Text(item.title),
-                      subtitle: Text(item.body),
+                      title: Text(
+                        item.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        item.body,
+                        maxLines: compact ? 2 : null,
+                        overflow:
+                            compact ? TextOverflow.ellipsis : TextOverflow.clip,
+                      ),
                       trailing: canDelete
                           ? Row(
                               mainAxisSize: MainAxisSize.min,
@@ -1761,6 +2014,9 @@ class _NotificationList extends ConsumerWidget {
                                   icon:
                                       const Icon(Icons.delete_outline_rounded),
                                   color: Theme.of(context).colorScheme.error,
+                                  visualDensity: compact
+                                      ? VisualDensity.compact
+                                      : VisualDensity.standard,
                                   onPressed: () => _delete(context, ref, item),
                                 ),
                               ],

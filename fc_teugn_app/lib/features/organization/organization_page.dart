@@ -30,6 +30,7 @@ class OrganizationPage extends ConsumerWidget {
       title: 'Verein & Mannschaften',
       subtitle:
           'Verantwortlichkeiten, Trainingsbetrieb und Mannschaftsdaten zentral verwalten.',
+      denseMobileHeader: true,
       child: organization.when(
         loading: () => const Center(
           child: LogoLoadingPanel(message: 'Mannschaften werden geladen …'),
@@ -40,7 +41,9 @@ class OrganizationPage extends ConsumerWidget {
         data: (data) => Column(
           children: [
             _ClubHero(data: data),
-            const SizedBox(height: 20),
+            SizedBox(
+              height: MediaQuery.sizeOf(context).width < 720 ? 10 : 20,
+            ),
             _OrganizationContent(data: data),
             if (data.can('MANAGE_ORGANIZATION'))
               OrganizationAdminTools(organization: data),
@@ -421,13 +424,13 @@ class _OrganizationContent extends ConsumerWidget {
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth < 620;
+            final compact = constraints.maxWidth < 720;
             final heading = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Mannschaftsstruktur',
                     style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 4),
+                SizedBox(height: compact ? 1 : 4),
                 Text(
                   '${structure.ageGroups.length} Altersklassen · ${structure.teams.where((team) => team.isActive).length} aktive Mannschaften',
                 ),
@@ -442,6 +445,12 @@ class _OrganizationContent extends ConsumerWidget {
                     ),
                     icon: const Icon(Icons.add_rounded),
                     label: const Text('Mannschaft anlegen'),
+                    style: compact
+                        ? FilledButton.styleFrom(
+                            minimumSize: const Size(0, 40),
+                            visualDensity: VisualDensity.compact,
+                          )
+                        : null,
                   )
                 : null;
             return compact
@@ -450,7 +459,7 @@ class _OrganizationContent extends ConsumerWidget {
                     children: [
                       heading,
                       if (action != null) ...[
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 7),
                         action,
                       ],
                     ],
@@ -463,10 +472,12 @@ class _OrganizationContent extends ConsumerWidget {
                   );
           },
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: MediaQuery.sizeOf(context).width < 720 ? 10 : 16),
         for (final ageGroup in structure.ageGroups)
           Padding(
-            padding: const EdgeInsets.only(bottom: 16),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.sizeOf(context).width < 720 ? 10 : 16,
+            ),
             child: _AgeGroupSection(
               ageGroup: ageGroup,
               teams: grouped[ageGroup.id] ?? const [],
@@ -498,81 +509,152 @@ class _ClubHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 600;
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(compact ? 18 : 24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.black, Color(0xFF3A3400)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Wrap(
-        spacing: 28,
-        runSpacing: 18,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          ClubLogo(size: compact ? 58 : 76),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                data.club.name,
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineSmall
-                    ?.copyWith(color: Colors.white),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                'Jugendfußball · Saison ${data.season.name}',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: .7),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        return Container(
+          key: const ValueKey('organization-club-hero'),
+          width: double.infinity,
+          padding: EdgeInsets.all(compact ? 12 : 24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.black, Color(0xFF3A3400)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(compact ? 18 : 24),
           ),
-          _HeroMetric(
-              value: '${data.metrics.players}',
-              label: 'Spieler im aktiven Team'),
-          _HeroMetric(
-              value: '${data.metrics.upcomingEvents}',
-              label: 'kommende Termine'),
-        ],
-      ),
+          child: compact
+              ? Column(
+                  children: [
+                    Row(
+                      children: [
+                        const ClubLogo(size: 44),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                data.club.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(color: Colors.white),
+                              ),
+                              Text(
+                                'Jugendfußball · ${data.season.name}',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: .7),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _HeroMetric(
+                            value: '${data.metrics.players}',
+                            label: 'Spieler',
+                            compact: true,
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: _HeroMetric(
+                            value: '${data.metrics.upcomingEvents}',
+                            label: 'Termine',
+                            compact: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : Wrap(
+                  spacing: 28,
+                  runSpacing: 18,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const ClubLogo(size: 76),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          data.club.name,
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(color: Colors.white),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          'Jugendfußball · Saison ${data.season.name}',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: .7),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    _HeroMetric(
+                      value: '${data.metrics.players}',
+                      label: 'Spieler im aktiven Team',
+                    ),
+                    _HeroMetric(
+                      value: '${data.metrics.upcomingEvents}',
+                      label: 'kommende Termine',
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
 
 class _HeroMetric extends StatelessWidget {
-  const _HeroMetric({required this.value, required this.label});
+  const _HeroMetric({
+    required this.value,
+    required this.label,
+    this.compact = false,
+  });
   final String value;
   final String label;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(minWidth: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+        constraints: BoxConstraints(minWidth: compact ? 0 : 150),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 10 : 18,
+          vertical: compact ? 7 : 13,
+        ),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: .09),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(compact ? 12 : 16),
           border: Border.all(color: Colors.white.withValues(alpha: .1)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(value,
-                style: const TextStyle(
+                style: TextStyle(
                     color: Colors.white,
-                    fontSize: 24,
+                    fontSize: compact ? 18 : 24,
                     fontWeight: FontWeight.w900)),
             Text(label,
                 style: TextStyle(
-                    color: Colors.white.withValues(alpha: .65), fontSize: 12)),
+                    color: Colors.white.withValues(alpha: .65),
+                    fontSize: compact ? 10 : 12)),
           ],
         ),
       );
@@ -604,28 +686,37 @@ class _AgeGroupSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 720;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: compact ? 34 : 42,
+              height: compact ? 34 : 42,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: AppColors.blue.withValues(alpha: .1),
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(compact ? 11 : 13),
               ),
               child: Text(ageGroup.code,
                   style: const TextStyle(
                       color: AppColors.blue, fontWeight: FontWeight.w900)),
             ),
-            const SizedBox(width: 12),
-            Text(ageGroup.name, style: Theme.of(context).textTheme.titleLarge),
+            SizedBox(width: compact ? 9 : 12),
+            Text(
+              ageGroup.name,
+              style: compact
+                  ? Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w900)
+                  : Theme.of(context).textTheme.titleLarge,
+            ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: compact ? 6 : 10),
         if (teams.isEmpty)
           const Card(
             child: Padding(
@@ -641,8 +732,8 @@ class _AgeGroupSection extends StatelessWidget {
                     ? (constraints.maxWidth - 12) / 2
                     : constraints.maxWidth;
             return Wrap(
-              spacing: 12,
-              runSpacing: 12,
+              spacing: compact ? 7 : 12,
+              runSpacing: compact ? 7 : 12,
               children: [
                 for (final team in teams)
                   SizedBox(
@@ -704,7 +795,8 @@ class _TeamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 600;
+    final compact = MediaQuery.sizeOf(context).width < 720;
+    if (compact) return _buildCompactCard(context);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -911,6 +1003,290 @@ class _TeamCard extends StatelessWidget {
     );
   }
 
+  Widget _buildCompactCard(BuildContext context) {
+    final secondaryDetails = <Widget>[
+      if (team.defaultLineup != null)
+        _InfoLine(
+          icon: Icons.schema_rounded,
+          text: _defaultLineupSummary(team.defaultLineup!),
+          compact: true,
+        ),
+      if (team.seasonStartDate != null || team.seasonEndDate != null)
+        _InfoLine(
+          icon: Icons.date_range_rounded,
+          text: 'Saison ${_date(team.seasonStartDate) ?? 'Vereinsstart'} – '
+              '${_date(team.seasonEndDate) ?? 'Vereinsende'}',
+          compact: true,
+        ),
+      if (team.indoorSeasonStartDate != null &&
+          team.indoorSeasonEndDate != null)
+        _InfoLine(
+          icon: Icons.sports_handball_rounded,
+          text: 'Halle ${_date(team.indoorSeasonStartDate)} – '
+              '${_date(team.indoorSeasonEndDate)}'
+              '${team.indoorTrainingLocation?.isNotEmpty == true ? ' · ${team.indoorTrainingLocation}' : ''}',
+          compact: true,
+        ),
+      if (team.staff.isNotEmpty)
+        _InfoLine(
+          icon: Icons.supervisor_account_rounded,
+          text: team.staff
+              .map((member) => '${member.name} · ${_role(member.role)}')
+              .join(' · '),
+          compact: true,
+        ),
+    ];
+    return Card(
+      key: ValueKey('compact-team-card-${team.id}'),
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: 62,
+            child: team.photoUrl != null
+                ? Image.network(team.photoUrl!, fit: BoxFit.cover)
+                : team.photoStatus.blockedByConsent
+                    ? _ProtectedTeamPhotoPlaceholder(
+                        status: team.photoStatus,
+                        compact: true,
+                      )
+                    : DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.navy,
+                              AppColors.gold.withValues(alpha: .82),
+                            ],
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.groups_rounded,
+                          size: 32,
+                          color: Colors.white70,
+                        ),
+                      ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        team.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    if (isCurrent)
+                      const Tooltip(
+                        message: 'Aktive Mannschaft',
+                        child: Icon(
+                          Icons.check_circle_rounded,
+                          size: 19,
+                          color: AppColors.teal,
+                        ),
+                      ),
+                    if (!team.isActive)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 5),
+                        child: Text(
+                          'Inaktiv',
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                Text(
+                  '${_label(team.teamType)} · ${_gender(team.gender)}'
+                  '${team.level?.isNotEmpty == true ? ' · ${team.level}' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 5,
+                  runSpacing: 5,
+                  children: [
+                    _CompactTeamFact(
+                      icon: Icons.sports_soccer_rounded,
+                      text: team.gameFormat.label,
+                    ),
+                    _CompactTeamFact(
+                      icon: Icons.timer_outlined,
+                      text: '${team.periodCount}×${team.periodMinutes} Min.',
+                    ),
+                    if (team.birthYears.isNotEmpty)
+                      _CompactTeamFact(
+                        icon: Icons.cake_outlined,
+                        text: team.birthYears.join(', '),
+                      ),
+                    if (team.trainingLocation?.isNotEmpty == true)
+                      _CompactTeamFact(
+                        icon: Icons.location_on_outlined,
+                        text: team.trainingLocation!,
+                      ),
+                    if (team.trainingTimes.isNotEmpty)
+                      _CompactTeamFact(
+                        icon: Icons.schedule_rounded,
+                        text: team.trainingTimes.join(' · '),
+                      ),
+                  ],
+                ),
+                if (team.isPlayingCommunity) ...[
+                  const SizedBox(height: 6),
+                  _InfoLine(
+                    icon: Icons.handshake_outlined,
+                    text: 'Spielgemeinschaft · ${team.playingName}',
+                    compact: true,
+                  ),
+                ],
+                if (secondaryDetails.isNotEmpty)
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                    ),
+                    child: ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      childrenPadding: const EdgeInsets.only(bottom: 5),
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      title: const Text(
+                        'Weitere Mannschaftsdaten',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      children: [
+                        for (var index = 0;
+                            index < secondaryDetails.length;
+                            index++) ...[
+                          secondaryDetails[index],
+                          if (index != secondaryDetails.length - 1)
+                            const SizedBox(height: 5),
+                        ],
+                      ],
+                    ),
+                  ),
+                if (team.photoStatus.blockedByConsent) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Mannschaftsfoto bleibt wegen einer widerrufenen oder '
+                    'eingeschränkten Einwilligung geschützt ausgeblendet.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.muted,
+                          fontSize: 10,
+                        ),
+                  ),
+                ],
+                if (canEdit) ...[
+                  const SizedBox(height: 7),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          onPressed: onLineup,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 38),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          icon:
+                              const Icon(Icons.sports_soccer_rounded, size: 18),
+                          label: const Text('Team-Management'),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      IconButton.filledTonal(
+                        tooltip: 'Mannschaft bearbeiten',
+                        onPressed: onEdit,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.edit_outlined, size: 19),
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: 'Weitere Aktionen',
+                        icon: const Icon(Icons.more_vert_rounded),
+                        onSelected: (value) {
+                          switch (value) {
+                            case 'photo':
+                              onPhoto();
+                              return;
+                            case 'remove-photo':
+                              onRemovePhoto();
+                              return;
+                            case 'delete':
+                              onDelete();
+                              return;
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'photo',
+                            child: ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.add_a_photo_outlined),
+                              title: Text('Foto ändern'),
+                            ),
+                          ),
+                          if (team.photoUrl != null)
+                            const PopupMenuItem(
+                              value: 'remove-photo',
+                              child: ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.hide_image_outlined),
+                                title: Text('Foto entfernen'),
+                              ),
+                            ),
+                          if (canDelete)
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(
+                                  Icons.delete_forever_rounded,
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                                title: Text(
+                                  'Mannschaft löschen',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _role(String role) => switch (role) {
         'COACH' || 'TRAINER' => 'Haupttrainer',
         'ASSISTANT_COACH' => 'Co-Trainer',
@@ -992,18 +1368,69 @@ class _ProtectedTeamPhotoPlaceholder extends StatelessWidget {
   }
 }
 
-class _InfoLine extends StatelessWidget {
-  const _InfoLine({required this.icon, required this.text});
+class _CompactTeamFact extends StatelessWidget {
+  const _CompactTeamFact({required this.icon, required this.text});
+
   final IconData icon;
   final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(maxWidth: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: AppColors.gold),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _InfoLine extends StatelessWidget {
+  const _InfoLine({
+    required this.icon,
+    required this.text,
+    this.compact = false,
+  });
+  final IconData icon;
+  final String text;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: AppColors.blue),
-          const SizedBox(width: 7),
-          Expanded(child: Text(text)),
+          Icon(icon, size: compact ? 15 : 18, color: AppColors.blue),
+          SizedBox(width: compact ? 5 : 7),
+          Expanded(
+            child: Text(
+              text,
+              style: compact
+                  ? Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(fontSize: 11)
+                  : null,
+            ),
+          ),
         ],
       );
 }

@@ -216,6 +216,56 @@ void main() {
     expect(find.textContaining('automatische Löschung nach 30 Tagen'),
         findsOneWidget);
     expect(find.text('Max kommt heute etwas später.'), findsOneWidget);
+    expect(
+      tester
+          .getRect(
+            find.byKey(
+              const ValueKey('family-contact-thread-thread.parent.team-e1'),
+            ),
+          )
+          .height,
+      lessThan(90),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('direct contact opens a compact messenger with quick replies',
+      (tester) async {
+    final repository = _CommunicationRepository();
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _page(staffView: false, repository: repository),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Direktkontakt'));
+    await tester.tap(find.text('Direktkontakt'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(
+        const ValueKey('family-contact-thread-thread.parent.team-e1'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Geschützt · 30 Tage'), findsOneWidget);
+    expect(find.text('Alles klar 👍'), findsOneWidget);
+    expect(find.byTooltip('Nachricht senden'), findsOneWidget);
+
+    expect(
+      find.byKey(const ValueKey('family-contact-message-message-1')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Danke für die Info!'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Nachricht senden'));
+    await tester.pumpAndSettle();
+
+    expect(repository.sentContactTeamId, 'team-e1');
+    expect(repository.sentContactMessage, 'Danke für die Info!');
     expect(tester.takeException(), isNull);
   });
 

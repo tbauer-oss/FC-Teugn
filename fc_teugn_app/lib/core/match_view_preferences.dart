@@ -2,7 +2,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 enum MatchSortOrder { nextFirst, newestFirst, oldestFirst }
 
-enum MatchViewMode { veryCompact, compact, standard, detailed }
+enum MatchViewMode { veryCompact, standard, detailed }
 
 abstract class MatchViewPreferenceStorage {
   Future<String?> read(String key);
@@ -43,9 +43,13 @@ class MatchViewPreferences {
 
   Future<MatchViewMode> loadViewMode(String userId) async {
     final saved = await _storage.read(_viewKey(userId));
+    // Die frühere mittlere Option "compact" war visuell identisch mit
+    // "standard" und wurde aus der Oberfläche entfernt. Bereits gespeicherte
+    // Werte werden auf die neue kompakte Standardansicht migriert.
+    if (saved == 'compact') return MatchViewMode.veryCompact;
     return MatchViewMode.values.firstWhere(
       (mode) => mode.name == saved,
-      orElse: () => MatchViewMode.standard,
+      orElse: () => MatchViewMode.veryCompact,
     );
   }
 

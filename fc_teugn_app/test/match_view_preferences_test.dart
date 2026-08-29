@@ -14,7 +14,7 @@ class _MemoryStorage implements MatchViewPreferenceStorage {
 }
 
 void main() {
-  test('next match and standard cards are the defaults', () async {
+  test('next match and compact cards are the defaults', () async {
     final preferences = MatchViewPreferences(storage: _MemoryStorage());
 
     expect(
@@ -23,7 +23,18 @@ void main() {
     );
     expect(
       await preferences.loadViewMode('trainer-1'),
-      MatchViewMode.standard,
+      MatchViewMode.veryCompact,
+    );
+  });
+
+  test('legacy compact preference migrates to the compact view', () async {
+    final storage = _MemoryStorage();
+    storage.values['fc_teugn_match_view_v1_trainer-legacy'] = 'compact';
+    final preferences = MatchViewPreferences(storage: storage);
+
+    expect(
+      await preferences.loadViewMode('trainer-legacy'),
+      MatchViewMode.veryCompact,
     );
   });
 

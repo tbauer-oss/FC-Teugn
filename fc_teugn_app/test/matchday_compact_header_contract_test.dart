@@ -12,6 +12,8 @@ void main() {
     expect(matchday, contains('hideHeader: true'));
     expect(matchday, contains('class _WideMatchTab'));
     expect(matchday, contains('height: 42'));
+    expect(matchday, contains("ValueKey('compact-lineup-save-actions')"));
+    expect(matchday, contains('match-communication-dense-mobile-actions'));
     expect(scaffold, contains('final bool hideHeader'));
   });
 }

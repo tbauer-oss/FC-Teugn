@@ -56,6 +56,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
+    final compactPage =
+        MediaQuery.sizeOf(context).width < _compactMonthMaxWidth;
     final eventRange = _calendarRange(view, cursor);
     final events = ref.watch(calendarEventsProvider(eventRange));
     if (view == CalendarView.month) {
@@ -111,7 +113,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               ..clear()
               ..addAll(values)),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: compactPage ? 10 : 18),
           events.when(
             loading: () => const Padding(
               padding: EdgeInsets.all(48),
@@ -637,6 +639,13 @@ class _CalendarPageActions extends StatelessWidget {
       onPressed: onSubscribe,
       icon: const Icon(Icons.event_repeat_rounded, size: 19),
       label: AdaptiveButtonLabel(mobile ? 'ICS' : 'Kalender herunterladen'),
+      style: mobile
+          ? OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              visualDensity: VisualDensity.compact,
+            )
+          : null,
     );
     final create = FilledButton.icon(
       onPressed: canCreate && !saving ? onCreate : null,
@@ -647,6 +656,13 @@ class _CalendarPageActions extends StatelessWidget {
             )
           : const Icon(Icons.add_rounded, size: 20),
       label: AdaptiveButtonLabel(saving ? 'Speichert…' : 'Termin anlegen'),
+      style: mobile
+          ? FilledButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              visualDensity: VisualDensity.compact,
+            )
+          : null,
     );
     if (!mobile) {
       return Wrap(
@@ -699,24 +715,37 @@ class _CalendarToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      key: const ValueKey('calendar-toolbar'),
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(8),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 680;
-            final viewPicker = DropdownButton<CalendarView>(
-              value: view,
-              borderRadius: BorderRadius.circular(14),
-              items: [
+            final viewPicker = PopupMenuButton<CalendarView>(
+              tooltip: 'Kalenderansicht',
+              initialValue: view,
+              onSelected: onViewChanged,
+              itemBuilder: (context) => [
                 for (final value in CalendarView.values)
-                  DropdownMenuItem(
+                  PopupMenuItem(
                     value: value,
-                    child: Text(_calendarViewLabel(value)),
+                    child: Row(
+                      children: [
+                        Icon(_calendarViewIcon(value), size: 18),
+                        const SizedBox(width: 9),
+                        Expanded(child: Text(_calendarViewLabel(value))),
+                        if (value == view)
+                          const Icon(Icons.check_rounded, size: 18),
+                      ],
+                    ),
                   ),
               ],
-              onChanged: (value) {
-                if (value != null) onViewChanged(value);
-              },
+              child: _CalendarToolbarPill(
+                icon: _calendarViewIcon(view),
+                label: _calendarViewLabel(view),
+                trailing: Icons.expand_more_rounded,
+              ),
             );
             final filters = [
               _FilterButton<EventCategory>(
@@ -741,41 +770,57 @@ class _CalendarToolbar extends StatelessWidget {
             if (compact) {
               return Column(
                 children: [
-                  Row(
-                    children: [
-                      IconButton.filledTonal(
-                        tooltip: 'Zurück',
-                        onPressed: onPrevious,
-                        icon: const Icon(Icons.chevron_left_rounded),
-                      ),
-                      Expanded(
-                        child: Text(
-                          _periodLabel(view, cursor),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge,
+                  SizedBox(
+                    height: 40,
+                    child: Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Zurück',
+                          onPressed: onPrevious,
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.chevron_left_rounded),
                         ),
-                      ),
-                      IconButton.filledTonal(
-                        tooltip: 'Weiter',
-                        onPressed: onNext,
-                        icon: const Icon(Icons.chevron_right_rounded),
-                      ),
-                    ],
+                        Expanded(
+                          child: Text(
+                            _periodLabel(view, cursor),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Weiter',
+                          onPressed: onNext,
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.chevron_right_rounded),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
+                  const Divider(height: 8),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        TextButton(
+                        TextButton.icon(
                           onPressed: onToday,
-                          child: const Text('Heute'),
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(0, 36),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          icon: const Icon(Icons.today_rounded, size: 17),
+                          label: const Text('Heute'),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         viewPicker,
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 6),
                         ...filters.expand(
-                          (item) => [item, const SizedBox(width: 8)],
+                          (item) => [item, const SizedBox(width: 6)],
                         ),
                       ],
                     ),
@@ -878,13 +923,55 @@ class _FilterButton<T> extends StatelessWidget {
           ),
       ],
       child: Chip(
-        avatar: Icon(icon, size: 18),
-        label: Text(
-          selected.isEmpty ? label : '$label (${selected.length})',
-        ),
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        side: const BorderSide(color: AppColors.line),
+        backgroundColor: selected.isEmpty
+            ? Colors.white
+            : AppColors.yellow.withValues(alpha: .16),
+        avatar: Icon(icon, size: 17),
+        label: Text(selected.isEmpty ? label : '$label (${selected.length})'),
       ),
     );
   }
+}
+
+class _CalendarToolbarPill extends StatelessWidget {
+  const _CalendarToolbarPill({
+    required this.icon,
+    required this.label,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String label;
+  final IconData? trailing;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 9),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 17, color: AppColors.gold),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 2),
+              Icon(trailing, size: 17),
+            ],
+          ],
+        ),
+      );
 }
 
 class _SwipeableMonthView extends StatefulWidget {
@@ -1311,15 +1398,17 @@ class _MobileMonthView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Card(
+          key: const ValueKey('calendar-mobile-month-grid'),
+          margin: EdgeInsets.zero,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
+            padding: const EdgeInsets.fromLTRB(8, 9, 8, 8),
             child: Column(
               children: [
                 _CalendarCategoryLegend(
                   categories: monthEvents.map((event) => event.category),
                   compact: true,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 7),
                 Row(
                   children: [
                     for (final label in const [
@@ -1338,19 +1427,19 @@ class _MobileMonthView extends StatelessWidget {
                           style: const TextStyle(
                             color: AppColors.muted,
                             fontWeight: FontWeight.w800,
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                       ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 5),
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 7,
-                    childAspectRatio: 1,
+                    childAspectRatio: 1.18,
                   ),
                   itemCount: totalCells,
                   itemBuilder: (context, index) {
@@ -1369,7 +1458,7 @@ class _MobileMonthView extends StatelessWidget {
                           ? '$day, keine Termine'
                           : '$day, ${dayEvents.map(_calendarEventSemanticLabel).join(', ')}',
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                         onTap: () => _showMobileDay(
                           context,
                           date,
@@ -1377,14 +1466,14 @@ class _MobileMonthView extends StatelessWidget {
                           onOpen,
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.all(2),
+                          padding: const EdgeInsets.symmetric(vertical: 1),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
-                                width: 27,
-                                height: 22,
+                                width: 28,
+                                height: 23,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
                                   color: today
@@ -1407,7 +1496,7 @@ class _MobileMonthView extends StatelessWidget {
                                   '$day',
                                   style: const TextStyle(
                                     color: AppColors.black,
-                                    fontSize: 13,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
@@ -1425,12 +1514,35 @@ class _MobileMonthView extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Text(
-          'Termine im Monat',
-          style: Theme.of(context).textTheme.titleLarge,
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Text(
+              'Termine im Monat',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.navy,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '${monthEvents.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         if (monthEvents.isEmpty)
           const Card(
             child: Padding(
@@ -1440,39 +1552,12 @@ class _MobileMonthView extends StatelessWidget {
           )
         else
           for (final event in monthEvents)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                leading: _EventEmojiBadge(
-                  event: event,
-                  footer: '${event.startAt.day}.',
-                ),
-                title: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      event.fixtureDisplayTitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (event.matchVenueType != null) ...[
-                      const SizedBox(height: 4),
-                      MatchVenueBadge(
-                        type: event.matchVenueType!,
-                        compact: true,
-                      ),
-                    ],
-                  ],
-                ),
-                subtitle: Text(
-                  '${_time(event.startAt)} Uhr · ${event.location}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => onOpen(event),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: _CompactCalendarEventRow(
+                event: event,
+                onOpen: () => onOpen(event),
+                showDate: true,
               ),
             ),
       ],
@@ -1561,6 +1646,139 @@ class _MobileMonthView extends StatelessWidget {
   }
 }
 
+class _CompactCalendarEventRow extends StatelessWidget {
+  const _CompactCalendarEventRow({
+    required this.event,
+    required this.onOpen,
+    this.showDate = false,
+  });
+
+  final EventModel event;
+  final VoidCallback onOpen;
+  final bool showDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _categoryColor(event.category);
+    final date = event.startAt.toLocal();
+    return Material(
+      key: ValueKey('calendar-compact-event-${event.id}'),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(13),
+        side: const BorderSide(color: AppColors.line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: SizedBox(
+          height: 64,
+          child: Row(
+            children: [
+              Container(width: 3, height: 64, color: color),
+              SizedBox(
+                width: showDate ? 54 : 62,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (showDate)
+                          Text(
+                            '${date.day}. ${_month(date.month).substring(0, 3)}',
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        Text(
+                          _time(date),
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Container(width: 1, color: AppColors.line),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              event.fixtureDisplayTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                decoration: event.isCancelled
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                            ),
+                          ),
+                          if (event.isRecurring)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4),
+                              child: Icon(
+                                Icons.repeat_rounded,
+                                size: 14,
+                                color: AppColors.muted,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        [
+                          event.category.label,
+                          if (event.matchVenueType != null)
+                            event.matchVenueType!.label,
+                          if (event.location.trim().isNotEmpty)
+                            event.location.trim(),
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.muted,
+                              fontSize: 11,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 5),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  size: 19,
+                  color: AppColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CalendarCategoryLegend extends StatelessWidget {
   const _CalendarCategoryLegend({
     required this.categories,
@@ -1610,13 +1828,27 @@ class _CalendarCategoryLegend extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.circular(999),
                   ),
-                  child: Text(
-                    '${_categoryEmoji(ordered[index])} ${ordered[index].label}',
-                    style: TextStyle(
-                      color: _categoryColor(ordered[index]),
-                      fontSize: compact ? 11 : 12,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: compact ? 6 : 7,
+                        height: compact ? 6 : 7,
+                        decoration: BoxDecoration(
+                          color: _categoryColor(ordered[index]),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        ordered[index].label,
+                        style: TextStyle(
+                          color: _categoryColor(ordered[index]),
+                          fontSize: compact ? 10 : 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (index != ordered.length - 1)
@@ -1695,26 +1927,43 @@ class _CompactEmojiPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final emojis = events.map(_calendarCompactMarker).toSet().take(2).join(' ');
-    final overflow = events.length > 2 ? '+${events.length - 2}' : '';
-    return Text(
-      '$emojis$overflow',
-      maxLines: 1,
-      style: const TextStyle(
-        fontSize: 8,
-        height: 1,
-        fontWeight: FontWeight.w800,
-        color: AppColors.muted,
+    final categories = events.map((event) => event.category).toSet().take(3);
+    return SizedBox(
+      height: 7,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final category in categories) ...[
+            Container(
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _categoryColor(category),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 2),
+          ],
+          if (events.length > 3)
+            Text(
+              '+${events.length - 3}',
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontSize: 7,
+                height: 1,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
 class _EventEmojiBadge extends StatelessWidget {
-  const _EventEmojiBadge({required this.event, this.footer});
+  const _EventEmojiBadge({required this.event});
 
   final EventModel event;
-  final String? footer;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -1730,24 +1979,9 @@ class _EventEmojiBadge extends StatelessWidget {
             ),
             borderRadius: BorderRadius.circular(13),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _categoryEmoji(event.category),
-                style: TextStyle(fontSize: footer == null ? 21 : 18),
-              ),
-              if (footer != null)
-                Text(
-                  footer!,
-                  style: TextStyle(
-                    height: .9,
-                    color: _categoryColor(event.category),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-            ],
+          child: Text(
+            _categoryEmoji(event.category),
+            style: const TextStyle(fontSize: 21),
           ),
         ),
       );
@@ -1931,9 +2165,9 @@ class _WeekView extends StatelessWidget {
     required this.onOpen,
   });
 
-  static const hourHeight = 52.0;
-  static const timeColumnWidth = 62.0;
-  static const dayColumnWidth = 146.0;
+  static const hourHeight = 46.0;
+  static const timeColumnWidth = 56.0;
+  static const dayColumnWidth = 136.0;
 
   final DateTime cursor;
   final List<EventModel> events;
@@ -1959,11 +2193,11 @@ class _WeekView extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const SizedBox(width: timeColumnWidth, height: 68),
+                  const SizedBox(width: timeColumnWidth, height: 58),
                   for (final date in dates)
                     SizedBox(
                       width: dayColumnWidth,
-                      height: 68,
+                      height: 58,
                       child: _WeekDayHeader(date: date),
                     ),
                 ],
@@ -2201,7 +2435,7 @@ class _YearView extends StatelessWidget {
             ? 4
             : constraints.maxWidth >= 760
                 ? 3
-                : constraints.maxWidth >= 500
+                : constraints.maxWidth >= 360
                     ? 2
                     : 1;
         return GridView.builder(
@@ -2209,9 +2443,9 @@ class _YearView extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.08,
+            crossAxisSpacing: constraints.maxWidth < 760 ? 7 : 12,
+            mainAxisSpacing: constraints.maxWidth < 760 ? 7 : 12,
+            childAspectRatio: constraints.maxWidth < 760 ? .91 : 1.08,
           ),
           itemCount: 12,
           itemBuilder: (context, index) {
@@ -2256,7 +2490,7 @@ class _MiniMonth extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(9),
           child: Column(
             children: [
               Row(
@@ -2264,13 +2498,34 @@ class _MiniMonth extends StatelessWidget {
                   Expanded(
                     child: Text(
                       _month(month),
-                      style: Theme.of(context).textTheme.titleLarge,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w900),
                     ),
                   ),
-                  if (events.isNotEmpty) Chip(label: Text('${events.length}')),
+                  if (events.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.navy,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${events.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 5),
               Row(
                 children: [
                   for (final label in ['M', 'D', 'M', 'D', 'F', 'S', 'S'])
@@ -2287,7 +2542,7 @@ class _MiniMonth extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Expanded(
                 child: GridView.builder(
                   physics: const NeverScrollableScrollPhysics(),
@@ -2366,17 +2621,17 @@ class _PeriodAgenda extends StatelessWidget {
       children: [
         for (final date in dates) ...[
           _DayHeader(date: date),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
           if (!events.any((event) => _sameDay(event.startAt, date)))
             const _NoEventsRow()
           else
             for (final event
                 in events.where((event) => _sameDay(event.startAt, date)))
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 5),
                 child: _EventCard(event: event, onOpen: onOpen),
               ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 7),
         ],
       ],
     );
@@ -2404,14 +2659,14 @@ class _AgendaView extends StatelessWidget {
       if (previous == null || !_sameDay(previous, event.startAt)) {
         children.add(
           Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 8),
+            padding: const EdgeInsets.only(top: 5, bottom: 5),
             child: _DayHeader(date: event.startAt),
           ),
         );
       }
       children
         ..add(_EventCard(event: event, onOpen: onOpen))
-        ..add(const SizedBox(height: 9));
+        ..add(const SizedBox(height: 5));
       previous = event.startAt;
     }
     return Column(children: children);
@@ -2429,7 +2684,10 @@ class _DayHeader extends StatelessWidget {
       children: [
         Text(
           '${_weekday(date)}, ${date.day}. ${_month(date.month)}',
-          style: Theme.of(context).textTheme.titleLarge,
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w900),
         ),
         const SizedBox(width: 12),
         const Expanded(child: Divider()),
@@ -2445,7 +2703,7 @@ class _NoEventsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         border: Border.all(color: AppColors.line),
         borderRadius: BorderRadius.circular(16),
@@ -2465,113 +2723,127 @@ class _EventCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _categoryColor(event.category);
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () => onOpen(event),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 58,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      _categoryEmoji(event.category),
-                      style: const TextStyle(fontSize: 20),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 680) {
+          return _CompactCalendarEventRow(
+            event: event,
+            onOpen: () => onOpen(event),
+          );
+        }
+        return Card(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => onOpen(event),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 58,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _time(event.startAt),
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    Text(
-                      event.endAt == null ? 'Uhr' : '– ${_time(event.endAt!)}',
-                      style: TextStyle(color: color, fontSize: 10),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 7,
-                      runSpacing: 5,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                    child: Column(
                       children: [
                         Text(
-                          event.fixtureDisplayTitle,
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                          _categoryEmoji(event.category),
+                          style: const TextStyle(fontSize: 20),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _time(event.startAt),
+                          style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          event.endAt == null
+                              ? 'Uhr'
+                              : '– ${_time(event.endAt!)}',
+                          style: TextStyle(color: color, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 7,
+                          runSpacing: 5,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              event.fixtureDisplayTitle,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(
                                     decoration: event.isCancelled
                                         ? TextDecoration.lineThrough
                                         : null,
                                   ),
+                            ),
+                            if (event.isRecurring)
+                              const Icon(Icons.repeat_rounded,
+                                  size: 17, color: AppColors.muted),
+                            if (event.isCancelled)
+                              const Chip(label: Text('Abgesagt')),
+                            if (event.matchVenueType != null)
+                              MatchVenueBadge(
+                                type: event.matchVenueType!,
+                                compact: true,
+                              ),
+                          ],
                         ),
-                        if (event.isRecurring)
-                          const Icon(Icons.repeat_rounded,
-                              size: 17, color: AppColors.muted),
-                        if (event.isCancelled)
-                          const Chip(label: Text('Abgesagt')),
-                        if (event.matchVenueType != null)
-                          MatchVenueBadge(
-                            type: event.matchVenueType!,
-                            compact: true,
-                          ),
+                        const SizedBox(height: 4),
+                        Text(
+                          [
+                            event.category.label,
+                            event.location,
+                            if (event.matchVenueType != null)
+                              event.matchVenueType!.label,
+                          ].join(' · '),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _CountChip(
+                              icon: Icons.check_circle_rounded,
+                              value: event.attendanceSummary.yes,
+                              color: AppColors.teal,
+                            ),
+                            _CountChip(
+                              icon: Icons.cancel_rounded,
+                              value: event.attendanceSummary.no,
+                              color: Colors.redAccent,
+                            ),
+                            if (event.capabilities.canManage)
+                              _CountChip(
+                                icon: Icons.hourglass_empty_rounded,
+                                value: event.attendanceSummary.unknown,
+                                color: AppColors.muted,
+                              ),
+                          ],
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      [
-                        event.category.label,
-                        event.location,
-                        if (event.matchVenueType != null)
-                          event.matchVenueType!.label,
-                      ].join(' · '),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _CountChip(
-                          icon: Icons.check_circle_rounded,
-                          value: event.attendanceSummary.yes,
-                          color: AppColors.teal,
-                        ),
-                        _CountChip(
-                          icon: Icons.cancel_rounded,
-                          value: event.attendanceSummary.no,
-                          color: Colors.redAccent,
-                        ),
-                        if (event.capabilities.canManage)
-                          _CountChip(
-                            icon: Icons.hourglass_empty_rounded,
-                            value: event.attendanceSummary.unknown,
-                            color: AppColors.muted,
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded),
+                ],
               ),
-              const Icon(Icons.chevron_right_rounded),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -7935,6 +8207,14 @@ String _calendarViewLabel(CalendarView view) => switch (view) {
       CalendarView.month => 'Monat',
       CalendarView.year => 'Jahr',
       CalendarView.agenda => 'Agenda',
+    };
+
+IconData _calendarViewIcon(CalendarView view) => switch (view) {
+      CalendarView.day => Icons.today_rounded,
+      CalendarView.week => Icons.view_week_rounded,
+      CalendarView.month => Icons.calendar_month_rounded,
+      CalendarView.year => Icons.calendar_view_month_rounded,
+      CalendarView.agenda => Icons.view_agenda_rounded,
     };
 
 String _apiErrorMessage(DioException error, String fallback) {

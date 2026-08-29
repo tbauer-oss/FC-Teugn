@@ -35,7 +35,7 @@ class TrainerMatchesPage extends ConsumerStatefulWidget {
 class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
   final _viewPreferences = MatchViewPreferences();
   MatchSortOrder _sortOrder = MatchSortOrder.nextFirst;
-  MatchViewMode _viewMode = MatchViewMode.standard;
+  MatchViewMode _viewMode = MatchViewMode.veryCompact;
 
   String get _preferenceUserId =>
       ref.read(authProvider).user?.id ?? 'anonymous';
@@ -1889,15 +1889,13 @@ String _matchSortLabel(MatchSortOrder order) => switch (order) {
     };
 
 String _matchViewLabel(MatchViewMode mode) => switch (mode) {
-      MatchViewMode.veryCompact => 'Sehr kompakt',
-      MatchViewMode.compact => 'Kompakt',
-      MatchViewMode.standard => 'Standard',
+      MatchViewMode.veryCompact => 'Kompakt',
+      MatchViewMode.standard => 'Normal',
       MatchViewMode.detailed => 'Detailliert',
     };
 
 IconData _matchViewIcon(MatchViewMode mode) => switch (mode) {
       MatchViewMode.veryCompact => Icons.view_headline_rounded,
-      MatchViewMode.compact => Icons.view_agenda_outlined,
       MatchViewMode.standard => Icons.view_stream_outlined,
       MatchViewMode.detailed => Icons.subject_rounded,
     };
@@ -2731,9 +2729,8 @@ class _MatchCard extends StatelessWidget {
         builder: (context, constraints) {
           final responsiveCompact =
               constraints.maxWidth < (openTournamentPlan == null ? 680 : 960);
-          final compact = responsiveCompact ||
-              viewMode == MatchViewMode.compact ||
-              viewMode == MatchViewMode.veryCompact;
+          final compact =
+              responsiveCompact || viewMode == MatchViewMode.veryCompact;
           final title = event.fixtureDisplayTitle;
           final dateLocation = [
             '${date.day}.${date.month}.${date.year}',
