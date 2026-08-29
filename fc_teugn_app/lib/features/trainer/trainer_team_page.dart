@@ -210,7 +210,7 @@ class _TeamPlayerLoadFailure extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.yellowSoft.withValues(alpha: .55),
+          color: context.appColors.brandSoft,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.yellow),
         ),
@@ -384,7 +384,9 @@ class _TeamAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: emphasized ? AppColors.yellowSoft : Colors.white,
+        color: emphasized
+            ? context.appColors.brandSoft
+            : context.appColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
           side: BorderSide(

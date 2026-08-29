@@ -422,11 +422,11 @@ class _MobilePlayerViewMenu extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: AppColors.yellowSoft,
+          color: context.appColors.brandSoft,
           borderRadius: BorderRadius.circular(13),
           border: Border.all(color: context.appColors.outline),
         ),
-        child: Icon(current.$2, size: 21),
+        child: Icon(current.$2, size: 21, color: context.appOnBrandSoft),
       ),
     );
   }

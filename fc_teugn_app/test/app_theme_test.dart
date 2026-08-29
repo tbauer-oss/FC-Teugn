@@ -38,6 +38,16 @@ void main() {
     );
     expect(theme.navigationBarTheme.backgroundColor, colors.surface);
     expect(theme.cardTheme.color, colors.surface);
+    expect(theme.iconTheme.color, colors.text);
+    expect(theme.disabledColor, isNot(colors.outline));
+    expect(
+      _contrast(colors.text, colors.brandSoft),
+      greaterThanOrEqualTo(7),
+    );
+    expect(
+      _contrast(theme.disabledColor, colors.surface),
+      greaterThanOrEqualTo(4.5),
+    );
   });
 
   for (final brightness in Brightness.values) {
@@ -108,6 +118,74 @@ void main() {
     }
 
     expect(violations, isEmpty);
+  });
+
+  test('feature surfaces do not pair dark-mode content with light backgrounds',
+      () {
+    final violations = <String>[];
+    for (final entity in Directory('lib').listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final normalized = entity.path.replaceAll('\\', '/');
+      if (normalized.endsWith('/core/app_theme.dart') ||
+          normalized.endsWith(
+              '/features/players/widgets/digital_signature_capture.dart') ||
+          normalized.endsWith('/features/matches/bfv_browser_page.dart')) {
+        continue;
+      }
+      final lines = entity.readAsLinesSync();
+      for (var index = 0; index < lines.length; index++) {
+        final line = lines[index];
+        final before =
+            lines.sublist(index > 3 ? index - 3 : 0, index + 1).join(' ');
+        final after = lines
+            .sublist(
+                index, index + 13 < lines.length ? index + 13 : lines.length)
+            .join(' ');
+        final isDirectColorProperty = RegExp(r'^\s*color\s*:').hasMatch(line);
+        final isBackgroundProperty =
+            RegExp(r'^\s*backgroundColor\s*:').hasMatch(line);
+        final isSurfaceContext = isBackgroundProperty ||
+            (isDirectColorProperty &&
+                (before.contains('BoxDecoration(') ||
+                    before.contains('Material(') ||
+                    before.contains('Card(') ||
+                    before.contains('CircleAvatar(')));
+        final hardLight = RegExp(
+          r'^\s*(?:backgroundColor|color)\s*:\s*(?:const\s+)?(?:Colors\.white\s*,|Color\(0xFF[FE][0-9A-Fa-f]{5}\)\s*,)',
+        ).hasMatch(line);
+        if (isSurfaceContext &&
+            hardLight &&
+            !after.contains('ClubLogo(') &&
+            !after.contains('AppColors.black')) {
+          violations.add('${entity.path}:${index + 1}: hard light surface');
+        }
+
+        final fixedBrandSurface = RegExp(
+          r'^\s*(?:backgroundColor|color)\s*:\s*AppColors\.(?:yellow|yellowSoft)\s*,',
+        ).hasMatch(line);
+        final progressTrack = before.contains('LinearProgressIndicator(');
+        if (isSurfaceContext &&
+            fixedBrandSurface &&
+            !progressTrack &&
+            !before.contains('AppColors.black') &&
+            !after.contains('AppColors.black')) {
+          violations.add(
+            '${entity.path}:${index + 1}: bright brand surface without dark foreground',
+          );
+        }
+      }
+    }
+
+    expect(violations, isEmpty);
+  });
+
+  test('fixed app chrome exposes all three theme choices', () {
+    final source = File('lib/features/shell/app_shell.dart').readAsStringSync();
+    expect(source, contains("ValueKey('fixed-header-theme-switch')"));
+    expect(source, contains('AppThemePreference.values'));
+    expect(source, contains('AppThemePreference.system'));
+    expect(source, contains('AppThemePreference.light'));
+    expect(source, contains('AppThemePreference.dark'));
   });
 
   test('system appearance remains the privacy-safe default preference', () {

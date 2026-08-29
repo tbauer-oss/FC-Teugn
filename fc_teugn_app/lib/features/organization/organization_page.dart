@@ -1818,7 +1818,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                     vertical: 13,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.yellowSoft.withValues(alpha: .55),
+                    color: context.appColors.brandSoft,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: context.appColors.outline),
                   ),
@@ -2374,7 +2374,7 @@ class _MatchRuleEditor extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.yellowSoft.withValues(alpha: .35),
+        color: context.appColors.brandSoft,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: context.appColors.outline),
       ),

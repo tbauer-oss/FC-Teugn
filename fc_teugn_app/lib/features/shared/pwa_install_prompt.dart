@@ -84,7 +84,7 @@ Future<void> showPwaInstallPrompt(BuildContext context) async {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.yellowSoft,
+                color: context.appColors.brandSoft,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(

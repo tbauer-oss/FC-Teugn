@@ -141,6 +141,10 @@ extension AppThemeContext on BuildContext {
 
   Color get appDanger =>
       isDarkMode ? const Color(0xFFFF9A92) : Theme.of(this).colorScheme.error;
+
+  /// Foreground for adaptive brand-soft surfaces. Unlike the fixed bright
+  /// club yellow, [AppSurfaceColors.brandSoft] becomes dark in dark mode.
+  Color get appOnBrandSoft => appColors.text;
 }
 
 ThemeData buildAppTheme({Brightness brightness = Brightness.light}) {
@@ -223,8 +227,11 @@ ThemeData buildAppTheme({Brightness brightness = Brightness.light}) {
     colorScheme: scheme,
     extensions: [surfaces],
     scaffoldBackgroundColor: surfaces.canvas,
+    disabledColor: dark ? const Color(0xFFB0B8B1) : const Color(0xFF5F645F),
     fontFamily: 'Arial',
     textTheme: textTheme,
+    iconTheme: IconThemeData(color: surfaces.text),
+    primaryIconTheme: IconThemeData(color: surfaces.text),
     cardTheme: CardThemeData(
       color: surfaces.surface,
       surfaceTintColor: Colors.transparent,
@@ -319,6 +326,8 @@ ThemeData buildAppTheme({Brightness brightness = Brightness.light}) {
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.yellow,
         foregroundColor: AppColors.black,
+        disabledBackgroundColor: surfaces.surfaceMuted,
+        disabledForegroundColor: surfaces.textMuted,
         minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -334,6 +343,7 @@ ThemeData buildAppTheme({Brightness brightness = Brightness.light}) {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: surfaces.text,
+        disabledForegroundColor: surfaces.textMuted,
         minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         side: BorderSide(color: surfaces.outline),
@@ -358,6 +368,35 @@ ThemeData buildAppTheme({Brightness brightness = Brightness.light}) {
         fontSize: 12,
       ),
       iconTheme: IconThemeData(color: scheme.primary),
+    ),
+    listTileTheme: ListTileThemeData(
+      textColor: surfaces.text,
+      iconColor: surfaces.textMuted,
+      selectedColor: surfaces.text,
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled)
+              ? surfaces.textMuted
+              : states.contains(WidgetState.selected)
+                  ? surfaces.text
+                  : surfaces.textMuted,
+        ),
+        iconColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled)
+              ? surfaces.textMuted
+              : states.contains(WidgetState.selected)
+                  ? scheme.primary
+                  : surfaces.textMuted,
+        ),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? surfaces.surfaceRaised
+              : Colors.transparent,
+        ),
+        side: WidgetStatePropertyAll(BorderSide(color: surfaces.outline)),
+      ),
     ),
     tabBarTheme: TabBarThemeData(
       labelColor: dark ? surfaces.text : AppColors.black,

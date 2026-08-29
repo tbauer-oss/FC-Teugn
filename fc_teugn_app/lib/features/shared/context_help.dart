@@ -276,7 +276,7 @@ class _ContextHelpSheet extends StatelessWidget {
                       width: 46,
                       height: 46,
                       decoration: BoxDecoration(
-                        color: AppColors.yellowSoft,
+                        color: context.appColors.brandSoft,
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: const Icon(Icons.help_outline_rounded),

@@ -1030,7 +1030,7 @@ class _TournamentPlanningNotice extends StatelessWidget {
               vertical: compact ? 7 : 10,
             ),
             decoration: BoxDecoration(
-              color: AppColors.yellowSoft,
+              color: context.appColors.brandSoft,
               borderRadius: BorderRadius.circular(compact ? 12 : 14),
               border: Border.all(color: context.appColors.outline),
             ),
@@ -1381,7 +1381,7 @@ class _ParentPlayerRatingsTabState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Card(
-            color: AppColors.yellowSoft,
+            color: context.appColors.brandSoft,
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
@@ -1912,13 +1912,13 @@ class _OfflineBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF4E5),
-        border: Border.all(color: const Color(0xFFF59E0B)),
+        color: context.appColors.brandSoft,
+        border: Border.all(color: context.appWarning),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
-          const Icon(Icons.cloud_off_rounded, color: Color(0xFF9A3412)),
+          Icon(Icons.cloud_off_rounded, color: context.appWarning),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -2816,7 +2816,7 @@ class _SquadTeamFilter extends StatelessWidget {
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: AppColors.yellowSoft,
+                      color: context.appColors.brandSoft,
                       borderRadius: BorderRadius.circular(11),
                     ),
                     child: Icon(
@@ -2907,7 +2907,7 @@ class _SquadTeamFilter extends StatelessWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: AppColors.yellowSoft,
+                    color: context.appColors.brandSoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -2965,7 +2965,7 @@ class _SquadTeamFilterOption extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 4),
         child: Material(
-          color: selected ? AppColors.yellowSoft : Colors.transparent,
+          color: selected ? context.appColors.brandSoft : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           child: ListTile(
             dense: true,
@@ -4962,7 +4962,7 @@ class _AutomaticLineupNotice extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: replacements > 0
-              ? AppColors.yellowSoft
+              ? context.appColors.brandSoft
               : context.appSuccess.withValues(alpha: .1),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
@@ -5673,17 +5673,17 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF7ED),
+              color: context.appColors.brandSoft,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFFDBA74)),
+              border: Border.all(color: context.appWarning),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Lokal vorgemerkte Aktionen',
                   style: TextStyle(
-                    color: Color(0xFF9A3412),
+                    color: context.appWarning,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -5840,17 +5840,17 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF7ED),
+          color: context.appColors.brandSoft,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFFDBA74)),
+          border: Border.all(color: context.appWarning),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Lokal vorgemerkte Aktionen',
               style: TextStyle(
-                color: Color(0xFF9A3412),
+                color: context.appWarning,
                 fontWeight: FontWeight.w900,
               ),
             ),

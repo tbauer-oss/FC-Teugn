@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:fc_teugn_app/core/app_theme_controller.dart';
 import 'package:fc_teugn_app/features/shell/app_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,6 +91,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     var refreshCount = 0;
     var homeCount = 0;
+    AppThemePreference? selectedTheme;
 
     final destinations = <ShellDestination>[
       const ShellDestination(
@@ -189,6 +191,7 @@ void main() {
                 onSelect: (_) {},
                 onLogout: () {},
                 onRefresh: () async => refreshCount++,
+                onThemePreferenceChanged: (value) => selectedTheme = value,
               ),
               const Expanded(child: SizedBox()),
             ],
@@ -202,6 +205,16 @@ void main() {
     expect(find.text('MEINE MANNSCHAFT'), findsOneWidget);
     expect(find.text('TRAINING & SPIELBETRIEB'), findsOneWidget);
     expect(find.byTooltip('Daten aktualisieren'), findsOneWidget);
+    expect(find.byTooltip('Darstellung: System'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Darstellung: System'));
+    await tester.pumpAndSettle();
+    expect(find.text('System'), findsOneWidget);
+    expect(find.text('Hell'), findsOneWidget);
+    expect(find.text('Dunkel'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('theme-option-dark')));
+    await tester.pumpAndSettle();
+    expect(selectedTheme, AppThemePreference.dark);
 
     await tester.tap(find.byTooltip('Daten aktualisieren'));
     await tester.pumpAndSettle();

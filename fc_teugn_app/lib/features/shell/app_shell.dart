@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_identity.dart';
 import '../../core/app_theme.dart';
+import '../../core/app_theme_controller.dart';
 import '../../core/club_logo.dart';
 import '../auth/auth_controller.dart';
 import '../../core/providers.dart';
@@ -354,6 +355,7 @@ class AppShell extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final organization = ref.watch(organizationProvider).valueOrNull;
     final queuedWrites = ref.watch(offlineOutboxCountProvider).valueOrNull ?? 0;
+    final themePreference = ref.watch(appThemePreferenceProvider);
     final location = GoRouterState.of(context).uri.path;
     final matchedIndex = _matchingIndex(location, destinations);
     final selectedIndex = matchedIndex ?? 0;
@@ -416,6 +418,10 @@ class AppShell extends ConsumerWidget {
                       : () => context.go(helpDestination.route),
                   onAbout: () => showAppAboutSheet(context),
                   onRefresh: () => _refreshApp(ref),
+                  themePreference: themePreference,
+                  onThemePreferenceChanged: (value) => ref
+                      .read(appThemePreferenceProvider.notifier)
+                      .select(value),
                 ),
               Expanded(
                 child: Column(
@@ -451,6 +457,10 @@ class AppShell extends ConsumerWidget {
                             : () => context.go(helpDestination.route),
                         onAbout: () => showAppAboutSheet(context),
                         onRefresh: () => _refreshApp(ref),
+                        themePreference: themePreference,
+                        onThemePreferenceChanged: (value) => ref
+                            .read(appThemePreferenceProvider.notifier)
+                            .select(value),
                       ),
                     if (authState.user?.isReadOnlyPreview == true)
                       _ReadOnlyPreviewBanner(
@@ -486,7 +496,7 @@ class AppShell extends ConsumerWidget {
                       ),
                     if (queuedWrites > 0)
                       Material(
-                        color: AppColors.yellowSoft,
+                        color: context.appColors.brandSoft,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -593,7 +603,7 @@ class _ReadOnlyPreviewBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: AppColors.yellowSoft,
+        color: context.appColors.brandSoft,
         child: SafeArea(
           top: false,
           child: Padding(
@@ -698,6 +708,8 @@ class DesktopSidebar extends StatelessWidget {
     this.onHelp = _noOp,
     this.onAbout = _noOp,
     this.onRefresh = _noOpAsync,
+    this.themePreference = AppThemePreference.system,
+    this.onThemePreferenceChanged,
   });
 
   final String title;
@@ -716,6 +728,8 @@ class DesktopSidebar extends StatelessWidget {
   final VoidCallback onHelp;
   final VoidCallback onAbout;
   final Future<void> Function() onRefresh;
+  final AppThemePreference themePreference;
+  final ValueChanged<AppThemePreference>? onThemePreferenceChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -743,6 +757,13 @@ class DesktopSidebar extends StatelessWidget {
                   _RefreshIconButton(
                     onRefresh: onRefresh,
                     color: Colors.white70,
+                    compact: true,
+                  ),
+                  _ThemeModeButton(
+                    preference: themePreference,
+                    onSelected: onThemePreferenceChanged,
+                    compact: true,
+                    onDarkSurface: true,
                   ),
                 ],
               ),
@@ -1281,7 +1302,7 @@ class MobileNavigationPanel extends StatelessWidget {
           if (offerInstall && onInstall != null) ...[
             const SizedBox(height: 8),
             Material(
-              color: AppColors.yellowSoft,
+              color: context.appColors.brandSoft,
               borderRadius: BorderRadius.circular(18),
               child: InkWell(
                 onTap: onInstall,
@@ -1542,7 +1563,7 @@ class _MobileMenuDestination extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Material(
-        color: selected ? AppColors.yellowSoft : Colors.transparent,
+        color: selected ? context.appColors.brandSoft : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
@@ -1581,8 +1602,9 @@ class _MobileMenuDestination extends StatelessWidget {
                       ? Icons.check_circle_rounded
                       : Icons.chevron_right_rounded,
                   size: 20,
-                  color:
-                      selected ? AppColors.gold : context.appColors.textMuted,
+                  color: selected
+                      ? context.appWarning
+                      : context.appColors.textMuted,
                 ),
               ],
             ),
@@ -1633,6 +1655,8 @@ class _MobileHeader extends StatelessWidget {
     required this.onHelp,
     required this.onAbout,
     required this.onRefresh,
+    required this.themePreference,
+    required this.onThemePreferenceChanged,
   });
 
   final String title;
@@ -1646,6 +1670,8 @@ class _MobileHeader extends StatelessWidget {
   final VoidCallback onHelp;
   final VoidCallback onAbout;
   final Future<void> Function() onRefresh;
+  final AppThemePreference themePreference;
+  final ValueChanged<AppThemePreference> onThemePreferenceChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1736,6 +1762,11 @@ class _MobileHeader extends StatelessWidget {
                 _RefreshIconButton(
                   onRefresh: onRefresh,
                   color: context.appColors.textMuted,
+                  compact: true,
+                ),
+                _ThemeModeButton(
+                  preference: themePreference,
+                  onSelected: onThemePreferenceChanged,
                   compact: true,
                 ),
                 if (showDecorativeIdentity) ...[
@@ -1863,6 +1894,60 @@ class _RefreshIconButtonState extends State<_RefreshIconButton> {
 
 enum _MobileAccountAction { account, help, privacy, about, logout }
 
+class _ThemeModeButton extends StatelessWidget {
+  const _ThemeModeButton({
+    required this.preference,
+    required this.onSelected,
+    this.compact = false,
+    this.onDarkSurface = false,
+  });
+
+  final AppThemePreference preference;
+  final ValueChanged<AppThemePreference>? onSelected;
+  final bool compact;
+  final bool onDarkSurface;
+
+  IconData _icon(AppThemePreference preference) => switch (preference) {
+        AppThemePreference.system => Icons.brightness_auto_rounded,
+        AppThemePreference.light => Icons.light_mode_rounded,
+        AppThemePreference.dark => Icons.dark_mode_rounded,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground =
+        onDarkSurface ? Colors.white70 : context.appColors.textMuted;
+    return SizedBox.square(
+      dimension: compact ? 36 : 42,
+      child: PopupMenuButton<AppThemePreference>(
+        key: const ValueKey('fixed-header-theme-switch'),
+        tooltip: 'Darstellung: ${preference.label}',
+        initialValue: preference,
+        icon: Icon(_icon(preference), color: foreground),
+        iconSize: compact ? 19 : 20,
+        padding: EdgeInsets.zero,
+        enabled: onSelected != null,
+        onSelected: onSelected,
+        itemBuilder: (context) => [
+          for (final value in AppThemePreference.values)
+            CheckedPopupMenuItem<AppThemePreference>(
+              key: ValueKey('theme-option-${value.name}'),
+              value: value,
+              checked: value == preference,
+              child: Row(
+                children: [
+                  Icon(_icon(value), size: 19),
+                  const SizedBox(width: 10),
+                  Text(value.label),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ClubBrand extends StatelessWidget {
   const _ClubBrand({required this.light, required this.onTap});
 
@@ -1883,8 +1968,8 @@ class _ClubBrand extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const ClubLogo(size: 48),
-              const SizedBox(width: 11),
+              const ClubLogo(size: 40),
+              const SizedBox(width: 7),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1892,6 +1977,7 @@ class _ClubBrand extends StatelessWidget {
                     'FC TEUGN',
                     style: TextStyle(
                       color: foreground,
+                      fontSize: 13,
                       fontWeight: FontWeight.w900,
                       letterSpacing: .4,
                     ),

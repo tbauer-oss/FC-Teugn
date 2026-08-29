@@ -18,9 +18,9 @@ class MatchVenueBadge extends StatelessWidget {
     final (icon, foreground, background, border) = switch (type) {
       MatchVenueType.home => (
           Icons.home_rounded,
-          AppColors.gold,
-          AppColors.yellowSoft,
-          AppColors.gold.withValues(alpha: .34),
+          context.appWarning,
+          context.appColors.brandSoft,
+          context.appWarning.withValues(alpha: .34),
         ),
       MatchVenueType.away => (
           Icons.directions_bus_rounded,
@@ -30,9 +30,9 @@ class MatchVenueBadge extends StatelessWidget {
         ),
       MatchVenueType.tournament => (
           Icons.emoji_events_rounded,
-          AppColors.gold,
-          AppColors.yellowSoft,
-          AppColors.gold.withValues(alpha: .34),
+          context.appWarning,
+          context.appColors.brandSoft,
+          context.appWarning.withValues(alpha: .34),
         ),
     };
     return Semantics(

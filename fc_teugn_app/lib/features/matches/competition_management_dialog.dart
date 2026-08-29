@@ -885,7 +885,7 @@ class _StandingsTable extends StatelessWidget {
             for (final row in rows)
               DataRow(
                 color: row.isOwnTeam
-                    ? const WidgetStatePropertyAll(AppColors.yellowSoft)
+                    ? WidgetStatePropertyAll(context.appColors.brandSoft)
                     : null,
                 cells: [
                   DataCell(Text('${row.rank}.')),

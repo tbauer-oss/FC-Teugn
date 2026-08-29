@@ -173,7 +173,7 @@ class _DashboardNotificationPanelState
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: AppColors.yellowSoft,
+                  color: context.appColors.brandSoft,
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: Icon(
@@ -366,8 +366,7 @@ class _NotificationRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _notificationColor(item.category);
     return Material(
-      color:
-          unread ? AppColors.yellowSoft.withValues(alpha: .42) : Colors.white,
+      color: unread ? context.appColors.brandSoft : context.appColors.surface,
       child: InkWell(
         onTap: onOpen,
         child: Padding(

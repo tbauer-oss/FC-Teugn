@@ -573,7 +573,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                               child: Container(
                                 width: double.infinity,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE9EBE4),
+                                  color: context.appColors.surfaceMuted,
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
                                       color: context.appColors.outline),

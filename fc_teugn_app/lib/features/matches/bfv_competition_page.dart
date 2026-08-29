@@ -361,7 +361,7 @@ class _BfvActionCard extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.yellowSoft,
+                      color: context.appColors.brandSoft,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Icon(icon, color: context.appWarning),
@@ -408,7 +408,7 @@ class _EmptyBfvState extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: AppColors.yellowSoft.withValues(alpha: .55),
+          color: context.appColors.brandSoft,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: context.appWarning.withValues(alpha: .18)),
         ),

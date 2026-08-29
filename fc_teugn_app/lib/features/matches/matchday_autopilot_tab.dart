@@ -478,7 +478,7 @@ class _StrategySelector extends StatelessWidget {
                           'restore-starters-to-starting-positions'),
                       padding: EdgeInsets.only(top: compact ? 8 : 12),
                       child: Material(
-                        color: AppColors.yellowSoft.withValues(alpha: .55),
+                        color: context.appColors.brandSoft,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                           side: BorderSide(color: context.appColors.outline),
@@ -959,7 +959,7 @@ class _SubstitutionRow extends StatelessWidget {
             height: 33,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.yellowSoft,
+              color: context.appColors.brandSoft,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
@@ -1247,7 +1247,7 @@ class _SectionCard extends StatelessWidget {
                   width: 34,
                   height: 34,
                   decoration: BoxDecoration(
-                    color: AppColors.yellowSoft,
+                    color: context.appColors.brandSoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icon, color: context.appWarning, size: 19),

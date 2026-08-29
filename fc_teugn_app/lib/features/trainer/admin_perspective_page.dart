@@ -50,7 +50,7 @@ class _AdminPerspectivePageState extends ConsumerState<AdminPerspectivePage> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.yellowSoft,
+              color: context.appColors.brandSoft,
               borderRadius: BorderRadius.circular(18),
               border:
                   Border.all(color: context.appWarning.withValues(alpha: .22)),

@@ -648,7 +648,7 @@ class _ProfileHero extends StatelessWidget {
                   ? Text(
                       player.initials,
                       style: TextStyle(
-                        color: AppColors.navy,
+                        color: AppColors.black,
                         fontSize: compact ? 16 : 21,
                         fontWeight: FontWeight.w900,
                       ),
@@ -681,6 +681,7 @@ class _ProfileHero extends StatelessWidget {
                   child: const CircleAvatar(
                     radius: 15,
                     backgroundColor: Colors.white,
+                    foregroundColor: AppColors.black,
                     child: Icon(Icons.edit_rounded, size: 17),
                   ),
                 ),
@@ -2014,12 +2015,12 @@ class _ConsentCard extends ConsumerWidget {
               if (template != items.last) const Divider(height: 22),
             ],
             const SizedBox(height: 10),
-            const DecoratedBox(
+            DecoratedBox(
               decoration: BoxDecoration(
-                color: Color(0xFFFFF8D8),
-                borderRadius: BorderRadius.all(Radius.circular(12)),
+                color: context.appColors.brandSoft,
+                borderRadius: const BorderRadius.all(Radius.circular(12)),
               ),
-              child: Padding(
+              child: const Padding(
                 padding: EdgeInsets.all(12),
                 child: Text(
                   'Die Vorlagen sind DSGVO-orientiert und für die Vereinsprüfung vorbereitet. Vor dem verbindlichen Einsatz müssen Vereinsanschrift, Kommunikationsdienste und die Datenschutzinformationen durch den Verein aktuell gehalten und fachlich geprüft werden.',
@@ -2513,7 +2514,7 @@ class _DigitalConsentDialogState extends State<_DigitalConsentDialog> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3D5),
+                          color: context.appColors.brandSoft,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(

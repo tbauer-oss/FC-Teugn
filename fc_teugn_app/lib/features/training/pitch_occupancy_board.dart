@@ -647,7 +647,7 @@ class _OccupancyViewSelector extends StatelessWidget {
           height: 44,
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            color: const Color(0xFFF0EEE4),
+            color: context.appColors.surfaceMuted,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: context.appColors.outline),
           ),
@@ -693,7 +693,8 @@ class _OccupancyViewButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Expanded(
         child: Material(
-          color: selected ? Colors.white : Colors.transparent,
+          color:
+              selected ? context.appColors.surfaceRaised : Colors.transparent,
           borderRadius: BorderRadius.circular(11),
           child: InkWell(
             onTap: onTap,
@@ -719,8 +720,9 @@ class _OccupancyViewButton extends StatelessWidget {
                   Icon(
                     icon,
                     size: 17,
-                    color:
-                        selected ? AppColors.gold : context.appColors.textMuted,
+                    color: selected
+                        ? context.appWarning
+                        : context.appColors.textMuted,
                   ),
                   const SizedBox(width: 5),
                   Flexible(
@@ -1079,7 +1081,8 @@ class _DesktopTeamRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = shaded ? const Color(0xFFF8F7F2) : Colors.white;
+    final background =
+        shaded ? context.appColors.surfaceMuted : context.appColors.surface;
     return Container(
       color: background,
       child: IntrinsicHeight(
@@ -1194,6 +1197,7 @@ class _MobileBoard extends StatelessWidget {
                                       .substring(0, 2)
                                       .toUpperCase(),
                                   style: const TextStyle(
+                                    color: AppColors.black,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),

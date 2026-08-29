@@ -644,7 +644,7 @@ class _PreviewSummary extends StatelessWidget {
           Container(
             padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
             decoration: BoxDecoration(
-              color: AppColors.yellowSoft.withValues(alpha: .5),
+              color: context.appColors.brandSoft,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: Theme.of(context).dividerColor),
             ),
@@ -781,7 +781,7 @@ class _ImportRowTile extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: selected
-                ? AppColors.yellowSoft.withValues(alpha: .18)
+                ? context.appColors.brandSoft
                 : Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
@@ -860,7 +860,7 @@ class _ImportRowTile extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.yellowSoft,
+                    color: context.appColors.brandSoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text(

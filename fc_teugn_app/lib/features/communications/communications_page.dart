@@ -4290,7 +4290,10 @@ class _ComposeAnnouncementDialogState
               color: AppColors.yellow,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(Icons.edit_notifications_rounded),
+            child: const Icon(
+              Icons.edit_notifications_rounded,
+              color: AppColors.black,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(

@@ -386,7 +386,7 @@ class _SpielPlusBrowserPageState extends State<SpielPlusBrowserPage> {
                     value: _progress > 0 ? _progress / 100 : null,
                     minHeight: 3,
                     color: context.appWarning,
-                    backgroundColor: AppColors.yellowSoft,
+                    backgroundColor: context.appColors.brandSoft,
                   ),
                 )
               : null,
@@ -430,7 +430,7 @@ class SpielPlusSettingsCard extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: AppColors.yellowSoft,
+                  backgroundColor: context.appColors.brandSoft,
                   foregroundColor: context.appWarning,
                   child: const Icon(Icons.sports_soccer_rounded),
                 ),
@@ -743,7 +743,7 @@ class _LocalCredentialNotice extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
-          color: AppColors.yellowSoft,
+          color: context.appColors.brandSoft,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -775,7 +775,7 @@ class _SpielPlusWebNoticeBody extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.yellowSoft,
+          color: context.appColors.brandSoft,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(

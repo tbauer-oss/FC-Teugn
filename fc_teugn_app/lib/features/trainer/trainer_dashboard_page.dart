@@ -644,7 +644,7 @@ class _TodayTrainingsStrip extends StatelessWidget {
             gradient: LinearGradient(
               colors: [
                 context.appSuccess.withValues(alpha: .10),
-                AppColors.yellowSoft.withValues(alpha: .30),
+                context.appColors.brandSoft,
               ],
             ),
             border: Border.all(
@@ -784,8 +784,8 @@ class _NextTrainingsOverview extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.yellowSoft.withValues(alpha: .20),
-              Colors.white,
+              context.appColors.brandSoft.withValues(alpha: .72),
+              context.appColors.surface,
             ],
           ),
         ),
@@ -805,7 +805,7 @@ class _NextTrainingsOverview extends StatelessWidget {
                     width: compact ? 32 : 36,
                     height: compact ? 32 : 36,
                     decoration: BoxDecoration(
-                      color: AppColors.yellowSoft,
+                      color: context.appColors.brandSoft,
                       borderRadius: BorderRadius.circular(11),
                     ),
                     child: const Icon(Icons.sports_rounded, size: 19),
@@ -894,7 +894,7 @@ class _NextTrainingsOverview extends StatelessWidget {
                         players,
                       ),
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.yellowSoft,
+                        backgroundColor: context.appColors.brandSoft,
                         foregroundColor: context.appWarning,
                         padding:
                             EdgeInsets.symmetric(vertical: compact ? 8 : 10),
@@ -946,7 +946,7 @@ class _TrainingTeamCount extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.yellowSoft,
+          color: context.appColors.brandSoft,
           borderRadius: BorderRadius.circular(99),
         ),
         child: Text(
@@ -980,7 +980,7 @@ class _TrainingScheduleLine extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.yellowSoft,
+                color: context.appColors.brandSoft,
                 borderRadius: BorderRadius.circular(7),
               ),
               child: Text(
@@ -2236,7 +2236,10 @@ class _EmptyNextEvent extends StatelessWidget {
               color: AppColors.yellow,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(Icons.event_available_rounded),
+            child: const Icon(
+              Icons.event_available_rounded,
+              color: AppColors.black,
+            ),
           ),
           const SizedBox(width: 13),
           const Expanded(
@@ -2660,7 +2663,7 @@ class _AgendaRow extends StatelessWidget {
                 width: 36,
                 padding: const EdgeInsets.symmetric(vertical: 5),
                 decoration: BoxDecoration(
-                  color: AppColors.yellowSoft,
+                  color: context.appColors.brandSoft,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(
@@ -2842,7 +2845,7 @@ class _PlayerLoadFailure extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: AppColors.yellowSoft.withValues(alpha: .55),
+          color: context.appColors.brandSoft,
           borderRadius: BorderRadius.circular(13),
           border: Border.all(color: AppColors.yellow),
         ),

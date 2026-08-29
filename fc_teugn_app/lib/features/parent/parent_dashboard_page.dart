@@ -586,7 +586,7 @@ class _ImportantResponse extends StatelessWidget {
         decoration: BoxDecoration(
           color: item.isOverdue
               ? Colors.red.withValues(alpha: .06)
-              : AppColors.yellowSoft.withValues(alpha: .46),
+              : context.appColors.brandSoft,
           borderRadius: BorderRadius.circular(14),
         ),
         child:
@@ -787,7 +787,7 @@ class _TimelineRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 6),
               decoration: BoxDecoration(
                 color: item.isMatch
-                    ? AppColors.yellowSoft
+                    ? context.appColors.brandSoft
                     : context.appSuccess.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(11),
               ),

@@ -389,7 +389,11 @@ class _PrivacyOverviewHero extends StatelessWidget {
                   color: AppColors.yellow,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(Icons.privacy_tip_outlined, size: 28),
+                child: const Icon(
+                  Icons.privacy_tip_outlined,
+                  color: AppColors.black,
+                  size: 28,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -670,7 +674,7 @@ class PrivacyInformationCenter extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Card(
-          color: AppColors.yellowSoft.withValues(alpha: .45),
+          color: context.appColors.brandSoft,
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: LayoutBuilder(
@@ -758,7 +762,7 @@ class _PrivacyDisclosure extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: AppColors.yellowSoft,
+              color: context.appColors.brandSoft,
               borderRadius: BorderRadius.circular(13),
             ),
             child: Icon(icon, color: context.appWarning),
@@ -818,7 +822,7 @@ class _PrivacyRight extends StatelessWidget {
               constraints: const BoxConstraints(minWidth: 70),
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.yellowSoft,
+                color: context.appColors.brandSoft,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(

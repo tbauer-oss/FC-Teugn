@@ -3282,9 +3282,16 @@ class _GuardianChildPickerSheetState extends State<_GuardianChildPickerSheet> {
                           ),
                           leading: CircleAvatar(
                             backgroundColor: requested
-                                ? AppColors.yellowSoft
+                                ? context.appColors.brandSoft
                                 : context.appColors.surfaceMuted,
-                            child: Text(player.initials),
+                            child: Text(
+                              player.initials,
+                              style: TextStyle(
+                                color: requested
+                                    ? context.appOnBrandSoft
+                                    : context.appColors.text,
+                              ),
+                            ),
                           ),
                           title: Text(
                             player.fullName,

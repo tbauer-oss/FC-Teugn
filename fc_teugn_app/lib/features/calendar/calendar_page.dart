@@ -1377,7 +1377,7 @@ class _MonthView extends StatelessWidget {
                               bottom:
                                   BorderSide(color: context.appColors.outline),
                             ),
-                            color: const Color(0xFFF9FBFC),
+                            color: context.appColors.surfaceMuted,
                           ),
                         );
                       }
@@ -3085,7 +3085,7 @@ class _TournamentPlanCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: AppColors.yellowSoft,
+          color: context.appColors.brandSoft,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: context.appWarning.withValues(alpha: .28)),
         ),
@@ -3147,14 +3147,14 @@ class _EmergencyAccessCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Card(
-      color: const Color(0xFFFFF4E5),
+      color: context.appColors.brandSoft,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.health_and_safety_rounded,
-                color: Color(0xFF9A3412), size: 28),
+            Icon(Icons.health_and_safety_rounded,
+                color: context.appWarning, size: 28),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -3163,7 +3163,7 @@ class _EmergencyAccessCard extends ConsumerWidget {
                   Text(
                     'Geschützte Notfallansicht',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: const Color(0xFF7C2D12),
+                          color: context.appWarning,
                           fontWeight: FontWeight.w900,
                         ),
                   ),
@@ -3177,6 +3177,7 @@ class _EmergencyAccessCard extends ConsumerWidget {
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF9A3412),
+                      foregroundColor: Colors.white,
                     ),
                     onPressed: () => _open(context, ref),
                     icon: const Icon(Icons.lock_open_rounded),
@@ -3350,9 +3351,9 @@ class _EmergencyViewDialog extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFE4E6),
+                      color: context.appColors.dangerSoft,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFFB7185)),
+                      border: Border.all(color: context.appDanger),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3363,7 +3364,7 @@ class _EmergencyViewDialog extends StatelessWidget {
                               .textTheme
                               .headlineSmall
                               ?.copyWith(
-                                color: const Color(0xFF881337),
+                                color: context.appDanger,
                                 fontWeight: FontWeight.w900,
                               ),
                         ),
@@ -3463,17 +3464,17 @@ class _EmergencyPlayerCard extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1F2),
+                  color: context.appColors.dangerSoft,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFFDA4AF)),
+                  border: Border.all(color: context.appDanger),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Medizinische Notfallhinweise',
                       style: TextStyle(
-                        color: Color(0xFF9F1239),
+                        color: context.appDanger,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -6044,9 +6045,9 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       ),
                       if (category.isTournament) ...[
                         const SizedBox(height: 12),
-                        const Card(
-                          color: AppColors.yellowSoft,
-                          child: ListTile(
+                        Card(
+                          color: context.appColors.brandSoft,
+                          child: const ListTile(
                             leading: Icon(Icons.account_tree_rounded),
                             title: Text('Turnier mit mehreren Partien'),
                             subtitle: Text(
@@ -6735,7 +6736,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                             Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                color: AppColors.yellowSoft,
+                                color: context.appColors.brandSoft,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
                                   color:

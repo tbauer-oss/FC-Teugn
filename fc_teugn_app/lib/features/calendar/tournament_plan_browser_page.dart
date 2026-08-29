@@ -185,7 +185,7 @@ class _TournamentPlanBrowserPageState extends State<TournamentPlanBrowserPage> {
                   value: _progress > 0 ? _progress / 100 : null,
                   minHeight: 3,
                   color: context.appWarning,
-                  backgroundColor: AppColors.yellowSoft,
+                  backgroundColor: context.appColors.brandSoft,
                 ),
               )
             : null,

@@ -495,7 +495,7 @@ class _HelpTrustStrip extends StatelessWidget {
                     vertical: 11,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.yellowSoft.withValues(alpha: .52),
+                    color: context.appColors.brandSoft,
                     borderRadius: BorderRadius.circular(15),
                     border: Border.all(color: context.appColors.outline),
                   ),
@@ -631,11 +631,14 @@ class _ArticleList extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: AppColors.yellowSoft,
+                  color: context.appColors.brandSoft,
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(article.category.icon,
-                    color: AppColors.black, size: 21),
+                child: Icon(
+                  article.category.icon,
+                  color: context.appOnBrandSoft,
+                  size: 21,
+                ),
               ),
               title: Text(article.title,
                   style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -685,10 +688,13 @@ class _ArticleContent extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.yellowSoft,
+                  color: context.appColors.brandSoft,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(article.category.icon),
+                child: Icon(
+                  article.category.icon,
+                  color: context.appOnBrandSoft,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -734,7 +740,7 @@ class _ArticleContent extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.yellowSoft.withValues(alpha: .62),
+              color: context.appColors.brandSoft,
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(

@@ -2180,7 +2180,7 @@ class _TournamentPlanToolbar extends StatelessWidget {
               vertical: compact ? 9 : 12,
             ),
             decoration: BoxDecoration(
-              color: AppColors.yellowSoft,
+              color: context.appColors.brandSoft,
               borderRadius: BorderRadius.circular(compact ? 14 : 18),
               border: Border.all(color: context.appColors.outline),
             ),
@@ -2779,7 +2779,7 @@ class _MatchCard extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: isFriendly
-                          ? AppColors.yellowSoft
+                          ? context.appColors.brandSoft
                           : context.appInfo.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
@@ -3374,7 +3374,7 @@ class _MatchLogos extends StatelessWidget {
             width: size,
             height: size,
             decoration: BoxDecoration(
-              color: AppColors.yellowSoft,
+              color: context.appColors.brandSoft,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(Icons.emoji_events_rounded, color: context.appWarning),

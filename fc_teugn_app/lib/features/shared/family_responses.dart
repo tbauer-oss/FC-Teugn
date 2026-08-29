@@ -318,7 +318,7 @@ class _ResponsePeriodPicker extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.fromLTRB(11, 7, 9, 7),
             decoration: BoxDecoration(
-              color: AppColors.yellowSoft.withValues(alpha: .42),
+              color: context.appColors.brandSoft,
               border: Border.all(color: context.appColors.outline),
               borderRadius: BorderRadius.circular(15),
             ),
@@ -714,7 +714,7 @@ class _RegularTrainingSeriesSheetState
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: AppColors.yellowSoft,
+                    color: context.appColors.brandSoft,
                     borderRadius: BorderRadius.circular(13),
                   ),
                   child: const Icon(Icons.event_repeat_rounded),
@@ -817,8 +817,9 @@ class _SeriesPeriodButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color:
-            emphasized ? AppColors.yellowSoft : context.appColors.surfaceMuted,
+        color: emphasized
+            ? context.appColors.brandSoft
+            : context.appColors.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onPressed,

@@ -540,7 +540,7 @@ class _BiometricHint extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.yellowSoft,
+        color: context.appColors.brandSoft,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -579,7 +579,7 @@ class _SettingsCard extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: AppColors.yellowSoft,
+                  backgroundColor: context.appColors.brandSoft,
                   foregroundColor: context.appWarning,
                   child: Icon(icon),
                 ),
