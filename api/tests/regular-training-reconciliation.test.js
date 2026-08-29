@@ -145,11 +145,19 @@ test('series confirmations are persisted and preserve explicit absences', () => 
   assert.match(controller, /validUntil/);
   assert.match(
     reconciliation,
-    /existingByPlayer\.get\(preference\.playerId\) === AttendanceStatus\.NO/,
+    /current\?\.status === AttendanceStatus\.NO/,
+  );
+  assert.match(
+    reconciliation,
+    /isAutomaticDailyDeclineReason\(current\.reason\)/,
   );
   assert.match(
     reconciliation,
     /regularTrainingAttendancePreference\.findMany/,
+  );
+  assert.match(
+    reconciliation,
+    /acceptAttendanceExclusivelyForDay/,
   );
 });
 

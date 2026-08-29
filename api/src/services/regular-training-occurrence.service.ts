@@ -7,6 +7,10 @@ import {
   Prisma,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import {
+  acceptAttendanceExclusivelyForDay,
+  isAutomaticDailyDeclineReason,
+} from './daily-attendance-conflict.service';
 import { parseTrainingSlot } from './pitch-conflict.service';
 
 export type RegularTrainingTeamSchedule = {
@@ -82,7 +86,9 @@ async function applyRegularTrainingAttendancePreferences(
       respondedById: true,
       responseSource: true,
       responderRelationship: true,
+      updatedAt: true,
     },
+    orderBy: { playerId: 'asc' },
   });
   if (preferences.length === 0) return;
 
@@ -91,43 +97,34 @@ async function applyRegularTrainingAttendancePreferences(
       eventId,
       playerId: { in: preferences.map((item) => item.playerId) },
     },
-    select: { playerId: true, status: true },
+    select: { playerId: true, status: true, reason: true },
   });
   const existingByPlayer = new Map(
-    existing.map((item) => [item.playerId, item.status]),
+    existing.map((item) => [item.playerId, item]),
   );
-  const now = new Date();
-  await Promise.all(
-    preferences.map(async (preference) => {
-      // Eine bewusst für diesen konkreten Termin eingetragene Absage ist eine
-      // Ausnahme und darf von der Serienzusage niemals überschrieben werden.
-      if (existingByPlayer.get(preference.playerId) === AttendanceStatus.NO) {
-        return;
-      }
-      await tx.attendance.upsert({
-        where: {
-          eventId_playerId: { eventId, playerId: preference.playerId },
-        },
-        update: {
-          status: AttendanceStatus.YES,
-          reason: null,
-          respondedById: preference.respondedById,
-          respondedAt: now,
-          responseSource: preference.responseSource,
-          responderRelationship: preference.responderRelationship,
-        },
-        create: {
-          eventId,
-          playerId: preference.playerId,
-          status: AttendanceStatus.YES,
-          respondedById: preference.respondedById,
-          respondedAt: now,
-          responseSource: preference.responseSource,
-          responderRelationship: preference.responderRelationship,
-        },
-      });
-    }),
-  );
+  for (const preference of preferences) {
+    const current = existingByPlayer.get(preference.playerId);
+    // Eine bewusst für diesen konkreten Termin eingetragene Absage ist eine
+    // Ausnahme und darf von der Serienzusage niemals überschrieben werden.
+    if (
+      current?.status === AttendanceStatus.NO &&
+      !isAutomaticDailyDeclineReason(current.reason)
+    ) {
+      continue;
+    }
+    await acceptAttendanceExclusivelyForDay(
+      tx as Prisma.TransactionClient,
+      {
+        event: { id: eventId, title: 'Training', startAt, teamId },
+        playerId: preference.playerId,
+        actorId: preference.respondedById,
+        respondedAt: preference.updatedAt,
+        responseSource: preference.responseSource,
+        responderRelationship: preference.responderRelationship,
+        honorLaterExistingAcceptance: true,
+      },
+    );
+  }
 }
 
 async function removeForeignRegularTrainingParticipants(
@@ -374,7 +371,9 @@ export async function ensureNextRegularTrainingOccurrences(
   // ohne dass ein Administrator den Wochenplan erneut speichern muss.
   await Promise.all(
     teams.map((team) =>
-      reconcileNextRegularTrainingOccurrence(prisma, team, now),
+      prisma.$transaction((tx) =>
+        reconcileNextRegularTrainingOccurrence(tx, team, now),
+      ),
     ),
   );
 }

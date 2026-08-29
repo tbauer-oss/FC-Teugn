@@ -1475,6 +1475,7 @@ model Attendance {
 
   @@unique([eventId, playerId])
   @@index([eventId, status])
+  @@index([playerId, status])
 }
 
 /// Befristete Zusage eines Spielers zu den automatisch materialisierten

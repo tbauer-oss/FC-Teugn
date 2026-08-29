@@ -43,6 +43,11 @@ import {
   syncSquadWithTeamDefaultLineup,
 } from '../services/default-lineup.service';
 import {
+  acceptAttendanceExclusivelyForDay,
+  isAutomaticDailyDeclineReason,
+  removePlayerFromDeclinedMatch,
+} from '../services/daily-attendance-conflict.service';
+import {
   parseRegularTrainingSlot,
   reminderRecipientsForEvent,
   syncScheduledRemindersForEvent,
@@ -1514,7 +1519,9 @@ export async function setRegularTrainingAttendancePreference(
   const responseSource = parentLink
     ? AttendanceResponseSource.GUARDIAN
     : AttendanceResponseSource.PLAYER;
-  const preserveCurrentDecline = event.attendance[0]?.status === AttendanceStatus.NO;
+  const preserveCurrentDecline =
+    event.attendance[0]?.status === AttendanceStatus.NO &&
+    !isAutomaticDailyDeclineReason(event.attendance[0]?.reason);
   const result = await prisma.$transaction(async (tx) => {
     const preference = await tx.regularTrainingAttendancePreference.upsert({
       where: { playerId_teamId: { playerId, teamId: player.teamId! } },
@@ -1539,25 +1546,18 @@ export async function setRegularTrainingAttendancePreference(
     });
     let appliedCurrent = false;
     if (!preserveCurrentDecline) {
-      await tx.attendance.upsert({
-        where: { eventId_playerId: { eventId: event.id, playerId } },
-        update: {
-          status: AttendanceStatus.YES,
-          reason: null,
-          respondedById: user.id,
-          respondedAt: new Date(),
-          responseSource,
-          responderRelationship: parentLink?.relationship ?? null,
+      await acceptAttendanceExclusivelyForDay(tx, {
+        event: {
+          id: event.id,
+          title: event.title,
+          startAt: event.startAt,
+          teamId: event.teamId,
         },
-        create: {
-          eventId: event.id,
-          playerId,
-          status: AttendanceStatus.YES,
-          respondedById: user.id,
-          respondedAt: new Date(),
-          responseSource,
-          responderRelationship: parentLink?.relationship ?? null,
-        },
+        playerId,
+        actorId: user.id,
+        respondedAt: new Date(),
+        responseSource,
+        responderRelationship: parentLink?.relationship ?? null,
       });
       appliedCurrent = true;
     }
@@ -2727,17 +2727,35 @@ export async function setAttendance(req: Request, res: Response) {
     }
   }
   const attendance = await prisma.$transaction(async (tx) => {
-    const reply = await tx.attendance.upsert({
+    const respondedAt = new Date();
+    const goalkeeperAvailable =
+      typeof req.body.goalkeeperAvailable === 'boolean'
+        ? req.body.goalkeeperAvailable
+        : null;
+    const exclusiveAcceptance = status === AttendanceStatus.YES
+      ? await acceptAttendanceExclusivelyForDay(tx, {
+          event: {
+            id: event.id,
+            title: event.title,
+            startAt: event.startAt,
+            teamId: event.teamId,
+          },
+          playerId,
+          actorId: user.id,
+          respondedAt,
+          responseSource,
+          responderRelationship: parentLink?.relationship ?? null,
+          goalkeeperAvailable,
+        })
+      : null;
+    const reply = exclusiveAcceptance?.reply ?? await tx.attendance.upsert({
       where: { eventId_playerId: { eventId: event.id, playerId } },
       update: {
         status,
         reason: status === AttendanceStatus.NO ? clean(req.body.reason) : null,
-        goalkeeperAvailable:
-          typeof req.body.goalkeeperAvailable === 'boolean'
-            ? req.body.goalkeeperAvailable
-            : null,
+        goalkeeperAvailable,
         respondedById: user.id,
-        respondedAt: new Date(),
+        respondedAt,
         responseSource,
         responderRelationship: parentLink?.relationship ?? null,
       },
@@ -2746,12 +2764,9 @@ export async function setAttendance(req: Request, res: Response) {
         playerId,
         status,
         reason: status === AttendanceStatus.NO ? clean(req.body.reason) : null,
-        goalkeeperAvailable:
-          typeof req.body.goalkeeperAvailable === 'boolean'
-            ? req.body.goalkeeperAvailable
-            : null,
+        goalkeeperAvailable,
         respondedById: user.id,
-        respondedAt: new Date(),
+        respondedAt,
         responseSource,
         responderRelationship: parentLink?.relationship ?? null,
       },
@@ -2770,6 +2785,8 @@ export async function setAttendance(req: Request, res: Response) {
           status,
           source: responseSource,
           relationship: parentLink?.relationship ?? null,
+          automaticallyDeclinedEventIds:
+            exclusiveAcceptance?.automaticallyDeclined ?? [],
         },
       },
     });
@@ -2782,32 +2799,18 @@ export async function setAttendance(req: Request, res: Response) {
       });
       if (squad && team) {
         if (status === AttendanceStatus.NO) {
-          const lineup = await tx.lineup.findUnique({
-            where: { squadId: squad.id },
-            select: { id: true },
+          await removePlayerFromDeclinedMatch(tx, {
+            eventId: event.id,
+            playerId,
+            teamId,
           });
-          if (lineup) {
-            await Promise.all([
-              tx.plannedSubstitution.deleteMany({
-                where: {
-                  lineupId: lineup.id,
-                  OR: [{ playerInId: playerId }, { playerOutId: playerId }],
-                },
-              }),
-              tx.lineupPosition.deleteMany({
-                where: { lineupId: lineup.id, playerId },
-              }),
-            ]);
-          }
-          await tx.squadMember.deleteMany({
-            where: { squadId: squad.id, playerId },
+        } else {
+          await syncSquadWithTeamDefaultLineup(tx, {
+            teamId,
+            squadId: squad.id,
+            fieldSize: fieldSizeForGameFormat(team.gameFormat),
           });
         }
-        await syncSquadWithTeamDefaultLineup(tx, {
-          teamId,
-          squadId: squad.id,
-          fieldSize: fieldSizeForGameFormat(team.gameFormat),
-        });
       }
     }
     return reply;

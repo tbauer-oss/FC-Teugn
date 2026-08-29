@@ -72,40 +72,59 @@ class TrainerTeamPage extends ConsumerWidget {
               const SizedBox(height: 7),
               LayoutBuilder(
                 builder: (context, constraints) {
+                  final textScale = MediaQuery.textScalerOf(context)
+                      .scale(1)
+                      .clamp(1.0, 2.0)
+                      .toDouble();
+                  final useCompactRows = constraints.maxWidth < 350 ||
+                      (constraints.maxWidth < 560 && textScale > 1.35);
                   final columns = constraints.maxWidth >= 980
                       ? 4
-                      : constraints.maxWidth >= 560
-                          ? 2
+                      : useCompactRows
+                          ? 1
                           : 2;
                   final gap = constraints.maxWidth < 560 ? 8.0 : 12.0;
                   final width =
                       (constraints.maxWidth - gap * (columns - 1)) / columns;
+                  final height = useCompactRows
+                      ? 108.0 + (textScale - 1) * 108
+                      : constraints.maxWidth < 560
+                          ? 134.0 + (textScale - 1) * 46
+                          : 118.0 + (textScale - 1) * 34;
                   final actions = [
                     _TeamAction(
+                      key: const ValueKey('team-action-players'),
                       icon: Icons.badge_rounded,
                       title: 'Spieler & Kader',
                       subtitle: 'Profile, Nummern und Positionen',
+                      horizontal: useCompactRows,
                       onTap: () => context.go('/trainer/players'),
                     ),
                     _TeamAction(
+                      key: const ValueKey('team-action-lineup'),
                       icon: Icons.dashboard_customize_rounded,
                       title: 'Stammformation',
                       subtitle: team.defaultLineup == null
                           ? 'Jetzt festlegen'
                           : '${team.defaultLineup!.formation} · ${team.defaultLineup!.positions.length} Spieler',
                       emphasized: true,
+                      horizontal: useCompactRows,
                       onTap: () => _openDefaultLineup(context, ref, team),
                     ),
                     _TeamAction(
+                      key: const ValueKey('team-action-data'),
                       icon: Icons.tune_rounded,
                       title: 'Teamdaten',
                       subtitle: 'Trainerteam, Zeiten und Einstellungen',
+                      horizontal: useCompactRows,
                       onTap: () => context.go('/trainer/organization'),
                     ),
                     _TeamAction(
+                      key: const ValueKey('team-action-operations'),
                       icon: Icons.inventory_2_outlined,
                       title: 'Aufgaben & Material',
                       subtitle: 'Organisation im Teamalltag',
+                      horizontal: useCompactRows,
                       onTap: () => context.go('/trainer/operations'),
                     ),
                   ];
@@ -116,7 +135,7 @@ class TrainerTeamPage extends ConsumerWidget {
                       for (final action in actions)
                         SizedBox(
                           width: width,
-                          height: constraints.maxWidth < 560 ? 112 : 118,
+                          height: height,
                           child: action,
                         ),
                     ],
@@ -369,11 +388,13 @@ class _SectionTitle extends StatelessWidget {
 
 class _TeamAction extends StatelessWidget {
   const _TeamAction({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
     this.emphasized = false,
+    this.horizontal = false,
   });
 
   final IconData icon;
@@ -381,9 +402,56 @@ class _TeamAction extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final bool emphasized;
+  final bool horizontal;
 
   @override
-  Widget build(BuildContext context) => Material(
+  Widget build(BuildContext context) {
+    final iconTile = Container(
+      width: horizontal ? 38 : 34,
+      height: horizontal ? 38 : 34,
+      decoration: BoxDecoration(
+        color: emphasized ? AppColors.yellow : context.appColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        icon,
+        size: 19,
+        color: emphasized ? AppColors.black : context.appColors.text,
+      ),
+    );
+    final arrow = Icon(
+      Icons.arrow_forward_rounded,
+      size: 19,
+      color: context.appColors.textMuted,
+    );
+    final labels = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          maxLines: horizontal ? 3 : 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: context.appColors.textMuted,
+            fontSize: 11,
+            height: 1.2,
+          ),
+        ),
+      ],
+    );
+
+    return Semantics(
+      button: true,
+      label: '$title. $subtitle',
+      child: Material(
         color: emphasized
             ? context.appColors.brandSoft
             : context.appColors.surface,
@@ -400,59 +468,29 @@ class _TeamAction extends StatelessWidget {
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: emphasized
-                            ? AppColors.yellow
-                            : context.appColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        icon,
-                        size: 19,
-                        color: emphasized
-                            ? AppColors.black
-                            : context.appColors.text,
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 19,
-                      color: context.appColors.textMuted,
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: context.appColors.textMuted,
-                    fontSize: 11,
-                    height: 1.2,
+            child: horizontal
+                ? Row(
+                    children: [
+                      iconTile,
+                      const SizedBox(width: 10),
+                      Expanded(child: labels),
+                      const SizedBox(width: 6),
+                      arrow,
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [iconTile, const Spacer(), arrow]),
+                      const SizedBox(height: 8),
+                      Expanded(child: labels),
+                    ],
                   ),
-                ),
-              ],
-            ),
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _SportLinks extends StatelessWidget {
