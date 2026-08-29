@@ -447,12 +447,12 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
           playMobileIntroVideo: widget.playMobileIntroVideo,
           onIntroCompleted: _completeLaunchIntro,
           waitingForData: initialAuthRestoreLoading || bootstrapLoading,
-          statusMessage: initialAuthRestoreLoading
-              ? 'Sitzung wird geprüft...'
-              : bootstrapLoading
-                  ? 'Vereinsdaten werden geladen...'
-                  : authRestoreError != null || bootstrapError != null
-                      ? 'Start konnte noch nicht abgeschlossen werden'
+          statusMessage: authRestoreError != null || bootstrapError != null
+              ? 'Verbindung nicht möglich'
+              : initialAuthRestoreLoading
+                  ? 'Sitzung wird geprüft...'
+                  : bootstrapLoading
+                      ? 'Vereinsdaten werden geladen...'
                       : 'App wird vorbereitet …',
           errorMessage: authRestoreError ??
               (bootstrapError == null
@@ -463,6 +463,11 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
               : bootstrapSession == null || bootstrapError == null
                   ? null
                   : () => _retryBootstrap(bootstrapSession),
+          onContinueToLogin: authRestoreError != null
+              ? () => ref
+                  .read(authProvider.notifier)
+                  .continueToLoginAfterRestoreFailure()
+              : null,
         ),
       ));
     }

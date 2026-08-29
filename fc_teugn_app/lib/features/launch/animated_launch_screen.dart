@@ -14,6 +14,7 @@ class AnimatedLaunchScreen extends StatefulWidget {
     this.statusMessage,
     this.errorMessage,
     this.onRetry,
+    this.onContinueToLogin,
     this.playMobileIntroVideo = false,
     this.onIntroCompleted,
   });
@@ -23,6 +24,7 @@ class AnimatedLaunchScreen extends StatefulWidget {
   final String? statusMessage;
   final String? errorMessage;
   final VoidCallback? onRetry;
+  final VoidCallback? onContinueToLogin;
   final bool playMobileIntroVideo;
   final VoidCallback? onIntroCompleted;
 
@@ -199,6 +201,7 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
                         statusMessage: widget.statusMessage,
                         errorMessage: widget.errorMessage,
                         onRetry: widget.onRetry,
+                        onContinueToLogin: widget.onContinueToLogin,
                         playIntroVideo: widget.playMobileIntroVideo,
                         introVideoController: _introVideoController,
                         introVideoInitialized: _introVideoInitialized,
@@ -212,6 +215,7 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
                         statusMessage: widget.statusMessage,
                         errorMessage: widget.errorMessage,
                         onRetry: widget.onRetry,
+                        onContinueToLogin: widget.onContinueToLogin,
                       );
               },
             );
@@ -230,6 +234,7 @@ class _MobileLaunchStage extends StatelessWidget {
     required this.statusMessage,
     required this.errorMessage,
     required this.onRetry,
+    required this.onContinueToLogin,
     required this.playIntroVideo,
     required this.introVideoController,
     required this.introVideoInitialized,
@@ -243,6 +248,7 @@ class _MobileLaunchStage extends StatelessWidget {
   final String? statusMessage;
   final String? errorMessage;
   final VoidCallback? onRetry;
+  final VoidCallback? onContinueToLogin;
   final bool playIntroVideo;
   final VideoPlayerController? introVideoController;
   final bool introVideoInitialized;
@@ -327,6 +333,7 @@ class _MobileLaunchStage extends StatelessWidget {
                       statusMessage: statusMessage,
                       errorMessage: errorMessage,
                       onRetry: onRetry,
+                      onContinueToLogin: onContinueToLogin,
                     ),
                   ),
                 ),
@@ -373,6 +380,7 @@ class _DesktopLaunchStage extends StatelessWidget {
     required this.statusMessage,
     required this.errorMessage,
     required this.onRetry,
+    required this.onContinueToLogin,
   });
 
   final Animation<double> imageEntrance;
@@ -381,6 +389,7 @@ class _DesktopLaunchStage extends StatelessWidget {
   final String? statusMessage;
   final String? errorMessage;
   final VoidCallback? onRetry;
+  final VoidCallback? onContinueToLogin;
 
   @override
   Widget build(BuildContext context) {
@@ -446,6 +455,7 @@ class _DesktopLaunchStage extends StatelessWidget {
                     statusMessage: statusMessage,
                     errorMessage: errorMessage,
                     onRetry: onRetry,
+                    onContinueToLogin: onContinueToLogin,
                   ),
                 ),
               ),
@@ -466,6 +476,7 @@ class _LaunchProgress extends StatelessWidget {
     this.statusMessage,
     this.errorMessage,
     this.onRetry,
+    this.onContinueToLogin,
   });
 
   final Animation<double> entrance;
@@ -475,6 +486,7 @@ class _LaunchProgress extends StatelessWidget {
   final String? statusMessage;
   final String? errorMessage;
   final VoidCallback? onRetry;
+  final VoidCallback? onContinueToLogin;
 
   @override
   Widget build(BuildContext context) {
@@ -552,10 +564,25 @@ class _LaunchProgress extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Erneut verbinden'),
+              Wrap(
+                alignment:
+                    centered ? WrapAlignment.center : WrapAlignment.start,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Erneut verbinden'),
+                  ),
+                  if (onContinueToLogin != null)
+                    TextButton.icon(
+                      onPressed: onContinueToLogin,
+                      icon: const Icon(Icons.login_rounded),
+                      label: const Text('Zur Anmeldung'),
+                    ),
+                ],
               ),
             ],
           ],

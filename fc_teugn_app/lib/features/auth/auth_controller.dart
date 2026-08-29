@@ -498,6 +498,12 @@ class AuthController extends StateNotifier<AuthState> {
     await _restore();
   }
 
+  void continueToLoginAfterRestoreFailure() {
+    if (state.user != null) return;
+    _refreshFailureInvalidatesSession = false;
+    state = AuthState();
+  }
+
   Future<BiometricLoginSettings> biometricLoginSettings() async {
     final capability = await _biometricAuthenticator.capability();
     return BiometricLoginSettings(

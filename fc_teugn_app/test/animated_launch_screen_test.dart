@@ -188,9 +188,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Startsequenz bietet nach Ladefehler eine Wiederverbindung an',
+  testWidgets('Startsequenz bietet Wiederverbindung und Anmeldung an',
       (tester) async {
     var retries = 0;
+    var continueToLoginCalls = 0;
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -199,6 +200,7 @@ void main() {
         home: AnimatedLaunchScreen(
           errorMessage: 'Platzbelegung konnte nicht geladen werden.',
           onRetry: () => retries++,
+          onContinueToLogin: () => continueToLoginCalls++,
         ),
       ),
     );
@@ -208,10 +210,14 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Erneut verbinden'), findsOneWidget);
+    expect(find.text('Zur Anmeldung'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     await tester.pump(const Duration(seconds: 3));
     await tester.tap(find.text('Erneut verbinden'));
     expect(retries, 1);
+
+    await tester.tap(find.text('Zur Anmeldung'));
+    expect(continueToLoginCalls, 1);
     expect(tester.takeException(), isNull);
   });
 }
