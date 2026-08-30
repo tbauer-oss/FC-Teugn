@@ -206,10 +206,15 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
       KitLaundryDutyStatus.proposed => AppColors.yellowDark,
       _ => const Color(0xFF5E5B52),
     };
-    final title = duty.assignedFamilyLabel ??
-        (duty.nominationPublished
-            ? 'Trikotdienst noch nicht vergeben'
-            : 'Nach der Kadernominierung automatisch bereit');
+    final assignedFamilyLabel = duty.assignedFamilyLabel?.trim();
+    final assignedPlayerName = duty.assignedPlayerName?.trim();
+    final title = assignedFamilyLabel?.isNotEmpty == true
+        ? assignedFamilyLabel!
+        : assignedPlayerName?.isNotEmpty == true
+            ? 'Familie $assignedPlayerName'
+            : duty.nominationPublished
+                ? 'Trikotdienst noch nicht vergeben'
+                : 'Nach der Kadernominierung automatisch bereit';
     final subtitle = duty.status == KitLaundryDutyStatus.completed
         ? 'Trikots gewaschen – danke!'
         : duty.status == KitLaundryDutyStatus.confirmed

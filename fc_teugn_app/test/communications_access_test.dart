@@ -75,6 +75,10 @@ class _CommunicationRepository extends DataRepository {
       const [];
 
   @override
+  Future<List<PitchConflictRequestModel>> pitchConflictRequests() async =>
+      const [];
+
+  @override
   Future<List<AppNotificationModel>> notifications() async => [
         if (!readNotificationsDeleted)
           AppNotificationModel(
@@ -148,6 +152,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Platzanfragen'), findsOneWidget);
+  });
+
+  testWidgets('empty pitch requests stay compact on a narrow phone',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(_page(staffView: true));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Platzanfragen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Platzanfragen'));
+    await tester.pumpAndSettle();
+
+    final notice = find.byKey(const ValueKey('pitch-priority-notice'));
+    final empty = find.byKey(
+      const ValueKey('pitch-conflicts-empty-compact'),
+    );
+    expect(notice, findsOneWidget);
+    expect(empty, findsOneWidget);
+    expect(tester.getSize(notice).height, lessThan(140));
+    expect(tester.getSize(empty).height, lessThan(125));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Trainer können eigene Benachrichtigungen bestätigt löschen',

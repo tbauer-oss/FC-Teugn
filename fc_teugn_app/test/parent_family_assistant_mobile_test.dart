@@ -43,6 +43,7 @@ Future<void> _pump(
   WidgetTester tester,
   double width, {
   bool pushReady = true,
+  Brightness brightness = Brightness.light,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -68,6 +69,9 @@ Future<void> _pump(
       ],
       child: MaterialApp(
         theme: buildAppTheme(),
+        darkTheme: buildAppTheme(brightness: Brightness.dark),
+        themeMode:
+            brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
         home: const Scaffold(body: ParentDashboardPage()),
       ),
     ),
@@ -104,6 +108,28 @@ void main() {
     expect(find.text('Ruhig startklar werden'), findsOneWidget);
     expect(find.text('2 von 3 Schritten erledigt'), findsOneWidget);
     expect(find.text('Push einstellen'), findsOneWidget);
+  });
+
+  testWidgets('family panels use dark theme surfaces instead of white',
+      (tester) async {
+    await _pump(
+      tester,
+      390,
+      brightness: Brightness.dark,
+    );
+
+    final panels = tester.widgetList<Container>(
+      find.byKey(const ValueKey('family-dashboard-adaptive-panel')),
+    );
+    expect(panels, isNotEmpty);
+    for (final panel in panels) {
+      final decoration = panel.decoration! as BoxDecoration;
+      final colors = (decoration.gradient! as LinearGradient).colors;
+      expect(colors, isNot(contains(Colors.white)));
+    }
+    expect(find.text('Heute wichtig'), findsOneWidget);
+    expect(find.text('Diese Woche'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('background refresh keeps the family assistant calm',

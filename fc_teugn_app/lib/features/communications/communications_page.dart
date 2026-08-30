@@ -1805,43 +1805,23 @@ class _PitchConflictRequestList extends ConsumerWidget {
         final items = snapshot.data ?? const [];
         final isSystemAdmin =
             ref.read(authProvider).user?.role == UserRole.superAdmin;
-        final priorityInfo = Card(
-          color: context.appSuccess.withValues(alpha: .08),
-          child: ListTile(
-            leading: Icon(Icons.shield_rounded, color: context.appSuccess),
-            title: const Text('Jugendmannschaften haben immer Vorrang'),
-            subtitle: const Text(
-              'Bei einer Überschneidung mit Freizeitkickern entsteht keine '
-              'Freigabeanfrage. Die Freizeitkicker und die Systemadministration '
-              'erhalten automatisch nur eine Belegungsinformation.',
-            ),
-            trailing: isSystemAdmin
-                ? IconButton(
-                    tooltip: 'Freizeit-Belegung verwalten',
-                    onPressed: () => context.go('/trainer/training'),
-                    icon: const Icon(Icons.edit_calendar_rounded),
-                  )
-                : null,
-          ),
+        final priorityInfo = _PitchPriorityNotice(
+          onManage:
+              isSystemAdmin ? () => context.go('/trainer/training') : null,
         );
         if (items.isEmpty) {
           return Column(
             children: [
               priorityInfo,
-              const SizedBox(height: 12),
-              const EmptyState(
-                icon: Icons.event_available_rounded,
-                title: 'Keine offenen Platzabstimmungen',
-                message:
-                    'Anfragen wegen Überschneidungen mit Trainings erscheinen hier.',
-              ),
+              const SizedBox(height: 8),
+              const _CompactPitchEmptyState(),
             ],
           );
         }
         return Column(
           children: [
             priorityInfo,
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             for (final item in items) ...[
               _PitchConflictRequestCard(
                 request: item,
@@ -1849,7 +1829,7 @@ class _PitchConflictRequestList extends ConsumerWidget {
                     ? (status) => _respond(context, ref, item, status)
                     : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
             ],
           ],
         );
@@ -1934,6 +1914,129 @@ class _PitchConflictRequestList extends ConsumerWidget {
   }
 }
 
+class _PitchPriorityNotice extends StatelessWidget {
+  const _PitchPriorityNotice({this.onManage});
+
+  final VoidCallback? onManage;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        key: const ValueKey('pitch-priority-notice'),
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(11, 9, 7, 9),
+        decoration: BoxDecoration(
+          color: context.appSuccess.withValues(alpha: .08),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: context.appSuccess.withValues(alpha: .2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: context.appSuccess.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(
+                Icons.shield_rounded,
+                size: 19,
+                color: context.appSuccess,
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Jugend hat Vorrang',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    'Konflikte mit Freizeitkickern werden automatisch '
+                    'gemeldet – keine Freigabe nötig.',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: context.appColors.textMuted,
+                          height: 1.25,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            if (onManage != null)
+              IconButton(
+                tooltip: 'Freizeit-Belegung verwalten',
+                onPressed: onManage,
+                icon: const Icon(Icons.edit_calendar_rounded, size: 20),
+                visualDensity: VisualDensity.compact,
+              ),
+          ],
+        ),
+      );
+}
+
+class _CompactPitchEmptyState extends StatelessWidget {
+  const _CompactPitchEmptyState();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        key: const ValueKey('pitch-conflicts-empty-compact'),
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: context.appColors.surfaceRaised,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: context.appColors.outline),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: context.appInfo.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.event_available_rounded,
+                size: 22,
+                color: context.appInfo,
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Alles abgestimmt',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Neue Platzkonflikte erscheinen hier.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: context.appColors.textMuted,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
 class _PitchConflictRequestCard extends StatelessWidget {
   const _PitchConflictRequestCard({
     required this.request,
@@ -1945,6 +2048,7 @@ class _PitchConflictRequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final incoming = request.direction == 'INCOMING';
     final color = switch (request.status) {
       PitchConflictRequestStatus.pending => context.appWarning,
@@ -1956,7 +2060,7 @@ class _PitchConflictRequestCard extends StatelessWidget {
     };
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(compact ? 11 : 18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1964,10 +2068,15 @@ class _PitchConflictRequestCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CircleAvatar(
+                  radius: compact ? 18 : 20,
                   backgroundColor: color.withValues(alpha: .12),
-                  child: Icon(Icons.stadium_rounded, color: color),
+                  child: Icon(
+                    Icons.stadium_rounded,
+                    size: compact ? 19 : 24,
+                    color: color,
+                  ),
                 ),
-                const SizedBox(width: 14),
+                SizedBox(width: compact ? 9 : 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1978,28 +2087,43 @@ class _PitchConflictRequestCard extends StatelessWidget {
                         children: [
                           Text(
                             request.eventTitle,
-                            style: Theme.of(context).textTheme.titleLarge,
+                            style: (compact
+                                    ? Theme.of(context).textTheme.titleSmall
+                                    : Theme.of(context).textTheme.titleLarge)
+                                ?.copyWith(fontWeight: FontWeight.w900),
                           ),
                           Chip(
                             label: Text(_pitchRequestStatus(request.status)),
                             side: BorderSide(color: color),
+                            visualDensity: compact
+                                ? const VisualDensity(
+                                    horizontal: -3,
+                                    vertical: -3,
+                                  )
+                                : null,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 5),
+                      SizedBox(height: compact ? 2 : 5),
                       Text(
                         '${_dateTime(request.eventStartAt)} · ${request.pitch}',
+                        style: compact
+                            ? Theme.of(context).textTheme.bodySmall
+                            : null,
                       ),
                       Text(
                         'Betroffen: ${request.trainingTeamName} · '
                         '${request.trainingScheduleValue}',
+                        style: compact
+                            ? Theme.of(context).textTheme.bodySmall
+                            : null,
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: compact ? 7 : 12),
             Text(
               incoming
                   ? 'Anfrage von ${request.requesterName}'
@@ -2007,17 +2131,17 @@ class _PitchConflictRequestCard extends StatelessWidget {
               style: Theme.of(context).textTheme.labelLarge,
             ),
             if (request.message?.isNotEmpty == true) ...[
-              const SizedBox(height: 6),
+              SizedBox(height: compact ? 3 : 6),
               Text(request.message!),
             ],
             if (request.responseMessage?.isNotEmpty == true) ...[
-              const Divider(height: 24),
+              Divider(height: compact ? 16 : 24),
               Text('Antwort: ${request.responseMessage!}'),
             ],
             if (request.status ==
                     PitchConflictRequestStatus.callbackRequested &&
                 request.recipientPhone?.isNotEmpty == true) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: compact ? 7 : 12),
               OutlinedButton.icon(
                 onPressed: () => launchUrl(
                   Uri(scheme: 'tel', path: request.recipientPhone),
@@ -2027,7 +2151,7 @@ class _PitchConflictRequestCard extends StatelessWidget {
               ),
             ],
             if (onRespond != null) ...[
-              const Divider(height: 28),
+              Divider(height: compact ? 18 : 28),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,

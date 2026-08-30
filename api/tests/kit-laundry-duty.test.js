@@ -52,3 +52,13 @@ test('tournament fixtures resolve to one duty on their parent tournament', () =>
   assert.match(service, /where: \{ id: event\.parentTournamentId \}/);
   assert.match(schema, /eventId\s+String\s+@unique/);
 });
+
+test('confirmed family remains visible and authorized after later squad edits', () => {
+  assert.match(service, /duty\.assignedFamilyKey &&\s*duty\.assignedPlayerId/);
+  assert.match(
+    service,
+    /duty\.status !== KitLaundryDutyStatus\.OPEN/,
+  );
+  assert.match(service, /familyKeyIncludesGuardian/);
+  assert.match(service, /assignedPlayerName\s*\?\s*`Familie/);
+});

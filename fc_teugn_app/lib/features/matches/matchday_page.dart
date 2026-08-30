@@ -899,6 +899,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                     match: match,
                     editable: widget.staffView,
                     onSaved: _applySavedLineup,
+                    onPublish: _publishInternally,
                   ),
                 ],
               ),
@@ -970,6 +971,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
                     match: match,
                     editable: widget.staffView,
                     onSaved: _applySavedLineup,
+                    onPublish: _publishInternally,
                   ),
                   if (widget.staffView)
                     MatchdayAutopilotTab(
@@ -1812,7 +1814,7 @@ class MatchCommunicationActions extends StatelessWidget {
               onPressed: onPublishInternal,
               icon: const Icon(Icons.admin_panel_settings_outlined, size: 17),
               label: const Text(
-                'Trainerteam',
+                'Veröffentlichen',
                 maxLines: 1,
                 semanticsLabel: 'Mit Trainerteam teilen',
               ),
@@ -3202,14 +3204,10 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        key: const ValueKey(
-                          'tournament-squad-nominate-action',
-                        ),
-                        onPressed: _saving || !widget.match.canNominateSquad
-                            ? null
-                            : _publish,
-                        icon: const Icon(Icons.campaign_outlined, size: 17),
-                        label: const Text('Nominieren'),
+                        key: const ValueKey('tournament-squad-save-action'),
+                        onPressed: _saving ? null : _save,
+                        icon: const Icon(Icons.save_outlined, size: 17),
+                        label: Text(_saving ? 'Speichert …' : 'Entwurf'),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 44),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -3221,10 +3219,14 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: FilledButton.icon(
-                        key: const ValueKey('tournament-squad-save-action'),
-                        onPressed: _saving ? null : _save,
-                        icon: const Icon(Icons.save_outlined, size: 17),
-                        label: Text(_saving ? 'Speichert …' : 'Speichern'),
+                        key: const ValueKey(
+                          'tournament-squad-nominate-action',
+                        ),
+                        onPressed: _saving || !widget.match.canNominateSquad
+                            ? null
+                            : _publish,
+                        icon: const Icon(Icons.campaign_outlined, size: 17),
+                        label: const Text('Veröffentlichen'),
                         style: FilledButton.styleFrom(
                           minimumSize: const Size(0, 44),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -3261,18 +3263,19 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                     ),
                     AdaptiveActionSpec(
                       label: widget.tournamentPlanning
-                          ? 'Turnier-Kader nominieren'
-                          : 'Kader verbindlich nominieren',
+                          ? 'Turnier-Kader veröffentlichen'
+                          : 'Kader veröffentlichen',
                       icon: Icons.campaign_outlined,
                       onPressed: _saving || !widget.match.canNominateSquad
                           ? null
                           : _publish,
+                      primary: true,
                     ),
                     AdaptiveActionSpec(
-                      label: _saving ? 'Wird gespeichert …' : 'Kader speichern',
+                      label:
+                          _saving ? 'Wird gespeichert …' : 'Entwurf speichern',
                       icon: Icons.save_outlined,
                       onPressed: _saving ? null : _save,
-                      primary: true,
                     ),
                   ],
                 ),
@@ -3812,10 +3815,12 @@ class _LineupTab extends ConsumerStatefulWidget {
     required this.match,
     required this.editable,
     required this.onSaved,
+    required this.onPublish,
   });
   final MatchdayModel match;
   final bool editable;
   final Future<void> Function(LineupModel lineup) onSaved;
+  final Future<void> Function() onPublish;
 
   @override
   ConsumerState<_LineupTab> createState() => _LineupTabState();
@@ -3984,11 +3989,9 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                   label: const Text('Entwurf'),
                 ),
                 FilledButton.icon(
-                  onPressed: _saving
-                      ? null
-                      : () => _save(LineupStatus.internallyApproved),
+                  onPressed: _saving ? null : _publish,
                   icon: const Icon(Icons.publish_rounded),
-                  label: const Text('Aufstellung intern speichern'),
+                  label: const Text('Aufstellung veröffentlichen'),
                 ),
               ];
               if (constraints.maxWidth < 700) {
@@ -4078,7 +4081,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                               Icons.save_outlined,
                               size: compact ? 16 : 18,
                             ),
-                            label: const Text('Speichern'),
+                            label: const Text(
+                              'Entwurf',
+                              semanticsLabel: 'Aufstellungsentwurf speichern',
+                            ),
                             style: compact
                                 ? OutlinedButton.styleFrom(
                                     minimumSize: const Size(0, 34),
@@ -4095,14 +4101,18 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                         const SizedBox(width: 6),
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: _saving
-                                ? null
-                                : () => _save(LineupStatus.internallyApproved),
+                            key: const ValueKey(
+                              'lineup-publish-action',
+                            ),
+                            onPressed: _saving ? null : _publish,
                             icon: Icon(
                               Icons.publish_rounded,
                               size: compact ? 16 : 18,
                             ),
-                            label: const Text('Intern speichern'),
+                            label: const Text(
+                              'Veröffentlichen',
+                              semanticsLabel: 'Aufstellung veröffentlichen',
+                            ),
                             style: compact
                                 ? FilledButton.styleFrom(
                                     minimumSize: const Size(0, 34),
@@ -4860,7 +4870,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         isCaptain: isCaptain ?? position.isCaptain,
       );
 
-  Future<void> _save(
+  Future<bool> _save(
     LineupStatus status, {
     bool quiet = false,
   }) async {
@@ -4881,7 +4891,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
           'Die gespeicherte Aufstellung entspricht nicht dem Entwurf.',
         );
       }
-      if (!mounted) return;
+      if (!mounted) return false;
       await widget.onSaved(savedLineup);
       if (mounted && !quiet) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -4894,6 +4904,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
           ),
         );
       }
+      return true;
     } catch (_) {
       if (mounted && !quiet) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -4901,9 +4912,19 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
               content: Text('Aufstellung konnte nicht gespeichert werden.')),
         );
       }
+      return false;
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _publish() async {
+    final saved = await _save(
+      LineupStatus.internallyApproved,
+      quiet: true,
+    );
+    if (!saved || !mounted) return;
+    await widget.onPublish();
   }
 
   bool _samePositions(

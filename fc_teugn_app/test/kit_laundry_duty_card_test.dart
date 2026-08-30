@@ -43,20 +43,53 @@ void main() {
       );
     });
   }
+
+  testWidgets('stored player keeps confirmed family visible', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: KitLaundryDutyCard(
+              matchId: 'match-1',
+              staffView: true,
+              compact: true,
+              initialDuty: _duty(
+                status: KitLaundryDutyStatus.confirmed,
+                assignedFamilyLabel: null,
+                assignedPlayerName: 'Mia & Max Mustermann',
+                canRespond: false,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Familie Mia & Max Mustermann'), findsOneWidget);
+    expect(find.text('Bestätigt'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
-KitLaundryDutyModel _duty() => KitLaundryDutyModel(
+KitLaundryDutyModel _duty({
+  KitLaundryDutyStatus status = KitLaundryDutyStatus.proposed,
+  String? assignedFamilyLabel = 'Familie Mustermann',
+  String? assignedPlayerName,
+  bool canRespond = true,
+}) =>
+    KitLaundryDutyModel(
       eventId: 'match-1',
       title: 'FC Teugn · Beispiel',
       startAt: DateTime(2026, 8, 22, 10),
-      status: KitLaundryDutyStatus.proposed,
+      status: status,
       assignedPlayerId: 'player-1',
-      assignedFamilyLabel: 'Familie Mustermann',
+      assignedPlayerName: assignedPlayerName,
+      assignedFamilyLabel: assignedFamilyLabel,
       eligibleFamilyCount: 12,
       nominationPublished: true,
       viewerEligible: true,
       viewerAssigned: true,
-      canRespond: true,
+      canRespond: canRespond,
       canComplete: false,
       canManage: false,
     );

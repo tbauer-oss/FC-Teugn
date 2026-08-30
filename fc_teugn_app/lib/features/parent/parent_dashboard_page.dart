@@ -402,30 +402,41 @@ class _FamilyDashboardPanel extends StatelessWidget {
   final Color accent;
 
   @override
-  Widget build(BuildContext context) => Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              accent.withValues(alpha: .075),
-              Colors.white,
-              Colors.white,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: accent.withValues(alpha: .18)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: .035),
-              blurRadius: 14,
-              offset: const Offset(0, 5),
-            ),
+  Widget build(BuildContext context) {
+    final surfaces = context.appColors;
+    final base = surfaces.surfaceRaised;
+    final tint = Color.alphaBlend(
+      accent.withValues(alpha: context.isDarkMode ? .13 : .075),
+      base,
+    );
+    return Container(
+      key: const ValueKey('family-dashboard-adaptive-panel'),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            tint,
+            base,
+            surfaces.surface,
           ],
         ),
-        child: child,
-      );
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accent.withValues(alpha: .18)),
+        boxShadow: [
+          BoxShadow(
+            color: surfaces.shadow.withValues(
+              alpha: context.isDarkMode ? .24 : .035,
+            ),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
 }
 
 class _TodayImportantCard extends StatelessWidget {

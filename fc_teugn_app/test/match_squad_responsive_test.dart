@@ -46,13 +46,13 @@ void main() {
               find.byKey(const ValueKey('tournament-squad-deselect-all')),
               findsOneWidget,
             );
-            expect(find.text('Nominieren'), findsOneWidget);
-            expect(find.text('Speichern'), findsOneWidget);
+            expect(find.text('Veröffentlichen'), findsOneWidget);
+            expect(find.text('Entwurf'), findsOneWidget);
           } else {
             expect(find.text('Alle auswählen'), findsOneWidget);
             expect(find.text('Alle abwählen'), findsOneWidget);
-            expect(find.text('Kader verbindlich nominieren'), findsOneWidget);
-            expect(find.text('Kader speichern'), findsOneWidget);
+            expect(find.text('Kader veröffentlichen'), findsOneWidget);
+            expect(find.text('Entwurf speichern'), findsOneWidget);
           }
           expect(tester.takeException(), isNull);
         },

@@ -27,6 +27,10 @@ function displayName(player: {
     `${player.firstName} ${player.lastName}`.trim();
 }
 
+function familyKeyIncludesGuardian(familyKey: string | null, userId: string) {
+  return familyKey?.split(':').includes(userId) ?? false;
+}
+
 async function canonicalLaundryEvent(eventId: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -188,11 +192,12 @@ async function proposeNextFamily(eventId: string) {
   });
   if (!eligibility.published || !eligibility.families.length) return duty;
 
-  const existingFamily = eligibility.families.find(
-    (family) => family.key === duty.assignedFamilyKey,
-  );
+  // Eine bereits angefragte oder bestaetigte Familie bleibt verbindlich
+  // sichtbar, auch wenn der Kader danach noch einmal bearbeitet wird. Die
+  // aktuelle Kaderauswahl bestimmt nur neue Vorschlaege, nicht bestehende
+  // Zusagen.
   if (
-    existingFamily &&
+    duty.assignedFamilyKey &&
     duty.assignedPlayerId &&
     duty.status !== KitLaundryDutyStatus.OPEN
   ) {
@@ -200,6 +205,9 @@ async function proposeNextFamily(eventId: string) {
   }
   if (duty.status === KitLaundryDutyStatus.COMPLETED) return duty;
 
+  const existingFamily = eligibility.families.find(
+    (family) => family.key === duty.assignedFamilyKey,
+  );
   if (duty.assignedFamilyKey && !existingFamily) {
     await prisma.kitLaundryDuty.updateMany({
       where: { id: duty.id, assignedFamilyKey: duty.assignedFamilyKey },
@@ -273,7 +281,12 @@ export async function kitLaundryDutyView(
   const viewerFamily = eligibility.families.find(
     (family) => family.guardianIds.includes(viewerId),
   );
-  const viewerAssigned = viewerFamily?.key === duty?.assignedFamilyKey;
+  const viewerAssigned = Boolean(
+    viewerFamily?.key === duty?.assignedFamilyKey ||
+    familyKeyIncludesGuardian(duty?.assignedFamilyKey ?? null, viewerId),
+  );
+  const assignedPlayerName = assignedFamily?.playerNames.join(' & ') ??
+    (duty?.assignedPlayer ? displayName(duty.assignedPlayer) : null);
   return {
     eventId: event.id,
     title: event.title,
@@ -281,11 +294,12 @@ export async function kitLaundryDutyView(
     status: duty?.status ?? KitLaundryDutyStatus.OPEN,
     assignmentSource: duty?.assignmentSource ?? KitLaundryAssignmentSource.AUTOMATIC,
     assignedPlayerId: duty?.assignedPlayerId,
-    assignedPlayerName: assignedFamily?.playerNames.join(' & ') ??
-      (duty?.assignedPlayer ? displayName(duty.assignedPlayer) : null),
+    assignedPlayerName,
     assignedFamilyLabel: assignedFamily
       ? `Familie ${assignedFamily.playerNames.join(' & ')}`
-      : null,
+      : assignedPlayerName
+        ? `Familie ${assignedPlayerName}`
+        : null,
     confirmedByName: duty?.confirmedBy?.name ?? null,
     proposedAt: duty?.proposedAt,
     confirmedAt: duty?.confirmedAt,
@@ -369,14 +383,17 @@ export async function respondToKitLaundryDuty(
     (candidate) => candidate.key === duty.assignedFamilyKey &&
       candidate.guardianIds.includes(userId),
   );
-  if (!family) return { ok: false as const, code: 'NOT_ASSIGNED' };
+  const assignedFamilyKey = duty.assignedFamilyKey;
+  if (!family && !familyKeyIncludesGuardian(assignedFamilyKey, userId)) {
+    return { ok: false as const, code: 'NOT_ASSIGNED' };
+  }
   if (accepted) {
     const confirmedAt = new Date();
     const updated = await prisma.kitLaundryDuty.updateMany({
       where: {
         id: duty.id,
         status: KitLaundryDutyStatus.PROPOSED,
-        assignedFamilyKey: family.key,
+        assignedFamilyKey,
       },
       data: {
         status: KitLaundryDutyStatus.CONFIRMED,
@@ -388,12 +405,14 @@ export async function respondToKitLaundryDuty(
       ? { ok: true as const, accepted: true as const }
       : { ok: false as const, code: 'ALREADY_CHANGED' };
   }
-  const declinedFamilyKeys = [...new Set([...duty.declinedFamilyKeys, family.key])];
+  const declinedFamilyKeys = [
+    ...new Set([...duty.declinedFamilyKeys, assignedFamilyKey]),
+  ];
   const updated = await prisma.kitLaundryDuty.updateMany({
     where: {
       id: duty.id,
       status: KitLaundryDutyStatus.PROPOSED,
-      assignedFamilyKey: family.key,
+      assignedFamilyKey,
     },
     data: {
       status: KitLaundryDutyStatus.OPEN,
@@ -421,7 +440,11 @@ export async function completeKitLaundryDuty(eventId: string, userId: string, ca
   const assigned = eligibility.families.find(
     (family) => family.key === duty.assignedFamilyKey,
   );
-  if (!canManage && !assigned?.guardianIds.includes(userId)) {
+  if (
+    !canManage &&
+    !assigned?.guardianIds.includes(userId) &&
+    !familyKeyIncludesGuardian(duty.assignedFamilyKey, userId)
+  ) {
     return { ok: false as const, code: 'NOT_ASSIGNED' };
   }
   await prisma.kitLaundryDuty.update({

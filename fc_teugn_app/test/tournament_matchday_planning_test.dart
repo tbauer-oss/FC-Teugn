@@ -236,7 +236,7 @@ void main() {
             find.byKey(const ValueKey('tournament-squad-save-action')),
             findsOneWidget,
           );
-          expect(find.text('Trainerteam'), findsOneWidget);
+          expect(find.text('Veröffentlichen'), findsWidgets);
           expect(find.text('Familien'), findsOneWidget);
           expect(
             find.byKey(
@@ -260,7 +260,7 @@ void main() {
           );
           expect(summary.top, greaterThanOrEqualTo(tabs.bottom));
         } else {
-          expect(find.text('Kader speichern'), findsOneWidget);
+          expect(find.text('Entwurf speichern'), findsOneWidget);
           expect(find.text('Mit Trainerteam teilen'), findsOneWidget);
           expect(find.text('Für Eltern & Spieler freigeben'), findsOneWidget);
         }
@@ -303,7 +303,7 @@ void main() {
     );
     expect(summary.top, greaterThanOrEqualTo(tabs.bottom));
     expect(actions.top, greaterThanOrEqualTo(summary.bottom));
-    expect(find.text('Trainerteam'), findsOneWidget);
+    expect(find.text('Veröffentlichen'), findsWidgets);
     expect(find.text('Familien'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -333,7 +333,7 @@ void main() {
 
     await tester.tap(find.text('Aufstellung'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Speichern'));
+    await tester.tap(find.text('Entwurf'));
     await tester.pumpAndSettle();
 
     expect(repository.savedLineupEventId, 'tournament-1');
