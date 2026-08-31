@@ -770,16 +770,8 @@ class _ProfileHero extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         _StatusBadge(status: player.status),
-                        if (player.status == PlayerStatus.injured &&
-                            player.injuryType != null)
-                          Text(
-                            injuryTypeLabel(player.injuryType),
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                        if (player.status == PlayerStatus.injured)
+                          _InjurySummaryChip(player: player, compact: true),
                       ],
                     ),
                     if (onEdit != null ||
@@ -865,6 +857,8 @@ class _ProfileHero extends StatelessWidget {
                     avatar,
                     SizedBox(width: 310, child: identity),
                     _StatusBadge(status: player.status),
+                    if (player.status == PlayerStatus.injured)
+                      _InjurySummaryChip(player: player),
                     ...statistics,
                     if (onEdit != null)
                       OutlinedButton.icon(
@@ -901,6 +895,271 @@ class _ProfileHero extends StatelessWidget {
       },
     );
   }
+}
+
+class _InjurySummaryChip extends StatelessWidget {
+  const _InjurySummaryChip({required this.player, this.compact = false});
+
+  final PlayerModel player;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = player.recoveryEstimateOverridden
+        ? injuryDateRangeLabel(
+            player.effectiveReturnFrom,
+            player.effectiveReturnTo,
+          )
+        : injuryDurationLabel(
+            player.estimatedRecoveryMinDays,
+            player.estimatedRecoveryMaxDays,
+            compact: compact,
+          );
+    return Semantics(
+      button: true,
+      label: 'Verletzungsdetails öffnen',
+      child: Material(
+        color: Colors.white.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          key: const ValueKey('player-injury-summary'),
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _showInjuryDetails(context, player),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 8 : 11,
+              vertical: compact ? 6 : 8,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: compact ? 245 : 320),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: compact ? 15 : 17,
+                    color: Colors.white70,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      '${injuryTypeLabel(player.injuryType)} · $duration',
+                      maxLines: compact ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: .82),
+                        fontSize: compact ? 11 : 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _showInjuryDetails(
+  BuildContext context,
+  PlayerModel player,
+) async {
+  final content = _InjuryDetailsContent(player: player);
+  if (MediaQuery.sizeOf(context).width >= 700) {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 560,
+            maxHeight: MediaQuery.sizeOf(context).height * .82,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Verletzungsdetails',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 14),
+                Flexible(child: SingleChildScrollView(child: content)),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Schließen'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return;
+  }
+  await showModalBottomSheet<void>(
+    context: context,
+    useSafeArea: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (context) => SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        0,
+        16,
+        18 + MediaQuery.viewPaddingOf(context).bottom,
+      ),
+      child: content,
+    ),
+  );
+}
+
+class _InjuryDetailsContent extends StatelessWidget {
+  const _InjuryDetailsContent({required this.player});
+
+  final PlayerModel player;
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveFrom = player.effectiveReturnFrom;
+    final effectiveTo = player.effectiveReturnTo;
+    return Column(
+      key: const ValueKey('player-injury-details'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (MediaQuery.sizeOf(context).width < 700) ...[
+          Text(
+            'Verletzungsdetails',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 12),
+        ],
+        _InjuryDetailRow(
+          label: 'Art der Verletzung',
+          value: player.injuryType == 'OTHER' &&
+                  player.injuryDetails?.trim().isNotEmpty == true
+              ? player.injuryDetails!.trim()
+              : injuryTypeLabel(player.injuryType),
+        ),
+        _InjuryDetailRow(
+          label: 'Schweregrad',
+          value: injurySeverityLabels[player.injurySeverity]!,
+        ),
+        _InjuryDetailRow(
+          label: 'Verletzt seit',
+          value: player.injuryStartDate == null
+              ? 'Nicht hinterlegt'
+              : _date(player.injuryStartDate!),
+        ),
+        _InjuryDetailRow(
+          label: 'Geschätzte Ausfallzeit',
+          value: injuryDurationLabel(
+            player.estimatedRecoveryMinDays,
+            player.estimatedRecoveryMaxDays,
+          ),
+        ),
+        _InjuryDetailRow(
+          label: player.recoveryEstimateOverridden
+              ? 'Manuell angepasster Zeitraum'
+              : 'Voraussichtlicher Zeitraum',
+          value: injuryDateRangeLabel(effectiveFrom, effectiveTo),
+          emphasized: player.recoveryEstimateOverridden,
+        ),
+        if (player.injuryEstimateNeedsReview()) ...[
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.notification_important_outlined,
+                size: 18,
+                color: context.appWarning,
+              ),
+              const SizedBox(width: 7),
+              const Expanded(
+                child: Text(
+                  'Geschätzte Ausfallzeit erreicht – Status prüfen.',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 12),
+        Text(
+          'Die angezeigte Ausfallzeit ist eine unverbindliche Orientierung und ersetzt keine ärztliche Beurteilung. Die Rückkehr wird bewusst durch Spieler bzw. Eltern, Arzt oder Behandler und Trainer entschieden.',
+          style: TextStyle(
+            color: context.appColors.textMuted,
+            fontSize: 12,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InjuryDetailRow extends StatelessWidget {
+  const _InjuryDetailRow({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final narrow = constraints.maxWidth < 360;
+            final labelWidget = Text(
+              label,
+              style: TextStyle(
+                color: context.appColors.textMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            );
+            final valueWidget = Text(
+              value,
+              textAlign: narrow ? TextAlign.start : TextAlign.end,
+              style: TextStyle(
+                fontWeight: emphasized ? FontWeight.w900 : FontWeight.w700,
+              ),
+            );
+            if (narrow) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  labelWidget,
+                  const SizedBox(height: 3),
+                  valueWidget,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: labelWidget),
+                const SizedBox(width: 12),
+                Expanded(child: valueWidget),
+              ],
+            );
+          },
+        ),
+      );
 }
 
 class _SeasonStatisticsCard extends StatelessWidget {
@@ -1174,7 +1433,7 @@ class _PlayerStatisticRow extends StatelessWidget {
               '$assists Assists',
               if (cleanSheetEligible) '$cleanSheets Spiele zu null',
             ].join(' · ');
-            if (constraints.maxWidth < 500) {
+            if (constraints.maxWidth < 760) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1577,19 +1836,6 @@ class _FactsCard extends StatelessWidget {
                     ? player.passNumber!
                     : '–',
               ),
-              if (player.status == PlayerStatus.injured)
-                _Fact(
-                  width: width,
-                  label: 'Verletzung',
-                  value: injuryTypeLabel(player.injuryType),
-                ),
-              if (player.status == PlayerStatus.injured &&
-                  player.injuryDetails?.trim().isNotEmpty == true)
-                _Fact(
-                  width: width,
-                  label: 'Hinweis zur Verletzung',
-                  value: player.injuryDetails!.trim(),
-                ),
             ],
           );
         },
@@ -2802,6 +3048,12 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
   String? secondaryPosition;
   late PlayerStatus status;
   String? injuryType;
+  late InjurySeverity injurySeverity;
+  DateTime? injuryStartDate;
+  DateTime? manualReturnFrom;
+  DateTime? manualReturnTo;
+  late bool recoveryEstimateOverridden;
+  String? injuryValidationMessage;
   late DominantFoot dominantFoot;
   late String teamId;
 
@@ -2824,6 +3076,11 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
     injuryDetails = TextEditingController(text: player.injuryDetails);
     status = player.status;
     injuryType = player.injuryType;
+    injurySeverity = player.injurySeverity;
+    injuryStartDate = player.injuryStartDate;
+    manualReturnFrom = player.manualReturnFrom;
+    manualReturnTo = player.manualReturnTo;
+    recoveryEstimateOverridden = player.recoveryEstimateOverridden;
     dominantFoot = player.dominantFoot;
     teamId = widget.teams.any((team) => team.id == player.teamId)
         ? player.teamId!
@@ -2842,10 +3099,269 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
     super.dispose();
   }
 
+  Widget _buildInjuryEditor(BuildContext context) {
+    final estimate = estimateInjuryRecovery(injuryType, injurySeverity);
+    final estimatedFrom = injuryStartDate == null || estimate == null
+        ? null
+        : _addCalendarDays(injuryStartDate!, estimate.minDays);
+    final estimatedTo = injuryStartDate == null || estimate == null
+        ? null
+        : _addCalendarDays(injuryStartDate!, estimate.maxDays);
+    final selectableTypes = <String>[...selectableInjuryTypes];
+    if (injuryType != null && !selectableTypes.contains(injuryType)) {
+      selectableTypes.insert(0, injuryType!);
+    }
+    final headInjury =
+        injuryType == 'HEAD_INJURY_CONCUSSION' || injuryType == 'HEAD_INJURY';
+
+    return Container(
+      key: const ValueKey('player-edit-injury-section'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.appColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.appColors.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.healing_rounded, color: Colors.red.shade600),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Verletzungsstatus',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String?>(
+            key: const ValueKey('player-edit-injury-type'),
+            initialValue: injuryType,
+            isExpanded: true,
+            menuMaxHeight: 360,
+            decoration: const InputDecoration(
+              labelText: 'Art der Verletzung',
+              prefixIcon: Icon(Icons.personal_injury_outlined),
+            ),
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Noch nicht festgelegt'),
+              ),
+              for (final value in selectableTypes)
+                DropdownMenuItem<String?>(
+                  value: value,
+                  child: Text(
+                    injuryTypeLabel(value),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: (value) => setState(() {
+              injuryType = value;
+              if (value != 'OTHER') injuryDetails.clear();
+            }),
+          ),
+          if (injuryType == 'OTHER') ...[
+            const SizedBox(height: 10),
+            TextField(
+              key: const ValueKey('player-edit-injury-details'),
+              controller: injuryDetails,
+              maxLength: 240,
+              minLines: 2,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Verletzung kurz beschreiben',
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          ResponsiveFormRow(
+            breakpoint: 520,
+            children: [
+              DropdownButtonFormField<InjurySeverity>(
+                key: const ValueKey('player-edit-injury-severity'),
+                initialValue: injurySeverity,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Schweregrad (optional)',
+                  prefixIcon: Icon(Icons.speed_rounded),
+                ),
+                items: [
+                  for (final value in InjurySeverity.values)
+                    DropdownMenuItem(
+                      value: value,
+                      child: Text(injurySeverityLabels[value]!),
+                    ),
+                ],
+                onChanged: (value) => setState(() => injurySeverity = value!),
+              ),
+              _ProfileDateField(
+                key: const ValueKey('player-edit-injury-start-date'),
+                label: 'Verletzt seit',
+                value: injuryStartDate,
+                firstDate: DateTime(2000),
+                lastDate: DateTime.now(),
+                onChanged: (value) => setState(() => injuryStartDate = value),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            key: const ValueKey('player-edit-injury-estimate'),
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: context.appColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: context.appColors.outline),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  headInjury
+                      ? Icons.health_and_safety_outlined
+                      : Icons.date_range_rounded,
+                  size: 20,
+                  color: context.appColors.textMuted,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Geschätzte Ausfallzeit',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        estimate == null
+                            ? headInjury
+                                ? 'Keine automatische sportliche Freigabe – ärztliche Beurteilung erforderlich.'
+                                : 'Für diese Auswahl ist keine automatische Prognose hinterlegt.'
+                            : injuryDurationLabel(
+                                estimate.minDays,
+                                estimate.maxDays,
+                              ),
+                        style: TextStyle(
+                          color: context.appColors.textMuted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (estimatedFrom != null && estimatedTo != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Voraussichtlicher Zeitraum: ${injuryDateRangeLabel(estimatedFrom, estimatedTo)}',
+                          style: TextStyle(
+                            color: context.appColors.textMuted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Material(
+            color: Colors.transparent,
+            child: SwitchListTile.adaptive(
+              key: const ValueKey('player-edit-injury-manual-toggle'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Zeitraum anpassen',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: const Text(
+                'Eine individuelle oder ärztliche Einschätzung hat Vorrang.',
+              ),
+              value: recoveryEstimateOverridden,
+              onChanged: (value) => setState(() {
+                recoveryEstimateOverridden = value;
+                injuryValidationMessage = null;
+              }),
+            ),
+          ),
+          if (recoveryEstimateOverridden) ...[
+            const SizedBox(height: 4),
+            ResponsiveFormRow(
+              breakpoint: 520,
+              children: [
+                _ProfileDateField(
+                  key: const ValueKey('player-edit-manual-return-from'),
+                  label: 'Eigener Zeitraum von',
+                  value: manualReturnFrom,
+                  firstDate: injuryStartDate ?? DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 1095)),
+                  onChanged: (value) => setState(() {
+                    manualReturnFrom = value;
+                    injuryValidationMessage = null;
+                  }),
+                ),
+                _ProfileDateField(
+                  key: const ValueKey('player-edit-manual-return-to'),
+                  label: 'Bis / Rückkehrdatum',
+                  value: manualReturnTo,
+                  firstDate: injuryStartDate ?? DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 1095)),
+                  onChanged: (value) => setState(() {
+                    manualReturnTo = value;
+                    injuryValidationMessage = null;
+                  }),
+                ),
+              ],
+            ),
+            if (injuryValidationMessage != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                injuryValidationMessage!,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Die angezeigte Ausfallzeit ist eine unverbindliche Orientierung und ersetzt keine ärztliche Beurteilung.',
+            style: TextStyle(
+              color: context.appColors.textMuted,
+              fontSize: 11,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     void save() {
       if (firstName.text.trim().isEmpty || lastName.text.trim().isEmpty) return;
+      if (status == PlayerStatus.injured &&
+          recoveryEstimateOverridden &&
+          manualReturnFrom == null &&
+          manualReturnTo == null) {
+        setState(() {
+          injuryValidationMessage =
+              'Bitte mindestens ein eigenes Rückkehrdatum auswählen.';
+        });
+        return;
+      }
       final original = widget.player;
       Navigator.pop(
         context,
@@ -2863,10 +3379,34 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
           dominantFoot: dominantFoot,
           shirtNumber: int.tryParse(shirtNumber.text),
           passNumber: _optional(passNumber),
-          injuryType: status == PlayerStatus.injured ? injuryType : null,
-          injuryDetails: status == PlayerStatus.injured && injuryType == 'OTHER'
-              ? _optional(injuryDetails)
-              : null,
+          injuryType:
+              status == PlayerStatus.injured ? injuryType : original.injuryType,
+          injuryDetails: status == PlayerStatus.injured
+              ? injuryType == 'OTHER'
+                  ? _optional(injuryDetails)
+                  : null
+              : original.injuryDetails,
+          injurySeverity: status == PlayerStatus.injured
+              ? injurySeverity
+              : original.injurySeverity,
+          injuryStartDate: status == PlayerStatus.injured
+              ? injuryStartDate ?? DateTime.now()
+              : original.injuryStartDate,
+          estimatedRecoveryMinDays: original.estimatedRecoveryMinDays,
+          estimatedRecoveryMaxDays: original.estimatedRecoveryMaxDays,
+          estimatedReturnFrom: original.estimatedReturnFrom,
+          estimatedReturnTo: original.estimatedReturnTo,
+          manualReturnFrom:
+              status == PlayerStatus.injured && recoveryEstimateOverridden
+                  ? manualReturnFrom
+                  : original.manualReturnFrom,
+          manualReturnTo:
+              status == PlayerStatus.injured && recoveryEstimateOverridden
+                  ? manualReturnTo
+                  : original.manualReturnTo,
+          recoveryEstimateOverridden: status == PlayerStatus.injured
+              ? recoveryEstimateOverridden
+              : original.recoveryEstimateOverridden,
           status: status,
           joinedAt: joinedAt,
           photoUrl: original.photoUrl,
@@ -3105,53 +3645,23 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
                 ),
               ],
               onChanged: (value) => setState(() {
+                final previous = status;
                 status = value!;
-                if (status != PlayerStatus.injured) {
+                if (status == PlayerStatus.injured &&
+                    previous != PlayerStatus.injured) {
                   injuryType = null;
                   injuryDetails.clear();
+                  injurySeverity = InjurySeverity.unknown;
+                  injuryStartDate = DateTime.now();
+                  manualReturnFrom = null;
+                  manualReturnTo = null;
+                  recoveryEstimateOverridden = false;
                 }
               }),
             ),
             if (status == PlayerStatus.injured) ...[
               const SizedBox(height: 10),
-              DropdownButtonFormField<String?>(
-                key: const ValueKey('player-edit-injury-type'),
-                initialValue: injuryType,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Art der Verletzung',
-                  prefixIcon: Icon(Icons.healing_rounded),
-                ),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('Noch nicht festgelegt'),
-                  ),
-                  for (final entry in injuryTypeLabels.entries)
-                    DropdownMenuItem<String?>(
-                      value: entry.key,
-                      child: Text(entry.value),
-                    ),
-                ],
-                onChanged: (value) => setState(() {
-                  injuryType = value;
-                  if (value != 'OTHER') injuryDetails.clear();
-                }),
-              ),
-              if (injuryType == 'OTHER') ...[
-                const SizedBox(height: 10),
-                TextField(
-                  key: const ValueKey('player-edit-injury-details'),
-                  controller: injuryDetails,
-                  maxLength: 240,
-                  minLines: 2,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Verletzung kurz beschreiben',
-                    alignLabelWithHint: true,
-                  ),
-                ),
-              ],
+              _buildInjuryEditor(context),
             ],
           ],
         ),
@@ -3850,3 +4360,6 @@ String? _optional(TextEditingController controller) =>
 
 String _date(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year}';
+
+DateTime _addCalendarDays(DateTime value, int days) =>
+    DateTime(value.year, value.month, value.day + days);

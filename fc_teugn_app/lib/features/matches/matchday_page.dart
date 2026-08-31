@@ -3346,7 +3346,9 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                                 declined
                                     ? 'Abgesagt · nicht für den Kader verfügbar'
                                     : player.status == PlayerStatus.injured
-                                        ? 'Verletzt · bis zur Aktivierung gesperrt'
+                                        ? player.effectiveReturnTo == null
+                                            ? 'Verletzt · bis zur Aktivierung gesperrt'
+                                            : 'Verletzt · ${injuryDateRangeLabel(null, player.effectiveReturnTo)}'
                                         : player.position ?? 'Spieler',
                               ),
                               _AttendanceMenu(

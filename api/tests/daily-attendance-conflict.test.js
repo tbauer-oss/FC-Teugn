@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const {
   acceptAttendanceExclusivelyForDay,
@@ -7,6 +9,31 @@ const {
   berlinCalendarDayRange,
   isAutomaticDailyDeclineReason,
 } = require('../dist/src/services/daily-attendance-conflict.service.js');
+
+test('authorized staff corrections bypass finalized and expired response locks', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '../src/controllers/events.controller.ts'),
+    'utf8',
+  );
+  const handler = source.slice(
+    source.indexOf('export async function setAttendance'),
+    source.indexOf('export async function removeEventParticipant'),
+  );
+
+  assert.match(
+    handler,
+    /canCorrectAttendance\s*=\s*!personalResponse\s*&&\s*canManageEventWithIds\(user, event, teamIds\)/,
+  );
+  assert.match(
+    handler,
+    /event\.attendanceFinalized\s*&&\s*!canCorrectAttendance/,
+  );
+  assert.match(
+    handler,
+    /!canCorrectAttendance\s*&&\s*event\.responseDeadline/,
+  );
+  assert.doesNotMatch(handler, /!isStaff\(user\.role\)/);
+});
 
 test('Berlin calendar-day ranges stay correct across summer and winter time', () => {
   const summer = berlinCalendarDayRange(new Date('2026-08-29T18:00:00.000Z'));

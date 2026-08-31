@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/models/event.dart';
@@ -1367,11 +1368,11 @@ class _CombinedTrainingResponsesSheetState
           content: Text('${entry.name}: ${status.label} gespeichert.'),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Die Rückmeldung konnte nicht geändert werden.'),
+        SnackBar(
+          content: Text(_attendanceUpdateErrorMessage(error)),
         ),
       );
     } finally {
@@ -1618,6 +1619,19 @@ class _CombinedTrainingResponsesSheetState
       ),
     );
   }
+}
+
+String _attendanceUpdateErrorMessage(Object error) {
+  if (error is DioException) {
+    final data = error.response?.data;
+    if (data is Map) {
+      final message = data['message'];
+      if (message is String && message.trim().isNotEmpty) {
+        return message.trim();
+      }
+    }
+  }
+  return 'Die Rückmeldung konnte nicht geändert werden.';
 }
 
 class _CombinedTrainingEventBadge extends StatelessWidget {

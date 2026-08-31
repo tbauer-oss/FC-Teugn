@@ -1,20 +1,182 @@
 enum PlayerStatus { active, injured, paused, left }
 
 const injuryTypeLabels = <String, String>{
+  'CONTUSION': 'Prellung',
+  'SUPERFICIAL_INJURY': 'Schürf- / oberflächliche Verletzung',
+  'MUSCLE_DISCOMFORT': 'Muskelverhärtung / muskuläre Beschwerden',
+  'STRAIN': 'Muskelzerrung',
+  'MUSCLE_FIBER_TEAR': 'Muskelfaserriss',
+  'MUSCLE_BUNDLE_TEAR': 'Muskelbündelriss',
+  'THIGH_INJURY': 'Oberschenkelverletzung',
+  'CALF_INJURY': 'Wadenverletzung',
+  'GROIN_ADDUCTOR_INJURY': 'Leisten- / Adduktorenbeschwerden',
+  'SPRAIN_DISTORTION': 'Verstauchung / Distorsion',
+  'ANKLE_INJURY': 'Sprunggelenksverletzung',
+  'LIGAMENT_STRETCH': 'Bänderdehnung',
+  'LIGAMENT_TEAR': 'Bänderriss',
+  'KNEE_INJURY': 'Knieverletzung',
+  'MENISCUS_INJURY': 'Meniskusverletzung',
+  'KNEE_COLLATERAL_LIGAMENT': 'Innen- / Außenbandverletzung Knie',
+  'ACL_INJURY': 'Kreuzbandverletzung',
+  'PATELLAR_KNEECAP_COMPLAINT': 'Patellasehnen- / Kniescheibenbeschwerden',
+  'FOOT_TOE_INJURY': 'Fuß- / Zehenverletzung',
+  'FRACTURE': 'Knochenbruch',
+  'BACK_COMPLAINT': 'Rückenbeschwerden',
+  'SHOULDER_ARM_INJURY': 'Schulter- / Armverletzung',
+  'HEAD_INJURY_CONCUSSION': 'Kopfverletzung / Gehirnerschütterung',
+  'HEAD_INJURY': 'Kopfverletzung',
+  'OTHER': 'Sonstige Verletzung',
+  // Frühere Kategorien bleiben für vorhandene Datensätze lesbar.
   'MUSCLE_INJURY': 'Muskelverletzung',
   'LIGAMENT_INJURY': 'Bänderverletzung',
-  'CONTUSION': 'Prellung',
-  'STRAIN': 'Zerrung',
-  'FRACTURE': 'Knochenbruch',
   'JOINT_INJURY': 'Gelenkverletzung',
-  'HEAD_INJURY_CONCUSSION': 'Kopfverletzung / Gehirnerschütterung',
   'OVERUSE': 'Überlastung',
   'ILLNESS': 'Erkrankung',
-  'OTHER': 'Sonstige Verletzung',
 };
+
+const selectableInjuryTypes = <String>[
+  'CONTUSION',
+  'SUPERFICIAL_INJURY',
+  'MUSCLE_DISCOMFORT',
+  'STRAIN',
+  'MUSCLE_FIBER_TEAR',
+  'MUSCLE_BUNDLE_TEAR',
+  'THIGH_INJURY',
+  'CALF_INJURY',
+  'GROIN_ADDUCTOR_INJURY',
+  'SPRAIN_DISTORTION',
+  'ANKLE_INJURY',
+  'LIGAMENT_STRETCH',
+  'LIGAMENT_TEAR',
+  'KNEE_INJURY',
+  'MENISCUS_INJURY',
+  'KNEE_COLLATERAL_LIGAMENT',
+  'ACL_INJURY',
+  'PATELLAR_KNEECAP_COMPLAINT',
+  'FOOT_TOE_INJURY',
+  'FRACTURE',
+  'BACK_COMPLAINT',
+  'SHOULDER_ARM_INJURY',
+  'HEAD_INJURY_CONCUSSION',
+  'HEAD_INJURY',
+  'OTHER',
+];
 
 String injuryTypeLabel(String? value) =>
     injuryTypeLabels[value] ?? 'Nicht näher angegeben';
+
+enum InjurySeverity { unknown, light, medium, severe }
+
+const injurySeverityLabels = <InjurySeverity, String>{
+  InjurySeverity.unknown: 'Nicht bekannt',
+  InjurySeverity.light: 'Leicht',
+  InjurySeverity.medium: 'Mittel',
+  InjurySeverity.severe: 'Schwer',
+};
+
+String injurySeverityApi(InjurySeverity value) => switch (value) {
+      InjurySeverity.unknown => 'UNKNOWN',
+      InjurySeverity.light => 'LIGHT',
+      InjurySeverity.medium => 'MEDIUM',
+      InjurySeverity.severe => 'SEVERE',
+    };
+
+InjurySeverity _injurySeverity(String? value) => switch (value) {
+      'LIGHT' => InjurySeverity.light,
+      'MEDIUM' => InjurySeverity.medium,
+      'SEVERE' => InjurySeverity.severe,
+      _ => InjurySeverity.unknown,
+    };
+
+class InjuryEstimate {
+  const InjuryEstimate({required this.minDays, required this.maxDays});
+
+  final int minDays;
+  final int maxDays;
+}
+
+const _typicalInjuryRanges = <String, InjuryEstimate>{
+  'CONTUSION': InjuryEstimate(minDays: 3, maxDays: 14),
+  'SUPERFICIAL_INJURY': InjuryEstimate(minDays: 2, maxDays: 10),
+  'MUSCLE_DISCOMFORT': InjuryEstimate(minDays: 3, maxDays: 14),
+  'STRAIN': InjuryEstimate(minDays: 7, maxDays: 21),
+  'MUSCLE_FIBER_TEAR': InjuryEstimate(minDays: 21, maxDays: 42),
+  'MUSCLE_BUNDLE_TEAR': InjuryEstimate(minDays: 42, maxDays: 84),
+  'THIGH_INJURY': InjuryEstimate(minDays: 7, maxDays: 42),
+  'CALF_INJURY': InjuryEstimate(minDays: 7, maxDays: 42),
+  'GROIN_ADDUCTOR_INJURY': InjuryEstimate(minDays: 7, maxDays: 42),
+  'SPRAIN_DISTORTION': InjuryEstimate(minDays: 7, maxDays: 21),
+  'ANKLE_INJURY': InjuryEstimate(minDays: 7, maxDays: 42),
+  'LIGAMENT_STRETCH': InjuryEstimate(minDays: 7, maxDays: 21),
+  'LIGAMENT_TEAR': InjuryEstimate(minDays: 42, maxDays: 84),
+  'KNEE_INJURY': InjuryEstimate(minDays: 14, maxDays: 84),
+  'MENISCUS_INJURY': InjuryEstimate(minDays: 42, maxDays: 168),
+  'KNEE_COLLATERAL_LIGAMENT': InjuryEstimate(minDays: 21, maxDays: 84),
+  'ACL_INJURY': InjuryEstimate(minDays: 180, maxDays: 365),
+  'PATELLAR_KNEECAP_COMPLAINT': InjuryEstimate(minDays: 14, maxDays: 84),
+  'FOOT_TOE_INJURY': InjuryEstimate(minDays: 7, maxDays: 56),
+  'FRACTURE': InjuryEstimate(minDays: 42, maxDays: 112),
+  'BACK_COMPLAINT': InjuryEstimate(minDays: 7, maxDays: 42),
+  'SHOULDER_ARM_INJURY': InjuryEstimate(minDays: 14, maxDays: 56),
+  'MUSCLE_INJURY': InjuryEstimate(minDays: 7, maxDays: 42),
+  'LIGAMENT_INJURY': InjuryEstimate(minDays: 21, maxDays: 84),
+  'JOINT_INJURY': InjuryEstimate(minDays: 7, maxDays: 42),
+  'OVERUSE': InjuryEstimate(minDays: 7, maxDays: 42),
+};
+
+InjuryEstimate? estimateInjuryRecovery(
+  String? injuryType,
+  InjurySeverity severity,
+) {
+  final range = _typicalInjuryRanges[injuryType];
+  if (range == null) return null;
+  final factor = switch (severity) {
+    InjurySeverity.light => .8,
+    InjurySeverity.severe => 1.5,
+    _ => 1.0,
+  };
+  return InjuryEstimate(
+    minDays: (range.minDays * factor).round().clamp(1, 10000).toInt(),
+    maxDays: (range.maxDays * factor).round().clamp(2, 10000).toInt(),
+  );
+}
+
+String injuryDurationLabel(
+  int? minDays,
+  int? maxDays, {
+  bool compact = false,
+}) {
+  if (minDays == null || maxDays == null) {
+    return compact ? 'ärztlich prüfen' : 'Keine automatische Schätzung';
+  }
+  if (minDays >= 120 || maxDays >= 180) return 'mehrere Monate';
+  final minWeeks = (minDays / 7).ceil().clamp(1, 52);
+  final maxWeeks = (maxDays / 7).ceil().clamp(minWeeks, 52);
+  if (minWeeks == maxWeeks) {
+    return compact
+        ? 'ca. $minWeeks Wo.'
+        : 'ca. $minWeeks ${minWeeks == 1 ? 'Woche' : 'Wochen'}';
+  }
+  return compact
+      ? 'ca. $minWeeks–$maxWeeks Wo.'
+      : 'ca. $minWeeks–$maxWeeks Wochen';
+}
+
+String injuryDateRangeLabel(DateTime? from, DateTime? to) {
+  if (from == null && to == null) return 'Noch kein Zeitraum hinterlegt';
+  final first = from ?? to!;
+  final last = to ?? from!;
+  if (_sameDay(first, last)) return 'ca. ${_injuryDate(last)}';
+  return 'ca. ${_injuryDate(first)} – ${_injuryDate(last)}';
+}
+
+bool _sameDay(DateTime first, DateTime second) =>
+    first.year == second.year &&
+    first.month == second.month &&
+    first.day == second.day;
+
+String _injuryDate(DateTime value) =>
+    '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year}';
 
 enum DominantFoot { right, left, both, unknown }
 
@@ -499,6 +661,15 @@ class PlayerModel {
     this.passNumber,
     this.injuryType,
     this.injuryDetails,
+    this.injurySeverity = InjurySeverity.unknown,
+    this.injuryStartDate,
+    this.estimatedRecoveryMinDays,
+    this.estimatedRecoveryMaxDays,
+    this.estimatedReturnFrom,
+    this.estimatedReturnTo,
+    this.manualReturnFrom,
+    this.manualReturnTo,
+    this.recoveryEstimateOverridden = false,
     this.joinedAt,
     this.photoUrl,
     this.teamName,
@@ -535,6 +706,15 @@ class PlayerModel {
   final String? passNumber;
   final String? injuryType;
   final String? injuryDetails;
+  final InjurySeverity injurySeverity;
+  final DateTime? injuryStartDate;
+  final int? estimatedRecoveryMinDays;
+  final int? estimatedRecoveryMaxDays;
+  final DateTime? estimatedReturnFrom;
+  final DateTime? estimatedReturnTo;
+  final DateTime? manualReturnFrom;
+  final DateTime? manualReturnTo;
+  final bool recoveryEstimateOverridden;
   final PlayerStatus status;
   final DateTime? joinedAt;
   final String? photoUrl;
@@ -606,6 +786,29 @@ class PlayerModel {
     return result;
   }
 
+  DateTime? get effectiveReturnFrom => recoveryEstimateOverridden
+      ? manualReturnFrom ?? manualReturnTo
+      : estimatedReturnFrom;
+
+  DateTime? get effectiveReturnTo => recoveryEstimateOverridden
+      ? manualReturnTo ?? manualReturnFrom
+      : estimatedReturnTo;
+
+  String get injuryAbsenceLabel => recoveryEstimateOverridden
+      ? injuryDateRangeLabel(effectiveReturnFrom, effectiveReturnTo)
+      : injuryDurationLabel(
+          estimatedRecoveryMinDays,
+          estimatedRecoveryMaxDays,
+        );
+
+  bool injuryEstimateNeedsReview([DateTime? now]) {
+    final end = effectiveReturnTo;
+    if (status != PlayerStatus.injured || end == null) return false;
+    final today = now ?? DateTime.now();
+    return !DateTime(today.year, today.month, today.day)
+        .isBefore(DateTime(end.year, end.month, end.day));
+  }
+
   factory PlayerModel.fromJson(Map<String, dynamic> json) {
     final team = _jsonMap(json['team']);
     final ageGroup = _jsonMap(team?['ageGroup']);
@@ -632,6 +835,20 @@ class PlayerModel {
       passNumber: _jsonString(json['passNumber']),
       injuryType: _jsonString(json['injuryType']),
       injuryDetails: _jsonString(json['injuryDetails']),
+      injurySeverity: _injurySeverity(_jsonString(json['injurySeverity'])),
+      injuryStartDate: _jsonDate(json['injuryStartDate']),
+      estimatedRecoveryMinDays: json['estimatedRecoveryMinDays'] == null
+          ? null
+          : _jsonInt(json['estimatedRecoveryMinDays']),
+      estimatedRecoveryMaxDays: json['estimatedRecoveryMaxDays'] == null
+          ? null
+          : _jsonInt(json['estimatedRecoveryMaxDays']),
+      estimatedReturnFrom: _jsonDate(json['estimatedReturnFrom']),
+      estimatedReturnTo: _jsonDate(json['estimatedReturnTo']),
+      manualReturnFrom: _jsonDate(json['manualReturnFrom']),
+      manualReturnTo: _jsonDate(json['manualReturnTo']),
+      recoveryEstimateOverridden:
+          json['recoveryEstimateOverridden'] as bool? ?? false,
       status: _status(_jsonString(json['status'])),
       joinedAt: _jsonDate(json['joinedAt']),
       photoUrl: _jsonString(json['photoUrl']),

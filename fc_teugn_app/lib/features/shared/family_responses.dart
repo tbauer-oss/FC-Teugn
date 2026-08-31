@@ -668,6 +668,8 @@ class _RegularTrainingSeriesSheetState
               );
       ref.invalidate(personalResponsesProvider);
       ref.invalidate(eventsProvider);
+      ref.invalidate(calendarEventsProvider);
+      ref.invalidate(parentDashboardEventsProvider);
       ref.invalidate(parentMatchdaysProvider);
       ref.invalidate(parentDashboardSummaryProvider);
       ref.invalidate(trainerDashboardSummaryProvider);

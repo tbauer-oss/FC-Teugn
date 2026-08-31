@@ -215,6 +215,8 @@ void main() {
         title: 'Training',
         startAt: date,
         category: 'TRAINING',
+        attendanceStatus: 'YES',
+        playerName: 'Levin Baumann',
       ),
       _calendarEvent(
         id: 'match',
@@ -258,6 +260,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Training'), findsWidgets);
+    expect(find.text('Levin · Zugesagt'), findsOneWidget);
     expect(find.text('Weihnachtsfeier'), findsWidgets);
     expect(find.text('H Heim'), findsOneWidget);
     expect(find.text('A Auswärts'), findsOneWidget);
@@ -476,7 +479,10 @@ EventModel _calendarEvent({
   String category = 'SPECIAL_EVENT',
   String? opponent,
   bool? isHome,
+  String? attendanceStatus,
+  String playerName = 'Max Muster',
 }) {
+  final nameParts = playerName.trim().split(RegExp(r'\s+'));
   return EventModel.fromJson({
     'id': id,
     'teamId': 'team-e1',
@@ -500,8 +506,24 @@ EventModel _calendarEvent({
     'attendanceFinalized': false,
     'targetTeams': <dynamic>[],
     'attachments': <dynamic>[],
-    'attendance': <dynamic>[],
-    'attendanceSummary': <String, dynamic>{},
+    'attendance': attendanceStatus == null
+        ? <dynamic>[]
+        : <dynamic>[
+            {
+              'id': 'attendance-$id',
+              'playerId': 'player-1',
+              'status': attendanceStatus,
+              'player': {
+                'firstName': nameParts.first,
+                'lastName':
+                    nameParts.length > 1 ? nameParts.skip(1).join(' ') : '',
+              },
+            },
+          ],
+    'attendanceSummary': <String, dynamic>{
+      if (attendanceStatus == 'YES') 'yes': 1,
+      if (attendanceStatus == 'NO') 'no': 1,
+    },
     'missingAttendance': <dynamic>[],
     'carpoolOffers': <dynamic>[],
     'capabilities': <String, dynamic>{},

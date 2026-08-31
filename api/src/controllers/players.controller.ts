@@ -25,6 +25,16 @@ import {
   hasActiveConsent,
   medicalProfileForConsent,
 } from '../services/consent-policy';
+import {
+  addDays,
+  estimateInjuryRecovery,
+  playerInjurySeverities,
+  playerInjuryTypes,
+  validInjurySeverity,
+  validInjuryType,
+} from '../services/injury-estimate';
+
+export { estimateInjuryRecovery, playerInjurySeverities, playerInjuryTypes };
 
 const statisticGoalTypes: TickerEventType[] = [
   TickerEventType.HOME_GOAL,
@@ -49,6 +59,15 @@ const publicPlayerSelect = {
   status: true,
   injuryType: true,
   injuryDetails: true,
+  injurySeverity: true,
+  injuryStartDate: true,
+  estimatedRecoveryMinDays: true,
+  estimatedRecoveryMaxDays: true,
+  estimatedReturnFrom: true,
+  estimatedReturnTo: true,
+  manualReturnFrom: true,
+  manualReturnTo: true,
+  recoveryEstimateOverridden: true,
   joinedAt: true,
   createdAt: true,
   updatedAt: true,
@@ -568,6 +587,11 @@ export async function createPlayer(req: Request, res: Response) {
       },
       select: publicPlayerSelect,
     });
+    if (created.status === PlayerStatus.INJURED) {
+      await tx.playerInjuryRecord.create({
+        data: { playerId: created.id, ...injuryRecordData(created) },
+      });
+    }
     await tx.auditLog.create({
       data: {
         actorId,
@@ -617,18 +641,62 @@ export async function updatePlayer(req: Request, res: Response) {
   }
 
   const updated = await prisma.$transaction(async (tx) => {
+    const normalized = playerData(req.body);
+    const containsStatusUpdate = req.body.status !== undefined;
     const result = await tx.player.update({
       where: { id },
       data: {
         ...Object.fromEntries(
-          Object.entries(playerData(req.body)).filter(
-            ([key, value]) => req.body[key] !== undefined && value !== undefined,
+          Object.entries(normalized).filter(
+            ([key, value]) =>
+              value !== undefined &&
+              (req.body[key] !== undefined ||
+                (containsStatusUpdate && currentInjuryFields.has(key))),
           ),
         ),
         teamId: requestedTeamId,
       },
       select: publicPlayerSelect,
     });
+    if (result.status === PlayerStatus.INJURED) {
+      const openInjury = await tx.playerInjuryRecord.findFirst({
+        where: { playerId: id, endedAt: null },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+      const injuryData = injuryRecordData(result);
+      if (openInjury) {
+        await tx.playerInjuryRecord.update({
+          where: { id: openInjury.id },
+          data: injuryData,
+        });
+      } else {
+        await tx.playerInjuryRecord.create({
+          data: { playerId: id, ...injuryData },
+        });
+      }
+    } else if (player.status === PlayerStatus.INJURED) {
+      const endedAt = new Date();
+      const openInjury = await tx.playerInjuryRecord.findFirst({
+        where: { playerId: id, endedAt: null },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+      if (openInjury) {
+        await tx.playerInjuryRecord.update({
+          where: { id: openInjury.id },
+          data: { endedAt },
+        });
+      } else {
+        await tx.playerInjuryRecord.create({
+          data: {
+            playerId: id,
+            ...injuryRecordData(player),
+            endedAt,
+          },
+        });
+      }
+    }
     await tx.auditLog.create({
       data: {
         actorId,
@@ -640,6 +708,10 @@ export async function updatePlayer(req: Request, res: Response) {
           previousTeamId: player.teamId,
           teamId: requestedTeamId,
           moved: player.teamId !== requestedTeamId,
+          previousStatus: player.status,
+          status: result.status,
+          injuryType:
+            result.status === PlayerStatus.INJURED ? result.injuryType : null,
         },
       },
     });
@@ -893,6 +965,21 @@ export function playerData(body: Record<string, unknown>) {
   const parsedStatus = parsePlayerStatus(body.status);
   const effectiveStatus = parsedStatus ?? PlayerStatus.ACTIVE;
   const injuryType = validInjuryType(body.injuryType);
+  const isInjuredPayload = effectiveStatus === PlayerStatus.INJURED;
+  const injurySeverity = validInjurySeverity(body.injurySeverity);
+  const injuryStartDate = isInjuredPayload
+    ? validDate(body.injuryStartDate) ?? new Date()
+    : null;
+  const recoveryRange = isInjuredPayload
+    ? estimateInjuryRecovery(injuryType, injurySeverity)
+    : null;
+  const requestedManualFrom = validDate(body.manualReturnFrom);
+  const requestedManualTo = validDate(body.manualReturnTo);
+  const manualDates = orderedDateRange(requestedManualFrom, requestedManualTo);
+  const recoveryEstimateOverridden =
+    isInjuredPayload &&
+    body.recoveryEstimateOverridden === true &&
+    manualDates != null;
   return {
     firstName: cleanRequiredString(body.firstName),
     lastName: cleanRequiredString(body.lastName),
@@ -910,45 +997,102 @@ export function playerData(body: Record<string, unknown>) {
     passNumber: cleanOptionalString(body.passNumber),
     status: effectiveStatus,
     injuryType:
-      body.status === undefined
-        ? body.injuryType === undefined
-          ? undefined
-          : injuryType
-        : effectiveStatus === PlayerStatus.INJURED
-          ? injuryType
-          : null,
+      body.status === undefined ? undefined : isInjuredPayload ? injuryType : null,
     injuryDetails:
       body.status === undefined
-        ? body.injuryDetails === undefined
-          ? undefined
-          : cleanOptionalString(body.injuryDetails)
-        : effectiveStatus === PlayerStatus.INJURED && injuryType === 'OTHER'
+        ? undefined
+        : isInjuredPayload && injuryType === 'OTHER'
           ? cleanOptionalString(body.injuryDetails)
+        : null,
+    injurySeverity:
+      body.status === undefined ? undefined : isInjuredPayload ? injurySeverity : null,
+    injuryStartDate:
+      body.status === undefined ? undefined : isInjuredPayload ? injuryStartDate : null,
+    estimatedRecoveryMinDays:
+      body.status === undefined ? undefined : isInjuredPayload ? recoveryRange?.minDays ?? null : null,
+    estimatedRecoveryMaxDays:
+      body.status === undefined ? undefined : isInjuredPayload ? recoveryRange?.maxDays ?? null : null,
+    estimatedReturnFrom:
+      body.status === undefined
+        ? undefined
+        : isInjuredPayload && injuryStartDate && recoveryRange
+          ? addDays(injuryStartDate, recoveryRange.minDays)
           : null,
+    estimatedReturnTo:
+      body.status === undefined
+        ? undefined
+        : isInjuredPayload && injuryStartDate && recoveryRange
+          ? addDays(injuryStartDate, recoveryRange.maxDays)
+          : null,
+    manualReturnFrom:
+      body.status === undefined
+        ? undefined
+        : isInjuredPayload && recoveryEstimateOverridden
+          ? manualDates?.from ?? null
+          : null,
+    manualReturnTo:
+      body.status === undefined
+        ? undefined
+        : isInjuredPayload && recoveryEstimateOverridden
+          ? manualDates?.to ?? null
+          : null,
+    recoveryEstimateOverridden:
+      body.status === undefined
+        ? undefined
+        : isInjuredPayload
+          ? recoveryEstimateOverridden
+          : false,
     joinedAt: validDate(body.joinedAt),
   };
 }
 
-export const playerInjuryTypes = [
-  'MUSCLE_INJURY',
-  'LIGAMENT_INJURY',
-  'CONTUSION',
-  'STRAIN',
-  'FRACTURE',
-  'JOINT_INJURY',
-  'HEAD_INJURY_CONCUSSION',
-  'OVERUSE',
-  'ILLNESS',
-  'OTHER',
-] as const;
+const currentInjuryFields = new Set([
+  'injuryType',
+  'injuryDetails',
+  'injurySeverity',
+  'injuryStartDate',
+  'estimatedRecoveryMinDays',
+  'estimatedRecoveryMaxDays',
+  'estimatedReturnFrom',
+  'estimatedReturnTo',
+  'manualReturnFrom',
+  'manualReturnTo',
+  'recoveryEstimateOverridden',
+]);
 
-function validInjuryType(value: unknown) {
-  const normalized = typeof value === 'string' ? value.trim().toUpperCase() : '';
-  return playerInjuryTypes.includes(
-    normalized as (typeof playerInjuryTypes)[number],
-  )
-    ? normalized
-    : null;
+function orderedDateRange(from: Date | null, to: Date | null) {
+  if (!from && !to) return null;
+  const first = from ?? to!;
+  const last = to ?? from!;
+  return first <= last ? { from: first, to: last } : { from: last, to: first };
+}
+
+function injuryRecordData(player: {
+  injuryType: string | null;
+  injuryDetails: string | null;
+  injurySeverity: string | null;
+  injuryStartDate: Date | null;
+  estimatedRecoveryMinDays: number | null;
+  estimatedRecoveryMaxDays: number | null;
+  estimatedReturnFrom: Date | null;
+  estimatedReturnTo: Date | null;
+  manualReturnFrom: Date | null;
+  manualReturnTo: Date | null;
+  recoveryEstimateOverridden: boolean;
+}) {
+  return {
+    injuryType: player.injuryType,
+    injuryDetails: player.injuryDetails,
+    injurySeverity: player.injurySeverity,
+    startDate: player.injuryStartDate,
+    estimatedRecoveryMinDays: player.estimatedRecoveryMinDays,
+    estimatedRecoveryMaxDays: player.estimatedRecoveryMaxDays,
+    estimatedReturnFrom: player.estimatedReturnFrom,
+    estimatedReturnTo: player.estimatedReturnTo,
+    manualReturnFrom: player.manualReturnFrom,
+    manualReturnTo: player.manualReturnTo,
+    recoveryEstimateOverridden: player.recoveryEstimateOverridden,
+  };
 }
 
 function cleanRequiredString(value: unknown) {

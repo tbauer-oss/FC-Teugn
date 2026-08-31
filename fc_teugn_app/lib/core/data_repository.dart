@@ -975,10 +975,15 @@ class DataRepository {
       'shirtNumber': player.shirtNumber,
       'passNumber': player.passNumber,
       'status': playerStatusApi(player.status),
-      'injuryType':
-          player.status == PlayerStatus.injured ? player.injuryType : null,
-      'injuryDetails':
-          player.status == PlayerStatus.injured ? player.injuryDetails : null,
+      if (player.status == PlayerStatus.injured) ...{
+        'injuryType': player.injuryType,
+        'injuryDetails': player.injuryDetails,
+        'injurySeverity': injurySeverityApi(player.injurySeverity),
+        'injuryStartDate': player.injuryStartDate?.toIso8601String(),
+        'manualReturnFrom': player.manualReturnFrom?.toIso8601String(),
+        'manualReturnTo': player.manualReturnTo?.toIso8601String(),
+        'recoveryEstimateOverridden': player.recoveryEstimateOverridden,
+      },
       'joinedAt': player.joinedAt?.toIso8601String(),
       'photoUrl': player.photoUrl,
     });

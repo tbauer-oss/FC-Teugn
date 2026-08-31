@@ -1658,13 +1658,22 @@ class _MobileMonthView extends StatelessWidget {
                       contentPadding: EdgeInsets.zero,
                       leading: _EventEmojiBadge(event: event),
                       title: Text(event.fixtureDisplayTitle),
-                      subtitle: Text(
-                        [
-                          if (event.matchVenueType != null)
-                            event.matchVenueType!.label,
-                          '${_time(event.startAt)} Uhr',
-                          event.location,
-                        ].join(' · '),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            [
+                              if (event.matchVenueType != null)
+                                event.matchVenueType!.label,
+                              '${_time(event.startAt)} Uhr',
+                              event.location,
+                            ].join(' · '),
+                          ),
+                          if (_visibleAttendance(event).isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            _CalendarAttendanceBadge(event: event),
+                          ],
+                        ],
                       ),
                       onTap: () {
                         Navigator.pop(sheetContext);
@@ -1795,20 +1804,38 @@ class _CompactCalendarEventRow extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 1),
-                      Text(
-                        [
-                          event.category.label,
-                          if (event.matchVenueType != null)
-                            event.matchVenueType!.label,
-                          if (event.location.trim().isNotEmpty)
-                            event.location.trim(),
-                        ].join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colors.textMuted,
-                              fontSize: 11,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              [
+                                event.category.label,
+                                if (event.matchVenueType != null)
+                                  event.matchVenueType!.label,
+                                if (event.location.trim().isNotEmpty)
+                                  event.location.trim(),
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: colors.textMuted,
+                                    fontSize: 11,
+                                  ),
                             ),
+                          ),
+                          if (_visibleAttendance(event).isNotEmpty) ...[
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: _CalendarAttendanceBadge(
+                                event: event,
+                                maxWidth: 126,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
@@ -2874,22 +2901,29 @@ class _EventCard extends StatelessWidget {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            _CountChip(
-                              icon: Icons.check_circle_rounded,
-                              value: event.attendanceSummary.yes,
-                              color: context.appSuccess,
-                            ),
-                            _CountChip(
-                              icon: Icons.cancel_rounded,
-                              value: event.attendanceSummary.no,
-                              color: Colors.redAccent,
-                            ),
-                            if (event.capabilities.canManage)
+                            if (!event.capabilities.canManage &&
+                                _visibleAttendance(event).isNotEmpty)
+                              _CalendarAttendanceBadge(
+                                event: event,
+                                maxWidth: 220,
+                              ),
+                            if (event.capabilities.canManage) ...[
+                              _CountChip(
+                                icon: Icons.check_circle_rounded,
+                                value: event.attendanceSummary.yes,
+                                color: context.appSuccess,
+                              ),
+                              _CountChip(
+                                icon: Icons.cancel_rounded,
+                                value: event.attendanceSummary.no,
+                                color: Colors.redAccent,
+                              ),
                               _CountChip(
                                 icon: Icons.hourglass_empty_rounded,
                                 value: event.attendanceSummary.unknown,
                                 color: context.appColors.textMuted,
                               ),
+                            ],
                           ],
                         ),
                       ],
@@ -2904,6 +2938,97 @@ class _EventCard extends StatelessWidget {
       },
     );
   }
+}
+
+List<EventAttendance> _visibleAttendance(EventModel event) => event.attendance
+    .where(
+      (item) =>
+          item.status == AttendanceStatus.yes ||
+          item.status == AttendanceStatus.no,
+    )
+    .toList(growable: false);
+
+class _CalendarAttendanceBadge extends StatelessWidget {
+  const _CalendarAttendanceBadge({
+    required this.event,
+    this.maxWidth = 160,
+  });
+
+  final EventModel event;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final replies = _visibleAttendance(event);
+    if (replies.isEmpty) return const SizedBox.shrink();
+
+    final yes =
+        replies.where((item) => item.status == AttendanceStatus.yes).length;
+    final no = replies.length - yes;
+    final single = replies.length == 1 ? replies.single : null;
+    final status = single?.status ??
+        (no == 0
+            ? AttendanceStatus.yes
+            : yes == 0
+                ? AttendanceStatus.no
+                : AttendanceStatus.unknown);
+    final label = switch (single) {
+      EventAttendance reply =>
+        '${_shortPlayerName(reply.playerName)} · ${reply.status.label}',
+      null when no == 0 => '${replies.length} Kinder · Zugesagt',
+      null when yes == 0 => '${replies.length} Kinder · Abgesagt',
+      null => '$yes zu · $no ab',
+    };
+    final semanticLabel = replies
+        .map(
+          (reply) => '${reply.playerName ?? 'Spieler'}: ${reply.status.label}',
+        )
+        .join(', ');
+    final color = _attendanceColor(context, status);
+
+    return Semantics(
+      label: semanticLabel,
+      child: Tooltip(
+        message: semanticLabel,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: color.withValues(alpha: .28)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_attendanceIcon(status), size: 12, color: color),
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _shortPlayerName(String? name) {
+  final trimmed = name?.trim() ?? '';
+  if (trimmed.isEmpty) return 'Spieler';
+  return trimmed.split(RegExp(r'\s+')).first;
 }
 
 class _CountChip extends StatelessWidget {
@@ -4175,11 +4300,17 @@ class _StaffAttendanceStatusMenuState
           ),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
+      final message = error is DioException
+          ? _apiErrorMessage(
+              error,
+              'Die Rückmeldung konnte nicht geändert werden.',
+            )
+          : 'Die Rückmeldung konnte nicht geändert werden.';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Die Rückmeldung konnte nicht geändert werden.'),
+        SnackBar(
+          content: Text(message),
         ),
       );
     } finally {

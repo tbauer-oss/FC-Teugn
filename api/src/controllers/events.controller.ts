@@ -2662,11 +2662,19 @@ export async function setAttendance(req: Request, res: Response) {
     include: { targetTeams: true, attendance: true, participants: true },
   });
   if (!event) return res.status(404).json({ message: 'Termin nicht gefunden oder abgesagt.' });
-  if (event.attendanceFinalized) {
+  const canCorrectAttendance =
+    !personalResponse && canManageEventWithIds(user, event, teamIds);
+  // Der Abschluss schützt die familiären Rückmeldungen vor nachträglichen
+  // Änderungen. Das Trainerteam muss den gemeldeten Status aber weiterhin
+  // korrigieren können – insbesondere bei älteren Doppelzusagen, die bereits
+  // vor der tagesbezogenen Konfliktautomatik entstanden sind. Die tatsächliche
+  // Trainingsanwesenheit wird in separaten Feldern geführt und bleibt davon
+  // unberührt.
+  if (event.attendanceFinalized && !canCorrectAttendance) {
     return res.status(409).json({ message: 'Die Rückmeldungen wurden bereits abgeschlossen.' });
   }
   if (
-    (personalResponse || !isStaff(user.role)) &&
+    !canCorrectAttendance &&
     event.responseDeadline &&
     event.responseDeadline < new Date()
   ) {
@@ -2694,7 +2702,7 @@ export async function setAttendance(req: Request, res: Response) {
     where: { id: playerId, teamId: { in: attendanceTeamIds } },
   });
   if (!player) return res.status(404).json({ message: 'Spieler nicht gefunden.' });
-  if (!personalResponse && !isStaff(user.role)) {
+  if (!personalResponse && !canCorrectAttendance) {
     const allowedIds = await ownPlayerIds(user);
     if (!allowedIds.includes(playerId)) {
       return res.status(403).json({ message: 'Keine Berechtigung für diesen Spieler.' });

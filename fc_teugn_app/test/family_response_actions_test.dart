@@ -29,6 +29,38 @@ class _RefreshingRepository extends DataRepository {
   }
 }
 
+class _SeriesRepository extends DataRepository {
+  _SeriesRepository() : super(ApiClient(baseUrl: 'http://localhost'));
+
+  var calendarCalls = 0;
+  var confirmationCalls = 0;
+
+  @override
+  Future<List<EventModel>> events({
+    DateTime? from,
+    DateTime? to,
+    List<String> teamIds = const [],
+    List<EventCategory> categories = const [],
+  }) async {
+    calendarCalls++;
+    return const [];
+  }
+
+  @override
+  Future<RegularTrainingSeriesConfirmation> confirmRegularTrainingSeries({
+    required String eventId,
+    required String playerId,
+    int? periodMonths,
+  }) async {
+    confirmationCalls++;
+    return (
+      validUntil: DateTime.now().add(const Duration(days: 31)),
+      appliedCurrent: true,
+      preservedDeclines: 0,
+    );
+  }
+}
+
 PersonalResponseModel _response({
   String eventId = 'event-1',
   String title = 'Training',
@@ -135,6 +167,49 @@ void main() {
       find.textContaining('Bereits eingetragene Absagen bleiben bestehen'),
       findsOneWidget,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('bulk confirmation immediately refreshes the active calendar',
+      (tester) async {
+    final repository = _SeriesRepository();
+    final now = DateTime.now();
+    final range = (
+      from: DateTime(now.year, now.month, 1),
+      to: DateTime(now.year, now.month + 1, 1),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          repositoryProvider.overrideWithValue(repository),
+          personalResponsesProvider.overrideWith(
+            (ref) async => [_response(isRegularTraining: true)],
+          ),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: Consumer(
+            builder: (context, ref, child) {
+              ref.watch(calendarEventsProvider(range));
+              return const Scaffold(
+                body: FamilyResponsesPage(isTrainer: false),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(repository.calendarCalls, 1);
+
+    await tester.tap(find.text('Mehrere Trainings zusagen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1 Monat'));
+    await tester.pumpAndSettle();
+
+    expect(repository.confirmationCalls, 1);
+    expect(repository.calendarCalls, 2);
     expect(tester.takeException(), isNull);
   });
 

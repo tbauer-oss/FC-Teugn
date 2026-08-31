@@ -25,8 +25,10 @@ void main() {
         dominantFoot: DominantFoot.right,
         shirtNumber: 10,
         status: PlayerStatus.injured,
-        injuryType: 'OTHER',
-        injuryDetails: 'Reizung nach Fremdeinwirkung',
+        injuryType: 'STRAIN',
+        injurySeverity: InjurySeverity.medium,
+        estimatedRecoveryMinDays: 7,
+        estimatedRecoveryMaxDays: 21,
         teamName: 'E1-Jugend',
         teamNumber: 1,
         ageGroupCode: 'E',
@@ -44,6 +46,8 @@ void main() {
           ],
           child: MaterialApp(
             theme: buildAppTheme(),
+            darkTheme: buildAppTheme(brightness: Brightness.dark),
+            themeMode: ThemeMode.dark,
             home: const MediaQuery(
               data: MediaQueryData(
                 size: Size(360, 800),
@@ -63,6 +67,22 @@ void main() {
 
       expect(find.text('Maximilian Mustermann-Langname'), findsOneWidget);
       expect(find.text('Sportliches Profil'), findsOneWidget);
+      final injurySummary = find.byKey(
+        const ValueKey('player-injury-summary'),
+      );
+      expect(injurySummary, findsOneWidget);
+      await tester.tap(injurySummary);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('player-injury-details')),
+        findsOneWidget,
+      );
+      expect(find.text('Muskelzerrung'), findsOneWidget);
+      expect(find.text('ca. 1–3 Wochen'), findsWidgets);
+      expect(
+        find.textContaining('unverbindliche Orientierung'),
+        findsOneWidget,
+      );
       final exception = tester.takeException();
       expect(
         exception,
@@ -176,6 +196,14 @@ void main() {
           findsOneWidget);
       expect(find.byKey(const ValueKey('player-edit-injury-details')),
           findsOneWidget);
+      expect(find.byKey(const ValueKey('player-edit-injury-severity')),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('player-edit-injury-start-date')),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('player-edit-injury-estimate')),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('player-edit-injury-manual-toggle')),
+          findsOneWidget);
       expect(find.text('Reizung nach Fremdeinwirkung'), findsWidgets);
       expect(find.text('BFV-001234'), findsWidgets);
       final exception = tester.takeException();
@@ -186,6 +214,60 @@ void main() {
             ? exception.toStringDeep()
             : exception?.toString(),
       );
+    },
+  );
+
+  testWidgets(
+    'injury details use a bounded dialog on an unfolded foldable',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(840, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final player = PlayerModel(
+        id: 'player-foldable',
+        firstName: 'Langer',
+        lastName: 'Verletzungsname',
+        dominantFoot: DominantFoot.unknown,
+        status: PlayerStatus.injured,
+        injuryType: 'ANKLE_INJURY',
+        injurySeverity: InjurySeverity.unknown,
+        injuryStartDate: DateTime(2026, 8, 31),
+        estimatedRecoveryMinDays: 7,
+        estimatedRecoveryMaxDays: 42,
+        estimatedReturnFrom: DateTime(2026, 9, 7),
+        estimatedReturnTo: DateTime(2026, 10, 12),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            playerProvider.overrideWith((ref, playerId) async => player),
+          ],
+          child: MaterialApp(
+            theme: buildAppTheme(),
+            home: const Scaffold(
+              body: PlayerProfilePage(
+                playerId: 'player-foldable',
+                staffView: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey('player-injury-summary')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Dialog), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('player-injury-details')),
+        findsOneWidget,
+      );
+      expect(find.text('Sprunggelenksverletzung'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     },
   );
 }

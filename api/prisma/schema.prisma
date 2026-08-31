@@ -918,6 +918,15 @@ model Player {
   status                               PlayerStatus                          @default(ACTIVE)
   injuryType                           String?
   injuryDetails                        String?
+  injurySeverity                       String?
+  injuryStartDate                      DateTime?
+  estimatedRecoveryMinDays             Int?
+  estimatedRecoveryMaxDays             Int?
+  estimatedReturnFrom                  DateTime?
+  estimatedReturnTo                    DateTime?
+  manualReturnFrom                     DateTime?
+  manualReturnTo                       DateTime?
+  recoveryEstimateOverridden           Boolean                               @default(false)
   joinedAt                             DateTime?
   photoUrl                             String?
   photoAssetId                         String?                               @unique
@@ -942,6 +951,7 @@ model Player {
   tickerAssists                        LiveTickerEvent[]                     @relation("TickerAssist")
   matchStatistics                      PlayerMatchStatistic[]
   seasonAssignments                    PlayerSeasonAssignment[]
+  injuryHistory                        PlayerInjuryRecord[]
   photoAsset                           FileAsset?                            @relation("PlayerPhotoAsset", fields: [photoAssetId], references: [id], onDelete: SetNull)
   documents                            PlayerDocument[]
   ownedFileAssets                      FileAsset[]                           @relation("PlayerFileOwner")
@@ -952,6 +962,29 @@ model Player {
   regularTrainingAttendancePreferences RegularTrainingAttendancePreference[]
 
   @@index([clubId, teamId, status, lastName])
+}
+
+model PlayerInjuryRecord {
+  id                         String    @id @default(cuid())
+  playerId                   String
+  injuryType                 String?
+  injuryDetails              String?
+  injurySeverity             String?
+  startDate                  DateTime?
+  estimatedRecoveryMinDays   Int?
+  estimatedRecoveryMaxDays   Int?
+  estimatedReturnFrom        DateTime?
+  estimatedReturnTo          DateTime?
+  manualReturnFrom           DateTime?
+  manualReturnTo             DateTime?
+  recoveryEstimateOverridden Boolean   @default(false)
+  endedAt                    DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+  player                     Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, endedAt])
+  @@index([playerId, createdAt])
 }
 
 model FileAsset {
