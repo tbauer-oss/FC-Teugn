@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
+import '../../core/google_maps_navigation.dart';
 import '../../core/lineup_planner.dart';
 import '../../core/live_goal_sound.dart';
 import '../../core/match_clock.dart';
@@ -2258,6 +2259,9 @@ class MatchOverview extends StatelessWidget {
     final matchDay = _valueOrFallback(details?.matchDay);
     final pitch = _valueOrFallback(details?.pitch);
     final referee = _valueOrFallback(details?.referee);
+    final awayAddress = details?.isHome == false
+        ? _firstNonEmptyValue(match.address, match.location)
+        : null;
     final essentials = <_OverviewEntry>[
       _OverviewEntry(
         Icons.schedule_rounded,
@@ -2312,6 +2316,14 @@ class MatchOverview extends StatelessWidget {
         'Austragungsort',
         missing: _isMissing(match.location),
       ),
+      if (awayAddress != null)
+        _OverviewEntry(
+          Icons.map_rounded,
+          'Navigation',
+          awayAddress,
+          'In Google Maps öffnen',
+          onTap: () => openAddressInGoogleMaps(context, awayAddress),
+        ),
       _OverviewEntry(
         Icons.sports_rounded,
         'Platz',
@@ -2637,6 +2649,7 @@ class _OverviewEntry {
     this.value,
     this.supporting, {
     this.missing = false,
+    this.onTap,
   });
 
   final IconData icon;
@@ -2644,6 +2657,7 @@ class _OverviewEntry {
   final String value;
   final String supporting;
   final bool missing;
+  final VoidCallback? onTap;
 }
 
 class _OverviewTile extends StatelessWidget {
@@ -2654,7 +2668,7 @@ class _OverviewTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
-    return Container(
+    final content = Container(
       key: ValueKey('match-overview-${entry.label}'),
       constraints: BoxConstraints(minHeight: compact ? 74 : 104),
       padding: EdgeInsets.all(compact ? 10 : 15),
@@ -2742,7 +2756,25 @@ class _OverviewTile extends StatelessWidget {
               ],
             ),
           ),
+          if (entry.onTap != null) ...[
+            const SizedBox(width: 5),
+            Icon(
+              Icons.open_in_new_rounded,
+              size: compact ? 17 : 19,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ],
         ],
+      ),
+    );
+    if (entry.onTap == null) return content;
+    return Semantics(
+      button: true,
+      label: '${entry.value}. ${entry.supporting}',
+      child: InkWell(
+        onTap: entry.onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: content,
       ),
     );
   }
@@ -2752,6 +2784,13 @@ bool _isMissing(String? value) => value == null || value.trim().isEmpty;
 
 String _valueOrFallback(String? value) =>
     _isMissing(value) ? 'Noch nicht festgelegt' : value!.trim();
+
+String? _firstNonEmptyValue(String? preferred, String fallback) {
+  final preferredValue = preferred?.trim() ?? '';
+  if (preferredValue.isNotEmpty) return preferredValue;
+  final fallbackValue = fallback.trim();
+  return fallbackValue.isEmpty ? null : fallbackValue;
+}
 
 class MatchSquadTab extends ConsumerStatefulWidget {
   const MatchSquadTab({

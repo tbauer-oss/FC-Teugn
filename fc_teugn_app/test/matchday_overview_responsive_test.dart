@@ -91,19 +91,57 @@ void main() {
       lessThan(tester.getTopLeft(location).dx),
     );
   });
+
+  testWidgets('away match exposes the opponent address as a map action',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: MatchOverview(
+              match: _match(isHome: false),
+              staffView: false,
+              showLaundryDuty: false,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.drag(
+      find.byKey(const ValueKey('match-overview-list')),
+      const Offset(0, -900),
+    );
+    await tester.pumpAndSettle();
+
+    final navigation = find.byKey(
+      const ValueKey('match-overview-Navigation'),
+    );
+    expect(navigation, findsOneWidget);
+    expect(find.text('Waldweg 7, 93080 Pentling'), findsOneWidget);
+    expect(find.text('In Google Maps öffnen'), findsOneWidget);
+    expect(navigation.hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
-MatchdayModel _match() => MatchdayModel(
+MatchdayModel _match({bool isHome = true}) => MatchdayModel(
       id: 'match-1',
       title: 'FC Teugn · ATSV Kelheim E2',
       startAt: DateTime(2026, 8, 14, 17),
       meetingAt: DateTime(2026, 8, 14, 16, 15),
       meetingLocation: 'Vereinsheim Teugn',
       location: 'Teugn Sportplatz',
+      address: 'Waldweg 7, 93080 Pentling',
       teamId: 'team-1',
-      details: const MatchDetailsModel(
+      details: MatchDetailsModel(
         opponent: 'ATSV Kelheim E2',
-        isHome: true,
+        isHome: isHome,
         status: MatchStatus.planned,
         durationMinutes: 60,
         periodMinutes: 15,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/google_maps_navigation.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/match_venue_badge.dart';
@@ -286,6 +287,9 @@ class _PublicMatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final details = event.matchDetails;
     final date = event.startAt.toLocal();
+    final awayAddress = event.fixtureIsHome == false
+        ? _firstNonEmpty(event.address, event.location)
+        : null;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -349,6 +353,14 @@ class _PublicMatchCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
+                  if (awayAddress != null) ...[
+                    const SizedBox(height: 8),
+                    GoogleMapsAddressAction(
+                      key: ValueKey('parent-away-map-${event.id}'),
+                      address: awayAddress,
+                      compact: compact,
+                    ),
+                  ],
                   if (event.meetingAt != null) ...[
                     const SizedBox(height: 4),
                     Text(
@@ -381,4 +393,11 @@ class _PublicMatchCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _firstNonEmpty(String? preferred, String fallback) {
+  final preferredValue = preferred?.trim() ?? '';
+  if (preferredValue.isNotEmpty) return preferredValue;
+  final fallbackValue = fallback.trim();
+  return fallbackValue.isEmpty ? null : fallbackValue;
 }

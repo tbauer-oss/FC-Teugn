@@ -18,6 +18,7 @@ void main() {
       'meetingAt': '2026-08-12T15:00:00.000Z',
       'meetingLocation': 'Vereinsheim Teugn',
       'location': 'Waldstadion',
+      'address': 'Waldweg 7, 93080 Pentling',
       'teamGameFormat': 'FOOTBALL_5',
       'teamDefaultFormation': '1-2-1',
       'teamFormationOptions': ['1-2-1', '3-1'],
@@ -148,6 +149,7 @@ void main() {
     expect(match.ownTeamLogoUrl, 'https://example.test/sg.png');
     expect(match.ownTeamIsPlayingCommunity, isTrue);
     expect(match.meetingLocation, 'Vereinsheim Teugn');
+    expect(match.address, 'Waldweg 7, 93080 Pentling');
     expect(
       match.communicationStatus,
       EventCommunicationStatus.familyReleased,

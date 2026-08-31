@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/google_maps_navigation.dart';
 import '../../core/data_repository.dart';
 import '../../core/meeting_time.dart';
 import '../../core/models/communication.dart';
@@ -3843,6 +3844,8 @@ class _EventFacts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
+    final awayAddress =
+        event.fixtureIsHome == false ? _awayNavigationAddress(event) : null;
     return Card(
       child: Padding(
         padding: EdgeInsets.all(compact ? 12 : 18),
@@ -3872,6 +3875,15 @@ class _EventFacts extends StatelessWidget {
                 if (event.address != null) event.address!,
               ].join(' · '),
             ),
+            if (awayAddress != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                child: GoogleMapsAddressAction(
+                  key: ValueKey('calendar-away-map-${event.id}'),
+                  address: awayAddress,
+                  compact: compact,
+                ),
+              ),
             if (event.opponent != null)
               _InfoRow(
                 icon: Icons.sports_rounded,
@@ -3964,6 +3976,13 @@ class _InfoRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _awayNavigationAddress(EventModel event) {
+  final address = event.address?.trim() ?? '';
+  if (address.isNotEmpty) return address;
+  final location = event.location.trim();
+  return location.isEmpty ? null : location;
 }
 
 class _AttendanceSection extends ConsumerWidget {

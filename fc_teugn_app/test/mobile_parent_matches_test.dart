@@ -118,6 +118,7 @@ void main() {
       },
       'startAt': '2026-09-18T16:00:00.000Z',
       'location': 'Thaldorf',
+      'address': 'Sportplatzweg 3, 93309 Thaldorf',
       'targetTeams': [],
       'attachments': [],
       'attendance': [],
@@ -153,6 +154,12 @@ void main() {
     );
     expect(find.text('Auswärts'), findsOneWidget);
     expect(find.text('3 : 2'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('parent-away-map-away-match')),
+      findsOneWidget,
+    );
+    expect(find.text('Sportplatzweg 3, 93309 Thaldorf'), findsOneWidget);
+    expect(find.text('Route zum Auswärtsspiel'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
