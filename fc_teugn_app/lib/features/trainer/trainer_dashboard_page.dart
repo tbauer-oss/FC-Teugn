@@ -220,26 +220,27 @@ class TrainerDashboardPage extends ConsumerWidget {
           SizedBox(height: sectionGap),
           LayoutBuilder(
             builder: (context, constraints) {
-              final priorityCard = _PriorityCard(items: priorities);
-              final agendaCard = _AgendaCard(
-                events: nextEvents,
-                eventRoute: eventRoute,
-              );
-              if (constraints.maxWidth < 780) {
+              final cards = <Widget>[
+                if (priorities.isNotEmpty) _PriorityCard(items: priorities),
+                _AgendaCard(events: nextEvents, eventRoute: eventRoute),
+              ];
+              if (constraints.maxWidth < 780 || cards.length == 1) {
                 return Column(
                   children: [
-                    priorityCard,
-                    SizedBox(height: sectionGap),
-                    agendaCard,
+                    for (var index = 0; index < cards.length; index++) ...[
+                      cards[index],
+                      if (index < cards.length - 1)
+                        SizedBox(height: sectionGap),
+                    ],
                   ],
                 );
               }
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 6, child: priorityCard),
+                  Expanded(flex: 6, child: cards[0]),
                   const SizedBox(width: 14),
-                  Expanded(flex: 5, child: agendaCard),
+                  Expanded(flex: 5, child: cards[1]),
                 ],
               );
             },
@@ -372,14 +373,14 @@ class _TrainerCockpitBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFF111410), Color(0xFF423B00)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: const [
             BoxShadow(
               color: Color(0x1F000000),
@@ -389,14 +390,14 @@ class _TrainerCockpitBanner extends StatelessWidget {
           ],
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: 46,
-              height: 46,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: AppColors.yellow,
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
                 Icons.dashboard_customize_rounded,
@@ -409,7 +410,7 @@ class _TrainerCockpitBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'TRAINER-COCKPIT',
+                    'DEIN TAG',
                     style: TextStyle(
                       color: AppColors.yellow,
                       fontSize: 12,
@@ -417,71 +418,38 @@ class _TrainerCockpitBanner extends StatelessWidget {
                       letterSpacing: 1.25,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     teamLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
+                      fontSize: 17,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 9),
-                  Wrap(
-                    spacing: 7,
-                    runSpacing: 6,
-                    children: [
-                      _CockpitChip(
-                        icon: Icons.groups_rounded,
-                        label: 'Spieler: $activePlayers',
-                      ),
-                      _CockpitChip(
-                        icon: Icons.sports_rounded,
-                        label: 'Trainings: $trainingCount',
-                      ),
-                      if (hasUpcomingMatch)
-                        const _CockpitChip(
-                          icon: Icons.sports_soccer_rounded,
-                          label: 'Spiel bereit',
-                        ),
-                    ],
+                  const SizedBox(height: 2),
+                  Text(
+                    '$activePlayers Spieler · $trainingCount '
+                    '${trainingCount == 1 ? 'Training' : 'Trainings'}'
+                    '${hasUpcomingMatch ? ' · nächstes Spiel geplant' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      );
-}
-
-class _CockpitChip extends StatelessWidget {
-  const _CockpitChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .11),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withValues(alpha: .12)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: AppColors.yellow),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
+            const SizedBox(width: 6),
+            const Icon(
+              Icons.arrow_forward_rounded,
+              color: AppColors.yellow,
+              size: 21,
             ),
           ],
         ),
@@ -653,7 +621,7 @@ class _TodayTrainingsStrip extends StatelessWidget {
             ),
             borderRadius: BorderRadius.circular(16),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
           child: Row(
             children: [
               Container(
@@ -674,8 +642,16 @@ class _TodayTrainingsStrip extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Text(
+                      'Heute · Training',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .65,
+                      ),
+                    ),
                     Text(
-                      'Heute · ${labels.join(' + ')} · $times',
+                      '${labels.join(' + ')} · $times',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -2212,14 +2188,14 @@ class _NextEventHero extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         child: Ink(
           width: double.infinity,
-          padding: EdgeInsets.all(compact ? 16 : 20),
+          padding: EdgeInsets.all(compact ? 12 : 16),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [Color(0xFF171918), Color(0xFF554B00)],
             ),
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(18),
           ),
           child: current == null
               ? _EmptyNextEvent(compact: compact)
@@ -2253,85 +2229,77 @@ class _NextEventContent extends StatelessWidget {
     final openResponses = event.missingAttendance.isNotEmpty
         ? event.missingAttendance.length
         : event.attendanceSummary.unknown;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppColors.yellow,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                event.type == EventType.match
-                    ? Icons.sports_soccer_rounded
-                    : event.type == EventType.training
-                        ? Icons.sports_rounded
-                        : Icons.event_rounded,
-                color: AppColors.black,
-                size: 21,
-              ),
-            ),
-            const SizedBox(width: 11),
-            const Expanded(
-              child: Text(
-                'NÄCHSTER TERMIN',
-                style: TextStyle(
-                  color: AppColors.yellow,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12,
-                  letterSpacing: .7,
-                ),
-              ),
-            ),
-            _CountdownChip(label: _countdown(event.startAt, now)),
-          ],
-        ),
-        SizedBox(height: compact ? 12 : 16),
-        Text(
-          event.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            height: 1.08,
-            fontSize: compact ? 23 : 28,
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: AppColors.yellow,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            event.type == EventType.match
+                ? Icons.sports_soccer_rounded
+                : event.type == EventType.training
+                    ? Icons.sports_rounded
+                    : Icons.event_rounded,
+            color: AppColors.black,
+            size: 21,
           ),
         ),
-        const SizedBox(height: 9),
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-            for (final detail in details) _HeroDetail(label: detail),
-            if (openResponses > 0)
-              _HeroDetail(label: '$openResponses Rückmeldungen offen'),
-          ],
-        ),
-        const SizedBox(height: 13),
-        Row(
-          children: [
-            Text(
-              event.type == EventType.match
-                  ? event.category.isTournament
-                      ? 'Turnier öffnen'
-                      : 'Spieltag öffnen'
-                  : event.type == EventType.training
-                      ? 'Training öffnen'
-                      : 'Termin öffnen',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'NÄCHSTER TERMIN',
+                      style: TextStyle(
+                        color: AppColors.yellow,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 10,
+                        letterSpacing: .7,
+                      ),
+                    ),
+                  ),
+                  _CountdownChip(label: _countdown(event.startAt, now)),
+                ],
               ),
-            ),
-            const SizedBox(width: 5),
-            const Icon(Icons.arrow_forward_rounded,
-                color: AppColors.yellow, size: 19),
-          ],
+              const SizedBox(height: 3),
+              Text(
+                event.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: compact ? 16 : 19,
+                ),
+              ),
+              Text(
+                '${details.take(2).join(' · ')}'
+                '${openResponses > 0 ? ' · $openResponses offen' : ''}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 7),
+        const Icon(
+          Icons.arrow_forward_rounded,
+          color: AppColors.yellow,
+          size: 20,
         ),
       ],
     );
@@ -2408,29 +2376,6 @@ class _CountdownChip extends StatelessWidget {
       );
 }
 
-class _HeroDetail extends StatelessWidget {
-  const _HeroDetail({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFFE8E7E0),
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-          ),
-        ),
-      );
-}
-
 class _StatusGrid extends StatelessWidget {
   const _StatusGrid({
     required this.playersLoading,
@@ -2457,65 +2402,98 @@ class _StatusGrid extends StatelessWidget {
   final VoidCallback onRetryPlayers;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = constraints.maxWidth >= 760 ? 4 : 2;
-          final compact = constraints.maxWidth < 600;
-          final gap = compact ? 7.0 : 10.0;
-          final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
-          final responses =
-              combinedTrainingDashboardCounts(nextTrainings, players);
-          final responseValue = responses.total == 0
-              ? '–'
-              : '${responses.yes}/${responses.total}';
-          final matchValue = nextMatch == null
-              ? '–'
-              : '${nextMatch!.startAt.day}.${nextMatch!.startAt.month}.';
-          final items = [
-            _StatusItem(
-              label: 'Aktiver Kader',
-              value: playersError
-                  ? '!'
-                  : playersLoading
-                      ? '–'
-                      : '$activePlayers',
-              icon: Icons.groups_rounded,
-              color: context.appInfo,
-              onTap: playersError
-                  ? onRetryPlayers
-                  : () => context.go('/trainer/players'),
-            ),
-            _StatusItem(
-              label: 'Verletzt',
-              value: playersError || playersLoading ? '–' : '$injuredPlayers',
-              icon: Icons.healing_rounded,
-              color: const Color(0xFFB54736),
-              onTap: () => context.go('/trainer/players'),
-            ),
-            _StatusItem(
-              label: 'Rückmeldungen',
-              value: responseValue,
-              icon: Icons.how_to_reg_rounded,
-              color: context.appSuccess,
-              onTap: onOpenResponses,
-            ),
-            _StatusItem(
-              label: 'Nächstes Spiel',
-              value: matchValue,
-              icon: Icons.sports_soccer_rounded,
-              color: context.appWarning,
-              onTap: onOpenNextMatch,
-            ),
-          ];
-          return Wrap(
-            spacing: gap,
-            runSpacing: gap,
-            children: [
-              for (final item in items)
-                SizedBox(width: width, height: compact ? 70 : 78, child: item),
-            ],
-          );
-        },
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
+          child: LayoutBuilder(builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 760 ? 4 : 2;
+            final compact = constraints.maxWidth < 600;
+            final gap = compact ? 7.0 : 10.0;
+            final width =
+                (constraints.maxWidth - gap * (columns - 1)) / columns;
+            final responses =
+                combinedTrainingDashboardCounts(nextTrainings, players);
+            final responseValue = responses.total == 0
+                ? '–'
+                : '${responses.yes}/${responses.total}';
+            final matchValue = nextMatch == null
+                ? '–'
+                : '${nextMatch!.startAt.day}.${nextMatch!.startAt.month}.';
+            final items = [
+              _StatusItem(
+                label: 'Aktiver Kader',
+                value: playersError
+                    ? '!'
+                    : playersLoading
+                        ? '–'
+                        : '$activePlayers',
+                icon: Icons.groups_rounded,
+                color: context.appInfo,
+                onTap: playersError
+                    ? onRetryPlayers
+                    : () => context.go('/trainer/players'),
+              ),
+              _StatusItem(
+                label: 'Verletzt',
+                value: playersError || playersLoading ? '–' : '$injuredPlayers',
+                icon: Icons.healing_rounded,
+                color: const Color(0xFFB54736),
+                onTap: () => context.go('/trainer/players'),
+              ),
+              _StatusItem(
+                label: 'Rückmeldungen',
+                value: responseValue,
+                icon: Icons.how_to_reg_rounded,
+                color: context.appSuccess,
+                onTap: onOpenResponses,
+              ),
+              _StatusItem(
+                label: 'Nächstes Spiel',
+                value: matchValue,
+                icon: Icons.sports_soccer_rounded,
+                color: context.appWarning,
+                onTap: onOpenNextMatch,
+              ),
+            ];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Teamstatus',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'Auf einen Blick',
+                      style: TextStyle(
+                        color: context.appColors.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final item in items)
+                      SizedBox(
+                        width: width,
+                        height: compact ? 66 : 74,
+                        child: item,
+                      ),
+                  ],
+                ),
+              ],
+            );
+          }),
+        ),
       );
 }
 

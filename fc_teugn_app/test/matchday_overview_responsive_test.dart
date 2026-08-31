@@ -120,11 +120,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final navigation = find.byKey(
-      const ValueKey('match-overview-Navigation'),
+      const ValueKey('match-overview-Spielort & Route'),
     );
     expect(navigation, findsOneWidget);
     expect(find.text('Waldweg 7, 93080 Pentling'), findsOneWidget);
-    expect(find.text('In Google Maps öffnen'), findsOneWidget);
+    expect(find.text('Mit Google Maps navigieren'), findsOneWidget);
     expect(navigation.hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

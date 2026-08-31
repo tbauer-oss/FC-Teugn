@@ -1,7 +1,7 @@
 name: fc_teugn_app
 description: FC Teugn Talents – die Jugendfußball-App für Team und Verein
 publish_to: 'none'
-version: 1.6.41+179
+version: 1.6.42+180
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

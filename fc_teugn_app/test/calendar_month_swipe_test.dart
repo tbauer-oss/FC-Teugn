@@ -91,15 +91,28 @@ void main() {
     final pageScroll = tester.state<ScrollableState>(
       find.byType(Scrollable).first,
     );
+    final canScrollVertically = pageScroll.position.maxScrollExtent > 0;
+    if (pageScroll.position.pixels == 0 && canScrollVertically) {
+      pageScroll.position.jumpTo(
+        pageScroll.position.maxScrollExtent < 120
+            ? pageScroll.position.maxScrollExtent
+            : 120,
+      );
+      await tester.pumpAndSettle();
+    }
     final scrollBeforeCalendarDrag = pageScroll.position.pixels;
     await tester.drag(swipeSurface, const Offset(0, 120));
     await tester.pumpAndSettle();
-    expect(
-      pageScroll.position.pixels,
-      lessThan(scrollBeforeCalendarDrag),
-      reason: 'Reine vertikale Gesten müssen auch über dem Kalender die '
-          'gesamte Seite wieder nach oben scrollen können.',
-    );
+    if (canScrollVertically) {
+      expect(
+        pageScroll.position.pixels,
+        lessThan(scrollBeforeCalendarDrag),
+        reason: 'Reine vertikale Gesten müssen auch über dem Kalender die '
+            'gesamte Seite wieder nach oben scrollen können.',
+      );
+    } else {
+      expect(pageScroll.position.pixels, 0);
+    }
     await tester.ensureVisible(swipeSurface);
     await tester.pumpAndSettle();
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'app_theme.dart';
+
 /// Erstellt einen plattformübergreifenden Google-Maps-Link, der auf Android,
 /// iOS und im Web mit derselben Adresse funktioniert.
 Uri googleMapsSearchUri(String address) => Uri.https(
@@ -49,7 +51,7 @@ Future<void> openAddressInGoogleMaps(
 class GoogleMapsAddressAction extends StatelessWidget {
   const GoogleMapsAddressAction({
     required this.address,
-    this.title = 'Route zum Auswärtsspiel',
+    this.title = 'Spielort & Route',
     this.compact = false,
     super.key,
   });
@@ -65,10 +67,16 @@ class GoogleMapsAddressAction extends StatelessWidget {
       button: true,
       label: '$title: $normalizedAddress. In Google Maps öffnen',
       child: Material(
-        color: Theme.of(context).colorScheme.primaryContainer.withValues(
-              alpha: .32,
-            ),
-        borderRadius: BorderRadius.circular(compact ? 12 : 14),
+        color: Color.alphaBlend(
+          AppColors.yellow.withValues(alpha: context.isDarkMode ? .15 : .12),
+          context.appColors.surfaceRaised,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(compact ? 12 : 14),
+          side: BorderSide(
+            color: AppColors.yellowDark.withValues(alpha: .42),
+          ),
+        ),
         child: InkWell(
           onTap: () => openAddressInGoogleMaps(context, normalizedAddress),
           borderRadius: BorderRadius.circular(compact ? 12 : 14),
@@ -80,10 +88,18 @@ class GoogleMapsAddressAction extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.map_rounded,
-                  size: compact ? 19 : 21,
-                  color: Theme.of(context).colorScheme.primary,
+                Container(
+                  width: compact ? 32 : 36,
+                  height: compact ? 32 : 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.yellow,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.navigation_rounded,
+                    size: compact ? 18 : 20,
+                    color: AppColors.black,
+                  ),
                 ),
                 SizedBox(width: compact ? 8 : 10),
                 Expanded(
@@ -108,9 +124,9 @@ class GoogleMapsAddressAction extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Icon(
-                  Icons.open_in_new_rounded,
+                  Icons.arrow_outward_rounded,
                   size: compact ? 18 : 20,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: AppColors.black,
                 ),
               ],
             ),

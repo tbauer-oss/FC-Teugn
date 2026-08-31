@@ -544,100 +544,64 @@ class _PerformanceCenterCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Container(
-                  padding: EdgeInsets.all(compact ? 12 : 18),
+                  padding: EdgeInsets.all(compact ? 10 : 15),
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       colors: [AppColors.navy, AppColors.blue],
                     ),
                   ),
-                  child: compact
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.insights_rounded,
+                            color: Colors.white,
+                            size: compact ? 25 : 28,
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  Icons.insights_rounded,
-                                  color: Colors.white,
-                                  size: 25,
+                                Text(
+                                  'Leistungszentrum · trainerintern',
+                                  maxLines: 2,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: compact ? 15 : 17,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
-                                SizedBox(width: 9),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Leistungszentrum · trainerintern',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Entwicklung erkennen – ohne Rangliste.',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
+                                Text(
+                                  'Entwicklung erkennen – ohne Rangliste.',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: compact ? 11 : 12,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                for (var index = 0;
-                                    index < metrics.length;
-                                    index++) ...[
-                                  if (index > 0) const SizedBox(width: 6),
-                                  Expanded(child: metrics[index]),
-                                ],
-                              ],
-                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 7),
+                      Row(
+                        children: [
+                          for (var index = 0;
+                              index < metrics.length;
+                              index++) ...[
+                            if (index > 0) const SizedBox(width: 6),
+                            Expanded(child: metrics[index]),
                           ],
-                        )
-                      : Wrap(
-                          spacing: 20,
-                          runSpacing: 12,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.insights_rounded,
-                              color: Colors.white,
-                              size: 34,
-                            ),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 310),
-                              child: const Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Leistungszentrum · trainerintern',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 19,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Entwicklung erkennen – ohne öffentliche Rangliste.',
-                                    style: TextStyle(color: Colors.white70),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ...metrics,
-                          ],
-                        ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
                 Padding(
                   padding: EdgeInsets.all(compact ? 11 : 18),
@@ -739,6 +703,112 @@ class _PerformancePlayerListState extends State<_PerformancePlayerList> {
           ..sort((a, b) => a.compareTo(b)),
       ];
 
+  int get _activeFilterCount =>
+      (_strength == 'ALL' ? 0 : 1) + (_position == 'ALL' ? 0 : 1);
+
+  Future<void> _openFilters() async {
+    var strength = _strength;
+    var position = _position;
+    final result = await showModalBottomSheet<(String, String)>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: StatefulBuilder(
+          builder: (context, setSheetState) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              0,
+              16,
+              16 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Spieler filtern',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: strength,
+                  decoration: const InputDecoration(labelText: 'Stärke'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'ALL',
+                      child: Text('Alle Stärken'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'STRONG',
+                      child: Text('Stark · ab 8'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'MIDDLE',
+                      child: Text('Mittel · 5 bis 7,9'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'DEVELOPMENT',
+                      child: Text('Entwicklung · unter 5'),
+                    ),
+                  ],
+                  onChanged: (value) => setSheetState(
+                    () => strength = value ?? 'ALL',
+                  ),
+                ),
+                const SizedBox(height: 9),
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: position,
+                  decoration: const InputDecoration(labelText: 'Position'),
+                  items: [
+                    for (final item in _positions)
+                      DropdownMenuItem(
+                        value: item,
+                        child: Text(
+                          item == 'ALL' ? 'Alle Positionen' : item,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setSheetState(
+                    () => position = value ?? 'ALL',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context, ('ALL', 'ALL')),
+                        child: const Text('Zurücksetzen'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () =>
+                            Navigator.pop(context, (strength, position)),
+                        child: const Text('Anwenden'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _strength = result.$1;
+      _position = result.$2;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final normalizedQuery = _query.trim().toLowerCase();
@@ -765,67 +835,67 @@ class _PerformancePlayerListState extends State<_PerformancePlayerList> {
         ),
       );
     }
-    final controls = [
-      TextField(
-        decoration: const InputDecoration(
-          labelText: 'Spieler suchen',
-          prefixIcon: Icon(Icons.search_rounded),
-        ),
-        onChanged: (value) => setState(() => _query = value),
-      ),
-      DropdownButtonFormField<String>(
-        isExpanded: true,
-        initialValue: _strength,
-        decoration: const InputDecoration(labelText: 'Stärke'),
-        items: const [
-          DropdownMenuItem(value: 'ALL', child: Text('Alle Stärken')),
-          DropdownMenuItem(value: 'STRONG', child: Text('Stark · ab 8')),
-          DropdownMenuItem(value: 'MIDDLE', child: Text('Mittel · 5 bis 7,9')),
-          DropdownMenuItem(
-            value: 'DEVELOPMENT',
-            child: Text('Entwicklung · unter 5'),
-          ),
-        ],
-        onChanged: (value) => setState(() => _strength = value ?? 'ALL'),
-      ),
-      DropdownButtonFormField<String>(
-        isExpanded: true,
-        initialValue: _position,
-        decoration: const InputDecoration(labelText: 'Position'),
-        items: [
-          for (final position in _positions)
-            DropdownMenuItem(
-              value: position,
-              child: Text(position == 'ALL' ? 'Alle Positionen' : position),
-            ),
-        ],
-        onChanged: (value) => setState(() => _position = value ?? 'ALL'),
-      ),
-    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (widget.compact)
-          Column(
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Spieler suchen',
+                  prefixIcon: Icon(Icons.search_rounded),
+                  isDense: true,
+                ),
+                onChanged: (value) => setState(() => _query = value),
+              ),
+            ),
+            const SizedBox(width: 7),
+            OutlinedButton.icon(
+              key: const ValueKey('performance-filter-button'),
+              onPressed: _openFilters,
+              icon: Badge(
+                isLabelVisible: _activeFilterCount > 0,
+                label: Text('$_activeFilterCount'),
+                child: const Icon(Icons.tune_rounded, size: 18),
+              ),
+              label: const Text('Filter'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 11),
+              ),
+            ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(2, 7, 2, 0),
+          child: Row(
             children: [
-              controls[0],
-              const SizedBox(height: 6),
-              controls[1],
-              const SizedBox(height: 6),
-              controls[2],
-            ],
-          )
-        else
-          Row(
-            children: [
-              Expanded(flex: 2, child: controls[0]),
-              const SizedBox(width: 8),
-              Expanded(child: controls[1]),
-              const SizedBox(width: 8),
-              Expanded(child: controls[2]),
+              Expanded(
+                child: Text(
+                  '${players.length} von ${widget.players.length} Spielern',
+                  style: TextStyle(
+                    color: context.appColors.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (_activeFilterCount > 0)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _strength = 'ALL';
+                    _position = 'ALL';
+                  }),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                  ),
+                  child: const Text('Filter löschen'),
+                ),
             ],
           ),
-        const SizedBox(height: 10),
+        ),
+        const SizedBox(height: 5),
         if (players.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 16),
@@ -865,7 +935,7 @@ class _PlayerPerformanceRow extends StatelessWidget {
             ),
         child: Container(
           margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(14),
@@ -873,7 +943,7 @@ class _PlayerPerformanceRow extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(child: Text(player.shirtNumber?.toString() ?? 'FC')),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -887,34 +957,40 @@ class _PlayerPerformanceRow extends StatelessWidget {
                           .join(' / '),
                       style: TextStyle(color: context.appColors.textMuted),
                     ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 5,
-                      children: [
-                        _RatingValueChip(
-                          label: 'Trainer',
-                          value:
-                              player.ratedMatches == 0 ? null : player.average,
-                          detail: '${player.ratedMatches} Spiele',
-                          color: context.appInfo,
-                        ),
-                        _RatingValueChip(
-                          label: 'Eltern',
-                          value: player.parentAverage,
-                          detail: '${player.parentRatingCount} anonyme Stimmen',
-                          color: context.appWarning,
-                        ),
-                      ],
-                    ),
-                    if (player.timeline.isNotEmpty) ...[
-                      const SizedBox(height: 5),
-                      Text(
-                        'Antippen für Entwicklungskurve und Zeitleiste',
-                        style: TextStyle(
-                            color: context.appColors.textMuted, fontSize: 11),
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Trainer '
+                                '${player.ratedMatches == 0 ? '–' : player.average.toStringAsFixed(1)}',
+                            style: TextStyle(
+                              color: context.appInfo,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          TextSpan(
+                            text: '  ·  Eltern '
+                                '${player.parentAverage?.toStringAsFixed(1) ?? '–'}',
+                            style: TextStyle(
+                              color: context.appWarning,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          TextSpan(
+                            text: '  ·  ${player.ratedMatches} '
+                                '${player.ratedMatches == 1 ? 'Spiel' : 'Spiele'}',
+                            style: TextStyle(
+                              color: context.appColors.textMuted,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11),
+                    ),
                   ],
                 ),
               ),

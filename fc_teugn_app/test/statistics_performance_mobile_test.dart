@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  for (final width in const [320.0, 360.0, 390.0]) {
+  for (final width in const [320.0, 360.0, 390.0, 430.0, 700.0, 900.0]) {
     testWidgets('performance center stays compact at $width logical pixels',
         (tester) async {
       tester.view.physicalSize = Size(width, 700);
@@ -102,11 +102,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Trainer 8.0 / 10'), findsOneWidget);
-    expect(find.text('Eltern 7.5 / 10'), findsOneWidget);
+    expect(find.textContaining('Trainer 8.0'), findsOneWidget);
+    expect(find.textContaining('Eltern 7.5'), findsOneWidget);
+    expect(find.byKey(const ValueKey('performance-filter-button')),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const ValueKey('performance-filter-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Spieler filtern'), findsOneWidget);
     expect(find.text('Stärke'), findsOneWidget);
     expect(find.text('Position'), findsOneWidget);
-    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Anwenden'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Max Mustermann'));
     await tester.pumpAndSettle();

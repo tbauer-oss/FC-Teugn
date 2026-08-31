@@ -80,14 +80,15 @@ Future<void> _pump(
 }
 
 void main() {
-  for (final width in [320.0, 360.0, 390.0, 480.0, 599.0]) {
+  for (final width in [320.0, 360.0, 390.0, 430.0, 599.0, 700.0, 900.0]) {
     testWidgets('family assistant stays responsive at ${width.toInt()} px',
         (tester) async {
       await _pump(tester, width);
 
       expect(find.text('Heute wichtig'), findsOneWidget);
-      expect(find.text('Diese Woche'), findsOneWidget);
+      expect(find.text('Als Nächstes'), findsOneWidget);
       expect(find.text('Deine Kinder'), findsOneWidget);
+      expect(find.text('Schnellzugriff'), findsOneWidget);
       expect(find.text('Max'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
@@ -128,7 +129,7 @@ void main() {
       expect(colors, isNot(contains(Colors.white)));
     }
     expect(find.text('Heute wichtig'), findsOneWidget);
-    expect(find.text('Diese Woche'), findsOneWidget);
+    expect(find.text('Als Nächstes'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -180,7 +181,7 @@ void main() {
       find.byKey(const ValueKey('parent-dashboard-initial-loading')),
       findsNothing,
     );
-    expect(find.text('Diese Woche'), findsOneWidget);
+    expect(find.text('Als Nächstes'), findsOneWidget);
 
     refresh.complete([_response()]);
     await tester.pumpAndSettle();

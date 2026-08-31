@@ -159,7 +159,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Sportplatzweg 3, 93309 Thaldorf'), findsOneWidget);
-    expect(find.text('Route zum Auswärtsspiel'), findsOneWidget);
+    expect(find.text('Spielort & Route'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

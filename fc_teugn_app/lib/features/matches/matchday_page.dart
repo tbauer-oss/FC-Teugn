@@ -2339,11 +2339,12 @@ class MatchOverview extends StatelessWidget {
       ),
       if (awayAddress != null)
         _OverviewEntry(
-          Icons.map_rounded,
-          'Navigation',
+          Icons.navigation_rounded,
+          'Spielort & Route',
           awayAddress,
-          'In Google Maps öffnen',
+          'Mit Google Maps navigieren',
           onTap: () => openAddressInGoogleMaps(context, awayAddress),
+          emphasized: true,
         ),
       _OverviewEntry(
         Icons.sports_rounded,
@@ -2671,6 +2672,7 @@ class _OverviewEntry {
     this.supporting, {
     this.missing = false,
     this.onTap,
+    this.emphasized = false,
   });
 
   final IconData icon;
@@ -2679,6 +2681,7 @@ class _OverviewEntry {
   final String supporting;
   final bool missing;
   final VoidCallback? onTap;
+  final bool emphasized;
 }
 
 class _OverviewTile extends StatelessWidget {
@@ -2698,14 +2701,25 @@ class _OverviewTile extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            context.appColors.surfaceRaised,
+            entry.emphasized
+                ? Color.alphaBlend(
+                    AppColors.yellow.withValues(alpha: .13),
+                    context.appColors.surfaceRaised,
+                  )
+                : context.appColors.surfaceRaised,
             entry.missing
                 ? context.appColors.surfaceMuted
-                : AppColors.yellow.withValues(alpha: .035),
+                : AppColors.yellow.withValues(
+                    alpha: entry.emphasized ? .11 : .035,
+                  ),
           ],
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: context.appColors.outline),
+        border: Border.all(
+          color: entry.emphasized
+              ? AppColors.yellowDark.withValues(alpha: .48)
+              : context.appColors.outline,
+        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withValues(alpha: .025),
@@ -2724,15 +2738,17 @@ class _OverviewTile extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.yellow.withValues(alpha: .2),
-                  AppColors.yellow.withValues(alpha: .08),
+                  AppColors.yellow
+                      .withValues(alpha: entry.emphasized ? .9 : .2),
+                  AppColors.yellow
+                      .withValues(alpha: entry.emphasized ? .58 : .08),
                 ],
               ),
               borderRadius: BorderRadius.circular(15),
             ),
             child: Icon(
               entry.icon,
-              color: context.appInfo,
+              color: entry.emphasized ? AppColors.black : context.appInfo,
               size: compact ? 19 : 23,
             ),
           ),
@@ -2780,9 +2796,13 @@ class _OverviewTile extends StatelessWidget {
           if (entry.onTap != null) ...[
             const SizedBox(width: 5),
             Icon(
-              Icons.open_in_new_rounded,
+              entry.emphasized
+                  ? Icons.arrow_outward_rounded
+                  : Icons.open_in_new_rounded,
               size: compact ? 17 : 19,
-              color: Theme.of(context).colorScheme.primary,
+              color: entry.emphasized
+                  ? context.appWarning
+                  : Theme.of(context).colorScheme.primary,
             ),
           ],
         ],

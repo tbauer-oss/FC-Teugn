@@ -128,7 +128,7 @@ class ParentDashboardPage extends ConsumerWidget {
             consents: consents,
           ),
           SizedBox(height: sectionGap),
-          const _TrainerContactCard(),
+          const _ParentQuickActions(),
         ],
       ),
     );
@@ -158,14 +158,14 @@ class _FamilyCockpitBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFF111410), Color(0xFF423B00)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: const [
             BoxShadow(
               color: Color(0x1F000000),
@@ -175,14 +175,14 @@ class _FamilyCockpitBanner extends StatelessWidget {
           ],
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: 46,
-              height: 46,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: AppColors.yellow,
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
                 Icons.family_restroom_rounded,
@@ -195,7 +195,7 @@ class _FamilyCockpitBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'FAMILIEN-COCKPIT',
+                    'JETZT WICHTIG',
                     style: TextStyle(
                       color: AppColors.yellow,
                       fontSize: 12,
@@ -203,66 +203,42 @@ class _FamilyCockpitBanner extends StatelessWidget {
                       letterSpacing: 1.25,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     openCount == 0
                         ? 'Alles im grünen Bereich'
                         : '$openCount ${openCount == 1 ? 'Rückmeldung' : 'Rückmeldungen'} offen',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
+                      fontSize: 17,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 9),
-                  Wrap(
-                    spacing: 7,
-                    runSpacing: 6,
-                    children: [
-                      _FamilyCockpitChip(
-                        icon: Icons.child_care_rounded,
-                        label: 'Kinder: $childCount',
-                      ),
-                      _FamilyCockpitChip(
-                        icon: Icons.calendar_view_week_rounded,
-                        label: 'Woche: $weekCount',
-                      ),
-                    ],
+                  const SizedBox(height: 2),
+                  Text(
+                    '$childCount ${childCount == 1 ? 'Kind' : 'Kinder'} · '
+                    '$weekCount ${weekCount == 1 ? 'Termin' : 'Termine'} in den nächsten Tagen',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      );
-}
-
-class _FamilyCockpitChip extends StatelessWidget {
-  const _FamilyCockpitChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .11),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withValues(alpha: .12)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: AppColors.yellow),
             const SizedBox(width: 5),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
+            Icon(
+              openCount == 0
+                  ? Icons.check_circle_rounded
+                  : Icons.arrow_forward_rounded,
+              color:
+                  openCount == 0 ? const Color(0xFF6EE7B7) : AppColors.yellow,
+              size: 21,
             ),
           ],
         ),
@@ -465,8 +441,9 @@ class _TodayImportantCard extends StatelessWidget {
         carpoolEvents.length +
         nominations.length +
         consents.length;
+    if (itemCount == 0) return const SizedBox.shrink();
     return _FamilyDashboardPanel(
-      accent: itemCount == 0 ? context.appSuccess : AppColors.gold,
+      accent: AppColors.gold,
       child: Padding(
         padding: EdgeInsets.all(
           MediaQuery.sizeOf(context).width < 600 ? 10 : 12,
@@ -477,10 +454,9 @@ class _TodayImportantCard extends StatelessWidget {
             icon: itemCount == 0
                 ? Icons.task_alt_rounded
                 : Icons.notifications_active_rounded,
-            title: itemCount == 0 ? 'Alles erledigt' : 'Heute wichtig',
-            subtitle: itemCount == 0
-                ? 'Für deine Familie ist gerade keine Aktion notwendig.'
-                : '$itemCount ${itemCount == 1 ? 'Punkt braucht' : 'Punkte brauchen'} deine Aufmerksamkeit.',
+            title: 'Heute wichtig',
+            subtitle:
+                '$itemCount ${itemCount == 1 ? 'Punkt braucht' : 'Punkte brauchen'} deine Aufmerksamkeit.',
           ),
           if (itemCount > 0) const Divider(height: 18),
           for (final response in openResponses.take(3)) ...[
@@ -761,21 +737,21 @@ class _WeekTimelineCard extends StatelessWidget {
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _SectionHeading(
               icon: Icons.view_timeline_rounded,
-              title: 'Diese Woche',
+              title: 'Als Nächstes',
               subtitle: items.isEmpty
                   ? 'Keine Termine in den nächsten sieben Tagen.'
-                  : '${items.length} ${items.length == 1 ? 'Termin' : 'Termine'} – ohne doppelte Einträge',
+                  : '${items.length} ${items.length == 1 ? 'Termin' : 'Termine'} in den nächsten sieben Tagen',
               trailing: TextButton(
                   onPressed: () => context.go('/parent/events'),
-                  child: const Text('Kalender')),
+                  child: const Text('Alle')),
             ),
             if (items.isNotEmpty) ...[
               const Divider(height: 17),
-              for (final item in items.take(7)) _TimelineRow(item: item),
-              if (items.length > 7)
+              for (final item in items.take(3)) _TimelineRow(item: item),
+              if (items.length > 3)
                 TextButton(
                     onPressed: () => context.go('/parent/events'),
-                    child: Text('${items.length - 7} weitere Termine')),
+                    child: Text('${items.length - 3} weitere Termine')),
             ],
           ]),
         ),
@@ -916,8 +892,7 @@ class _ChildCard extends StatelessWidget {
         .where((item) => item.startAt.isAfter(DateTime.now()))
         .toList()
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
-    final nextTraining = upcoming.where((item) => !item.isMatch).firstOrNull;
-    final nextMatch = upcoming.where((item) => item.isMatch).firstOrNull;
+    final nextItem = upcoming.firstOrNull;
     final open = upcoming.where((item) => item.isOpen).length +
         (consent?.openCount ?? 0);
     return InkWell(
@@ -929,59 +904,64 @@ class _ChildCard extends StatelessWidget {
             color: context.appColors.surfaceMuted,
             border: Border.all(color: context.appColors.outline),
             borderRadius: BorderRadius.circular(15)),
-        child:
-            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            CircleAvatar(
-              radius: 19,
-              backgroundColor: AppColors.yellowSoft,
-              foregroundColor: AppColors.black,
-              child: Text(player.initials,
-                  style: const TextStyle(fontWeight: FontWeight.w900)),
+        child: Row(children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: AppColors.yellowSoft,
+            foregroundColor: AppColors.black,
+            child: Text(player.initials,
+                style: const TextStyle(fontWeight: FontWeight.w900)),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(player.displayName,
+                    style: const TextStyle(fontWeight: FontWeight.w900)),
+                Text(player.teamCode,
+                    style: Theme.of(context).textTheme.bodySmall),
+              ])),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+              decoration: BoxDecoration(
+                color: open > 0
+                    ? context.appColors.brandSoft
+                    : context.appSuccess.withValues(alpha: .10),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                open > 0 ? '$open offen' : _squadStatus(player.id, matches),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: open > 0 ? context.appWarning : context.appSuccess,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
-            const SizedBox(width: 9),
-            Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text(player.displayName,
-                      style: const TextStyle(fontWeight: FontWeight.w900)),
-                  Text(player.teamCode,
-                      style: Theme.of(context).textTheme.bodySmall),
-                ])),
-            if (open > 0)
-              Chip(
-                  visualDensity: VisualDensity.compact,
-                  avatar: const Icon(Icons.schedule_rounded, size: 15),
-                  label: Text('$open offen'))
-            else
-              Icon(Icons.check_circle_rounded, color: context.appSuccess),
-          ]),
-          const SizedBox(height: 7),
-          _ChildFact(
-            icon: Icons.sports_rounded,
-            label: 'Training',
-            value: nextTraining == null
-                ? 'Kein Termin'
-                : '${_shortDate(nextTraining.startAt)} · ${_clock(nextTraining.startAt)}',
-            onTap: nextTraining == null
-                ? null
-                : () => _openResponse(context, nextTraining),
           ),
-          _ChildFact(
-            icon: Icons.sports_soccer_rounded,
-            label: 'Spiel',
-            value: nextMatch == null
-                ? 'Kein Termin'
-                : '${_shortDate(nextMatch.startAt)} · ${nextMatch.title}',
-            onTap: nextMatch == null
-                ? null
-                : () => _openResponse(context, nextMatch),
-          ),
-          _ChildFact(
-              icon: Icons.verified_user_outlined,
-              label: 'Kader',
-              value: _squadStatus(player.id, matches)),
+          const SizedBox(width: 8),
+          if (nextItem != null)
+            Flexible(
+              flex: 2,
+              child: Text(
+                '${nextItem.isMatch ? 'Spiel' : 'Training'} · '
+                '${_shortDate(nextItem.startAt)} · ${_clock(nextItem.startAt)}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                  color: context.appColors.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          const Icon(Icons.chevron_right_rounded, size: 20),
         ]),
       ),
     );
@@ -1010,64 +990,59 @@ class _ChildCard extends StatelessWidget {
   }
 }
 
-class _ChildFact extends StatelessWidget {
-  const _ChildFact(
-      {required this.icon,
-      required this.label,
-      required this.value,
-      this.onTap});
-  final IconData icon;
-  final String label;
-  final String value;
-  final VoidCallback? onTap;
+class _ParentQuickActions extends StatelessWidget {
+  const _ParentQuickActions();
 
   @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Row(children: [
-            Icon(icon, size: 17, color: context.appWarning),
-            const SizedBox(width: 7),
-            SizedBox(
-                width: 62,
-                child: Text(label,
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w800))),
-            Expanded(
-                child: Text(value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 12, color: context.appColors.textMuted))),
-            if (onTap != null)
-              const Icon(Icons.chevron_right_rounded, size: 17),
-          ]),
-        ),
-      );
-}
-
-class _TrainerContactCard extends StatelessWidget {
-  const _TrainerContactCard();
-
-  @override
-  Widget build(BuildContext context) => Card(
-        child: InkWell(
-          onTap: () => context.go('/parent/messages?section=contact'),
-          borderRadius: BorderRadius.circular(20),
-          child: const Padding(
-            padding: EdgeInsets.all(12),
-            child: _SectionHeading(
-              icon: Icons.forum_rounded,
-              title: 'Trainerteam kontaktieren',
-              subtitle:
-                  'Kurze organisatorische Nachricht · Löschung nach 30 Tagen',
-              trailing: Icon(Icons.chevron_right_rounded),
-            ),
+  Widget build(BuildContext context) {
+    const actions = [
+      ('Kalender', Icons.calendar_month_rounded, '/parent/events'),
+      ('Kinder', Icons.family_restroom_rounded, '/parent/players'),
+      ('Spiele', Icons.sports_soccer_rounded, '/parent/matches'),
+      ('Trainerteam', Icons.forum_rounded, '/parent/messages?section=contact'),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Schnellzugriff',
+          style: TextStyle(
+            color: context.appColors.textMuted,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
           ),
         ),
-      );
+        const SizedBox(height: 7),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 700 ? 4 : 2;
+            const gap = 8.0;
+            final width =
+                (constraints.maxWidth - gap * (columns - 1)) / columns;
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (final action in actions)
+                  SizedBox(
+                    width: width,
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.go(action.$3),
+                      icon: Icon(action.$2, size: 18),
+                      label: Text(
+                        action.$1,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
 }
 
 void _openResponse(BuildContext context, PersonalResponseModel response) {

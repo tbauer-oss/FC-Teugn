@@ -1,4 +1,9 @@
 {
+  "1.6.42+180": [
+    "Die Dashboards für Familien und Trainer sind neu geordnet, deutlich kompakter und führen mit klaren Fokus-, Termin-, Status- und Schnellzugriffsbereichen durch den Alltag.",
+    "Das Leistungszentrum zeigt Spielerbewertungen jetzt in einer dichten Übersicht; Suche und Filter bleiben über einen kompakten, mobilfreundlichen Filterdialog schnell erreichbar.",
+    "Bei Auswärtsspielen hebt sich „Spielort & Route“ klar ab und öffnet die Gegneradresse direkt zur Navigation in Google Maps."
+  ],
   "1.6.41+179": [
     "Das Leistungszentrum lädt im Kontext „Alle Mannschaften“ zuverlässig genau die Mannschaft, die im Filter angezeigt wird, sodass gespeicherte Spielbewertungen sofort in der richtigen E1-, E2- oder weiteren Mannschaft erscheinen.",
     "Beendete Spiele und ihre Bewertungen werden auch dann ausgewertet, wenn der Liveticker bereits den Abpfiff kennt, der allgemeine Spielstatus aber noch nicht nachgezogen wurde.",

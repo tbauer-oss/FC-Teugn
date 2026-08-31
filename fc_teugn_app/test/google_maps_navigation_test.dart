@@ -43,9 +43,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Route zum Auswärtsspiel'), findsOneWidget);
-    expect(find.byIcon(Icons.map_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.open_in_new_rounded), findsOneWidget);
+    expect(find.text('Spielort & Route'), findsOneWidget);
+    expect(find.byIcon(Icons.navigation_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_outward_rounded), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
