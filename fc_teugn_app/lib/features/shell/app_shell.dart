@@ -5,11 +5,13 @@ import '../../core/app_identity.dart';
 import '../../core/app_theme.dart';
 import '../../core/app_theme_controller.dart';
 import '../../core/club_logo.dart';
+import '../../core/system_admin_test_mode.dart';
 import '../auth/auth_controller.dart';
 import '../../core/providers.dart';
 import '../../core/models/organization.dart';
 import '../shared/pwa_install_prompt.dart';
 import '../shared/app_about_sheet.dart';
+import '../trainer/system_admin_test_environment.dart';
 
 void _noOp() {}
 Future<void> _noOpAsync() async {}
@@ -144,6 +146,55 @@ class AppShell extends ConsumerWidget {
     // short minimum duration keeps the compact progress ring understandable
     // without blocking on unrelated APIs.
     await Future<void>.delayed(const Duration(milliseconds: 450));
+  }
+
+  Future<void> _toggleSystemAdminTestMode(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool active,
+  }) async {
+    final controller = ref.read(systemAdminTestModeProvider.notifier);
+    if (active) {
+      controller.disable();
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.science_rounded),
+        title: const Text('Lokales Testlabor starten?'),
+        content: const Text(
+          'Die produktive Oberfläche wird durch fiktive Testdaten ersetzt. '
+          'Spieltag, Rückmeldungen und Mitteilungen werden nur auf diesem '
+          'Gerät simuliert; es werden keine Änderungen, Push-Nachrichten '
+          'oder E-Mails an das Produktivsystem gesendet.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton.icon(
+            key: const ValueKey('confirm-system-admin-test-mode'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.science_rounded),
+            label: const Text('Testmodus starten'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final enabled = controller.enableFor(ref.read(authProvider).user);
+    if (enabled) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Der lokale Testmodus steht nur der Systemadministration zur Verfügung.',
+        ),
+      ),
+    );
   }
 
   void _navigateContextBack(
@@ -353,6 +404,9 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
+    final canUseSystemAdminTestMode = systemAdminCanUseTestMode(authState.user);
+    final testMode =
+        canUseSystemAdminTestMode && ref.watch(systemAdminTestModeProvider);
     final organization = ref.watch(organizationProvider).valueOrNull;
     final queuedWrites = ref.watch(offlineOutboxCountProvider).valueOrNull ?? 0;
     final themePreference = ref.watch(appThemePreferenceProvider);
@@ -368,11 +422,13 @@ class AppShell extends ConsumerWidget {
     final mobileDestinations = mobileCandidates.take(4).toList();
     final primaryMobileIndex = _matchingIndex(location, mobileDestinations);
     final mobileSelectedIndex = primaryMobileIndex ?? mobileDestinations.length;
-    final contextLabel = organization == null
+    final productionContextLabel = organization == null
         ? AppIdentity.name
         : organization.workingContext.includeAllTeams
             ? '${organization.ageGroups.where((item) => item.id == organization.workingContext.ageGroupId).firstOrNull?.name ?? organization.currentTeam.ageGroup.name} · Alle Mannschaften'
             : organization.currentTeam.displayName;
+    final contextLabel =
+        testMode ? 'Testlabor · nur lokale Demodaten' : productionContextLabel;
     final seasonLabel = organization?.season.name ?? '2026/27';
     final helpDestination = destinations
         .where((destination) => destination.route.endsWith('/help'))
@@ -402,7 +458,7 @@ class AppShell extends ConsumerWidget {
                   userRole: authState.user?.roleLabel ?? '',
                   contextLabel: contextLabel,
                   seasonLabel: seasonLabel,
-                  onContextTap: organization == null
+                  onContextTap: testMode || organization == null
                       ? _noOp
                       : () => _showWorkingContextSwitcher(
                             context,
@@ -410,9 +466,14 @@ class AppShell extends ConsumerWidget {
                             organization,
                           ),
                   onHome: () => context.go(homeRoute),
-                  onSelect: (index) => context.go(destinations[index].route),
+                  onSelect: (index) {
+                    if (!testMode) context.go(destinations[index].route);
+                  },
                   onAccount: () => context.go(accountRoute),
-                  onLogout: () => ref.read(authProvider.notifier).logout(),
+                  onLogout: () {
+                    ref.read(systemAdminTestModeProvider.notifier).disable();
+                    ref.read(authProvider.notifier).logout();
+                  },
                   onHelp: helpDestination == null
                       ? _noOp
                       : () => context.go(helpDestination.route),
@@ -422,6 +483,13 @@ class AppShell extends ConsumerWidget {
                   onThemePreferenceChanged: (value) => ref
                       .read(appThemePreferenceProvider.notifier)
                       .select(value),
+                  testModeAvailable: canUseSystemAdminTestMode,
+                  testModeActive: testMode,
+                  onTestModeToggle: () => _toggleSystemAdminTestMode(
+                    context,
+                    ref,
+                    active: testMode,
+                  ),
                 ),
               Expanded(
                 child: Column(
@@ -431,7 +499,7 @@ class AppShell extends ConsumerWidget {
                         title: title,
                         userName: authState.user?.name ?? '',
                         contextLabel: contextLabel,
-                        onContextTap: organization == null
+                        onContextTap: testMode || organization == null
                             ? _noOp
                             : () => _showWorkingContextSwitcher(
                                   context,
@@ -439,8 +507,12 @@ class AppShell extends ConsumerWidget {
                                   organization,
                                 ),
                         onHome: () => context.go(homeRoute),
-                        onLogout: () =>
-                            ref.read(authProvider.notifier).logout(),
+                        onLogout: () {
+                          ref
+                              .read(systemAdminTestModeProvider.notifier)
+                              .disable();
+                          ref.read(authProvider.notifier).logout();
+                        },
                         onAccount: () => context.go(accountRoute),
                         onPrivacy: () {
                           ShellDestination? privacy;
@@ -461,6 +533,21 @@ class AppShell extends ConsumerWidget {
                         onThemePreferenceChanged: (value) => ref
                             .read(appThemePreferenceProvider.notifier)
                             .select(value),
+                        testModeAvailable: canUseSystemAdminTestMode,
+                        testModeActive: testMode,
+                        onTestModeToggle: () => _toggleSystemAdminTestMode(
+                          context,
+                          ref,
+                          active: testMode,
+                        ),
+                      ),
+                    if (testMode)
+                      _TestModeSafetyBanner(
+                        onExit: () => _toggleSystemAdminTestMode(
+                          context,
+                          ref,
+                          active: true,
+                        ),
                       ),
                     if (authState.user?.isReadOnlyPreview == true)
                       _ReadOnlyPreviewBanner(
@@ -485,7 +572,7 @@ class AppShell extends ConsumerWidget {
                           }
                         },
                       ),
-                    if (showContextBack)
+                    if (!testMode && showContextBack)
                       _ContextBackBar(
                         destination: selectedDestination,
                         compact: !isWide,
@@ -494,7 +581,7 @@ class AppShell extends ConsumerWidget {
                           selectedDestination,
                         ),
                       ),
-                    if (queuedWrites > 0)
+                    if (!testMode && queuedWrites > 0)
                       Material(
                         color: context.appColors.brandSoft,
                         child: Padding(
@@ -520,17 +607,19 @@ class AppShell extends ConsumerWidget {
                         ),
                       ),
                     Expanded(
-                      child: RefreshIndicator.adaptive(
-                        onRefresh: () => _refreshApp(ref),
-                        child: child,
-                      ),
+                      child: testMode
+                          ? const SystemAdminTestEnvironmentPage()
+                          : RefreshIndicator.adaptive(
+                              onRefresh: () => _refreshApp(ref),
+                              child: child,
+                            ),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          bottomNavigationBar: isWide
+          bottomNavigationBar: isWide || testMode
               ? null
               : Container(
                   decoration: BoxDecoration(
@@ -634,6 +723,55 @@ class _ReadOnlyPreviewBanner extends StatelessWidget {
       );
 }
 
+class _TestModeSafetyBanner extends StatelessWidget {
+  const _TestModeSafetyBanner({required this.onExit});
+
+  final VoidCallback onExit;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: AppColors.yellow,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.science_rounded,
+                  size: 20,
+                  color: AppColors.black,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'TESTMODUS · NUR LOKALE DEMODATEN',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.black,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .3,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  key: const ValueKey('exit-system-admin-test-mode'),
+                  onPressed: onExit,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.black,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  child: const Text('Verlassen'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
 class _ContextBackBar extends StatelessWidget {
   const _ContextBackBar({
     required this.destination,
@@ -710,6 +848,9 @@ class DesktopSidebar extends StatelessWidget {
     this.onRefresh = _noOpAsync,
     this.themePreference = AppThemePreference.system,
     this.onThemePreferenceChanged,
+    this.testModeAvailable = false,
+    this.testModeActive = false,
+    this.onTestModeToggle = _noOp,
   });
 
   final String title;
@@ -730,6 +871,9 @@ class DesktopSidebar extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final AppThemePreference themePreference;
   final ValueChanged<AppThemePreference>? onThemePreferenceChanged;
+  final bool testModeAvailable;
+  final bool testModeActive;
+  final VoidCallback onTestModeToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -849,6 +993,13 @@ class DesktopSidebar extends StatelessWidget {
                 ),
               ),
             ),
+            if (testModeAvailable) ...[
+              _DesktopTestModeButton(
+                active: testModeActive,
+                onPressed: onTestModeToggle,
+              ),
+              const SizedBox(height: 12),
+            ],
             Expanded(
               child: Scrollbar(
                 child: ListView(
@@ -949,6 +1100,53 @@ class DesktopSidebar extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DesktopTestModeButton extends StatelessWidget {
+  const _DesktopTestModeButton({
+    required this.active,
+    required this.onPressed,
+  });
+
+  final bool active;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: active ? AppColors.yellow : Colors.white.withValues(alpha: .07),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          key: const ValueKey('desktop-system-admin-test-switch'),
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.science_rounded,
+                  color: active ? AppColors.black : Colors.white70,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    active ? 'Testmodus verlassen' : 'Testmodus starten',
+                    style: TextStyle(
+                      color: active ? AppColors.black : Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Icon(
+                  active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
+                  color: active ? AppColors.black : Colors.white70,
+                  size: 30,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class _DesktopSectionHeader extends StatelessWidget {
@@ -1657,6 +1855,9 @@ class _MobileHeader extends StatelessWidget {
     required this.onRefresh,
     required this.themePreference,
     required this.onThemePreferenceChanged,
+    this.testModeAvailable = false,
+    this.testModeActive = false,
+    this.onTestModeToggle = _noOp,
   });
 
   final String title;
@@ -1672,6 +1873,9 @@ class _MobileHeader extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final AppThemePreference themePreference;
   final ValueChanged<AppThemePreference> onThemePreferenceChanged;
+  final bool testModeAvailable;
+  final bool testModeActive;
+  final VoidCallback onTestModeToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -1769,6 +1973,25 @@ class _MobileHeader extends StatelessWidget {
                   onSelected: onThemePreferenceChanged,
                   compact: true,
                 ),
+                if (testModeAvailable)
+                  IconButton(
+                    key:
+                        const ValueKey('fixed-header-system-admin-test-switch'),
+                    tooltip: testModeActive
+                        ? 'Lokalen Testmodus verlassen'
+                        : 'Lokalen Testmodus starten',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onTestModeToggle,
+                    color: testModeActive
+                        ? context.appWarning
+                        : context.appColors.textMuted,
+                    icon: Icon(
+                      testModeActive
+                          ? Icons.science_rounded
+                          : Icons.science_outlined,
+                      size: 20,
+                    ),
+                  ),
                 if (showDecorativeIdentity) ...[
                   _Avatar(name: userName, small: true),
                   const SizedBox(width: 2),

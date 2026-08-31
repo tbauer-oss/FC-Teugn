@@ -1,4 +1,9 @@
 {
+  "1.6.40+178": [
+    "Systemadministratoren können über einen dezenten Schalter ein lokales Testlabor mit fiktiven Spieltags-, Rückmeldungs- und Mitteilungsdaten öffnen.",
+    "Im Testmodus sind produktive Fachseiten und Schreibaktionen vollständig ausgeblendet; Push-Nachrichten und E-Mails werden nicht versendet.",
+    "Das Testlabor reagiert flexibel auf kleine Smartphones, Foldables und große Displays und lässt sich jederzeit auf den Ausgangszustand zurücksetzen."
+  ],
   "1.6.39+177": [
     "Laufende und gerade beendete Spiele bleiben in der Spielliste sichtbar, damit der Liveticker zuverlässig gestartet und weitergeführt werden kann.",
     "Die Grundlage für eine vollständig getrennte Testumgebung ohne Zugriff auf Produktivdaten, produktive Push-Nachrichten oder E-Mails wurde abgesichert.",
