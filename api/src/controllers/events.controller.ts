@@ -1611,6 +1611,11 @@ export async function listEvents(req: Request, res: Response) {
       ? req.query.categories.split(',')
       : req.query.categories,
   ).filter((value) => Object.values(EventCategory).includes(value as EventCategory));
+  const types = parseStringList(
+    typeof req.query.types === 'string'
+      ? req.query.types.split(',')
+      : req.query.types,
+  ).filter((value) => Object.values(EventType).includes(value as EventType));
 
   const [events, roster, personalPlayerIds] = await Promise.all([
     prisma.event.findMany({
@@ -1624,6 +1629,7 @@ export async function listEvents(req: Request, res: Response) {
         ...(categories.length
           ? { category: { in: categories as EventCategory[] } }
           : {}),
+        ...(types.length ? { type: { in: types as EventType[] } } : {}),
         ...(!staff
           ? { visibility: { not: EventVisibility.STAFF_ONLY } }
           : {}),

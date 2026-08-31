@@ -178,14 +178,9 @@ final matchEventsProvider =
   return ref.watch(repositoryProvider).events(
     from: now.subtract(const Duration(days: 180)),
     to: now.add(const Duration(days: 550)),
-    categories: const [
-      EventCategory.leagueMatch,
-      EventCategory.friendlyMatch,
-      EventCategory.cupMatch,
-      EventCategory.tournament,
-      EventCategory.indoorTournament,
-      EventCategory.footballFestival,
-    ],
+    // The server-side event type is authoritative. Filtering by category used
+    // to hide legacy or imported matches whose category was not normalized.
+    types: const [EventType.match],
   );
 });
 

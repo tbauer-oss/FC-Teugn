@@ -20,6 +20,8 @@ test('event lists resolve shared viewer data once instead of once per event', ()
   );
   assert.equal((listEvents.match(/ownPlayerIds\(user\)/g) ?? []).length, 1);
   assert.match(listEvents, /personalPlayerIds,[\s\S]*\),/);
+  assert.match(listEvents, /const types = parseStringList/);
+  assert.match(listEvents, /type: \{ in: types as EventType\[\] \}/);
 });
 
 test('match detail resolves independent capability and roster reads in parallel', () => {

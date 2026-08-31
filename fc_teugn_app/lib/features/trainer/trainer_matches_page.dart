@@ -9,6 +9,7 @@ import '../../core/app_theme.dart';
 import '../../core/data_repository.dart';
 import '../../core/football_options.dart';
 import '../../core/match_view_preferences.dart';
+import '../../core/match_overview_sort.dart';
 import '../../core/models/event.dart';
 import '../../core/models/competition.dart';
 import '../../core/models/organization.dart';
@@ -141,7 +142,12 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
               )
               .toList()
             ..sort((a, b) {
-              final byDate = _compareMatches(a, b, now, _sortOrder);
+              final byDate = compareMatchOverviewEvents(
+                a,
+                b,
+                now,
+                _sortOrder,
+              );
               return byDate != 0 ? byDate : a.title.compareTo(b.title);
             });
           if (matches.isEmpty) {
@@ -1859,27 +1865,6 @@ class _MatchesPageActions extends StatelessWidget {
           );
         },
       );
-}
-
-int _compareMatches(
-  EventModel first,
-  EventModel second,
-  DateTime now,
-  MatchSortOrder order,
-) {
-  switch (order) {
-    case MatchSortOrder.nextFirst:
-      final firstUpcoming = !first.startAt.isBefore(now);
-      final secondUpcoming = !second.startAt.isBefore(now);
-      if (firstUpcoming != secondUpcoming) return firstUpcoming ? -1 : 1;
-      return firstUpcoming
-          ? first.startAt.compareTo(second.startAt)
-          : second.startAt.compareTo(first.startAt);
-    case MatchSortOrder.newestFirst:
-      return second.startAt.compareTo(first.startAt);
-    case MatchSortOrder.oldestFirst:
-      return first.startAt.compareTo(second.startAt);
-  }
 }
 
 String _matchSortLabel(MatchSortOrder order) => switch (order) {

@@ -1155,6 +1155,7 @@ class DataRepository {
     DateTime? to,
     List<String> teamIds = const [],
     List<EventCategory> categories = const [],
+    List<EventType> types = const [],
   }) async {
     final res = await client.dio.get('/events', queryParameters: {
       if (from != null) 'from': from.toUtc().toIso8601String(),
@@ -1162,6 +1163,8 @@ class DataRepository {
       if (teamIds.isNotEmpty) 'teamIds': teamIds.join(','),
       if (categories.isNotEmpty)
         'categories': categories.map((item) => item.apiName).join(','),
+      if (types.isNotEmpty)
+        'types': types.map((item) => item.name.toUpperCase()).join(','),
     });
     return (res.data as List<dynamic>)
         .map((e) => EventModel.fromJson(e as Map<String, dynamic>))

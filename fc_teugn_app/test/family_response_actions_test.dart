@@ -41,6 +41,7 @@ class _SeriesRepository extends DataRepository {
     DateTime? to,
     List<String> teamIds = const [],
     List<EventCategory> categories = const [],
+    List<EventType> types = const [],
   }) async {
     calendarCalls++;
     return const [];
