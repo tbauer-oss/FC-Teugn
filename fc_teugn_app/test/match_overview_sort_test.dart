@@ -4,13 +4,13 @@ import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('match remains first after kick-off instead of becoming an old event', () {
+  test('match remains first after kick-off instead of becoming an old event',
+      () {
     final now = DateTime(2026, 8, 31, 18, 5);
     final liveMatch = _event('live', DateTime(2026, 8, 31, 18));
     final nextMatch = _event('next', DateTime(2026, 9, 7, 18));
     final previousMatch = _event('previous', DateTime(2026, 8, 24, 18));
-    final matches = [nextMatch, previousMatch, liveMatch]
-      ..sort(
+    final matches = [nextMatch, previousMatch, liveMatch]..sort(
         (first, second) => compareMatchOverviewEvents(
           first,
           second,

@@ -12,11 +12,12 @@ enum MatchOverviewPhase { operational, upcoming, past }
 DateTime matchOperationalUntil(EventModel event) {
   final configuredEnd = event.endAt;
   final durationMinutes = event.matchDetails?.durationMinutes ?? 90;
-  final expectedEnd = configuredEnd != null && configuredEnd.isAfter(event.startAt)
-      ? configuredEnd
-      : event.startAt.add(
-          Duration(minutes: durationMinutes.clamp(30, 240).toInt()),
-        );
+  final expectedEnd =
+      configuredEnd != null && configuredEnd.isAfter(event.startAt)
+          ? configuredEnd
+          : event.startAt.add(
+              Duration(minutes: durationMinutes.clamp(30, 240).toInt()),
+            );
   final localStart = event.startAt.toLocal();
   final endOfMatchDay = DateTime(
     localStart.year,
@@ -55,8 +56,7 @@ int compareMatchOverviewEvents(
     if (phaseOrder != 0) return phaseOrder;
 
     return switch (firstPhase) {
-      MatchOverviewPhase.operational =>
-        second.startAt.compareTo(first.startAt),
+      MatchOverviewPhase.operational => second.startAt.compareTo(first.startAt),
       MatchOverviewPhase.upcoming => first.startAt.compareTo(second.startAt),
       MatchOverviewPhase.past => second.startAt.compareTo(first.startAt),
     };
