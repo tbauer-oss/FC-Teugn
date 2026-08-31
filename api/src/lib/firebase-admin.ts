@@ -1,5 +1,6 @@
 import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { Messaging, getMessaging } from 'firebase-admin/messaging';
+import { externalDeliveriesAllowed } from './runtime-environment';
 
 export type FirebaseServiceAccount = {
   projectId: string;
@@ -22,6 +23,7 @@ let cachedApp: App | null = null;
 let configurationFailed = false;
 
 function firebaseApp(): App | null {
+  if (!externalDeliveriesAllowed) return null;
   if (cachedApp) return cachedApp;
   if (configurationFailed) return null;
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();

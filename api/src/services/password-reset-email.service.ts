@@ -1,3 +1,5 @@
+import { externalDeliveriesAllowed } from '../lib/runtime-environment';
+
 const resendEndpoint = 'https://api.resend.com/emails';
 const resendTimeoutMs = 8_000;
 
@@ -27,6 +29,7 @@ function publicAppUrl() {
 export async function sendPasswordResetEmail(
   input: PasswordResetEmailInput,
 ) {
+  if (!externalDeliveriesAllowed) return false;
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.RESEND_ACCOUNT_FROM_EMAIL?.trim() ||
     'FC Teugn Talents <account@fc-teugn-talents.de>';

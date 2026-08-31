@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "outputDirectory": null,
+  "installCommand": "npx -y pnpm@10.13.1 install --frozen-lockfile",
+  "buildCommand": "export DATABASE_URL=\"$DEMO_DATABASE_URL\" && npx -y pnpm@10.13.1 exec prisma migrate deploy && npx -y pnpm@10.13.1 run build",
+  "regions": ["fra1"],
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "{dist/**,prisma/**,assets/**}",
+      "maxDuration": 30
+    }
+  },
+  "crons": [
+    {
+      "path": "/internal/cron/reminders",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/internal/cron/regular-trainings",
+      "schedule": "7 * * * *"
+    }
+  ]
+}

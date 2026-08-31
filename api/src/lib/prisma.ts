@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { databaseUrlForRuntime } from './runtime-environment';
 
 type PrismaGlobal = typeof globalThis & {
   fcTeugnPrisma?: PrismaClient;
@@ -41,7 +42,7 @@ export function serverlessDatabaseUrl(
 }
 
 const prismaGlobal = globalThis as PrismaGlobal;
-const datasourceUrl = serverlessDatabaseUrl(process.env.DATABASE_URL);
+const datasourceUrl = serverlessDatabaseUrl(databaseUrlForRuntime());
 
 export const prisma = prismaGlobal.fcTeugnPrisma ?? new PrismaClient({
   ...(datasourceUrl ? { datasourceUrl } : {}),

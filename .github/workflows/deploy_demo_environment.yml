@@ -1,0 +1,104 @@
+name: Deploy isolated demo environment
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-isolated-demo
+  cancel-in-progress: false
+
+jobs:
+  validate-demo-configuration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require isolated demo secrets and variables
+        env:
+          DEMO_DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
+          DEMO_SEED_PASSWORD: ${{ secrets.DEMO_SEED_PASSWORD }}
+          DEMO_API_BASE_URL: ${{ vars.DEMO_API_BASE_URL }}
+          DEMO_BACKEND_PROJECT: ${{ vars.DEMO_BACKEND_VERCEL_PROJECT }}
+          DEMO_FRONTEND_PROJECT: ${{ vars.DEMO_FRONTEND_VERCEL_PROJECT }}
+        run: |
+          test -n "$DEMO_DATABASE_URL"
+          test -n "$DEMO_SEED_PASSWORD"
+          test -n "$DEMO_API_BASE_URL"
+          test -n "$DEMO_BACKEND_PROJECT"
+          test -n "$DEMO_FRONTEND_PROJECT"
+          test "$DEMO_API_BASE_URL" != "https://fc-teugn-backend.vercel.app"
+          test "$DEMO_BACKEND_PROJECT" != "fc-teugn-backend"
+
+  deploy-demo-backend:
+    needs: validate-demo-configuration
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npx -y pnpm@10.13.1 install --frozen-lockfile
+      - name: Validate and seed isolated database
+        env:
+          APP_ENVIRONMENT: demo
+          DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
+          DEMO_DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
+          DEMO_SEED_PASSWORD: ${{ secrets.DEMO_SEED_PASSWORD }}
+        run: |
+          npx -y pnpm@10.13.1 exec prisma migrate deploy
+          npx -y pnpm@10.13.1 run prisma:seed
+      - name: Build backend
+        env:
+          APP_ENVIRONMENT: demo
+          DEMO_DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
+        run: npx -y pnpm@10.13.1 run build
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+      - name: Link isolated backend project
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEMO_BACKEND_PROJECT: ${{ vars.DEMO_BACKEND_VERCEL_PROJECT }}
+        run: vercel link --project "$DEMO_BACKEND_PROJECT" --yes --token "$VERCEL_TOKEN"
+      - name: Pull isolated backend environment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN" --local-config vercel.demo.json
+      - name: Deploy isolated backend
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prod --yes --token "$VERCEL_TOKEN" --local-config vercel.demo.json
+
+  deploy-demo-frontend:
+    needs: [validate-demo-configuration, deploy-demo-backend]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fc_teugn_app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.8'
+      - name: Install Flutter dependencies
+        run: flutter pub get
+      - name: Build unmistakable demo frontend
+        env:
+          DEMO_API_BASE_URL: ${{ vars.DEMO_API_BASE_URL }}
+        run: >-
+          flutter build web --release
+          --dart-define=APP_ENVIRONMENT=demo
+          --dart-define=API_BASE_URL="$DEMO_API_BASE_URL"
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+      - name: Link isolated frontend project
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEMO_FRONTEND_PROJECT: ${{ vars.DEMO_FRONTEND_VERCEL_PROJECT }}
+        run: vercel link --project "$DEMO_FRONTEND_PROJECT" --yes --token "$VERCEL_TOKEN"
+      - name: Deploy isolated frontend
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prod --yes --token "$VERCEL_TOKEN"

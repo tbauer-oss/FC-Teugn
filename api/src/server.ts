@@ -27,6 +27,7 @@ import {
 import { asyncHandler } from './middleware/async-handler';
 import { securityHeaders } from './middleware/security-headers';
 import { assertMessengerBackupRetentionPolicy } from './services/privacy-retention.service';
+import { runtimeEnvironment } from './lib/runtime-environment';
 
 dotenv.config();
 assertMessengerBackupRetentionPolicy();
@@ -95,7 +96,10 @@ app.use(
 );
 app.use(express.json({ limit: '1mb' }));
 
-app.get('/', (_req, res) => res.json({ status: 'ok' }));
+app.get('/', (_req, res) => res.json({
+  status: 'ok',
+  environment: runtimeEnvironment,
+}));
 app.get('/openapi.json', (_req, res) => res.json(openApiDocument));
 app.get(
   '/media/playing-community-logo/:teamId',

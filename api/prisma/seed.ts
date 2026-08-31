@@ -12,6 +12,13 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
+  const configuredDemoPassword = process.env.DEMO_SEED_PASSWORD?.trim();
+  if (process.env.APP_ENVIRONMENT === 'demo' && !configuredDemoPassword) {
+    throw new Error(
+      'DEMO_SEED_PASSWORD is required when seeding the isolated demo environment.',
+    );
+  }
+
   const club = await prisma.club.upsert({
     where: { name: 'FC Teugn' },
     update: {},
@@ -77,7 +84,9 @@ async function main() {
     },
   });
 
-  const defaultPassword = await hashPassword('FC-Teugn_WEB!');
+  const defaultPassword = await hashPassword(
+    configuredDemoPassword ?? 'FC-Teugn_WEB!',
+  );
 
   const trainer = await prisma.user.upsert({
     where: { email: 'trainer@fc-teugn.local' },

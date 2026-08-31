@@ -55,6 +55,7 @@ import 'core/push/initial_push_prompt.dart';
 import 'core/push/native_push_service.dart';
 import 'core/push/push_client.dart';
 import 'core/push/push_action_route.dart';
+import 'core/runtime_environment.dart';
 
 class FCTeugnApp extends ConsumerStatefulWidget {
   const FCTeugnApp({
@@ -1124,13 +1125,23 @@ const _localizationsDelegates = [
   GlobalCupertinoLocalizations.delegate,
 ];
 
-Widget _buildAppContent(BuildContext context, Widget? child) => MediaQuery(
-      data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-      // Feature-Seiten erhalten die vollständige Fenstergeometrie inklusive
-      // DisplayFeature. So können Master/Detail-Flächen beide Foldable-Panes
-      // nutzen, ohne Inhalte unter dem Scharnier zu zeichnen.
-      child: AppLoadingHost(child: child ?? const SizedBox.shrink()),
-    );
+Widget _buildAppContent(BuildContext context, Widget? child) {
+  final appContent = AppLoadingHost(child: child ?? const SizedBox.shrink());
+  return MediaQuery(
+    data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+    // Feature-Seiten erhalten die vollständige Fenstergeometrie inklusive
+    // DisplayFeature. So können Master/Detail-Flächen beide Foldable-Panes
+    // nutzen, ohne Inhalte unter dem Scharnier zu zeichnen.
+    child: RuntimeEnvironment.isDemo
+        ? Column(
+            children: [
+              const DemoEnvironmentStrip(),
+              Expanded(child: appContent),
+            ],
+          )
+        : appContent,
+  );
+}
 
 @visibleForTesting
 Widget buildLaunchScreenContent(BuildContext context, Widget? child) =>

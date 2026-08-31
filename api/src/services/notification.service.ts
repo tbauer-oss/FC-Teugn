@@ -11,11 +11,13 @@ import {
   firebaseMessaging,
   firebaseMessagingConfigured,
 } from '../lib/firebase-admin';
+import { externalDeliveriesAllowed } from '../lib/runtime-environment';
 
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY?.trim() ?? '';
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim() ?? '';
 const vapidSubject = process.env.VAPID_SUBJECT?.trim() || 'mailto:admin@fc-teugn.de';
-export const webPushConfigured = Boolean(vapidPublicKey && vapidPrivateKey);
+export const webPushConfigured = externalDeliveriesAllowed &&
+  Boolean(vapidPublicKey && vapidPrivateKey);
 const maxAutomaticDeliveryAttempts = 6;
 const pendingDeliveryRetryDelayMs = 4 * 60 * 1000;
 
@@ -211,8 +213,10 @@ export async function queueUserNotifications(
         const preference = preferenceByUser.get(userId);
         const defaults = defaultNotificationPreference(input.category);
         const inApp = input.forceInApp || (preference?.inApp ?? defaults.inApp);
-        const push = input.forcePush || (
-          (preference?.push ?? defaults.push) && input.pushEnabled !== false
+        const push = externalDeliveriesAllowed && (
+          input.forcePush || (
+            (preference?.push ?? defaults.push) && input.pushEnabled !== false
+          )
         );
         if (!inApp && !push) {
           return { notifications: 0, deliveries: 0, deliveryIds: [] as string[] };
