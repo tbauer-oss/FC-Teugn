@@ -96,6 +96,19 @@ void main() {
 
     expect(workflow, contains('MAGENTACLOUD_WEBDAV_USERNAME'));
     expect(workflow, contains('MAGENTACLOUD_WEBDAV_PASSWORD'));
+    expect(publisher, contains(r'release_notes_file='));
+    expect(publisher, contains(r'release_key='));
+    expect(publisher, contains(r'--argjson releaseNotes'));
+    expect(publisher, contains(r'releaseNotes: $releaseNotes'));
+    expect(
+      publisher,
+      isNot(
+        contains(
+          'Verbesserte mobile Darstellung, klarere Spieltagsabläufe und '
+          'wichtige Fehlerbehebungen.',
+        ),
+      ),
+    );
     expect(publisher, contains(r'upload "$apk_path" "$latest_name"'));
     expect(publisher, contains(r'upload "$manifest_path" "latest.json"'));
     expect(
@@ -104,6 +117,24 @@ void main() {
         publisher.indexOf(r'upload "$manifest_path" "latest.json"'),
       ),
     );
+  });
+
+  test('current release has unique version-specific German notes', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final version = RegExp(
+      r'^version:\s*(\S+)',
+      multiLine: true,
+    ).firstMatch(pubspec)!.group(1)!;
+    final releases = jsonDecode(
+      File('release_notes.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    final notes = (releases[version] as List<dynamic>? ?? const [])
+        .whereType<String>()
+        .toList(growable: false);
+
+    expect(notes, isNotEmpty, reason: 'Release-Hinweise für $version fehlen.');
+    expect(notes.toSet().length, notes.length);
+    expect(notes.every((note) => note.trim().length >= 20), isTrue);
   });
 
   test('Android updater opens the public MagentaCLOUD share session', () {

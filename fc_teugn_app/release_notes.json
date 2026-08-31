@@ -1,0 +1,7 @@
+{
+  "1.6.39+177": [
+    "Laufende und gerade beendete Spiele bleiben in der Spielliste sichtbar, damit der Liveticker zuverlässig gestartet und weitergeführt werden kann.",
+    "Die Grundlage für eine vollständig getrennte Testumgebung ohne Zugriff auf Produktivdaten, produktive Push-Nachrichten oder E-Mails wurde abgesichert.",
+    "Der Update-Dialog zeigt ab sofort die tatsächlichen Änderungen der jeweiligen Version statt eines wiederkehrenden Pauschaltexts."
+  ]
+}

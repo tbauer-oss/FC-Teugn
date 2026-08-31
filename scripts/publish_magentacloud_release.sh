@@ -19,10 +19,36 @@ manifest_path="$(dirname "$apk_path")/latest.json"
 apk_sha256="$(sha256sum "$apk_path" | awk '{ print $1 }')"
 apk_size="$(stat -c '%s' "$apk_path")"
 published_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-# Die Hinweise werden in der App angezeigt und sind deshalb bewusst vollständig
-# deutsch. Ein technischer (häufig englischer) Git-Betreff darf nicht ungeprüft
-# in die sichtbare Aktualisierungsanzeige gelangen.
-release_note="${FC_TEUGN_RELEASE_NOTES:-Verbesserte mobile Darstellung, klarere Spieltagsabläufe und wichtige Fehlerbehebungen.}"
+release_key="${version_name}+${version_code}"
+release_notes_file="${FC_TEUGN_RELEASE_NOTES_FILE:-release_notes.json}"
+
+# Die Hinweise werden in der App angezeigt. Jede Version muss deshalb einen
+# eigenen, bewusst formulierten deutschen Eintrag besitzen. Es gibt absichtlich
+# keinen Pauschaltext und keinen Rückfall auf einen technischen Git-Betreff.
+if [[ ! -f "$release_notes_file" ]]; then
+  echo "Release-Hinweise fehlen: $release_notes_file" >&2
+  exit 1
+fi
+
+if ! release_notes="$(
+  jq -ce --arg releaseKey "$release_key" '
+    .[$releaseKey]
+    | if type != "array" then
+        error("Für " + $releaseKey + " fehlt eine Liste mit Release-Hinweisen.")
+      else . end
+    | map(
+        if type != "string" then
+          error("Release-Hinweise müssen Texte sein.")
+        else gsub("^\\s+|\\s+$"; "") end
+      )
+    | if length == 0 or any(. == "") then
+        error("Release-Hinweise dürfen nicht leer sein.")
+      else . end
+  ' "$release_notes_file"
+)"; then
+  echo "Keine gültigen Release-Hinweise für $release_key gefunden." >&2
+  exit 1
+fi
 public_base="https://magentacloud.de/public.php/dav/files/xkgHEESdKbQ6XMP"
 webdav_base="https://magentacloud.de/remote.php/webdav/FC-Teugn/App-Updates"
 
@@ -33,7 +59,7 @@ jq -n \
   --arg sha256 "$apk_sha256" \
   --argjson fileSize "$apk_size" \
   --arg publishedAt "$published_at" \
-  --arg releaseNote "$release_note" \
+  --argjson releaseNotes "$release_notes" \
   '{
     schemaVersion: 1,
     versionName: $versionName,
@@ -43,7 +69,7 @@ jq -n \
     fileSize: $fileSize,
     publishedAt: $publishedAt,
     mandatory: false,
-    releaseNotes: [$releaseNote]
+    releaseNotes: $releaseNotes
   }' > "$manifest_path"
 
 upload() {
