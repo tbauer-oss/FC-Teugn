@@ -1,4 +1,9 @@
 {
+  "1.6.41+179": [
+    "Das Leistungszentrum lädt im Kontext „Alle Mannschaften“ zuverlässig genau die Mannschaft, die im Filter angezeigt wird, sodass gespeicherte Spielbewertungen sofort in der richtigen E1-, E2- oder weiteren Mannschaft erscheinen.",
+    "Beendete Spiele und ihre Bewertungen werden auch dann ausgewertet, wenn der Liveticker bereits den Abpfiff kennt, der allgemeine Spielstatus aber noch nicht nachgezogen wurde.",
+    "Die Endstandsbenachrichtigung erscheint nur beim tatsächlichen Abpfiff und wird beim späteren erneuten Öffnen eines beendeten Spiels nicht nochmals erzeugt."
+  ],
   "1.6.40+178": [
     "Systemadministratoren können über einen dezenten Schalter ein lokales Testlabor mit fiktiven Spieltags-, Rückmeldungs- und Mitteilungsdaten öffnen.",
     "Im Testmodus sind produktive Fachseiten und Schreibaktionen vollständig ausgeblendet; Push-Nachrichten und E-Mails werden nicht versendet.",

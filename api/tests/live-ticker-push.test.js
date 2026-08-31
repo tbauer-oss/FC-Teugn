@@ -6,6 +6,9 @@ const path = require('node:path');
 const {
   liveTickerNotificationCopy,
 } = require('../dist/src/services/live-ticker-notification.service');
+const {
+  isRepeatedMatchEnd,
+} = require('../dist/src/controllers/matches.controller');
 
 const event = (type, ourGoals = 0, theirGoals = 0) => ({
   id: `event-${type}`,
@@ -101,6 +104,8 @@ test('ticker commands notify once after the authoritative commit', () => {
     controller.indexOf('export async function undoTickerEvent'),
   );
   assert.match(command, /if \(!result\.duplicate\)/);
+  assert.match(command, /isRepeatedMatchEnd\(ticker\.status, type\)/);
+  assert.match(command, /type: TickerEventType\.MATCH_END/);
   assert.match(command, /sendLiveTickerNotification\(match, result\.event\)/);
   assert.match(command, /settlePostCommitTasks\(postCommitTasks\)/);
   assert.match(command, /waitUntil\(settlePostCommitTasks\(postCommitTasks\)\)/);
@@ -122,6 +127,12 @@ test('notification uses the optional live ticker preference and deep link', () =
   assert.match(service, /kind:\s*'LIVE_MATCH'/);
   assert.match(service, /privacy:\s*'NO_PLAYER_NAMES'/);
   assert.doesNotMatch(service, /forcePush:/);
+});
+
+test('a finished ticker rejects another final whistle with a new client id', () => {
+  assert.equal(isRepeatedMatchEnd('FINISHED', 'MATCH_END'), true);
+  assert.equal(isRepeatedMatchEnd('LIVE', 'MATCH_END'), false);
+  assert.equal(isRepeatedMatchEnd('FINISHED', 'COMMENT'), false);
 });
 
 test('ticker audience includes the whole team and published cross-team guests', () => {

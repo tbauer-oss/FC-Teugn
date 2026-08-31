@@ -19,6 +19,7 @@ import '../../core/offline_outbox.dart';
 import '../../core/offline_ticker.dart';
 import '../../core/providers.dart';
 import '../../core/push/live_match_surface.dart';
+import '../../core/push/live_match_surface_policy.dart';
 import '../../core/squad_selection.dart';
 import '../../core/ticker_signal.dart';
 import '../../core/widgets/adaptive_layout.dart';
@@ -108,6 +109,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     try {
       final match = await repository.match(matchId);
       if (!mounted || request != _loadRequest) return;
+      final previousTickerStatus = _match?.ticker?.status;
       final endpointPlayers =
           staffView ? match.eligiblePlayers : const <PlayerModel>[];
       final sharedPlayersAreLoading = staffView &&
@@ -124,7 +126,10 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
         _lastTickerConnectionAt = DateTime.now();
         _consecutiveTickerFailures = 0;
       });
-      _syncSystemLiveDisplay(match);
+      _syncSystemLiveDisplay(
+        match,
+        previousStatus: previousTickerStatus,
+      );
       if (userId != null) {
         unawaited(
           _cacheMatchInBackground(
@@ -324,12 +329,24 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     await _refreshTickerRequest();
   }
 
-  void _syncSystemLiveDisplay(MatchdayModel match) {
+  void _syncSystemLiveDisplay(
+    MatchdayModel match, {
+    required TickerStatus? previousStatus,
+  }) {
     final ticker = match.ticker;
-    if (ticker == null || ticker.status == TickerStatus.notStarted) {
-      unawaited(liveMatchSurface.cancel(match.id));
-      return;
+    switch (liveMatchSurfaceAction(
+      previousStatus: previousStatus,
+      currentStatus: ticker?.status,
+    )) {
+      case LiveMatchSurfaceAction.cancel:
+        unawaited(liveMatchSurface.cancel(match.id));
+        return;
+      case LiveMatchSurfaceAction.none:
+        return;
+      case LiveMatchSurfaceAction.update:
+        break;
     }
+    if (ticker == null) return;
     final details = match.details;
     final ownHome = details?.isHome != false;
     final opponent = details?.opponent ?? 'Gegner';
@@ -376,6 +393,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     _refreshingTicker = true;
     try {
       final previousSequence = _match?.ticker?.lastSequence ?? 0;
+      final previousTickerStatus = _match?.ticker?.status;
       final incrementalTicker = await repository.ticker(
         matchId,
         after: previousSequence,
@@ -438,7 +456,10 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
           // Keep the live ticker usable even if local cache storage fails.
         }
       }
-      _syncSystemLiveDisplay(updatedMatch);
+      _syncSystemLiveDisplay(
+        updatedMatch,
+        previousStatus: previousTickerStatus,
+      );
       return true;
     } catch (error) {
       if (mounted && _isConnectivityFailure(error)) {

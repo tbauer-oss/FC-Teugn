@@ -2391,6 +2391,14 @@ export async function nominationPreview(req: Request, res: Response) {
   });
 }
 
+export function isRepeatedMatchEnd(
+  currentStatus: TickerStatus,
+  type: TickerEventType,
+) {
+  return currentStatus === TickerStatus.FINISHED &&
+    type === TickerEventType.MATCH_END;
+}
+
 export async function publishMatchInternally(req: Request, res: Response) {
   const user = req.user!;
   const match = await findMatch(req.params.id, user);
@@ -3151,6 +3159,20 @@ export async function tickerCommand(req: Request, res: Response) {
       include: { scorer: true, assist: true },
     });
     if (duplicate) return { ticker, event: duplicate, duplicate: true };
+    if (isRepeatedMatchEnd(ticker.status, type)) {
+      const existingEnd = await tx.liveTickerEvent.findFirst({
+        where: {
+          tickerId: ticker.id,
+          type: TickerEventType.MATCH_END,
+          revokedAt: null,
+        },
+        orderBy: { sequence: 'desc' },
+        include: { scorer: true, assist: true },
+      });
+      if (existingEnd) {
+        return { ticker, event: existingEnd, duplicate: true };
+      }
+    }
 
     const now = new Date();
     const currentElapsed = elapsed(ticker);

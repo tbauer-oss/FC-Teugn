@@ -3,6 +3,7 @@ import {
   MatchKind,
   MatchStatus,
   Prisma,
+  TickerStatus,
   TickerEventType,
 } from '@prisma/client';
 import { Request, Response } from 'express';
@@ -76,6 +77,52 @@ export function resolveStatisticsTeamIds(
     return [user.teamId];
   }
   return accessibleTeamIds.length > 0 ? [accessibleTeamIds[0]] : [];
+}
+
+export function statisticsMatchLifecycleScope(): Prisma.EventWhereInput {
+  return {
+    OR: [
+      {
+        matchDetails: {
+          is: {
+            status: {
+              in: [
+                MatchStatus.LIVE,
+                MatchStatus.HALF_TIME,
+                MatchStatus.INTERRUPTED,
+                MatchStatus.FINISHED,
+                MatchStatus.RECORDED,
+              ],
+            },
+          },
+        },
+      },
+      {
+        liveTicker: {
+          is: {
+            status: {
+              in: [
+                TickerStatus.LIVE,
+                TickerStatus.PAUSED,
+                TickerStatus.HALF_TIME,
+                TickerStatus.INTERRUPTED,
+                TickerStatus.FINISHED,
+              ],
+            },
+          },
+        },
+      },
+    ],
+  };
+}
+
+export function isStatisticsMatchFinished(match: {
+  matchDetails?: { status: MatchStatus } | null;
+  liveTicker?: { status: TickerStatus } | null;
+}) {
+  return match.matchDetails?.status === MatchStatus.FINISHED ||
+    match.matchDetails?.status === MatchStatus.RECORDED ||
+    match.liveTicker?.status === TickerStatus.FINISHED;
 }
 
 function emptyPlayerStatistic(player: PlayerIdentity): PlayerStatisticRow {
@@ -182,7 +229,10 @@ export async function statisticsOverview(req: Request, res: Response) {
   const matches = await prisma.event.findMany({
     where: {
       type: EventType.MATCH,
-      ...eventTeamScope(teamIds),
+      AND: [
+        eventTeamScope(teamIds),
+        statisticsMatchLifecycleScope(),
+      ],
       ...(from || to
         ? {
             startAt: {
@@ -191,21 +241,29 @@ export async function statisticsOverview(req: Request, res: Response) {
             },
           }
         : {}),
-      matchDetails: {
-        is: {
-          status: {
-            in: [MatchStatus.LIVE, MatchStatus.HALF_TIME, MatchStatus.INTERRUPTED, MatchStatus.FINISHED, MatchStatus.RECORDED],
-          },
-          ...(competition
-            ? { competition: { contains: competition, mode: 'insensitive' as const } }
-            : {}),
-          ...(kindFilter ? { kind: kindFilter } : {}),
-        },
-      },
+      ...(competition || kindFilter
+        ? {
+            matchDetails: {
+              is: {
+                ...(competition
+                  ? { competition: { contains: competition, mode: 'insensitive' as const } }
+                  : {}),
+                ...(kindFilter ? { kind: kindFilter } : {}),
+              },
+            },
+          }
+        : {}),
     },
     include: {
       team: { select: { id: true, name: true, shortName: true } },
       matchDetails: true,
+      liveTicker: {
+        select: {
+          status: true,
+          ourGoals: true,
+          theirGoals: true,
+        },
+      },
       teamMatchStatistic: true,
       playerMatchStats: {
         include: {
@@ -229,9 +287,15 @@ export async function statisticsOverview(req: Request, res: Response) {
 
   const matchRows = matches.map((match) => {
     const ourGoals =
-      match.teamMatchStatistic?.ourGoals ?? match.matchDetails?.ourGoals ?? 0;
+      match.teamMatchStatistic?.ourGoals ??
+      match.matchDetails?.ourGoals ??
+      match.liveTicker?.ourGoals ??
+      0;
     const theirGoals =
-      match.teamMatchStatistic?.theirGoals ?? match.matchDetails?.theirGoals ?? 0;
+      match.teamMatchStatistic?.theirGoals ??
+      match.matchDetails?.theirGoals ??
+      match.liveTicker?.theirGoals ??
+      0;
     const result =
       match.teamMatchStatistic?.result ??
       (ourGoals > theirGoals ? 'WIN' : ourGoals < theirGoals ? 'LOSS' : 'DRAW');
@@ -270,8 +334,7 @@ export async function statisticsOverview(req: Request, res: Response) {
       current.minutes += stat.minutesPlayed;
       current.goals += stat.goals;
       current.assists += stat.assists;
-      const finished = match.matchDetails?.status === MatchStatus.FINISHED ||
-        match.matchDetails?.status === MatchStatus.RECORDED;
+      const finished = isStatisticsMatchFinished(match);
       const conceded = match.teamMatchStatistic?.theirGoals ?? match.matchDetails?.theirGoals;
       if (
         finished &&
@@ -343,26 +406,20 @@ export async function statisticsOverview(req: Request, res: Response) {
     where: {
       event: {
         type: EventType.MATCH,
-        ...eventTeamScope(baseTeamIds),
-        matchDetails: {
-          is: {
-            status: {
-              in: [
-                MatchStatus.LIVE,
-                MatchStatus.HALF_TIME,
-                MatchStatus.INTERRUPTED,
-                MatchStatus.FINISHED,
-                MatchStatus.RECORDED,
-              ],
-            },
-          },
-        },
+        AND: [
+          eventTeamScope(baseTeamIds),
+          statisticsMatchLifecycleScope(),
+        ],
       },
       ...(allowedPlayerIds ? { playerId: { in: [...allowedPlayerIds] } } : {}),
     },
     include: {
       event: {
-        include: { matchDetails: true, teamMatchStatistic: true },
+        include: {
+          matchDetails: true,
+          liveTicker: { select: { status: true } },
+          teamMatchStatistic: true,
+        },
       },
       player: {
         select: {
@@ -384,8 +441,7 @@ export async function statisticsOverview(req: Request, res: Response) {
     current.appearances += stat.appeared ? 1 : 0;
     current.starts += stat.started ? 1 : 0;
     current.minutes += stat.minutesPlayed;
-    const finished = stat.event.matchDetails?.status === MatchStatus.FINISHED ||
-      stat.event.matchDetails?.status === MatchStatus.RECORDED;
+    const finished = isStatisticsMatchFinished(stat.event);
     const conceded = stat.event.teamMatchStatistic?.theirGoals ??
       stat.event.matchDetails?.theirGoals;
     if (
@@ -552,9 +608,7 @@ export async function statisticsOverview(req: Request, res: Response) {
   }
   const ratedMatchIds = new Set(scopedRatings.map((rating) => rating.eventId));
   const completedMatches = matches.filter(
-    (match) =>
-      match.matchDetails?.status === MatchStatus.FINISHED ||
-      match.matchDetails?.status === MatchStatus.RECORDED,
+    isStatisticsMatchFinished,
   );
   const performanceCenter = canManageStatistics
     ? {

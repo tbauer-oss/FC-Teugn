@@ -45,7 +45,13 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
       var teamId = user.teamId;
       if (canSelectStatisticsTeam(user.role)) {
         final organization = await ref.read(organizationProvider.future);
-        teamId = _selectedTeamId ?? organization.currentTeam.id;
+        teamId = resolveStatisticsPageTeamId(
+          registeredTeamId: user.teamId,
+          currentTeamId: organization.currentTeam.id,
+          workingTeamIds: organization.workingContext.teamIds,
+          includeAllTeams: organization.workingContext.includeAllTeams,
+          selectedTeamId: _selectedTeamId,
+        );
       }
       final overview = await ref.read(repositoryProvider).statistics(
         teamIds: [teamId],
@@ -93,8 +99,14 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
     final canSelectTeam = user != null && canSelectStatisticsTeam(user.role);
     final statisticsTeams = _teamOptions(organization);
     final registeredTeamId = user?.teamId;
-    final selectedTeamId = canSelectTeam
-        ? (_selectedTeamId ?? registeredTeamId)
+    final selectedTeamId = canSelectTeam && organization != null
+        ? resolveStatisticsPageTeamId(
+            registeredTeamId: registeredTeamId ?? '',
+            currentTeamId: organization.currentTeam.id,
+            workingTeamIds: organization.workingContext.teamIds,
+            includeAllTeams: organization.workingContext.includeAllTeams,
+            selectedTeamId: _selectedTeamId,
+          )
         : registeredTeamId;
     final selectedTeam = _findTeam(statisticsTeams, selectedTeamId);
     final selectedTeamLabel =
@@ -314,6 +326,23 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
     }
     return [organization.currentTeam, ...organization.teams];
   }
+}
+
+String resolveStatisticsPageTeamId({
+  required String registeredTeamId,
+  required String currentTeamId,
+  required List<String> workingTeamIds,
+  required bool includeAllTeams,
+  String? selectedTeamId,
+}) {
+  if (selectedTeamId?.isNotEmpty == true) return selectedTeamId!;
+  if (includeAllTeams && workingTeamIds.contains(registeredTeamId)) {
+    return registeredTeamId;
+  }
+  if (!includeAllTeams && workingTeamIds.isNotEmpty) {
+    return workingTeamIds.first;
+  }
+  return currentTeamId;
 }
 
 class _TeamSelector extends StatelessWidget {

@@ -27,7 +27,9 @@ const {
 const {
   canSelectStatisticsTeam,
   isDefensivePlayer,
+  isStatisticsMatchFinished,
   resolveStatisticsTeamIds,
+  statisticsMatchLifecycleScope,
 } = require('../dist/src/controllers/statistics.controller');
 const {
   calculateStandings,
@@ -511,6 +513,26 @@ test('statistics administrators can select one authorized team only', () => {
     ),
     null,
   );
+});
+
+test('statistics accept the ticker as authoritative lifecycle fallback', () => {
+  assert.equal(
+    isStatisticsMatchFinished({
+      matchDetails: { status: 'PLANNED' },
+      liveTicker: { status: 'FINISHED' },
+    }),
+    true,
+  );
+  assert.equal(
+    isStatisticsMatchFinished({
+      matchDetails: { status: 'PLANNED' },
+      liveTicker: { status: 'NOT_STARTED' },
+    }),
+    false,
+  );
+  const lifecycle = statisticsMatchLifecycleScope();
+  assert.equal(Array.isArray(lifecycle.OR), true);
+  assert.equal(lifecycle.OR.length, 2);
 });
 
 test('team communications can only be sent by staff roles', () => {
