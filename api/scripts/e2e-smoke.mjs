@@ -290,6 +290,23 @@ assert(
   'The match does not expose the configured team game format',
 );
 
+// Die Aufstellung darf ausschließlich Spieler mit ausdrücklicher Zusage
+// enthalten. Der E2E-Ablauf bildet deshalb vor Kader und Aufstellung die
+// tatsächlichen Spieltagsrückmeldungen ab.
+for (const acceptedPlayerId of ['player-1', playerId, 'player-3']) {
+  const acceptedAttendance = await request(
+    `/events/${match.id}/attendance`,
+    json('POST', trainerToken, {
+      playerId: acceptedPlayerId,
+      status: 'YES',
+    }),
+  );
+  assert(
+    acceptedAttendance.status === 'YES',
+    `Match attendance for ${acceptedPlayerId} was not accepted`,
+  );
+}
+
 // 8. Trainer nominiert den Kader.
 const savedSquad = await request(
   `/matches/${match.id}/squad`,
