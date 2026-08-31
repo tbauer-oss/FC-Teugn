@@ -112,6 +112,13 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                 ),
                 if (manifest.releaseNotes.isNotEmpty) ...[
                   const SizedBox(height: 14),
+                  Text(
+                    'Das ist neu',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  const SizedBox(height: 7),
                   ...manifest.releaseNotes.map(
                     (note) => Padding(
                       padding: const EdgeInsets.only(bottom: 7),

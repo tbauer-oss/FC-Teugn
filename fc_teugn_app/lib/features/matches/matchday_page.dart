@@ -1553,7 +1553,7 @@ class _InternalPublicationDialogState extends State<InternalPublicationDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Mit Trainerteam teilen',
+                  'Spieltag intern teilen',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
@@ -1691,7 +1691,7 @@ class _InternalPublicationDialogState extends State<InternalPublicationDialog> {
                                   ),
                                 ),
                         icon: const Icon(Icons.campaign_rounded),
-                        label: const Text('Mit Trainerteam teilen'),
+                        label: const Text('Jetzt intern teilen'),
                       ),
                     ),
                   ],
@@ -1751,13 +1751,13 @@ class MatchCommunicationActions extends StatelessWidget {
     final actionSpecs = <AdaptiveActionSpec>[
       if (match.canPublishInternal)
         AdaptiveActionSpec(
-          label: 'Mit Trainerteam teilen',
+          label: 'Spieltag intern teilen',
           icon: Icons.admin_panel_settings_outlined,
           onPressed: onPublishInternal,
         ),
       if (match.canReleaseFamily && match.familyReleasedAt == null)
         AdaptiveActionSpec(
-          label: 'Für Eltern & Spieler freigeben',
+          label: 'Für Familien freigeben',
           icon: Icons.family_restroom_rounded,
           onPressed: onReleaseFamily,
           primary: true,
@@ -1808,15 +1808,15 @@ class MatchCommunicationActions extends StatelessWidget {
       final buttons = <Widget>[
         if (match.canPublishInternal)
           Tooltip(
-            message: 'Mit Trainerteam teilen',
+            message: 'Spieltag intern teilen',
             child: OutlinedButton.icon(
               key: const ValueKey('compact-internal-publication-action'),
               onPressed: onPublishInternal,
               icon: const Icon(Icons.admin_panel_settings_outlined, size: 17),
               label: const Text(
-                'Veröffentlichen',
+                'Intern teilen',
                 maxLines: 1,
-                semanticsLabel: 'Mit Trainerteam teilen',
+                semanticsLabel: 'Spieltag intern mit dem Trainerteam teilen',
               ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 36),
@@ -1828,13 +1828,13 @@ class MatchCommunicationActions extends StatelessWidget {
           ),
         if (match.canReleaseFamily && match.familyReleasedAt == null)
           Tooltip(
-            message: 'Für Eltern & Spieler freigeben',
+            message: 'Spieltag für Familien freigeben',
             child: FilledButton.icon(
               key: const ValueKey('compact-family-release-action'),
               onPressed: onReleaseFamily,
               icon: const Icon(Icons.family_restroom_rounded, size: 17),
               label: const Text(
-                'Familien',
+                'Familien freigeben',
                 maxLines: 1,
                 semanticsLabel: 'Für Eltern und Spieler freigeben',
               ),
@@ -3226,7 +3226,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                             ? null
                             : _publish,
                         icon: const Icon(Icons.campaign_outlined, size: 17),
-                        label: const Text('Veröffentlichen'),
+                        label: const Text('Kader nominieren'),
                         style: FilledButton.styleFrom(
                           minimumSize: const Size(0, 44),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -3263,8 +3263,8 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                     ),
                     AdaptiveActionSpec(
                       label: widget.tournamentPlanning
-                          ? 'Turnier-Kader veröffentlichen'
-                          : 'Kader veröffentlichen',
+                          ? 'Turnier-Kader nominieren'
+                          : 'Kader nominieren',
                       icon: Icons.campaign_outlined,
                       onPressed: _saving || !widget.match.canNominateSquad
                           ? null
@@ -3840,15 +3840,19 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         ...widget.match.gameFormat.formations,
         _formation,
       }.toList();
-  List<MatchPlayer> get _nominatedPlayers =>
+  List<MatchPlayer> get _confirmedPlayers =>
       widget.match.squad?.members
-          .where((item) => item.status == NominationStatus.nominated)
+          .where(
+            (item) =>
+                item.status == NominationStatus.nominated &&
+                widget.match.hasConfirmedAttendance(item.player.id),
+          )
           .map((item) => item.player)
           .toList() ??
       const [];
   List<MatchPlayer> get _benchPlayers {
     final fieldIds = _positions.map((position) => position.player.id).toSet();
-    return _nominatedPlayers
+    return _confirmedPlayers
         .where((player) => !fieldIds.contains(player.id))
         .toList();
   }
@@ -3860,7 +3864,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     _formation = lineup?.formation ??
         widget.match.teamDefaultFormation ??
         widget.match.gameFormat.defaultFormation;
-    _positions = lineup?.positions.toList() ?? _initialPositions();
+    _positions = _confirmedPositions(lineup?.positions) ?? _initialPositions();
   }
 
   @override
@@ -3875,7 +3879,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     _formation = lineup?.formation ??
         widget.match.teamDefaultFormation ??
         widget.match.gameFormat.defaultFormation;
-    _positions = lineup?.positions.toList() ?? _initialPositions();
+    _positions = _confirmedPositions(lineup?.positions) ?? _initialPositions();
   }
 
   @override
@@ -3886,10 +3890,20 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
 
   List<LineupPositionModel> _initialPositions() {
     return planInitialLineup(
-      players: _nominatedPlayers,
+      players: _confirmedPlayers,
       fieldSize: _fieldSize,
       formation: _formation,
     );
+  }
+
+  List<LineupPositionModel>? _confirmedPositions(
+    List<LineupPositionModel>? positions,
+  ) {
+    if (positions == null) return null;
+    final confirmedIds = _confirmedPlayers.map((player) => player.id).toSet();
+    return positions
+        .where((position) => confirmedIds.contains(position.player.id))
+        .toList();
   }
 
   void _applyFormation(String formation) {
@@ -3897,7 +3911,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     setState(() {
       _formation = formation;
       _positions = planInitialLineup(
-        players: starters.isEmpty ? _nominatedPlayers : starters,
+        players: starters.isEmpty ? _confirmedPlayers : starters,
         fieldSize: _fieldSize,
         formation: formation,
       );
@@ -3920,7 +3934,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
             icon: Icons.group_add_outlined,
             title: 'Zuerst den Kader festlegen',
             message:
-                'Die Aufstellung verwendet ausschließlich nominierte Spieler.',
+                'Die Aufstellung verwendet ausschließlich nominierte Spieler mit Zusage.',
           ),
         ],
       );
@@ -3968,7 +3982,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                       ? null
                       : () => setState(() {
                             _positions = planInitialLineup(
-                              players: _nominatedPlayers,
+                              players: _confirmedPlayers,
                               fieldSize: _fieldSize,
                               formation: _formation,
                             );
@@ -3991,7 +4005,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                 FilledButton.icon(
                   onPressed: _saving ? null : _publish,
                   icon: const Icon(Icons.publish_rounded),
-                  label: const Text('Aufstellung veröffentlichen'),
+                  label: const Text('Aufstellung intern teilen'),
                 ),
               ];
               if (constraints.maxWidth < 700) {
@@ -4048,7 +4062,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                               ? null
                               : () => setState(() {
                                     _positions = planInitialLineup(
-                                      players: _nominatedPlayers,
+                                      players: _confirmedPlayers,
                                       fieldSize: _fieldSize,
                                       formation: _formation,
                                     );
@@ -4110,8 +4124,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                               size: compact ? 16 : 18,
                             ),
                             label: const Text(
-                              'Veröffentlichen',
-                              semanticsLabel: 'Aufstellung veröffentlichen',
+                              'Intern teilen',
+                              semanticsLabel: 'Aufstellung intern teilen',
                             ),
                             style: compact
                                 ? FilledButton.styleFrom(
@@ -4641,7 +4655,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                   initialValue: playerId,
                   decoration: const InputDecoration(labelText: 'Spieler'),
                   items: [
-                    for (final player in _nominatedPlayers)
+                    for (final player in _confirmedPlayers)
                       DropdownMenuItem(
                         value: player.id,
                         child: Text(
@@ -4734,7 +4748,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
       return;
     }
     final selectedPlayer =
-        _nominatedPlayers.firstWhere((player) => player.id == result.playerId);
+        _confirmedPlayers.firstWhere((player) => player.id == result.playerId);
     final otherIndex = _positions.indexWhere(
       (position) =>
           position.player.id == selectedPlayer.id &&
@@ -4954,7 +4968,11 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     return [
       match.gameFormat.apiValue,
       for (final member in match.squad?.members ?? const <SquadMemberModel>[])
-        if (member.status == NominationStatus.nominated) member.player.id,
+        if (member.status == NominationStatus.nominated &&
+            match.hasConfirmedAttendance(member.player.id))
+          member.player.id,
+      for (final reply in match.attendance)
+        '${reply.playerId}:${reply.status.name}',
       if (lineup != null) lineup.formation,
       for (final position in lineup?.positions ?? const <LineupPositionModel>[])
         '${position.player.id}:${position.positionCode}:'

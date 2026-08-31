@@ -639,7 +639,7 @@ class _ProfileHero extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             CircleAvatar(
-              radius: compact ? 31 : 42,
+              radius: compact ? 27 : 42,
               backgroundColor: AppColors.yellow,
               backgroundImage: player.photoUrl == null
                   ? null
@@ -649,7 +649,7 @@ class _ProfileHero extends StatelessWidget {
                       player.initials,
                       style: TextStyle(
                         color: AppColors.black,
-                        fontSize: compact ? 16 : 21,
+                        fontSize: compact ? 15 : 21,
                         fontWeight: FontWeight.w900,
                       ),
                     )
@@ -721,33 +721,28 @@ class _ProfileHero extends StatelessWidget {
           _CareerStatChip(
             icon: Icons.sports_soccer_rounded,
             label: '${player.goals} Tore',
-            expanded: compact,
           ),
           _CareerStatChip(
             icon: Icons.assistant_direction_rounded,
             label: '${player.assists} Assists',
-            expanded: compact,
           ),
           _CareerStatChip(
             icon: Icons.event_available_rounded,
             label: '${player.appearances} Einsätze',
-            expanded: compact,
           ),
           _CareerStatChip(
             icon: Icons.timer_outlined,
             label: '${player.minutes} Minuten',
-            expanded: compact,
           ),
           if (player.cleanSheetEligible)
             _CareerStatChip(
               icon: Icons.shield_outlined,
               label: '${player.cleanSheets} Spiele zu null',
-              expanded: compact,
             ),
         ];
         return Container(
           width: double.infinity,
-          padding: EdgeInsets.all(compact ? 12 : 24),
+          padding: EdgeInsets.all(compact ? 10 : 24),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [AppColors.black, Color(0xFF3A3400)],
@@ -769,73 +764,95 @@ class _ProfileHero extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    Row(
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         _StatusBadge(status: player.status),
-                        const Spacer(),
-                        if (onEdit != null)
-                          OutlinedButton.icon(
-                            onPressed: onEdit,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: BorderSide(
-                                color: Colors.white.withValues(alpha: .4),
-                              ),
-                              minimumSize: const Size(48, 42),
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 11),
-                              visualDensity: VisualDensity.compact,
+                        if (player.status == PlayerStatus.injured &&
+                            player.injuryType != null)
+                          Text(
+                            injuryTypeLabel(player.injuryType),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
                             ),
-                            icon: const Icon(Icons.edit_rounded, size: 18),
-                            label: const Text('Bearbeiten'),
-                          ),
-                        if (onRemovePhoto != null || onDelete != null)
-                          PopupMenuButton<String>(
-                            tooltip: 'Weitere Aktionen',
-                            iconColor: Colors.white70,
-                            constraints: const BoxConstraints(
-                              minWidth: 48,
-                              minHeight: 48,
-                            ),
-                            onSelected: (value) {
-                              if (value == 'removePhoto') {
-                                onRemovePhoto?.call();
-                              }
-                              if (value == 'delete') onDelete?.call();
-                            },
-                            itemBuilder: (context) => [
-                              if (onRemovePhoto != null)
-                                const PopupMenuItem(
-                                  value: 'removePhoto',
-                                  child: ListTile(
-                                    leading: Icon(Icons.delete_outline_rounded),
-                                    title: Text('Foto entfernen'),
-                                  ),
-                                ),
-                              if (onDelete != null)
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: ListTile(
-                                    leading: Icon(
-                                      Icons.delete_forever_outlined,
-                                      color: Colors.red.shade700,
-                                    ),
-                                    title: const Text('Spieler löschen'),
-                                  ),
-                                ),
-                            ],
                           ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    GridView.count(
-                      crossAxisCount: constraints.maxWidth >= 520 ? 3 : 2,
-                      childAspectRatio:
-                          constraints.maxWidth >= 520 ? 3.4 : 3.05,
-                      crossAxisSpacing: 7,
-                      mainAxisSpacing: 7,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+                    if (onEdit != null ||
+                        onRemovePhoto != null ||
+                        onDelete != null) ...[
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (onEdit != null)
+                              OutlinedButton.icon(
+                                onPressed: onEdit,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: BorderSide(
+                                    color: Colors.white.withValues(alpha: .4),
+                                  ),
+                                  minimumSize: const Size(48, 40),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                icon: const Icon(Icons.edit_rounded, size: 18),
+                                label: const Text('Bearbeiten'),
+                              ),
+                            if (onRemovePhoto != null || onDelete != null)
+                              PopupMenuButton<String>(
+                                tooltip: 'Weitere Aktionen',
+                                iconColor: Colors.white70,
+                                constraints: const BoxConstraints(
+                                  minWidth: 44,
+                                  minHeight: 44,
+                                ),
+                                onSelected: (value) {
+                                  if (value == 'removePhoto') {
+                                    onRemovePhoto?.call();
+                                  }
+                                  if (value == 'delete') onDelete?.call();
+                                },
+                                itemBuilder: (context) => [
+                                  if (onRemovePhoto != null)
+                                    const PopupMenuItem(
+                                      value: 'removePhoto',
+                                      child: ListTile(
+                                        leading:
+                                            Icon(Icons.delete_outline_rounded),
+                                        title: Text('Foto entfernen'),
+                                      ),
+                                    ),
+                                  if (onDelete != null)
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: ListTile(
+                                        leading: Icon(
+                                          Icons.delete_forever_outlined,
+                                          color: Colors.red.shade700,
+                                        ),
+                                        title: const Text('Spieler löschen'),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
                       children: statistics,
                     ),
                   ],
@@ -1190,20 +1207,14 @@ class _CareerStatChip extends StatelessWidget {
   const _CareerStatChip({
     required this.icon,
     required this.label,
-    this.expanded = false,
   });
 
   final IconData icon;
   final String label;
-  final bool expanded;
 
   @override
   Widget build(BuildContext context) => Container(
-        width: expanded ? double.infinity : null,
-        padding: EdgeInsets.symmetric(
-          horizontal: expanded ? 9 : 12,
-          vertical: expanded ? 7 : 8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: .12),
           borderRadius: BorderRadius.circular(999),
@@ -1211,29 +1222,15 @@ class _CareerStatChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: expanded ? 15 : 17, color: AppColors.yellow),
-            SizedBox(width: expanded ? 5 : 7),
-            if (expanded)
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              )
-            else
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
+            Icon(icon, size: 17, color: AppColors.yellow),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
               ),
+            ),
           ],
         ),
       );
@@ -1492,10 +1489,10 @@ class _StatusBadge extends StatelessWidget {
       PlayerStatus.left => 'Ausgetreten',
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: .11),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         label,
@@ -1580,6 +1577,19 @@ class _FactsCard extends StatelessWidget {
                     ? player.passNumber!
                     : '–',
               ),
+              if (player.status == PlayerStatus.injured)
+                _Fact(
+                  width: width,
+                  label: 'Verletzung',
+                  value: injuryTypeLabel(player.injuryType),
+                ),
+              if (player.status == PlayerStatus.injured &&
+                  player.injuryDetails?.trim().isNotEmpty == true)
+                _Fact(
+                  width: width,
+                  label: 'Hinweis zur Verletzung',
+                  value: player.injuryDetails!.trim(),
+                ),
             ],
           );
         },
@@ -2784,12 +2794,14 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
   late final TextEditingController nationality;
   late final TextEditingController shirtNumber;
   late final TextEditingController passNumber;
+  late final TextEditingController injuryDetails;
   DateTime? birthDate;
   DateTime? joinedAt;
   PlayerGender? gender;
   String? position;
   String? secondaryPosition;
   late PlayerStatus status;
+  String? injuryType;
   late DominantFoot dominantFoot;
   late String teamId;
 
@@ -2809,7 +2821,9 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
     shirtNumber =
         TextEditingController(text: player.shirtNumber?.toString() ?? '');
     passNumber = TextEditingController(text: player.passNumber);
+    injuryDetails = TextEditingController(text: player.injuryDetails);
     status = player.status;
+    injuryType = player.injuryType;
     dominantFoot = player.dominantFoot;
     teamId = widget.teams.any((team) => team.id == player.teamId)
         ? player.teamId!
@@ -2824,6 +2838,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
     nationality.dispose();
     shirtNumber.dispose();
     passNumber.dispose();
+    injuryDetails.dispose();
     super.dispose();
   }
 
@@ -2848,6 +2863,10 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
           dominantFoot: dominantFoot,
           shirtNumber: int.tryParse(shirtNumber.text),
           passNumber: _optional(passNumber),
+          injuryType: status == PlayerStatus.injured ? injuryType : null,
+          injuryDetails: status == PlayerStatus.injured && injuryType == 'OTHER'
+              ? _optional(injuryDetails)
+              : null,
           status: status,
           joinedAt: joinedAt,
           photoUrl: original.photoUrl,
@@ -3085,8 +3104,55 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
                   child: Text('Ausgetreten'),
                 ),
               ],
-              onChanged: (value) => setState(() => status = value!),
+              onChanged: (value) => setState(() {
+                status = value!;
+                if (status != PlayerStatus.injured) {
+                  injuryType = null;
+                  injuryDetails.clear();
+                }
+              }),
             ),
+            if (status == PlayerStatus.injured) ...[
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String?>(
+                key: const ValueKey('player-edit-injury-type'),
+                initialValue: injuryType,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Art der Verletzung',
+                  prefixIcon: Icon(Icons.healing_rounded),
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Noch nicht festgelegt'),
+                  ),
+                  for (final entry in injuryTypeLabels.entries)
+                    DropdownMenuItem<String?>(
+                      value: entry.key,
+                      child: Text(entry.value),
+                    ),
+                ],
+                onChanged: (value) => setState(() {
+                  injuryType = value;
+                  if (value != 'OTHER') injuryDetails.clear();
+                }),
+              ),
+              if (injuryType == 'OTHER') ...[
+                const SizedBox(height: 10),
+                TextField(
+                  key: const ValueKey('player-edit-injury-details'),
+                  controller: injuryDetails,
+                  maxLength: 240,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Verletzung kurz beschreiben',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ],
+            ],
           ],
         ),
       ],

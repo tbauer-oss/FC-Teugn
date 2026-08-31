@@ -523,6 +523,11 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       .filter((reply) => reply.status === AttendanceStatus.NO)
       .map((reply) => reply.playerId),
   );
+  const confirmedPlayerIds = new Set(
+    match.attendance
+      .filter((reply) => reply.status === AttendanceStatus.YES)
+      .map((reply) => reply.playerId),
+  );
   const availableSquadMembers = (squad?.members ?? []).filter(
     (member) => !declinedPlayerIds.has(member.playerId),
   );
@@ -610,12 +615,12 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
               ? {
                   ...lineup,
                   positions: lineup?.positions.filter(
-                    (position) => !declinedPlayerIds.has(position.playerId),
+                    (position) => confirmedPlayerIds.has(position.playerId),
                   ),
                   substitutions: lineup?.substitutions.filter(
                     (substitution) =>
-                      !declinedPlayerIds.has(substitution.playerInId) &&
-                      !declinedPlayerIds.has(substitution.playerOutId),
+                      confirmedPlayerIds.has(substitution.playerInId) &&
+                      confirmedPlayerIds.has(substitution.playerOutId),
                   ),
                   tacticalNote: staff ? lineup?.tacticalNote : null,
                 }
@@ -2648,12 +2653,12 @@ export async function updateLineup(req: Request, res: Response) {
       message: `Für diese Mannschaft sind höchstens ${fieldSize} Startspieler vorgesehen.`,
     });
   }
-  const declinedReplies = await prisma.attendance.findMany({
-    where: { eventId: match.id, status: AttendanceStatus.NO },
+  const confirmedReplies = await prisma.attendance.findMany({
+    where: { eventId: match.id, status: AttendanceStatus.YES },
     select: { playerId: true },
   });
-  const declinedPlayerIds = new Set(
-    declinedReplies.map((reply) => reply.playerId),
+  const confirmedPlayerIds = new Set(
+    confirmedReplies.map((reply) => reply.playerId),
   );
   const memberIds = new Set(
     squad.members
@@ -2661,13 +2666,15 @@ export async function updateLineup(req: Request, res: Response) {
         (member) =>
           member.status !== NominationStatus.DECLINED &&
           member.player.status === PlayerStatus.ACTIVE &&
-          !declinedPlayerIds.has(member.playerId),
+          confirmedPlayerIds.has(member.playerId),
       )
       .map((member) => member.playerId),
   );
   for (const position of positions as Record<string, unknown>[]) {
     if (!memberIds.has(String(position.playerId))) {
-      return res.status(400).json({ message: 'Die Aufstellung enthält einen nicht nominierten Spieler.' });
+      return res.status(400).json({
+        message: 'In der Aufstellung sind nur nominierte Spieler mit ausdrücklicher Zusage erlaubt.',
+      });
     }
     const x = Number(position.x);
     const y = Number(position.y);
@@ -2690,7 +2697,7 @@ export async function updateLineup(req: Request, res: Response) {
     const playerOutId = String(substitution.playerOutId ?? '');
     if (!memberIds.has(playerInId) || !memberIds.has(playerOutId)) {
       return res.status(400).json({
-        message: 'Der Wechselplan enthält einen nicht nominierten Spieler.',
+        message: 'Im Wechselplan sind nur nominierte Spieler mit ausdrücklicher Zusage erlaubt.',
       });
     }
     if (!playerInId || playerInId === playerOutId) {

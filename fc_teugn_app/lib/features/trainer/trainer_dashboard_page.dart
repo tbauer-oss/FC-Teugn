@@ -1101,6 +1101,7 @@ typedef _TrainingResponseEntry = ({
   String playerId,
   String name,
   String? reason,
+  DateTime? respondedAt,
   String team,
   AttendanceStatus status,
   bool canManage,
@@ -1189,6 +1190,7 @@ _TrainingResponseGroups _trainingResponseGroups(
                   playersById[item.playerId]?.fullName ??
                   'Spieler',
               reason: item.reason,
+              respondedAt: item.respondedAt,
               team: teamFor(item.playerId),
               status: item.status,
               canManage: event.capabilities.canManage,
@@ -1210,6 +1212,7 @@ _TrainingResponseGroups _trainingResponseGroups(
           playerId: item.id,
           name: item.name,
           reason: null as String?,
+          respondedAt: null as DateTime?,
           team: teamFor(item.id),
           status: AttendanceStatus.unknown,
           canManage: event.capabilities.canManage,
@@ -1230,6 +1233,7 @@ _TrainingResponseGroups _trainingResponseGroups(
                 playersById[item.playerId]?.fullName ??
                 'Spieler',
             reason: null as String?,
+            respondedAt: null as DateTime?,
             team: teamFor(item.playerId),
             status: AttendanceStatus.unknown,
             canManage: event.capabilities.canManage,
@@ -1249,6 +1253,7 @@ _TrainingResponseGroups _trainingResponseGroups(
               playerId: player.id,
               name: player.fullName,
               reason: null as String?,
+              respondedAt: null as DateTime?,
               team: teamFor(player.id),
               status: AttendanceStatus.unknown,
               canManage: event.capabilities.canManage,
@@ -1950,13 +1955,34 @@ class _TrainingResponsePersonChip extends StatelessWidget {
                     ],
                   ),
                   if (reason?.isNotEmpty == true)
-                    Text(
-                      reason!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: context.appColors.textMuted,
-                        fontSize: 10,
+                    InkWell(
+                      key: ValueKey(
+                        'attendance-reason-${entry.eventId}-${entry.playerId}',
+                      ),
+                      onTap: () => _showAttendanceReasonDetails(
+                        context,
+                        entry,
+                      ),
+                      borderRadius: BorderRadius.circular(5),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              reason!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: context.appColors.textMuted,
+                                fontSize: 10,
+                                decoration: TextDecoration.underline,
+                                decorationStyle: TextDecorationStyle.dotted,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          const Icon(Icons.info_outline_rounded, size: 12),
+                        ],
                       ),
                     ),
                 ],
@@ -2065,6 +2091,83 @@ class _TrainingResponsePersonChip extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showAttendanceReasonDetails(
+  BuildContext context,
+  _TrainingResponseEntry entry,
+) {
+  final reason = entry.reason?.trim();
+  if (reason == null || reason.isEmpty) return;
+  final automatic = reason.startsWith('Automatisch abgesagt:');
+  showModalBottomSheet<void>(
+    context: context,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (context) => ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 620),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  automatic
+                      ? Icons.auto_awesome_rounded
+                      : Icons.info_outline_rounded,
+                  color: automatic
+                      ? context.appWarning
+                      : context.appColors.textMuted,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'Absage von ${entry.name}',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                Chip(label: Text(entry.team)),
+                const Chip(
+                  avatar: Icon(Icons.cancel_rounded, size: 17),
+                  label: Text('Abgesagt'),
+                ),
+                if (automatic)
+                  const Chip(
+                    avatar: Icon(Icons.settings_suggest_rounded, size: 17),
+                    label: Text('Automatisch erstellt'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text('Begründung', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 4),
+            SelectableText(
+              reason,
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            if (entry.respondedAt != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Aktualisiert am ${_shortDate(entry.respondedAt!)} um '
+                '${_time(entry.respondedAt!)} Uhr',
+                style: TextStyle(color: context.appColors.textMuted),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _NextEventHero extends StatelessWidget {

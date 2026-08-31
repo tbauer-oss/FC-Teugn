@@ -226,30 +226,37 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
                     : 'Nur nominierte Familien nehmen an der Rotation teil.';
     return Container(
       key: const ValueKey('kit-laundry-duty-card'),
-      padding: EdgeInsets.all(widget.compact ? 10 : 13),
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.compact ? 9 : 11,
+        vertical: widget.compact ? 7 : 9,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: .07),
-        borderRadius: BorderRadius.circular(widget.compact ? 14 : 18),
+        borderRadius: BorderRadius.circular(widget.compact ? 12 : 14),
         border: Border.all(color: color.withValues(alpha: .24)),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Bis einschließlich großer Handys/Foldable-Panes stehen die
-          // Aktionen unter den Informationen. So bleiben beide Schaltflächen
-          // gut lesbar und es gibt keine horizontale Überbreite.
-          final narrow = constraints.maxWidth < 680;
+          final veryNarrow = constraints.maxWidth < 350;
+          // Keep the descriptive block readable on phones. The action group
+          // only moves beside it when a foldable/tablet width is available.
+          final inlineActions = constraints.maxWidth >= 640;
           final info = Row(
             children: [
               Container(
-                width: widget.compact ? 38 : 44,
-                height: widget.compact ? 38 : 44,
+                width: widget.compact ? 32 : 36,
+                height: widget.compact ? 32 : 36,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.local_laundry_service_rounded, color: color),
+                child: Icon(
+                  Icons.local_laundry_service_rounded,
+                  color: color,
+                  size: widget.compact ? 18 : 20,
+                ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,11 +271,11 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
                             style: TextStyle(fontWeight: FontWeight.w900),
                           ),
                         ),
-                        const SizedBox(width: 7),
+                        const SizedBox(width: 5),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 7,
-                            vertical: 3,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: .12),
@@ -278,7 +285,7 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
                             status,
                             style: TextStyle(
                               color: color,
-                              fontSize: 11,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -292,10 +299,10 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
-                    if (!widget.compact || narrow)
+                    if (!widget.compact && !inlineActions)
                       Text(
                         subtitle,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 12.5),
                       ),
@@ -305,8 +312,8 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
             ],
           );
           final actions = Wrap(
-            spacing: 6,
-            runSpacing: 6,
+            spacing: 4,
+            runSpacing: 4,
             alignment: WrapAlignment.end,
             children: [
               if (duty.canRespond) ...[
@@ -322,6 +329,7 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
                                 ),
                             'Danke, die nächste Familie wird angefragt.',
                           ),
+                  style: _compactActionStyle(outlined: true),
                   child: const Text('Ablehnen'),
                 ),
                 FilledButton.icon(
@@ -338,6 +346,7 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
                           ),
                   icon: const Icon(Icons.check_rounded),
                   label: const Text('Übernehmen'),
+                  style: _compactActionStyle(),
                 ),
               ],
               if (duty.canComplete)
@@ -352,6 +361,7 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
                           ),
                   icon: const Icon(Icons.done_all_rounded),
                   label: const Text('Erledigt'),
+                  style: _compactActionStyle(outlined: true),
                 ),
               if (duty.canManage && duty.candidates.isNotEmpty)
                 TextButton.icon(
@@ -360,16 +370,26 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
                   label: Text(
                     duty.assignedPlayerId == null ? 'Festlegen' : 'Ändern',
                   ),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 7),
+                    visualDensity: VisualDensity.compact,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
             ],
           );
-          if (narrow && actions.children.isNotEmpty) {
+          if (!inlineActions && actions.children.isNotEmpty) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 info,
-                const SizedBox(height: 7),
-                Align(alignment: Alignment.centerRight, child: actions),
+                const SizedBox(height: 4),
+                Align(
+                  alignment:
+                      veryNarrow ? Alignment.centerLeft : Alignment.centerRight,
+                  child: actions,
+                ),
               ],
             );
           }
@@ -385,5 +405,25 @@ class _KitLaundryDutyCardState extends ConsumerState<KitLaundryDutyCard> {
         },
       ),
     );
+  }
+
+  ButtonStyle _compactActionStyle({bool outlined = false}) {
+    const minimumSize = Size(0, 40);
+    const padding = EdgeInsets.symmetric(horizontal: 8);
+    return outlined
+        ? OutlinedButton.styleFrom(
+            minimumSize: minimumSize,
+            padding: padding,
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            iconSize: 17,
+          )
+        : FilledButton.styleFrom(
+            minimumSize: minimumSize,
+            padding: padding,
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            iconSize: 17,
+          );
   }
 }

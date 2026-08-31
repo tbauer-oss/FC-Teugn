@@ -214,6 +214,16 @@ class MatchdayModel {
         .firstOrNull;
     return fullMember?.status ?? squadSummary?.memberStatus[playerId];
   }
+
+  AttendanceStatus attendanceStatusForPlayer(String playerId) =>
+      attendance
+          .where((reply) => reply.playerId == playerId)
+          .map((reply) => reply.status)
+          .firstOrNull ??
+      AttendanceStatus.unknown;
+
+  bool hasConfirmedAttendance(String playerId) =>
+      attendanceStatusForPlayer(playerId) == AttendanceStatus.yes;
 }
 
 class MatchSquadSummaryModel {

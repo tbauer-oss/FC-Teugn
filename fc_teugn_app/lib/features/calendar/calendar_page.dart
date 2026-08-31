@@ -1859,7 +1859,7 @@ class _CalendarCategoryLegend extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: compact ? 0 : 12,
+            horizontal: compact ? 2 : 12,
             vertical: compact ? 1 : 8,
           ),
           child: Row(
@@ -1921,6 +1921,7 @@ class _CalendarCategoryLegend extends StatelessWidget {
                   compact: compact,
                 ),
               ],
+              if (compact) const SizedBox(width: 10),
             ],
           ),
         ),

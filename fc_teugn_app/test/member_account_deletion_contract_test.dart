@@ -22,7 +22,7 @@ void main() {
         File('lib/features/matches/matchday_page.dart').readAsStringSync();
     final help = File('lib/features/help/help_page.dart').readAsStringSync();
 
-    expect(matchday, contains('Mit Trainerteam teilen'));
+    expect(matchday, contains('Spieltag intern teilen'));
     expect(matchday, isNot(contains('Intern veröffentlichen')));
     expect(help, contains('Spiel mit Trainerteam teilen'));
   });

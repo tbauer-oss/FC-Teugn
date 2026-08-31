@@ -1,6 +1,7 @@
 import 'package:fc_teugn_app/core/api_client.dart';
 import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/data_repository.dart';
+import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/models/matchday.dart';
 import 'package:fc_teugn_app/core/models/player.dart';
 import 'package:fc_teugn_app/core/providers.dart';
@@ -33,6 +34,13 @@ MatchdayModel _tournament({
       startAt: DateTime(2026, 9, 12, 15),
       location: 'Hopfenbach-Arena',
       teamId: 'team-e1',
+      attendance: const [
+        EventAttendance(
+          id: 'attendance-player-1',
+          playerId: 'player-1',
+          status: AttendanceStatus.yes,
+        ),
+      ],
       squad: squad,
       eligiblePlayers: const [_player],
       playerPoolAgeGroupCode: 'E',
@@ -236,8 +244,8 @@ void main() {
             find.byKey(const ValueKey('tournament-squad-save-action')),
             findsOneWidget,
           );
-          expect(find.text('Veröffentlichen'), findsWidgets);
-          expect(find.text('Familien'), findsOneWidget);
+          expect(find.text('Kader nominieren'), findsOneWidget);
+          expect(find.text('Familien freigeben'), findsOneWidget);
           expect(
             find.byKey(
               const ValueKey('match-communication-dense-mobile-actions'),
@@ -261,8 +269,8 @@ void main() {
           expect(summary.top, greaterThanOrEqualTo(tabs.bottom));
         } else {
           expect(find.text('Entwurf speichern'), findsOneWidget);
-          expect(find.text('Mit Trainerteam teilen'), findsOneWidget);
-          expect(find.text('Für Eltern & Spieler freigeben'), findsOneWidget);
+          expect(find.text('Spieltag intern teilen'), findsOneWidget);
+          expect(find.text('Für Familien freigeben'), findsOneWidget);
         }
         expect(find.text('Übersicht'), findsNothing);
         expect(find.text('Liveticker'), findsNothing);
@@ -303,8 +311,8 @@ void main() {
     );
     expect(summary.top, greaterThanOrEqualTo(tabs.bottom));
     expect(actions.top, greaterThanOrEqualTo(summary.bottom));
-    expect(find.text('Veröffentlichen'), findsWidgets);
-    expect(find.text('Familien'), findsOneWidget);
+    expect(find.text('Kader nominieren'), findsOneWidget);
+    expect(find.text('Familien freigeben'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -354,7 +362,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Mit Trainerteam teilen'),
+      find.widgetWithText(OutlinedButton, 'Spieltag intern teilen'),
     );
     await tester.pumpAndSettle();
     expect(
@@ -362,7 +370,7 @@ void main() {
       findsOneWidget,
     );
     await tester.tap(
-      find.widgetWithText(FilledButton, 'Mit Trainerteam teilen'),
+      find.widgetWithText(FilledButton, 'Jetzt intern teilen'),
     );
     await tester.pumpAndSettle();
 
@@ -372,7 +380,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(
         FilledButton,
-        'Für Eltern & Spieler freigeben',
+        'Für Familien freigeben',
       ),
     );
     await tester.pumpAndSettle();

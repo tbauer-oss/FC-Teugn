@@ -179,7 +179,7 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
                     .read(personalResponsePeriodProvider.notifier)
                     .state = value,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               SingleChildScrollView(
                 key: const ValueKey('family-response-summary-scroll'),
                 scrollDirection: Axis.horizontal,
@@ -214,7 +214,7 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               if (sorted.isEmpty)
                 Card(
                   child: Padding(
@@ -316,7 +316,7 @@ class _ResponsePeriodPicker extends StatelessWidget {
         child: Material(
           color: Colors.transparent,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(11, 7, 9, 7),
+            padding: const EdgeInsets.fromLTRB(9, 6, 8, 6),
             decoration: BoxDecoration(
               color: context.appColors.brandSoft,
               border: Border.all(color: context.appColors.outline),
@@ -328,15 +328,15 @@ class _ResponsePeriodPicker extends StatelessWidget {
                 return Row(
                   children: [
                     Container(
-                      width: 34,
-                      height: 34,
+                      width: 30,
+                      height: 30,
                       decoration: BoxDecoration(
                         color: context.appColors.surface,
-                        borderRadius: BorderRadius.circular(11),
+                        borderRadius: BorderRadius.circular(9),
                       ),
                       child: const Icon(Icons.date_range_rounded, size: 19),
                     ),
-                    const SizedBox(width: 9),
+                    const SizedBox(width: 7),
                     if (compact) ...[
                       Expanded(child: _dropdown(expanded: true)),
                     ] else ...[
@@ -430,7 +430,7 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
 
     final narrowPage = MediaQuery.sizeOf(context).width < 660;
     return Container(
-      padding: EdgeInsets.all(narrowPage ? 10 : 16),
+      padding: EdgeInsets.all(narrowPage ? 8 : 14),
       decoration: BoxDecoration(
         color: widget.highlighted
             ? context.appWarning.withValues(alpha: .10)
@@ -449,12 +449,12 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
-                radius: narrow ? 17 : 20,
+                radius: narrow ? 15 : 20,
                 backgroundColor: context.appInfo.withValues(alpha: .12),
                 child: Icon(
                   Icons.event_available_rounded,
                   color: context.appInfo,
-                  size: narrow ? 18 : 24,
+                  size: narrow ? 16 : 24,
                 ),
               ),
               SizedBox(width: narrow ? 8 : 12),
@@ -463,8 +463,8 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
+                      spacing: 6,
+                      runSpacing: 3,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
@@ -478,11 +478,12 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
                           label:
                               Text('${item.playerName} · ${item.ageGroupCode}'),
                         ),
-                        Chip(
-                          visualDensity: VisualDensity.compact,
-                          avatar: CircleAvatar(backgroundColor: statusColor),
-                          label: Text(statusLabel),
-                        ),
+                        if (!item.canRespond)
+                          Chip(
+                            visualDensity: VisualDensity.compact,
+                            avatar: CircleAvatar(backgroundColor: statusColor),
+                            label: Text(statusLabel),
+                          ),
                       ],
                     ),
                     Text(
@@ -547,7 +548,7 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 info,
-                const SizedBox(height: 7),
+                const SizedBox(height: 5),
                 Row(
                   children: [
                     Expanded(child: actions),

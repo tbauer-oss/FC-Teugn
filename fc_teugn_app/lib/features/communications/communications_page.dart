@@ -3000,9 +3000,11 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
         child: LogoLoadingPanel(message: 'Push-Geräte werden geladen …'),
       );
     }
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(compact ? 12 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -3014,7 +3016,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
             const Text(
               'Lege für jede Kategorie fest, was in der App und per Push erscheinen soll.',
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: compact ? 10 : 16),
             _PushRegistrationCard(
               configuration: _configuration,
               subscribing: _subscribing,
@@ -3023,36 +3025,55 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
               onSubscribe: _subscribe,
             ),
             if (isSuperAdmin) ...[
-              const SizedBox(height: 14),
-              _AdminPushTestCard(
-                testing: _testingPush,
-                testingScenario: _testingPushScenario,
-                result: _pushTestResult,
-                onTest: _testPushBroadcast,
-                onScenarioTest: _testOwnPushScenario,
-              ),
-              const SizedBox(height: 14),
-              AdminPushDeviceManagementCard(
-                devices: _devices,
-                searchController: _deviceSearch,
-                filter: _deviceFilter,
-                changing: _changingDevice,
-                onSearchChanged: (_) => setState(() {}),
-                onFilterChanged: (value) =>
-                    setState(() => _deviceFilter = value),
-                onRefresh: _loadAdminDevices,
-                onToggle: _toggleAdminDevice,
-                onDelete: _deleteAdminDevice,
-                onDeleteDisabled: _deleteAllDisabledAdminDevices,
+              SizedBox(height: compact ? 8 : 14),
+              Theme(
+                data: Theme.of(context)
+                    .copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  key: const ValueKey('notification-admin-tools'),
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 10),
+                  childrenPadding: const EdgeInsets.only(top: 6),
+                  initiallyExpanded: !compact,
+                  leading: const Icon(Icons.admin_panel_settings_rounded),
+                  title: const Text(
+                    'Administration & Push-Tests',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle:
+                      compact ? const Text('Nur bei Bedarf öffnen') : null,
+                  children: [
+                    _AdminPushTestCard(
+                      testing: _testingPush,
+                      testingScenario: _testingPushScenario,
+                      result: _pushTestResult,
+                      onTest: _testPushBroadcast,
+                      onScenarioTest: _testOwnPushScenario,
+                    ),
+                    const SizedBox(height: 10),
+                    AdminPushDeviceManagementCard(
+                      devices: _devices,
+                      searchController: _deviceSearch,
+                      filter: _deviceFilter,
+                      changing: _changingDevice,
+                      onSearchChanged: (_) => setState(() {}),
+                      onFilterChanged: (value) =>
+                          setState(() => _deviceFilter = value),
+                      onRefresh: _loadAdminDevices,
+                      onToggle: _toggleAdminDevice,
+                      onDelete: _deleteAdminDevice,
+                      onDeleteDisabled: _deleteAllDisabledAdminDevices,
+                    ),
+                  ],
+                ),
               ),
             ],
-            const Divider(height: 32),
+            Divider(height: compact ? 20 : 32),
             for (var index = 0; index < items.length; index++)
               _PreferenceRow(
                 value: items[index],
                 onChanged: (value) => setState(() => _items![index] = value),
               ),
-            const SizedBox(height: 16),
+            SizedBox(height: compact ? 10 : 16),
             FilledButton.icon(
               onPressed: () async {
                 final saved = await ref
@@ -3066,6 +3087,11 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
               },
               icon: const Icon(Icons.save_rounded),
               label: const Text('Einstellungen speichern'),
+              style: compact
+                  ? FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                    )
+                  : null,
             ),
           ],
         ),
@@ -3442,10 +3468,10 @@ class _AdminPushTestCard extends StatelessWidget {
                 ? context.appWarning
                 : Theme.of(context).colorScheme.error;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: .08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(13),
         border: Border.all(color: color.withValues(alpha: .3)),
       ),
       child: Column(
@@ -4124,7 +4150,7 @@ class _PushRegistrationCard extends StatelessWidget {
                 Icons.notifications_active_rounded,
                 color: context.appInfo,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 9),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -4168,12 +4194,12 @@ class _PushRegistrationCard extends StatelessWidget {
                       : 'Aktivieren',
             ),
           );
-          if (constraints.maxWidth < 560) {
+          if (constraints.maxWidth < 420) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 information,
-                const SizedBox(height: 14),
+                const SizedBox(height: 8),
                 button,
               ],
             );
@@ -4236,7 +4262,7 @@ class _PreferenceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLiveTicker = value.category == NotificationCategory.liveTicker;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final title = Column(
@@ -4256,31 +4282,43 @@ class _PreferenceRow extends StatelessWidget {
                 ),
             ],
           );
-          final switches = Row(
-            mainAxisSize: MainAxisSize.min,
+          final switches = Wrap(
+            spacing: 4,
+            runSpacing: 0,
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Text('In-App'),
-              Switch(
-                value: value.inApp,
-                onChanged: (enabled) => onChanged(
-                  NotificationPreferenceModel(
-                    category: value.category,
-                    inApp: enabled,
-                    push: value.push,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('In-App'),
+                  Switch(
+                    value: value.inApp,
+                    onChanged: (enabled) => onChanged(
+                      NotificationPreferenceModel(
+                        category: value.category,
+                        inApp: enabled,
+                        push: value.push,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 8),
-              const Text('Push'),
-              Switch(
-                value: value.push,
-                onChanged: (enabled) => onChanged(
-                  NotificationPreferenceModel(
-                    category: value.category,
-                    inApp: value.inApp,
-                    push: enabled,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Push'),
+                  Switch(
+                    value: value.push,
+                    onChanged: (enabled) => onChanged(
+                      NotificationPreferenceModel(
+                        category: value.category,
+                        inApp: value.inApp,
+                        push: enabled,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           );
@@ -4339,10 +4377,11 @@ class _ComposeAnnouncementDialogState
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
+    final phone = screen.width < 600;
     return Dialog(
       insetPadding: EdgeInsets.symmetric(
-        horizontal: screen.width < 700 ? 12 : 32,
-        vertical: screen.height < 700 ? 12 : 28,
+        horizontal: screen.width < 700 ? 6 : 32,
+        vertical: screen.height < 700 ? 6 : 28,
       ),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
@@ -4359,12 +4398,12 @@ class _ComposeAnnouncementDialogState
                     final compact = constraints.maxWidth < 760;
                     if (compact) {
                       return SingleChildScrollView(
-                        padding: const EdgeInsets.all(18),
+                        padding: EdgeInsets.all(phone ? 12 : 18),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildMessageEditor(context),
-                            const SizedBox(height: 24),
+                            SizedBox(height: phone ? 16 : 24),
                             _buildRecipientPanel(context, compact: true),
                           ],
                         ),
@@ -4403,29 +4442,39 @@ class _ComposeAnnouncementDialogState
   }
 
   Widget _buildHeader(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 16, 18),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 14 : 24,
+        compact ? 12 : 20,
+        compact ? 8 : 16,
+        compact ? 10 : 18,
+      ),
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: compact ? 38 : 46,
+            height: compact ? 38 : 46,
             decoration: BoxDecoration(
               color: AppColors.yellow,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(compact ? 11 : 14),
             ),
             child: const Icon(
               Icons.edit_notifications_rounded,
               color: AppColors.black,
             ),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: compact ? 10 : 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Neue Mitteilung',
-                    style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  'Neue Mitteilung',
+                  style: compact
+                      ? Theme.of(context).textTheme.titleLarge
+                      : Theme.of(context).textTheme.headlineSmall,
+                ),
                 Text(
                   'Nachricht verfassen, Empfänger wählen und Versand planen',
                   style: Theme.of(context)
@@ -4455,7 +4504,7 @@ class _ComposeAnnouncementDialogState
           title: 'Mitteilung verfassen',
           subtitle: 'Formuliere die Information kurz und eindeutig.',
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
         TextField(
           controller: _title,
           onChanged: (_) => setState(() {}),
@@ -4467,27 +4516,28 @@ class _ComposeAnnouncementDialogState
             prefixIcon: Icon(Icons.title_rounded),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         TextField(
           controller: _body,
           onChanged: (_) => setState(() {}),
-          minLines: 7,
-          maxLines: 12,
+          minLines: MediaQuery.sizeOf(context).width < 600 ? 4 : 6,
+          maxLines: MediaQuery.sizeOf(context).width < 600 ? 7 : 10,
           decoration: const InputDecoration(
             labelText: 'Nachricht',
             hintText: 'Alle wichtigen Informationen für die Empfänger …',
             alignLabelWithHint: true,
           ),
         ),
-        const SizedBox(height: 22),
-        Text('Versandoptionen', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
+        Text('Versandoptionen', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
         LayoutBuilder(
           builder: (context, constraints) {
             final stack = constraints.maxWidth < 520;
             final fields = [
               DropdownButtonFormField<AnnouncementPriority>(
                 initialValue: _priority,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Priorität',
                   prefixIcon: Icon(Icons.flag_rounded),
@@ -4502,6 +4552,7 @@ class _ComposeAnnouncementDialogState
               ),
               DropdownButtonFormField<AnnouncementStatus>(
                 initialValue: _status,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Veröffentlichung',
                   prefixIcon: Icon(Icons.schedule_send_rounded),
@@ -4524,11 +4575,8 @@ class _ComposeAnnouncementDialogState
               ),
             ];
             return stack
-                ? Column(children: [
-                    fields[0],
-                    const SizedBox(height: 12),
-                    fields[1]
-                  ])
+                ? Column(
+                    children: [fields[0], const SizedBox(height: 8), fields[1]])
                 : Row(children: [
                     Expanded(child: fields[0]),
                     const SizedBox(width: 12),
@@ -4551,7 +4599,7 @@ class _ComposeAnnouncementDialogState
             ),
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         _OptionSwitch(
           icon: Icons.mark_email_read_rounded,
           title: 'Lesebestätigung erfassen',
@@ -4559,7 +4607,7 @@ class _ComposeAnnouncementDialogState
           value: _requireReadReceipt,
           onChanged: (value) => setState(() => _requireReadReceipt = value),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 5),
         _OptionSwitch(
           icon: Icons.notifications_active_rounded,
           title: 'Push-Benachrichtigung senden',
@@ -4604,7 +4652,7 @@ class _ComposeAnnouncementDialogState
           title: 'Empfänger auswählen',
           subtitle: 'Bestimme Mannschaften und Zielgruppe.',
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         TextField(
           controller: _teamSearch,
           onChanged: (_) => setState(() {}),
@@ -4620,8 +4668,11 @@ class _ComposeAnnouncementDialogState
                   ),
           ),
         ),
-        const SizedBox(height: 10),
-        Row(
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 2,
+          runSpacing: 2,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             TextButton.icon(
               onPressed: () => setState(() {
@@ -4637,13 +4688,15 @@ class _ComposeAnnouncementDialogState
               icon: const Icon(Icons.remove_done_rounded, size: 18),
               label: const Text('Keine'),
             ),
-            const Spacer(),
-            Text(
-              '${_teamIds.length} gewählt',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: context.appWarning,
-                    fontWeight: FontWeight.w800,
-                  ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(
+                '${_teamIds.length} gewählt',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: context.appWarning,
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
             ),
           ],
         ),
@@ -4657,9 +4710,10 @@ class _ComposeAnnouncementDialogState
           list
         else
           Expanded(child: SingleChildScrollView(child: list)),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         DropdownButtonFormField<AnnouncementAudience>(
           initialValue: _audience,
+          isExpanded: true,
           decoration: const InputDecoration(
             labelText: 'Zielgruppe',
             prefixIcon: Icon(Icons.groups_rounded),
@@ -4676,17 +4730,17 @@ class _ComposeAnnouncementDialogState
         const SizedBox(height: 12),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: AppColors.yellow.withValues(alpha: .14),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.yellow.withValues(alpha: .55)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.outgoing_mail, color: context.appWarning),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _teamIds.isEmpty
@@ -4726,17 +4780,18 @@ class _ComposeAnnouncementDialogState
               : Icons.send_rounded),
           label: AdaptiveButtonLabel(actionLabel),
         );
-        return Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: stackActions ? 12 : 20,
-            vertical: stackActions ? 10 : 14,
+        return SafeArea(
+          top: false,
+          minimum: EdgeInsets.symmetric(
+            horizontal: stackActions ? 10 : 20,
+            vertical: stackActions ? 7 : 12,
           ),
           child: stackActions
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     submit,
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 3),
                     cancel,
                   ],
                 )
@@ -4877,14 +4932,15 @@ class _OptionSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.appColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.appColors.outline),
+    return Material(
+      color: context.appColors.surfaceRaised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: context.appColors.outline),
       ),
       child: SwitchListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+        dense: true,
         secondary: Icon(icon, color: context.appWarning),
         title: Text(title),
         subtitle: Text(subtitle),

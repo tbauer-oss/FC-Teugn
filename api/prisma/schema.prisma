@@ -916,6 +916,8 @@ model Player {
   shirtNumber                          Int?
   passNumber                           String?
   status                               PlayerStatus                          @default(ACTIVE)
+  injuryType                           String?
+  injuryDetails                        String?
   joinedAt                             DateTime?
   photoUrl                             String?
   photoAssetId                         String?                               @unique

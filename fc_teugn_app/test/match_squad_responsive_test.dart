@@ -10,9 +10,16 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   for (final viewport in const [
     Size(320, 568),
+    Size(360, 800),
+    Size(375, 812),
     Size(390, 844),
+    Size(412, 915),
+    Size(430, 932),
+    Size(600, 900),
     Size(673, 841),
+    Size(800, 900),
     Size(841, 673),
+    Size(900, 800),
     Size(1280, 720),
   ]) {
     for (final scale in const [1.0, 1.5]) {
@@ -25,7 +32,7 @@ void main() {
               findsOneWidget);
           expect(
             find.text(
-              viewport.width < 600
+              viewport.width <= 600
                   ? '2/3 im Kader'
                   : '2 ausgewählt · 3 verfügbar',
             ),
@@ -37,7 +44,7 @@ void main() {
                 .width,
             greaterThan(100),
           );
-          if (viewport.width < 600) {
+          if (viewport.width <= 600) {
             expect(
               find.byKey(const ValueKey('tournament-squad-select-all')),
               findsOneWidget,
@@ -46,12 +53,12 @@ void main() {
               find.byKey(const ValueKey('tournament-squad-deselect-all')),
               findsOneWidget,
             );
-            expect(find.text('Veröffentlichen'), findsOneWidget);
+            expect(find.text('Kader nominieren'), findsOneWidget);
             expect(find.text('Entwurf'), findsOneWidget);
           } else {
             expect(find.text('Alle auswählen'), findsOneWidget);
             expect(find.text('Alle abwählen'), findsOneWidget);
-            expect(find.text('Kader veröffentlichen'), findsOneWidget);
+            expect(find.text('Kader nominieren'), findsOneWidget);
             expect(find.text('Entwurf speichern'), findsOneWidget);
           }
           expect(tester.takeException(), isNull);

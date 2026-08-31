@@ -47,6 +47,8 @@ const publicPlayerSelect = {
   shirtNumber: true,
   passNumber: true,
   status: true,
+  injuryType: true,
+  injuryDetails: true,
   joinedAt: true,
   createdAt: true,
   updatedAt: true,
@@ -888,6 +890,9 @@ export async function deletePlayer(req: Request, res: Response) {
 }
 
 export function playerData(body: Record<string, unknown>) {
+  const parsedStatus = parsePlayerStatus(body.status);
+  const effectiveStatus = parsedStatus ?? PlayerStatus.ACTIVE;
+  const injuryType = validInjuryType(body.injuryType);
   return {
     firstName: cleanRequiredString(body.firstName),
     lastName: cleanRequiredString(body.lastName),
@@ -903,9 +908,47 @@ export function playerData(body: Record<string, unknown>) {
         ? Number(body.shirtNumber)
         : null,
     passNumber: cleanOptionalString(body.passNumber),
-    status: parsePlayerStatus(body.status) ?? PlayerStatus.ACTIVE,
+    status: effectiveStatus,
+    injuryType:
+      body.status === undefined
+        ? body.injuryType === undefined
+          ? undefined
+          : injuryType
+        : effectiveStatus === PlayerStatus.INJURED
+          ? injuryType
+          : null,
+    injuryDetails:
+      body.status === undefined
+        ? body.injuryDetails === undefined
+          ? undefined
+          : cleanOptionalString(body.injuryDetails)
+        : effectiveStatus === PlayerStatus.INJURED && injuryType === 'OTHER'
+          ? cleanOptionalString(body.injuryDetails)
+          : null,
     joinedAt: validDate(body.joinedAt),
   };
+}
+
+export const playerInjuryTypes = [
+  'MUSCLE_INJURY',
+  'LIGAMENT_INJURY',
+  'CONTUSION',
+  'STRAIN',
+  'FRACTURE',
+  'JOINT_INJURY',
+  'HEAD_INJURY_CONCUSSION',
+  'OVERUSE',
+  'ILLNESS',
+  'OTHER',
+] as const;
+
+function validInjuryType(value: unknown) {
+  const normalized = typeof value === 'string' ? value.trim().toUpperCase() : '';
+  return playerInjuryTypes.includes(
+    normalized as (typeof playerInjuryTypes)[number],
+  )
+    ? normalized
+    : null;
 }
 
 function cleanRequiredString(value: unknown) {

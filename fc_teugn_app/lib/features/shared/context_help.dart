@@ -66,7 +66,7 @@ ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
       steps: [
         'Prüfe zuerst Gegner, Anstoß sowie Treffpunktzeit und Treffpunktort.',
         'Die Erinnerung 24 Stunden vor dem Spiel ist standardmäßig aktiv und kann in den Spieldaten für dieses Spiel ausgeschaltet werden.',
-        '„Mit Trainerteam teilen“ informiert ausgewählte Berechtigte; „Für Eltern & Spieler freigeben“ macht das Spiel für Familien sichtbar.',
+        '„Spieltag intern teilen“ informiert ausgewählte Berechtigte; „Für Familien freigeben“ macht das Spiel für Familien sichtbar.',
         'Speichere danach den Kader. Im Autopiloten wählst du „Ausgewogen“, „Einsatzzeit“ oder „Positionstreu“ und prüfst anschließend den Wechselplan. Unter jedem eingewechselten Spieler steht seine geplante Zielposition. Bei „Positionstreu“ kannst du zusätzlich festlegen, dass ausgewechselte Startspieler später bevorzugt auf ihren ursprünglichen Stammplatz zurückkehren.',
         'Am Spieltag steuerst du Uhr, Tore und Wechsel. Nach Abpfiff bewerten Trainer und Eltern getrennt von 1 bis 10. Elternwerte werden ausschließlich anonym und zusammengefasst im Trainerbereich gezeigt.',
       ],

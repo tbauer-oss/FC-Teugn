@@ -21,7 +21,7 @@ test('removes duplicate team access entries', () => {
   );
 });
 
-test('declined players are excluded from squad and lineup writes', () => {
+test('declined players are excluded from squads and only confirmed players enter lineups', () => {
   const matchesController = fs.readFileSync(
     path.join(__dirname, '../src/controllers/matches.controller.ts'),
     'utf8',
@@ -37,7 +37,7 @@ test('declined players are excluded from squad and lineup writes', () => {
   );
   assert.match(
     matchesController,
-    /updateLineup[\s\S]*declinedPlayerIds[\s\S]*!declinedPlayerIds\.has\(member\.playerId\)/,
+    /updateLineup[\s\S]*status:\s*AttendanceStatus\.YES[\s\S]*confirmedPlayerIds[\s\S]*confirmedPlayerIds\.has\(member\.playerId\)/,
   );
   assert.match(
     eventsController,

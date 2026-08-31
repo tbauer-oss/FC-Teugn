@@ -11,6 +11,9 @@ void main() {
       'lastName': 'Muster',
       'shirtNumber': 8.0,
       'passNumber': 'BFV-001234',
+      'status': 'INJURED',
+      'injuryType': 'OTHER',
+      'injuryDetails': 'Reizung nach Fremdeinwirkung',
       'gender': 'DIVERSE',
       'birthDate': '2015-04-08T00:00:00.000Z',
       'joinedAt': '2022-07-01T00:00:00.000Z',
@@ -41,6 +44,10 @@ void main() {
     expect(player.fullName, 'Max Muster');
     expect(player.shirtNumber, 8);
     expect(player.passNumber, 'BFV-001234');
+    expect(player.status, PlayerStatus.injured);
+    expect(player.injuryType, 'OTHER');
+    expect(player.injuryDetails, 'Reizung nach Fremdeinwirkung');
+    expect(injuryTypeLabel(player.injuryType), 'Sonstige Verletzung');
     expect(player.gender, PlayerGender.diverse);
     expect(player.birthDate, DateTime.utc(2015, 4, 8));
     expect(player.joinedAt, DateTime.utc(2022, 7, 1));

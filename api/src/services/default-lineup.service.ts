@@ -1,4 +1,5 @@
 import {
+  AttendanceStatus,
   LineupStatus,
   NominationStatus,
   Prisma,
@@ -171,6 +172,14 @@ export async function syncSquadWithTeamDefaultLineup(
         lineup: {
           select: { id: true, usesTeamDefault: true },
         },
+        event: {
+          select: {
+            attendance: {
+              where: { status: AttendanceStatus.YES },
+              select: { playerId: true },
+            },
+          },
+        },
         members: {
           where: { status: NominationStatus.NOMINATED },
           select: {
@@ -191,11 +200,20 @@ export async function syncSquadWithTeamDefaultLineup(
   if (!team || !squad || team.defaultLineupPositions.length === 0) return null;
   if (!shouldSyncTeamDefaultLineup(squad.lineup, force)) return null;
 
-  // The matchday draft follows the nominated squad immediately. Attendance
-  // replies can arrive much later and must not hide the saved team lineup.
+  // Eine Aufstellung ist verbindlicher als der Kader: Auch bei einer
+  // Stammformation dürfen ausschließlich ausdrücklich zugesagte Spieler auf
+  // dem Feld oder der Bank landen. Das gilt ebenso für bereits gespeicherte
+  // automatische Entwürfe, die bei jeder Rückmeldungsänderung neu abgeglichen
+  // werden.
+  const confirmedPlayerIds = squad.event.attendance.map(
+    (reply) => reply.playerId,
+  );
   const planned = planTeamDefaultLineup(
     team.defaultLineupPositions.slice(0, fieldSize),
-    squad.members.map((member) => member.player),
+    confirmedLineupCandidates(
+      squad.members.map((member) => member.player),
+      confirmedPlayerIds,
+    ),
   );
   const lineup = await tx.lineup.upsert({
     where: { squadId },

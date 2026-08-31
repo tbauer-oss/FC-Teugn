@@ -1351,12 +1351,12 @@ const helpArticles = <HelpArticle>[
     routeLabel: 'Spieltage öffnen',
     steps: [
       'Öffne den Spieltag und prüfe zuerst Anstoß, Treffpunktzeit und Treffpunktort. Bei Heimspielen ist „Stadion am Kreutweg, Teugn“ als Spielstätte vorgesehen; bei Auswärtsspielen ist „Vereinsheim Teugn“ der standardmäßige Treffpunkt.',
-      'Wähle „Mit Trainerteam teilen“, um ausschließlich berechtigte Trainer, Co-Trainer und zuständige Funktionäre zu informieren. Prüfe die Empfängerliste und entscheide, ob zusätzlich eine Pushnachricht gesendet werden soll.',
-      'Wähle „Für Eltern & Spieler freigeben“, wenn die Begegnung für Familien sichtbar werden soll. Kontrolliere in der Vorschau besonders Gegner, Anstoß sowie den konkret angegebenen Treffpunkt.',
+      'Wähle „Spieltag intern teilen“, um ausschließlich berechtigte Trainer, Co-Trainer und zuständige Funktionäre zu informieren. Prüfe die Empfängerliste und entscheide, ob zusätzlich eine Pushnachricht gesendet werden soll.',
+      'Wähle „Für Familien freigeben“, wenn die Begegnung für Familien sichtbar werden soll. Kontrolliere in der Vorschau besonders Gegner, Anstoß sowie den konkret angegebenen Treffpunkt.',
       'Interne Veröffentlichung und Familienfreigabe können getrennt erfolgen. Eine erneute identische Freigabe erzeugt keine doppelte Nachricht.',
     ],
     tip:
-        '„Mit Trainerteam teilen“ macht das Spiel nicht automatisch für Eltern oder Spieler sichtbar. Dafür ist immer die eigene Familienfreigabe erforderlich.',
+        '„Spieltag intern teilen“ macht das Spiel nicht automatisch für Eltern oder Spieler sichtbar. Dafür ist immer die eigene Familienfreigabe erforderlich.',
   ),
   HelpArticle(
     category: HelpCategory.matchday,
@@ -1460,7 +1460,7 @@ const helpArticles = <HelpArticle>[
       'Filtere bei einem gemeinsamen Spielerpool nach E1, E2 oder „Alle Mannschaften“.',
       'Wähle die gewünschten Spieler. „Alle auswählen“ betrifft ausschließlich die gerade sichtbare Auswahl.',
       'Tippe auf „Kader speichern“ und warte auf die Bestätigung.',
-      'Erst „Veröffentlichen“ informiert die ausgewählten Spieler beziehungsweise deren Eltern und setzt diese auf offen.',
+      'Erst „Kader nominieren“ informiert die ausgewählten Spieler beziehungsweise deren Eltern und setzt deren Rückmeldung auf offen.',
     ],
   ),
   HelpArticle(

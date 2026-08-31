@@ -975,6 +975,10 @@ class DataRepository {
       'shirtNumber': player.shirtNumber,
       'passNumber': player.passNumber,
       'status': playerStatusApi(player.status),
+      'injuryType':
+          player.status == PlayerStatus.injured ? player.injuryType : null,
+      'injuryDetails':
+          player.status == PlayerStatus.injured ? player.injuryDetails : null,
       'joinedAt': player.joinedAt?.toIso8601String(),
       'photoUrl': player.photoUrl,
     });

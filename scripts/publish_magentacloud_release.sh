@@ -19,7 +19,10 @@ manifest_path="$(dirname "$apk_path")/latest.json"
 apk_sha256="$(sha256sum "$apk_path" | awk '{ print $1 }')"
 apk_size="$(stat -c '%s' "$apk_path")"
 published_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-release_note="${FC_TEUGN_RELEASE_NOTES:-$(git log -1 --pretty=%s)}"
+# Die Hinweise werden in der App angezeigt und sind deshalb bewusst vollständig
+# deutsch. Ein technischer (häufig englischer) Git-Betreff darf nicht ungeprüft
+# in die sichtbare Aktualisierungsanzeige gelangen.
+release_note="${FC_TEUGN_RELEASE_NOTES:-Verbesserte mobile Darstellung, klarere Spieltagsabläufe und wichtige Fehlerbehebungen.}"
 public_base="https://magentacloud.de/public.php/dav/files/xkgHEESdKbQ6XMP"
 webdav_base="https://magentacloud.de/remote.php/webdav/FC-Teugn/App-Updates"
 

@@ -25,6 +25,7 @@ import {
   purgeExpiredFamilyContacts,
 } from '../services/privacy-retention.service';
 import { Role } from '../types/enums';
+import { familyContactEntityPrefix } from '../services/notification-scope.service';
 
 const staffRoles = new Set<string>([
   PrismaRole.SUPER_ADMIN,
@@ -36,8 +37,6 @@ const staffRoles = new Set<string>([
   PrismaRole.TRAINER_ADMIN,
   PrismaRole.TRAINER,
 ]);
-
-const familyContactEntityPrefix = 'FamilyContact:';
 
 function isStaffRole(role: string) {
   return staffRoles.has(role);

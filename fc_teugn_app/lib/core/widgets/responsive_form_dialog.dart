@@ -35,6 +35,7 @@ class ResponsiveFormDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return AdaptiveDialogScaffold(
       title: title,
       subtitle: subtitle,
@@ -45,7 +46,9 @@ class ResponsiveFormDialog extends StatelessWidget {
           inputDecorationTheme: theme.inputDecorationTheme.copyWith(
             isDense: true,
             floatingLabelBehavior: FloatingLabelBehavior.always,
-            contentPadding: const EdgeInsets.fromLTRB(16, 17, 16, 15),
+            contentPadding: compact
+                ? const EdgeInsets.fromLTRB(12, 13, 12, 11)
+                : const EdgeInsets.fromLTRB(16, 17, 16, 15),
             helperMaxLines: 2,
             errorMaxLines: 2,
           ),
@@ -91,11 +94,12 @@ class ResponsiveFormSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(compact ? 10 : 14),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(compact ? 14 : 18),
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
@@ -135,7 +139,7 @@ class ResponsiveFormSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: compact ? 10 : 14),
           ...children,
         ],
       ),
@@ -165,7 +169,8 @@ class ResponsiveFormRow extends StatelessWidget {
               children: [
                 for (var index = 0; index < children.length; index++) ...[
                   children[index],
-                  if (index != children.length - 1) SizedBox(height: spacing),
+                  if (index != children.length - 1)
+                    SizedBox(height: compactFormSpacing(context, spacing)),
                 ],
               ],
             );
@@ -182,3 +187,8 @@ class ResponsiveFormRow extends StatelessWidget {
         },
       );
 }
+
+double compactFormSpacing(BuildContext context, double spacing) =>
+    MediaQuery.sizeOf(context).width < 600
+        ? spacing.clamp(7.0, 9.0).toDouble()
+        : spacing;

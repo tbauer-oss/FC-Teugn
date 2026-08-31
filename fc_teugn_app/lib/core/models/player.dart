@@ -1,5 +1,21 @@
 enum PlayerStatus { active, injured, paused, left }
 
+const injuryTypeLabels = <String, String>{
+  'MUSCLE_INJURY': 'Muskelverletzung',
+  'LIGAMENT_INJURY': 'Bänderverletzung',
+  'CONTUSION': 'Prellung',
+  'STRAIN': 'Zerrung',
+  'FRACTURE': 'Knochenbruch',
+  'JOINT_INJURY': 'Gelenkverletzung',
+  'HEAD_INJURY_CONCUSSION': 'Kopfverletzung / Gehirnerschütterung',
+  'OVERUSE': 'Überlastung',
+  'ILLNESS': 'Erkrankung',
+  'OTHER': 'Sonstige Verletzung',
+};
+
+String injuryTypeLabel(String? value) =>
+    injuryTypeLabels[value] ?? 'Nicht näher angegeben';
+
 enum DominantFoot { right, left, both, unknown }
 
 enum PlayerGender { male, female, diverse }
@@ -481,6 +497,8 @@ class PlayerModel {
     this.secondaryPosition,
     this.shirtNumber,
     this.passNumber,
+    this.injuryType,
+    this.injuryDetails,
     this.joinedAt,
     this.photoUrl,
     this.teamName,
@@ -515,6 +533,8 @@ class PlayerModel {
   final DominantFoot dominantFoot;
   final int? shirtNumber;
   final String? passNumber;
+  final String? injuryType;
+  final String? injuryDetails;
   final PlayerStatus status;
   final DateTime? joinedAt;
   final String? photoUrl;
@@ -610,6 +630,8 @@ class PlayerModel {
       shirtNumber:
           json['shirtNumber'] == null ? null : _jsonInt(json['shirtNumber']),
       passNumber: _jsonString(json['passNumber']),
+      injuryType: _jsonString(json['injuryType']),
+      injuryDetails: _jsonString(json['injuryDetails']),
       status: _status(_jsonString(json['status'])),
       joinedAt: _jsonDate(json['joinedAt']),
       photoUrl: _jsonString(json['photoUrl']),

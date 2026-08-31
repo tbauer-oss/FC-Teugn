@@ -5,7 +5,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  for (final width in [320.0, 360.0, 390.0, 480.0, 599.0]) {
+  for (final width in [
+    320.0,
+    360.0,
+    375.0,
+    390.0,
+    412.0,
+    430.0,
+    480.0,
+    599.0,
+    673.0,
+    841.0,
+    900.0,
+  ]) {
     testWidgets('trikotdienst stays usable at ${width.toInt()} px',
         (tester) async {
       tester.view.physicalSize = Size(width, 700);

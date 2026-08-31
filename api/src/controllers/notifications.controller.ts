@@ -15,6 +15,7 @@ import {
   sendAdminScenarioTestPush,
   sendAdminTestPush,
 } from '../services/notification.service';
+import { standardNotificationScope } from '../services/notification-scope.service';
 
 function text(value: unknown, max = 1000) {
   if (typeof value !== 'string') return null;
@@ -56,7 +57,10 @@ export async function listNotifications(req: Request, res: Response) {
     where: {
       userId,
       category: { notIn: disabled.map((item) => item.category) },
-      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      AND: [
+        standardNotificationScope,
+        { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      ],
     },
     orderBy: { createdAt: 'desc' },
     take: 100,
@@ -140,7 +144,11 @@ export async function testOwnPushScenario(req: Request, res: Response) {
 
 export async function markNotificationRead(req: Request, res: Response) {
   const result = await prisma.notification.updateMany({
-    where: { id: req.params.id, userId: req.user!.id },
+    where: {
+      id: req.params.id,
+      userId: req.user!.id,
+      ...standardNotificationScope,
+    },
     data: { readAt: new Date() },
   });
   if (!result.count) return res.status(404).json({ message: 'Benachrichtigung nicht gefunden.' });
@@ -149,7 +157,11 @@ export async function markNotificationRead(req: Request, res: Response) {
 
 export async function markAllNotificationsRead(req: Request, res: Response) {
   const result = await prisma.notification.updateMany({
-    where: { userId: req.user!.id, readAt: null },
+    where: {
+      userId: req.user!.id,
+      readAt: null,
+      ...standardNotificationScope,
+    },
     data: { readAt: new Date() },
   });
   return res.json({ updated: result.count });
@@ -161,6 +173,7 @@ export async function deleteReadNotifications(req: Request, res: Response) {
       where: {
         userId: req.user!.id,
         readAt: { not: null },
+        ...standardNotificationScope,
       },
     });
     if (deleted.count > 0) {
@@ -181,7 +194,11 @@ export async function deleteReadNotifications(req: Request, res: Response) {
 
 export async function deleteNotification(req: Request, res: Response) {
   const notification = await prisma.notification.findFirst({
-    where: { id: req.params.id, userId: req.user!.id },
+    where: {
+      id: req.params.id,
+      userId: req.user!.id,
+      ...standardNotificationScope,
+    },
     select: { id: true, category: true, title: true },
   });
   if (!notification) {

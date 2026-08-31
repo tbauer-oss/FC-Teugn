@@ -24,7 +24,9 @@ void main() {
         secondaryPosition: 'Rechter Flügel',
         dominantFoot: DominantFoot.right,
         shirtNumber: 10,
-        status: PlayerStatus.active,
+        status: PlayerStatus.injured,
+        injuryType: 'OTHER',
+        injuryDetails: 'Reizung nach Fremdeinwirkung',
         teamName: 'E1-Jugend',
         teamNumber: 1,
         ageGroupCode: 'E',
@@ -125,7 +127,9 @@ void main() {
         passNumber: 'BFV-001234',
         gender: PlayerGender.diverse,
         dominantFoot: DominantFoot.right,
-        status: PlayerStatus.active,
+        status: PlayerStatus.injured,
+        injuryType: 'OTHER',
+        injuryDetails: 'Reizung nach Fremdeinwirkung',
         teamName: 'E1-Jugend',
         capabilities: const PlayerCapabilities(canEdit: true),
       );
@@ -168,6 +172,11 @@ void main() {
       expect(find.text('d · divers'), findsWidgets);
       expect(find.byKey(const ValueKey('player-edit-pass-number')),
           findsOneWidget);
+      expect(find.byKey(const ValueKey('player-edit-injury-type')),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('player-edit-injury-details')),
+          findsOneWidget);
+      expect(find.text('Reizung nach Fremdeinwirkung'), findsWidgets);
       expect(find.text('BFV-001234'), findsWidgets);
       final exception = tester.takeException();
       expect(

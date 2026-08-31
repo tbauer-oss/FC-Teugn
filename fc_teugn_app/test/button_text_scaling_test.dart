@@ -45,8 +45,8 @@ void main() {
 
         expect(tester.takeException(), isNull);
         for (final label in const [
-          'Mit Trainerteam teilen',
-          'Für Eltern & Spieler freigeben',
+          'Spieltag intern teilen',
+          'Für Familien freigeben',
         ]) {
           final text = find.text(label);
           expect(text, findsOneWidget);

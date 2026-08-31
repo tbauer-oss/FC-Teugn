@@ -392,15 +392,24 @@ void main() {
       id: 'training-next',
       category: EventCategory.training,
       startAt: startAt,
-      attendance: const [
-        EventAttendance(
+      attendance: [
+        const EventAttendance(
           id: 'attendance-anna',
           playerId: 'player-anna',
           playerName: 'Anna Zugesagt',
           status: AttendanceStatus.yes,
         ),
+        EventAttendance(
+          id: 'attendance-jakob',
+          playerId: 'player-jakob',
+          playerName: 'Jakob Wallner',
+          status: AttendanceStatus.no,
+          reason:
+              'Automatisch abgesagt: Am selben Tag wurde zuletzt dem Spiel FC Teugn gegen SV Saal zugesagt.',
+          respondedAt: DateTime(2026, 8, 31, 10, 42),
+        ),
       ],
-      attendanceSummary: const AttendanceSummary(yes: 1, unknown: 1),
+      attendanceSummary: const AttendanceSummary(yes: 1, no: 1, unknown: 1),
       missingAttendance: const [
         MissingAttendance(id: 'player-ben', name: 'Ben Offen'),
       ],
@@ -459,6 +468,14 @@ void main() {
         teamId: 'team-e1',
         firstName: 'Ben',
         lastName: 'Offen',
+        status: PlayerStatus.active,
+        dominantFoot: DominantFoot.unknown,
+      ),
+      PlayerModel(
+        id: 'player-jakob',
+        teamId: 'team-e1',
+        firstName: 'Jakob',
+        lastName: 'Wallner',
         status: PlayerStatus.active,
         dominantFoot: DominantFoot.unknown,
       ),
@@ -532,6 +549,17 @@ void main() {
     expect(find.textContaining('Teugn Sportplatz'), findsOneWidget);
     expect(find.text('Anna Zugesagt'), findsOneWidget);
     expect(find.text('Ben Offen'), findsOneWidget);
+    const automaticReason =
+        'Automatisch abgesagt: Am selben Tag wurde zuletzt dem Spiel FC Teugn gegen SV Saal zugesagt.';
+    expect(find.text(automaticReason), findsOneWidget);
+    await tester.tap(find.text(automaticReason));
+    await tester.pumpAndSettle();
+    expect(find.text('Absage von Jakob Wallner'), findsOneWidget);
+    expect(find.text('Automatisch erstellt'), findsOneWidget);
+    expect(find.text(automaticReason), findsWidgets);
+    expect(find.textContaining('Aktualisiert am'), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('trainer-training-reminder')),
       findsOneWidget,

@@ -66,7 +66,8 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Mit Trainerteam teilen'), findsNWidgets(2));
+    expect(find.text('Spieltag intern teilen'), findsOneWidget);
+    expect(find.text('Jetzt intern teilen'), findsOneWidget);
     expect(find.text('2 von 2 Empfängern'), findsOneWidget);
     expect(find.text('Zusätzlich als Pushnachricht senden'), findsOneWidget);
 
