@@ -29,6 +29,7 @@ import 'features/parent/parent_matches_page.dart';
 import 'features/organization/organization_page.dart';
 import 'features/players/player_profile_page.dart';
 import 'features/matches/matchday_page.dart';
+import 'features/matches/past_matches_page.dart';
 import 'features/matches/bfv_competition_page.dart';
 import 'features/matches/bfv_browser_page.dart';
 import 'features/integrations/spielplus_page.dart';
@@ -789,6 +790,11 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   const BfvCompetitionPage(staffView: true),
             ),
             GoRoute(
+              path: '/trainer/matches/history',
+              builder: (context, state) =>
+                  const PastMatchesPage(staffView: true),
+            ),
+            GoRoute(
               path: '/trainer/matches/:matchId',
               builder: (context, state) => MatchdayPage(
                 matchId: state.pathParameters['matchId']!,
@@ -985,6 +991,11 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
               path: '/parent/bfv',
               builder: (context, state) =>
                   const BfvCompetitionPage(staffView: false),
+            ),
+            GoRoute(
+              path: '/parent/matches/history',
+              builder: (context, state) =>
+                  const PastMatchesPage(staffView: false),
             ),
             GoRoute(
               path: '/parent/matches/:matchId',

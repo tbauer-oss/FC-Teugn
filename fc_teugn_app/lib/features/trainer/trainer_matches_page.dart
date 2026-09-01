@@ -20,6 +20,7 @@ import '../../core/widgets/match_venue_badge.dart';
 import '../shared/page_scaffold.dart';
 import '../imports/competition_import_dialog.dart';
 import '../matches/competition_management_dialog.dart';
+import '../matches/past_matches_page.dart';
 import '../matches/tournament_opponent_picker.dart';
 import '../auth/auth_controller.dart';
 import '../../core/models/user.dart';
@@ -150,16 +151,28 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
               );
               return byDate != 0 ? byDate : a.title.compareTo(b.title);
             });
+          final historyEntry = PastMatchesEntryCard(
+            onTap: () => context.push('/trainer/matches/history'),
+          );
           if (matches.isEmpty) {
-            return const EmptyState(
-              icon: Icons.sports_soccer_rounded,
-              title: 'Noch kein Spiel angelegt',
-              message:
-                  'Lege unter „Termine“ ein Spiel an, um hier den Spieltag zu planen.',
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                historyEntry,
+                const SizedBox(height: 14),
+                const EmptyState(
+                  icon: Icons.sports_soccer_rounded,
+                  title: 'Noch kein Spiel angelegt',
+                  message:
+                      'Lege unter „Termine“ ein Spiel an, um hier den Spieltag zu planen.',
+                ),
+              ],
             );
           }
           return Column(
             children: [
+              historyEntry,
+              const SizedBox(height: 10),
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _MatchOverviewToolbar(

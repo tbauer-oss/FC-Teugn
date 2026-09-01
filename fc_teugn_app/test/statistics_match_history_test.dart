@@ -1,5 +1,6 @@
 import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/models/statistics.dart';
+import 'package:fc_teugn_app/features/matches/past_matches_page.dart';
 import 'package:fc_teugn_app/features/statistics/statistics_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -111,6 +112,64 @@ void main() {
       expect(find.text('Tor · Hanna'), findsNWidgets(2));
       expect(find.text('Karte'), findsOneWidget);
       expect(find.textContaining('Gelbe Karte'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('past match center opens the original matchday', (tester) async {
+    String? openedMatchId;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: matchHistoryForTesting(
+              [_matchWithEvents()],
+              onOpenMatch: (matchId) => openedMatchId = matchId,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('past-match-match-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('open-past-match-match-1')));
+
+    expect(openedMatchId, 'match-1');
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final width in const [320.0, 390.0, 700.0, 900.0]) {
+    testWidgets('separate past matches entry stays responsive at $width pixels',
+        (tester) async {
+      tester.view.physicalSize = Size(width, 500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var opened = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(
+            body: Padding(
+              padding: const EdgeInsets.all(10),
+              child: PastMatchesEntryCard(onTap: () => opened = true),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Vergangene Spiele'), findsOneWidget);
+      expect(
+        find.text('Ergebnisse, Torschützen, Vorlagen & Ereignisse'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('past-matches-entry')));
+      expect(opened, isTrue);
       expect(tester.takeException(), isNull);
     });
   }

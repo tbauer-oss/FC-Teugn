@@ -10,6 +10,7 @@ import '../../core/providers.dart';
 import '../../core/widgets/match_venue_badge.dart';
 import '../../core/widgets/team_crest.dart';
 import '../calendar/tournament_plan_browser_page.dart';
+import '../matches/past_matches_page.dart';
 import '../shared/page_scaffold.dart';
 
 class ParentMatchesPage extends ConsumerWidget {
@@ -30,16 +31,28 @@ class ParentMatchesPage extends ConsumerWidget {
                   event.parentTournamentId == null,
             ),
           );
+          final historyEntry = PastMatchesEntryCard(
+            onTap: () => context.push('/parent/matches/history'),
+          );
           if (matches.isEmpty) {
-            return const EmptyState(
-              icon: Icons.sports_soccer_rounded,
-              title: 'Noch keine Spiele',
-              message:
-                  'Sobald das Trainerteam einen Spieltag plant, erscheint er hier.',
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                historyEntry,
+                const SizedBox(height: 14),
+                const EmptyState(
+                  icon: Icons.sports_soccer_rounded,
+                  title: 'Noch keine Spiele',
+                  message:
+                      'Sobald das Trainerteam einen Spieltag plant, erscheint er hier.',
+                ),
+              ],
             );
           }
           return Column(
             children: [
+              historyEntry,
+              const SizedBox(height: 12),
               for (final match in matches)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 14),

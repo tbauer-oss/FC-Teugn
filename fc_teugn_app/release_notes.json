@@ -1,4 +1,9 @@
 {
+  "1.6.44+182": [
+    "In der Spieleübersicht führt eine eigene, klar sichtbare Kachel jetzt direkt in den separaten Bereich „Vergangene Spiele“.",
+    "Die neue Spielhistorie bietet eine Jugend- und Mannschaftsauswahl, einen Saisonfilter sowie eine kompakte Bilanz mit Siegen, Remis, Niederlagen und Toren.",
+    "Vergangene Partien lassen sich für Torschützen, Vorlagen und den minutengenauen Ereignisverlauf aufklappen und direkt als vollständiger Spieltag öffnen."
+  ],
   "1.6.43+181": [
     "Im Statistikbereich zeigt „Vergangene Spiele“ Ergebnisse jetzt wie ein kompaktes Match-Center mit Heim- und Auswärtsteam, Wettbewerb und Ergebnisstatus.",
     "Jedes Spiel lässt sich für Torschützen, Vorlagen, Spielstände und weitere minutengenaue Liveticker-Ereignisse aufklappen.",

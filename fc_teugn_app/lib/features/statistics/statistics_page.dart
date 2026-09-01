@@ -277,7 +277,7 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
         LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 900;
-            final matchList = _MatchHistory(
+            final matchList = MatchHistory(
               matches: overview.matches,
               scopeLabel: selectedLabel,
             );
@@ -1265,25 +1265,36 @@ class _PerformanceChartPainter extends CustomPainter {
       oldDelegate.parentColor != parentColor;
 }
 
-class _MatchHistory extends StatelessWidget {
-  const _MatchHistory({required this.matches, required this.scopeLabel});
+class MatchHistory extends StatelessWidget {
+  const MatchHistory({
+    super.key,
+    required this.matches,
+    required this.scopeLabel,
+    this.onOpenMatch,
+    this.showHeader = true,
+  });
+
   final List<MatchResultStatistic> matches;
   final String scopeLabel;
+  final ValueChanged<String>? onOpenMatch;
+  final bool showHeader;
 
   @override
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Vergangene Spiele · $scopeLabel',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 3),
-          Text(
-            'Ergebnis antippen für Torschützen, Vorlagen und Spielereignisse.',
-            style: TextStyle(color: context.appColors.textMuted),
-          ),
-          const SizedBox(height: 10),
+          if (showHeader) ...[
+            Text(
+              'Vergangene Spiele · $scopeLabel',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Ergebnis antippen für Torschützen, Vorlagen und Spielereignisse.',
+              style: TextStyle(color: context.appColors.textMuted),
+            ),
+            const SizedBox(height: 10),
+          ],
           if (matches.isEmpty)
             const Card(
               child: Padding(
@@ -1295,7 +1306,10 @@ class _MatchHistory extends StatelessWidget {
             )
           else
             for (final match in matches.take(20)) ...[
-              _PastMatchCard(match: match),
+              _PastMatchCard(
+                match: match,
+                onOpenMatch: onOpenMatch,
+              ),
               const SizedBox(height: 9),
             ],
         ],
@@ -1306,13 +1320,19 @@ class _MatchHistory extends StatelessWidget {
 Widget matchHistoryForTesting(
   List<MatchResultStatistic> matches, {
   String scopeLabel = 'Gesamt',
+  ValueChanged<String>? onOpenMatch,
 }) =>
-    _MatchHistory(matches: matches, scopeLabel: scopeLabel);
+    MatchHistory(
+      matches: matches,
+      scopeLabel: scopeLabel,
+      onOpenMatch: onOpenMatch,
+    );
 
 class _PastMatchCard extends StatelessWidget {
-  const _PastMatchCard({required this.match});
+  const _PastMatchCard({required this.match, this.onOpenMatch});
 
   final MatchResultStatistic match;
+  final ValueChanged<String>? onOpenMatch;
 
   @override
   Widget build(BuildContext context) {
@@ -1379,6 +1399,18 @@ class _PastMatchCard extends StatelessWidget {
           Divider(color: context.appColors.outline),
           const SizedBox(height: 10),
           _MatchEventDetails(match: match),
+          if (onOpenMatch != null) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.tonalIcon(
+                key: ValueKey('open-past-match-${match.id}'),
+                onPressed: () => onOpenMatch!(match.id),
+                icon: const Icon(Icons.stadium_rounded),
+                label: const Text('Spieltag öffnen'),
+              ),
+            ),
+          ],
         ],
       ),
     );
