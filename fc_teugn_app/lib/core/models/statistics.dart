@@ -357,16 +357,20 @@ class MatchResultStatistic {
     required this.result,
     required this.isHome,
     this.competition,
+    this.teamName = 'FC Teugn',
+    this.events = const [],
   });
 
   final String id;
   final DateTime startAt;
   final String opponent;
   final String? competition;
+  final String teamName;
   final int ourGoals;
   final int theirGoals;
   final String result;
   final bool isHome;
+  final List<MatchStatisticEvent> events;
 
   factory MatchResultStatistic.fromJson(Map<String, dynamic> json) =>
       MatchResultStatistic(
@@ -374,9 +378,120 @@ class MatchResultStatistic {
         startAt: DateTime.parse(json['startAt'] as String),
         opponent: json['opponent'] as String? ?? 'Gegner',
         competition: json['competition'] as String?,
+        teamName: json['teamName'] as String? ?? 'FC Teugn',
         ourGoals: json['ourGoals'] as int? ?? 0,
         theirGoals: json['theirGoals'] as int? ?? 0,
         result: json['result'] as String? ?? 'DRAW',
         isHome: json['isHome'] as bool? ?? true,
+        events: (json['events'] as List<dynamic>? ?? const [])
+            .map(
+              (item) => MatchStatisticEvent.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
       );
 }
+
+enum MatchStatisticEventType {
+  homeGoal,
+  awayGoal,
+  substitution,
+  card,
+  injury,
+  penalty,
+  ownGoal,
+  comment,
+  interruption,
+  resume,
+  unknown,
+}
+
+class MatchStatisticParticipant {
+  const MatchStatisticParticipant({
+    required this.id,
+    required this.name,
+    this.shirtNumber,
+  });
+
+  final String id;
+  final String name;
+  final int? shirtNumber;
+
+  factory MatchStatisticParticipant.fromJson(Map<String, dynamic> json) =>
+      MatchStatisticParticipant(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? 'Spieler',
+        shirtNumber: (json['shirtNumber'] as num?)?.toInt(),
+      );
+}
+
+class MatchStatisticEvent {
+  const MatchStatisticEvent({
+    required this.id,
+    required this.type,
+    required this.teamSide,
+    required this.period,
+    required this.elapsedSeconds,
+    required this.ourGoals,
+    required this.theirGoals,
+    this.comment,
+    this.scorer,
+    this.assist,
+  });
+
+  final String id;
+  final MatchStatisticEventType type;
+  final String teamSide;
+  final int period;
+  final int elapsedSeconds;
+  final int ourGoals;
+  final int theirGoals;
+  final String? comment;
+  final MatchStatisticParticipant? scorer;
+  final MatchStatisticParticipant? assist;
+
+  bool get isGoal =>
+      type == MatchStatisticEventType.homeGoal ||
+      type == MatchStatisticEventType.awayGoal ||
+      type == MatchStatisticEventType.ownGoal;
+
+  bool get isOwnGoal => isGoal && teamSide == 'OWN';
+
+  factory MatchStatisticEvent.fromJson(Map<String, dynamic> json) =>
+      MatchStatisticEvent(
+        id: json['id'] as String? ?? '',
+        type: _matchStatisticEventType(json['type']),
+        teamSide: json['teamSide'] as String? ?? 'NEUTRAL',
+        period: (json['period'] as num?)?.toInt() ?? 1,
+        elapsedSeconds: (json['elapsedSeconds'] as num?)?.toInt() ?? 0,
+        ourGoals: (json['ourGoals'] as num?)?.toInt() ?? 0,
+        theirGoals: (json['theirGoals'] as num?)?.toInt() ?? 0,
+        comment: json['comment'] as String?,
+        scorer: json['scorer'] == null
+            ? null
+            : MatchStatisticParticipant.fromJson(
+                json['scorer'] as Map<String, dynamic>,
+              ),
+        assist: json['assist'] == null
+            ? null
+            : MatchStatisticParticipant.fromJson(
+                json['assist'] as Map<String, dynamic>,
+              ),
+      );
+}
+
+MatchStatisticEventType _matchStatisticEventType(Object? value) =>
+    switch (value?.toString().toUpperCase()) {
+      'HOME_GOAL' => MatchStatisticEventType.homeGoal,
+      'AWAY_GOAL' => MatchStatisticEventType.awayGoal,
+      'SUBSTITUTION' => MatchStatisticEventType.substitution,
+      'CARD' => MatchStatisticEventType.card,
+      'INJURY' => MatchStatisticEventType.injury,
+      'PENALTY' => MatchStatisticEventType.penalty,
+      'OWN_GOAL' => MatchStatisticEventType.ownGoal,
+      'COMMENT' => MatchStatisticEventType.comment,
+      'INTERRUPTION' => MatchStatisticEventType.interruption,
+      'RESUME' => MatchStatisticEventType.resume,
+      _ => MatchStatisticEventType.unknown,
+    };

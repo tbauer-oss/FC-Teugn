@@ -13,7 +13,7 @@ const {
   icsEscape,
   icsDate,
 } = require('../dist/src/controllers/events.controller');
-const { RecurrenceFrequency } = require('@prisma/client');
+const { RecurrenceFrequency, TickerEventType } = require('@prisma/client');
 const {
   AnnouncementAudience,
 } = require('@prisma/client');
@@ -29,6 +29,7 @@ const {
   isDefensivePlayer,
   isStatisticsMatchFinished,
   resolveStatisticsTeamIds,
+  statisticsMatchEventSide,
   statisticsMatchLifecycleScope,
 } = require('../dist/src/controllers/statistics.controller');
 const {
@@ -470,20 +471,22 @@ test('training and statistics mutations remain staff-only', () => {
   assert.equal(hasPermission(Role.PLAYER, Permission.MANAGE_STATISTICS), false);
 });
 
-test('statistics team selection is reserved for administrator roles', () => {
+test('statistics team selection is available to staff roles', () => {
   assert.equal(canSelectStatisticsTeam(Role.SUPER_ADMIN), true);
   assert.equal(canSelectStatisticsTeam(Role.CLUB_ADMIN), true);
   assert.equal(canSelectStatisticsTeam(Role.TRAINER_ADMIN), true);
   assert.equal(canSelectStatisticsTeam(Role.YOUTH_DIRECTOR), true);
-  assert.equal(canSelectStatisticsTeam(Role.COACH), false);
-  assert.equal(canSelectStatisticsTeam(Role.TRAINER), false);
+  assert.equal(canSelectStatisticsTeam(Role.COACH), true);
+  assert.equal(canSelectStatisticsTeam(Role.TRAINER), true);
+  assert.equal(canSelectStatisticsTeam(Role.ASSISTANT_COACH), true);
+  assert.equal(canSelectStatisticsTeam(Role.TEAM_MANAGER), true);
   assert.equal(canSelectStatisticsTeam(Role.PARENT), false);
   assert.equal(canSelectStatisticsTeam(Role.PLAYER), false);
 });
 
-test('statistics include every assigned team for non-admin users', () => {
+test('statistics include every assigned team for family users', () => {
   const accessible = ['team-registration', 'team-membership'];
-  for (const role of [Role.COACH, Role.TRAINER, Role.PARENT, Role.PLAYER]) {
+  for (const role of [Role.PARENT, Role.PLAYER]) {
     assert.deepEqual(
       resolveStatisticsTeamIds(
         { role, teamId: 'team-registration' },
@@ -491,6 +494,25 @@ test('statistics include every assigned team for non-admin users', () => {
         ['team-membership'],
       ),
       ['team-registration', 'team-membership'],
+    );
+  }
+});
+
+test('statistics staff can select one authorized youth team', () => {
+  const accessible = ['team-registration', 'team-membership'];
+  for (const role of [
+    Role.COACH,
+    Role.TRAINER,
+    Role.ASSISTANT_COACH,
+    Role.TEAM_MANAGER,
+  ]) {
+    assert.deepEqual(
+      resolveStatisticsTeamIds(
+        { role, teamId: 'team-registration' },
+        accessible,
+        ['team-membership'],
+      ),
+      ['team-membership'],
     );
   }
 });
@@ -533,6 +555,25 @@ test('statistics accept the ticker as authoritative lifecycle fallback', () => {
   const lifecycle = statisticsMatchLifecycleScope();
   assert.equal(Array.isArray(lifecycle.OR), true);
   assert.equal(lifecycle.OR.length, 2);
+});
+
+test('statistics match events resolve the club side at home and away', () => {
+  assert.equal(
+    statisticsMatchEventSide(TickerEventType.HOME_GOAL, true),
+    'OWN',
+  );
+  assert.equal(
+    statisticsMatchEventSide(TickerEventType.AWAY_GOAL, true),
+    'OPPONENT',
+  );
+  assert.equal(
+    statisticsMatchEventSide(TickerEventType.HOME_GOAL, false),
+    'OPPONENT',
+  );
+  assert.equal(
+    statisticsMatchEventSide(TickerEventType.AWAY_GOAL, false),
+    'OWN',
+  );
 });
 
 test('team communications can only be sent by staff roles', () => {

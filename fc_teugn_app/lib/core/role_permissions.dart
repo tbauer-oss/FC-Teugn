@@ -238,7 +238,11 @@ bool canSelectStatisticsTeam(UserRole role) => switch (role) {
       UserRole.superAdmin ||
       UserRole.clubAdmin ||
       UserRole.trainerAdmin ||
-      UserRole.youthDirector =>
+      UserRole.youthDirector ||
+      UserRole.coach ||
+      UserRole.trainer ||
+      UserRole.assistantCoach ||
+      UserRole.teamManager =>
         true,
       _ => false,
     };

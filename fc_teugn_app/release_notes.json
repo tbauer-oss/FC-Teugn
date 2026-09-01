@@ -1,4 +1,9 @@
 {
+  "1.6.43+181": [
+    "Im Statistikbereich zeigt „Vergangene Spiele“ Ergebnisse jetzt wie ein kompaktes Match-Center mit Heim- und Auswärtsteam, Wettbewerb und Ergebnisstatus.",
+    "Jedes Spiel lässt sich für Torschützen, Vorlagen, Spielstände und weitere minutengenaue Liveticker-Ereignisse aufklappen.",
+    "Trainer mit mehreren freigegebenen Teams können die gewünschte Jugend oder Mannschaft direkt in der Statistik auswählen; fremde Spielernamen und interne Kommentare bleiben für Familienkonten geschützt."
+  ],
   "1.6.42+180": [
     "Die Dashboards für Familien und Trainer sind neu geordnet, deutlich kompakter und führen mit klaren Fokus-, Termin-, Status- und Schnellzugriffsbereichen durch den Alltag.",
     "Das Leistungszentrum zeigt Spielerbewertungen jetzt in einer dichten Übersicht; Suche und Filter bleiben über einen kompakten, mobilfreundlichen Filterdialog schnell erreichbar.",

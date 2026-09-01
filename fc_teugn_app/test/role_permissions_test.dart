@@ -28,13 +28,15 @@ void main() {
     expect(codes, isNot(contains('MANAGE_PLAYERS')));
   });
 
-  test('statistics team selection is limited to administrator roles', () {
+  test('statistics team selection is available to staff roles', () {
     expect(canSelectStatisticsTeam(UserRole.superAdmin), isTrue);
     expect(canSelectStatisticsTeam(UserRole.clubAdmin), isTrue);
     expect(canSelectStatisticsTeam(UserRole.trainerAdmin), isTrue);
     expect(canSelectStatisticsTeam(UserRole.youthDirector), isTrue);
-    expect(canSelectStatisticsTeam(UserRole.coach), isFalse);
-    expect(canSelectStatisticsTeam(UserRole.trainer), isFalse);
+    expect(canSelectStatisticsTeam(UserRole.coach), isTrue);
+    expect(canSelectStatisticsTeam(UserRole.trainer), isTrue);
+    expect(canSelectStatisticsTeam(UserRole.assistantCoach), isTrue);
+    expect(canSelectStatisticsTeam(UserRole.teamManager), isTrue);
     expect(canSelectStatisticsTeam(UserRole.parent), isFalse);
     expect(canSelectStatisticsTeam(UserRole.player), isFalse);
   });

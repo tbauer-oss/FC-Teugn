@@ -50,12 +50,60 @@ type PlayerIdentity = {
   secondaryPosition?: string | null;
 };
 
+const statisticsEventTypes: TickerEventType[] = [
+  TickerEventType.HOME_GOAL,
+  TickerEventType.AWAY_GOAL,
+  TickerEventType.SUBSTITUTION,
+  TickerEventType.CARD,
+  TickerEventType.INJURY,
+  TickerEventType.PENALTY,
+  TickerEventType.OWN_GOAL,
+  TickerEventType.COMMENT,
+  TickerEventType.INTERRUPTION,
+  TickerEventType.RESUME,
+];
+
+export function statisticsMatchEventSide(
+  type: TickerEventType,
+  isHome: boolean,
+) {
+  if (type === TickerEventType.HOME_GOAL) {
+    return isHome ? 'OWN' : 'OPPONENT';
+  }
+  if (type === TickerEventType.AWAY_GOAL) {
+    return isHome ? 'OPPONENT' : 'OWN';
+  }
+  return 'NEUTRAL';
+}
+
+function statisticsParticipant(
+  player: PlayerIdentity | null,
+  canManageStatistics: boolean,
+  allowedPlayerIds: Set<string> | null,
+) {
+  if (
+    !player ||
+    (!canManageStatistics && !allowedPlayerIds?.has(player.id))
+  ) {
+    return null;
+  }
+  return {
+    id: player.id,
+    name: player.preferredName || `${player.firstName} ${player.lastName}`,
+    shirtNumber: player.shirtNumber,
+  };
+}
+
 export function canSelectStatisticsTeam(role: Role) {
   return (
     role === Role.SUPER_ADMIN ||
     role === Role.CLUB_ADMIN ||
     role === Role.TRAINER_ADMIN ||
-    role === Role.YOUTH_DIRECTOR
+    role === Role.YOUTH_DIRECTOR ||
+    role === Role.COACH ||
+    role === Role.TRAINER ||
+    role === Role.ASSISTANT_COACH ||
+    role === Role.TEAM_MANAGER
   );
 }
 
@@ -225,6 +273,14 @@ export async function statisticsOverview(req: Request, res: Response) {
   const kindFilter = Object.values(MatchKind).includes(kind as MatchKind)
     ? (kind as MatchKind)
     : undefined;
+  const canManageStatistics = hasEffectivePermission(
+    user.role as Role,
+    Permission.MANAGE_STATISTICS,
+    user.permissions,
+  );
+  const allowedPlayerIds = canManageStatistics
+    ? null
+    : new Set(await ownPlayerIds(user));
 
   const matches = await prisma.event.findMany({
     where: {
@@ -262,6 +318,41 @@ export async function statisticsOverview(req: Request, res: Response) {
           status: true,
           ourGoals: true,
           theirGoals: true,
+          events: {
+            where: {
+              revokedAt: null,
+              type: { in: statisticsEventTypes },
+            },
+            select: {
+              id: true,
+              sequence: true,
+              type: true,
+              period: true,
+              elapsedSeconds: true,
+              ourGoals: true,
+              theirGoals: true,
+              comment: true,
+              scorer: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  preferredName: true,
+                  shirtNumber: true,
+                },
+              },
+              assist: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  preferredName: true,
+                  shirtNumber: true,
+                },
+              },
+            },
+            orderBy: { sequence: 'asc' },
+          },
         },
       },
       teamMatchStatistic: true,
@@ -302,6 +393,7 @@ export async function statisticsOverview(req: Request, res: Response) {
     return {
       id: match.id,
       team: match.team,
+      teamName: match.team.shortName || match.team.name,
       startAt: match.startAt,
       opponent: match.matchDetails?.opponent,
       competition: match.matchDetails?.competition,
@@ -310,19 +402,34 @@ export async function statisticsOverview(req: Request, res: Response) {
       ourGoals,
       theirGoals,
       result,
+      events: (match.liveTicker?.events ?? []).map((event) => ({
+        id: event.id,
+        type: event.type,
+        teamSide: statisticsMatchEventSide(
+          event.type,
+          match.matchDetails?.isHome ?? true,
+        ),
+        period: event.period,
+        elapsedSeconds: event.elapsedSeconds,
+        ourGoals: event.ourGoals,
+        theirGoals: event.theirGoals,
+        comment: canManageStatistics ? event.comment : null,
+        scorer: statisticsParticipant(
+          event.scorer,
+          canManageStatistics,
+          allowedPlayerIds,
+        ),
+        assist: statisticsParticipant(
+          event.assist,
+          canManageStatistics,
+          allowedPlayerIds,
+        ),
+      })),
     };
   });
 
   const teamSummary = summarizeMatchResults(matchRows);
 
-  const canManageStatistics = hasEffectivePermission(
-    user.role as Role,
-    Permission.MANAGE_STATISTICS,
-    user.permissions,
-  );
-  const allowedPlayerIds = canManageStatistics
-    ? null
-    : new Set(await ownPlayerIds(user));
   const aggregated = new Map<string, PlayerStatisticRow>();
   for (const match of matches) {
     for (const stat of match.playerMatchStats) {

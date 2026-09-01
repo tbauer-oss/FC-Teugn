@@ -365,7 +365,7 @@ class _TeamSelector extends StatelessWidget {
     if (!canSelect || teams.isEmpty) {
       return InputDecorator(
         decoration: const InputDecoration(
-          labelText: 'Mannschaft',
+          labelText: 'Jugend / Mannschaft',
           prefixIcon: Icon(Icons.groups_rounded),
         ),
         child: Text(
@@ -382,7 +382,7 @@ class _TeamSelector extends StatelessWidget {
       key: ValueKey('statistics-team-$effectiveValue'),
       initialValue: effectiveValue,
       decoration: const InputDecoration(
-        labelText: 'Mannschaft',
+        labelText: 'Jugend / Mannschaft',
         prefixIcon: Icon(Icons.groups_rounded),
       ),
       items: [
@@ -1271,53 +1271,470 @@ class _MatchHistory extends StatelessWidget {
   final String scopeLabel;
 
   @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Ergebnisse · $scopeLabel',
-                style: Theme.of(context).textTheme.titleLarge,
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Vergangene Spiele · $scopeLabel',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 3),
+          Text(
+            'Ergebnis antippen für Torschützen, Vorlagen und Spielereignisse.',
+            style: TextStyle(color: context.appColors.textMuted),
+          ),
+          const SizedBox(height: 10),
+          if (matches.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 28),
+                child: Center(
+                  child: Text('Noch keine beendeten Spiele im Zeitraum'),
+                ),
               ),
-              const SizedBox(height: 10),
-              if (matches.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 28),
-                  child:
-                      Center(child: Text('Noch keine Ergebnisse im Zeitraum')),
-                )
-              else
-                for (final match in matches.take(10))
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      backgroundColor: match.result == 'WIN'
-                          ? context.appSuccess.withValues(alpha: .12)
-                          : match.result == 'LOSS'
-                              ? Colors.deepOrange.withValues(alpha: .12)
-                              : Colors.blueGrey.withValues(alpha: .12),
-                      child: Text(
-                        match.result == 'WIN'
-                            ? 'S'
-                            : match.result == 'LOSS'
-                                ? 'N'
-                                : 'U',
-                      ),
-                    ),
-                    title: Text('${match.isHome ? '' : '@ '}${match.opponent}'),
-                    subtitle: Text(match.competition ?? 'Spiel'),
-                    trailing: Text(
-                      '${match.ourGoals}:${match.theirGoals}',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+            )
+          else
+            for (final match in matches.take(20)) ...[
+              _PastMatchCard(match: match),
+              const SizedBox(height: 9),
+            ],
+        ],
+      );
+}
+
+@visibleForTesting
+Widget matchHistoryForTesting(
+  List<MatchResultStatistic> matches, {
+  String scopeLabel = 'Gesamt',
+}) =>
+    _MatchHistory(matches: matches, scopeLabel: scopeLabel);
+
+class _PastMatchCard extends StatelessWidget {
+  const _PastMatchCard({required this.match});
+
+  final MatchResultStatistic match;
+
+  @override
+  Widget build(BuildContext context) {
+    final homeName = match.isHome ? match.teamName : match.opponent;
+    final awayName = match.isHome ? match.opponent : match.teamName;
+    final homeGoals = match.isHome ? match.ourGoals : match.theirGoals;
+    final awayGoals = match.isHome ? match.theirGoals : match.ourGoals;
+    final ownGoals = match.events.where((event) => event.isOwnGoal).toList();
+    final assists = ownGoals.where((event) => event.assist != null).length;
+    final otherEvents = match.events.where((event) => !event.isGoal).length;
+    final dateLabel = MaterialLocalizations.of(context)
+        .formatCompactDate(match.startAt.toLocal());
+
+    return Card(
+      key: ValueKey('past-match-${match.id}'),
+      clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+        shape: const Border(),
+        collapsedShape: const Border(),
+        leading: _MatchResultBadge(result: match.result),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              [dateLabel, match.competition ?? 'Spiel'].join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: context.appColors.textMuted,
+                    fontWeight: FontWeight.w700,
                   ),
+            ),
+            const SizedBox(height: 5),
+            _ScoreTeamRow(name: homeName, goals: homeGoals),
+            const SizedBox(height: 2),
+            _ScoreTeamRow(name: awayName, goals: awayGoals),
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 5,
+            children: [
+              _MatchSummaryPill(
+                icon: Icons.sports_soccer_rounded,
+                label: _countLabel(ownGoals.length, 'Tor', 'Tore'),
+              ),
+              _MatchSummaryPill(
+                icon: Icons.assistant_direction_rounded,
+                label: _countLabel(assists, 'Vorlage', 'Vorlagen'),
+              ),
+              _MatchSummaryPill(
+                icon: Icons.bolt_rounded,
+                label: _countLabel(otherEvents, 'weiteres', 'weitere'),
+              ),
             ],
           ),
         ),
+        children: [
+          Divider(color: context.appColors.outline),
+          const SizedBox(height: 10),
+          _MatchEventDetails(match: match),
+        ],
+      ),
+    );
+  }
+}
+
+class _MatchResultBadge extends StatelessWidget {
+  const _MatchResultBadge({required this.result});
+
+  final String result;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (result) {
+      'WIN' => context.appSuccess,
+      'LOSS' => Colors.deepOrange,
+      _ => Colors.blueGrey,
+    };
+    final label = switch (result) {
+      'WIN' => 'S',
+      'LOSS' => 'N',
+      _ => 'U',
+    };
+    return Container(
+      width: 36,
+      height: 36,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .13),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+}
+
+class _ScoreTeamRow extends StatelessWidget {
+  const _ScoreTeamRow({required this.name, required this.goals});
+
+  final String name;
+  final int goals;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '$goals',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+        ],
       );
 }
+
+class _MatchSummaryPill extends StatelessWidget {
+  const _MatchSummaryPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: context.appColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: context.appColors.outline),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: context.appColors.textMuted),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _MatchEventDetails extends StatelessWidget {
+  const _MatchEventDetails({required this.match});
+
+  final MatchResultStatistic match;
+
+  @override
+  Widget build(BuildContext context) {
+    final ownGoals = match.events.where((event) => event.isOwnGoal).toList();
+    final scorerSummary = _participantSummary(
+      ownGoals.map((event) => event.scorer),
+      fallback: ownGoals.isEmpty ? '–' : 'FC Teugn',
+    );
+    final assistSummary = _participantSummary(
+      ownGoals.map((event) => event.assist),
+      fallback: '–',
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final summaries = [
+              _ContributorBox(
+                icon: Icons.sports_soccer_rounded,
+                label: 'Torschützen',
+                value: scorerSummary,
+              ),
+              _ContributorBox(
+                icon: Icons.assistant_direction_rounded,
+                label: 'Vorlagen',
+                value: assistSummary,
+              ),
+            ];
+            if (constraints.maxWidth < 390) {
+              return Column(
+                children: [
+                  summaries.first,
+                  const SizedBox(height: 7),
+                  summaries.last,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: summaries.first),
+                const SizedBox(width: 8),
+                Expanded(child: summaries.last),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Spielereignisse',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+        ),
+        const SizedBox(height: 7),
+        if (match.events.isEmpty)
+          Text(
+            'Für dieses Spiel wurden keine einzelnen Ereignisse erfasst.',
+            style: TextStyle(color: context.appColors.textMuted),
+          )
+        else
+          for (final event in match.events) _MatchEventRow(event: event),
+      ],
+    );
+  }
+}
+
+class _ContributorBox extends StatelessWidget {
+  const _ContributorBox({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: context.appColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 19, color: context.appWarning),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: context.appColors.textMuted,
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(value,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _MatchEventRow extends StatelessWidget {
+  const _MatchEventRow({required this.event});
+
+  final MatchStatisticEvent event;
+
+  @override
+  Widget build(BuildContext context) {
+    final presentation = _eventPresentation(context, event);
+    final details = <String>[
+      if (event.assist != null) 'Vorlage: ${event.assist!.name}',
+      if (event.comment?.trim().isNotEmpty == true) event.comment!.trim(),
+      if (event.isGoal) 'Spielstand ${event.ourGoals}:${event.theirGoals}',
+    ];
+    final minute =
+        event.elapsedSeconds <= 0 ? '–' : '${event.elapsedSeconds ~/ 60 + 1}.';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 35,
+            child: Text(
+              '$minute Min',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: context.appColors.textMuted,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+          Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: presentation.color.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              presentation.icon,
+              size: 17,
+              color: presentation.color,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  presentation.title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                if (details.isNotEmpty)
+                  Text(
+                    details.join(' · '),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: context.appColors.textMuted,
+                        ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+({IconData icon, Color color, String title}) _eventPresentation(
+  BuildContext context,
+  MatchStatisticEvent event,
+) {
+  if (event.isGoal) {
+    final own = event.teamSide == 'OWN';
+    return (
+      icon: Icons.sports_soccer_rounded,
+      color: own ? context.appSuccess : Colors.deepOrange,
+      title: own
+          ? 'Tor · ${event.scorer?.name ?? 'FC Teugn'}'
+          : event.type == MatchStatisticEventType.ownGoal
+              ? 'Eigentor'
+              : 'Gegentor',
+    );
+  }
+  return switch (event.type) {
+    MatchStatisticEventType.card => (
+        icon: Icons.style_rounded,
+        color: context.appWarning,
+        title: 'Karte',
+      ),
+    MatchStatisticEventType.injury => (
+        icon: Icons.health_and_safety_rounded,
+        color: Colors.deepOrange,
+        title: 'Verletzungsunterbrechung',
+      ),
+    MatchStatisticEventType.substitution => (
+        icon: Icons.swap_horiz_rounded,
+        color: Colors.blue,
+        title: 'Wechsel',
+      ),
+    MatchStatisticEventType.penalty => (
+        icon: Icons.adjust_rounded,
+        color: context.appWarning,
+        title: 'Strafstoß',
+      ),
+    MatchStatisticEventType.interruption => (
+        icon: Icons.pause_rounded,
+        color: Colors.blueGrey,
+        title: 'Unterbrechung',
+      ),
+    MatchStatisticEventType.resume => (
+        icon: Icons.play_arrow_rounded,
+        color: context.appSuccess,
+        title: 'Fortsetzung',
+      ),
+    _ => (
+        icon: Icons.bolt_rounded,
+        color: context.appWarning,
+        title: 'Spielereignis',
+      ),
+  };
+}
+
+String _participantSummary(
+  Iterable<MatchStatisticParticipant?> participants, {
+  required String fallback,
+}) {
+  final counts = <String, int>{};
+  for (final participant
+      in participants.whereType<MatchStatisticParticipant>()) {
+    counts.update(participant.name, (count) => count + 1, ifAbsent: () => 1);
+  }
+  if (counts.isEmpty) return fallback;
+  return counts.entries
+      .map((entry) =>
+          entry.value > 1 ? '${entry.key} ×${entry.value}' : entry.key)
+      .join(', ');
+}
+
+String _countLabel(int count, String singular, String plural) =>
+    '$count ${count == 1 ? singular : plural}';
 
 class _PlayerStatistics extends StatelessWidget {
   const _PlayerStatistics({
