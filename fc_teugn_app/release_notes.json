@@ -1,4 +1,9 @@
 {
+  "1.6.46+184": [
+    "Die Dashboards für Familien und Trainer sind jetzt noch moderner, kompakter und klar nach Prioritäten, nächsten Terminen und Schnellzugriffen gegliedert.",
+    "Nächstes Training und nächstes Spiel bleiben gleichzeitig sichtbar; bei Spielen wird die vollständige Paarung einschließlich der gegnerischen Mannschaft angezeigt.",
+    "Auswärtsspiele zeigen direkt die Route ab Teugn mit Entfernung und geschätzter Fahrzeit und öffnen zuverlässig die vollständige Zieladresse in Google Maps."
+  ],
   "1.6.45+183": [
     "Auswärtsspiele verwenden jetzt zuverlässig die vollständige Gegneradresse; die blau hervorgehobene Route öffnet direkt das richtige Ziel in Google Maps – auch aus der Spieleübersicht.",
     "Kalender, Tagesauswahl und vergangene Spiele sind kompakter und moderner gestaltet; Training und Spiele lassen sich schneller unterscheiden, während die aktuelle Spieleübersicht nur laufende und kommende Partien zeigt.",
