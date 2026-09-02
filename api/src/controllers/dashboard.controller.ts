@@ -13,6 +13,7 @@ import {
   ownPlayerIds,
 } from '../services/team-access';
 import { consentTemplates } from '../services/consent-templates';
+import { routeEstimateFromTeugn } from '../services/route-estimate.service';
 
 const dayMs = 86_400_000;
 
@@ -379,4 +380,71 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
     }),
     notifications,
   });
+}
+
+export async function eventRouteEstimate(req: Request, res: Response) {
+  const user = req.user!;
+  const canManageEvents = hasEffectivePermission(
+    user.role,
+    Permission.MANAGE_EVENTS,
+    user.permissions,
+  );
+  const [teamIds, playerIds] = await Promise.all([
+    contextualTeamIds(user),
+    ownPlayerIds(user),
+  ]);
+  const event = await prisma.event.findFirst({
+    where: {
+      id: req.params.eventId,
+      ...(canManageEvents
+        ? {}
+        : { visibility: { not: EventVisibility.STAFF_ONLY } }),
+      ...eventReadScope(teamIds, { userId: user.id, playerIds }),
+    },
+    select: {
+      address: true,
+      location: true,
+      homeAway: true,
+      type: true,
+      matchDetails: { select: { isHome: true } },
+      routeEstimateAddress: true,
+      routeDistanceKm: true,
+      routeDurationMinutes: true,
+    },
+  });
+  if (!event) return res.status(404).json({ message: 'Termin nicht gefunden.' });
+  const isAway = event.matchDetails?.isHome === false || event.homeAway === 'AWAY';
+  if (event.type !== 'MATCH' || !isAway) {
+    return res.json({ available: false });
+  }
+  // Route estimates deliberately require the persisted postal address. A
+  // venue-only value such as "Waldstadion" is too ambiguous for dependable
+  // navigation and must never replace a previously resolved full address.
+  const destination = event.address?.trim();
+  if (!destination) return res.json({ available: false });
+  if (
+    event.routeEstimateAddress === destination &&
+    event.routeDistanceKm !== null &&
+    event.routeDurationMinutes !== null
+  ) {
+    return res.json({
+      available: true,
+      distanceKm: event.routeDistanceKm,
+      durationMinutes: event.routeDurationMinutes,
+      attribution: '© OpenStreetMap-Mitwirkende',
+    });
+  }
+  const estimate = await routeEstimateFromTeugn(destination);
+  if (estimate) {
+    await prisma.event.update({
+      where: { id: req.params.eventId },
+      data: {
+        routeEstimateAddress: destination,
+        routeDistanceKm: estimate.distanceKm,
+        routeDurationMinutes: estimate.durationMinutes,
+        routeEstimatedAt: new Date(),
+      },
+    });
+  }
+  return res.json(estimate ?? { available: false });
 }

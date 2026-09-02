@@ -1185,6 +1185,10 @@ model Event {
   location                  String
   address                   String?
   mapUrl                    String?
+  routeEstimateAddress      String?
+  routeDistanceKm           Float?
+  routeDurationMinutes      Int?
+  routeEstimatedAt          DateTime?
   homeAway                  HomeAway?
   opponent                  String?
   venue                     String?

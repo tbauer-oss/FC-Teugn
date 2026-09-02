@@ -1,4 +1,5 @@
 import {
+  eventRouteEstimate,
   parentConsentAttention,
   parentDashboardSummary,
   trainerDashboardSummary,
@@ -11,5 +12,6 @@ router.use(requireAuth, requireApproved);
 router.get('/parent', parentDashboardSummary);
 router.get('/parent/consent-attention', parentConsentAttention);
 router.get('/trainer', trainerDashboardSummary);
+router.get('/events/:eventId/route-estimate', eventRouteEstimate);
 
 export default router;

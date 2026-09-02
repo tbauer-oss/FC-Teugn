@@ -30,6 +30,30 @@ class DashboardSummary {
       );
 }
 
+class MatchRouteEstimate {
+  const MatchRouteEstimate({
+    required this.distanceKm,
+    required this.durationMinutes,
+    required this.attribution,
+  });
+
+  final double distanceKm;
+  final int durationMinutes;
+  final String attribution;
+
+  static MatchRouteEstimate? fromJson(Map<String, dynamic> json) {
+    if (json['available'] != true) return null;
+    final distance = (json['distanceKm'] as num?)?.toDouble();
+    final duration = (json['durationMinutes'] as num?)?.toInt();
+    if (distance == null || duration == null) return null;
+    return MatchRouteEstimate(
+      distanceKm: distance,
+      durationMinutes: duration,
+      attribution: json['attribution'] as String? ?? '© OpenStreetMap',
+    );
+  }
+}
+
 class ParentConsentAttention {
   const ParentConsentAttention({
     required this.playerId,

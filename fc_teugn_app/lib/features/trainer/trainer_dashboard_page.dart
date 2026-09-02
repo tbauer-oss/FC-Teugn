@@ -17,7 +17,9 @@ import '../shared/attendance_reminder_action.dart';
 import '../shared/page_scaffold.dart';
 import '../shared/dashboard_notifications.dart';
 import '../shared/dashboard_event_navigation.dart';
+import '../shared/dashboard_route_chip.dart';
 import '../shared/family_responses.dart';
+import '../shared/modern_dashboard_widgets.dart';
 
 class TrainerDashboardPage extends ConsumerWidget {
   const TrainerDashboardPage({super.key});
@@ -93,19 +95,6 @@ class TrainerDashboardPage extends ConsumerWidget {
       upcomingAfterToday,
       contextTeamIds,
     );
-    final nextTrainingIds = nextTrainings.map((event) => event.id).toSet();
-    final nextEventHero =
-        nextEvent != null && !nextTrainingIds.contains(nextEvent.id)
-            ? nextEvent
-            : null;
-    final nextEvents = upcomingAfterToday
-        .where(
-          (event) =>
-              !nextTrainingIds.contains(event.id) &&
-              event.id != nextEventHero?.id,
-        )
-        .take(4)
-        .toList();
     final nextMatch =
         upcoming.where((event) => event.type == EventType.match).firstOrNull;
     final approvalCount = approvals.valueOrNull?.length ?? 0;
@@ -126,6 +115,21 @@ class TrainerDashboardPage extends ConsumerWidget {
     );
     final compactDashboard = MediaQuery.sizeOf(context).width < 600;
     final sectionGap = compactDashboard ? 8.0 : 12.0;
+    final displayedTrainings =
+        todayTrainings.isNotEmpty ? todayTrainings : nextTrainings;
+    final trainingCounts = combinedTrainingDashboardCounts(
+      displayedTrainings,
+      teamPlayers,
+    );
+    final displayedIds = {
+      ...displayedTrainings.map((event) => event.id),
+      if (nextMatch != null) nextMatch.id,
+    };
+    final additionalEvents = upcoming
+        .where((event) => !displayedIds.contains(event.id))
+        .take(4)
+        .toList();
+    final unreadMessages = notifications.length;
 
     return PageScaffold(
       title: '${_greeting(now)}, ${_firstName(user?.name)}',
@@ -139,15 +143,10 @@ class TrainerDashboardPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _TrainerCockpitBanner(
-            teamLabel: organization?.workingContext.includeAllTeams == true
-                ? '${team?.ageGroup.name ?? 'Jugend'} · Alle Mannschaften'
-                : team?.displayName ?? 'Trainerteam',
-            activePlayers: activePlayers,
-            trainingCount: todayTrainings.length + nextTrainings.length,
-            hasUpcomingMatch: nextMatch != null,
-          ),
-          SizedBox(height: sectionGap),
+          if (dashboard.isLoading && !dashboard.hasValue) ...[
+            const LinearProgressIndicator(minHeight: 3),
+            SizedBox(height: sectionGap),
+          ],
           if (organization?.can('MANAGE_MEMBERS') == true) ...[
             AdminMemberRequestsCard(
               pending: approvals,
@@ -160,57 +159,118 @@ class TrainerDashboardPage extends ConsumerWidget {
             const PersonalResponsesCard(isTrainer: true),
             SizedBox(height: sectionGap),
           ],
-          if (todayTrainings.isNotEmpty) ...[
-            _TodayTrainingsStrip(
-              events: todayTrainings,
-              players: teamPlayers,
-              teamLabel: (event) => _eventTeamLabel(event, organization),
-              onOpen: () => _showCombinedTrainingResponses(
+          if (trainingCounts.open > 0) ...[
+            ModernDashboardPriorityStrip(
+              icon: Icons.notification_important_rounded,
+              title: 'Offene Rückmeldungen beantworten',
+              count: trainingCounts.open,
+              onTap: () => _showCombinedTrainingResponses(
                 context,
-                todayTrainings,
+                displayedTrainings,
                 teamPlayers,
               ),
             ),
             SizedBox(height: sectionGap),
           ],
-          if (nextTrainings.isNotEmpty) ...[
-            _NextTrainingsOverview(
-              events: nextTrainings,
-              players: teamPlayers,
-              teamLabel: (event) => _eventTeamLabel(event, organization),
-              onPlan: (event) => context.push(eventRoute(event)),
+          const ModernDashboardSectionLabel(title: 'Als Nächstes'),
+          if (displayedTrainings.isNotEmpty)
+            ModernDashboardEventCard(
+              contentKey: ValueKey(
+                todayTrainings.isNotEmpty
+                    ? 'today-training-summary'
+                    : 'next-training-overview',
+              ),
+              date: displayedTrainings.first.startAt,
+              title: todayTrainings.isNotEmpty
+                  ? 'Heute · Training'
+                  : 'Nächstes Training',
+              subtitle: displayedTrainings
+                  .map((event) => _eventTeamLabel(event, organization))
+                  .toSet()
+                  .join(' + '),
+              timeLabel: '${_time(displayedTrainings.first.startAt)} Uhr',
+              location: _dashboardTrainingLocation(
+                displayedTrainings.first.location,
+              ),
+              icon: Icons.sports_rounded,
+              accent: context.appSuccess,
+              metrics: [
+                ModernDashboardMetric(
+                  icon: Icons.check_circle_rounded,
+                  label: '${trainingCounts.yes} zu',
+                  color: context.appSuccess,
+                ),
+                ModernDashboardMetric(
+                  icon: Icons.cancel_rounded,
+                  label: '${trainingCounts.no} ab',
+                  color: context.appDanger,
+                ),
+                ModernDashboardMetric(
+                  icon: Icons.schedule_rounded,
+                  label: '${trainingCounts.open} offen',
+                  color: context.appWarning,
+                ),
+              ],
+              onTap: () => _showCombinedTrainingResponses(
+                context,
+                displayedTrainings,
+                teamPlayers,
+              ),
+              actionLabel: 'Rückmeldungen',
+              actionIcon: Icons.groups_rounded,
+              onAction: () => _showCombinedTrainingResponses(
+                context,
+                displayedTrainings,
+                teamPlayers,
+              ),
+            )
+          else
+            _ModernEmptyDashboardLink(
+              icon: Icons.sports_rounded,
+              title: 'Kein Training geplant',
+              action: 'Training planen',
+              onTap: () => context.go('/trainer/training'),
             ),
-            SizedBox(height: sectionGap),
-          ],
-          if (nextEventHero != null) ...[
-            _NextEventHero(
-              event: nextEventHero,
-              now: now,
-              eventRoute: eventRoute,
-            ),
-            SizedBox(height: sectionGap),
-          ],
-          _StatusGrid(
-            playersLoading: dashboard.isLoading,
-            playersError: dashboard.hasError,
-            activePlayers: activePlayers,
-            injuredPlayers: injuredPlayers,
-            nextTrainings: nextTrainings,
-            players: teamPlayers,
-            nextMatch: nextMatch,
-            onOpenResponses: nextTrainings.isEmpty
-                ? () => context.go('/trainer/events')
-                : () => _showCombinedTrainingResponses(
-                      context,
-                      nextTrainings,
-                      teamPlayers,
-                    ),
-            onOpenNextMatch: nextMatch == null
-                ? () => context.go('/trainer/matches')
-                : () => context.push(eventRoute(nextMatch)),
-            onRetryPlayers: () =>
-                ref.invalidate(trainerDashboardSummaryProvider),
+          ModernDashboardTimelineConnector(
+            from: context.appSuccess,
+            to: const Color(0xFF1677B8),
           ),
+          if (nextMatch != null)
+            ModernDashboardEventCard(
+              date: nextMatch.startAt,
+              title: nextMatch.fixtureDisplayTitle,
+              subtitle: nextMatch.fixtureIsHome == false
+                  ? 'Auswärtsspiel'
+                  : 'Heimspiel',
+              timeLabel: '${_time(nextMatch.startAt)} Uhr',
+              location: nextMatch.location,
+              icon: Icons.sports_soccer_rounded,
+              accent: const Color(0xFF1677B8),
+              route: DashboardRouteChip(event: nextMatch),
+              metrics: [
+                ModernDashboardMetric(
+                  icon: Icons.check_circle_rounded,
+                  label: '${nextMatch.attendanceSummary.yes} zu',
+                  color: context.appSuccess,
+                ),
+                ModernDashboardMetric(
+                  icon: Icons.schedule_rounded,
+                  label: '${nextMatch.attendanceSummary.unknown} offen',
+                  color: context.appWarning,
+                ),
+              ],
+              onTap: () => context.push(eventRoute(nextMatch)),
+              actionLabel: 'Spieltag',
+              actionIcon: Icons.stadium_rounded,
+              onAction: () => context.push(eventRoute(nextMatch)),
+            )
+          else
+            _ModernEmptyDashboardLink(
+              icon: Icons.sports_soccer_rounded,
+              title: 'Kein Spiel geplant',
+              action: 'Spiel anlegen',
+              onTap: () => context.go('/trainer/matches'),
+            ),
           if (dashboard.hasError) ...[
             const SizedBox(height: 10),
             _PlayerLoadFailure(
@@ -218,35 +278,45 @@ class TrainerDashboardPage extends ConsumerWidget {
             ),
           ],
           SizedBox(height: sectionGap),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final cards = <Widget>[
-                if (priorities.isNotEmpty) _PriorityCard(items: priorities),
-                _AgendaCard(events: nextEvents, eventRoute: eventRoute),
-              ];
-              if (constraints.maxWidth < 780 || cards.length == 1) {
-                return Column(
-                  children: [
-                    for (var index = 0; index < cards.length; index++) ...[
-                      cards[index],
-                      if (index < cards.length - 1)
-                        SizedBox(height: sectionGap),
-                    ],
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 6, child: cards[0]),
-                  const SizedBox(width: 14),
-                  Expanded(flex: 5, child: cards[1]),
-                ],
-              );
-            },
+          const ModernDashboardSectionLabel(title: 'Schnellzugriff'),
+          ModernDashboardFunctionList(
+            items: [
+              ModernDashboardFunctionItem(
+                icon: Icons.event_note_rounded,
+                title: 'Planung',
+                trailing: '${nextTrainings.length} nächste Trainings',
+                onTap: () => context.go('/trainer/training'),
+                color: context.appWarning,
+              ),
+              ModernDashboardFunctionItem(
+                icon: Icons.groups_rounded,
+                title: 'Teamstatus',
+                trailing: '$activePlayers aktiv · $injuredPlayers verletzt',
+                onTap: () => context.go('/trainer/players'),
+                color: const Color(0xFF1677B8),
+              ),
+              ModernDashboardFunctionItem(
+                icon: Icons.forum_rounded,
+                title: 'Mitteilungen',
+                trailing: '$unreadMessages ungelesen',
+                onTap: () => context.go('/trainer/messages'),
+                color: context.appSuccess,
+              ),
+              ModernDashboardFunctionItem(
+                icon: Icons.task_alt_rounded,
+                title: 'Offene Aufgaben',
+                trailing: '${openTasks.length} offen',
+                onTap: () => context.go('/trainer/operations'),
+                color: context.appDanger,
+              ),
+            ],
           ),
           SizedBox(height: sectionGap),
-          const _QuickActions(),
+          _AgendaCard(events: additionalEvents, eventRoute: eventRoute),
+          if (priorities.isNotEmpty) ...[
+            SizedBox(height: sectionGap),
+            _PriorityCard(items: priorities),
+          ],
         ],
       ),
     );
@@ -357,6 +427,62 @@ class TrainerDashboardPage extends ConsumerWidget {
       };
 }
 
+class _ModernEmptyDashboardLink extends StatelessWidget {
+  const _ModernEmptyDashboardLink({
+    required this.icon,
+    required this.title,
+    required this.action,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String action;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: context.appColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 70),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border.all(color: context.appColors.outline),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: context.appColors.textMuted),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                Text(
+                  action,
+                  style: TextStyle(
+                    color: context.appWarning,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(width: 3),
+                const Icon(Icons.chevron_right_rounded, size: 20),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+// Retained as an isolated rollback component during the dashboard transition.
+// ignore: unused_element
 class _TrainerCockpitBanner extends StatelessWidget {
   const _TrainerCockpitBanner({
     required this.teamLabel,
@@ -580,6 +706,8 @@ class AdminMemberRequestsCard extends StatelessWidget {
   }
 }
 
+// Retained as an isolated rollback component during the dashboard transition.
+// ignore: unused_element
 class _TodayTrainingsStrip extends StatelessWidget {
   const _TodayTrainingsStrip({
     required this.events,
@@ -729,6 +857,8 @@ class _InlineTodayCount extends StatelessWidget {
       );
 }
 
+// Retained as an isolated rollback component during the dashboard transition.
+// ignore: unused_element
 class _NextTrainingsOverview extends StatelessWidget {
   const _NextTrainingsOverview({
     required this.events,
@@ -2160,6 +2290,8 @@ void _showAttendanceReasonDetails(
   );
 }
 
+// Retained as an isolated rollback component during the dashboard transition.
+// ignore: unused_element
 class _NextEventHero extends StatelessWidget {
   const _NextEventHero({
     required this.event,
@@ -2376,6 +2508,8 @@ class _CountdownChip extends StatelessWidget {
       );
 }
 
+// Retained as an isolated rollback component during the dashboard transition.
+// ignore: unused_element
 class _StatusGrid extends StatelessWidget {
   const _StatusGrid({
     required this.playersLoading,
@@ -2877,6 +3011,8 @@ class _DashboardSection extends StatelessWidget {
       );
 }
 
+// Retained as an isolated rollback component during the dashboard transition.
+// ignore: unused_element
 class _QuickActions extends StatelessWidget {
   const _QuickActions();
 
@@ -3194,6 +3330,13 @@ List<EventModel> nextTrainingsByTeamForDashboard(
 
 String _time(DateTime value) =>
     '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+
+String _dashboardTrainingLocation(String value) {
+  final trimmed = value.trim();
+  return trimmed.toLowerCase() == 'teugn sportplatz'
+      ? 'Sportplatz Teugn'
+      : trimmed;
+}
 
 String _shortDate(DateTime value) =>
     '${_weekdayShort(value.weekday)}, ${value.day}. ${_monthLong(value.month)}';

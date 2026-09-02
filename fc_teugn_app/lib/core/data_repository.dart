@@ -1186,6 +1186,14 @@ class DataRepository {
     return DashboardSummary.fromJson(response.data as Map<String, dynamic>);
   }
 
+  Future<MatchRouteEstimate?> matchRouteEstimate(String eventId) async {
+    final response =
+        await client.dio.get('/dashboard/events/$eventId/route-estimate');
+    return MatchRouteEstimate.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
   Future<List<ParentConsentAttention>> parentConsentAttention() async {
     final response =
         await client.dio.get('/dashboard/parent/consent-attention');

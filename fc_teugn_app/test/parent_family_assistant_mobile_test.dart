@@ -39,11 +39,36 @@ PersonalResponseModel _response() => PersonalResponseModel(
       isOverdue: false,
     );
 
+EventModel _matchEvent() => EventModel(
+      id: 'match-1',
+      teamId: 'team-e1',
+      type: EventType.match,
+      category: EventCategory.friendlyMatch,
+      status: EventStatus.scheduled,
+      visibility: EventVisibility.team,
+      title: 'SV Saal – FC Teugn E1',
+      startAt: DateTime.now().add(const Duration(days: 2)),
+      location: 'Sportplatz Saal',
+      homeAway: HomeAway.home,
+      opponent: 'SV Saal',
+      ownTeamName: 'FC Teugn E1',
+      attendanceFinalized: false,
+      targetTeams: const [],
+      attachments: const [],
+      attendance: const [],
+      attendanceSummary: const AttendanceSummary(),
+      missingAttendance: const [],
+      carpoolOffers: const [],
+      capabilities: const EventCapabilities(),
+      reminderMinutes: const [],
+    );
+
 Future<void> _pump(
   WidgetTester tester,
   double width, {
   bool pushReady = true,
   Brightness brightness = Brightness.light,
+  List<EventModel> events = const [],
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -55,7 +80,7 @@ Future<void> _pump(
         parentDashboardSummaryProvider.overrideWith(
           (ref) async => DashboardSummary(
             players: [_player()],
-            events: const [],
+            events: events,
             notifications: const [],
           ),
         ),
@@ -93,6 +118,16 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('next training and next match stay visible together',
+      (tester) async {
+    await _pump(tester, 320, events: [_matchEvent()]);
+
+    expect(find.text('Training'), findsWidgets);
+    expect(find.text('FC Teugn E1 – SV Saal'), findsOneWidget);
+    expect(find.text('Kein Spiel geplant'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('completed push setup uses the current device status',
       (tester) async {

@@ -228,7 +228,7 @@ final parentDashboardSummaryProvider =
     final summary = await ref.watch(repositoryProvider).dashboardSummary(
           trainer: false,
           from: dayStart,
-          to: dayStart.add(const Duration(days: 8)),
+          to: dayStart.add(const Duration(days: 42)),
         );
     _scheduleLiveRefresh(ref, const Duration(seconds: 60));
     return summary;
@@ -236,6 +236,14 @@ final parentDashboardSummaryProvider =
     _scheduleLiveRefresh(ref, const Duration(seconds: 90));
     rethrow;
   }
+});
+
+final matchRouteEstimateProvider = FutureProvider.autoDispose
+    .family<MatchRouteEstimate?, String>((ref, eventId) async {
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 30), link.close);
+  ref.onDispose(timer.cancel);
+  return ref.watch(repositoryProvider).matchRouteEstimate(eventId);
 });
 
 final trainerDashboardSummaryProvider =

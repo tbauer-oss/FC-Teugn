@@ -13,7 +13,9 @@ import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../shared/dashboard_event_navigation.dart';
 import '../shared/dashboard_notifications.dart';
+import '../shared/dashboard_route_chip.dart';
 import '../shared/family_responses.dart';
+import '../shared/modern_dashboard_widgets.dart';
 import '../shared/page_scaffold.dart';
 import 'family_assistant_model.dart';
 
@@ -51,7 +53,7 @@ class ParentDashboardPage extends ConsumerWidget {
       events: events,
       responses: responses,
       from: dayStart,
-      until: dayStart.add(const Duration(days: 8)),
+      until: dayStart.add(const Duration(days: 43)),
     );
     final openResponses = responses.where((item) => item.isOpen).toList()
       ..sort((a, b) {
@@ -73,6 +75,18 @@ class ParentDashboardPage extends ConsumerWidget {
           item.createdAt.isAfter(now.subtract(const Duration(days: 14)));
     }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final upcomingTimeline = timeline
+        .where(
+          (item) =>
+              item.startAt.isAfter(now) && item.event?.isCancelled != true,
+        )
+        .toList(growable: false);
+    final nextTraining =
+        upcomingTimeline.where((item) => item.isTraining).firstOrNull;
+    final nextMatch =
+        upcomingTimeline.where((item) => item.isMatch).firstOrNull;
+    final openTasks = openResponses.length +
+        consents.fold(0, (sum, item) => sum + item.openCount);
 
     return PageScaffold(
       title: 'Hallo ${_firstName(user?.name)}!',
@@ -92,16 +106,115 @@ class ParentDashboardPage extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
           ],
-          _FamilyCockpitBanner(
-            childCount: players.length,
-            weekCount: timeline.length,
-            openCount: openResponses.length,
-          ),
-          SizedBox(height: sectionGap),
+          if (openResponses.isNotEmpty) ...[
+            ModernDashboardPriorityStrip(
+              icon: Icons.notification_important_rounded,
+              title: openResponses.length == 1
+                  ? 'Eine Rückmeldung ist noch offen'
+                  : '${openResponses.length} Rückmeldungen sind noch offen',
+              count: openResponses.length,
+              onTap: () => context.go('/parent/family'),
+            ),
+            SizedBox(height: sectionGap),
+          ],
           for (final match in liveMatches) ...[
             _LiveTickerCard(match: match),
             SizedBox(height: sectionGap),
           ],
+          const ModernDashboardSectionLabel(title: 'Als Nächstes'),
+          if (nextTraining != null)
+            ModernDashboardEventCard(
+              date: nextTraining.startAt,
+              title: nextTraining.title,
+              subtitle: _familyEventSubtitle(nextTraining, players),
+              timeLabel: '${_clock(nextTraining.startAt)} Uhr',
+              location: nextTraining.location,
+              icon: Icons.sports_rounded,
+              accent: context.appSuccess,
+              metrics: [
+                _familyResponseMetric(context, nextTraining.response),
+              ],
+              onTap: () => _openTimelineItem(context, nextTraining),
+              actionLabel: 'Rückmeldung',
+              actionIcon: Icons.how_to_reg_rounded,
+              onAction: () => _openTimelineItem(context, nextTraining),
+            )
+          else
+            const _ParentDashboardEmptyEvent(
+              icon: Icons.sports_rounded,
+              title: 'Kein Training geplant',
+            ),
+          ModernDashboardTimelineConnector(
+            from: context.appSuccess,
+            to: const Color(0xFF1677B8),
+          ),
+          if (nextMatch != null)
+            ModernDashboardEventCard(
+              date: nextMatch.startAt,
+              title: nextMatch.event?.fixtureDisplayTitle ?? nextMatch.title,
+              subtitle: _familyEventSubtitle(nextMatch, players),
+              timeLabel: '${_clock(nextMatch.startAt)} Uhr',
+              location: nextMatch.location,
+              icon: Icons.sports_soccer_rounded,
+              accent: const Color(0xFF1677B8),
+              route: nextMatch.event == null
+                  ? null
+                  : DashboardRouteChip(event: nextMatch.event!),
+              metrics: [
+                _familyResponseMetric(context, nextMatch.response),
+              ],
+              onTap: () => _openFamilyMatch(context, nextMatch),
+              actionLabel: 'Spiel öffnen',
+              actionIcon: Icons.stadium_rounded,
+              onAction: () => _openFamilyMatch(context, nextMatch),
+            )
+          else
+            const _ParentDashboardEmptyEvent(
+              icon: Icons.sports_soccer_rounded,
+              title: 'Kein Spiel geplant',
+            ),
+          SizedBox(height: sectionGap),
+          const ModernDashboardSectionLabel(title: 'Schnellzugriff'),
+          ModernDashboardFunctionList(
+            items: [
+              ModernDashboardFunctionItem(
+                icon: Icons.calendar_month_rounded,
+                title: 'Kalender & Rückmeldungen',
+                trailing: '${timeline.length} Termine',
+                onTap: () => context.go('/parent/events'),
+                color: context.appWarning,
+              ),
+              ModernDashboardFunctionItem(
+                icon: Icons.forum_rounded,
+                title: 'Mitteilungen',
+                trailing: '${notifications.length} ungelesen',
+                onTap: () => context.go('/parent/messages'),
+                color: context.appSuccess,
+              ),
+              ModernDashboardFunctionItem(
+                icon: Icons.directions_car_filled_rounded,
+                title: 'Fahrgemeinschaften',
+                trailing: '${carpoolEvents.length} relevant',
+                onTap: () => context.go('/parent/events'),
+                color: const Color(0xFF1677B8),
+              ),
+              ModernDashboardFunctionItem(
+                icon: Icons.task_alt_rounded,
+                title: 'Offene Aufgaben',
+                trailing: '$openTasks offen',
+                onTap: () => context.go('/parent/operations'),
+                color: context.appDanger,
+              ),
+            ],
+          ),
+          SizedBox(height: sectionGap),
+          _ChildrenSection(
+            players: players,
+            responses: responses,
+            matches: matches,
+            consents: consents,
+          ),
+          SizedBox(height: sectionGap),
           _TodayImportantCard(
             openResponses: openResponses,
             scheduleChanges: changes,
@@ -119,16 +232,6 @@ class ParentDashboardPage extends ConsumerWidget {
             ),
             SizedBox(height: sectionGap),
           ],
-          _WeekTimelineCard(items: timeline),
-          SizedBox(height: sectionGap),
-          _ChildrenSection(
-            players: players,
-            responses: responses,
-            matches: matches,
-            consents: consents,
-          ),
-          SizedBox(height: sectionGap),
-          const _ParentQuickActions(),
         ],
       ),
     );
@@ -144,6 +247,38 @@ class ParentDashboardPage extends ConsumerWidget {
       : name.trim().split(RegExp(r'\s+')).first;
 }
 
+class _ParentDashboardEmptyEvent extends StatelessWidget {
+  const _ParentDashboardEmptyEvent({required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minHeight: 65),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+        decoration: BoxDecoration(
+          color: context.appColors.surfaceRaised,
+          border: Border.all(color: context.appColors.outline),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: context.appColors.textMuted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+// Retained as an isolated rollback component during the dashboard transition.
+// ignore: unused_element
 class _FamilyCockpitBanner extends StatelessWidget {
   const _FamilyCockpitBanner({
     required this.childCount,
@@ -722,6 +857,8 @@ class _SetupChip extends StatelessWidget {
       );
 }
 
+// Retained as an isolated rollback component during the dashboard transition.
+// ignore: unused_element
 class _WeekTimelineCard extends StatelessWidget {
   const _WeekTimelineCard({required this.items});
   final List<FamilyTimelineItem> items;
@@ -990,6 +1127,8 @@ class _ChildCard extends StatelessWidget {
   }
 }
 
+// Retained as an isolated rollback component during the dashboard transition.
+// ignore: unused_element
 class _ParentQuickActions extends StatelessWidget {
   const _ParentQuickActions();
 
@@ -1060,6 +1199,59 @@ void _openTimelineItem(BuildContext context, FamilyTimelineItem item) {
   } else {
     context.go('/parent/events');
   }
+}
+
+void _openFamilyMatch(BuildContext context, FamilyTimelineItem item) {
+  if (item.event != null) {
+    context.go(dashboardEventRoute(event: item.event!, isTrainer: false));
+  } else {
+    _openTimelineItem(context, item);
+  }
+}
+
+String _familyEventSubtitle(
+  FamilyTimelineItem item,
+  List<PlayerModel> players,
+) {
+  final response = item.response;
+  if (response != null) {
+    final team = response.teamName.trim();
+    return [response.playerName, if (team.isNotEmpty) team].join(' · ');
+  }
+  if (players.length == 1) {
+    return '${players.first.displayName} · ${players.first.teamCode}';
+  }
+  return item.isMatch ? 'Spieltag' : 'Training';
+}
+
+Widget _familyResponseMetric(
+  BuildContext context,
+  PersonalResponseModel? response,
+) {
+  if (response == null) {
+    return ModernDashboardMetric(
+      icon: Icons.info_outline_rounded,
+      label: 'Details öffnen',
+      color: context.appColors.textMuted,
+    );
+  }
+  return switch (response.responseStatus) {
+    AttendanceStatus.yes => ModernDashboardMetric(
+        icon: Icons.check_circle_rounded,
+        label: 'Zugesagt',
+        color: context.appSuccess,
+      ),
+    AttendanceStatus.no => ModernDashboardMetric(
+        icon: Icons.cancel_rounded,
+        label: 'Abgesagt',
+        color: context.appDanger,
+      ),
+    _ => ModernDashboardMetric(
+        icon: Icons.schedule_rounded,
+        label: 'Noch offen',
+        color: context.appWarning,
+      ),
+  };
 }
 
 void _openNotification(
