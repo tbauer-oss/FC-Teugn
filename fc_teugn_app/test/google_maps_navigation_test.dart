@@ -18,6 +18,25 @@ void main() {
     );
   });
 
+  test('postal away address always wins over an ambiguous venue name', () {
+    expect(
+      resolvedMatchNavigationAddress(
+        isAway: true,
+        address: 'Am Waldstadion 1, 84085 Langquaid',
+        location: 'Waldstadion',
+      ),
+      'Am Waldstadion 1, 84085 Langquaid',
+    );
+    expect(
+      resolvedMatchNavigationAddress(
+        isAway: false,
+        address: 'Am Waldstadion 1, 84085 Langquaid',
+        location: 'Waldstadion',
+      ),
+      isNull,
+    );
+  });
+
   testWidgets('map action remains readable on a narrow display',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 240));
@@ -43,7 +62,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Spielort & Route'), findsOneWidget);
+    expect(find.text('Route in Google Maps'), findsOneWidget);
     expect(find.byIcon(Icons.navigation_rounded), findsOneWidget);
     expect(find.byIcon(Icons.arrow_outward_rounded), findsOneWidget);
     expect(tester.takeException(), isNull);

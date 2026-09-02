@@ -120,7 +120,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final navigation = find.byKey(
-      const ValueKey('match-overview-Spielort & Route'),
+      const ValueKey('match-overview-Route zum Auswärtsspiel'),
     );
     expect(navigation, findsOneWidget);
     expect(find.text('Waldweg 7, 93080 Pentling'), findsOneWidget);

@@ -51,6 +51,7 @@ import {
   AWAY_MEETING_LOCATION,
   HOME_MATCH_VENUE,
   normalizedMatchVenue,
+  stableMatchAddress,
 } from '../services/match-venue.service';
 import {
   buildFamilyReleaseMessage,
@@ -516,6 +517,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   familyTeamViewer = false,
   canRatePlayers = false,
 ) {
+  const opponentRecord = match.matchDetails?.opponentRecord;
   const squad = match.squads[0] ?? null;
   const lineup = squad?.lineup;
   const declinedPlayerIds = new Set(
@@ -551,6 +553,11 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   const ownTeam = teamPlayingMatchIdentity(lineupTeam);
   return {
     ...match,
+    address: stableMatchAddress({
+      isHome: match.matchDetails?.isHome !== false,
+      storedAddress: match.address,
+      opponentAddress: opponentRecord?.address,
+    }),
     title: match.matchDetails
       ? matchTitleForPlayingIdentity({
           ownTeamName: ownTeam.name,
@@ -671,6 +678,11 @@ function serializeMatchSummary<
   const ownTeam = teamPlayingMatchIdentity(lineupTeam);
   return {
     ...match,
+    address: stableMatchAddress({
+      isHome: match.matchDetails?.isHome !== false,
+      storedAddress: match.address,
+      opponentAddress: opponentRecord?.address,
+    }),
     title: match.matchDetails
       ? matchTitleForPlayingIdentity({
           ownTeamName: ownTeam.name,

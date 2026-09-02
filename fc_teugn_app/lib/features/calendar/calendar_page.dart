@@ -718,6 +718,14 @@ class _CalendarToolbar extends StatelessWidget {
     return Card(
       key: const ValueKey('calendar-toolbar'),
       margin: EdgeInsets.zero,
+      color: Color.alphaBlend(
+        AppColors.yellow.withValues(alpha: .035),
+        context.appColors.surfaceRaised,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: context.appColors.outline),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: LayoutBuilder(
@@ -1446,6 +1454,14 @@ class _MobileMonthView extends StatelessWidget {
           Card(
             key: const ValueKey('calendar-mobile-month-grid'),
             margin: EdgeInsets.zero,
+            color: Color.alphaBlend(
+              context.appInfo.withValues(alpha: .025),
+              colors.surfaceRaised,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: colors.outline),
+            ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 9, 8, 8),
               child: Column(
@@ -1519,7 +1535,7 @@ class _MobileMonthView extends StatelessWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Container(
-                                  width: 28,
+                                  width: 30,
                                   height: 23,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
@@ -1631,16 +1647,70 @@ class _MobileMonthView extends StatelessWidget {
           maxHeight: MediaQuery.sizeOf(sheetContext).height * .82,
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '${date.day}.${date.month}.${date.year}',
-                style: Theme.of(sheetContext).textTheme.headlineSmall,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                decoration: BoxDecoration(
+                  color: Color.alphaBlend(
+                    AppColors.yellow.withValues(alpha: .10),
+                    sheetContext.appColors.surfaceRaised,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: sheetContext.appColors.outline),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.yellow,
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: const Icon(
+                        Icons.calendar_today_rounded,
+                        color: AppColors.black,
+                        size: 19,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${date.day}.${date.month}.${date.year}',
+                            style: Theme.of(sheetContext)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          Text(
+                            dayEvents.isEmpty
+                                ? 'Keine Termine'
+                                : '${dayEvents.length} ${dayEvents.length == 1 ? 'Termin' : 'Termine'}',
+                            style: TextStyle(
+                              color: sheetContext.appColors.textMuted,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Schließen',
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               if (dayEvents.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
@@ -1655,31 +1725,15 @@ class _MobileMonthView extends StatelessWidget {
                   itemCount: dayEvents.length,
                   itemBuilder: (context, index) {
                     final event = dayEvents[index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: _EventEmojiBadge(event: event),
-                      title: Text(event.fixtureDisplayTitle),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            [
-                              if (event.matchVenueType != null)
-                                event.matchVenueType!.label,
-                              '${_time(event.startAt)} Uhr',
-                              event.location,
-                            ].join(' · '),
-                          ),
-                          if (_visibleAttendance(event).isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            _CalendarAttendanceBadge(event: event),
-                          ],
-                        ],
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: _CompactCalendarEventRow(
+                        event: event,
+                        onOpen: () {
+                          Navigator.pop(sheetContext);
+                          onOpen(event);
+                        },
                       ),
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        onOpen(event);
-                      },
                     );
                   },
                 ),
@@ -1724,7 +1778,10 @@ class _CompactCalendarEventRow extends StatelessWidget {
     final date = event.startAt.toLocal();
     return Material(
       key: ValueKey('calendar-compact-event-${event.id}'),
-      color: colors.surfaceRaised,
+      color: Color.alphaBlend(
+        color.withValues(alpha: event.category.isMatch ? .075 : .045),
+        colors.surfaceRaised,
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(13),
         side: BorderSide(color: colors.outline),
@@ -1736,7 +1793,7 @@ class _CompactCalendarEventRow extends StatelessWidget {
           height: 64,
           child: Row(
             children: [
-              Container(width: 3, height: 64, color: color),
+              Container(width: 4, height: 64, color: color),
               SizedBox(
                 width: showDate ? 54 : 62,
                 child: Padding(
@@ -1780,6 +1837,20 @@ class _CompactCalendarEventRow extends StatelessWidget {
                     children: [
                       Row(
                         children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            margin: const EdgeInsets.only(right: 6),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: .12),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            child: Icon(
+                              _categoryIcon(event.category),
+                              color: color,
+                              size: 14,
+                            ),
+                          ),
                           Expanded(
                             child: Text(
                               event.fixtureDisplayTitle,
@@ -3979,10 +4050,11 @@ class _InfoRow extends StatelessWidget {
 }
 
 String? _awayNavigationAddress(EventModel event) {
-  final address = event.address?.trim() ?? '';
-  if (address.isNotEmpty) return address;
-  final location = event.location.trim();
-  return location.isEmpty ? null : location;
+  return resolvedMatchNavigationAddress(
+    isAway: event.fixtureIsHome == false,
+    address: event.address,
+    location: event.location,
+  );
 }
 
 class _AttendanceSection extends ConsumerWidget {

@@ -1310,7 +1310,7 @@ class MatchHistory extends StatelessWidget {
                 match: match,
                 onOpenMatch: onOpenMatch,
               ),
-              const SizedBox(height: 9),
+              const SizedBox(height: 6),
             ],
         ],
       );
@@ -1351,46 +1351,67 @@ class _PastMatchCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       margin: EdgeInsets.zero,
       child: ExpansionTile(
-        tilePadding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
-        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        tilePadding: const EdgeInsets.fromLTRB(10, 4, 8, 4),
+        childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
         shape: const Border(),
         collapsedShape: const Border(),
         leading: _MatchResultBadge(result: match.result),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        title: Row(
           children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    homeName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  Text(
+                    awayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
             Text(
-              [dateLabel, match.competition ?? 'Spiel'].join(' · '),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: context.appColors.textMuted,
-                    fontWeight: FontWeight.w700,
+              '$homeGoals : $awayGoals',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
                   ),
             ),
-            const SizedBox(height: 5),
-            _ScoreTeamRow(name: homeName, goals: homeGoals),
-            const SizedBox(height: 2),
-            _ScoreTeamRow(name: awayName, goals: awayGoals),
           ],
         ),
         subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.only(top: 3),
           child: Wrap(
-            spacing: 6,
-            runSpacing: 5,
+            spacing: 7,
+            runSpacing: 1,
             children: [
-              _MatchSummaryPill(
-                icon: Icons.sports_soccer_rounded,
-                label: _countLabel(ownGoals.length, 'Tor', 'Tore'),
+              Text(
+                [dateLabel, match.competition ?? 'Spiel'].join(' · '),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: context.appColors.textMuted,
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
-              _MatchSummaryPill(
-                icon: Icons.assistant_direction_rounded,
-                label: _countLabel(assists, 'Vorlage', 'Vorlagen'),
+              Text(
+                _countLabel(ownGoals.length, 'Tor', 'Tore'),
+                style: const TextStyle(fontSize: 11),
               ),
-              _MatchSummaryPill(
-                icon: Icons.bolt_rounded,
-                label: _countLabel(otherEvents, 'weiteres', 'weitere'),
+              Text(
+                _countLabel(assists, 'Vorlage', 'Vorlagen'),
+                style: const TextStyle(fontSize: 11),
+              ),
+              Text(
+                _countLabel(otherEvents, 'weiteres', 'weitere'),
+                style: const TextStyle(fontSize: 11),
               ),
             ],
           ),
@@ -1450,63 +1471,8 @@ class _MatchResultBadge extends StatelessWidget {
   }
 }
 
-class _ScoreTeamRow extends StatelessWidget {
-  const _ScoreTeamRow({required this.name, required this.goals});
-
-  final String name;
-  final int goals;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Expanded(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$goals',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-          ),
-        ],
-      );
-}
-
-class _MatchSummaryPill extends StatelessWidget {
-  const _MatchSummaryPill({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-        decoration: BoxDecoration(
-          color: context.appColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: context.appColors.outline),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: context.appColors.textMuted),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          ],
-        ),
-      );
-}
+String _countLabel(int count, String singular, String plural) =>
+    '$count ${count == 1 ? singular : plural}';
 
 class _MatchEventDetails extends StatelessWidget {
   const _MatchEventDetails({required this.match});
@@ -1764,9 +1730,6 @@ String _participantSummary(
           entry.value > 1 ? '${entry.key} ×${entry.value}' : entry.key)
       .join(', ');
 }
-
-String _countLabel(int count, String singular, String plural) =>
-    '$count ${count == 1 ? singular : plural}';
 
 class _PlayerStatistics extends StatelessWidget {
   const _PlayerStatistics({

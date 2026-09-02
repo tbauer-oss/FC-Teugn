@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_theme.dart';
 import '../../core/data_repository.dart';
 import '../../core/football_options.dart';
+import '../../core/google_maps_navigation.dart';
 import '../../core/match_view_preferences.dart';
 import '../../core/match_overview_sort.dart';
 import '../../core/models/event.dart';
@@ -139,7 +140,8 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
               .where(
                 (event) =>
                     event.type == EventType.match &&
-                    event.parentTournamentId == null,
+                    event.parentTournamentId == null &&
+                    matchOverviewPhase(event, now) != MatchOverviewPhase.past,
               )
               .toList()
             ..sort((a, b) {
@@ -2717,6 +2719,11 @@ class _MatchCard extends StatelessWidget {
                   tournamentName: event.title,
                 );
     final displayScore = event.fixtureDisplayScore;
+    final awayAddress = resolvedMatchNavigationAddress(
+      isAway: event.fixtureIsHome == false,
+      address: event.address,
+      location: event.location,
+    );
     final hasResult = displayScore != null;
     final isFriendly = event.category == EventCategory.friendlyMatch ||
         (details?.competition ?? '').toLowerCase().contains('freundschaft');
@@ -2771,6 +2778,15 @@ class _MatchCard extends StatelessWidget {
                         )
                     : null,
               ),
+              if (awayAddress != null) ...[
+                SizedBox(height: compact ? 5 : 8),
+                GoogleMapsAddressAction(
+                  key: ValueKey('trainer-away-map-${event.id}'),
+                  address: awayAddress,
+                  title: 'Route zum Auswärtsspiel',
+                  compact: true,
+                ),
+              ],
               if (details?.competition?.isNotEmpty == true)
                 Padding(
                   padding: EdgeInsets.only(top: compact ? 3 : 5),
@@ -3028,6 +3044,15 @@ class _MatchCard extends StatelessWidget {
                             ),
                         ],
                       ),
+                      if (awayAddress != null) ...[
+                        const SizedBox(height: 5),
+                        GoogleMapsAddressAction(
+                          key: ValueKey('trainer-away-map-${event.id}'),
+                          address: awayAddress,
+                          title: 'Route zum Auswärtsspiel',
+                          compact: true,
+                        ),
+                      ],
                       const SizedBox(height: 4),
                       _CompactMatchActions(
                         isTournament: isTournament,

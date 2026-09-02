@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:fc_teugn_app/core/models/matchday.dart';
+import 'package:fc_teugn_app/features/matches/matchday_page.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -36,6 +38,50 @@ void main() {
     expect(focusView, contains('canRecordGoal ? onTheirGoal : null'));
     expect(focusView, contains('FontFeature.tabularFigures()'));
     expect(focusView, contains('RepaintBoundary'));
+  });
+
+  test('section workflow always exposes exactly the next meaningful action',
+      () {
+    expect(
+      tickerWorkflowStep(
+        status: TickerStatus.notStarted,
+        currentPeriod: 1,
+        periodCount: 4,
+      )?.label,
+      '1. Viertel starten',
+    );
+    expect(
+      tickerWorkflowStep(
+        status: TickerStatus.live,
+        currentPeriod: 1,
+        periodCount: 4,
+      )?.label,
+      '1. Viertel beenden',
+    );
+    expect(
+      tickerWorkflowStep(
+        status: TickerStatus.halfTime,
+        currentPeriod: 1,
+        periodCount: 4,
+      )?.label,
+      '2. Viertel starten',
+    );
+    expect(
+      tickerWorkflowStep(
+        status: TickerStatus.halfTime,
+        currentPeriod: 4,
+        periodCount: 4,
+      )?.label,
+      'Spiel jetzt abschließen',
+    );
+    expect(
+      tickerWorkflowStep(
+        status: TickerStatus.finished,
+        currentPeriod: 4,
+        periodCount: 4,
+      ),
+      isNull,
+    );
   });
 
   test('ticker refreshes incrementally and keeps writes off the full reload',

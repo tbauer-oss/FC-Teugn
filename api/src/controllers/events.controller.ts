@@ -63,6 +63,7 @@ import {
   AWAY_MEETING_LOCATION,
   HOME_MATCH_VENUE,
   isFcTeugnHomeVenue,
+  stableMatchAddress,
 } from '../services/match-venue.service';
 import {
   matchTitleForPlayingIdentity,
@@ -522,6 +523,11 @@ async function serializeEvent(
 
   return {
     ...event,
+    address: stableMatchAddress({
+      isHome: event.matchDetails?.isHome !== false,
+      storedAddress: event.address,
+      opponentAddress: event.matchDetails?.opponentRecord?.address,
+    }),
     title: displayTitle,
     ownTeam,
     tournamentFixtures: event.tournamentFixtures

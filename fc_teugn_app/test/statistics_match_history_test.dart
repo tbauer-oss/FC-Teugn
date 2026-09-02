@@ -165,7 +165,7 @@ void main() {
 
       expect(find.text('Vergangene Spiele'), findsOneWidget);
       expect(
-        find.text('Ergebnisse, Torschützen, Vorlagen & Ereignisse'),
+        find.text('Ergebnisse, Tore, Vorlagen und Verlauf'),
         findsOneWidget,
       );
       await tester.tap(find.byKey(const ValueKey('past-matches-entry')));

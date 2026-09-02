@@ -7,8 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('next active match is first and completed matches follow newest first',
-      () {
+  test('overview contains only operational and future matches', () {
     final now = DateTime(2026, 8, 24, 12);
     final sorted = sortParentMatchesForOverview(
       [
@@ -31,8 +30,6 @@ void main() {
         'currently-playing',
         'future-next',
         'future-later',
-        'past-new',
-        'past-old',
       ],
     );
   });
@@ -51,7 +48,7 @@ void main() {
         status: EventStatus.scheduled,
         visibility: EventVisibility.team,
         title: 'Freundschaftsspiel mit einem besonders langen Titel',
-        startAt: DateTime(2026, 8, 15, 10, 30),
+        startAt: DateTime.now().add(const Duration(days: 10)),
         location: 'Sportanlage mit einem besonders langen Ortsnamen',
         attendanceFinalized: false,
         targetTeams: const [],
@@ -159,7 +156,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Sportplatzweg 3, 93309 Thaldorf'), findsOneWidget);
-    expect(find.text('Spielort & Route'), findsOneWidget);
+    expect(find.text('Route zum Auswärtsspiel'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/google_maps_navigation.dart';
+import '../../core/match_overview_sort.dart';
 import '../../core/models/event.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/match_venue_badge.dart';
@@ -84,26 +85,25 @@ class ParentMatchesPage extends ConsumerWidget {
   }
 }
 
-/// Zeigt zuerst das zeitlich nächste anstehende Spiel. Bereits vergangene
-/// Spiele folgen anschließend, jeweils mit dem jüngsten Ergebnis zuerst.
+/// Zeigt ausschließlich laufende und anstehende Spiele. Abgeschlossene
+/// Spieltage bleiben über den separaten Bereich „Vergangene Spiele“ erreichbar.
 List<EventModel> sortParentMatchesForOverview(
   Iterable<EventModel> values, {
   DateTime? now,
 }) {
   final reference = now ?? DateTime.now();
-  final upcoming = values
+  return values
       .where(
-        (event) => !(event.endAt ?? event.startAt).isBefore(reference),
+        (event) =>
+            matchOverviewPhase(event, reference) != MatchOverviewPhase.past,
       )
       .toList()
-    ..sort((a, b) => a.startAt.compareTo(b.startAt));
-  final past = values
-      .where(
-        (event) => (event.endAt ?? event.startAt).isBefore(reference),
-      )
-      .toList()
-    ..sort((a, b) => b.startAt.compareTo(a.startAt));
-  return [...upcoming, ...past];
+    ..sort((a, b) {
+      final firstPhase = matchOverviewPhase(a, reference);
+      final secondPhase = matchOverviewPhase(b, reference);
+      final phase = firstPhase.index.compareTo(secondPhase.index);
+      return phase != 0 ? phase : a.startAt.compareTo(b.startAt);
+    });
 }
 
 class _PublicTournamentCard extends StatelessWidget {
@@ -300,9 +300,11 @@ class _PublicMatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final details = event.matchDetails;
     final date = event.startAt.toLocal();
-    final awayAddress = event.fixtureIsHome == false
-        ? _firstNonEmpty(event.address, event.location)
-        : null;
+    final awayAddress = resolvedMatchNavigationAddress(
+      isAway: event.fixtureIsHome == false,
+      address: event.address,
+      location: event.location,
+    );
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -371,6 +373,7 @@ class _PublicMatchCard extends StatelessWidget {
                     GoogleMapsAddressAction(
                       key: ValueKey('parent-away-map-${event.id}'),
                       address: awayAddress,
+                      title: 'Route zum Auswärtsspiel',
                       compact: compact,
                     ),
                   ],
@@ -406,11 +409,4 @@ class _PublicMatchCard extends StatelessWidget {
       ),
     );
   }
-}
-
-String? _firstNonEmpty(String? preferred, String fallback) {
-  final preferredValue = preferred?.trim() ?? '';
-  if (preferredValue.isNotEmpty) return preferredValue;
-  final fallbackValue = fallback.trim();
-  return fallbackValue.isEmpty ? null : fallbackValue;
 }

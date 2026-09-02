@@ -1836,7 +1836,7 @@ class MatchCommunicationActions extends StatelessWidget {
               onPressed: onPublishInternal,
               icon: const Icon(Icons.admin_panel_settings_outlined, size: 17),
               label: const Text(
-                'Intern teilen',
+                'Spieltag intern',
                 maxLines: 1,
                 semanticsLabel: 'Spieltag intern mit dem Trainerteam teilen',
               ),
@@ -2280,9 +2280,11 @@ class MatchOverview extends StatelessWidget {
     final matchDay = _valueOrFallback(details?.matchDay);
     final pitch = _valueOrFallback(details?.pitch);
     final referee = _valueOrFallback(details?.referee);
-    final awayAddress = details?.isHome == false
-        ? _firstNonEmptyValue(match.address, match.location)
-        : null;
+    final awayAddress = resolvedMatchNavigationAddress(
+      isAway: details?.isHome == false,
+      address: match.address,
+      location: match.location,
+    );
     final essentials = <_OverviewEntry>[
       _OverviewEntry(
         Icons.schedule_rounded,
@@ -2340,7 +2342,7 @@ class MatchOverview extends StatelessWidget {
       if (awayAddress != null)
         _OverviewEntry(
           Icons.navigation_rounded,
-          'Spielort & Route',
+          'Route zum Auswärtsspiel',
           awayAddress,
           'Mit Google Maps navigieren',
           onTap: () => openAddressInGoogleMaps(context, awayAddress),
@@ -2825,13 +2827,6 @@ bool _isMissing(String? value) => value == null || value.trim().isEmpty;
 
 String _valueOrFallback(String? value) =>
     _isMissing(value) ? 'Noch nicht festgelegt' : value!.trim();
-
-String? _firstNonEmptyValue(String? preferred, String fallback) {
-  final preferredValue = preferred?.trim() ?? '';
-  if (preferredValue.isNotEmpty) return preferredValue;
-  final fallbackValue = fallback.trim();
-  return fallbackValue.isEmpty ? null : fallbackValue;
-}
 
 class MatchSquadTab extends ConsumerStatefulWidget {
   const MatchSquadTab({
@@ -4206,7 +4201,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                               size: compact ? 16 : 18,
                             ),
                             label: const Text(
-                              'Intern teilen',
+                              'Aufstellung intern',
                               semanticsLabel: 'Aufstellung intern teilen',
                             ),
                             style: compact
@@ -5289,6 +5284,75 @@ class _PlayerMarker extends StatelessWidget {
       );
 }
 
+enum TickerWorkflowAction {
+  startMatch,
+  endPeriod,
+  resumeClock,
+  startNextPeriod,
+  finishMatch,
+}
+
+class TickerWorkflowStep {
+  const TickerWorkflowStep({
+    required this.action,
+    required this.label,
+    required this.hint,
+    required this.icon,
+  });
+
+  final TickerWorkflowAction action;
+  final String label;
+  final String hint;
+  final IconData icon;
+}
+
+@visibleForTesting
+TickerWorkflowStep? tickerWorkflowStep({
+  required TickerStatus status,
+  required int currentPeriod,
+  required int periodCount,
+}) {
+  final currentLabel = matchPeriodLabel(currentPeriod, periodCount);
+  final nextPeriod = min(currentPeriod + 1, periodCount);
+  final nextLabel = matchPeriodLabel(nextPeriod, periodCount);
+  return switch (status) {
+    TickerStatus.notStarted => TickerWorkflowStep(
+        action: TickerWorkflowAction.startMatch,
+        label: '$currentLabel starten',
+        hint: 'Startet Spielzeit und Liveticker.',
+        icon: Icons.play_arrow_rounded,
+      ),
+    TickerStatus.live => TickerWorkflowStep(
+        action: TickerWorkflowAction.endPeriod,
+        label: '$currentLabel beenden',
+        hint: currentPeriod < periodCount
+            ? 'Danach kann $nextLabel gestartet werden.'
+            : 'Danach kann das Spiel abgeschlossen werden.',
+        icon: Icons.flag_rounded,
+      ),
+    TickerStatus.paused || TickerStatus.interrupted => const TickerWorkflowStep(
+        action: TickerWorkflowAction.resumeClock,
+        label: 'Spielzeit fortsetzen',
+        hint: 'Die Uhr läuft an derselben Stelle weiter.',
+        icon: Icons.play_arrow_rounded,
+      ),
+    TickerStatus.halfTime when currentPeriod < periodCount =>
+      TickerWorkflowStep(
+        action: TickerWorkflowAction.startNextPeriod,
+        label: '$nextLabel starten',
+        hint: 'Der nächste Abschnitt beginnt mit laufender Uhr.',
+        icon: Icons.skip_next_rounded,
+      ),
+    TickerStatus.halfTime => const TickerWorkflowStep(
+        action: TickerWorkflowAction.finishMatch,
+        label: 'Spiel jetzt abschließen',
+        hint: 'Endstand bestätigen und Liveticker beenden.',
+        icon: Icons.sports_score_rounded,
+      ),
+    TickerStatus.finished => null,
+  };
+}
+
 class _TickerTab extends ConsumerStatefulWidget {
   const _TickerTab({
     required this.match,
@@ -5583,12 +5647,8 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     final scores = _displayedScores(ticker);
     final connected = widget.online && !_queueOffline;
     final periodCount = widget.match.details?.periodCount ?? 2;
-    final nextPeriod = ticker.currentPeriod < periodCount
-        ? ticker.currentPeriod + 1
-        : periodCount;
-    final canStartNextPeriod = ticker.status == TickerStatus.notStarted ||
-        (ticker.status == TickerStatus.halfTime &&
-            ticker.currentPeriod < periodCount);
+    final canRecordGoal = ticker.status != TickerStatus.notStarted &&
+        ticker.status != TickerStatus.finished;
     final mobile = MediaQuery.sizeOf(context).width < 700;
     if (mobile) {
       return ListView(
@@ -5612,34 +5672,39 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
           const SizedBox(height: 8),
           _liveCountdownCard(),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            alignment: WrapAlignment.center,
+          Row(
             children: [
-              _TickerMetric(
-                label: 'SPIELSTAND',
-                value: '${scores.ours}:${scores.theirs}',
+              Expanded(
+                child: _TickerMetric(
+                  label: 'SPIELSTAND',
+                  value: '${scores.ours}:${scores.theirs}',
+                ),
               ),
-              _liveElapsedMetric(),
-              _TickerMetric(
-                label: 'ABSCHNITT',
-                value: '${ticker.currentPeriod}/$periodCount',
+              const SizedBox(width: 5),
+              Expanded(child: _liveElapsedMetric()),
+              const SizedBox(width: 5),
+              Expanded(
+                child: _TickerMetric(
+                  label: 'ABSCHNITT',
+                  value: '${ticker.currentPeriod}/$periodCount',
+                ),
               ),
-              _TickerMetric(
-                label: 'STATUS',
-                value: _tickerStatus(ticker.status),
+              const SizedBox(width: 5),
+              Expanded(
+                child: _TickerMetric(
+                  label: 'STATUS',
+                  value: _tickerStatus(ticker.status),
+                ),
               ),
             ],
           ),
           if (widget.editable) ...[
             const SizedBox(height: 12),
-            _mobileGoalButtons(),
+            _mobileGoalButtons(canRecordGoal: canRecordGoal),
             const SizedBox(height: 8),
-            _mobileTickerControls(
+            _smartTickerControls(
               ticker: ticker,
-              canStartNextPeriod: canStartNextPeriod,
-              nextPeriod: nextPeriod,
+              periodCount: periodCount,
             ),
           ],
           if (_pending.isNotEmpty) ...[
@@ -5693,99 +5758,48 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         const SizedBox(height: 10),
         _liveCountdownCard(),
         const SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.center,
+        Row(
           children: [
-            _TickerMetric(
-              label: 'SPIELSTAND',
-              value: '${scores.ours}:${scores.theirs}',
+            Expanded(
+              child: _TickerMetric(
+                label: 'SPIELSTAND',
+                value: '${scores.ours}:${scores.theirs}',
+              ),
             ),
-            _liveElapsedMetric(),
-            _TickerMetric(
-              label: 'ABSCHNITT',
-              value: '${ticker.currentPeriod}/$periodCount',
+            const SizedBox(width: 8),
+            Expanded(child: _liveElapsedMetric()),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _TickerMetric(
+                label: 'ABSCHNITT',
+                value: '${ticker.currentPeriod}/$periodCount',
+              ),
             ),
-            _TickerMetric(
-              label: 'STATUS',
-              value: _tickerStatus(ticker.status),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _TickerMetric(
+                label: 'STATUS',
+                value: _tickerStatus(ticker.status),
+              ),
             ),
           ],
         ),
         if (widget.editable) ...[
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: [
-              FilledButton.icon(
-                onPressed: _busy ? null : () => _goal(true),
-                icon: const Icon(Icons.sports_soccer_rounded),
-                label: Text('Tor ${widget.match.ownTeamShortName}'),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Column(
+                children: [
+                  _mobileGoalButtons(canRecordGoal: canRecordGoal),
+                  const SizedBox(height: 10),
+                  _smartTickerControls(
+                    ticker: ticker,
+                    periodCount: periodCount,
+                  ),
+                ],
               ),
-              FilledButton.tonalIcon(
-                onPressed: _busy ? null : () => _goal(false),
-                icon: const Icon(Icons.sports_soccer_rounded),
-                label: const Text('Tor Gegner'),
-              ),
-              OutlinedButton.icon(
-                onPressed: _busy || !canStartNextPeriod
-                    ? null
-                    : () => _startPeriod(ticker, nextPeriod),
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: Text(
-                  ticker.status == TickerStatus.notStarted
-                      ? 'Spiel starten'
-                      : 'Abschnitt $nextPeriod starten',
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: _busy || ticker.status != TickerStatus.live
-                    ? null
-                    : () => _send(
-                          TickerEventType.periodEnd,
-                          period: ticker.currentPeriod,
-                        ),
-                icon: const Icon(Icons.pause_rounded),
-                label: Text('Abschnitt ${ticker.currentPeriod} beenden'),
-              ),
-              if (ticker.status == TickerStatus.live)
-                OutlinedButton.icon(
-                  onPressed:
-                      _busy ? null : () => _send(TickerEventType.interruption),
-                  icon: const Icon(Icons.timer_off_outlined),
-                  label: const Text('Uhr pausieren'),
-                ),
-              if (ticker.status == TickerStatus.paused ||
-                  ticker.status == TickerStatus.interrupted)
-                OutlinedButton.icon(
-                  onPressed: _busy ? null : _resumeClock,
-                  icon: const Icon(Icons.timer_outlined),
-                  label: const Text('Uhr fortsetzen'),
-                ),
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _undo,
-                icon: const Icon(Icons.undo_rounded),
-                label: const Text('Letzte Aktion zurück'),
-              ),
-              if (widget.match.canDelegateTicker)
-                OutlinedButton.icon(
-                  onPressed: _busy ||
-                          (ticker.status == TickerStatus.notStarted &&
-                              ticker.events.isEmpty)
-                      ? null
-                      : _confirmReset,
-                  icon: const Icon(Icons.restart_alt_rounded),
-                  label: const Text('Spiel zurücksetzen'),
-                ),
-              FilledButton.tonalIcon(
-                onPressed: _busy ? null : () => _confirmEnd(context),
-                icon: const Icon(Icons.stop_circle_outlined),
-                label: const Text('Spiel beenden'),
-              ),
-            ],
+            ),
           ),
         ],
         if (_pending.isNotEmpty) ...[
@@ -5847,7 +5861,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     );
   }
 
-  Widget _mobileGoalButtons() => Row(
+  Widget _mobileGoalButtons({required bool canRecordGoal}) => Row(
         children: [
           Expanded(
             child: FilledButton.icon(
@@ -5856,7 +5870,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                 visualDensity: VisualDensity.compact,
               ),
-              onPressed: _busy ? null : () => _goal(true),
+              onPressed: _busy || !canRecordGoal ? null : () => _goal(true),
               icon: const Icon(Icons.sports_soccer_rounded, size: 18),
               label: AdaptiveButtonLabel(
                 'Tor ${widget.match.ownTeamShortName}',
@@ -5871,7 +5885,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                 visualDensity: VisualDensity.compact,
               ),
-              onPressed: _busy ? null : () => _goal(false),
+              onPressed: _busy || !canRecordGoal ? null : () => _goal(false),
               icon: const Icon(Icons.sports_soccer_rounded, size: 18),
               label: const AdaptiveButtonLabel('Tor Gegner'),
             ),
@@ -5879,82 +5893,128 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         ],
       );
 
-  Widget _mobileTickerControls({
+  Widget _smartTickerControls({
     required LiveTickerModel ticker,
-    required bool canStartNextPeriod,
-    required int nextPeriod,
+    required int periodCount,
   }) {
-    final controls = <Widget>[
-      OutlinedButton.icon(
-        onPressed: _busy || !canStartNextPeriod
-            ? null
-            : () => _startPeriod(ticker, nextPeriod),
-        icon: const Icon(Icons.play_arrow_rounded),
-        label: Text(
-          ticker.status == TickerStatus.notStarted
-              ? 'Spiel starten'
-              : 'Abschnitt $nextPeriod starten',
+    final workflow = tickerWorkflowStep(
+      status: ticker.status,
+      currentPeriod: ticker.currentPeriod,
+      periodCount: periodCount,
+    );
+    return Container(
+      key: const ValueKey('ticker-smart-controls'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+          AppColors.yellow.withValues(alpha: .06),
+          context.appColors.surfaceRaised,
         ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.appColors.outline),
       ),
-      OutlinedButton.icon(
-        onPressed: _busy || ticker.status != TickerStatus.live
-            ? null
-            : () => _send(
-                  TickerEventType.periodEnd,
-                  period: ticker.currentPeriod,
-                ),
-        icon: const Icon(Icons.pause_rounded),
-        label: Text('Abschnitt ${ticker.currentPeriod} beenden'),
-      ),
-      if (ticker.status == TickerStatus.live)
-        OutlinedButton.icon(
-          onPressed: _busy ? null : () => _send(TickerEventType.interruption),
-          icon: const Icon(Icons.timer_off_outlined),
-          label: const Text('Uhr pausieren'),
-        ),
-      if (ticker.status == TickerStatus.paused ||
-          ticker.status == TickerStatus.interrupted)
-        OutlinedButton.icon(
-          onPressed: _busy ? null : _resumeClock,
-          icon: const Icon(Icons.timer_outlined),
-          label: const Text('Uhr fortsetzen'),
-        ),
-      OutlinedButton.icon(
-        onPressed: _busy ? null : _undo,
-        icon: const Icon(Icons.undo_rounded),
-        label: const Text('Letzte Aktion zurück'),
-      ),
-      if (widget.match.canDelegateTicker)
-        OutlinedButton.icon(
-          onPressed: _busy ||
-                  (ticker.status == TickerStatus.notStarted &&
-                      ticker.events.isEmpty)
-              ? null
-              : _confirmReset,
-          icon: const Icon(Icons.restart_alt_rounded),
-          label: const Text('Spiel zurücksetzen'),
-        ),
-      FilledButton.tonalIcon(
-        onPressed: _busy ? null : () => _confirmEnd(context),
-        icon: const Icon(Icons.stop_circle_outlined),
-        label: const Text('Spiel beenden'),
-      ),
-    ];
-    return LayoutBuilder(
-      builder: (context, constraints) => Wrap(
-        spacing: 8,
-        runSpacing: 8,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final control in controls)
-            SizedBox(
-              width: constraints.maxWidth > 460
-                  ? (constraints.maxWidth - 8) / 2
-                  : constraints.maxWidth,
-              child: control,
+          if (workflow != null) ...[
+            FilledButton.icon(
+              key: const ValueKey('ticker-primary-workflow-action'),
+              onPressed:
+                  _busy ? null : () => _runWorkflowAction(workflow, ticker),
+              icon: Icon(workflow.icon),
+              label: Text(workflow.label),
             ),
+            const SizedBox(height: 4),
+            Text(
+              workflow.hint,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.appColors.textMuted,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 8),
+          ] else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                'Spiel beendet · Der Endstand ist gespeichert.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: context.appSuccess,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            alignment: WrapAlignment.center,
+            children: [
+              if (ticker.status == TickerStatus.live)
+                OutlinedButton.icon(
+                  onPressed:
+                      _busy ? null : () => _send(TickerEventType.interruption),
+                  icon: const Icon(Icons.pause_rounded, size: 18),
+                  label: const Text('Uhr pausieren'),
+                ),
+              OutlinedButton.icon(
+                onPressed: _busy || ticker.events.isEmpty ? null : _undo,
+                icon: const Icon(Icons.undo_rounded, size: 18),
+                label: const Text('Rückgängig'),
+              ),
+              if (workflow?.action != TickerWorkflowAction.finishMatch &&
+                  ticker.status != TickerStatus.finished)
+                TextButton.icon(
+                  onPressed: _busy ? null : () => _confirmEnd(context),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                  label: const Text('Spiel vorzeitig beenden'),
+                ),
+              if (widget.match.canDelegateTicker)
+                IconButton(
+                  onPressed: _busy ||
+                          (ticker.status == TickerStatus.notStarted &&
+                              ticker.events.isEmpty)
+                      ? null
+                      : _confirmReset,
+                  tooltip: 'Spiel zurücksetzen',
+                  icon: const Icon(Icons.restart_alt_rounded),
+                ),
+            ],
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _runWorkflowAction(
+    TickerWorkflowStep workflow,
+    LiveTickerModel ticker, {
+    BuildContext? confirmationContext,
+  }) async {
+    switch (workflow.action) {
+      case TickerWorkflowAction.startMatch:
+        await _startPeriod(ticker, 1);
+        return;
+      case TickerWorkflowAction.endPeriod:
+        await _send(
+          TickerEventType.periodEnd,
+          period: ticker.currentPeriod,
+        );
+        return;
+      case TickerWorkflowAction.resumeClock:
+        await _resumeClock();
+        return;
+      case TickerWorkflowAction.startNextPeriod:
+        await _startPeriod(ticker, ticker.currentPeriod + 1);
+        return;
+      case TickerWorkflowAction.finishMatch:
+        await _confirmEnd(confirmationContext ?? context);
+        return;
+    }
   }
 
   Widget _pendingActionsPanel() => Container(
@@ -6057,35 +6117,21 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
               var clockControlLabel = '';
               var clockControlIcon = Icons.play_arrow_rounded;
               final currentTicker = _ticker;
-              final nextPeriod = min(
-                data.currentPeriod + 1,
-                data.periodCount,
+              final workflow = tickerWorkflowStep(
+                status: data.status,
+                currentPeriod: data.currentPeriod,
+                periodCount: data.periodCount,
               );
-              switch (data.status) {
-                case TickerStatus.notStarted:
-                  clockControlLabel = 'Spiel starten';
-                  onClockControl = () => unawaited(
-                        _startPeriod(currentTicker, 1),
-                      );
-                case TickerStatus.live:
-                  clockControlLabel = 'Uhr pausieren';
-                  clockControlIcon = Icons.pause_rounded;
-                  onClockControl = () => unawaited(
-                        _send(TickerEventType.interruption),
-                      );
-                case TickerStatus.paused || TickerStatus.interrupted:
-                  clockControlLabel = 'Uhr fortsetzen';
-                  clockControlIcon = Icons.play_arrow_rounded;
-                  onClockControl = () => unawaited(_resumeClock());
-                case TickerStatus.halfTime:
-                  if (data.currentPeriod < data.periodCount) {
-                    clockControlLabel = 'Abschnitt $nextPeriod starten';
-                    onClockControl = () => unawaited(
-                          _startPeriod(currentTicker, nextPeriod),
-                        );
-                  }
-                case TickerStatus.finished:
-                  break;
+              if (workflow != null) {
+                clockControlLabel = workflow.label;
+                clockControlIcon = workflow.icon;
+                onClockControl = () => unawaited(
+                      _runWorkflowAction(
+                        workflow,
+                        currentTicker,
+                        confirmationContext: dialogContext,
+                      ),
+                    );
               }
               return _TickerFocusView(
                 data: data,
@@ -6093,6 +6139,12 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                 onClockControl: onClockControl,
                 clockControlLabel: clockControlLabel,
                 clockControlIcon: clockControlIcon,
+                workflowHint: workflow?.hint ?? 'Endstand ist gespeichert.',
+                onPause: data.status == TickerStatus.live
+                    ? () => unawaited(
+                          _send(TickerEventType.interruption),
+                        )
+                    : null,
                 onOurGoal: () => _goal(true),
                 onTheirGoal: () => _goal(false),
                 onEnd: data.status == TickerStatus.finished
@@ -6818,6 +6870,8 @@ class _TickerFocusView extends StatelessWidget {
     required this.onClockControl,
     required this.clockControlLabel,
     required this.clockControlIcon,
+    required this.workflowHint,
+    required this.onPause,
     required this.onOurGoal,
     required this.onTheirGoal,
     required this.onEnd,
@@ -6829,6 +6883,8 @@ class _TickerFocusView extends StatelessWidget {
   final VoidCallback? onClockControl;
   final String clockControlLabel;
   final IconData clockControlIcon;
+  final String workflowHint;
+  final VoidCallback? onPause;
   final VoidCallback onOurGoal;
   final VoidCallback onTheirGoal;
   final VoidCallback? onEnd;
@@ -6935,6 +6991,12 @@ class _TickerFocusView extends StatelessWidget {
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
+                                  ),
+                                  SizedBox(height: contentCompact ? 7 : 10),
+                                  _FocusPeriodProgress(
+                                    currentPeriod: data.currentPeriod,
+                                    periodCount: data.periodCount,
+                                    status: data.status,
                                   ),
                                   SizedBox(height: contentCompact ? 7 : 11),
                                   RepaintBoundary(
@@ -7130,71 +7192,77 @@ class _TickerFocusView extends StatelessWidget {
                               ),
                             ],
                             SizedBox(height: compactHeight ? 6 : 9),
-                            LayoutBuilder(
-                              builder: (context, controlConstraints) {
-                                final controlWidth = min(
-                                  (controlConstraints.maxWidth - 10) / 2,
-                                  230.0,
-                                );
-                                return Wrap(
-                                  spacing: 10,
-                                  runSpacing: 7,
-                                  alignment: WrapAlignment.center,
-                                  children: [
-                                    if (onClockControl != null)
-                                      SizedBox(
-                                        width: controlWidth,
-                                        height: compactHeight ? 42 : 46,
-                                        child: FilledButton.tonalIcon(
-                                          onPressed: onClockControl,
-                                          style: FilledButton.styleFrom(
-                                            padding: EdgeInsets.symmetric(
-                                              horizontal: compactWidth ? 8 : 12,
-                                            ),
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                          icon: Icon(
-                                            clockControlIcon,
-                                            size: 20,
-                                          ),
-                                          label: Text(
-                                            clockControlLabel,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
+                            if (onClockControl != null) ...[
+                              SizedBox(
+                                width: double.infinity,
+                                height: compactHeight ? 46 : 52,
+                                child: FilledButton.icon(
+                                  key: const ValueKey(
+                                    'focus-ticker-primary-workflow-action',
+                                  ),
+                                  onPressed: onClockControl,
+                                  style: FilledButton.styleFrom(
+                                    foregroundColor: AppColors.black,
+                                    backgroundColor: AppColors.yellow,
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: compactWidth ? 8 : 14,
+                                    ),
+                                  ),
+                                  icon: Icon(clockControlIcon, size: 21),
+                                  label: Text(
+                                    clockControlLabel,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                workflowHint,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(height: compactHeight ? 5 : 7),
+                            ],
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              alignment: WrapAlignment.center,
+                              children: [
+                                if (onPause != null)
+                                  OutlinedButton.icon(
+                                    onPressed: onPause,
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      side: const BorderSide(
+                                        color: Colors.white24,
                                       ),
-                                    if (onEnd != null)
-                                      SizedBox(
-                                        width: controlWidth,
-                                        height: compactHeight ? 42 : 46,
-                                        child: FilledButton.icon(
-                                          onPressed: onEnd,
-                                          style: FilledButton.styleFrom(
-                                            foregroundColor: Colors.white,
-                                            backgroundColor:
-                                                const Color(0xFFC2410C),
-                                            padding: EdgeInsets.symmetric(
-                                              horizontal: compactWidth ? 8 : 12,
-                                            ),
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                          icon: const Icon(
-                                            Icons.stop_circle_outlined,
-                                            size: 20,
-                                          ),
-                                          label: const Text(
-                                            'Spiel beenden',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              },
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.pause_rounded,
+                                      size: 19,
+                                    ),
+                                    label: const Text('Uhr pausieren'),
+                                  ),
+                                if (onEnd != null)
+                                  TextButton.icon(
+                                    onPressed: onEnd,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: const Color(0xFFFFA56B),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.stop_circle_outlined,
+                                      size: 19,
+                                    ),
+                                    label: const Text('Spiel beenden'),
+                                  ),
+                              ],
                             ),
                           ],
                         ),
@@ -7209,6 +7277,47 @@ class _TickerFocusView extends StatelessWidget {
       ),
     );
   }
+}
+
+class _FocusPeriodProgress extends StatelessWidget {
+  const _FocusPeriodProgress({
+    required this.currentPeriod,
+    required this.periodCount,
+    required this.status,
+  });
+
+  final int currentPeriod;
+  final int periodCount;
+  final TickerStatus status;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: 'Abschnitt $currentPeriod von $periodCount',
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var period = 1; period <= periodCount; period++) ...[
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                width: period == currentPeriod ? 24 : 9,
+                height: 7,
+                decoration: BoxDecoration(
+                  color:
+                      period < currentPeriod || status == TickerStatus.finished
+                          ? AppColors.yellow
+                          : period == currentPeriod
+                              ? (status == TickerStatus.live
+                                  ? const Color(0xFF22C55E)
+                                  : AppColors.yellow)
+                              : Colors.white24,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              if (period != periodCount) const SizedBox(width: 5),
+            ],
+          ],
+        ),
+      );
 }
 
 class _SmoothClockProgress extends StatefulWidget {
@@ -7435,18 +7544,27 @@ class _TickerMetric extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).width < 600;
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 11 : 18,
+        horizontal: compact ? 3 : 12,
         vertical: compact ? 7 : 10,
       ),
       decoration: BoxDecoration(
         color: context.appInfo.withValues(alpha: .08),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: context.appInfo.withValues(alpha: .12),
+        ),
       ),
       child: Column(
         children: [
-          Text(label,
-              style:
-                  TextStyle(fontSize: 10, color: context.appColors.textMuted)),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: compact ? 8.5 : 10,
+              color: context.appColors.textMuted,
+            ),
+          ),
           Text(value,
               style: TextStyle(
                 fontSize: compact ? 15 : 18,

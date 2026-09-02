@@ -112,6 +112,7 @@ test('away matches never inherit the Teugn home ground', () => {
   const {
     HOME_MATCH_VENUE,
     normalizedMatchVenue,
+    stableMatchAddress,
   } = require('../dist/src/services/match-venue.service.js');
 
   assert.deepEqual(
@@ -135,5 +136,21 @@ test('away matches never inherit the Teugn home ground', () => {
       opponentAddress: 'Waldweg 4',
     }),
     'Waldstadion',
+  );
+  assert.equal(
+    stableMatchAddress({
+      isHome: false,
+      storedAddress: null,
+      opponentAddress: 'Am Waldstadion 1, 84085 Langquaid',
+    }),
+    'Am Waldstadion 1, 84085 Langquaid',
+  );
+  assert.equal(
+    stableMatchAddress({
+      isHome: false,
+      storedAddress: 'Veraltete Adresse',
+      opponentAddress: 'Am Waldstadion 1, 84085 Langquaid',
+    }),
+    'Am Waldstadion 1, 84085 Langquaid',
   );
 });

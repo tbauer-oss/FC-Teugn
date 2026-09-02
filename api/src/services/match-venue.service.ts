@@ -33,3 +33,13 @@ export function normalizedMatchVenue(input: {
   }
   return input.opponentVenue?.trim() || input.opponentAddress?.trim() || '';
 }
+
+export function stableMatchAddress(input: {
+  isHome: boolean;
+  storedAddress?: string | null;
+  opponentAddress?: string | null;
+}) {
+  const storedAddress = input.storedAddress?.trim() || null;
+  if (input.isHome) return storedAddress;
+  return input.opponentAddress?.trim() || storedAddress;
+}

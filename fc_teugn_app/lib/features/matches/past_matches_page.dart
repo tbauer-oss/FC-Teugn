@@ -135,7 +135,7 @@ class _PastMatchesPageState extends ConsumerState<PastMatchesPage> {
         Card(
           margin: EdgeInsets.zero,
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(10),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final teamSelector = canSelectTeam && teams.isNotEmpty
@@ -146,6 +146,7 @@ class _PastMatchesPageState extends ConsumerState<PastMatchesPage> {
                         decoration: const InputDecoration(
                           labelText: 'Jugend / Mannschaft',
                           prefixIcon: Icon(Icons.groups_rounded),
+                          isDense: true,
                         ),
                         items: [
                           for (final team in teams)
@@ -170,6 +171,7 @@ class _PastMatchesPageState extends ConsumerState<PastMatchesPage> {
                         decoration: const InputDecoration(
                           labelText: 'Jugend / Mannschaft',
                           prefixIcon: Icon(Icons.groups_rounded),
+                          isDense: true,
                         ),
                         child: Text(
                           teamLabel,
@@ -186,6 +188,7 @@ class _PastMatchesPageState extends ConsumerState<PastMatchesPage> {
                   decoration: const InputDecoration(
                     labelText: 'Saison',
                     prefixIcon: Icon(Icons.calendar_month_rounded),
+                    isDense: true,
                   ),
                   items: [
                     const DropdownMenuItem(
@@ -218,10 +221,18 @@ class _PastMatchesPageState extends ConsumerState<PastMatchesPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       teamSelector,
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 7),
                       seasonSelector,
-                      const SizedBox(height: 6),
-                      Align(alignment: Alignment.centerRight, child: reload),
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: IconButton(
+                          tooltip: 'Neu laden',
+                          onPressed: _load,
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.refresh_rounded),
+                        ),
+                      ),
                     ],
                   );
                 }
@@ -238,19 +249,19 @@ class _PastMatchesPageState extends ConsumerState<PastMatchesPage> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Text(
           'Spiele · $seasonLabel',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w900,
               ),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 2),
         Text(
           'Spiel aufklappen für Tore, Vorlagen und den zeitlichen Verlauf.',
           style: TextStyle(color: context.appColors.textMuted),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 7),
         MatchHistory(
           matches: overview.matches,
           scopeLabel: seasonLabel,
@@ -297,27 +308,31 @@ class PastMatchesEntryCard extends StatelessWidget {
     return Card(
       key: const ValueKey('past-matches-entry'),
       margin: EdgeInsets.zero,
-      color: colors.primaryContainer,
+      color: context.appColors.surfaceRaised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: context.appColors.outline),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           child: Row(
             children: [
               Container(
-                width: 46,
-                height: 46,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: colors.primary,
-                  borderRadius: BorderRadius.circular(14),
+                  color: colors.primary.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(11),
                 ),
                 child: Icon(
                   Icons.history_rounded,
-                  color: colors.onPrimary,
+                  color: colors.primary,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -328,21 +343,19 @@ class PastMatchesEntryCard extends StatelessWidget {
                             fontWeight: FontWeight.w900,
                           ),
                     ),
-                    const SizedBox(height: 2),
                     Text(
-                      'Ergebnisse, Torschützen, Vorlagen & Ereignisse',
-                      maxLines: 2,
+                      'Ergebnisse, Tore, Vorlagen und Verlauf',
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.onPrimaryContainer
-                                .withValues(alpha: .76),
+                            color: context.appColors.textMuted,
                           ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.arrow_forward_rounded, color: colors.primary),
+              Icon(Icons.chevron_right_rounded, color: colors.primary),
             ],
           ),
         ),
@@ -371,9 +384,9 @@ class _HistorySummary extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -386,7 +399,7 @@ class _HistorySummary extends StatelessWidget {
                   teamLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
                       ),
@@ -401,10 +414,10 @@ class _HistorySummary extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 9),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 6,
+            runSpacing: 6,
             children: [
               _SummaryPill(label: '${statistics.matches} Spiele'),
               _SummaryPill(label: '${statistics.wins} Siege'),
@@ -428,7 +441,7 @@ class _SummaryPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: .14),
           borderRadius: BorderRadius.circular(999),
@@ -439,6 +452,7 @@ class _SummaryPill extends StatelessWidget {
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
+            fontSize: 12,
           ),
         ),
       );
