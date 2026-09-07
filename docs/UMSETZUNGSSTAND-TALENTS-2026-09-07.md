@@ -1,6 +1,6 @@
 # FC Teugn Talents – Umsetzung und Abnahme
 
-Stand: 7. September 2026. App-Version: **1.7.0+185**. Die Veröffentlichung wird über den Release-Branch mit vollständiger CI-Abnahme vorbereitet. Der abschließende Auslieferungsnachweis wird nach den erfolgreichen Deploymentläufen ergänzt.
+Stand: 7. September 2026. App-Version: **1.7.0+185 ist veröffentlicht**. Web-App, Backend und Android-Vereinsdownload wurden nach vollständiger CI-Abnahme ausgeliefert und öffentlich geprüft. Details: [Veröffentlichungsnachweis](TALENTS-1.7-VEROEFFENTLICHUNG.md).
 
 Die Mannschaftskasse ist auf ausdrücklichen Wunsch vollständig ausgeschlossen. Es gibt dafür weder neue Seiten noch API-Endpunkte oder Datenbanktabellen. Ohne BFV-API bleiben offizielle Spielberichte, Spielberechtigungen und Festivalmeldungen im BFV-/SpielPLUS-System.
 
@@ -26,27 +26,26 @@ Die Mannschaftskasse ist auf ausdrücklichen Wunsch vollständig ausgeschlossen.
 
 ## Nachweise
 
-- Backend: vollständige Suite mit **267 erfolgreichen Tests**, dazu **3 erfolgreiche Vorabtests** für biometrische Anmeldung.
-- Flutter: vollständige Suite mit **616 erfolgreichen Tests**, einschließlich des Regressionstests für direkte Einstiege nach Browser-Neuladen. Zusätzliche Prüfungen umfassen Importdialog, Navigation, Hilfe, Releasehinweise und Talents-Formulare.
+- Backend: vollständige Suite mit **271 erfolgreichen Tests**, dazu **3 erfolgreiche Vorabtests** für biometrische Anmeldung.
+- Flutter: vollständige Suite mit **617 erfolgreichen Tests**, einschließlich der Regressionstests für direkte Einstiege nach Browser-Neuladen und das Aktualisieren nach gespeicherten Umfragen. Zusätzliche Prüfungen umfassen Importdialog, Navigation, Hilfe, Releasehinweise und Talents-Formulare.
 - Flutter-Analyse: **keine Befunde**.
 - Migration und Fachabläufe: **7 erfolgreiche Integrationsgruppen**, einschließlich aller vorhandenen Migrationen, Upgrade mit vorher angelegten Datensätzen, fehlender Kassentabellen, tatsächlicher Datenbanktransaktionen, Rollenprüfung und Idempotenz.
 - Web: Release-Build erfolgreich. Im lokalen Browser wurden Anmeldung, Navigation, Formulare, das Speichern einer Umfrage mit anschließendem Wiederaufruf sowie Einladungslink und QR-Code geprüft. Ausschließlich synthetische Konten und Daten; keine Nachrichten an reale Vereinsmitglieder.
 - Android: Debug-APK erfolgreich kompiliert. Der anfängliche Java-Socketfehler ließ sich durch ein projektnahes Socket-Verzeichnis beheben.
 - Android-Release: APK und AAB wurden mit dem vorhandenen Vereinsschlüssel erfolgreich gebaut. Die APK-Signatur wurde mit `apksigner verify` geprüft. Der lokal verschlüsselte Signaturdatensatz wird über `scripts/build_android_release.ps1` verwendet; die dafür kurzzeitig angelegte `key.properties` wird anschließend entfernt.
 - Release-Reihenfolge: Vier automatisierte Tests prüfen die Freigabe anhand des exakten Commits. Web wartet auf das Backend; die öffentliche Android-Auslieferung wartet auf Backend und Web. Manuelle Validierung erzeugt standardmäßig nur Artefakte.
-- iOS: Eigenständige Bundle-ID, iOS-15-Deploymentziel, Swift-Package-Manager-Integration durch Flutter und manuell zuschaltbarer nativer Simulator-Build auf macOS ergänzt. Apple-Signierung und native iOS-Push-Konfiguration benötigen weiterhin die realen Entwicklerzugänge.
+- iOS: Eigenständige Bundle-ID, iOS-15-Deploymentziel und Swift-Package-Manager-Integration durch Flutter ergänzt. Nativer Simulator-Build auf macOS erfolgreich; ZIP-Artefakt gesichert. Apple-Signierung und native iOS-Push-Konfiguration benötigen weiterhin die realen Entwicklerzugänge.
 - Android-Gerätetest auf isoliertem Emulator: Anmeldung, Umfrage und Abwesenheit speichern, Daten erneut öffnen; bestanden. Direktes Update der signierten Version 1.6.46+184 auf 1.7.0+185 ebenfalls bestanden. Messwerte und Grenzen: [Android-Abnahme](TALENTS-1.7-ANDROID-ABNAHME.md).
 
-Die isolierte Integrationsdatenbank verwendet PGlite mit PostgreSQL-Abfragen und einem Prisma-Pool von einer Verbindung. Damit sind Migrationen und Fachabläufe geprüft, jedoch keine produktive Mehrbenutzerlast. Ein echter PostgreSQL-Lauf ist zusätzlich Bestandteil der CI. Die neuen Integrationsprüfungen wurden in diese CI aufgenommen.
+Die isolierte Integrationsdatenbank verwendet PGlite mit PostgreSQL-Abfragen und einem Prisma-Pool von einer Verbindung. Ein zusätzlicher echter PostgreSQL-Lauf ist in der CI erfolgreich abgeschlossen: Registrierung, Freigabe, Elternzuordnung, Training, Teilnahme, Spiel, Kader, Aufstellung, Ticker mit zwei Clients, Korrektur, Statistik und Administratorlöschung. Diese Abnahme ist kein Lasttest mit produktiven Vereinsdaten.
 
 ## Noch ausstehende praktische Abnahme
 
 Diese Schritte benötigen die entsprechenden Geräte beziehungsweise Veröffentlichungszugänge und sind **nicht als erledigt ausgewiesen**:
 
-1. Den auf dem Release-Branch geprüften Stand über die vorhandenen Deployment-Workflows ausliefern und die erreichbare Version bestätigen.
-2. Android und iPhone auf echten Geräten: Installation, Update, Push-Einstieg, Netzunterbrechung, Erststart und Warmstart messen. Die angestrebten etwa zwei Sekunden Warmstart sind noch kein gemessener Wert.
-3. Native iOS-/Store-Abnahme auf macOS mit Xcode, Signierung und Entwicklerkonto. Die iPhone-PWA ist der bereits vorhandene Installationsweg.
-4. Alltagspilot mit zwei Trainern und fünf Eltern. Erst dessen Ergebnisse können belegen, ob die App für FC Teugn schneller und verständlicher ist als die BFV-Team-App.
+1. Android und iPhone auf echten Geräten: Installation, Update, Push-Einstieg, Netzunterbrechung, Erststart und Warmstart messen. Die angestrebten etwa zwei Sekunden Warmstart sind noch kein gemessener Wert auf echten Telefonen.
+2. Store-Freigaben mit Entwicklerkonten, Apple-Signierung und tatsächlicher iOS-Push-Konfiguration. Die native iOS-Kompilierung ist nachgewiesen; die iPhone-PWA ist der verfügbare Installationsweg.
+3. Alltagspilot mit zwei Trainern und fünf Eltern. Erst dessen Ergebnisse können belegen, ob die App für FC Teugn schneller und verständlicher ist als die BFV-Team-App.
 
 ## Lokale Prüfungen wiederholen
 
@@ -70,12 +69,12 @@ flutter build apk --debug
 
 Falls die Windows-JVM im Codex-Prozess `Unable to establish loopback connection` meldet, kann für diesen Build ein vorhandenes beschreibbares Projektverzeichnis als `jdk.net.unixdomain.tmpdir` gesetzt werden. Die hier erfolgreiche Einstellung erfolgte nur für den gestarteten Prozess, ohne globale Java-Konfiguration zu ändern. Hintergrund: [OpenJDK-Hinweis zum Socket-Verzeichnis unter Windows](https://mail.openjdk.org/pipermail/nio-dev/2023-March/013297.html).
 
-## Veröffentlichung vorbereiten
+## Ablauf künftiger Veröffentlichungen
 
 1. Datenbanksicherung und Staging prüfen; Migration `20260907120000_talents_family_development` mittels des vorhandenen Prisma-Deploymentablaufs anwenden. Migration vor dem neuen Backend bereitstellen.
 2. Backend bereitstellen und Erreichbarkeit prüfen. `PUBLIC_APP_URL` muss auf den vorgesehenen Frontendhost zeigen; Standard ist `https://fcteugnapp.vercel.app`.
 3. Vorhandenen geschützten Cronlauf weiter betreiben: Er wendet Abwesenheiten an und verarbeitet Terminänderungen, neue Versandaufträge und Erinnerungen.
-4. Web und signierte Android-Version 1.7.0+185 bereitstellen. Installationsseite verweist auf den vorhandenen Vereinsdownload; dessen Inhalt wurde hier nicht verändert.
+4. Web und signierte Android-Version über die vorhandenen Workflows bereitstellen. Der Vereinsdownload bietet seit dieser Abnahme 1.7.0+185 an; die öffentlich geladene Datei stimmt mit Dateigröße und SHA-256 des Manifests überein und ist mit dem Vereinsschlüssel signiert.
 5. Smoke-Test als Trainer und Familie, dann Pilot durchführen. Bei Rücknahme des Codes die neuen Tabellen und historischen Antworten erhalten; keine destruktive Rückmigration auf einer befüllten Datenbank improvisieren.
 
 Schulungs- und Pilotaufgaben: [TALENTS-1.7-SCHULUNG-UND-PILOT.md](TALENTS-1.7-SCHULUNG-UND-PILOT.md).

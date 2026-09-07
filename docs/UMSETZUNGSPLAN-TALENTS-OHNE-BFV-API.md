@@ -153,7 +153,8 @@ Es wird keine zweite vereinsübergreifende Festivalplattform aufgebaut. Direkte 
 - [x] Den passenden Installationsweg erkennen und in wenigen verständlichen Schritten erklären.
 - [x] Vorhandene Android-Updates mit verständlichem Status, Versionshinweisen und Wiederholungsmöglichkeit prüfen.
 - [x] iPhone-PWA-Anleitung und Push-Aktivierung in den passenden Nutzungskontext bringen.
-- [ ] Store-Builds und nötige Veröffentlichungsinformationen technisch vorbereiten; Veröffentlichung erst mit vorhandenen Konten und Signierung durchführen.
+- [x] Signierte Android-APK und Store-Datei (AAB) erstellen, iOS-Projekt vorbereiten und die native Kompilierung auf macOS nachweisen. Android-Vereinsdownload und Web-App veröffentlichen.
+- [ ] Store-Einreichungen mit den zugehörigen Entwicklerkonten durchführen; für natives iOS außerdem Apple-Signierung und APNs/Firebase-Konfiguration bereitstellen.
 - [x] Hilfe und Schulungsunterlagen an die tatsächlich ausgelieferten Abläufe anpassen.
 
 ### 15. Offline-Verhalten und Qualität der betroffenen Abläufe absichern
