@@ -49,7 +49,6 @@ jobs:
       - name: Check Apple build tools
         run: |
           xcodebuild -version
-          pod --version
       - name: Build native iOS simulator app
         run: flutter build ios --simulator --debug --no-codesign
       - name: Package simulator app
@@ -60,6 +59,15 @@ jobs:
           name: fc-teugn-talents-ios-simulator
           path: fc_teugn_app/build/ios/FC-Teugn-Talents-iOS-Simulator.zip
           if-no-files-found: error
+          retention-days: 30
+      - name: Preserve generated iOS project integration for review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fc-teugn-talents-ios-project
+          path: |
+            fc_teugn_app/ios/Runner.xcodeproj/project.pbxproj
+            fc_teugn_app/ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme
           retention-days: 30
 
   backend:

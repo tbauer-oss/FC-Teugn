@@ -34,7 +34,8 @@ Die Mannschaftskasse ist auf ausdrücklichen Wunsch vollständig ausgeschlossen.
 - Android: Debug-APK erfolgreich kompiliert. Der anfängliche Java-Socketfehler ließ sich durch ein projektnahes Socket-Verzeichnis beheben.
 - Android-Release: APK und AAB wurden mit dem vorhandenen Vereinsschlüssel erfolgreich gebaut. Die APK-Signatur wurde mit `apksigner verify` geprüft. Der lokal verschlüsselte Signaturdatensatz wird über `scripts/build_android_release.ps1` verwendet; die dafür kurzzeitig angelegte `key.properties` wird anschließend entfernt.
 - Release-Reihenfolge: Vier automatisierte Tests prüfen die Freigabe anhand des exakten Commits. Web wartet auf das Backend; die öffentliche Android-Auslieferung wartet auf Backend und Web. Manuelle Validierung erzeugt standardmäßig nur Artefakte.
-- iOS: Eigenständige Bundle-ID, iOS-15-Deploymentziel, CocoaPods-Konfiguration und manuell zuschaltbarer nativer Simulator-Build auf macOS ergänzt. Apple-Signierung und native iOS-Push-Konfiguration benötigen weiterhin die realen Entwicklerzugänge.
+- iOS: Eigenständige Bundle-ID, iOS-15-Deploymentziel, Swift-Package-Manager-Integration durch Flutter und manuell zuschaltbarer nativer Simulator-Build auf macOS ergänzt. Apple-Signierung und native iOS-Push-Konfiguration benötigen weiterhin die realen Entwicklerzugänge.
+- Android-Gerätetest auf isoliertem Emulator: Anmeldung, Umfrage und Abwesenheit speichern, Daten erneut öffnen; bestanden. Direktes Update der signierten Version 1.6.46+184 auf 1.7.0+185 ebenfalls bestanden. Messwerte und Grenzen: [Android-Abnahme](TALENTS-1.7-ANDROID-ABNAHME.md).
 
 Die isolierte Integrationsdatenbank verwendet PGlite mit PostgreSQL-Abfragen und einem Prisma-Pool von einer Verbindung. Damit sind Migrationen und Fachabläufe geprüft, jedoch keine produktive Mehrbenutzerlast. Ein echter PostgreSQL-Lauf ist zusätzlich Bestandteil der CI. Die neuen Integrationsprüfungen wurden in diese CI aufgenommen.
 

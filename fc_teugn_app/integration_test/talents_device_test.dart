@@ -18,6 +18,8 @@ void main() {
         reason:
             'Gerätetest darf ausschließlich die isolierte lokale Test-API verwenden.');
     await nativePushService.markInitialPromptHandled();
+    final originalErrorWidgetBuilder = ErrorWidget.builder;
+    addTearDown(() => ErrorWidget.builder = originalErrorWidgetBuilder);
     final startup = Stopwatch()..start();
     await app.main();
     Future<void> waitFor(Finder finder,
@@ -94,5 +96,6 @@ void main() {
       'pushDeliveryTest': false,
     };
     debugPrint('TALENTS_DEVICE_REPORT ${jsonEncode(binding.reportData)}');
+    ErrorWidget.builder = originalErrorWidgetBuilder;
   });
 }

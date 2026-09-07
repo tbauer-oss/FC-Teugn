@@ -5,11 +5,14 @@ hinzugefügt werden. Die Installationsseite in der App erklärt die Schritte und
 erhält den Rückweg zu einer Mannschaftseinladung.
 
 Das native iOS-Projekt verwendet `de.fcteugn.jugend` und den Anzeigenamen
-„FC Teugn Talents“. Deploymentziel und CocoaPods-Konfiguration sind auf iOS 15
-abgestimmt. Die eingesetzten Firebase-Apple-Komponenten benötigen eine aktuelle
+„FC Teugn Talents“. Das Deploymentziel ist auf iOS 15 abgestimmt. Sämtliche
+eingesetzten iOS-Plugins unterstützen Swift Package Manager; Flutter 3.44
+integriert diese beim nativen Build automatisch. Eine zusätzliche Podfile ist
+deshalb nicht erforderlich. Die eingesetzten Firebase-Apple-Komponenten benötigen eine aktuelle
 Xcode-Installation; die CI verwendet dafür den GitHub-Runner `macos-26`.
 Quellen: [Firebase Apple Setup](https://firebase.google.com/docs/ios/setup),
 [GitHub-Runner](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md).
+Die Paketverwaltung folgt der [Flutter-Anleitung für Swift Package Manager](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-app-developers).
 
 ## Reproduzierbare Kompilierung
 
