@@ -81,6 +81,12 @@ müssen Backend und Web für **denselben Commit** erfolgreich ausgerollt sein.
 Die Web-Auslieferung wartet ebenfalls auf das Backend. Ein fehlgeschlagener,
 noch laufender oder fremder Deploymentlauf gibt das Update nicht frei.
 
+Die zusätzliche automatische Vercel-Git-Auslieferung ist in beiden
+`vercel.json`-Dateien deaktiviert. Damit können parallel erzeugte Preview- oder
+Produktionsdeployments die Reihenfolge nicht umgehen. Veröffentlichungen erfolgen
+über die vorhandenen GitHub-Actions-Workflows und deren Vercel-CLI-Schritte.
+Konfigurationsgrundlage: [Vercel Git Configuration](https://vercel.com/docs/project-configuration/git-configuration#turning-off-all-automatic-deployments).
+
 Release-Builds dürfen nach einem Debug-Gerätetest nicht mit `--no-pub` gestartet
 werden: Flutter muss die Pluginregistrierung für den Release-Modus neu erzeugen,
 damit das ausschließlich für Tests eingebundene `integration_test` entfällt.
