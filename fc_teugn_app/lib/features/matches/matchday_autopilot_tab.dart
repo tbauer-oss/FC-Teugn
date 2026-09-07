@@ -1,3 +1,4 @@
+import '../talents/match_readiness_card.dart';
 import 'package:flutter/material.dart';
 import '../../core/loading/loading_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -148,6 +149,8 @@ class _MatchdayAutopilotTabState extends ConsumerState<MatchdayAutopilotTab> {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 920;
         final content = [
+          MatchReadinessCard(eventId: widget.match.id),
+          const SizedBox(height: 10),
           _AutopilotHero(
             plan: _plan,
             onRecalculate: () => setState(_recalculate),

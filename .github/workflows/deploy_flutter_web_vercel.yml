@@ -7,6 +7,10 @@ on:
       - master
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -33,6 +37,11 @@ jobs:
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
+
+      - name: Wait for matching backend deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node ../scripts/wait_for_workflow_success.mjs deploy_backend_vercel.yml "$GITHUB_SHA"
 
       # WICHTIG: hier wieder ins Repo-Root wechseln,
       # damit der Pfad "fc_teugn_app/build/web" stimmt

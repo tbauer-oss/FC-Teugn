@@ -14,6 +14,24 @@ class _ControllableAuthController extends AuthController {
 }
 
 void main() {
+  test(
+      'browser entry preserves internal sections and rejects external redirects',
+      () {
+    expect(
+        internalEntryRouteFromBrowserUri(
+            Uri.parse('https://example.test/#/trainer/talents/polls?poll=123')),
+        '/trainer/talents/polls?poll=123');
+    expect(
+        internalEntryRouteFromBrowserUri(
+            Uri.parse('https://example.test/parent/talents/absences')),
+        '/parent/talents/absences');
+    expect(
+        internalEntryRouteFromBrowserUri(
+            Uri.parse('https://example.test/#https://other.test/trainer')),
+        isNull);
+    expect(internalEntryRouteFromBrowserUri(Uri.parse('https://example.test/')),
+        isNull);
+  });
   testWidgets('shows the FC Teugn login', (tester) async {
     FlutterSecureStorage.setMockInitialValues({});
 

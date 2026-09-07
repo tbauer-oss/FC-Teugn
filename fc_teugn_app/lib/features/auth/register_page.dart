@@ -10,7 +10,8 @@ import '../../core/models/user.dart';
 import 'auth_controller.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
-  const RegisterPage({super.key});
+  const RegisterPage({super.key, this.invitationToken});
+  final String? invitationToken;
 
   @override
   ConsumerState<RegisterPage> createState() => _RegisterPageState();
@@ -119,7 +120,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Mitgliedschaft beantragen',
+                      'App-Zugang beantragen',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const Text(
@@ -382,7 +383,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           const SizedBox(height: 8),
           Center(
             child: TextButton(
-              onPressed: authState.loading ? null : () => context.go('/login'),
+              onPressed: authState.loading
+                  ? null
+                  : () => context.go(widget.invitationToken == null
+                      ? '/login'
+                      : '/login?invite=${widget.invitationToken}'),
               child: const Text('Bereits registriert? Zum Login'),
             ),
           ),
@@ -447,6 +452,19 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   Future<_RegistrationOptions> _loadOptions() async {
     final client = ApiClient();
+    if (widget.invitationToken != null) {
+      final invitation = (await client.dio.get('/talents/invitation-preview',
+              queryParameters: {'token': widget.invitationToken}))
+          .data;
+      _teamIds.add(invitation['teamId'] as String);
+      _role = switch (invitation['role']) {
+        'PLAYER' => UserRole.player,
+        'COACH' => UserRole.coach,
+        'ASSISTANT_COACH' => UserRole.assistantCoach,
+        'TEAM_MANAGER' => UserRole.teamManager,
+        _ => UserRole.parent
+      };
+    }
     final responses = await Future.wait([
       client.dio.get('/organization/public'),
       client.dio.get('/auth/consent-texts'),

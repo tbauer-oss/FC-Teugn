@@ -475,6 +475,8 @@ enum ChecklistRunStatus {
 }
 
 model Team {
+  invitations TeamInvitation[]
+
   id                                   String                                @id @default(cuid())
   ageGroupId                           String
   teamNumber                           Int                                   @default(1)
@@ -634,6 +636,8 @@ model AgeGroup {
 }
 
 model User {
+  invitationClaims InvitationClaim[]
+
   id                                   String                                @id @default(cuid())
   email                                String                                @unique
   password                             String
@@ -900,6 +904,9 @@ model TeamMembership {
 }
 
 model Player {
+  absences      PlayerAbsence[]
+  learningGoals LearningGoal[]
+
   id                                   String                                @id @default(cuid())
   clubId                               String
   teamId                               String?
@@ -1168,6 +1175,10 @@ model PlayerConsentEvidence {
 }
 
 model Event {
+  matchdayChecklist  ChecklistRun?
+  changes            EventChange[]
+  responseRevisionAt DateTime?
+
   id                        String                    @id @default(cuid())
   teamId                    String
   seriesId                  String?
@@ -1494,6 +1505,9 @@ model LeagueMatch {
 }
 
 model Attendance {
+  absenceId     String?
+  beforeAbsence Json?
+
   id                    String                    @id @default(cuid())
   eventId               String
   playerId              String
@@ -2239,6 +2253,8 @@ model ImportRow {
 }
 
 model ExternalReference {
+  sourceSnapshot Json?
+
   id             String   @id @default(cuid())
   teamId         String
   provider       String
@@ -2374,6 +2390,8 @@ model ChecklistTemplateItem {
 }
 
 model ChecklistRun {
+  eventId     String?            @unique
+  event       Event?             @relation(fields: [eventId], references: [id], onDelete: SetNull)
   id          String             @id @default(cuid())
   teamId      String
   templateId  String?
@@ -2480,4 +2498,137 @@ model DataSubjectRequest {
 
   @@index([userId, status, createdAt])
   @@index([status, createdAt])
+}
+
+model TalentsNotice {
+  id          String               @id @default(cuid())
+  recipients  String[]
+  title       String
+  body        String
+  actionUrl   String
+  entityId    String
+  category    NotificationCategory @default(ANNOUNCEMENT)
+  deliveredAt DateTime?
+  createdAt   DateTime             @default(now())
+
+  @@index([deliveredAt, createdAt])
+}
+
+model PlayerAbsence {
+  id          String    @id @default(cuid())
+  playerId    String
+  createdById String
+  startsOn    String
+  endsOn      String
+  weekdays    Int[]     @default([])
+  teamIds     String[]  @default([])
+  eventTypes  String[]  @default(["TRAINING", "MATCH"])
+  reason      String?
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  player      Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, startsOn, endsOn])
+}
+
+model EventChange {
+  id          String    @id @default(cuid())
+  eventId     String
+  before      Json
+  after       Json
+  fields      String[]
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([deliveredAt, createdAt])
+}
+
+model TeamPoll {
+  id                String     @id @default(cuid())
+  authorId          String
+  teamIds           String[]
+  question          String
+  options           String[]
+  multiple          Boolean    @default(false)
+  unitType          String
+  resultsVisibility String     @default("AFTER_CLOSE")
+  endsAt            DateTime
+  closedAt          DateTime?
+  archivedAt        DateTime?
+  createdAt         DateTime   @default(now())
+  units             PollUnit[]
+
+  @@index([endsAt, archivedAt])
+}
+
+model PollUnit {
+  id                String    @id @default(cuid())
+  pollId            String
+  unitKey           String
+  label             String
+  authorizedUserIds String[]
+  playerIds         String[]  @default([])
+  choices           Int[]     @default([])
+  respondedById     String?
+  respondedAt       DateTime?
+  poll              TeamPoll  @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, unitKey])
+}
+
+model LearningGoal {
+  id                String            @id @default(cuid())
+  playerId          String
+  teamId            String
+  authorId          String
+  responsibleUserId String
+  title             String
+  description       String
+  startsOn          String
+  endsOn            String
+  visibility        String            @default("STAFF_ONLY")
+  status            String            @default("ACTIVE")
+  exerciseIds       String[]          @default([])
+  trainingPlanIds   String[]          @default([])
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  player            Player            @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  observations      GoalObservation[]
+
+  @@index([playerId, status])
+}
+
+model GoalObservation {
+  id        String       @id @default(cuid())
+  goalId    String
+  authorId  String
+  note      String
+  progress  Int
+  createdAt DateTime     @default(now())
+  goal      LearningGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+}
+
+model TeamInvitation {
+  id          String            @id @default(cuid())
+  tokenHash   String            @unique
+  teamId      String
+  createdById String
+  role        Role
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime          @default(now())
+  team        Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  claims      InvitationClaim[]
+}
+
+model InvitationClaim {
+  invitationId String
+  userId       String
+  createdAt    DateTime       @default(now())
+  invitation   TeamInvitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([invitationId, userId])
 }

@@ -132,7 +132,7 @@ export async function syncScheduledRemindersForEvent(eventId: string) {
   for (const recipientId of recipientIds) {
     for (const minutesBefore of reminderMinutes) {
       const dueAt = new Date(event.startAt.getTime() - minutesBefore * 60_000);
-      const idempotencyKey = `event-reminder:${event.id}:${recipientId}:${minutesBefore}`;
+      const idempotencyKey = `event-reminder:${event.id}:${recipientId}:${minutesBefore}:${event.startAt.getTime()}`;
       desiredJobs.push({
         eventId: event.id,
         recipientId,

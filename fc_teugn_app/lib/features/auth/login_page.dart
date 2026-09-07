@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_identity.dart';
 import '../../core/app_theme.dart';
 import '../../core/club_logo.dart';
-import '../shared/pwa_install_prompt.dart';
 import 'auth_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -301,11 +300,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   OutlinedButton(
                                     onPressed: authState.loading
                                         ? null
-                                        : () => context.go('/register'),
+                                        : () => context.go(Uri(
+                                                path: '/register',
+                                                queryParameters:
+                                                    GoRouterState.of(context)
+                                                        .uri
+                                                        .queryParameters)
+                                            .toString()),
                                     child: const Text('Account registrieren'),
                                   ),
                                   const SizedBox(height: 12),
-                                  const PwaInstallButton(),
+                                  TextButton.icon(
+                                    onPressed: () => context.push(Uri(
+                                            path: '/install',
+                                            queryParameters:
+                                                GoRouterState.of(context)
+                                                    .uri
+                                                    .queryParameters)
+                                        .toString()),
+                                    icon: const Icon(Icons.install_mobile),
+                                    label: const Text(
+                                        'Kostenlos als App installieren'),
+                                  ),
                                 ],
                               ),
                             ),

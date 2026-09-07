@@ -1,3 +1,4 @@
+import 'package:fc_teugn_app/features/talents/match_readiness_card.dart';
 import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/models/matchday.dart';
 import 'package:fc_teugn_app/core/models/player.dart';
@@ -15,6 +16,14 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          matchReadinessProvider(_match().id).overrideWith((ref) async => {
+                'checks': [],
+                'minutes': [],
+                'briefing': 'Testspiel',
+                'teamId': 'team'
+              })
+        ],
         child: MaterialApp(
           theme: buildAppTheme(),
           home: MediaQuery(
@@ -56,6 +65,8 @@ void main() {
     );
     expect(tester.takeException(), isNull);
 
+    await tester.ensureVisible(
+        find.byKey(const ValueKey('autopilot-strategy-selector-mobile')));
     await tester.tap(
       find.byKey(const ValueKey('autopilot-strategy-selector-mobile')),
     );

@@ -44,6 +44,7 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
   bool _introVideoInitialized = false;
   bool _introFinished = false;
   bool _introCompletionReported = false;
+  bool _muted = true;
 
   static const _introTransitionDuration = Duration(milliseconds: 320);
 
@@ -79,7 +80,7 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
       await videoController.initialize().timeout(const Duration(seconds: 8));
       if (!mounted || _introFinished) return;
       await videoController.setLooping(false);
-      await videoController.setVolume(1);
+      await videoController.setVolume(_muted ? 0 : 1);
       if (!mounted || _introFinished) return;
       setState(() => _introVideoInitialized = true);
       await videoController.play();
@@ -138,6 +139,7 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
     if (_introFinished) return;
     _videoWatchdog?.cancel();
     _introVideoController?.removeListener(_handleIntroVideoState);
+    unawaited(_introVideoController?.pause());
     if (mounted) {
       setState(() => _introFinished = true);
     } else {
@@ -166,6 +168,20 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
   }
 
   @override
+  void didUpdateWidget(covariant AnimatedLaunchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.playMobileIntroVideo && !oldWidget.playMobileIntroVideo) {
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _finishIntro();
+      } else {
+        unawaited(_prepareIntroVideo());
+      }
+    } else if (!widget.playMobileIntroVideo && oldWidget.playMobileIntroVideo) {
+      _finishIntro();
+    }
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _videoWatchdog?.cancel();
@@ -179,6 +195,29 @@ class _AnimatedLaunchScreenState extends State<AnimatedLaunchScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.black,
+      floatingActionButton: widget.playMobileIntroVideo && !_introFinished
+          ? SafeArea(
+              child: Wrap(
+                spacing: 12,
+                children: [
+                  IconButton.filled(
+                    tooltip: _muted ? 'Ton einschalten' : 'Ton ausschalten',
+                    onPressed: () {
+                      setState(() => _muted = !_muted);
+                      unawaited(
+                          _introVideoController?.setVolume(_muted ? 0 : 1));
+                    },
+                    icon: Icon(_muted ? Icons.volume_off : Icons.volume_up),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _finishIntro,
+                    icon: const Icon(Icons.skip_next),
+                    label: const Text('Überspringen'),
+                  ),
+                ],
+              ),
+            )
+          : null,
       body: Semantics(
         label: '${AppIdentity.name} wird gestartet',
         image: true,

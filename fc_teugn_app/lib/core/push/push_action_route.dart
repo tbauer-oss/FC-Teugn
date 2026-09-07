@@ -17,6 +17,11 @@ String roleCorrectPushActionRoute(
       },
     ).toString();
   }
+  if (path.startsWith('/talents/')) {
+    const sections = {'assistant', 'absences', 'polls', 'goals', 'invitations'};
+    final section = path.split('/').last;
+    return '${isTrainer ? '/trainer' : '/parent'}/talents/${sections.contains(section) ? section : 'assistant'}';
+  }
   if (path == '/messages' || path.startsWith('/messages/')) {
     final base = isTrainer ? '/trainer/messages' : '/parent/messages';
     return parsed?.hasQuery == true ? '$base?${parsed!.query}' : base;

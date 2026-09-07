@@ -1,4 +1,12 @@
 {
+  "1.7.0+185": [
+    "Familie & Team bündelt offene Aufgaben, allgemeine Abwesenheiten, echte Umfragen, Mannschaftseinladungen und individuelle Lernziele.",
+    "Abwesenheiten berücksichtigen auch später angelegte Termine. Familienumfragen teilen Antworten zwischen verknüpften Eltern; Fristen und Sichtbarkeit bleiben eindeutig.",
+    "Kalenderimporte erhalten lokale Änderungen, zeigen Konflikte je Feld und informieren bei Verlegungen mit alten und neuen Angaben. Wesentliche Änderungen erfordern eine erneute Rückmeldung.",
+    "Der Spieltags-Assistent verbindet Rückmeldungen, Mitfahrten, Trikotdienst und wiederverwendbare Checklisten. Spieltagsübersichten und Entwicklungsrückblicke lassen sich als PDF speichern.",
+    "Befristete Einladungen mit QR-Code vereinfachen weitere Mannschaftszugänge. Beim Saisonwechsel lassen sich Lernziele und Abwesenheiten gezielt übernehmen.",
+    "Das Intro erscheint automatisch nur beim ersten Start, beginnt stumm und ist überspringbar. Eine gemeinsame Installationsseite und erweiterte Hilfe begleiten Android- und iPhone-Nutzer."
+  ],
   "1.6.46+184": [
     "Die Dashboards für Familien und Trainer sind jetzt noch moderner, kompakter und klar nach Prioritäten, nächsten Terminen und Schnellzugriffen gegliedert.",
     "Nächstes Training und nächstes Spiel bleiben gleichzeitig sichtbar; bei Spielen wird die vollständige Paarung einschließlich der gegnerischen Mannschaft angezeigt.",

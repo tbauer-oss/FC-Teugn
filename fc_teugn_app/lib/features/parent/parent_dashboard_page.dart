@@ -1,3 +1,4 @@
+import '../talents/assistant_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -85,8 +86,8 @@ class ParentDashboardPage extends ConsumerWidget {
         upcomingTimeline.where((item) => item.isTraining).firstOrNull;
     final nextMatch =
         upcomingTimeline.where((item) => item.isMatch).firstOrNull;
-    final openTasks = openResponses.length +
-        consents.fold(0, (sum, item) => sum + item.openCount);
+    final taskList = ref.watch(familyTaskListProvider);
+    final openTasks = taskList.valueOrNull?.length;
 
     return PageScaffold(
       title: 'Hallo ${_firstName(user?.name)}!',
@@ -187,7 +188,8 @@ class ParentDashboardPage extends ConsumerWidget {
               ModernDashboardFunctionItem(
                 icon: Icons.forum_rounded,
                 title: 'Mitteilungen',
-                trailing: '${notifications.length} ungelesen',
+                trailing:
+                    '${notifications.where((n) => !n.isRead).length} ungelesen',
                 onTap: () => context.go('/parent/messages'),
                 color: context.appSuccess,
               ),
@@ -201,8 +203,9 @@ class ParentDashboardPage extends ConsumerWidget {
               ModernDashboardFunctionItem(
                 icon: Icons.task_alt_rounded,
                 title: 'Offene Aufgaben',
-                trailing: '$openTasks offen',
-                onTap: () => context.go('/parent/operations'),
+                trailing:
+                    openTasks == null ? 'Aufgaben prüfen' : '$openTasks offen',
+                onTap: () => context.go('/parent/talents/assistant'),
                 color: context.appDanger,
               ),
             ],

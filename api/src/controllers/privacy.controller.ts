@@ -1,3 +1,4 @@
+import { exportTalentsData, removeTalentsAccountAccess } from '../services/talents-privacy';
 import { randomBytes } from 'crypto';
 import { Request, Response } from 'express';
 import {
@@ -326,7 +327,8 @@ export async function exportPersonalData(req: Request, res: Response) {
   });
   res.setHeader('Content-Disposition', `attachment; filename="fc-teugn-daten-${userId}.json"`);
   return res.json({
-    exportVersion: 2,
+    exportVersion: 3,
+    talents: await exportTalentsData(userId),
     generatedAt: new Date().toISOString(),
     scope:
       'Eigenes Benutzerkonto sowie Daten verknüpfter Kinder, für die eine gesetzliche Vertretung hinterlegt ist.',
@@ -545,6 +547,7 @@ export async function completeErasure(req: Request, res: Response) {
   const password = await hashPassword(randomBytes(48).toString('base64url'));
   const anonymized = anonymizedUserData(request.userId, password);
   await prisma.$transaction(async (tx) => {
+    await removeTalentsAccountAccess(tx, request.userId);
     await tx.refreshToken.updateMany({
       where: { userId: request.userId, revokedAt: null },
       data: { revokedAt: new Date() },

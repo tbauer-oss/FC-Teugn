@@ -150,6 +150,7 @@ final consentTemplatesProvider =
 
 final parentConsentAttentionProvider =
     FutureProvider.autoDispose<List<ParentConsentAttention>>((ref) async {
+  _watchManualRefresh(ref);
   final user = ref.watch(authProvider).user;
   if (user == null || user.status != AccountStatus.approved) return const [];
   if (!user.parentPlayers.any(

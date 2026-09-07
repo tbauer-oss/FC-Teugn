@@ -1,3 +1,4 @@
+import { attendanceAfterRevision } from '../services/attendance-revision';
 import { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { waitUntil } from '@vercel/functions';
@@ -517,6 +518,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   familyTeamViewer = false,
   canRatePlayers = false,
 ) {
+  match = { ...match, attendance: match.attendance.map(reply => attendanceAfterRevision(reply, match)) };
   const opponentRecord = match.matchDetails?.opponentRecord;
   const squad = match.squads[0] ?? null;
   const lineup = squad?.lineup;

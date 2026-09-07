@@ -1,3 +1,6 @@
+import 'features/talents/talents_page.dart';
+import 'features/talents/invitations_page.dart';
+import 'features/talents/installation_page.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -57,6 +60,7 @@ import 'core/push/native_push_service.dart';
 import 'core/push/push_client.dart';
 import 'core/push/push_action_route.dart';
 import 'core/runtime_environment.dart';
+import 'core/intro_preferences.dart';
 
 class FCTeugnApp extends ConsumerStatefulWidget {
   const FCTeugnApp({
@@ -72,7 +76,7 @@ class FCTeugnApp extends ConsumerStatefulWidget {
 
 class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
     with WidgetsBindingObserver {
-  static const _nativeMinimumLaunchDuration = Duration(milliseconds: 2800);
+  static const _nativeMinimumLaunchDuration = Duration(milliseconds: 120);
   static const _webMinimumLaunchDuration = Duration(milliseconds: 120);
   Timer? _launchTimer;
   StreamSubscription<String>? _pushActionSubscription;
@@ -83,7 +87,10 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
   GoRouter? _activeRouter;
   late final String? _startupPasswordResetRoute;
   String? _pendingPushAction;
+  String? _startupEntryRoute;
+  String? _invitationToken;
   bool _minimumLaunchComplete = false;
+  bool _showIntroVideo = false;
   bool _initialLaunchComplete = false;
   bool _launchCompletionScheduled = false;
   bool _initialPushPromptScheduled = false;
@@ -100,6 +107,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
     // its token cannot be lost while the launch screen restores the session.
     _startupPasswordResetRoute =
         kIsWeb ? passwordResetRouteFromBrowserUri(Uri.base) : null;
+    _startupEntryRoute =
+        kIsWeb ? internalEntryRouteFromBrowserUri(Uri.base) : null;
     WidgetsBinding.instance.addObserver(this);
     // The first resumed lifecycle event belongs to the initial launch. Treat
     // it as current so it does not immediately duplicate the bootstrap calls.
@@ -107,9 +116,23 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
     _pendingPushAction = nativePushService.takePendingAction();
     _pushActionSubscription = nativePushService.actions.listen((action) {
       _pendingPushAction = action;
+      if (!_initialLaunchComplete) {
+        setState(() => _showIntroVideo = false);
+        _completeLaunchIntro();
+      }
       _openPendingPushAction();
     });
-    if (!widget.playMobileIntroVideo) {
+    unawaited(_prepareLaunch());
+  }
+
+  Future<void> _prepareLaunch() async {
+    final offerIntro =
+        widget.playMobileIntroVideo && await IntroPreferences.shouldShow();
+    if (!mounted) return;
+    final showIntro =
+        offerIntro && _pendingPushAction == null && !_minimumLaunchComplete;
+    setState(() => _showIntroVideo = showIntro);
+    if (!showIntro) {
       _launchTimer = Timer(
         kIsWeb ? _webMinimumLaunchDuration : _nativeMinimumLaunchDuration,
         _completeLaunchIntro,
@@ -119,6 +142,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
 
   void _completeLaunchIntro() {
     if (mounted && !_minimumLaunchComplete) {
+      if (_showIntroVideo) unawaited(IntroPreferences.markSeen());
       setState(() => _minimumLaunchComplete = true);
     }
   }
@@ -450,7 +474,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
         // zweites Vereinslogo darüberlegen.
         builder: buildLaunchScreenContent,
         home: AnimatedLaunchScreen(
-          playMobileIntroVideo: widget.playMobileIntroVideo,
+          playMobileIntroVideo: _showIntroVideo,
           onIntroCompleted: _completeLaunchIntro,
           waitingForData: initialAuthRestoreLoading || bootstrapLoading,
           statusMessage: authRestoreError != null || bootstrapError != null
@@ -485,18 +509,27 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
     // location and causes the dashboard to visibly enter a second time.
     final router = _activeRouter ??= GoRouter(
       navigatorKey: _rootNavigatorKey,
-      initialLocation: initialAppRouteForSession(
-        authState.user,
-        capturedPasswordResetRoute: _startupPasswordResetRoute,
-      ),
+      initialLocation: _startupEntryRoute ??
+          initialAppRouteForSession(
+            authState.user,
+            capturedPasswordResetRoute: _startupPasswordResetRoute,
+          ),
       // When a reset link was captured before the launch screen, it must take
       // precedence over the platform route that the temporary navigator may
       // have written in the meantime.
-      overridePlatformDefaultLocation: _startupPasswordResetRoute != null,
+      overridePlatformDefaultLocation:
+          _startupPasswordResetRoute != null || _startupEntryRoute != null,
       redirect: (context, state) {
         final user = ref.read(authProvider).user;
         final location = state.matchedLocation;
         final loggedIn = user != null;
+        final invitation =
+            state.uri.queryParameters[location == '/join' ? 'token' : 'invite'];
+        if (invitation != null &&
+            RegExp(r'^[a-f0-9]{64}$').hasMatch(invitation)) {
+          _invitationToken = invitation;
+        }
+        if (location == '/join' || location == '/install') return null;
         final publicLocation = location == '/login' ||
             location == '/register' ||
             location == '/reset-password';
@@ -506,6 +539,11 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
         }
 
         if (loggedIn && (location == '/login' || location == '/register')) {
+          if (_invitationToken != null) {
+            final token = _invitationToken!;
+            _invitationToken = null;
+            return '/join?token=$token';
+          }
           if (user.status != AccountStatus.approved) {
             return '/pending';
           }
@@ -535,12 +573,21 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
       },
       routes: [
         GoRoute(
+            path: '/join',
+            builder: (context, state) =>
+                JoinTeamPage(token: state.uri.queryParameters['token'] ?? '')),
+        GoRoute(
+            path: '/install',
+            builder: (context, state) => InstallationPage(
+                invitationToken: state.uri.queryParameters['invite'])),
+        GoRoute(
           path: '/login',
           builder: (context, state) => const LoginPage(),
         ),
         GoRoute(
           path: '/register',
-          builder: (context, state) => const RegisterPage(),
+          builder: (context, state) => RegisterPage(
+              invitationToken: state.uri.queryParameters['invite']),
         ),
         GoRoute(
           path: '/reset-password',
@@ -695,6 +742,13 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   section: ShellSection.communication,
                   hint: 'Informationen versenden und Abstimmungen durchführen'),
               const ShellDestination(
+                  label: 'Familie & Team',
+                  icon: Icons.family_restroom,
+                  route: '/trainer/talents/assistant',
+                  relatedRoutes: ['/trainer/talents'],
+                  section: ShellSection.overview,
+                  hint: 'Aufgaben, Abwesenheiten, Umfragen und Lernziele'),
+              const ShellDestination(
                   label: 'Teamaufgaben & Ausrüstung',
                   icon: Icons.assignment_turned_in_rounded,
                   route: '/trainer/operations',
@@ -742,6 +796,11 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
             child: child,
           ),
           routes: [
+            GoRoute(
+                path: '/trainer/talents/:section',
+                builder: (context, state) => TalentsPage(
+                    key: ValueKey(state.pathParameters['section']),
+                    section: state.pathParameters['section'] ?? 'assistant')),
             GoRoute(
               path: '/trainer',
               builder: (context, state) => const TrainerDashboardPage(),
@@ -827,7 +886,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
             ),
             GoRoute(
               path: '/trainer/operations',
-              builder: (context, state) => const TeamOperationsPage(),
+              builder: (context, state) => TeamOperationsPage(
+                  initialTeamId: state.uri.queryParameters['teamId']),
             ),
             GoRoute(
               path: '/trainer/organization',
@@ -918,6 +978,13 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   hint:
                       'Mit dem Trainerteam kommunizieren und an Umfragen teilnehmen'),
               ShellDestination(
+                  label: 'Familie & Team',
+                  icon: Icons.family_restroom,
+                  route: '/parent/talents/assistant',
+                  relatedRoutes: ['/parent/talents'],
+                  section: ShellSection.overview,
+                  hint: 'Aufgaben, Abwesenheiten, Umfragen und Lernziele'),
+              ShellDestination(
                   label: 'Teamaufgaben & Ausrüstung',
                   icon: Icons.assignment_turned_in_rounded,
                   route: '/parent/operations',
@@ -961,6 +1028,11 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
             child: child,
           ),
           routes: [
+            GoRoute(
+                path: '/parent/talents/:section',
+                builder: (context, state) => TalentsPage(
+                    key: ValueKey(state.pathParameters['section']),
+                    section: state.pathParameters['section'] ?? 'assistant')),
             GoRoute(
               path: '/parent',
               builder: (context, state) => const ParentDashboardPage(),
@@ -1020,7 +1092,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
             ),
             GoRoute(
               path: '/parent/operations',
-              builder: (context, state) => const TeamOperationsPage(),
+              builder: (context, state) => TeamOperationsPage(
+                  initialTeamId: state.uri.queryParameters['teamId']),
             ),
             GoRoute(
               path: '/parent/privacy',
@@ -1120,6 +1193,25 @@ String? passwordResetRouteFromBrowserUri(Uri uri) {
       if (requestId.isNotEmpty) 'requestId': requestId,
     },
   ).toString();
+}
+
+String? internalEntryRouteFromBrowserUri(Uri uri) {
+  final entry = Uri.tryParse(uri.fragment.isNotEmpty
+      ? uri.fragment
+      : '${uri.path}${uri.hasQuery ? '?${uri.query}' : ''}');
+  if (entry == null || entry.hasScheme || entry.hasAuthority) return null;
+  const prefixes = [
+    '/trainer',
+    '/parent',
+    '/join',
+    '/install',
+    '/login',
+    '/register'
+  ];
+  return prefixes.any(
+          (prefix) => entry.path == prefix || entry.path.startsWith('$prefix/'))
+      ? entry.toString()
+      : null;
 }
 
 String normalizePushActionRoute(

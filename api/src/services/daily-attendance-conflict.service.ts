@@ -270,6 +270,8 @@ export async function acceptAttendanceExclusivelyForDay(
     },
     update: {
       status: AttendanceStatus.YES,
+      absenceId: null,
+      beforeAbsence: Prisma.DbNull,
       reason: null,
       goalkeeperAvailable: input.goalkeeperAvailable ?? null,
       respondedById: input.actorId,

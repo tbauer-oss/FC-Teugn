@@ -17,6 +17,7 @@ import competitionsRoutes from './routes/competitions.routes';
 import cronRoutes from './routes/cron.routes';
 import supportRoutes from './routes/support.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import talentsRoutes from './routes/talents.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { authRateLimit } from './middleware/rate-limit';
 import openApiDocument from '../openapi.json';
@@ -122,6 +123,7 @@ app.use('/team-operations', teamOperationsRoutes);
 app.use('/competitions', competitionsRoutes);
 app.use('/support', supportRoutes);
 app.use('/dashboard', dashboardRoutes);
+app.use('/talents', talentsRoutes);
 app.use('/internal/cron', cronRoutes);
 
 app.use(errorHandler);

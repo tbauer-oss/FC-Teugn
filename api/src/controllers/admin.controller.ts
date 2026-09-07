@@ -1,3 +1,4 @@
+import { removeTalentsAccountAccess } from '../services/talents-privacy';
 import { Request, Response } from 'express';
 import { createHash, randomBytes } from 'crypto';
 import {
@@ -699,6 +700,7 @@ export async function deleteMemberAccount(req: Request, res: Response) {
         },
       },
     });
+    await removeTalentsAccountAccess(tx, target.id);
     await tx.notificationDelivery.deleteMany({ where: { userId: target.id } });
     await tx.notification.deleteMany({ where: { userId: target.id } });
     await tx.pushSubscription.deleteMany({ where: { userId: target.id } });

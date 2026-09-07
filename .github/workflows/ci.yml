@@ -10,15 +10,58 @@ on:
       - main
       - master
   workflow_dispatch:
+    inputs:
+      publish_android:
+        description: 'Nach erfolgreicher Backend- und Web-Auslieferung auch Android veröffentlichen'
+        type: boolean
+        default: false
+      check_ios:
+        description: 'Zusätzlich die native iPhone-App auf macOS für den Simulator bauen'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  ios-simulator:
+    if: github.event_name == 'workflow_dispatch' && inputs.check_ios
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: fc_teugn_app
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.8'
+          cache: true
+          pub-cache: true
+      - name: Check Apple build tools
+        run: |
+          xcodebuild -version
+          pod --version
+      - name: Build native iOS simulator app
+        run: flutter build ios --simulator --debug --no-codesign
+      - name: Package simulator app
+        run: ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app build/ios/FC-Teugn-Talents-iOS-Simulator.zip
+      - name: Upload iOS simulator app
+        uses: actions/upload-artifact@v7
+        with:
+          name: fc-teugn-talents-ios-simulator
+          path: fc_teugn_app/build/ios/FC-Teugn-Talents-iOS-Simulator.zip
+          if-no-files-found: error
+          retention-days: 30
+
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -75,6 +118,12 @@ jobs:
       - name: Run backend tests
         run: pnpm test
 
+      - name: Install isolated migration test runtime
+        run: npm ci --prefix test-support
+
+      - name: Verify Talents migration and workflows
+        run: pnpm run test:talents:integration
+
       - name: Prepare E2E database
         run: |
           pnpm exec prisma migrate deploy
@@ -97,6 +146,7 @@ jobs:
           pnpm run test:e2e
 
   flutter:
+    needs: backend
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -132,7 +182,7 @@ jobs:
         run: flutter pub get
 
       - name: Validate source formatting
-        run: dart format --output=none --set-exit-if-changed lib test
+        run: dart format --output=none --set-exit-if-changed lib test integration_test
 
       - name: Analyze
         run: flutter analyze
@@ -208,7 +258,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           FC_TEUGN_REQUIRE_RELEASE_SIGNING: 'true'
-        run: flutter build appbundle --release --no-pub
+        run: flutter build appbundle --release
 
       - name: Prepare professionally named Android App Bundle
         if: github.event_name == 'workflow_dispatch'
@@ -231,7 +281,7 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           FC_TEUGN_REQUIRE_RELEASE_SIGNING: 'true'
-        run: flutter build apk --release --no-pub
+        run: flutter build apk --release
 
       - name: Prepare professionally named Android APK
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -263,11 +313,22 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Wait for matching backend and web deployment
+        if: >-
+          (github.event_name == 'push' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
+          (github.event_name == 'workflow_dispatch' && inputs.publish_android)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node ../scripts/wait_for_workflow_success.mjs deploy_backend_vercel.yml "$GITHUB_SHA"
+          node ../scripts/wait_for_workflow_success.mjs deploy_flutter_web_vercel.yml "$GITHUB_SHA"
+
       - name: Publish signed Android release to MagentaCLOUD
         if: >-
           (github.event_name == 'push' &&
           (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
-          github.event_name == 'workflow_dispatch'
+          (github.event_name == 'workflow_dispatch' && inputs.publish_android)
         shell: bash
         env:
           MAGENTACLOUD_WEBDAV_USERNAME: ${{ secrets.MAGENTACLOUD_WEBDAV_USERNAME }}
@@ -280,7 +341,7 @@ jobs:
         if: >-
           (github.event_name == 'push' &&
           (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
-          github.event_name == 'workflow_dispatch'
+          (github.event_name == 'workflow_dispatch' && inputs.publish_android)
         uses: actions/upload-artifact@v7
         with:
           name: fc-teugn-talents-update-manifest

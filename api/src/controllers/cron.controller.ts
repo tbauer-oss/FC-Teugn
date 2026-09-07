@@ -7,6 +7,9 @@ import { retryPendingPushDeliveries } from '../services/notification.service';
 import { prisma } from '../lib/prisma';
 import { ensureNextRegularTrainingOccurrences } from '../services/regular-training-occurrence.service';
 import { processKitLaundryReminders } from '../services/kit-laundry.service';
+import { processEventChanges } from '../services/event-change.service';
+import { reconcileActiveAbsences } from '../services/absence.service';
+import { processTalentsNotices } from '../services/talents-notices';
 
 export async function processScheduledJobs(req: Request, res: Response) {
   const configuredSecret = process.env.CRON_SECRET?.trim();
@@ -15,6 +18,7 @@ export async function processScheduledJobs(req: Request, res: Response) {
     return res.status(401).json({ message: 'Cron-Autorisierung fehlgeschlagen.' });
   }
   await processDueAnnouncements();
+  await reconcileActiveAbsences();
   const [reminders, kitLaundry, bfvSyncs, retention] = await Promise.all([
     processDueReminders(),
     processKitLaundryReminders(),
@@ -24,8 +28,10 @@ export async function processScheduledJobs(req: Request, res: Response) {
   // Erinnerungen und geplante Mitteilungen legen ihre Zustellungen oberhalb an.
   // Danach werden auch vorübergehend fehlgeschlagene Pushes aller Kategorien
   // erneut versendet, ohne dass der Empfänger zuerst die App öffnen muss.
+  const eventChanges = await processEventChanges();
+  await processTalentsNotices();
   const pushRetries = await retryPendingPushDeliveries();
-  return res.json({ reminders, kitLaundry, pushRetries, bfvSyncs, retention });
+  return res.json({ reminders, kitLaundry, pushRetries, bfvSyncs, eventChanges, retention });
 }
 
 export async function processRegularTrainingJobs(req: Request, res: Response) {

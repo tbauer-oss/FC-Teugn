@@ -1,3 +1,4 @@
+import { attendanceAfterRevision } from '../services/attendance-revision';
 import { randomBytes, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import { waitUntil } from '@vercel/functions';
@@ -38,6 +39,7 @@ import {
 } from '../services/team-access';
 import { rosterTeamIdsForMatch } from '../services/match-roster';
 import { createPitchConflictRequestsForEvent } from './pitch-conflicts.controller';
+import { reconcileAbsencesForEvents } from '../services/absence.service';
 import {
   fieldSizeForGameFormat,
   syncSquadWithTeamDefaultLineup,
@@ -437,6 +439,7 @@ async function serializeEvent(
   knownRoster?: RosterPlayer[],
   knownPersonalPlayerIds?: string[],
 ) {
+  event = { ...event, attendance: event.attendance.map(reply => attendanceAfterRevision(reply, event)) };
   const staff = isStaff(user.role, user.permissions);
   const accessibleIds = knownAccessibleIds ?? (await accessibleTeamIds(user));
   const manageable = canManageEventWithIds(user, event, accessibleIds);
@@ -1370,7 +1373,9 @@ export async function listPersonalResponses(req: Request, res: Response) {
       const deadlinePassed = Boolean(
         event.responseDeadline && event.responseDeadline.getTime() < now.getTime(),
       );
-      const responseStatus = response?.status === AttendanceStatus.MAYBE
+      const needsConfirmation = !!event.responseRevisionAt && !!response && !response.absenceId &&
+        (!response.respondedAt || response.respondedAt < event.responseRevisionAt);
+      const responseStatus = needsConfirmation || response?.status === AttendanceStatus.MAYBE
         ? AttendanceStatus.UNKNOWN
         : response?.status ?? AttendanceStatus.UNKNOWN;
       return [{
@@ -1396,7 +1401,9 @@ export async function listPersonalResponses(req: Request, res: Response) {
         responseDeadline: event.responseDeadline,
         attendanceFinalized: event.attendanceFinalized,
         responseStatus,
-        reason: response?.reason ?? null,
+        reason: needsConfirmation ? 'Termin geändert – bitte erneut bestätigen.' : response?.reason ?? null,
+        previousResponseStatus: needsConfirmation ? response?.status : null,
+        needsConfirmation,
         respondedAt: response?.respondedAt ?? null,
         canRespond:
           event.status === EventStatus.SCHEDULED &&
@@ -1979,6 +1986,7 @@ export async function createEvent(req: Request, res: Response) {
     return ids;
   });
 
+  await prisma.$transaction(tx => reconcileAbsencesForEvents(tx, createdIds), { timeout: 15000 });
   const created = await prisma.event.findMany({
     where: { id: { in: createdIds } },
     orderBy: { startAt: 'asc' },
@@ -2771,6 +2779,8 @@ export async function setAttendance(req: Request, res: Response) {
     const reply = exclusiveAcceptance?.reply ?? await tx.attendance.upsert({
       where: { eventId_playerId: { eventId: event.id, playerId } },
       update: {
+        absenceId: null,
+        beforeAbsence: Prisma.DbNull,
         status,
         reason: status === AttendanceStatus.NO ? clean(req.body.reason) : null,
         goalkeeperAvailable,

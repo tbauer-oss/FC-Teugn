@@ -1,3 +1,4 @@
+import { carryTalentsSeason } from '../services/talents-season';
 import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
@@ -113,12 +114,22 @@ export async function previewSeasonTransition(req: Request, res: Response) {
     },
     teams: teamPlans,
     archivePlayerIds: [...new Set(archivePlayerIds)],
+    talents: { goals: req.body.carryGoals === true, absences: req.body.carryAbsences === true },
   };
+  const movingTeamIds = teamPlans.filter(team => team.includePlayers).map(team => team.sourceTeamId);
+  const movingPlayerIds = sourceTeams.filter(team => movingTeamIds.includes(team.id))
+    .flatMap(team => team.players.filter(player => player.status !== 'LEFT' && !archivePlayerIds.includes(player.id)).map(player => player.id));
+  const [activeGoals, activeAbsences] = await Promise.all([
+    prisma.learningGoal.count({ where: { teamId: { in: movingTeamIds }, playerId: { in: movingPlayerIds }, status: 'ACTIVE' } }),
+    prisma.playerAbsence.count({ where: { playerId: { in: movingPlayerIds }, endedAt: null, endsOn: { gte: parsedStart.toISOString().slice(0, 10) } } }),
+  ]);
   const preview = {
     sourceSeason: { id: sourceSeason.id, name: sourceSeason.name },
     targetSeason: plan.targetSeason,
     teams: teamPlans,
     totals: {
+      activeGoals,
+      activeAbsences,
       teams: teamPlans.length,
       playersToMove: teamPlans.reduce(
         (sum, team) => sum + (team.includePlayers ? team.activePlayerCount : 0),
@@ -132,9 +143,12 @@ export async function previewSeasonTransition(req: Request, res: Response) {
         0,
       ),
     },
-    warnings: teamPlans
+    warnings: [
+      `${activeGoals} offene Lernziele: ${plan.talents.goals ? "in die neue Saison übernehmen; Verantwortliche und Zeitraum prüfen" : "in der Vorsaison archivieren"}.`,
+      `${activeAbsences} Abwesenheiten: ${plan.talents.absences ? "für wechselnde Spieler übernehmen" : "zum Saisonbeginn beenden"}.`,
+      ...teamPlans
       .filter((team) => team.sourceAgeGroupCode === 'A' && team.targetAgeGroupCode === 'A')
-      .map((team) => `${team.sourceName}: A-Jugend bleibt A-Jugend; Abgänge bitte archivieren.`),
+      .map((team) => `${team.sourceName}: A-Jugend bleibt A-Jugend; Abgänge bitte archivieren.`)],
   };
 
   const transition = await prisma.seasonTransition.create({
@@ -199,6 +213,7 @@ export async function applySeasonTransition(req: Request, res: Response) {
       includeStaff: boolean;
     }>;
     archivePlayerIds: string[];
+    talents?: { goals: boolean; absences: boolean };
   };
   const archivePlayerIds = new Set(plan.archivePlayerIds);
 
@@ -378,7 +393,9 @@ export async function applySeasonTransition(req: Request, res: Response) {
         }
       }
 
+      const talents = await carryTalentsSeason(tx, teamMapping, plan.talents ?? { goals: false, absences: false }, plan.targetSeason.startDate.slice(0, 10), user.id);
       const result = {
+        ...talents,
         targetSeasonId: targetSeason.id,
         teamMapping,
         movedPlayers,

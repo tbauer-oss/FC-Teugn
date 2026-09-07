@@ -102,7 +102,7 @@ test('regular training materialization runs only after plan changes or controlle
   assert.match(occurrenceService, /regular-training:\$\{team\.id\}/);
   assert.match(
     occurrenceService,
-    /prisma\.\$transaction\(\(tx\)\s*=>\s*reconcileNextRegularTrainingOccurrence\(tx, team, now\)/,
+    /prisma\.\$transaction\(async \(tx\)\s*=>\s*\{[\s\S]*reconcileNextRegularTrainingOccurrence\(tx, team, now\)[\s\S]*reconcileAbsencesForEvents\(tx, ids\)/,
   );
   assert.match(occurrenceService, /isSeriesException:\s*true/);
 });

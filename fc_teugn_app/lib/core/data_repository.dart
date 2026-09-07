@@ -813,12 +813,16 @@ class DataRepository {
   }
 
   Future<SeasonTransitionModel> previewSeasonTransition({
+    bool carryGoals = false,
+    bool carryAbsences = false,
     required String name,
     required DateTime startDate,
     required DateTime endDate,
   }) async {
     final res = await client.dio
         .post('/organization/season-transitions/preview', data: {
+      'carryGoals': carryGoals,
+      'carryAbsences': carryAbsences,
       'name': name,
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
@@ -2920,10 +2924,17 @@ class DataRepository {
   Future<void> applyCompetitionImport(
     String importId, {
     bool sourceWinsConflicts = false,
+    Map<String, Map<String, String>> fieldResolutions = const {},
     Set<String>? selectedRowIds,
   }) async {
     final sortedRowIds =
         selectedRowIds == null ? null : (selectedRowIds.toList()..sort());
+    final resolutionKeys = [
+      for (final row in fieldResolutions.entries)
+        for (final field in row.value.entries)
+          '${row.key}:${field.key}:${field.value}'
+    ]..sort();
+    final resolutionKey = _stableCompetitionImportSelectionKey(resolutionKeys);
     final selectionKey = sortedRowIds == null
         ? 'all'
         : _stableCompetitionImportSelectionKey(sortedRowIds);
@@ -2931,12 +2942,13 @@ class DataRepository {
       '/imports/competition/$importId/apply',
       data: {
         'conflictPolicy': sourceWinsConflicts ? 'SOURCE_WINS' : 'SKIP',
+        'fieldResolutions': fieldResolutions,
         if (sortedRowIds != null) 'selectedRowIds': sortedRowIds,
       },
       options: Options(
         headers: {
           'X-Idempotency-Key':
-              'competition-import-$importId-${sourceWinsConflicts ? 'source-wins' : 'skip'}-$selectionKey',
+              'competition-import-$importId-${sourceWinsConflicts ? 'source-wins' : 'skip'}-$selectionKey-$resolutionKey',
         },
         extra: {
           // Der Importjob und der Idempotenzschlüssel machen ein erneutes

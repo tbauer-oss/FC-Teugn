@@ -1,8 +1,10 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/app_identity.dart';
 import '../../core/app_theme.dart';
+import '../launch/animated_launch_screen.dart';
 
 Future<void> showAppAboutSheet(BuildContext context) {
   return showModalBottomSheet<void>(
@@ -50,6 +52,14 @@ class _AppAboutSheet extends StatelessWidget {
                 filterQuality: FilterQuality.high,
               ),
             ),
+            OutlinedButton.icon(
+                onPressed: () {
+                  final router = GoRouter.of(context);
+                  Navigator.pop(context);
+                  router.push('/install');
+                },
+                icon: const Icon(Icons.install_mobile),
+                label: const Text('Installation & Updates')),
             const SizedBox(height: 18),
             Text(
               AppIdentity.name,
@@ -68,6 +78,18 @@ class _AppAboutSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 22),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.play_circle_outline),
+              label: const Text('Vereinsvideo ansehen'),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (videoContext) => AnimatedLaunchScreen(
+                    playMobileIntroVideo: true,
+                    onIntroCompleted: () => Navigator.of(videoContext).pop(),
+                  ),
+                ),
+              ),
+            ),
             FutureBuilder<PackageInfo>(
               future: PackageInfo.fromPlatform(),
               builder: (context, snapshot) {

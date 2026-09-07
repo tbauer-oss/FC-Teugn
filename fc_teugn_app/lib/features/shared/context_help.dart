@@ -18,6 +18,20 @@ class ContextHelpInfo {
 ContextHelpInfo contextHelpFor(String pageTitle, String pageSubtitle) {
   final title = pageTitle.toLowerCase();
 
+  if (title.contains('familie & team')) {
+    return const ContextHelpInfo(
+      summary:
+          'Hier findest du Aufgaben, Abwesenheiten, Umfragen und Lernziele. Berechtigte verwalten zusätzlich Mannschaftseinladungen.',
+      steps: [
+        'Wechsle über die Auswahl oberhalb der Liste zum gewünschten Bereich.',
+        'Aufgaben führen zur passenden Rückmeldung, Einwilligung oder Organisation. Abwesenheiten berücksichtigen auch neue Termine.',
+        'Prüfe bei Umfragen die Frist und ob eine Stimme je Person, Familie oder Kind gilt.',
+        'Die neuen Formulare benötigen Internet. Warte auf die Speicherbestätigung; bei einem Fehler bleiben deine Eingaben erhalten.',
+      ],
+      searchQuery: 'Abwesenheiten',
+    );
+  }
+
   if (title.contains('kinder') || title.contains('rückmeldung')) {
     return const ContextHelpInfo(
       summary:

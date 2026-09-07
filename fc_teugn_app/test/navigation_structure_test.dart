@@ -20,7 +20,18 @@ void main() {
         .toSet();
 
     expect(destinations, isNotEmpty);
-    expect(destinations.difference(routes), isEmpty);
+    expect(
+        destinations.where((destination) => !routes.any((route) {
+              final routeParts = route.split('/'),
+                  actual = destination.split('/');
+              return routeParts.length == actual.length &&
+                  List.generate(
+                      actual.length,
+                      (i) =>
+                          routeParts[i].startsWith(':') ||
+                          routeParts[i] == actual[i]).every((v) => v);
+            })),
+        isEmpty);
   });
 
   test('Navigation verwendet verständliche Aufgabenbereiche', () {

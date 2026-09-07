@@ -105,6 +105,12 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          OutlinedButton.icon(
+              onPressed: () => context.go(
+                  '${widget.staffView ? '/trainer' : '/parent'}/talents/polls'),
+              icon: const Icon(Icons.poll_outlined),
+              label: const Text('Umfragen öffnen')),
+          const SizedBox(height: 8),
           _CommunicationNavigation(
             destinations: destinations,
             selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,

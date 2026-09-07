@@ -14,6 +14,27 @@ import '../../core/widgets/adaptive_layout.dart';
 
 const _maxImportBytes = 2 * 1024 * 1024;
 
+String _conflictValue(String field, dynamic value) {
+  if (value == null || value == '') return 'nicht angegeben';
+  if (field.endsWith('At')) {
+    final date = DateTime.tryParse('$value')?.toLocal();
+    if (date != null) {
+      String two(int n) => n.toString().padLeft(2, '0');
+      return '${two(date.day)}.${two(date.month)}.${date.year}, ${two(date.hour)}:${two(date.minute)} Uhr';
+    }
+  }
+  return const {
+        'CANCELLED': 'Abgesagt',
+        'SCHEDULED': 'Geplant',
+        'PLANNED': 'Geplant',
+        'FINISHED': 'Beendet',
+        'POSTPONED': 'Verlegt',
+        'HOME': 'Heimspiel',
+        'AWAY': 'Auswärtsspiel',
+      }[value] ??
+      '$value';
+}
+
 @visibleForTesting
 CompetitionImportFormat competitionImportFormatForFile(
   String fileName,
@@ -85,6 +106,7 @@ class _CompetitionImportDialogState
   int? _fileSize;
   bool _busy = false;
   bool _sourceWins = false;
+  final Map<String, Map<String, String>> _fieldResolutions = {};
   bool _manualInput = false;
 
   @override
@@ -162,6 +184,36 @@ class _CompetitionImportDialogState
                 ),
                 const SizedBox(height: 8),
               ],
+              for (final row in _preview!.rows.where((r) =>
+                  _selectedRowIds.contains(r.id) &&
+                  r.fieldConflicts.isNotEmpty))
+                for (final field in row.fieldConflicts)
+                  Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: _fieldResolutions[row.id]
+                            ?[field['field']],
+                        decoration: InputDecoration(
+                            labelText: '${row.opponent} · ${field['label']}'),
+                        items: [
+                          DropdownMenuItem(
+                              value: 'LOCAL',
+                              child: Text(
+                                  'Lokal behalten: ${_conflictValue(field['field'] as String, field['local'])}',
+                                  overflow: TextOverflow.ellipsis)),
+                          DropdownMenuItem(
+                              value: 'SOURCE',
+                              child: Text(
+                                  'Quelle übernehmen: ${_conflictValue(field['field'] as String, field['source'])}',
+                                  overflow: TextOverflow.ellipsis))
+                        ],
+                        onChanged: (value) => setState(() {
+                          _fieldResolutions.putIfAbsent(
+                                  row.id, () => {})[field['field'] as String] =
+                              value!;
+                        }),
+                      )),
               if (_preview!.conflictCount > 0) ...[
                 const SizedBox(height: 4),
                 CheckboxListTile(
@@ -267,6 +319,7 @@ class _CompetitionImportDialogState
 
   void _backToSource() => setState(() {
         _preview = null;
+        _fieldResolutions.clear();
         _selectedRowIds = <String>{};
         _sourceWins = false;
       });
@@ -317,11 +370,20 @@ class _CompetitionImportDialogState
       _showMessage('Wähle mindestens einen Termin für den Import aus.');
       return;
     }
+    if (!_sourceWins &&
+        _preview!.rows.where((row) => _selectedRowIds.contains(row.id)).any(
+            (row) => row.fieldConflicts.any((field) =>
+                _fieldResolutions[row.id]?[field['field']] == null))) {
+      _showMessage(
+          'Bitte für jedes angezeigte Konfliktfeld auswählen, welcher Wert gelten soll.');
+      return;
+    }
     setState(() => _busy = true);
     try {
       await ref.read(repositoryProvider).applyCompetitionImport(
             _preview!.id,
             sourceWinsConflicts: _sourceWins,
+            fieldResolutions: _fieldResolutions,
             selectedRowIds: _selectedRowIds,
           );
       if (mounted) Navigator.pop(context, true);

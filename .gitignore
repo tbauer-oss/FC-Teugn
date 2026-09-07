@@ -17,6 +17,9 @@ fc_teugn_app/flutter_windows_*.zip
 fc_teugn_app/.tool_state/
 fc_teugn_app/.pub-cache/
 # Local tooling
+/tmp/
+fc_teugn_app/android/.gradle/
+fc_teugn_app/linux/flutter/ephemeral/
 .env
 .vercel
 !api/.vercel/

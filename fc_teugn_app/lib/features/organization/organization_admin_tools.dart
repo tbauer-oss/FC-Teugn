@@ -224,6 +224,8 @@ class _OrganizationAdminToolsState
     try {
       final preview =
           await ref.read(repositoryProvider).previewSeasonTransition(
+                carryGoals: draft.carryGoals,
+                carryAbsences: draft.carryAbsences,
                 name: draft.name,
                 startDate: draft.start,
                 endDate: draft.end,
@@ -638,6 +640,8 @@ class _SeasonDraftDialogState extends State<_SeasonDraftDialog> {
   late final TextEditingController _name;
   late DateTime _start;
   late DateTime _end;
+  bool _carryGoals = true;
+  bool _carryAbsences = true;
 
   @override
   void initState() {
@@ -667,6 +671,7 @@ class _SeasonDraftDialogState extends State<_SeasonDraftDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Neue Saison vorbereiten'),
+      scrollable: true,
       content: SizedBox(
         width: 520,
         child: Column(
@@ -676,6 +681,20 @@ class _SeasonDraftDialogState extends State<_SeasonDraftDialog> {
             const Text(
               'Zuerst wird nur eine prüfbare Vorschau erstellt. Teams rücken automatisch eine Altersklasse weiter; bestehende Termine und Statistiken bleiben unverändert.',
             ),
+            CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Offene Lernziele übernehmen'),
+                subtitle: const Text(
+                    'Verlauf bleibt in der Vorsaison erhalten. Zeitraum und Trainer anschließend prüfen.'),
+                value: _carryGoals,
+                onChanged: (v) => setState(() => _carryGoals = v == true)),
+            CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Geplante Abwesenheiten übernehmen'),
+                subtitle: const Text(
+                    'Gilt für Spieler, die in die neue Saison wechseln.'),
+                value: _carryAbsences,
+                onChanged: (v) => setState(() => _carryAbsences = v == true)),
             const SizedBox(height: 18),
             TextField(
               controller: _name,
@@ -715,6 +734,8 @@ class _SeasonDraftDialogState extends State<_SeasonDraftDialog> {
               : () => Navigator.pop(
                     context,
                     _SeasonDraft(
+                      carryGoals: _carryGoals,
+                      carryAbsences: _carryAbsences,
                       name: _name.text.trim(),
                       start: _start,
                       end: _end,
@@ -892,7 +913,11 @@ class _RuleProfileDraft {
 }
 
 class _SeasonDraft {
+  final bool carryGoals;
+  final bool carryAbsences;
   const _SeasonDraft({
+    required this.carryGoals,
+    required this.carryAbsences,
     required this.name,
     required this.start,
     required this.end,

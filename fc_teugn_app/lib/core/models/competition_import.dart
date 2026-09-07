@@ -54,6 +54,7 @@ class CompetitionImportRow {
     required this.rowNumber,
     required this.action,
     required this.messages,
+    this.fieldConflicts = const [],
     this.externalId,
     this.opponent,
     this.startAt,
@@ -68,6 +69,7 @@ class CompetitionImportRow {
   final String id;
   final int rowNumber;
   final CompetitionImportAction action;
+  final List<Map<String, dynamic>> fieldConflicts;
   final String? externalId;
   final String? opponent;
   final DateTime? startAt;
@@ -100,6 +102,10 @@ class CompetitionImportRow {
         json['action'],
         CompetitionImportAction.invalid,
       ),
+      fieldConflicts: (normalized?['fieldConflicts'] as List? ?? [])
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList(),
       externalId: json['externalId'] as String?,
       opponent: normalized?['opponent'] as String?,
       startAt: normalized?['startAt'] == null

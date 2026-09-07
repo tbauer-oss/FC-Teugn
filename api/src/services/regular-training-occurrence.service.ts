@@ -1,3 +1,4 @@
+import { reconcileAbsencesForEvents } from './absence.service';
 import {
   AttendanceStatus,
   EventCategory,
@@ -371,9 +372,11 @@ export async function ensureNextRegularTrainingOccurrences(
   // ohne dass ein Administrator den Wochenplan erneut speichern muss.
   await Promise.all(
     teams.map((team) =>
-      prisma.$transaction((tx) =>
-        reconcileNextRegularTrainingOccurrence(tx, team, now),
-      ),
+      prisma.$transaction(async (tx) => {
+        const ids = await reconcileNextRegularTrainingOccurrence(tx, team, now);
+        await reconcileAbsencesForEvents(tx, ids);
+        return ids;
+      }),
     ),
   );
 }

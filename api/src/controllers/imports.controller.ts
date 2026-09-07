@@ -15,7 +15,8 @@ import {
   parseCompetitionSource,
 } from '../services/competition-provider';
 import { recalculateMatchStatistics } from '../services/statistics.service';
-import { writeCompetitionMatch } from '../services/competition-import-write.service';
+import { writeCompetitionMatch, competitionCurrentSnapshot, competitionSourceSnapshot } from '../services/competition-import-write.service';
+import { mergeCompetitionFields, ImportSnapshot, importFieldLabels } from '../services/competition-merge';
 import { teamPlayingIdentity } from '../services/team-playing-identity.service';
 
 export const competitionImportTransactionOptions = {
@@ -132,12 +133,7 @@ export async function previewCompetitionImport(req: Request, res: Response) {
   const entityIds = references.map((reference) => reference.entityId);
   const events = await prisma.event.findMany({
     where: { id: { in: entityIds } },
-    select: {
-      id: true,
-      teamId: true,
-      updatedAt: true,
-      matchDetails: { select: { updatedAt: true } },
-    },
+    include: { matchDetails: true },
   });
   const eventById = new Map(events.map((event) => [event.id, event]));
   const validMatches = parsed.flatMap((row) => row.match ? [row.match] : []);
@@ -246,15 +242,21 @@ export async function previewCompetitionImport(req: Request, res: Response) {
         event.updatedAt.getTime(),
         event.matchDetails?.updatedAt.getTime() ?? 0,
       ) > reference.lastSyncedAt.getTime() + 1000;
+    const current = competitionCurrentSnapshot(event);
+    const incoming = competitionSourceSnapshot(row.match);
+    const conflictingFields = mergeCompetitionFields(
+      reference.sourceSnapshot as ImportSnapshot | null ?? (locallyChanged ? null : current), current, incoming,
+    ).conflicts;
     return {
       rowNumber: row.rowNumber,
       externalId: row.match.externalId,
-      action: locallyChanged
+      action: conflictingFields.length
         ? ImportRowAction.CONFLICT
         : ImportRowAction.UPDATE,
-      normalized: row.match as unknown as Prisma.InputJsonValue,
-      messages: locallyChanged
-        ? [...row.messages, 'Lokale Änderungen seit dem letzten Abgleich erkannt.']
+      normalized: { ...row.match, fieldConflicts: conflictingFields.map(field => ({ field, label: importFieldLabels[field] ?? field, local: current[field], source: incoming[field] })) } as unknown as Prisma.InputJsonValue,
+      messages: conflictingFields.length
+        ? [...row.messages, ...conflictingFields.map(field =>
+          `${importFieldLabels[field] ?? field}: lokal „${current[field] ?? 'leer'}“ → Quelle „${incoming[field] ?? 'leer'}“`)]
         : row.messages,
       entityId: event.id,
     };
@@ -286,6 +288,8 @@ export async function applyCompetitionImport(req: Request, res: Response) {
   if (!job) return res.status(404).json({ message: 'Importvorschau nicht gefunden.' });
   if (job.status === ImportJobStatus.APPLIED) return res.json(job);
   const sourceWins = req.body?.conflictPolicy === 'SOURCE_WINS';
+  const fieldResolutions = req.body?.fieldResolutions ?? {};
+  if (!fieldResolutions || typeof fieldResolutions !== 'object' || Array.isArray(fieldResolutions) || Object.values(fieldResolutions).some(v => !v || typeof v !== 'object' || Array.isArray(v) || Object.entries(v).some(([field, choice]) => !importFieldLabels[field] || !['LOCAL', 'SOURCE'].includes(String(choice))))) return res.status(400).json({ message: 'Ungültige Konfliktauswahl.' });
   const selectedRowIdsInput = req.body?.selectedRowIds;
   if (selectedRowIdsInput != null && !Array.isArray(selectedRowIdsInput)) {
     return res.status(400).json({ message: 'Die Terminauswahl ist ungültig.' });
@@ -318,10 +322,15 @@ export async function applyCompetitionImport(req: Request, res: Response) {
       row.normalized &&
       row.action !== ImportRowAction.INVALID &&
       row.action !== ImportRowAction.SKIP &&
-      (row.action !== ImportRowAction.CONFLICT || sourceWins),
+      (row.action !== ImportRowAction.CONFLICT || sourceWins || Object.keys(fieldResolutions[row.id] ?? {}).length > 0),
   );
   const actionableRowIds = new Set(actionableRows.map((row) => row.id));
+  if (!actionableRows.length) {
+    return res.status(400).json({ message: 'Es sind keine übernehmbaren Änderungen ausgewählt. Bitte die Feldkonflikte auflösen oder einen anderen Termin auswählen.' });
+  }
   const applied = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.importJob.updateMany({ where: { id: job.id, status: { not: ImportJobStatus.APPLIED } }, data: { status: ImportJobStatus.APPLIED } });
+    if (!claimed.count) return tx.importJob.findUniqueOrThrow({ where: { id: job.id }, include: { rows: true } });
     for (const row of actionableRows) {
       if (row.action === ImportRowAction.CONFLICT && row.entityId) {
         const ownedEntity = await tx.event.findFirst({
@@ -336,6 +345,8 @@ export async function applyCompetitionImport(req: Request, res: Response) {
         job.provider,
         row.normalized as unknown as NormalizedCompetitionMatch,
         row.entityId,
+        sourceWins,
+        fieldResolutions[row.id] ?? {},
       );
       await tx.importRow.update({
         where: { id: row.id },

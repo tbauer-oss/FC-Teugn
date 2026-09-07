@@ -845,6 +845,106 @@ class _ContactCard extends StatelessWidget {
 
 const helpArticles = <HelpArticle>[
   HelpArticle(
+    category: HelpCategory.calendar,
+    title: 'Wie trage ich Urlaub oder regelmäßige Abwesenheiten ein?',
+    summary:
+        'Abwesenheiten gelten auch für später angelegte Termine. Eine spätere Einzelantwort ist eine bewusste Ausnahme.',
+    keywords: ['Urlaub', 'Abwesenheiten', 'wiederkehrend', 'Ausnahme'],
+    route: '/talents/absences',
+    routeLabel: 'Abwesenheiten öffnen',
+    steps: [
+      'Öffne Abwesenheiten, wähle das Kind und den Zeitraum einschließlich des letzten Tages.',
+      'Wähle Training, Spiele, Mannschaften und gegebenenfalls wiederkehrende Wochentage. Ohne Mannschaftsauswahl gelten alle Zuordnungen des Kindes.',
+      'Speichere bei bestehender Internetverbindung. Betroffene Termine erhalten automatisch eine Absage.',
+      'Eine spätere Einzelrückmeldung am Termin gilt als Ausnahme. Beim vorzeitigen Beenden werden frühere Antworten für künftige Termine wiederhergestellt.',
+    ],
+    tip:
+        'Ein Grund ist freiwillig. Trage nur ein, was das zuständige Trainerteam wissen muss.',
+  ),
+  HelpArticle(
+    category: HelpCategory.organization,
+    title: 'Was zeigt der Familien-Assistent?',
+    summary:
+        'Offene Rückmeldungen, Einwilligungen, Umfragen und eigene Aufgaben erscheinen mit ihrem nächsten Schritt.',
+    keywords: ['Familie', 'Aufgaben', 'Frist', 'Dienste', 'Mitfahrten'],
+    audience: HelpAudience.family,
+    route: '/talents/assistant',
+    routeLabel: 'Familien-Assistent öffnen',
+    steps: [
+      'Öffne die offenen Aufgaben auf deiner Startseite.',
+      'Bearbeite zuerst fällige Aufgaben; jede Karte führt zum passenden Kind oder Termin.',
+      'Prüfe bei einer Spielverlegung die neue Uhrzeit und bestätige deine Rückmeldung erneut.',
+      'Nach dem Speichern verschwindet eine erledigte Aufgabe. Wenn nichts mehr offen ist, erscheint „Alles erledigt“.',
+    ],
+  ),
+  HelpArticle(
+    category: HelpCategory.communication,
+    title: 'Wie funktionieren Umfragen für Personen, Familien und Kinder?',
+    summary:
+        'Die gewählte Abstimmungseinheit bestimmt, wer eine gemeinsame Antwort abgibt.',
+    keywords: ['Umfrage', 'Familienstimme', 'Abstimmen', 'Ergebnis'],
+    route: '/talents/polls',
+    routeLabel: 'Umfragen öffnen',
+    steps: [
+      'Öffne Umfragen über Nachrichten & Umfragen oder die Mannschaftsorganisation.',
+      'Prüfe Frage, Frist und Abstimmungseinheit. Bei Familien teilen die verknüpften Bezugspersonen dieselbe Antwort.',
+      'Wähle eine oder mehrere erlaubte Antworten. Bis zur Frist darfst du sie ändern.',
+      'Ergebnisse erscheinen entsprechend der festgelegten Sichtbarkeit. Das Trainerteam kann gezielt offene Antworten erinnern und die Umfrage abschließen.',
+    ],
+  ),
+  HelpArticle(
+    category: HelpCategory.team,
+    title: 'Wie nutze ich Mannschaftseinladungen?',
+    summary:
+        'Ein Link oder QR-Code übernimmt Mannschaft und gewünschte Rolle; die Freigabe erfolgt durch eine zuständige Person.',
+    keywords: ['Einladung', 'QR-Code', 'Freigabe', 'Registrierung'],
+    steps: [
+      'Öffne den Einladungslink oder scanne den QR-Code.',
+      'Melde dich mit deinem vorhandenen Konto an. Registriere dich nur, wenn du noch keinen Zugang hast.',
+      'Fordere den Mannschaftszugang an und beachte den angezeigten Prüfstatus.',
+      'Kinderzuordnungen werden weiterhin gesondert geprüft. Einladungen geben keinen automatischen Zugriff auf fremde Kinder.',
+      'Ist die Einladung abgelaufen oder widerrufen, bitte das Trainerteam um einen neuen Link. Öffne nach einer App-Installation den Link erneut.',
+    ],
+  ),
+  HelpArticle(
+    category: HelpCategory.training,
+    title: 'Wie begleiten Lernziele die Entwicklung?',
+    summary:
+        'Bis zu drei aktive Ziele bündeln Übungen, Beobachtungen und den Entwicklungsrückblick.',
+    keywords: ['Lernziel', 'Entwicklung', 'Beobachtung', 'Rückblick', 'PDF'],
+    route: '/talents/goals',
+    routeLabel: 'Lernziele öffnen',
+    steps: [
+      'Das Trainerteam legt Ziel, Zeitraum, verantwortliche Person und Sichtbarkeit fest.',
+      'Passende Übungen und Trainingspläne können am Ziel verknüpft werden.',
+      'Kurze Beobachtungen halten Fortschritte fest. Für Familien freigegebene Ziele sind beim eigenen Kind sichtbar.',
+      'Nutze den Entwicklungsrückblick als kopierbare Übersicht oder PDF für ein Gespräch. Abgeschlossene Ziele bleiben im Verlauf.',
+    ],
+  ),
+  HelpArticle(
+    category: HelpCategory.matchday,
+    title: 'Wie hilft die Spieltagsbereitschaft bei der Vorbereitung?',
+    summary:
+        'Der Autopilot verbindet Verfügbarkeit, Mitfahrten, Trikotdienst, Checkliste und Spieltagsübersicht.',
+    audience: HelpAudience.staff,
+    keywords: [
+      'Autopilot',
+      'Checkliste',
+      'Bereitschaft',
+      'SpielPLUS',
+      'Spielzeiten'
+    ],
+    route: '/matches',
+    routeLabel: 'Spiele öffnen',
+    steps: [
+      'Öffne ein Spiel und den Autopilot. Prüfe fehlende oder nach einer Änderung erneut erforderliche Rückmeldungen.',
+      'Öffne die angezeigten Mitfahrten, Dienste und organisatorischen Aufgaben.',
+      'Lege eine Checkliste für Heimspiel, Auswärtsspiel oder Turnier an. Wiederholtes Öffnen verwendet dieselbe Spieltagscheckliste.',
+      'Vergleiche geplante und dokumentierte Einsatzzeiten und bereite die Kaderentscheidung vor.',
+      'Kopiere oder exportiere die Spieltagsübersicht als PDF. Offizielle Meldungen bearbeitest du über den passenden BFV- beziehungsweise SpielPLUS-Link.',
+    ],
+  ),
+  HelpArticle(
     category: HelpCategory.start,
     title: 'Wie wechsle ich Jugend oder Mannschaft?',
     summary:
@@ -943,7 +1043,7 @@ const helpArticles = <HelpArticle>[
       'Prüfe nach der Synchronisierung kurz den sichtbaren Stand.',
     ],
     tip:
-        'Korrekturen wie „Letzte Aktion zurück“ benötigen bewusst einen aktuellen Online-Spielstand.',
+        'Korrekturen wie „Letzte Aktion zurück“ sowie Abwesenheiten, Umfragen, Einladungen und Lernziele benötigen eine Online-Verbindung. Bei einem Fehler bleiben Formulare geöffnet; wiederhole denselben Speichervorgang.',
   ),
   HelpArticle(
     category: HelpCategory.calendar,

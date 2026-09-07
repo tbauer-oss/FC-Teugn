@@ -8,7 +8,8 @@ import '../../core/models/team_operations.dart';
 import '../../core/providers.dart';
 
 class TeamOperationsPage extends ConsumerStatefulWidget {
-  const TeamOperationsPage({super.key});
+  const TeamOperationsPage({super.key, this.initialTeamId});
+  final String? initialTeamId;
 
   @override
   ConsumerState<TeamOperationsPage> createState() => _TeamOperationsPageState();
@@ -16,9 +17,15 @@ class TeamOperationsPage extends ConsumerStatefulWidget {
 
 class _TeamOperationsPageState extends ConsumerState<TeamOperationsPage> {
   String? _selectedTeamId;
+  @override
+  void initState() {
+    super.initState();
+    _selectedTeamId = widget.initialTeamId;
+  }
 
   void _refresh(String teamId) {
     ref.invalidate(teamOperationsProvider(teamId));
+    ref.read(manualDataRefreshProvider.notifier).state++;
   }
 
   Future<void> _execute(

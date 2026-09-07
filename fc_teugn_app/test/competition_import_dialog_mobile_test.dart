@@ -98,6 +98,7 @@ class _ImportRepository extends DataRepository {
   Future<void> applyCompetitionImport(
     String importId, {
     bool sourceWinsConflicts = false,
+    Map<String, Map<String, String>> fieldResolutions = const {},
     Set<String>? selectedRowIds,
   }) async {
     appliedRowIds = selectedRowIds;

@@ -3,7 +3,9 @@ import {
   competitionMatchChecksum,
   parseCompetitionSource,
 } from './competition-provider';
-import { writeCompetitionMatch } from './competition-import-write.service';
+import { writeCompetitionMatch, competitionCurrentSnapshot, competitionSourceSnapshot } from './competition-import-write.service';
+import { mergeCompetitionFields, ImportSnapshot, importFieldLabels } from './competition-merge';
+import { DomainError } from './talents-domain';
 import { matchCompetitionOpponents } from './competition-opponent-match.service';
 import { teamPlayingIdentity } from './team-playing-identity.service';
 
@@ -129,7 +131,7 @@ export async function runBfvTeamSync(teamId: string) {
     const referenceById = new Map(references.map((item) => [item.externalId, item]));
     const events = await prisma.event.findMany({
       where: { id: { in: references.map((item) => item.entityId) } },
-      select: { id: true, teamId: true, updatedAt: true, matchDetails: { select: { updatedAt: true } } },
+      include: { matchDetails: true },
     });
     const eventById = new Map(events.map((item) => [item.id, item]));
     let created = 0;
@@ -159,13 +161,21 @@ export async function runBfvTeamSync(teamId: string) {
         event.updatedAt.getTime(),
         event.matchDetails?.updatedAt.getTime() ?? 0,
       ) > reference.lastSyncedAt.getTime() + 1000;
-      if (locallyChanged) {
+      const current = competitionCurrentSnapshot(event);
+      const fields = mergeCompetitionFields(
+        reference.sourceSnapshot as ImportSnapshot | null ?? (locallyChanged ? null : current),
+        current, competitionSourceSnapshot(match),
+      ).conflicts;
+      if (fields.length) {
         conflicts += 1;
         continue;
       }
-      await prisma.$transaction((tx) =>
-        writeCompetitionMatch(tx, teamId, PROVIDER, match, event.id),
-      );
+      try {
+        await prisma.$transaction((tx) => writeCompetitionMatch(tx, teamId, PROVIDER, match, event.id));
+      } catch (error) {
+        if (error instanceof DomainError && error.status === 409) { conflicts += 1; continue; }
+        throw error;
+      }
       updated += 1;
     }
 
@@ -204,10 +214,11 @@ export async function processDueBfvSyncs(now = new Date(), limit = 3) {
       OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lte: dueBefore } }],
     },
     orderBy: { lastAttemptAt: { sort: 'asc', nulls: 'first' } },
-    take: Math.max(1, Math.min(limit, 5)),
+    take: 200,
   });
   const results = [];
   for (const config of candidates) {
+    if (results.length >= Math.max(1, Math.min(limit, 5))) break;
     const minimumAge = config.syncIntervalMinutes * 60_000;
     if (config.lastAttemptAt && now.getTime() - config.lastAttemptAt.getTime() < minimumAge) {
       continue;

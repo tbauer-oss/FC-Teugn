@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { BlobError } from '@vercel/blob';
 import { Prisma } from '@prisma/client';
+import { DomainError } from '../services/talents-domain';
 
 export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction) {
   const requestId = String(res.locals.requestId || 'unknown');
@@ -51,6 +52,15 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
     });
     return;
   }
+  if (err instanceof DomainError) {
+    res.status(err.status).json({ message: err.message, requestId });
+    return;
+  }
+  if (err instanceof Prisma.PrismaClientKnownRequestError &&
+      ['P2034', 'P2002'].includes(err.code)) {
+    res.status(409).json({ message: 'Der Vorgang wurde gleichzeitig geändert. Bitte neu laden und erneut versuchen.', requestId });
+    return;
+  }
   if (
     err instanceof Prisma.PrismaClientKnownRequestError &&
     ['P2024', 'P2028'].includes(err.code)
@@ -63,7 +73,8 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
     });
     return;
   }
-  if (err instanceof Prisma.PrismaClientInitializationError) {
+  if (err instanceof Prisma.PrismaClientInitializationError ||
+      (err instanceof Prisma.PrismaClientKnownRequestError && ['P1001', 'P1002', 'P1017'].includes(err.code))) {
     res.status(503).json({
       message:
         'Die Vereinsdatenbank wird gerade neu verbunden. Bitte die Änderung erneut senden.',
