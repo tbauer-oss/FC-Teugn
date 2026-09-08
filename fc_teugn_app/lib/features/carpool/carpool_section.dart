@@ -13,10 +13,12 @@ import '../../core/providers.dart';
 import '../../core/widgets/adaptive_layout.dart';
 import '../../core/widgets/responsive_form_dialog.dart';
 import '../auth/auth_controller.dart';
+import '../talents/match_readiness_card.dart';
 
 final carpoolEventProvider =
     FutureProvider.autoDispose.family<EventModel, String>((ref, id) async {
   ref.watch(authProvider.select((state) => state.user?.id));
+  ref.watch(manualDataRefreshProvider);
   final timer = Timer(const Duration(seconds: 30), ref.invalidateSelf);
   ref.onDispose(timer.cancel);
   return ref.watch(repositoryProvider).event(id);
@@ -24,6 +26,7 @@ final carpoolEventProvider =
 
 void invalidateCarpoolViews(WidgetRef ref, String eventId) {
   ref.invalidate(carpoolEventProvider(eventId));
+  ref.invalidate(matchReadinessProvider(eventId));
   ref.invalidate(eventsProvider);
   ref.invalidate(calendarEventsProvider);
   ref.invalidate(parentDashboardSummaryProvider);
@@ -168,12 +171,14 @@ class _CarpoolSectionState extends ConsumerState<CarpoolSection> {
   EventModel get event => widget.event;
   String? get userId => ref.read(authProvider).user?.id;
   bool get canBook =>
+      ref.read(authProvider).user?.role != UserRole.readOnly &&
       !event.isCancelled &&
       (event.capabilities.canOfferRide || event.capabilities.canRespond);
   List<PlayerModel> get players => widget.players
       .where((p) =>
-          p.teamId == event.teamId ||
-          event.targetTeams.any((t) => t.id == p.teamId))
+          p.status == PlayerStatus.active &&
+          (p.teamId == event.teamId ||
+              event.targetTeams.any((t) => t.id == p.teamId)))
       .toList();
 
   @override
@@ -425,8 +430,9 @@ class _CarpoolSectionState extends ConsumerState<CarpoolSection> {
         final loaded = await ref.read(playersProvider.future);
         availablePlayers = loaded
             .where((p) =>
-                p.teamId == event.teamId ||
-                event.targetTeams.any((t) => t.id == p.teamId))
+                p.status == PlayerStatus.active &&
+                (p.teamId == event.teamId ||
+                    event.targetTeams.any((t) => t.id == p.teamId)))
             .toList();
       } catch (error) {
         if (mounted) {
@@ -551,8 +557,10 @@ class _RideActions extends StatelessWidget {
         final style = TextButton.styleFrom(
             minimumSize: const Size(0, 44),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            textStyle:
-                const TextStyle(fontSize: 13, fontWeight: FontWeight.w800));
+            textStyle: const TextStyle(
+                fontFamily: 'Arial',
+                fontSize: 13,
+                fontWeight: FontWeight.w800));
         return Wrap(spacing: 6, runSpacing: 2, children: [
           SizedBox(
               width: width,
@@ -608,7 +616,7 @@ class _RidePeopleDialogState extends State<_RidePeopleDialog> {
         title: widget.offer == null ? 'Wer fährt mit?' : 'Plätze direkt buchen',
         subtitle: widget.offer == null
             ? 'Freie Plätze werden automatisch zugeordnet. Gemeinsam ausgewählte Personen fahren zusammen.'
-            : '${widget.offer!.driverName} · ${widget.maxSeats} Plätze frei',
+            : '${widget.offer!.driverName} · ${widget.maxSeats} ${widget.maxSeats == 1 ? 'Platz frei' : 'Plätze frei'}',
         saving: _saving,
         saveLabel: widget.offer == null
             ? 'Mitfahrt eintragen'
