@@ -25,9 +25,9 @@ String developmentStatistics(Json? stats) {
   if (stats['recordedMatches'] == 0 && stats['recordedTrainings'] == 0) {
     return 'Für diesen Zeitraum sind noch keine abgeschlossenen Spiele oder Trainingsanwesenheiten erfasst.';
   }
-  return '${stats['appearances']} Einsätze · ${stats['minutes']} Minuten · '
-      '${stats['goals']} Tore · ${stats['assists']} Vorlagen\n'
-      'Training: ${stats['attendedTrainings']} von ${stats['recordedTrainings']} erfassten Terminen teilgenommen';
+  return '${stats['appearances']} ${stats['appearances'] == 1 ? 'Einsatz' : 'Einsätze'} · ${stats['minutes']} Minuten · '
+      '${stats['goals']} ${stats['goals'] == 1 ? 'Tor' : 'Tore'} · ${stats['assists']} ${stats['assists'] == 1 ? 'Vorlage' : 'Vorlagen'}\n'
+      'Training: ${stats['attendedTrainings']} von ${stats['recordedTrainings']} ${stats['recordedTrainings'] == 1 ? 'erfasstem Termin' : 'erfassten Terminen'} teilgenommen';
 }
 
 String goalDevelopmentReport(Json data) {

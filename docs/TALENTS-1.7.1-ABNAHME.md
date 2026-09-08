@@ -40,6 +40,11 @@ Veröffentlichung laufen noch. Dieser Bericht erweitert den Stand von 1.7.0+185.
   Exportinhalte, APNs-Warteverhalten und iOS-Registrierungsdaten.
 - Lokaler Screenshot mit echten Schriftdateien aus dem Widgettest:
   `artifacts/release-1.7.1-build-186/autopilot-mobile.png`.
+- Browserprüfung mit isolierter API und synthetischen Trainer-/Familienkonten:
+  Anmeldung, archiviertes Ziel, gemeinsamer Verlauf, Exportvorschau und Rückweg
+  erfolgreich. Private Trainernotiz und unveröffentlichtes Spiel erscheinen beim
+  Trainer; beide fehlen in der Familienansicht. Die freigegebene Notiz und
+  Zielbeobachtung bleiben dort sichtbar.
 
 ## Weiterhin externe Abnahme
 
