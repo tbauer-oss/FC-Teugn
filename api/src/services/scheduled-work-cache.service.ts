@@ -3,7 +3,9 @@ import { getCache, RuntimeCache } from '@vercel/functions';
 import { runtimeEnvironment } from '../lib/runtime-environment';
 
 export const schedulerSafetySweepMs = 60 * 60_000;
-const mutationGraceMs = 2 * 60_000;
+// Vercel's automatic Express runtime currently allows five-minute requests,
+// even when the legacy api/index.ts function configuration specifies 30 s.
+const mutationGraceMs = 6 * 60_000;
 const namespace = `fc-teugn:scheduled-work:v1:${runtimeEnvironment}`;
 
 /** getCache falls back to process-local memory outside the Vercel request

@@ -16,7 +16,7 @@ function memory() {
 }
 async function idle(cache, at = now, due = at + 60 * minute) {
   const guard = new ScheduledWorkCache(cache);
-  await guard.invalidate(at - 3 * minute);
+  await guard.invalidate(at - 7 * minute);
   await guard.checkpoint(async () => due, at);
   return guard;
 }
@@ -50,8 +50,8 @@ test('new mutations and writes still in flight invalidate an idle decision', asy
   await guard.checkpoint(async () => { scans++; return now + 60 * minute; }, now + minute);
   assert.equal(scans, 0, 'must not checkpoint an unfinished mutation');
   assert.equal(await guard.shouldRun(now + minute), true);
-  await guard.checkpoint(async () => now + 60 * minute, now + 3 * minute);
-  assert.equal(await guard.shouldRun(now + 4 * minute), false);
+  await guard.checkpoint(async () => now + 60 * minute, now + 7 * minute);
+  assert.equal(await guard.shouldRun(now + 8 * minute), false);
 });
 
 test('a concurrent mutation cannot be hidden by a checkpoint that finishes later', async () => {
