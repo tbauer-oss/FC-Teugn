@@ -131,6 +131,7 @@ export function androidPushMessage(
     ...(liveMatch
       ? {
           liveMatch: 'true',
+          eventType: String(metadata.eventType ?? ''),
           matchId: String(metadata.matchId ?? ''),
           homeTeam,
           awayTeam,

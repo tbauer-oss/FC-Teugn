@@ -36,6 +36,7 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         createNotificationChannel()
         LiveMatchNotification.createChannel(this)
+        LiveMatchEventNotification.createChannel(this)
         super.onCreate(savedInstanceState)
     }
 

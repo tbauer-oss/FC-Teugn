@@ -198,6 +198,10 @@ jobs:
       - name: Test
         run: flutter test
 
+      - name: Test native Android push notifications
+        working-directory: fc_teugn_app/android
+        run: bash ./gradlew :app:testDebugUnitTest --no-daemon
+
       - name: Build Flutter web
         run: flutter build web --release --no-pub
 

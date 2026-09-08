@@ -1,4 +1,9 @@
 {
+  "1.7.6+191": [
+    "Bei aktivierten Liveticker-Pushnachrichten erscheinen Anpfiff, Tore und Abpfiff auf Android wieder als eigene Ereignismeldungen mit Benachrichtigungston.",
+    "Die laufende Spielstandsanzeige bleibt ruhig. Doppelt zugestellte Ereignisse lösen keinen erneuten Ton aus; ein Tipp auf die Meldung öffnet das zugehörige Spiel.",
+    "Die schnelle Live-Aktualisierung und die Optimierungen des Datenbankverbrauchs bleiben erhalten. Android-Lautlosmodus und persönliche Benachrichtigungseinstellungen werden respektiert."
+  ],
   "1.7.5+190": [
     "Die App benötigt weniger Hintergrundabfragen. Beim Zurückkehren werden fällige Inhalte direkt aktualisiert.",
     "Der Liveticker verarbeitet gleichzeitige Zuschauer sparsamer und behält seine schnelle Live-Aktualisierung für alle berechtigten Familien und Trainer.",

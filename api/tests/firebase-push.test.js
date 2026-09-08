@@ -120,6 +120,7 @@ test('Android live match surface is data-only and never exposes player names', (
     entityId: 'match-1',
     metadata: {
       kind: 'LIVE_MATCH',
+      eventType: 'HOME_GOAL',
       matchId: 'match-1',
       homeTeam: 'FC Teugn E1',
       awayTeam: 'TSV Beispiel E1',
@@ -134,11 +135,31 @@ test('Android live match surface is data-only and never exposes player names', (
 
   assert.equal(message.notification, undefined);
   assert.equal(message.data.liveMatch, 'true');
+  assert.equal(message.data.eventType, 'HOME_GOAL');
   assert.equal(message.data.homeTeam, 'FC Teugn E1');
   assert.equal(message.data.awayTeam, 'TSV Beispiel E1');
   assert.equal(message.data.homeScore, '2');
   assert.equal(message.data.minute, '37');
   assert.doesNotMatch(JSON.stringify(message.data), /Max Mustermann/);
+});
+
+test('all audible ticker event kinds retain native event identity and high priority', () => {
+  for (const eventType of ['MATCH_START', 'HOME_GOAL', 'AWAY_GOAL', 'MATCH_END']) {
+    const message = androidPushMessage('token', {
+      id: `notification-${eventType}`, category: 'LIVE_TICKER',
+      title: 'Private scorer', body: 'Private commentary',
+      entityType: 'LiveTickerEvent', entityId: `event-${eventType}`,
+      actionUrl: '/matches/match-1?tab=live',
+      metadata: { kind: 'LIVE_MATCH', eventType, matchId: 'match-1',
+        homeTeam: 'TSV Langquaid', awayTeam: 'FC Teugn', homeScore: 1, awayScore: 2 },
+    });
+    assert.equal(message.data.eventType, eventType);
+    assert.equal(message.data.entityId, `event-${eventType}`);
+    assert.equal(message.data.entityType, 'LiveTickerEvent');
+    assert.equal(message.android.priority, 'high');
+    assert.equal(message.notification, undefined, 'native receiver displays exactly one event alert');
+    assert.doesNotMatch(JSON.stringify(message.data), /Private/);
+  }
 });
 
 test('admin can preview concrete push scenarios with functional targets', () => {

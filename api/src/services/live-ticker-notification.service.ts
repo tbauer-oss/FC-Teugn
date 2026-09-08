@@ -122,6 +122,7 @@ export async function sendLiveTickerNotification(
     pushEnabled: true,
     metadata: {
       kind: 'LIVE_MATCH',
+      eventType: event.type,
       matchId: match.id,
       homeTeam,
       awayTeam,

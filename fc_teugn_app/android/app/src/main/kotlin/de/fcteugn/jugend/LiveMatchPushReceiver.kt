@@ -10,5 +10,6 @@ class LiveMatchPushReceiver : BroadcastReceiver() {
         if (!extras.getString("liveMatch").equals("true", ignoreCase = true)) return
         val values = extras.keySet().associateWith { key -> extras.get(key) }
         LiveMatchNotification.update(context.applicationContext, values)
+        LiveMatchEventNotification.show(context.applicationContext, values)
     }
 }

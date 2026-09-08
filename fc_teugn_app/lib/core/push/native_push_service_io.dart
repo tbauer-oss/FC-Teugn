@@ -191,8 +191,8 @@ class NativePushService {
   }
 
   Future<void> _showForegroundNotification(RemoteMessage message) async {
-    // Die native Live-Match-Oberfläche verarbeitet diese Daten mit stabiler
-    // ID als laufende Sperrbildschirm-/Statusanzeige.
+    // Der native Receiver zeigt die ruhige Live-Anzeige und eine hörbare
+    // Ereignismeldung. Hier keine zweite Benachrichtigung erzeugen.
     if (message.data['liveMatch']?.toString() == 'true') return;
     final notification = message.notification;
     final title = notification?.title ?? message.data['title']?.toString();
