@@ -24,6 +24,13 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>FirebaseMessagingAutoInitEnabled</key>
+	<false/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Ein Spielerfoto direkt für das geschützte Mannschaftsprofil aufnehmen.</string>
 	<key>NSFaceIDUsageDescription</key>

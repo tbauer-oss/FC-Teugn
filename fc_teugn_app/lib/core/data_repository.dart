@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 
 import 'api_client.dart';
+import 'push/native_push_service.dart';
 import 'models/event.dart';
 import 'models/player.dart';
 import 'models/user.dart';
@@ -2831,13 +2832,23 @@ class DataRepository {
   Future<String> registerAndroidPushSubscription(
     String token, {
     bool silent = false,
-  }) async {
+  }) =>
+      registerNativePushSubscription(token,
+          silent: silent, platform: 'ANDROID');
+
+  Future<String> registerNativePushSubscription(String token,
+      {bool silent = false, String? platform}) async {
+    final devicePlatform = platform ?? nativePushService.platform;
+    if (!['ANDROID', 'IOS'].contains(devicePlatform)) {
+      throw ArgumentError('Unsupported native push platform');
+    }
     final res = await client.dio.post(
       '/notifications/settings/subscriptions',
       data: {
-        'platform': 'ANDROID',
+        'platform': devicePlatform,
         'endpoint': token,
-        'deviceName': 'FC Teugn Talents · Android',
+        'deviceName':
+            'FC Teugn Talents · ${devicePlatform == 'IOS' ? 'iPhone/iPad' : 'Android'}',
       },
       options: silent ? Options(extra: const {'suppressLoading': true}) : null,
     );

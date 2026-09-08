@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'apple_push_token.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -12,25 +13,28 @@ const _notificationChannel = MethodChannel(
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  if (!Platform.isAndroid) return;
+  if (!Platform.isAndroid && !Platform.isIOS) return;
   await Firebase.initializeApp();
 }
 
 final nativePushService = NativePushService();
 
 class NativePushService {
-  static const _enabledKey = 'fc_teugn_android_push_enabled';
-  static const _initialPromptHandledKey =
-      'fc_teugn_android_push_initial_prompt_handled';
+  String get _enabledKey =>
+      'fc_teugn_${Platform.isIOS ? 'ios' : 'android'}_push_enabled';
+  String get _initialPromptHandledKey =>
+      'fc_teugn_${Platform.isIOS ? 'ios' : 'android'}_push_initial_prompt_handled';
   static const _storage = FlutterSecureStorage();
 
   final _actions = StreamController<String>.broadcast();
   final _subscriptions = <StreamSubscription<dynamic>>[];
   bool _initialized = false;
+  Future<void>? _initializing;
   String? _pendingAction;
   String? _lastAction;
 
-  bool get supported => Platform.isAndroid;
+  bool get supported => Platform.isAndroid || Platform.isIOS;
+  String get platform => Platform.isIOS ? 'IOS' : 'ANDROID';
 
   Stream<String> get actions => _actions.stream;
 
@@ -40,27 +44,47 @@ class NativePushService {
 
   Future<void> initialize() async {
     if (!supported || _initialized) return;
-    await Firebase.initializeApp();
+    await (_initializing ??=
+        _initialize().whenComplete(() => _initializing = null));
+  }
+
+  Future<void> _initialize() async {
+    try {
+      await Firebase.initializeApp();
+    } catch (_) {
+      if (Platform.isIOS) throw StateError('IOS_PUSH_NOT_CONFIGURED');
+      rethrow;
+    }
+    if (Platform.isIOS) {
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+              alert: true, badge: true, sound: true);
+    }
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    final initialAction = Platform.isAndroid
+        ? await _notificationChannel
+            .invokeMethod<String>('getInitialPushAction')
+        : null;
     FirebaseMessaging.onBackgroundMessage(
       _firebaseMessagingBackgroundHandler,
     );
-    _notificationChannel.setMethodCallHandler((call) async {
-      if (call.method == 'notificationOpened') {
-        _emitAction(call.arguments as String?);
-      }
-    });
-    _subscriptions.add(
-      FirebaseMessaging.onMessage.listen(_showForegroundNotification),
-    );
+    if (Platform.isAndroid) {
+      _notificationChannel.setMethodCallHandler((call) async {
+        if (call.method == 'notificationOpened') {
+          _emitAction(call.arguments as String?);
+        }
+      });
+    }
+    if (Platform.isAndroid) {
+      _subscriptions.add(
+        FirebaseMessaging.onMessage.listen(_showForegroundNotification),
+      );
+    }
     _subscriptions.add(
       FirebaseMessaging.onMessageOpenedApp.listen(_handleRemoteAction),
     );
-    _handleRemoteAction(await FirebaseMessaging.instance.getInitialMessage());
-    _emitAction(
-      await _notificationChannel.invokeMethod<String>(
-        'getInitialPushAction',
-      ),
-    );
+    _handleRemoteAction(initialMessage);
+    _emitAction(initialAction);
     _initialized = true;
   }
 
@@ -70,7 +94,7 @@ class NativePushService {
       final locallyEnabled = await _storage.read(key: _enabledKey) == 'true';
       if (locallyEnabled) return true;
       // An account-level opt-in is not enough to bypass the explicit decision
-      // on this particular Android device.
+      // on this particular device.
       return false;
     } catch (_) {
       return false;
@@ -112,7 +136,7 @@ class NativePushService {
         settings.authorizationStatus != AuthorizationStatus.provisional) {
       return null;
     }
-    final token = await FirebaseMessaging.instance.getToken();
+    final token = await _registrationToken();
     if (token == null || token.trim().isEmpty) return null;
     try {
       await _storage.write(key: _enabledKey, value: 'true');
@@ -128,6 +152,18 @@ class NativePushService {
     if (settings.authorizationStatus != AuthorizationStatus.authorized &&
         settings.authorizationStatus != AuthorizationStatus.provisional) {
       return null;
+    }
+    return _registrationToken();
+  }
+
+  Future<String?> _registrationToken() async {
+    if (Platform.isIOS) {
+      // APNs registration can lag behind permission approval. FCM calls must
+      // wait for it; an absent token is not a denial of notification permission.
+      return applePushRegistrationToken(
+        readApnsToken: FirebaseMessaging.instance.getAPNSToken,
+        readFcmToken: FirebaseMessaging.instance.getToken,
+      );
     }
     return FirebaseMessaging.instance.getToken();
   }

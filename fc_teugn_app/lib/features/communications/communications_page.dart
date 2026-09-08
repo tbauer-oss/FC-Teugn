@@ -3396,7 +3396,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
         if (token == null) {
           throw StateError('NOTIFICATION_PERMISSION_DENIED');
         }
-        await repository.registerAndroidPushSubscription(token);
+        await repository.registerNativePushSubscription(token);
         if (mounted) setState(() => _nativePushEnabled = true);
       } else {
         final key = _configuration?.vapidPublicKey;
@@ -3430,6 +3430,12 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
 
   String _pushErrorMessage(Object error) {
     final value = error.toString();
+    if (value.contains('IOS_PUSH_NOT_CONFIGURED')) {
+      return 'Diese iPhone-Version enthält noch keine Push-Konfiguration. Bitte die Vereinsadministration informieren.';
+    }
+    if (value.contains('IOS_APNS_NOT_READY')) {
+      return 'Die Registrierung bei Apple ist noch nicht bereit. Bitte die Verbindung prüfen und Push erneut aktivieren.';
+    }
     if (value.contains('IOS_HOME_SCREEN_REQUIRED')) {
       return 'Öffne die Seite in Safari, wähle „Teilen“ und „Zum Home-Bildschirm“. '
           'Starte danach FC Teugn Talents über das neue App-Symbol.';
@@ -3439,7 +3445,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
           'Browser- beziehungsweise Systemeinstellungen.';
     }
     if (value.contains('NOTIFICATION_PERMISSION_DENIED')) {
-      return 'Bitte erlaube Benachrichtigungen in den Android-Einstellungen.';
+      return 'Bitte erlaube Benachrichtigungen in den Systemeinstellungen für FC Teugn Talents.';
     }
     if (value.contains('WEB_PUSH_UNSUPPORTED')) {
       return 'Dieser Browser unterstützt Web-Push auf diesem Gerät nicht.';
@@ -3573,6 +3579,8 @@ class _AdminPushTestCard extends StatelessWidget {
                         Text('${value.sent}/${value.subscriptions} versendet')),
                 Chip(label: Text('${value.webSubscriptions} Web')),
                 Chip(label: Text('${value.androidSubscriptions} Android')),
+                if (value.iosSubscriptions > 0)
+                  Chip(label: Text('${value.iosSubscriptions} iPhone/iPad')),
                 if (value.failed > 0)
                   Chip(label: Text('${value.failed} fehlgeschlagen')),
                 if (value.pending > 0)
@@ -3954,7 +3962,9 @@ class _CompactPushDeviceTile extends StatelessWidget {
                 child: Icon(
                   device.isAndroid
                       ? Icons.phone_android_rounded
-                      : Icons.language_rounded,
+                      : device.isIOS
+                          ? Icons.phone_iphone_rounded
+                          : Icons.language_rounded,
                   color: color,
                   size: 19,
                 ),
@@ -4054,13 +4064,19 @@ class _CompactPushDeviceTile extends StatelessWidget {
               Icon(
                 device.isAndroid
                     ? Icons.phone_android_rounded
-                    : Icons.language_rounded,
+                    : device.isIOS
+                        ? Icons.phone_iphone_rounded
+                        : Icons.language_rounded,
                 size: 14,
                 color: context.appColors.textMuted,
               ),
               const SizedBox(width: 3),
               Text(
-                device.isAndroid ? 'Android' : 'Web',
+                device.isAndroid
+                    ? 'Android'
+                    : device.isIOS
+                        ? 'iPhone/iPad'
+                        : 'Web',
                 style:
                     TextStyle(fontSize: 11, color: context.appColors.textMuted),
               ),
@@ -4230,12 +4246,12 @@ class _PushRegistrationCard extends StatelessWidget {
   }) {
     if (!configured) {
       return native
-          ? 'Android-Push muss für diese Umgebung noch eingerichtet werden.'
+          ? 'Push für die native App muss für diese Umgebung noch eingerichtet werden.'
           : 'Web-Push muss für diese Umgebung noch eingerichtet werden.';
     }
     if (native) {
       return enabled
-          ? 'Wichtige Hinweise werden auf diesem Android-Gerät zugestellt.'
+          ? 'Push ist auf diesem Gerät aktiviert.'
           : 'Erhalte wichtige Hinweise auch bei geschlossener App.';
     }
     if (status.requiresHomeScreen) {

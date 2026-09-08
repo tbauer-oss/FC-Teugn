@@ -4,6 +4,7 @@ final nativePushService = NativePushService();
 
 class NativePushService {
   bool get supported => false;
+  String get platform => 'WEB';
 
   Stream<String> get actions => const Stream.empty();
 

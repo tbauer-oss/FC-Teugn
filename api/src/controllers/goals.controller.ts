@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { accessibleTeamIds, ownPlayerIds } from '../services/team-access';
 import { Permission } from '../security/permissions';
+import { goalDevelopment } from '../services/goal-development';
 import { audit, dateOnly, DomainError, mutation, oneOf, permitted, requirePlayer, stringIds, textValue } from '../services/talents-domain';
 
 export async function listGoals(req: Request, res: Response) {
@@ -13,6 +14,29 @@ export async function listGoals(req: Request, res: Response) {
     observations: { orderBy: { createdAt: 'desc' } } }, orderBy: [{ status: 'asc' }, { endsOn: 'asc' }], take: 300 });
   return res.json(goals.map(goal => ({ ...goal, canManage: teams.includes(goal.teamId) })));
 }
+export async function getGoalDevelopment(req: Request, res: Response) {
+  const [own, teams] = await Promise.all([ownPlayerIds(req.user!), accessibleTeamIds(req.user!)]);
+  const goal = await prisma.learningGoal.findUnique({ where: { id: req.params.id },
+    include: { player: { select: { id: true, teamId: true, firstName: true, lastName: true, preferredName: true } },
+      observations: { orderBy: { createdAt: 'desc' } } } });
+  const staff = goal && permitted(req.user!, Permission.MANAGE_DEVELOPMENT) && teams.includes(goal.teamId);
+  const family = goal && own.includes(goal.playerId);
+  if (!goal || (!staff && !(family && goal.visibility === 'FAMILY'))) {
+    throw new DomainError(404, 'Lernziel nicht gefunden oder nicht freigegeben.');
+  }
+  // Old team access permits old goal history, not private notes from the
+  // child's new team. A coach's additional family role never widens staff scope.
+  const staffNotes = staff && teams.includes(goal.player.teamId ?? '');
+  const data = await goalDevelopment(goal, {
+    notes: staffNotes ? 'STAFF' : family ? 'FAMILY' : 'NONE',
+    statistics: Boolean(family || (teams.includes(goal.teamId) && permitted(req.user!, Permission.MANAGE_STATISTICS))),
+    family: !staff,
+  });
+  res.set('Cache-Control', 'no-store');
+  return res.json({ goal: { id: goal.id, title: goal.title, description: goal.description,
+    visibility: goal.visibility, player: goal.player }, ...data });
+}
+
 export async function saveGoal(req: Request, res: Response) {
   const { player, staff } = await requirePlayer(req.user!, String(req.body.playerId ?? ''), Permission.MANAGE_DEVELOPMENT);
   if (!staff || !player.teamId) throw new DomainError(403, 'Entwicklungsziele werden vom zuständigen Trainerteam gepflegt.');

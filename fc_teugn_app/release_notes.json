@@ -1,4 +1,10 @@
 {
+  "1.7.1+186": [
+    "Der Autopilot zeigt die Spieltagsorganisation jetzt als kompakte, aufklappbare Statuszeile. Offene Punkte erscheinen zuerst; Einsatzzeiten lassen sich bei Bedarf gesondert öffnen.",
+    "Lernziele erhalten einen gemeinsamen Verlauf mit vorhandenen Entwicklungsnotizen, abgeschlossenen Spielen und erfasster Trainingsanwesenheit des Kindes im Zielzeitraum.",
+    "Der Entwicklungsrückblick enthält die freigegebenen Notizen und Statistiken und kann kopiert oder als PDF gespeichert werden. Private Trainernotizen bleiben geschützt.",
+    "Die native iOS-Push-Unterstützung ist im Code ergänzt. Für die iPhone-Auslieferung sind weiterhin Apple-/Firebase-Konfiguration, Signierung und Tests auf echten Geräten erforderlich."
+  ],
   "1.7.0+185": [
     "Familie & Team bündelt offene Aufgaben, allgemeine Abwesenheiten, echte Umfragen, Mannschaftseinladungen und individuelle Lernziele.",
     "Abwesenheiten berücksichtigen auch später angelegte Termine. Familienumfragen teilen Antworten zwischen verknüpften Eltern; Fristen und Sichtbarkeit bleiben eindeutig.",

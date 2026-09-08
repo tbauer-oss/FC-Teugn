@@ -6,6 +6,7 @@ const {
 } = require('../dist/src/lib/firebase-admin');
 const {
   androidPushMessage,
+  iosPushMessage,
   adminPushScenarios,
   defaultNotificationPreference,
   externalPushPreview,
@@ -69,6 +70,24 @@ test('Android notification uses the app channel and retains navigation data', ()
   assert.equal(message.notification.body, 'Beginn ist jetzt um 18:00 Uhr.');
   assert.equal(message.data.body, 'Beginn ist jetzt um 18:00 Uhr.');
   assert.equal(message.android.priority, 'high');
+});
+
+test('iOS tokens, APNs alerts and delivery summaries preserve platform and privacy', () => {
+  assert.equal(validPushEndpoint('IOS', 'ios-token_1234567890:abcdefghi'), true);
+  assert.equal(validPushEndpoint('IOS', 'https://not-a-token.invalid/a'), false);
+  const message = iosPushMessage('ios-token', {
+    id: 'ios-notification', category: 'LIVE_TICKER', title: 'Tor von Kind Privat', body: 'Kind Privat trifft',
+    actionUrl: '/matches/m1?tab=live', metadata: { kind: 'LIVE_MATCH', homeTeam: 'Teugn', awayTeam: 'Gast', homeScore: 1, awayScore: 0 },
+  });
+  assert.equal(message.apns.headers['apns-push-type'], 'alert');
+  assert.equal(message.apns.payload.aps.sound, 'default');
+  assert.equal(message.notification.title, 'Teugn 1:0 Gast');
+  assert.equal(message.data.actionUrl, '/matches/m1?tab=live');
+  assert.equal(message.android, undefined);
+  assert.doesNotMatch(JSON.stringify(message), /Kind Privat/);
+  const summary = summarizePushDeliveries([{ status: 'PENDING', errorCode: 'messaging/third-party-auth-error', subscription: { platform: 'IOS' } }]);
+  assert.equal(summary.byPlatform.IOS.pending, 1);
+  assert.equal(summary.byPlatform.ANDROID.total, 0);
 });
 
 test('live ticker push is opt-in and exposes the requested score event', () => {

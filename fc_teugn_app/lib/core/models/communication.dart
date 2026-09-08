@@ -401,6 +401,7 @@ class AdminPushTestResult {
     required this.skipped,
     required this.webSubscriptions,
     required this.androidSubscriptions,
+    this.iosSubscriptions = 0,
     required this.errors,
   });
 
@@ -412,6 +413,7 @@ class AdminPushTestResult {
   final int skipped;
   final int webSubscriptions;
   final int androidSubscriptions;
+  final int iosSubscriptions;
   final Map<String, int> errors;
 
   bool get allSent => subscriptions > 0 && sent == subscriptions;
@@ -430,6 +432,10 @@ class AdminPushTestResult {
       skipped: (json['skipped'] as num?)?.toInt() ?? 0,
       webSubscriptions: (web['total'] as num?)?.toInt() ?? 0,
       androidSubscriptions: (android['total'] as num?)?.toInt() ?? 0,
+      iosSubscriptions:
+          ((platforms['IOS'] as Map<String, dynamic>?)?['total'] as num?)
+                  ?.toInt() ??
+              0,
       errors: {
         for (final item in errorItems)
           if (item is Map<String, dynamic>)
@@ -485,6 +491,7 @@ class AdminPushDevice {
   final DateTime? lastDeliveryAt;
 
   bool get isAndroid => platform == 'ANDROID';
+  bool get isIOS => platform == 'IOS';
   bool get isStale => health == PushDeviceHealth.stale;
   bool get isAdministrativelyDisabled => administrativelyDisabledAt != null;
 

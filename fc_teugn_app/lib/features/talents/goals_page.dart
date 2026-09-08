@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'report_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'goal_development_view.dart';
 import '../auth/auth_controller.dart';
 import 'talents_repository.dart';
 import 'talents_widgets.dart';
@@ -138,7 +138,7 @@ class _GoalsPageState extends ConsumerState<GoalsPage> {
         .join('\n\n');
     if (mounted) {
       await showTalentsReport(context, ref.read(talentsRepositoryProvider),
-          'Entwicklungsrückblick', report);
+          'Zielübersicht', report);
     }
   }
 
@@ -173,7 +173,7 @@ class _GoalsPageState extends ConsumerState<GoalsPage> {
                       OutlinedButton.icon(
                           onPressed: () => _review(goals),
                           icon: const Icon(Icons.description_outlined),
-                          label: const Text('Entwicklungsrückblick')),
+                          label: const Text('Zielübersicht')),
                     for (final g in goals)
                       TalentsCard(
                           title:
@@ -200,10 +200,11 @@ class _GoalsPageState extends ConsumerState<GoalsPage> {
                                       child: const Text('Beobachtung'))
                               ],
                               TextButton(
-                                  onPressed: () => context.go(
-                                      '${ref.read(authProvider).user!.isTrainer ? '/trainer' : '/parent'}/statistics'),
-                                  child:
-                                      const Text('Statistiken & Entwicklung')),
+                                  onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                          builder: (_) => GoalDevelopmentView(
+                                              goalId: g['id'] as String))),
+                                  child: const Text('Verlauf & Statistik')),
                             ]),
                           ]),
                   ]);

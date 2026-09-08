@@ -318,7 +318,7 @@ export async function registerPushSubscription(req: Request, res: Response) {
 }
 
 export function validPushEndpoint(platform: PushPlatform, endpoint: string) {
-  if (platform === PushPlatform.ANDROID) {
+  if (platform === PushPlatform.ANDROID || platform === PushPlatform.IOS) {
     return endpoint.length >= 20 && /^[A-Za-z0-9_:\-]+$/.test(endpoint);
   }
   try {

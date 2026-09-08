@@ -28,6 +28,7 @@ router.post('/polls', polls.createPoll);
 router.put('/polls/:id/vote', polls.votePoll);
 router.post('/polls/:id/manage', polls.managePoll);
 router.get('/goals', goals.listGoals);
+router.get('/goals/:id/development', goals.getGoalDevelopment);
 router.post('/goals', goals.saveGoal);
 router.put('/goals/:id', goals.saveGoal);
 router.post('/goals/:id/observations', goals.observeGoal);

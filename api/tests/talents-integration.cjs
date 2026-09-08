@@ -38,6 +38,9 @@ async function main() {
     const event = await prisma.event.create({ data: { teamId: team.id, title: 'Testspiel', type: 'MATCH', location: 'Teugn', startAt: new Date('2030-09-14T10:00:00Z'), familyReleasedAt: new Date() }, select: { id: true } });
     await prisma.attendance.create({ data: { eventId: event.id, playerId: player.id, status: 'YES', reason: 'Ursprüngliche Zusage', respondedAt: new Date('2026-01-01') }, select: { id: true } });
     await db.exec(fs.readFileSync(path.join(migrations, newMigration, 'migration.sql'), 'utf8'));
+    for (const dir of dirs.filter(d => d > newMigration)) {
+      await db.exec(fs.readFileSync(path.join(migrations, dir, 'migration.sql'), 'utf8'));
+    }
     assert.equal((await prisma.attendance.findFirst({ where: { eventId: event.id } })).reason, 'Ursprüngliche Zusage');
     assert.equal((await db.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE '%Cash%' ")).rows.length, 0);
     console.log('PASS all migrations + populated upgrade + no cash tables');
@@ -83,6 +86,50 @@ async function main() {
     await call(goals.saveGoal, coach, { ...goalInput, visibility: 'FAMILY' }, { id: firstGoal.id });
     assert.equal((await call(goals.listGoals, parent)).length, 1);
     console.log('PASS three-goal limit and family visibility');
+    const sharedNote = await prisma.playerDevelopmentNote.create({ data: {
+      playerId: player.id, authorId: coach.id, title: 'Ballkontrolle im Training', notes: 'Kontrollierte Annahme verbessert',
+      visibility: 'GUARDIANS_AND_STAFF', observedAt: new Date('2030-09-04T10:00:00Z') } });
+    const privateNote = await prisma.playerDevelopmentNote.create({ data: {
+      playerId: player.id, authorId: coach.id, title: 'Nur intern', notes: 'Private Trainernotiz',
+      observedAt: new Date('2030-09-05T10:00:00Z') } });
+    await prisma.playerDevelopmentNote.create({ data: {
+      playerId: player.id, authorId: coach.id, title: 'Außerhalb des Zielzeitraums', notes: 'Alte Notiz',
+      visibility: 'GUARDIANS_AND_STAFF', observedAt: new Date('2030-08-31T21:59:00Z') } });
+    await call(goals.observeGoal, coach, { note: 'Erstes Zielgespräch', progress: 40 }, { id: firstGoal.id });
+    const recorded = await prisma.event.create({ data: { teamId: team.id, title: 'Abgeschlossenes Spiel', type: 'MATCH',
+      location: 'Testplatz', startAt: new Date('2030-09-10T10:00:00Z'), familyReleasedAt: new Date(),
+      matchDetails: { create: { opponent: 'Testgegner', status: 'FINISHED' } },
+      playerMatchStats: { create: { playerId: player.id, appeared: true, minutesPlayed: 25, goals: 1 } } } });
+    await prisma.event.create({ data: { teamId: team.id, title: 'Unveröffentlicht', type: 'MATCH', location: 'Testplatz',
+      startAt: new Date('2030-09-11T10:00:00Z'), matchDetails: { create: { opponent: 'Testgegner', status: 'FINISHED' } },
+      playerMatchStats: { create: { playerId: player.id, appeared: true, minutesPlayed: 20 } } } });
+    await prisma.event.create({ data: { teamId: team.id, title: 'Nur geplant', type: 'MATCH', location: 'Testplatz',
+      startAt: new Date('2030-09-12T10:00:00Z'), familyReleasedAt: new Date(),
+      matchDetails: { create: { opponent: 'Testgegner', status: 'PLANNED' } },
+      playerMatchStats: { create: { playerId: player.id, appeared: true, minutesPlayed: 99 } } } });
+    await prisma.event.create({ data: { teamId: team.id, title: 'Training am letzten Zieltag', type: 'TRAINING', location: 'Testplatz',
+      startAt: new Date('2030-10-01T21:30:00Z'), familyReleasedAt: new Date(),
+      attendance: { create: { playerId: player.id, status: 'YES', actualAttendance: 'NO' } } } });
+    const familyDevelopment = await call(goals.getGoalDevelopment, parent, {}, { id: firstGoal.id });
+    assert.equal(familyDevelopment.statistics.minutes, 25);
+    assert.equal(familyDevelopment.statistics.recordedTrainings, 1);
+    assert.equal(familyDevelopment.statistics.attendedTrainings, 0);
+    assert.equal(familyDevelopment.timeline.some(t => t.id === sharedNote.id), true);
+    assert.equal(familyDevelopment.timeline.some(t => t.id === privateNote.id), false);
+    assert.equal(familyDevelopment.timeline.some(t => t.kind === 'GOAL' && t.progress === 40), true);
+    assert.doesNotMatch(JSON.stringify(familyDevelopment), /Nur intern|Außerhalb|Nur geplant|Unveröffentlicht/);
+    const coachDevelopment = await call(goals.getGoalDevelopment, coach, {}, { id: firstGoal.id });
+    assert.equal(coachDevelopment.statistics.minutes, 45);
+    assert.equal(coachDevelopment.timeline.some(t => t.id === privateNote.id), true);
+    await assert.rejects(call(goals.getGoalDevelopment, stranger, {}, { id: firstGoal.id }), e => e.status === 404);
+    await assert.rejects(call(goals.getGoalDevelopment, parent, {}, { id: 'missing' }), e => e.status === 404);
+    const hiddenGoal = await prisma.learningGoal.findFirst({ where: { visibility: 'STAFF_ONLY' } });
+    await assert.rejects(call(goals.getGoalDevelopment, parent, {}, { id: hiddenGoal.id }), e => e.status === 404);
+    await prisma.event.update({ where: { id: recorded.id }, data: { status: 'CANCELLED' } });
+    assert.equal((await call(goals.getGoalDevelopment, parent, {}, { id: firstGoal.id })).statistics.minutes, 0);
+    const iosSubscription = await prisma.pushSubscription.create({ data: { userId: parent.id, platform: 'IOS', endpoint: 'ios-fixture-token_1234567890:abcdefghij' } });
+    assert.equal(iosSubscription.platform, 'IOS');
+    console.log('PASS development timeline: ownership, note privacy, period boundaries, actual vs planned, publication; IOS migration');
     const invitations = require('../dist/src/controllers/invitations.controller');
     const admin = await user('admin', 'CLUB_ADMIN');
     const invitation = await call(invitations.createInvitation, admin, { teamId: team.id, role: 'PARENT', days: 7 });

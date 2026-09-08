@@ -1,10 +1,10 @@
 # FC Teugn Talents – Umsetzungsplan ohne BFV-API
 
-Stand: 7. September 2026.
+Stand: 8. September 2026; ergänzt um den Implementierungsstand von 1.7.1+186.
 
 Grundlage: Vergleichsbericht `APP-VERGLEICH-BFV-2026-09-07.md` und die anschließende Nutzeranweisung, die übrigen Verbesserungen professionell umzusetzen und zunächst die vollständige Änderungsliste zu liefern.
 
-Aktualisiert nach lokaler Umsetzung am 7. September 2026. Abgehakte Punkte sind im Projekt umgesetzt oder durch vorhandene und geprüfte Funktionen abgedeckt. Offene Geräte- und Veröffentlichungsprüfungen bleiben ausdrücklich offen. Details und Nachweise: [Umsetzungsstand](UMSETZUNGSSTAND-TALENTS-2026-09-07.md).
+Nach dem Statusabgleich vom 8. September wurden die fehlende Entwicklungsansicht und native iOS-Push-Unterstützung ergänzt. Die Spieltagsorganisation im Autopiloten ist nun kompakt aufklappbar. Abgehakte Punkte beschreiben den dokumentierten Implementierungs- und Prüfstand, keine vollständige Geräte- oder Vereinsabnahme. Store-Schritte, reale Geräteprüfungen und die Durchführung des vorbereiteten Vereinspiloten bleiben offen. Details: [Nacharbeit 1.7.1](TALENTS-1.7.1-ABNAHME.md) und [bisheriger Umsetzungsstand](UMSETZUNGSSTAND-TALENTS-2026-09-07.md).
 
 ## Rahmen
 
@@ -119,7 +119,7 @@ Abnahme: Ein Urlaubseintrag gilt auch für ein nachträglich angelegtes Spiel. E
 - [x] Ein bis drei aktive Lernziele pro Kind mit Zeitraum und verantwortlichem Trainer verwalten.
 - [x] Ziele mit Übungen der vorhandenen Bibliothek und passenden Trainingsplänen verknüpfen.
 - [x] Kurze Beobachtungen, Fortschritt und Zielabschluss festhalten.
-- [x] Zielverlauf mit den vorhandenen Entwicklungsnotizen und Statistiken verbinden.
+- [x] Zielverlauf mit den vorhandenen Entwicklungsnotizen und Statistiken verbinden. „Verlauf & Statistik“ zeigt pro Kind und Ziel die eigenen Zielbeobachtungen, vorhandene sichtbare Notizen und erfasste Leistungen im Zielzeitraum. Export als gemeinsamer Entwicklungsrückblick; private Notizen, Mannschaftszuordnung und Freigaben werden serverseitig geprüft.
 - [x] Bestehende Sichtbarkeitsrechte für Trainer, Eltern und Spieler verwenden.
 - [x] Einen kompakten Entwicklungsrückblick für Gespräche anbieten.
 
@@ -154,6 +154,8 @@ Es wird keine zweite vereinsübergreifende Festivalplattform aufgebaut. Direkte 
 - [x] Vorhandene Android-Updates mit verständlichem Status, Versionshinweisen und Wiederholungsmöglichkeit prüfen.
 - [x] iPhone-PWA-Anleitung und Push-Aktivierung in den passenden Nutzungskontext bringen.
 - [x] Signierte Android-APK und Store-Datei (AAB) erstellen, iOS-Projekt vorbereiten und die native Kompilierung auf macOS nachweisen. Android-Vereinsdownload und Web-App veröffentlichen.
+- [x] Native iOS-Push-Implementierung ergänzen: Berechtigungsentscheidung, APNs-Tokenbereitschaft, FCM-Registrierung als IOS, Tokenwechsel, Vordergrundanzeige, Navigation und Backend-Versand einschließlich Geräteverwaltung.
+- [ ] Native iOS-Push-Mitteilungen mit realer Firebase-/APNs-Konfiguration und Apple-Signierung auf einem iPhone prüfen. Automatische Tests und Simulator-Kompilierung ersetzen die Zustellprüfung nicht.
 - [ ] Store-Einreichungen mit den zugehörigen Entwicklerkonten durchführen; für natives iOS außerdem Apple-Signierung und APNs/Firebase-Konfiguration bereitstellen.
 - [x] Hilfe und Schulungsunterlagen an die tatsächlich ausgelieferten Abläufe anpassen.
 
@@ -167,7 +169,8 @@ Es wird keine zweite vereinsübergreifende Festivalplattform aufgebaut. Direkte 
 - [x] Fachliche Tests für Verlegungen, Abwesenheiten, Abstimmungsrechte, Saisonwechsel ergänzen.
 - [x] Durchgängige Abläufe für Trainer und Familien prüfen; bestehende passende Prüfungen ausführen.
 - [ ] Android- und iPhone-Gerätetests für Start, Installation, Push und Netzunterbrechung durchführen, sobald geeignete Geräte/Zugänge verfügbar sind.
-- [x] Pilot mit zwei Trainern und fünf Eltern anhand gleicher Aufgaben vorbereiten und Zeitbedarf, Hilfebedarf sowie Fehler erfassen.
+- [x] Pilot mit zwei Trainern und fünf Eltern anhand gleicher Aufgaben vorbereiten.
+- [ ] Pilot durchführen und Zeitbedarf, Hilfebedarf sowie Fehler erfassen. Es liegen noch keine Messwerte vor; eine Überlegenheit gegenüber der BFV-Team-App ist damit noch nicht nachgewiesen.
 - [x] Versionshinweise und nachvollziehbare Abnahmeergebnisse je Umsetzungspaket dokumentieren.
 
 ## Ausführungsreihenfolge

@@ -306,6 +306,7 @@ enum LeagueMatchStatus {
 enum PushPlatform {
   WEB
   ANDROID
+  IOS
 }
 
 enum ImportFormat {

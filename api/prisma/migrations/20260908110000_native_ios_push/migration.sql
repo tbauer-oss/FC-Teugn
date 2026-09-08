@@ -1,0 +1,1 @@
+ALTER TYPE "PushPlatform" ADD VALUE IF NOT EXISTS 'IOS';

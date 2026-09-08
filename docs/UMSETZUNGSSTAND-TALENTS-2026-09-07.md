@@ -2,7 +2,11 @@
 
 Stand: 7. September 2026. App-Version: **1.7.0+185 ist veröffentlicht**. Web-App, Backend und Android-Vereinsdownload wurden nach vollständiger CI-Abnahme ausgeliefert und öffentlich geprüft. Details: [Veröffentlichungsnachweis](TALENTS-1.7-VEROEFFENTLICHUNG.md).
 
+Statuskorrektur vom 8. September 2026: **Der gesamte Umsetzungsplan ist noch nicht abgeschlossen.** Zusätzlich zur praktischen Abnahme fehlen die vollständige Verbindung der Lernziele mit bestehenden Entwicklungsdaten und die native iOS-Push-Implementierung. Der Vereinspilot wurde vorbereitet, aber nicht durchgeführt. Erfolgreiche automatisierte Prüfungen ersetzen diese offenen Schritte nicht.
+
 Die Mannschaftskasse ist auf ausdrücklichen Wunsch vollständig ausgeschlossen. Es gibt dafür weder neue Seiten noch API-Endpunkte oder Datenbanktabellen. Ohne BFV-API bleiben offizielle Spielberichte, Spielberechtigungen und Festivalmeldungen im BFV-/SpielPLUS-System.
+
+Aktualisierung für 1.7.1+186: Die beiden fehlenden Softwareteile wurden inzwischen ergänzt, ebenso die kompakte Autopilot-Übersicht. Aktueller Prüf- und Veröffentlichungsstand: [Nacharbeit 1.7.1](TALENTS-1.7.1-ABNAHME.md). Die folgenden Tabellen und Nachweise dokumentieren weiterhin die vorherige Version 1.7.0+185.
 
 ## Umgesetzte Bereiche
 
@@ -17,7 +21,7 @@ Die Mannschaftskasse ist auf ausdrücklichen Wunsch vollständig ausgeschlossen.
 | 7. Spieltags-Assistent | Bereitschaft für Antworten, Fahrgemeinschaften, Trikotdienst und Checklisten im Autopiloten. Wiederverwendbare Vorlagen für Heimspiel, Auswärtsspiel und Turnier. Geplante und dokumentierte Einsatzminuten werden gegenübergestellt und erklärt; Trainerentscheidungen und Veröffentlichungsregeln bleiben erhalten. |
 | 8. Umfragen | Einfach- und Mehrfachauswahl, eine Stimme je Person/Familie/Kind, Frist, änderbare Antworten, Teilnahmezahl und Ergebnissichtbarkeit. Verknüpfte Eltern teilen Familienstimmen. Gezieltes Erinnern, Abschließen und Archivieren; Einstieg auch aus Nachrichten. |
 | 9. Einladungen | Befristeter, widerrufbarer Link mit QR-Code, Mannschaft und vorgesehener Rolle. Vorhandene Konten können eine weitere Mannschaft beantragen. App-Zugang, Mannschaftsfreigabe und Kinderprüfung bleiben getrennte nachvollziehbare Schritte. Eine Familienrolle wird nicht stillschweigend zur Trainerrolle. |
-| 10. Lernziele | Höchstens drei aktive Ziele pro Kind, verantwortlicher Trainer, Zeitraum, Übungen und Trainingspläne. Beobachtungen, Fortschritt, Abschluss/Archiv und Sichtbarkeit für die Familie. Verknüpfung zur bestehenden Statistik und Entwicklungsrückblick als kopierbare Übersicht beziehungsweise PDF. |
+| 10. Lernziele – teilweise umgesetzt | Höchstens drei aktive Ziele pro Kind, verantwortlicher Trainer, Zeitraum, Übungen und Trainingspläne. Eigene Zielbeobachtungen, Fortschritt, Abschluss/Archiv und Sichtbarkeit für die Familie. Der Rückblick enthält Ziele und deren eigene Beobachtungen als kopierbare Übersicht beziehungsweise PDF. Der Statistikzugang ist bisher ein allgemeiner Navigationslink; die gemeinsame Darstellung mit bestehenden Entwicklungsnotizen und Statistikdaten des Kindes fehlt. |
 | 11. Mannschaftskasse | Entfällt vollständig. |
 | 12. Spieltagsunterlagen | Kopierbare und druckbare PDF-Übersichten mit Termin, Treffpunkt, Ausrüstung, Kader, Einsatzzeiten und organisatorischem Stand. Kontextzugang zu BFV/SpielPLUS; Kalenderquelle und vereinsintern gepflegte Angaben sind gekennzeichnet. |
 | 13. Saisonwechsel | Übernahmeentscheidungen für aktive Ziele und Abwesenheiten, konkrete Anzahl in der Vorschau und Hinweise auf zu prüfende Verantwortliche/Zeiträume. Originalziele bleiben archiviert, übernommene Ziele erhalten eine neue Saisonzuordnung. Familienverknüpfungen bleiben bestehen; wiederholte Ausführung dupliziert keine Ziele. |
@@ -34,18 +38,20 @@ Die Mannschaftskasse ist auf ausdrücklichen Wunsch vollständig ausgeschlossen.
 - Android: Debug-APK erfolgreich kompiliert. Der anfängliche Java-Socketfehler ließ sich durch ein projektnahes Socket-Verzeichnis beheben.
 - Android-Release: APK und AAB wurden mit dem vorhandenen Vereinsschlüssel erfolgreich gebaut. Die APK-Signatur wurde mit `apksigner verify` geprüft. Der lokal verschlüsselte Signaturdatensatz wird über `scripts/build_android_release.ps1` verwendet; die dafür kurzzeitig angelegte `key.properties` wird anschließend entfernt.
 - Release-Reihenfolge: Vier automatisierte Tests prüfen die Freigabe anhand des exakten Commits. Web wartet auf das Backend; die öffentliche Android-Auslieferung wartet auf Backend und Web. Manuelle Validierung erzeugt standardmäßig nur Artefakte.
-- iOS: Eigenständige Bundle-ID, iOS-15-Deploymentziel und Swift-Package-Manager-Integration durch Flutter ergänzt. Nativer Simulator-Build auf macOS erfolgreich; ZIP-Artefakt gesichert. Apple-Signierung und native iOS-Push-Konfiguration benötigen weiterhin die realen Entwicklerzugänge.
+- iOS: Eigenständige Bundle-ID, iOS-15-Deploymentziel und Swift-Package-Manager-Integration durch Flutter ergänzt. Nativer Simulator-Build auf macOS erfolgreich; ZIP-Artefakt gesichert. Der native Push-Dienst unterstützt im Code bisher nur Android. Für native iOS-Push-Mitteilungen fehlen sowohl die Implementierung als auch die Konfiguration und Geräteabnahme; zusätzlich sind Apple-Signierung und reale Entwicklerzugänge für die Store-Auslieferung erforderlich.
 - Android-Gerätetest auf isoliertem Emulator: Anmeldung, Umfrage und Abwesenheit speichern, Daten erneut öffnen; bestanden. Direktes Update der signierten Version 1.6.46+184 auf 1.7.0+185 ebenfalls bestanden. Messwerte und Grenzen: [Android-Abnahme](TALENTS-1.7-ANDROID-ABNAHME.md).
 
 Die isolierte Integrationsdatenbank verwendet PGlite mit PostgreSQL-Abfragen und einem Prisma-Pool von einer Verbindung. Ein zusätzlicher echter PostgreSQL-Lauf ist in der CI erfolgreich abgeschlossen: Registrierung, Freigabe, Elternzuordnung, Training, Teilnahme, Spiel, Kader, Aufstellung, Ticker mit zwei Clients, Korrektur, Statistik und Administratorlöschung. Diese Abnahme ist kein Lasttest mit produktiven Vereinsdaten.
 
-## Noch ausstehende praktische Abnahme
+## Noch ausstehende Umsetzung und Abnahme
 
-Diese Schritte benötigen die entsprechenden Geräte beziehungsweise Veröffentlichungszugänge und sind **nicht als erledigt ausgewiesen**:
+Die ersten beiden Punkte enthalten noch Softwarearbeit. Weitere Schritte benötigen passende Geräte, Vereinsmitglieder beziehungsweise Veröffentlichungszugänge. Die Checkliste wurde entsprechend korrigiert:
 
-1. Android und iPhone auf echten Geräten: Installation, Update, Push-Einstieg, Netzunterbrechung, Erststart und Warmstart messen. Die angestrebten etwa zwei Sekunden Warmstart sind noch kein gemessener Wert auf echten Telefonen.
-2. Store-Freigaben mit Entwicklerkonten, Apple-Signierung und tatsächlicher iOS-Push-Konfiguration. Die native iOS-Kompilierung ist nachgewiesen; die iPhone-PWA ist der verfügbare Installationsweg.
-3. Alltagspilot mit zwei Trainern und fünf Eltern. Erst dessen Ergebnisse können belegen, ob die App für FC Teugn schneller und verständlicher ist als die BFV-Team-App.
+1. Lernziele mit den bestehenden Entwicklungsnotizen und Statistikdaten des jeweiligen Kindes zusammenführen. Eigene Zielbeobachtungen und ein allgemeiner Link zur Statistik erfüllen diesen Listenpunkt noch nicht vollständig.
+2. Native iOS-Push-Mitteilungen implementieren, mit Firebase/APNs konfigurieren und auf einem iPhone prüfen. Ein erfolgreicher Simulator-Build ist hierfür kein Funktionsnachweis.
+3. Android und iPhone auf echten Geräten: Installation, Update, Push-Einstieg, Netzunterbrechung, Erststart und Warmstart messen. Die angestrebten etwa zwei Sekunden Warmstart sind noch kein gemessener Wert auf echten Telefonen.
+4. Store-Freigaben mit Entwicklerkonten und Apple-Signierung. Die native iOS-Kompilierung ist nachgewiesen; die iPhone-PWA ist der verfügbare Installationsweg.
+5. Alltagspilot mit zwei Trainern und fünf Eltern durchführen und auswerten. Bisher existieren Anleitung und Erfassungsbogen, aber keine Messwerte. Erst ein durchgeführter Vergleich kann belegen, ob die App für FC Teugn schneller und verständlicher ist als die BFV-Team-App.
 
 ## Lokale Prüfungen wiederholen
 

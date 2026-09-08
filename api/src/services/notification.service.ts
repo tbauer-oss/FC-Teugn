@@ -58,6 +58,7 @@ export function summarizePushDeliveries(deliveries: PushDeliverySummaryInput[]) 
   const byPlatform = {
     WEB: { total: 0, sent: 0, failed: 0, pending: 0, skipped: 0 },
     ANDROID: { total: 0, sent: 0, failed: 0, pending: 0, skipped: 0 },
+    IOS: { total: 0, sent: 0, failed: 0, pending: 0, skipped: 0 },
   };
   const result = {
     subscriptions: deliveries.length,
@@ -168,6 +169,21 @@ export function androidPushMessage(
         icon: 'ic_stat_fc_teugn',
         clickAction: 'FLUTTER_NOTIFICATION_CLICK',
       },
+    },
+  };
+}
+
+export function iosPushMessage(token: string, notification: Parameters<typeof androidPushMessage>[1]) {
+  // Reuse the privacy-filtered payload, including name-free live scores.
+  // iOS receives a regular visible alert, not Android's data-only live surface.
+  const { data } = androidPushMessage(token, notification);
+  return {
+    token, data,
+    notification: { title: data.title, body: data.body },
+    apns: {
+      headers: { 'apns-push-type': 'alert', 'apns-priority': '10',
+        'apns-expiration': String(Math.floor(Date.now() / 1000) + 3600) },
+      payload: { aps: { sound: 'default' } },
     },
   };
 }
@@ -570,15 +586,16 @@ export async function deliverPush(deliveryId: string) {
     }).catch(() => undefined);
     return;
   }
-  if (delivery.subscription.platform === PushPlatform.ANDROID) {
+  if (delivery.subscription.platform === PushPlatform.ANDROID || delivery.subscription.platform === PushPlatform.IOS) {
+    const platform = delivery.subscription.platform;
     const messaging = firebaseMessaging();
     if (!messaging) {
-      await markDeliveryPending(delivery.id, 'ANDROID_PUSH_NOT_CONFIGURED');
+      await markDeliveryPending(delivery.id, `${platform}_PUSH_NOT_CONFIGURED`);
       return;
     }
     try {
       await messaging.send(
-        androidPushMessage(
+        (platform === PushPlatform.IOS ? iosPushMessage : androidPushMessage)(
           delivery.subscription.endpoint,
           delivery.notification,
         ),
@@ -596,12 +613,12 @@ export async function deliverPush(deliveryId: string) {
         });
         await markDeliveryFailed(
           delivery.id,
-          errorCode ?? 'ANDROID_DELIVERY_FAILED',
+          errorCode ?? `${platform}_DELIVERY_FAILED`,
         );
       } else {
         await markDeliveryPending(
           delivery.id,
-          errorCode ?? 'ANDROID_DELIVERY_FAILED',
+          errorCode ?? `${platform}_DELIVERY_FAILED`,
         );
       }
     }

@@ -320,16 +320,25 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
       }
       if (!mounted || activate != true) return;
       if (native) {
-        final token = await nativePushService.enable();
-        if (!mounted) return;
-        if (token != null) {
+        try {
+          final token = await nativePushService.enable();
+          if (!mounted) return;
+          if (token == null) {
+            _showPushMessage(
+                'Die Benachrichtigungsfreigabe wurde nicht erteilt. Du kannst sie in den Systemeinstellungen ändern.');
+            return;
+          }
+          final repository = ref.read(repositoryProvider);
+          await repository.grantPushConsent();
+          await repository.registerNativePushSubscription(token);
+          if (!mounted) return;
           ref.invalidate(nativePushRegistrationProvider);
           ref.invalidate(currentDevicePushReadyProvider);
           _showPushMessage('Pushnachrichten sind jetzt aktiviert.');
-        } else {
+        } catch (_) {
+          if (!mounted) return;
           _showPushMessage(
-            'Die Android-Benachrichtigungsfreigabe wurde nicht erteilt.',
-          );
+              'Push konnte noch nicht aktiviert werden. Bitte unter Nachrichten · Einstellungen erneut versuchen.');
         }
         return;
       }

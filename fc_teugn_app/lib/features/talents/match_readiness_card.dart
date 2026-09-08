@@ -21,19 +21,47 @@ class MatchReadinessCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) =>
       ref.watch(matchReadinessProvider(eventId)).when(
           loading: () => const LinearProgressIndicator(),
-          error: (e, _) => TalentsEmpty(
-              text: talentsError(e),
-              action: TextButton(
+          error: (e, _) => ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              title: const Text('Organisation nicht geladen'),
+              trailing: IconButton(
+                  tooltip: 'Organisation erneut laden',
                   onPressed: () =>
                       ref.invalidate(matchReadinessProvider(eventId)),
-                  child: const Text('Organisation erneut laden'))),
-          data: (data) => TalentsCard(
-                  title: 'Bereit für den Spieltag?',
-                  subtitle:
-                      'Sportlicher Plan und Organisation gehören zusammen.',
+                  icon: const Icon(Icons.refresh))),
+          data: (data) {
+            final checks = objects(data['checks']);
+            final open = checks.where((c) => c['ready'] != true).length;
+            final ordered = [
+              ...checks.where((c) => c['ready'] != true),
+              ...checks.where((c) => c['ready'] == true),
+            ];
+            return Card(
+              margin: EdgeInsets.zero,
+              clipBehavior: Clip.antiAlias,
+              child: ExpansionTile(
+                  key: PageStorageKey('match-organisation-$eventId'),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+                  childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  leading: Icon(
+                      open == 0 ? Icons.check_circle_outline : Icons.checklist),
+                  title: const Text('Organisation',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  subtitle: Text(
+                      checks.isEmpty
+                          ? 'Checklisten & Übersicht'
+                          : open == 0
+                              ? 'Alles geklärt'
+                              : '$open offen',
+                      style: const TextStyle(fontSize: 13)),
                   children: [
-                    for (final c in objects(data['checks']))
+                    for (final c in ordered)
                       ListTile(
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(c['ready'] == true
                               ? Icons.check_circle_outline
@@ -46,19 +74,27 @@ class MatchReadinessCard extends ConsumerWidget {
                               ? '/trainer${c['route']}'
                               : roleCorrectPushActionRoute(c['route'] as String,
                                   isTrainer: true))),
-                    const Text(
-                        'Der Autopilot berücksichtigt Verfügbarkeit, Positionen und bisherige Einsatzzeiten. Die geplanten Minuten sind ein Vorschlag; tatsächliche Minuten stammen aus den erfassten Spielstatistiken.'),
-                    for (final m in objects(data['minutes']))
-                      ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(m['name'] as String),
-                          subtitle: Text(
-                              'Geplant: ${m['planned'] ?? 'offen'} Min. · Tatsächlich: ${m['actual'] ?? 'noch nicht erfasst'}${m['actual'] == null ? '' : ' Min.'}')),
+                    if (objects(data['minutes']).isNotEmpty)
+                      ExpansionTile(
+                        key: PageStorageKey('match-minutes-$eventId'),
+                        tilePadding: EdgeInsets.zero,
+                        title: const Text('Einsatzzeiten vergleichen'),
+                        children: [
+                          const Text(
+                              'Geplante Minuten sind ein Vorschlag. Erfasste Minuten stammen aus der Spielstatistik.'),
+                          for (final m in objects(data['minutes']))
+                            ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(m['name'] as String),
+                                subtitle: Text(
+                                    'Geplant: ${m['planned'] ?? 'offen'} Min. · Erfasst: ${m['actual'] ?? 'noch nicht erfasst'}${m['actual'] == null ? '' : ' Min.'}')),
+                        ],
+                      ),
                     if (data['canCreateChecklist'] == true)
                       OutlinedButton.icon(
                           icon: const Icon(Icons.checklist),
-                          label: const Text(
-                              'Passende Spieltagscheckliste anlegen'),
+                          label: const Text('Checkliste anlegen'),
                           onPressed: () async {
                             if (await talentsForm(context,
                                 title: 'Spieltagscheckliste',
@@ -100,5 +136,7 @@ class MatchReadinessCard extends ConsumerWidget {
                                 mode: LaunchMode.externalApplication),
                             child: const Text('BFV-Quelle')),
                     ]),
-                  ]));
+                  ]),
+            );
+          });
 }
