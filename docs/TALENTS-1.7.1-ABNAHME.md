@@ -93,12 +93,22 @@ Lokale Nachweise liegen unter `artifacts/release-1.7.1-build-186/`, darunter
 
 ## Weiterhin externe Abnahme
 
-Keine echten Telefone waren über ADB verbunden. Reale Android-/iPhone-Prüfungen
-für Push, Netzunterbrechung, Installation und Startzeiten stehen aus. Der Pilot
+Keine echten Telefone waren über ADB verbunden. Reale Prüfungen der Android-APK
+und iPhone-Web-App für Push, Netzunterbrechung, Installation und Startzeiten stehen aus. Der Pilot
 mit zwei Trainern und fünf Eltern ist vorbereitet, aber nicht durchgeführt.
 Eine gemessene Überlegenheit gegenüber der BFV-Team-App wird nicht behauptet.
 
-Für TestFlight/App Store fehlen die zugeordneten Apple-Signierungsdaten und
-die reale Firebase-Apple-/APNs-Konfiguration. Für die Store-Veröffentlichungen
-sind die zugehörigen Entwicklerkonten erforderlich. Einrichtung und Grenzen:
-[iOS-Auslieferung](ios-release.md). Die Mannschaftskasse bleibt ausgeschlossen.
+Umfang nach anschließender Nutzerentscheidung vom 8. September 2026:
+
+- Google Play entfällt vollständig. Android bleibt bei APK und MagentaCloud-Updates.
+- Native Apple-Veröffentlichung ist vorerst optional. Die dafür erforderliche
+  Apple-Signierung, native Firebase-/APNs-Konfiguration und native Geräteabnahme
+  sind spätere Ausbauschritte, keine offenen Pflichtpunkte.
+- Installation und Web-Push der iPhone-Web-App bleiben Teil der praktischen
+  Abnahme. Dafür ist kein kostenpflichtiges Apple-Entwicklerkonto erforderlich.
+- Verbindlich offen bleiben Startzeitmessungen auf echten Geräten, die genannten
+  Geräteprüfungen und der Vereinspilot. Diese Punkte werden erst nach realer
+  Durchführung mit Ergebnissen abgeschlossen.
+
+Einrichtung des optionalen nativen Ausbaus: [iOS-Auslieferung](ios-release.md).
+Die Mannschaftskasse bleibt ausgeschlossen.

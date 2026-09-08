@@ -1,5 +1,11 @@
 # Android-Release
 
+Nutzerentscheidung vom 8. September 2026: Keine Veröffentlichung bei Google
+Play. Der verbindliche Auslieferungsweg ist die signierte APK über MagentaCloud
+einschließlich des vorhandenen Vereins-Updaters. Eine separate Play-Version
+wird nicht umgesetzt. Die unten beschriebene AAB-Erzeugung dokumentiert einen
+vorhandenen technischen Buildweg und ist kein noch offener Veröffentlichungsschritt.
+
 Die Android-App verwendet die produktive Kennung `de.fcteugn.jugend` und den
 Anzeigenamen `FC Teugn Talents`. Mit Flutter 3.44.8 werden Geräte ab Android 7
 (`minSdk 24`) unterstützt. Das Release-Manifest enthält die für die HTTPS-API notwendige
@@ -106,5 +112,6 @@ bereits vorhandene Signaturkonfiguration bleibt erhalten. Ausgaben liegen unter
 `fc_teugn_app/build/app/outputs/flutter-apk/app-release.apk` und
 `fc_teugn_app/build/app/outputs/bundle/release/app-release.aab`.
 
-Ein AAB ist für die Einreichung bei Google Play gedacht; ein Store-Upload ist
-ein zusätzlicher Schritt mit einem eingerichteten Play-Entwicklerkonto.
+Ein AAB kann nicht direkt auf dem Telefon installiert werden. Für den hier
+vorgesehenen Vereinsdownload ausschließlich die signierte APK verwenden.
+Das AAB wird nicht bei Google Play eingereicht.

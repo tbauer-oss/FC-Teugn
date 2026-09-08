@@ -2,6 +2,12 @@
 
 Vorbereitete Anleitung vom 7. September 2026. Noch kein durchgeführter Geräte- oder Vereinspilot. Kein Bereich Mannschaftskasse.
 
+Auslieferungsumfang, aktualisiert am 8. September 2026: Android-APK über
+MagentaCloud, iPhone als installierte Web-App. Google Play entfällt; native
+Apple-Veröffentlichung ist optional. Den iPhone-Pilot mit der vom Home-Bildschirm
+gestarteten Web-App einschließlich Web-Push durchführen. Es wird dafür kein
+Apple-Entwicklerkonto benötigt.
+
 ## Familien: die neuen Wege
 
 1. **Einsteigen:** Bestehenden Zugang verwenden. Einen Einladungslink öffnen, die Mannschaft prüfen und die Zuordnung beantragen. Bei „Prüfung ausstehend“ auf die Freigabe warten; Kinder werden gesondert zugeordnet.

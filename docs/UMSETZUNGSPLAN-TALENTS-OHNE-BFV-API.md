@@ -4,14 +4,15 @@ Stand: 8. September 2026; 1.7.1+186 ist veröffentlicht und öffentlich geprüft
 
 Grundlage: Vergleichsbericht `APP-VERGLEICH-BFV-2026-09-07.md` und die anschließende Nutzeranweisung, die übrigen Verbesserungen professionell umzusetzen und zunächst die vollständige Änderungsliste zu liefern.
 
-Nach dem Statusabgleich vom 8. September wurden die fehlende Entwicklungsansicht und native iOS-Push-Unterstützung ergänzt. Die Spieltagsorganisation im Autopiloten ist nun kompakt aufklappbar. Abgehakte Punkte beschreiben den dokumentierten Implementierungs- und Prüfstand, keine vollständige Geräte- oder Vereinsabnahme. Store-Schritte, reale Geräteprüfungen und die Durchführung des vorbereiteten Vereinspiloten bleiben offen. Details: [Nacharbeit 1.7.1](TALENTS-1.7.1-ABNAHME.md) und [bisheriger Umsetzungsstand](UMSETZUNGSSTAND-TALENTS-2026-09-07.md).
+Nach dem Statusabgleich vom 8. September wurden die fehlende Entwicklungsansicht und native iOS-Push-Unterstützung ergänzt. Die Spieltagsorganisation im Autopiloten ist nun kompakt aufklappbar. Abgehakte Punkte beschreiben den dokumentierten Implementierungs- und Prüfstand, keine vollständige Geräte- oder Vereinsabnahme. Nach der anschließenden Nutzerentscheidung entfällt Google Play vollständig; eine native Apple-Veröffentlichung ist vorerst optional. Im verbindlichen Umfang bleiben reale Geräteprüfungen und die Durchführung des vorbereiteten Vereinspiloten offen. Details: [Nacharbeit 1.7.1](TALENTS-1.7.1-ABNAHME.md) und [bisheriger Umsetzungsstand](UMSETZUNGSSTAND-TALENTS-2026-09-07.md).
 
 ## Rahmen
 
 - Kein BFV-API-Zugang verfügbar. Direkte Übertragung in den offiziellen Spielbericht, automatischer Bezug der Spielberechtigungsliste und API-basierte Festivalmeldungen sind nicht Teil der Umsetzung.
 - Der vorhandene BFV-iCal-Abgleich, CSV-/ICS-Import, die BFV-Ansichten und der SpielPLUS-Zugang bleiben Grundlage der Verbandsanbindung.
 - Exporte werden als nutzbare Kopier-, Druck- oder Dateiansichten angeboten. Ein Import in SpielPLUS wird ohne nachgewiesen unterstütztes Format nicht zugesichert.
-- Store-Veröffentlichungen hängen zusätzlich von passenden Entwicklerkonten, Signierung und Freigaben ab. Die technische Vorbereitung und Verbesserung der vorhandenen Installationswege gehören zum Plan.
+- Android wird als signierte APK über MagentaCloud verteilt und über den vorhandenen Vereins-Updater aktualisiert. Google Play ist auf ausdrücklichen Nutzerwunsch ausgeschlossen; weder Einreichung noch eine separate Play-Version sind beauftragt.
+- Auf dem iPhone ist die installierbare Web-App einschließlich Web-Push der vorgesehene Weg. Native Apple-Veröffentlichung, Apple-Signierung und native APNs-Geräteabnahme sind vorerst optionale spätere Schritte. Sie sind keine Voraussetzung für den Abschluss des verbindlichen Umfangs. Tests der iPhone-Web-App bleiben erforderlich.
 - Ziel ist ein verlässlicher, schnell bedienbarer Vereinsalltag für Familien und Trainer. Neue Funktionen werden in die bestehenden Abläufe eingebunden.
 
 ## Phase 1 – Zuverlässigkeit und schnelle Bedienung
@@ -155,9 +156,11 @@ Es wird keine zweite vereinsübergreifende Festivalplattform aufgebaut. Direkte 
 - [x] iPhone-PWA-Anleitung und Push-Aktivierung in den passenden Nutzungskontext bringen.
 - [x] Signierte Android-APK und Store-Datei (AAB) erstellen, iOS-Projekt vorbereiten und die native Kompilierung auf macOS nachweisen. Android-Vereinsdownload und Web-App veröffentlichen.
 - [x] Native iOS-Push-Implementierung ergänzen: Berechtigungsentscheidung, APNs-Tokenbereitschaft, FCM-Registrierung als IOS, Tokenwechsel, Vordergrundanzeige, Navigation und Backend-Versand einschließlich Geräteverwaltung.
-- [ ] Native iOS-Push-Mitteilungen mit realer Firebase-/APNs-Konfiguration und Apple-Signierung auf einem iPhone prüfen. Automatische Tests und Simulator-Kompilierung ersetzen die Zustellprüfung nicht.
-- [ ] Store-Einreichungen mit den zugehörigen Entwicklerkonten durchführen; für natives iOS außerdem Apple-Signierung und APNs/Firebase-Konfiguration bereitstellen.
 - [x] Hilfe und Schulungsunterlagen an die tatsächlich ausgelieferten Abläufe anpassen.
+
+Google-Play-Einreichung entfällt auf Nutzerwunsch. Das bereits erstellte AAB ist ein Build-Artefakt und keine angekündigte Store-Veröffentlichung.
+
+Optional für später: Native Apple-App mit Apple-Signierung und realer Firebase-/APNs-Konfiguration auf einem iPhone prüfen und gegebenenfalls bei TestFlight/App Store einreichen. Dieser Ausbau wird getrennt vom vorgesehenen iPhone-Web-App-Weg geführt; er ist nicht als erledigt markiert.
 
 ### 15. Offline-Verhalten und Qualität der betroffenen Abläufe absichern
 
@@ -168,7 +171,7 @@ Es wird keine zweite vereinsübergreifende Festivalplattform aufgebaut. Direkte 
 - [x] Änderungen an Datenmodell und Migrationen mit bestehenden Daten in einer isolierten Testumgebung verifizieren.
 - [x] Fachliche Tests für Verlegungen, Abwesenheiten, Abstimmungsrechte, Saisonwechsel ergänzen.
 - [x] Durchgängige Abläufe für Trainer und Familien prüfen; bestehende passende Prüfungen ausführen.
-- [ ] Android- und iPhone-Gerätetests für Start, Installation, Push und Netzunterbrechung durchführen, sobald geeignete Geräte/Zugänge verfügbar sind.
+- [ ] Android-APK und iPhone-Web-App auf echten Geräten auf Start, Installation, Push und Netzunterbrechung prüfen, sobald geeignete Geräte/Zugänge verfügbar sind. Der iPhone-Test erfolgt mit der vom Home-Bildschirm gestarteten Web-App und Web-Push; dafür ist kein Apple-Entwicklerkonto nötig.
 - [x] Pilot mit zwei Trainern und fünf Eltern anhand gleicher Aufgaben vorbereiten.
 - [ ] Pilot durchführen und Zeitbedarf, Hilfebedarf sowie Fehler erfassen. Es liegen noch keine Messwerte vor; eine Überlegenheit gegenüber der BFV-Team-App ist damit noch nicht nachgewiesen.
 - [x] Versionshinweise und nachvollziehbare Abnahmeergebnisse je Umsetzungspaket dokumentieren.

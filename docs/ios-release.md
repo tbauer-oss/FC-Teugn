@@ -1,5 +1,12 @@
 # iPhone-Auslieferung und native Build-Prüfung
 
+Nutzerentscheidung vom 8. September 2026: Die native Apple-Veröffentlichung ist
+vorerst optional. Der vorgesehene iPhone-Weg ist die installierbare Web-App.
+Ihre Geräteprüfung einschließlich Web-Push bleibt Teil der Abnahme.
+Web-Push für zum Home-Bildschirm hinzugefügte Web-Apps ab iOS 16.4 benötigt
+keine Apple-Developer-Mitgliedschaft:
+[Apple-Dokumentation](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers).
+
 Die veröffentlichte Web-App kann auf dem iPhone über Safari zum Home-Bildschirm
 hinzugefügt werden. Die Installationsseite in der App erklärt die Schritte und
 erhält den Rückweg zu einer Mannschaftseinladung.
@@ -28,7 +35,7 @@ Auf einem Mac im Verzeichnis `fc_teugn_app`:
 flutter build ios --simulator --debug --no-codesign
 ```
 
-## Noch benötigte externe Voraussetzungen
+## Voraussetzungen für den optionalen nativen Ausbau
 
 Für TestFlight/App Store fehlen das zugeordnete Apple-Entwicklerteam, die
 App-Store-Connect-App und die Signatur-/Provisionierungsdaten. Die Bundle-ID muss
