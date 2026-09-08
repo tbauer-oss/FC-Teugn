@@ -21,6 +21,7 @@ class _CommunicationRepository extends DataRepository {
   String? sentContactTeamId;
   String? sentContactMessage;
   bool contactDeleted = false;
+  bool failContactSend = false;
   bool? deletedConversation;
 
   @override
@@ -74,6 +75,7 @@ class _CommunicationRepository extends DataRepository {
     String? attachmentName,
     String? attachmentMimeType,
   }) async {
+    if (failContactSend) throw Exception('offline');
     sentContactMessage = message;
     sentContactTeamId = teamId;
     sentContactParentId = parentId;
@@ -210,6 +212,31 @@ OrganizationContext _organization() {
 }
 
 void main() {
+  testWidgets('failed mobile reply preserves its draft for retry',
+      (tester) async {
+    final repository = _CommunicationRepository()..failContactSend = true;
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_page(staffView: false, repository: repository));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Direktkontakt'));
+    await tester.tap(find.text('Direktkontakt'));
+    await tester.pumpAndSettle();
+    await tester.tap(find
+        .byKey(const ValueKey('family-contact-thread-thread.parent.team-e1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Danke für die Info!'));
+    await tester.tap(find.byTooltip('Nachricht senden'));
+    await tester.pumpAndSettle();
+    expect(
+        tester.widget<TextField>(find.byType(TextField).last).controller!.text,
+        'Danke für die Info!');
+    repository.failContactSend = false;
+    await tester.tap(find.byTooltip('Nachricht senden'));
+    await tester.pumpAndSettle();
+    expect(repository.sentContactMessage, 'Danke für die Info!');
+    expect(tester.takeException(), isNull);
+  });
   for (final conversation in [false, true]) {
     testWidgets(
         'trainer deletes ${conversation ? 'conversation' : 'message'} for all at 320 px',

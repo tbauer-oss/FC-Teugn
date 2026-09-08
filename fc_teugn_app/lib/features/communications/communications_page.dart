@@ -532,6 +532,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
           ),
         ),
       );
+      rethrow;
     } finally {
       if (mounted) {
         setState(() => _sending = false);
@@ -1053,6 +1054,7 @@ class _FamilyContactComposer extends StatefulWidget {
 class _FamilyContactComposerState extends State<_FamilyContactComposer> {
   final _controller = TextEditingController();
   PlatformFile? _attachment;
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -1062,15 +1064,24 @@ class _FamilyContactComposerState extends State<_FamilyContactComposer> {
 
   Future<void> _send() async {
     final message = _controller.text.trim();
-    if (widget.sending || (message.isEmpty && _attachment == null)) return;
+    if (_submitting ||
+        widget.sending ||
+        (message.isEmpty && _attachment == null)) return;
     final draft = _FamilyContactReplyDraft.fromFile(
       message: message,
       file: _attachment,
     );
-    await widget.onSend(draft);
-    if (!mounted) return;
-    _controller.clear();
-    setState(() => _attachment = null);
+    setState(() => _submitting = true);
+    try {
+      await widget.onSend(draft);
+      if (!mounted) return;
+      if (_controller.text.trim() == draft.message) _controller.clear();
+      setState(() => _attachment = null);
+    } catch (_) {
+      // The parent reports the error. Keep the draft and attachment for retry.
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
