@@ -174,12 +174,16 @@ class _CarpoolSectionState extends ConsumerState<CarpoolSection> {
       ref.read(authProvider).user?.role != UserRole.readOnly &&
       !event.isCancelled &&
       (event.capabilities.canOfferRide || event.capabilities.canRespond);
-  List<PlayerModel> get players => widget.players
-      .where((p) =>
-          p.status == PlayerStatus.active &&
-          (p.teamId == event.teamId ||
-              event.targetTeams.any((t) => t.id == p.teamId)))
-      .toList();
+  bool _belongsToRide(PlayerModel player) =>
+      player.status == PlayerStatus.active &&
+      !event.excludedParticipantPlayerIds.contains(player.id) &&
+      (player.teamId == event.teamId ||
+          event.targetTeams.any((team) => team.id == player.teamId) ||
+          event.carpoolPlayerIds.contains(player.id) ||
+          (event.type == EventType.match &&
+              event.participantPlayerIds.contains(player.id)));
+  List<PlayerModel> get players =>
+      widget.players.where(_belongsToRide).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -428,12 +432,7 @@ class _CarpoolSectionState extends ConsumerState<CarpoolSection> {
       setState(() => _busy = true);
       try {
         final loaded = await ref.read(playersProvider.future);
-        availablePlayers = loaded
-            .where((p) =>
-                p.status == PlayerStatus.active &&
-                (p.teamId == event.teamId ||
-                    event.targetTeams.any((t) => t.id == p.teamId)))
-            .toList();
+        availablePlayers = loaded.where(_belongsToRide).toList();
       } catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(context)

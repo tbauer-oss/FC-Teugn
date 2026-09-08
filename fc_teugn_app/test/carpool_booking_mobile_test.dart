@@ -10,7 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-EventModel _event({int free = 5, int needs = 0}) => EventModel.fromJson({
+EventModel _event({int free = 5, int needs = 0, bool guest = false}) =>
+    EventModel.fromJson({
       'id': 'match-ride',
       'teamId': 'team',
       'type': 'MATCH',
@@ -21,6 +22,7 @@ EventModel _event({int free = 5, int needs = 0}) => EventModel.fromJson({
       'startAt': '2030-09-17T15:30:00Z',
       'location': 'Sportplatz',
       'capabilities': {'canOfferRide': true, 'canRespond': true},
+      if (guest) 'carpoolPlayerIds': ['guest-child'],
       'carpoolSummary': {
         'freeSeats': free,
         'openNeeds': needs,
@@ -129,6 +131,52 @@ Future<void> _pump(WidgetTester tester, Widget child,
 }
 
 void main() {
+  for (final width in [320.0, 390.0]) {
+    testWidgets(
+        'nominated guest and parent book without a host team assignment at $width',
+        (tester) async {
+      const guest = PlayerModel(
+          id: 'guest-child',
+          firstName: 'Gastkind',
+          lastName: 'Beispiel',
+          teamId: 'another-youth',
+          status: PlayerStatus.active,
+          dominantFoot: DominantFoot.right);
+      const sibling = PlayerModel(
+          id: 'not-nominated',
+          firstName: 'Geschwisterkind',
+          lastName: 'Beispiel',
+          teamId: 'another-youth',
+          status: PlayerStatus.active,
+          dominantFoot: DominantFoot.right);
+      final repository = _Repository();
+      await _pump(
+          tester,
+          CarpoolSection(
+              event: _event(guest: true),
+              players: const [guest, sibling],
+              onRefresh: () async {}),
+          width: width,
+          scale: 2,
+          repository: repository);
+      await tester.ensureVisible(find.text('Hier eintragen'));
+      await tester.tap(find.text('Hier eintragen'));
+      await tester.pumpAndSettle();
+      expect(find.text('Gastkind'), findsOneWidget);
+      expect(find.text('Geschwisterkind'), findsNothing);
+      await tester.tap(find.text('Gastkind'));
+      await tester.pump();
+      await tester.tap(find.text('Ich selbst'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('2 Plätze buchen'));
+      await tester.tap(find.text('2 Plätze buchen'));
+      await tester.pumpAndSettle();
+      expect(repository.booked, ['guest-child']);
+      expect(repository.self, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   test('adult passengers retain identity and name with nullable playerId', () {
     final person = CarpoolPassenger.fromJson({
       'id': 'p',

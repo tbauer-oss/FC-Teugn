@@ -485,7 +485,7 @@ export function eventTeamScope(teamIds: string[]): Prisma.EventWhereInput {
  *
  * A published nomination is intentionally an event-scoped grant. It lets a
  * player account and the linked guardians open exactly this match even when
- * the player normally belongs to another team in the same youth. It never
+ * the player normally belongs to another team or youth. It never
  * grants access to the nominated team's other events or member data.
  */
 export function eventReadScope(
@@ -495,7 +495,7 @@ export function eventReadScope(
   const teams = [...new Set(teamIds)];
   const players = [...new Set(identity.playerIds ?? [])];
   const userId = identity.userId?.trim();
-  const memberIdentity: Prisma.SquadMemberWhereInput[] = [
+  const memberIdentity: Array<{ playerId?: { in: string[] }; player?: { is: Prisma.PlayerWhereInput } }> = [
     ...(players.length ? [{ playerId: { in: players } }] : []),
     ...(userId
       ? [{
@@ -516,6 +516,7 @@ export function eventReadScope(
       { targetTeams: { some: { teamId: { in: teams } } } },
       ...(memberIdentity.length
         ? [{
+            visibility: { not: 'STAFF_ONLY' },
             squads: {
               some: {
                 publishedAt: { not: null },
@@ -531,6 +532,30 @@ export function eventReadScope(
             },
           } satisfies Prisma.EventWhereInput]
         : []),
+      ...(memberIdentity.length
+        ? [{
+            type: 'MATCH',
+            visibility: { not: 'STAFF_ONLY' },
+            participants: {
+              some: {
+                responseRequired: true,
+                ...(memberIdentity.length === 1 ? memberIdentity[0] : { OR: memberIdentity }),
+              },
+            },
+          } satisfies Prisma.EventWhereInput]
+        : []),
+    ],
+  };
+}
+
+/** A sent match invitation survives a new squad draft and a declined reply.
+ * Explicit removal revokes this grant. No membership in the host team is added. */
+export function matchParticipantPlayerScope(eventId: string): Prisma.PlayerWhereInput {
+  return {
+    eventParticipants: { none: { eventId, responseRequired: false } },
+    OR: [
+      { eventParticipants: { some: { eventId, responseRequired: true, event: { type: 'MATCH' } } } },
+      { squadMembers: { some: { status: NominationStatus.NOMINATED, squad: { eventId, publishedAt: { not: null } } } } },
     ],
   };
 }

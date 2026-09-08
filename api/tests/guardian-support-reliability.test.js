@@ -111,9 +111,10 @@ test('published cross-team nominations grant access to exactly that event', () =
   const { eventReadScope } = require('../dist/src/services/team-access');
   const scope = eventReadScope(['team-e2'], { playerIds: ['player-e2'] });
 
-  assert.equal(scope.OR.length, 3);
+  assert.equal(scope.OR.length, 4);
   assert.deepEqual(scope.OR[0], { teamId: { in: ['team-e2'] } });
   assert.deepEqual(scope.OR[2], {
+    visibility: { not: 'STAFF_ONLY' },
     squads: {
       some: {
         publishedAt: { not: null },

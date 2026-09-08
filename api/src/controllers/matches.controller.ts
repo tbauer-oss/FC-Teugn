@@ -32,6 +32,7 @@ import {
   accessibleTeamIds,
   contextualTeamIds,
   eventReadScope,
+  matchParticipantPlayerScope,
   ownPlayerIds,
   youthPlayerPoolTeamIdsForTeam,
 } from '../services/team-access';
@@ -395,6 +396,7 @@ function scope(
 ): Prisma.EventWhereInput {
   return {
     type: EventType.MATCH,
+    ...(personalUserId ? { visibility: { not: 'STAFF_ONLY' as const } } : {}),
     ...eventReadScope(
       teamIds,
       personalUserId ? { userId: personalUserId } : {},
@@ -1059,7 +1061,7 @@ export async function getMatch(req: Request, res: Response) {
     );
     return prisma.player.findMany({
       where: {
-        teamId: { in: rosterTeamIds },
+        OR: [{ teamId: { in: rosterTeamIds } }, matchParticipantPlayerScope(match.id)],
         // Verletzte Spieler bleiben im Spielerprofil sichtbar, gehören aber
         // bis zur Reaktivierung ausdrücklich nicht zum nominierbaren Kader.
         status: PlayerStatus.ACTIVE,
@@ -1815,7 +1817,7 @@ export async function updateSquad(req: Request, res: Response) {
   const validPlayers = await prisma.player.findMany({
     where: {
       id: { in: ids },
-      teamId: { in: rosterTeamIds },
+      OR: [{ teamId: { in: rosterTeamIds } }, matchParticipantPlayerScope(match.id)],
       status: PlayerStatus.ACTIVE,
     },
     select: { id: true },

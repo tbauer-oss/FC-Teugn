@@ -10,6 +10,7 @@ import 'package:fc_teugn_app/core/models/team_operations.dart';
 import 'package:fc_teugn_app/core/models/user.dart';
 import 'package:fc_teugn_app/core/providers.dart';
 import 'package:fc_teugn_app/features/trainer/trainer_dashboard_page.dart';
+import 'package:fc_teugn_app/features/carpool/carpool_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -218,6 +219,52 @@ void main() {
 
   setUp(() {
     FlutterSecureStorage.setMockInitialValues({});
+  });
+
+  testWidgets(
+      'all-teams match card keeps totals including guests outside the selected youth',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 740));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final match = EventModel.fromJson({
+      'id': 'guest-match',
+      'teamId': 'team-e1',
+      'type': 'MATCH',
+      'category': 'FRIENDLY_MATCH',
+      'title': 'FC Teugn E1 – Testgegner',
+      'location': 'Sportplatz',
+      'startAt':
+          DateTime.now().add(const Duration(days: 1)).toUtc().toIso8601String(),
+      'attendanceSummary': {'yes': 12, 'no': 3, 'unknown': 2},
+    });
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          playersProvider.overrideWith((ref) async => const []),
+          trainerDashboardSummaryProvider.overrideWith((ref) async =>
+              DashboardSummary(
+                  players: const [], events: [match], notifications: const [])),
+          organizationProvider.overrideWith((ref) async => _organization()),
+          teamOperationsProvider('team-e1')
+              .overrideWith((ref) async => _operations),
+          pendingUsersProvider.overrideWith((ref) async => <AppUser>[]),
+          personalResponsesProvider.overrideWith((ref) async => const []),
+          liveNotificationsProvider
+              .overrideWith((ref) => Stream.value(const [])),
+          carpoolEventProvider('guest-match')
+              .overrideWith((ref) async => match),
+        ],
+        child: MaterialApp(
+            theme: buildAppTheme(),
+            builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(2)),
+                child: child!),
+            home: const Scaffold(body: TrainerDashboardPage()))));
+    await tester.pumpAndSettle();
+    expect(find.text('12 zu'), findsOneWidget);
+    expect(find.text('3 ab'), findsOneWidget);
+    expect(find.text('2 offen'), findsWidgets);
+    expect(tester.takeException(), isNull);
   });
 
   test('dashboard selects the chronologically next training', () {

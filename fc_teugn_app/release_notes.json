@@ -1,4 +1,10 @@
 {
+  "1.7.4+189": [
+    "Nominierte Spieler und ihre Eltern erreichen auch Spiele anderer Mannschaften oder Jugenden mit Spieltag und Liveticker. Bestehende Einladungen bleiben bei der Bearbeitung des Kaders gültig.",
+    "Gastfamilien können Mitfahrten anbieten und Plätze für Eltern und nominierte Kinder direkt buchen. Auch die automatische Platzvergabe berücksichtigt mannschaftsübergreifende Einladungen.",
+    "Das Trainerdashboard zählt alle Rückmeldungen des jeweiligen Spiels einschließlich Gastspielern und Nachnominierungen. Zusagen, Absagen und offene Antworten sind gemeinsam sichtbar.",
+    "Kalender und Spieltagsrückmeldungen verwenden denselben Teilnehmerkreis. Die mobilen Dashboard-Karten bleiben auch bei großer Schrift bedienbar."
+  ],
   "1.7.3+188": [
     "Dialoge und Auswahllisten in der gesamten App passen sich kleinen Displays, großer Schrift und der Bildschirmtastatur besser an.",
     "Teamaufgaben, Material und Checklisten sind kompakter. Familie & Team erhält eine platzsparende Registerleiste mit direkt erreichbaren Bereichen.",

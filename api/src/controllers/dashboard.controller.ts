@@ -1,4 +1,6 @@
 import { carpoolSummary, isOwnRidePerson } from '../services/carpool.service';
+import { matchResponseRoster } from '../services/attendance-summary';
+import { attendanceAfterRevision } from '../services/attendance-revision';
 import {
   AttendanceStatus,
   CarpoolRequestStatus,
@@ -85,6 +87,7 @@ const eventSummaryScalars = {
   familyReleaseAudience: true,
   cancellationReason: true,
   attendanceFinalized: true,
+  responseRevisionAt: true,
   parentTournamentId: true,
 } as const;
 
@@ -298,8 +301,11 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
         targetTeams: targetTeamSummary,
         participants: {
           where: { playerId: { not: null } },
-          select: { playerId: true, responseRequired: true },
+          select: { playerId: true, responseRequired: true, player: { select: playerSummarySelect } },
         },
+        squads: { where: { publishedAt: { not: null } }, select: {
+          members: { where: { status: 'NOMINATED' }, select: { player: { select: playerSummarySelect } } },
+        } },
         attendance: {
           select: {
             id: true,
@@ -308,6 +314,7 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
             reason: true,
             goalkeeperAvailable: true,
             respondedAt: true,
+            absenceId: true,
             player: {
               select: {
                 id: true,
@@ -332,7 +339,8 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
   return res.json({
     range: { from, to },
     players,
-    events: events.map((event) => {
+    events: events.map((storedEvent) => {
+      const event = { ...storedEvent, attendance: storedEvent.attendance.map(reply => attendanceAfterRevision(reply, storedEvent)) };
       const eventTeamIds = event.targetTeams.length
         ? event.targetTeams.map((target) => target.teamId)
         : [event.teamId];
@@ -346,7 +354,13 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
           .map((participant) => participant.playerId)
           .filter((id): id is string => Boolean(id)),
       );
-      const roster = activeRoster.filter((player) =>
+      const roster = event.type === 'MATCH'
+        ? matchResponseRoster(
+            activeRoster, eventTeamIds, event.participants,
+            event.attendance.map(reply => reply.player),
+            event.squads.flatMap(squad => squad.members.map(member => member.player)),
+          )
+        : activeRoster.filter((player) =>
         player.teamId !== null &&
         eventTeamIds.includes(player.teamId) &&
         (!explicitIds.length || explicitIds.includes(player.id)) &&
@@ -355,8 +369,8 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
       const rosterIds = new Set(roster.map((player) => player.id));
       const visibleAttendance = event.attendance.filter((attendance) =>
         rosterIds.has(attendance.playerId) &&
-        attendance.player.teamId !== null &&
-        eventTeamIds.includes(attendance.player.teamId),
+        (event.type === 'MATCH' || (attendance.player.teamId !== null &&
+        eventTeamIds.includes(attendance.player.teamId))),
       );
       const responseByPlayer = new Map(
         visibleAttendance.map((attendance) => [attendance.playerId, attendance]),
@@ -369,6 +383,7 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
       });
       return {
         ...event,
+        squads: undefined,
         attachments: [],
         tournamentFixtures: [],
         carpoolSummary: carpoolSummary(event.carpoolOffers, event.carpoolNeeds),

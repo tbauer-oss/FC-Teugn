@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma, CarpoolNeed, CarpoolPassenger } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AuthUser } from '../middleware/auth';
-import { accessibleTeamIds, eventReadScope, ownPlayerIds } from './team-access';
+import { accessibleTeamIds, eventReadScope, matchParticipantPlayerScope, ownPlayerIds } from './team-access';
 import { Permission } from '../security/permissions';
 import { DomainError, permitted, stringIds } from './talents-domain';
 
@@ -34,7 +34,7 @@ export async function withCarpoolEvent<T>(user: AuthUser, eventId: string,
     const event = await tx.event.findFirst({ where: {
       id: eventId,
       ...(staffPermission ? {} : { visibility: { not: 'STAFF_ONLY' as const } }),
-      ...eventReadScope(teamIds, staffPermission ? {} : { userId: user.id, playerIds: ownIds }),
+      ...eventReadScope(teamIds, { userId: user.id, playerIds: ownIds }),
     }, include: eventRelations });
     if (!event) throw new DomainError(404, 'Termin nicht gefunden.');
     if (!allowClosed && event.status !== 'SCHEDULED') throw new DomainError(409, 'Für diesen Termin können keine Mitfahrten mehr gebucht werden.');
@@ -52,7 +52,9 @@ export async function selectedRidePeople(context: RideContext, user: AuthUser, b
   if (!context.staff && ids.some(id => !context.ownIds.includes(id))) throw new DomainError(403, 'Du kannst Plätze nur für dich und deine eigenen Kinder buchen.');
   const targetTeamIds = context.event.targetTeams.length ? context.event.targetTeams.map(t => t.teamId) : [context.event.teamId];
   const players = await context.tx.player.findMany({ where: {
-    id: { in: ids }, teamId: { in: targetTeamIds }, status: 'ACTIVE',
+    id: { in: ids }, status: 'ACTIVE',
+    eventParticipants: { none: { eventId: context.event.id, responseRequired: false } },
+    OR: [{ teamId: { in: targetTeamIds } }, matchParticipantPlayerScope(context.event.id)],
   }, select: { id: true } });
   if (players.length !== ids.length) throw new DomainError(404, 'Ein Kind gehört nicht zu diesem Termin.');
   return [
@@ -88,13 +90,19 @@ export async function matchOpenRideNeeds(tx: Prisma.TransactionClient, eventId: 
     tx.carpoolOffer.findMany({ where: { eventId }, include: { passengers: true }, orderBy: [{ departureAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] }),
   ]);
   const booked = new Set(offers.flatMap(o => o.passengers.filter(p => p.status === 'CONFIRMED').map(personKey)));
+  const eligiblePlayers = new Set((await tx.player.findMany({ where: {
+    id: { in: needs.flatMap(need => need.playerId ? [need.playerId] : []) },
+    status: 'ACTIVE',
+    eventParticipants: { none: { eventId, responseRequired: false } },
+    OR: [{ teamId: { in: targets } }, matchParticipantPlayerScope(eventId)],
+  }, select: { id: true } })).map(player => player.id));
   const groups = new Map<string, typeof needs>();
   for (const need of needs) {
     if (booked.has(personKey(need))) {
       await tx.carpoolNeed.update({ where: { id: need.id }, data: { status: 'MATCHED' } });
       continue;
     }
-    if (need.playerId && (!need.player?.teamId || !targets.includes(need.player.teamId) || need.player.status !== 'ACTIVE')) continue;
+    if (need.playerId && !eligiblePlayers.has(need.playerId)) continue;
     if (need.passengerUserId && need.passengerUser?.status !== 'APPROVED') continue;
     const key = need.groupId ?? need.id;
     groups.set(key, [...(groups.get(key) ?? []), need]);

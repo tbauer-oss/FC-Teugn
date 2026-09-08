@@ -255,6 +255,11 @@ class TrainerDashboardPage extends ConsumerWidget {
                   color: context.appSuccess,
                 ),
                 ModernDashboardMetric(
+                  icon: Icons.cancel_rounded,
+                  label: '${nextMatch.attendanceSummary.no} ab',
+                  color: context.appDanger,
+                ),
+                ModernDashboardMetric(
                   icon: Icons.schedule_rounded,
                   label: '${nextMatch.attendanceSummary.unknown} offen',
                   color: context.appWarning,
@@ -465,17 +470,18 @@ class _ModernEmptyDashboardLink extends StatelessWidget {
                 Icon(icon, color: context.appColors.textMuted),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                Text(
-                  action,
-                  style: TextStyle(
-                    color: context.appWarning,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 2),
+                      Text(action,
+                          style: TextStyle(
+                              color: context.appWarning,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900)),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 3),

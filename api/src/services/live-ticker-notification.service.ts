@@ -139,7 +139,7 @@ export async function sendLiveTickerNotification(
   });
 }
 
-async function liveTickerNotificationAudience(
+export async function liveTickerNotificationAudience(
   match: LiveTickerNotificationMatch,
 ) {
   const release = await effectiveFamilyRelease(match);
@@ -192,6 +192,17 @@ async function liveTickerNotificationAudience(
   squad?.members.forEach((member) => {
     if (member.player.userId) recipients.add(member.player.userId);
     member.player.parentLinks.forEach((link) => recipients.add(link.parentId));
+  });
+  // Sent invitations remain valid while staff prepare the next squad draft.
+  const invitedPlayers = await prisma.player.findMany({
+    where: { eventParticipants: { some: { eventId: release.eventId, responseRequired: true } } },
+    select: { userId: true, parentLinks: {
+      where: { receivesCommunication: true }, select: { parentId: true },
+    } },
+  });
+  invitedPlayers.forEach(player => {
+    if (player.userId) recipients.add(player.userId);
+    player.parentLinks.forEach(link => recipients.add(link.parentId));
   });
   const staff = await prisma.teamMembership.findMany({
     where: {

@@ -764,6 +764,7 @@ class EventModel {
     required this.reminderMinutes,
     this.reminderPushEnabled = true,
     this.participantPlayerIds = const [],
+    this.carpoolPlayerIds = const [],
     this.excludedParticipantPlayerIds = const [],
     this.series,
     this.endAt,
@@ -832,6 +833,7 @@ class EventModel {
   final List<int> reminderMinutes;
   final bool reminderPushEnabled;
   final List<String> participantPlayerIds;
+  final List<String> carpoolPlayerIds;
   final List<String> excludedParticipantPlayerIds;
   final bool isSeriesException;
   final bool isHiddenRegularOccurrence;
@@ -937,6 +939,9 @@ class EventModel {
           .whereType<int>()
           .toList(),
       reminderPushEnabled: json['reminderPushEnabled'] as bool? ?? true,
+      carpoolPlayerIds: (json['carpoolPlayerIds'] as List<dynamic>? ?? const [])
+          .whereType<String>()
+          .toList(),
       participantPlayerIds: (json['participants'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .where((item) => item['responseRequired'] != false)

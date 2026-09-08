@@ -22,7 +22,7 @@ import {
   RecurrenceFrequency,
   Role as PrismaRole,
 } from '@prisma/client';
-import { openAttendancePlayerIds } from '../services/attendance-summary';
+import { matchResponseRoster, openAttendancePlayerIds } from '../services/attendance-summary';
 import { prisma } from '../lib/prisma';
 import { Role } from '../types/enums';
 import {
@@ -34,6 +34,7 @@ import {
   accessibleTeamIds,
   contextualTeamIds,
   eventReadScope,
+  matchParticipantPlayerScope,
   ownPlayerIds,
   selectedContextTeamIds,
   youthPlayerPoolTeamIdsForTeam,
@@ -165,6 +166,12 @@ const eventInclude = {
     },
   },
   attachments: true,
+  squads: { where: { publishedAt: { not: null } }, select: {
+    members: { where: { status: 'NOMINATED' as const }, select: { player: { select: {
+      id: true, firstName: true, lastName: true, preferredName: true,
+      position: true, photoUrl: true, teamId: true,
+    } } } },
+  } },
   attendance: {
     include: {
       respondedBy: { select: { id: true, name: true, role: true } },
@@ -461,7 +468,13 @@ async function serializeEvent(
     excludedParticipantPlayerIds(event.participants),
   );
   const roster = staff
-    ? knownRoster
+    ? event.type === EventType.MATCH
+      ? matchResponseRoster(
+          knownRoster ?? await rosterForTeamIds(eventTargetIds.filter(id => accessibleIds.includes(id))),
+          eventTargetIds, event.participants, event.attendance.map(reply => reply.player),
+          event.squads.flatMap(squad => squad.members.map(member => member.player)),
+        )
+      : knownRoster
       ? knownRoster.filter(
           (player) =>
             player.teamId !== null &&
@@ -474,8 +487,9 @@ async function serializeEvent(
     : [];
   const visibleAttendance = (staff
     ? event.attendance.filter((reply) =>
-        reply.player.teamId !== null &&
-        accessibleIds.includes(reply.player.teamId),
+        event.type === EventType.MATCH
+          ? roster.some(player => player.id === reply.playerId)
+          : reply.player.teamId !== null && accessibleIds.includes(reply.player.teamId),
       )
     : event.attendance.filter((reply) => personalPlayerIds.includes(reply.playerId)))
     .filter(
@@ -529,6 +543,11 @@ async function serializeEvent(
 
   return {
     ...event,
+    squads: undefined,
+    carpoolPlayerIds: [...new Set([
+      ...explicitParticipantPlayers.map(player => player.id),
+      ...event.squads.flatMap(squad => squad.members.map(member => member.player.id)),
+    ])].filter(id => !excludedParticipantIds.has(id) && (staff || personalPlayerIds.includes(id))),
     address: stableMatchAddress({
       isHome: event.matchDetails?.isHome !== false,
       storedAddress: event.address,
@@ -2685,7 +2704,7 @@ export async function setAttendance(req: Request, res: Response) {
     where: {
       id: req.params.id,
       status: EventStatus.SCHEDULED,
-      ...(personalResponse ? {} : eventScope(teamIds)),
+      ...(personalResponse ? {} : eventReadScope(teamIds, { userId: user.id })),
     },
     include: { targetTeams: true, attendance: true, participants: true },
   });
@@ -2727,7 +2746,10 @@ export async function setAttendance(req: Request, res: Response) {
     });
   }
   const player = await prisma.player.findFirst({
-    where: { id: playerId, teamId: { in: attendanceTeamIds } },
+    where: { id: playerId, OR: [
+      { teamId: { in: attendanceTeamIds } },
+      matchParticipantPlayerScope(event.id),
+    ] },
   });
   if (!player) return res.status(404).json({ message: 'Spieler nicht gefunden.' });
   if (!personalResponse && !canCorrectAttendance) {
