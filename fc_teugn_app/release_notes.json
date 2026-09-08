@@ -1,5 +1,5 @@
 {
-  "1.7.7+192": [
+  "1.7.7+193": [
     "Trainer können Direktnachrichten oder ganze Unterhaltungen für alle Beteiligten löschen, einschließlich privater Anhänge.",
     "Die Spielform lässt sich beim Anlegen und Bearbeiten pro Spiel auswählen. Aufstellung und Autopilot berücksichtigen die Spielerzahl und Spielformen ohne Torwart.",
     "Die App bietet eine direkte Updatesuche unter Installation & Updates. Beim Aktualisieren der Übersicht wird im Hintergrund mitgeprüft.",
