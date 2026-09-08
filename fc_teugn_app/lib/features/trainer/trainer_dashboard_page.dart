@@ -1,3 +1,4 @@
+import '../carpool/carpool_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -271,6 +272,11 @@ class TrainerDashboardPage extends ConsumerWidget {
               action: 'Spiel anlegen',
               onTap: () => context.go('/trainer/matches'),
             ),
+          if (nextMatch != null) ...[
+            const SizedBox(height: 6),
+            CarpoolDashboardCard(
+                eventId: nextMatch.id, initialEvent: nextMatch),
+          ],
           if (dashboard.hasError) ...[
             const SizedBox(height: 10),
             _PlayerLoadFailure(

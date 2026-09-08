@@ -1,3 +1,4 @@
+import '../carpool/carpool_section.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -2412,6 +2413,8 @@ class MatchOverview extends StatelessWidget {
             ),
             padding: EdgeInsets.fromLTRB(0, 4, 0, compact ? 44 : 30),
             children: [
+              CarpoolDashboardCard(eventId: match.id),
+              const SizedBox(height: 8),
               _OverviewStatusCard(
                 status: status,
                 statusColor: statusColor,

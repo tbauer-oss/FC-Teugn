@@ -664,6 +664,8 @@ model User {
   carpoolOffers                        CarpoolOffer[]                        @relation("CarpoolDriver")
   carpoolRequests                      CarpoolPassenger[]                    @relation("CarpoolRequester")
   carpoolNeeds                         CarpoolNeed[]                         @relation("CarpoolNeedRequester")
+  carpoolSelfPassengers                CarpoolPassenger[]                    @relation("CarpoolPassengerUser")
+  carpoolSelfNeeds                     CarpoolNeed[]                         @relation("CarpoolNeedUser")
   eventReminders                       EventReminder[]                       @relation("EventReminderRecipient")
   calendarToken                        String?                               @unique
   tickerEvents                         LiveTickerEvent[]                     @relation("TickerEventAuthor")
@@ -1575,33 +1577,40 @@ model CarpoolOffer {
 model CarpoolPassenger {
   id            String               @id @default(cuid())
   offerId       String
-  playerId      String
+  playerId      String?
+  passengerUserId String?
   requestedById String
   status        CarpoolRequestStatus @default(REQUESTED)
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
   offer         CarpoolOffer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  player        Player               @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player        Player?              @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  passengerUser User?                @relation("CarpoolPassengerUser", fields: [passengerUserId], references: [id], onDelete: Cascade)
   requestedBy   User                 @relation("CarpoolRequester", fields: [requestedById], references: [id], onDelete: Cascade)
 
   @@unique([offerId, playerId])
+  @@unique([offerId, passengerUserId])
   @@index([offerId, status])
 }
 
 model CarpoolNeed {
   id            String            @id @default(cuid())
   eventId       String
-  playerId      String
+  playerId      String?
+  passengerUserId String?
+  groupId       String?
   requestedById String
   note          String?
   status        CarpoolNeedStatus @default(OPEN)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
   event         Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  player        Player            @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player        Player?           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  passengerUser User?             @relation("CarpoolNeedUser", fields: [passengerUserId], references: [id], onDelete: Cascade)
   requestedBy   User              @relation("CarpoolNeedRequester", fields: [requestedById], references: [id], onDelete: Cascade)
 
   @@unique([eventId, playerId])
+  @@unique([eventId, passengerUserId])
   @@index([eventId, status, createdAt])
   @@index([requestedById, status])
 }

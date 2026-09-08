@@ -4,8 +4,9 @@ Vorbereitete Anleitung vom 7. September 2026. Noch kein durchgeführter Geräte-
 
 Auslieferungsumfang, aktualisiert am 8. September 2026: Android-APK über
 MagentaCloud, iPhone als installierte Web-App. Google Play entfällt; native
-Apple-Veröffentlichung ist optional. Anschließende Nutzeranweisung: „Keine Tests
-bitte“. Weitere Geräteprüfungen und der Vereinspilot entfallen. Die nachfolgenden
+Apple-Veröffentlichung ist optional. Nach der abschließenden Klarstellung bleiben
+interne Flutter-, Backend-, Integrations-, Emulator- und Build-Prüfungen aktiv.
+Zusätzliche Abnahmen mit privaten Telefonen und der Vereinspilot entfallen. Die nachfolgenden
 Pilotaufgaben und der leere Messbogen bleiben ausschließlich als früher
 vorbereitete Unterlagen erhalten; sie sind kein aktueller Auftrag zur Durchführung.
 

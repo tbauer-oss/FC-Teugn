@@ -1238,7 +1238,8 @@ const _localizationsDelegates = [
 ];
 
 Widget _buildAppContent(BuildContext context, Widget? child) {
-  final appContent = AppLoadingHost(child: child ?? const SizedBox.shrink());
+  final appContent = MobileAppTheme(
+      child: AppLoadingHost(child: child ?? const SizedBox.shrink()));
   return MediaQuery(
     data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
     // Feature-Seiten erhalten die vollständige Fenstergeometrie inklusive
@@ -1259,5 +1260,6 @@ Widget _buildAppContent(BuildContext context, Widget? child) {
 Widget buildLaunchScreenContent(BuildContext context, Widget? child) =>
     MediaQuery(
       data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-      child: AdaptiveHingePane(child: child ?? const SizedBox.shrink()),
+      child: MobileAppTheme(
+          child: AdaptiveHingePane(child: child ?? const SizedBox.shrink())),
     );

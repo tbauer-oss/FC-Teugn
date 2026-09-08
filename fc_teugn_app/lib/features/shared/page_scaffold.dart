@@ -11,7 +11,7 @@ class PageScaffold extends StatelessWidget {
     required this.child,
     this.action,
     this.headerAction,
-    this.denseMobileHeader = false,
+    this.denseMobileHeader = true,
     this.hideMobileHeader = false,
     this.hideHeader = false,
     this.fillRemaining = false,

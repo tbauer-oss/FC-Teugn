@@ -1,3 +1,4 @@
+import { carpoolSummary, isOwnRidePerson } from '../services/carpool.service';
 import {
   AttendanceStatus,
   CarpoolRequestStatus,
@@ -156,7 +157,7 @@ export async function parentDashboardSummary(req: Request, res: Response) {
             driver: { select: { name: true } },
             passengers: {
               where: { status: { not: CarpoolRequestStatus.CANCELLED } },
-              select: { status: true },
+              select: { status: true, playerId: true, passengerUserId: true },
             },
           },
         },
@@ -164,12 +165,16 @@ export async function parentDashboardSummary(req: Request, res: Response) {
           where: {
             OR: [
               { playerId: { in: playerIds } },
+              { passengerUserId: user.id },
               { status: 'OPEN' },
             ],
           },
           select: {
             id: true,
             playerId: true,
+            passengerUserId: true,
+            requestedById: true,
+            passengerUser: { select: { name: true } },
             status: true,
             note: true,
             player: {
@@ -200,6 +205,7 @@ export async function parentDashboardSummary(req: Request, res: Response) {
       missingAttendance: [],
       participants: [],
       tournamentFixtures: [],
+      carpoolSummary: carpoolSummary(event.carpoolOffers, event.carpoolNeeds),
       carpoolOffers: event.carpoolOffers.map((offer) => ({
         ...offer,
         freeSeats: Math.max(
@@ -213,7 +219,10 @@ export async function parentDashboardSummary(req: Request, res: Response) {
       })),
       carpoolNeeds: event.carpoolNeeds.map((need) => ({
         ...need,
-        canCancel: playerIds.includes(need.playerId),
+        playerId: need.playerId ?? '',
+        player: need.player ?? { firstName: need.passengerUser?.name ?? 'Mitfahrer/in', lastName: '' },
+        note: isOwnRidePerson(need, user.id, playerIds) || need.requestedById === user.id ? need.note : undefined,
+        canCancel: isOwnRidePerson(need, user.id, playerIds) || need.requestedById === user.id,
       })),
       capabilities: {},
     })),
@@ -284,6 +293,8 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
       },
       select: {
         ...eventSummaryScalars,
+        carpoolOffers: { select: { seatsTotal: true, passengers: { select: { status: true, playerId: true, passengerUserId: true } } } },
+        carpoolNeeds: { select: { status: true, playerId: true, passengerUserId: true } },
         targetTeams: targetTeamSummary,
         participants: {
           where: { playerId: { not: null } },
@@ -360,6 +371,7 @@ export async function trainerDashboardSummary(req: Request, res: Response) {
         ...event,
         attachments: [],
         tournamentFixtures: [],
+        carpoolSummary: carpoolSummary(event.carpoolOffers, event.carpoolNeeds),
         carpoolOffers: [],
         carpoolNeeds: [],
         attendance: visibleAttendance,

@@ -1658,9 +1658,11 @@ class DataRepository {
     required String eventId,
     required List<String> playerIds,
     String? note,
+    bool includeSelf = false,
   }) async {
     await client.dio.post('/events/$eventId/carpool-needs', data: {
       'playerIds': playerIds,
+      'includeSelf': includeSelf,
       'note': note,
     });
   }
@@ -1681,6 +1683,15 @@ class DataRepository {
       '/events/$eventId/carpool-offers/$offerId/passengers',
       data: {'playerId': playerId},
     );
+  }
+
+  Future<void> bookCarpoolSeats(
+      {required String eventId,
+      required String offerId,
+      required List<String> playerIds,
+      bool includeSelf = false}) async {
+    await client.dio.post('/events/$eventId/carpool-offers/$offerId/passengers',
+        data: {'playerIds': playerIds, 'includeSelf': includeSelf});
   }
 
   Future<void> updateCarpoolPassenger({

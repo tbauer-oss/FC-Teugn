@@ -73,7 +73,8 @@ final familyTaskListProvider =
   for (final e in summary.events
       .where((e) => !e.isCancelled && e.startAt.isAfter(now))) {
     for (final need in e.carpoolNeeds.where((n) =>
-        n.status == CarpoolNeedStatus.open && own.contains(n.playerId))) {
+        n.status == CarpoolNeedStatus.open &&
+        (own.contains(n.playerId) || n.passengerUserId == user.id))) {
       tasks.add({
         'id': 'carpool:${need.id}',
         'title': 'Mitfahrt organisieren',

@@ -21,9 +21,9 @@ test('carpool needs support several own children and remain team scoped', () => 
   assert.match(schema, /@@unique\(\[eventId, playerId\]\)/);
   assert.match(migration, /CarpoolNeed_eventId_playerId_key/);
   assert.match(eventRoutes, /carpool-needs/);
-  assert.match(events, /parseStringList\(req\.body\.playerIds\)/);
-  assert.match(events, /const allowed = await ownPlayerIds\(user\)/);
-  assert.match(events, /teamId: \{ in: targetTeamIds \}/);
+  assert.match(read('src/services/carpool.service.ts'), /stringIds\(body\.playerIds/);
+  assert.match(read('src/services/carpool.service.ts'), /ownPlayerIds\(user\)/);
+  assert.match(read('src/services/carpool.service.ts'), /teamId: \{ in: targetTeamIds \}/);
 });
 
 test('clean sheets are counted only for eligible players in completed games', () => {

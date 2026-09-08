@@ -1,3 +1,4 @@
+import { carpoolSummary } from '../services/carpool.service';
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { DomainError, requireTeam, textValue, mutation, permitted } from '../services/talents-domain';
@@ -22,12 +23,13 @@ export async function matchdayReadiness(req: Request, res: Response) {
     const reply = event.attendance.find(a => a.playerId === id);
     return !reply || ['UNKNOWN', 'MAYBE'].includes(reply.status) || (!reply.absenceId && event.responseRevisionAt && (!reply.respondedAt || reply.respondedAt < event.responseRevisionAt));
   }).length;
-  const openRides = event.carpoolNeeds.filter(n => n.status === 'OPEN').length + event.carpoolOffers.reduce((n, o) => n + o.passengers.filter(p => p.status === 'REQUESTED').length, 0);
+  const rides = carpoolSummary(event.carpoolOffers, event.carpoolNeeds);
+  const openRides = rides.openNeeds;
   const dayStart = new Date(event.startAt); dayStart.setUTCHours(0, 0, 0, 0);
   const checklists = await prisma.checklistRun.findMany({ where: { teamId: event.teamId, OR: [{ eventId: event.id }, { eventId: null, status: 'ACTIVE', dueAt: { gte: dayStart, lt: new Date(dayStart.getTime() + 86400000) } }] }, include: { items: true } });
   const checks = [
     { title: 'Rückmeldungen', detail: missing ? `${missing} Antworten offen oder erneut zu bestätigen` : 'Alle Antworten geklärt', ready: missing === 0, route: `/events/${event.id}` },
-    { title: 'Fahrgemeinschaften', detail: openRides ? `${openRides} Mitfahrvorgänge ungeklärt` : 'Keine offenen Mitfahrvorgänge', ready: openRides === 0, route: `/events/${event.id}` },
+    { title: 'Fahrgemeinschaften', detail: `${rides.freeSeats} Plätze frei${openRides ? ` · ${openRides} gesucht` : ' · alles geklärt'}`, ready: openRides === 0, route: `/events/${event.id}` },
     { title: 'Trikotdienst', detail: event.kitLaundryDuty?.assignedPlayer ? `${event.kitLaundryDuty.assignedPlayer.firstName} ${event.kitLaundryDuty.assignedPlayer.lastName}` : 'Noch nicht besetzt', ready: ['CONFIRMED', 'COMPLETED'].includes(event.kitLaundryDuty?.status ?? ''), route: `/matches/${event.id}?tab=overview` },
     ...checklists.map(c => ({ title: c.title, detail: `${c.items.filter(i => i.isCompleted).length} von ${c.items.length} erledigt`, ready: c.items.every(i => !i.isRequired || i.isCompleted), route: `/operations?teamId=${event.teamId}` })),
   ];

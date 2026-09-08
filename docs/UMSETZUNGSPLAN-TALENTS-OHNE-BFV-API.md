@@ -176,8 +176,8 @@ Optional für später: Native Apple-App mit Apple-Signierung und realer Firebase
 - [x] Pilot mit zwei Trainern und fünf Eltern anhand gleicher Aufgaben vorbereiten.
 - [x] Versionshinweise und nachvollziehbare Abnahmeergebnisse je Umsetzungspaket dokumentieren.
 
-Entfallen auf Nutzerwunsch: weitere Android-/iPhone-Gerätetests und die Durchführung des Vereinspiloten. Der Pilot war ein freiwilliger Probelauf mit zwei Trainern und fünf Eltern anhand typischer App-Aufgaben. Er wurde nicht durchgeführt; es liegen keine entsprechenden Messwerte vor. Die vorbereitete Anleitung bleibt als Dokumentation erhalten.
+Entfallen auf Nutzerwunsch: zusätzliche Abnahmen mit privaten Android-/iPhone-Geräten und die Durchführung des Vereinspiloten. Interne Flutter-, Backend-, Integrations-, Emulator- und Build-Prüfungen bleiben gemäß der anschließenden Klarstellung ausdrücklich Teil der Umsetzung. Der Pilot war ein freiwilliger Probelauf mit zwei Trainern und fünf Eltern anhand typischer App-Aufgaben. Er wurde nicht durchgeführt; es liegen keine entsprechenden Messwerte vor. Die vorbereitete Anleitung bleibt als Dokumentation erhalten.
 
 ## Abschließender Umfang
 
-Auslieferung über Android-APK/MagentaCloud und iPhone-Web-App. Keine Mannschaftskasse, keine Google-Play-Veröffentlichung und keine weiteren Tests. Native Apple-Veröffentlichung bleibt optional. Nicht durchgeführte Prüfungen werden nicht nachträglich als bestanden ausgewiesen.
+Auslieferung über Android-APK/MagentaCloud und iPhone-Web-App. Keine Mannschaftskasse, keine Google-Play-Veröffentlichung. Interne Tests und technische Prüfungen werden weiter durchgeführt. Native Apple-Veröffentlichung bleibt optional. Nicht durchgeführte Prüfungen werden nicht nachträglich als bestanden ausgewiesen.

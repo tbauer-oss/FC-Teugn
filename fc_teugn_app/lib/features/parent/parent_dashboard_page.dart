@@ -1,3 +1,4 @@
+import '../carpool/carpool_section.dart';
 import '../talents/assistant_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -174,6 +175,11 @@ class ParentDashboardPage extends ConsumerWidget {
               icon: Icons.sports_soccer_rounded,
               title: 'Kein Spiel geplant',
             ),
+          if (nextMatch != null) ...[
+            const SizedBox(height: 6),
+            CarpoolDashboardCard(
+                eventId: nextMatch.eventId, initialEvent: nextMatch.event),
+          ],
           SizedBox(height: sectionGap),
           const ModernDashboardSectionLabel(title: 'Schnellzugriff'),
           ModernDashboardFunctionList(
@@ -631,12 +637,13 @@ class _TodayImportantCard extends StatelessWidget {
           for (final event in carpoolEvents.take(2)) ...[
             _CompactLink(
               icon: Icons.directions_car_filled_rounded,
-              title: 'Mitfahrt verfügbar oder gesucht',
+              title:
+                  '${event.rides.seatsLabel}${event.rides.needsHelp ? ' · ${event.rides.openNeeds} gesucht' : ''}',
               subtitle: '${event.title} · ${_shortDate(event.startAt)}',
-              color: context.appSuccess,
-              onTap: () => context.go(Uri(
-                  path: '/parent/events',
-                  queryParameters: {'eventId': event.id}).toString()),
+              color: event.rides.needsHelp
+                  ? context.appDanger
+                  : context.appSuccess,
+              onTap: () => showCarpoolDialog(context, event.id),
             ),
             const SizedBox(height: 7),
           ],

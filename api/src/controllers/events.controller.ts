@@ -1,3 +1,4 @@
+import { carpoolSummary, isOwnRidePerson } from '../services/carpool.service';
 import { attendanceAfterRevision } from '../services/attendance-revision';
 import { randomBytes, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
@@ -186,6 +187,7 @@ const eventInclude = {
       driver: { select: { id: true, name: true, phone: true } },
       passengers: {
         include: {
+          passengerUser: { select: { id: true, name: true } },
           player: {
             select: {
               id: true,
@@ -213,6 +215,7 @@ const eventInclude = {
   carpoolNeeds: {
     orderBy: { createdAt: 'asc' as const },
     include: {
+      passengerUser: { select: { id: true, name: true } },
       player: {
         select: {
           id: true,
@@ -505,8 +508,8 @@ async function serializeEvent(
           offer.driverId === user.id ||
           offer.passengers.some(
             (passenger) =>
-              personalPlayerIds.includes(passenger.playerId) &&
-              passenger.status !== CarpoolRequestStatus.CANCELLED,
+              isOwnRidePerson(passenger, user.id, personalPlayerIds) &&
+              passenger.status === CarpoolRequestStatus.CONFIRMED,
           ),
       )
       .map((offer) => offer.id),
@@ -599,6 +602,7 @@ async function serializeEvent(
     missingAttendance: staff
       ? roster.filter((player) => openPlayerIds.has(player.id))
       : undefined,
+    carpoolSummary: carpoolSummary(event.carpoolOffers, event.carpoolNeeds),
     carpoolOffers: event.carpoolOffers.map((offer) => ({
       ...offer,
       driver: {
@@ -609,19 +613,21 @@ async function serializeEvent(
             : undefined,
       },
       freeSeats:
-        offer.seatsTotal -
+        Math.max(0, offer.seatsTotal -
         offer.passengers.filter((passenger) => passenger.status === CarpoolRequestStatus.CONFIRMED)
-          .length,
+          .length),
       passengers: (manageable || offer.driverId === user.id
         ? offer.passengers
         : offer.passengers.filter((passenger) =>
-            personalPlayerIds.includes(passenger.playerId),
+            isOwnRidePerson(passenger, user.id, personalPlayerIds),
           )).map((passenger) => ({
             ...passenger,
+            playerId: passenger.playerId ?? '',
+            player: passenger.player ?? { firstName: passenger.passengerUser?.name ?? 'Mitfahrer/in', lastName: '' },
             canCancel:
               manageable ||
               passenger.requestedById === user.id ||
-              personalPlayerIds.includes(passenger.playerId),
+              isOwnRidePerson(passenger, user.id, personalPlayerIds),
           })),
       canManage: manageable || offer.driverId === user.id,
     })),
@@ -631,20 +637,22 @@ async function serializeEvent(
           need.status === CarpoolNeedStatus.OPEN ||
           manageable ||
           need.requestedById === user.id ||
-          personalPlayerIds.includes(need.playerId),
+          isOwnRidePerson(need, user.id, personalPlayerIds),
       )
       .map((need) => ({
         ...need,
+        playerId: need.playerId ?? '',
+        player: need.player ?? { firstName: need.passengerUser?.name ?? 'Mitfahrer/in', lastName: '' },
         note:
           manageable ||
           need.requestedById === user.id ||
-          personalPlayerIds.includes(need.playerId)
+          isOwnRidePerson(need, user.id, personalPlayerIds)
             ? need.note
             : undefined,
         canCancel:
           manageable ||
           need.requestedById === user.id ||
-          personalPlayerIds.includes(need.playerId),
+          isOwnRidePerson(need, user.id, personalPlayerIds),
       })),
     capabilities: {
       canManage: manageable,
@@ -3355,256 +3363,8 @@ export async function attendanceReminderStatus(req: Request, res: Response) {
   });
 }
 
-export async function createCarpoolOffer(req: Request, res: Response) {
-  const user = req.user!;
-  if (user.role === Role.READ_ONLY) {
-    return res.status(403).json({ message: 'Keine Berechtigung für Fahrangebote.' });
-  }
-  const teamIds = await accessibleTeamIds(user);
-  const event = await prisma.event.findFirst({
-    where: { id: req.params.id, status: EventStatus.SCHEDULED, ...eventScope(teamIds) },
-  });
-  if (!event) return res.status(404).json({ message: 'Termin nicht gefunden.' });
-  const seatsTotal = boundedInt(req.body.seatsTotal, 1, 8);
-  const departureLocation = clean(req.body.departureLocation);
-  const departureAt = validDate(req.body.departureAt);
-  if (!seatsTotal || !departureLocation || !departureAt) {
-    return res.status(400).json({
-      message: 'Freie Plätze, Abfahrtsort und Abfahrtszeit sind erforderlich.',
-    });
-  }
-  if (departureAt > event.startAt) {
-    return res.status(400).json({
-      message: 'Die Abfahrt muss vor dem Terminbeginn liegen.',
-    });
-  }
-  const offer = await prisma.carpoolOffer.create({
-    data: {
-      eventId: event.id,
-      driverId: user.id,
-      seatsTotal,
-      departureLocation,
-      departureAt,
-      notes: clean(req.body.notes),
-    },
-  });
-  return res.status(201).json(offer);
-}
-
-export async function deleteCarpoolOffer(req: Request, res: Response) {
-  const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
-  const offer = await prisma.carpoolOffer.findFirst({
-    where: {
-      id: req.params.offerId,
-      eventId: req.params.id,
-      event: { is: eventScope(teamIds) },
-    },
-    include: { passengers: { select: { playerId: true } } },
-  });
-  if (!offer) return res.status(404).json({ message: 'Fahrangebot nicht gefunden.' });
-  if (offer.driverId !== user.id && !isStaff(user.role, user.permissions)) {
-    return res.status(403).json({ message: 'Keine Berechtigung für dieses Fahrangebot.' });
-  }
-  await prisma.$transaction([
-    prisma.carpoolNeed.updateMany({
-      where: {
-        eventId: req.params.id,
-        playerId: { in: offer.passengers.map((passenger) => passenger.playerId) },
-        status: CarpoolNeedStatus.MATCHED,
-      },
-      data: { status: CarpoolNeedStatus.OPEN },
-    }),
-    prisma.carpoolOffer.delete({ where: { id: offer.id } }),
-  ]);
-  return res.status(204).send();
-}
-
-export async function createCarpoolNeeds(req: Request, res: Response) {
-  const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
-  const event = await prisma.event.findFirst({
-    where: { id: req.params.id, status: EventStatus.SCHEDULED, ...eventScope(teamIds) },
-    include: { targetTeams: true },
-  });
-  if (!event) return res.status(404).json({ message: 'Termin nicht gefunden.' });
-  const playerIds = [...new Set(parseStringList(req.body.playerIds))].slice(0, 8);
-  if (playerIds.length === 0) {
-    return res.status(400).json({ message: 'Mindestens ein Kind muss ausgewählt werden.' });
-  }
-  if (!isStaff(user.role, user.permissions)) {
-    const allowed = await ownPlayerIds(user);
-    if (playerIds.some((playerId) => !allowed.includes(playerId))) {
-      return res.status(403).json({ message: 'Keine Berechtigung für diese Kinder.' });
-    }
-  }
-  const targetTeamIds = event.targetTeams.length
-    ? event.targetTeams.map((target) => target.teamId)
-    : [event.teamId];
-  const players = await prisma.player.findMany({
-    where: { id: { in: playerIds }, teamId: { in: targetTeamIds } },
-    select: { id: true },
-  });
-  if (players.length !== playerIds.length) {
-    return res.status(404).json({ message: 'Ein Kind gehört nicht zu diesem Termin.' });
-  }
-  const note = clean(req.body.note);
-  const needs = await prisma.$transaction(
-    playerIds.map((playerId) =>
-      prisma.carpoolNeed.upsert({
-        where: { eventId_playerId: { eventId: event.id, playerId } },
-        update: {
-          requestedById: user.id,
-          note,
-          status: CarpoolNeedStatus.OPEN,
-        },
-        create: {
-          eventId: event.id,
-          playerId,
-          requestedById: user.id,
-          note,
-        },
-      }),
-    ),
-  );
-  return res.status(201).json(needs);
-}
-
-export async function deleteCarpoolNeed(req: Request, res: Response) {
-  const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
-  const need = await prisma.carpoolNeed.findFirst({
-    where: {
-      id: req.params.needId,
-      eventId: req.params.id,
-      event: { is: eventScope(teamIds) },
-    },
-  });
-  if (!need) return res.status(404).json({ message: 'Mitfahrbedarf nicht gefunden.' });
-  const allowedPlayers = await ownPlayerIds(user);
-  if (
-    need.requestedById !== user.id &&
-    !allowedPlayers.includes(need.playerId) &&
-    !isStaff(user.role, user.permissions)
-  ) {
-    return res.status(403).json({ message: 'Keine Berechtigung für diesen Mitfahrbedarf.' });
-  }
-  await prisma.carpoolNeed.delete({ where: { id: need.id } });
-  return res.status(204).send();
-}
-
-export async function requestCarpoolSeat(req: Request, res: Response) {
-  const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
-  const offer = await prisma.carpoolOffer.findFirst({
-    where: {
-      id: req.params.offerId,
-      eventId: req.params.id,
-      event: { is: eventScope(teamIds) },
-    },
-    include: { event: { include: { targetTeams: true } }, passengers: true },
-  });
-  if (!offer) return res.status(404).json({ message: 'Fahrangebot nicht gefunden.' });
-  const playerId = clean(req.body.playerId);
-  if (!playerId) return res.status(400).json({ message: 'Spieler fehlt.' });
-  if (!isStaff(user.role)) {
-    const allowed = await ownPlayerIds(user);
-    if (!allowed.includes(playerId)) {
-      return res.status(403).json({ message: 'Keine Berechtigung für diesen Spieler.' });
-    }
-  }
-  const targetTeamIds = offer.event.targetTeams.length
-    ? offer.event.targetTeams.map((target) => target.teamId)
-    : [offer.event.teamId];
-  const player = await prisma.player.findFirst({
-    where: { id: playerId, teamId: { in: targetTeamIds } },
-    select: { id: true },
-  });
-  if (!player) {
-    return res.status(404).json({ message: 'Spieler gehört nicht zu diesem Termin.' });
-  }
-  const occupied = offer.passengers.filter(
-    (passenger) => passenger.status === CarpoolRequestStatus.CONFIRMED,
-  ).length;
-  if (occupied >= offer.seatsTotal) {
-    return res.status(409).json({ message: 'Für dieses Angebot sind keine Plätze mehr frei.' });
-  }
-  const passenger = await prisma.carpoolPassenger.upsert({
-    where: { offerId_playerId: { offerId: offer.id, playerId } },
-    update: { status: CarpoolRequestStatus.REQUESTED, requestedById: user.id },
-    create: {
-      offerId: offer.id,
-      playerId,
-      requestedById: user.id,
-      status: CarpoolRequestStatus.REQUESTED,
-    },
-  });
-  return res.status(201).json(passenger);
-}
-
-export async function updateCarpoolPassenger(req: Request, res: Response) {
-  const user = req.user!;
-  const teamIds = await accessibleTeamIds(user);
-  const passenger = await prisma.carpoolPassenger.findFirst({
-    where: {
-      id: req.params.passengerId,
-      offerId: req.params.offerId,
-      offer: {
-        eventId: req.params.id,
-        event: { is: eventScope(teamIds) },
-      },
-    },
-    include: { offer: true },
-  });
-  if (!passenger) return res.status(404).json({ message: 'Mitfahranfrage nicht gefunden.' });
-  const status = enumValue(
-    CarpoolRequestStatus,
-    req.body.status,
-    CarpoolRequestStatus.CANCELLED,
-  );
-  const driverOrStaff = passenger.offer.driverId === user.id || isStaff(user.role);
-  const requester = passenger.requestedById === user.id;
-  if (
-    (!driverOrStaff &&
-      (status === CarpoolRequestStatus.CONFIRMED ||
-        status === CarpoolRequestStatus.DECLINED)) ||
-    (!driverOrStaff && !requester)
-  ) {
-    return res.status(403).json({ message: 'Keine Berechtigung für diese Anfrage.' });
-  }
-  if (
-    status === CarpoolRequestStatus.CONFIRMED &&
-    passenger.status !== CarpoolRequestStatus.CONFIRMED
-  ) {
-    const confirmed = await prisma.carpoolPassenger.count({
-      where: {
-        offerId: passenger.offerId,
-        status: CarpoolRequestStatus.CONFIRMED,
-      },
-    });
-    if (confirmed >= passenger.offer.seatsTotal) {
-      return res.status(409).json({ message: 'Alle Plätze sind bereits belegt.' });
-    }
-  }
-  const updated = await prisma.carpoolPassenger.update({
-      where: { id: passenger.id },
-      data: { status },
-    });
-  await prisma.carpoolNeed.updateMany({
-    where: {
-      eventId: req.params.id,
-      playerId: passenger.playerId,
-      status: { not: CarpoolNeedStatus.CANCELLED },
-    },
-    data: {
-      status:
-        status === CarpoolRequestStatus.CONFIRMED
-          ? CarpoolNeedStatus.MATCHED
-          : CarpoolNeedStatus.OPEN,
-    },
-  });
-  return res.json(updated);
-}
+export { createCarpoolOffer, deleteCarpoolOffer, createCarpoolNeeds, deleteCarpoolNeed,
+  requestCarpoolSeat, updateCarpoolPassenger } from './carpool.controller';
 
 export async function calendarSubscription(req: Request, res: Response) {
   const token = randomBytes(24).toString('hex');

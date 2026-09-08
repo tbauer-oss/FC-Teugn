@@ -576,10 +576,14 @@ class CarpoolPassenger {
     required this.playerName,
     required this.status,
     this.canCancel = false,
+    this.passengerUserId,
   });
 
   final String id;
   final String playerId;
+  final String? passengerUserId;
+  String get personKey =>
+      playerId.isNotEmpty ? 'child:$playerId' : 'user:$passengerUserId';
   final String playerName;
   final CarpoolRequestStatus status;
   final bool canCancel;
@@ -590,10 +594,14 @@ class CarpoolPassenger {
     final preferred = player['preferredName'] as String?;
     return CarpoolPassenger(
       id: json['id'] as String,
-      playerId: json['playerId'] as String,
-      playerName: preferred?.isNotEmpty == true
-          ? preferred!
-          : '${player['firstName'] ?? ''} ${player['lastName'] ?? ''}'.trim(),
+      playerId: json['playerId'] as String? ?? '',
+      passengerUserId: json['passengerUserId'] as String?,
+      playerName: (json['passengerUser'] as Map<String, dynamic>?)?['name']
+              as String? ??
+          (preferred?.isNotEmpty == true
+              ? preferred!
+              : '${player['firstName'] ?? ''} ${player['lastName'] ?? ''}'
+                  .trim()),
       status: _enumFromApi(
         json['status'] as String?,
         CarpoolRequestStatus.values,
@@ -612,10 +620,14 @@ class CarpoolNeed {
     required this.status,
     required this.canCancel,
     this.note,
+    this.passengerUserId,
   });
 
   final String id;
   final String playerId;
+  final String? passengerUserId;
+  String get personKey =>
+      playerId.isNotEmpty ? 'child:$playerId' : 'user:$passengerUserId';
   final String playerName;
   final CarpoolNeedStatus status;
   final bool canCancel;
@@ -627,10 +639,14 @@ class CarpoolNeed {
     final preferred = player['preferredName'] as String?;
     return CarpoolNeed(
       id: json['id'] as String,
-      playerId: json['playerId'] as String,
-      playerName: preferred?.trim().isNotEmpty == true
-          ? preferred!.trim()
-          : '${player['firstName'] ?? ''} ${player['lastName'] ?? ''}'.trim(),
+      playerId: json['playerId'] as String? ?? '',
+      passengerUserId: json['passengerUserId'] as String?,
+      playerName: (json['passengerUser'] as Map<String, dynamic>?)?['name']
+              as String? ??
+          (preferred?.trim().isNotEmpty == true
+              ? preferred!.trim()
+              : '${player['firstName'] ?? ''} ${player['lastName'] ?? ''}'
+                  .trim()),
       status: _enumFromApi(
         json['status'] as String?,
         CarpoolNeedStatus.values,
@@ -743,6 +759,7 @@ class EventModel {
     required this.missingAttendance,
     required this.carpoolOffers,
     this.carpoolNeeds = const [],
+    this.carpoolSummary,
     required this.capabilities,
     required this.reminderMinutes,
     this.reminderPushEnabled = true,
@@ -838,6 +855,9 @@ class EventModel {
   final List<MissingAttendance> missingAttendance;
   final List<CarpoolOffer> carpoolOffers;
   final List<CarpoolNeed> carpoolNeeds;
+  final CarpoolSummaryModel? carpoolSummary;
+  CarpoolSummaryModel get rides =>
+      carpoolSummary ?? CarpoolSummaryModel.fromEvent(this);
   final EventCapabilities capabilities;
 
   bool get isCancelled => status == EventStatus.cancelled;
@@ -986,6 +1006,10 @@ class EventModel {
       carpoolOffers: (json['carpoolOffers'] as List<dynamic>? ?? [])
           .map((item) => CarpoolOffer.fromJson(item as Map<String, dynamic>))
           .toList(),
+      carpoolSummary: json['carpoolSummary'] is Map<String, dynamic>
+          ? CarpoolSummaryModel.fromJson(
+              json['carpoolSummary'] as Map<String, dynamic>)
+          : null,
       carpoolNeeds: (json['carpoolNeeds'] as List<dynamic>? ?? [])
           .map((item) => CarpoolNeed.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -1220,4 +1244,52 @@ class EventWriteData {
           'participantUserIds': participantUserIds,
         'notificationMode': notificationMode.apiName,
       };
+}
+
+class CarpoolSummaryModel {
+  const CarpoolSummaryModel(
+      {required this.freeSeats,
+      required this.openNeeds,
+      required this.bookedSeats,
+      required this.offers});
+  final int freeSeats;
+  final int openNeeds;
+  final int bookedSeats;
+  final int offers;
+  bool get needsHelp => openNeeds > 0;
+  String get seatsLabel =>
+      '$freeSeats ${freeSeats == 1 ? 'Platz frei' : 'Plätze frei'}';
+  String get needLabel =>
+      '$openNeeds ${openNeeds == 1 ? 'Person sucht' : 'Personen suchen'}';
+  factory CarpoolSummaryModel.fromJson(Map<String, dynamic> json) =>
+      CarpoolSummaryModel(
+        freeSeats: (json['freeSeats'] as num? ?? 0).toInt().clamp(0, 10000),
+        openNeeds: (json['openNeeds'] as num? ?? 0).toInt().clamp(0, 10000),
+        bookedSeats: (json['bookedSeats'] as num? ?? 0).toInt().clamp(0, 10000),
+        offers: (json['offers'] as num? ?? 0).toInt().clamp(0, 10000),
+      );
+  factory CarpoolSummaryModel.fromEvent(EventModel event) {
+    final booked = event.carpoolOffers
+        .expand((o) => o.passengers)
+        .where((p) => p.status == CarpoolRequestStatus.confirmed)
+        .map((p) => p.personKey)
+        .toSet();
+    final open = event.carpoolNeeds
+        .where((n) =>
+            n.status == CarpoolNeedStatus.open && !booked.contains(n.personKey))
+        .map((n) => n.personKey)
+        .toSet();
+    open.addAll(event.carpoolOffers
+        .expand((o) => o.passengers)
+        .where((p) =>
+            p.status == CarpoolRequestStatus.requested &&
+            !booked.contains(p.personKey))
+        .map((p) => p.personKey));
+    return CarpoolSummaryModel(
+        freeSeats:
+            event.carpoolOffers.fold(0, (n, o) => n + o.freeSeats.clamp(0, 8)),
+        openNeeds: open.length,
+        bookedSeats: booked.length,
+        offers: event.carpoolOffers.length);
+  }
 }

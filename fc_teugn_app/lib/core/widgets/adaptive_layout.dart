@@ -275,6 +275,7 @@ class AdaptiveDialogScaffold extends StatelessWidget {
     this.maxWidth = 760,
     this.contentPadding,
     this.preferInlineActions = false,
+    this.shrinkWrap = false,
   });
 
   final String title;
@@ -284,6 +285,7 @@ class AdaptiveDialogScaffold extends StatelessWidget {
   final double maxWidth;
   final EdgeInsetsGeometry? contentPadding;
   final bool preferInlineActions;
+  final bool shrinkWrap;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -297,15 +299,17 @@ class AdaptiveDialogScaffold extends StatelessWidget {
           final availableHeight = constraints.hasBoundedHeight
               ? constraints.maxHeight
               : media.size.height;
-          final fullscreen = availableWidth < AppBreakpoints.compact;
-          final horizontalInset = fullscreen ? 0.0 : 24.0;
+          final fullscreen =
+              availableWidth < AppBreakpoints.compact && !shrinkWrap;
+          final horizontalInset =
+              fullscreen ? 0.0 : (availableWidth < 600 ? 12.0 : 24.0);
           final dialogWidth = fullscreen
               ? availableWidth
               : math.min(maxWidth, availableWidth - horizontalInset * 2);
           final dialogHeight = fullscreen
               ? availableHeight
               : math.min(860.0, availableHeight * .9);
-          final dense = availableWidth < AppBreakpoints.veryNarrow;
+          final dense = availableWidth < AppBreakpoints.compact;
           final paneAlignment = pane.center.dx < media.size.width / 2
               ? Alignment.centerLeft
               : pane.center.dx > media.size.width / 2
@@ -322,42 +326,51 @@ class AdaptiveDialogScaffold extends StatelessWidget {
               borderRadius:
                   fullscreen ? BorderRadius.zero : BorderRadius.circular(28),
               clipBehavior: Clip.antiAlias,
-              child: SizedBox(
-                width: math.max(0, dialogWidth),
-                height: math.max(0, dialogHeight),
-                child: SafeArea(
-                  child: Column(
-                    children: [
-                      _AdaptiveDialogHeader(
-                        title: title,
-                        subtitle: subtitle,
-                        dense: dense,
-                      ),
-                      const Divider(height: 1),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          key: const ValueKey('adaptive-dialog-scroll-view'),
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: contentPadding ??
-                              EdgeInsets.fromLTRB(
-                                dense ? 12 : 18,
-                                16,
-                                dense ? 12 : 18,
-                                20 + media.viewInsets.bottom,
-                              ),
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: content,
+              child: ConstrainedBox(
+                constraints:
+                    BoxConstraints(maxHeight: math.max(0, dialogHeight)),
+                child: SizedBox(
+                  width: math.max(0, dialogWidth),
+                  height: shrinkWrap ? null : math.max(0, dialogHeight),
+                  child: SafeArea(
+                    child: Column(
+                      mainAxisSize:
+                          shrinkWrap ? MainAxisSize.min : MainAxisSize.max,
+                      children: [
+                        _AdaptiveDialogHeader(
+                          title: title,
+                          subtitle: subtitle,
+                          dense: dense,
+                        ),
+                        const Divider(height: 1),
+                        Flexible(
+                          fit: shrinkWrap ? FlexFit.loose : FlexFit.tight,
+                          child: SingleChildScrollView(
+                            key: const ValueKey('adaptive-dialog-scroll-view'),
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: contentPadding ??
+                                EdgeInsets.fromLTRB(
+                                  dense ? 12 : 18,
+                                  fullscreen ? 12 : 16,
+                                  dense ? 12 : 18,
+                                  16,
+                                ),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: content,
+                            ),
                           ),
                         ),
-                      ),
-                      const Divider(height: 1),
-                      _AdaptiveDialogActions(
-                        actions: actions,
-                        preferInline: preferInlineActions,
-                      ),
-                    ],
+                        if (actions.isNotEmpty) ...[
+                          const Divider(height: 1),
+                          _AdaptiveDialogActions(
+                            actions: actions,
+                            preferInline: preferInlineActions,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -436,7 +449,7 @@ class _AdaptiveDialogHeader extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontSize: dense ? 19 : 21,
+                          fontSize: dense ? 17 : 21,
                           height: 1.08,
                           fontWeight: FontWeight.w900,
                         ),

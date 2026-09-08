@@ -60,7 +60,9 @@ void main() {
         File('lib/features/matches/matchday_page.dart').readAsStringSync();
 
     expect(shell, isNot(contains('AdaptiveHingePane(')));
-    expect(app, contains('final appContent = AppLoadingHost('));
+    expect(app, contains('final appContent = MobileAppTheme('));
+    expect(app, contains('child: AppLoadingHost(child: child'));
+    expect(app, isNot(contains('final appContent = AdaptiveHingePane(')));
     expect(app, contains('AdaptiveHingePane(child: child'));
     expect(adaptive, contains('class AdaptiveHingePane'));
     expect(adaptive, contains('class AdaptiveTwoPane'));

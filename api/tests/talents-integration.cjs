@@ -38,18 +38,26 @@ async function main() {
     const event = await prisma.event.create({ data: { teamId: team.id, title: 'Testspiel', type: 'MATCH', location: 'Teugn', startAt: new Date('2030-09-14T10:00:00Z'), familyReleasedAt: new Date() }, select: { id: true } });
     await prisma.attendance.create({ data: { eventId: event.id, playerId: player.id, status: 'YES', reason: 'Ursprüngliche Zusage', respondedAt: new Date('2026-01-01') }, select: { id: true } });
     await db.exec(fs.readFileSync(path.join(migrations, newMigration, 'migration.sql'), 'utf8'));
+    let upgradedRide;
     for (const dir of dirs.filter(d => d > newMigration)) {
+      if (dir === '20260908150000_direct_carpool_booking') {
+        upgradedRide = await prisma.carpoolOffer.create({ data: { eventId: event.id, driverId: coach.id, seatsTotal: 5, departureLocation: 'Test', departureAt: new Date('2030-09-14T09:00:00Z') }, select: { id: true } });
+        await prisma.carpoolNeed.create({ data: { eventId: event.id, playerId: player.id, requestedById: parent.id }, select: { id: true } });
+      }
       await db.exec(fs.readFileSync(path.join(migrations, dir, 'migration.sql'), 'utf8'));
     }
+    assert.equal(await prisma.carpoolPassenger.count({ where: { offerId: upgradedRide.id, status: 'CONFIRMED' } }), 1, 'Existing open need automatically reserves one of five seats on upgrade');
+    assert.equal((await prisma.carpoolNeed.findFirst({ where: { eventId: event.id } })).status, 'MATCHED');
     assert.equal((await prisma.attendance.findFirst({ where: { eventId: event.id } })).reason, 'Ursprüngliche Zusage');
     assert.equal((await db.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE '%Cash%' ")).rows.length, 0);
     console.log('PASS all migrations + populated upgrade + no cash tables');
     const call = async (fn, user, body = {}, params = {}, key = randomUUID()) => {
       let result;
       const req = { user, body, params, query: {}, method: 'POST', originalUrl: `/test/${fn.name}/${params.id ?? ''}`, get: () => key };
-      const res = { json: v => { result = v; return v; }, status: () => res, set: () => res };
+      const res = { json: v => { result = v; return v; }, status: () => res, set: () => res, send: () => undefined };
       await fn(req, res); return result;
     };
+    await require('./carpool-integration.cjs')({ prisma, call, team, foreignTeam, club, coach, parent, secondParent, stranger, player });
     const absences = require('../dist/src/controllers/absences.controller');
     const absenceInput = { playerId: player.id, startsOn: '2030-09-01', endsOn: '2030-09-30', weekdays: [], teamIds: [], eventTypes: ['MATCH'], reason: 'Urlaub' };
     const key = randomUUID();

@@ -1,3 +1,5 @@
+import 'package:fc_teugn_app/core/models/event.dart';
+import 'package:fc_teugn_app/features/carpool/carpool_section.dart';
 import 'package:fc_teugn_app/core/models/matchday.dart';
 import 'package:fc_teugn_app/features/matches/matchday_page.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +16,17 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          carpoolEventProvider
+              .overrideWith((ref, id) async => EventModel.fromJson({
+                    'id': id,
+                    'title': 'Testspiel',
+                    'teamId': 'team-1',
+                    'type': 'MATCH',
+                    'startAt': '2030-09-17T10:00:00Z',
+                    'location': 'Testplatz'
+                  })),
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: MatchOverview(
@@ -58,6 +71,17 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          carpoolEventProvider
+              .overrideWith((ref, id) async => EventModel.fromJson({
+                    'id': id,
+                    'title': 'Testspiel',
+                    'teamId': 'team-1',
+                    'type': 'MATCH',
+                    'startAt': '2030-09-17T10:00:00Z',
+                    'location': 'Testplatz'
+                  })),
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: MatchOverview(
@@ -101,6 +125,17 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          carpoolEventProvider
+              .overrideWith((ref, id) async => EventModel.fromJson({
+                    'id': id,
+                    'title': 'Testspiel',
+                    'teamId': 'team-1',
+                    'type': 'MATCH',
+                    'startAt': '2030-09-17T10:00:00Z',
+                    'location': 'Testplatz'
+                  })),
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: MatchOverview(

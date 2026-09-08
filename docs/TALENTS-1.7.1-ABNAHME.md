@@ -104,11 +104,10 @@ Umfang nach anschließender Nutzerentscheidung vom 8. September 2026:
 - Native Apple-Veröffentlichung ist vorerst optional. Die dafür erforderliche
   Apple-Signierung, native Firebase-/APNs-Konfiguration und native Geräteabnahme
   sind spätere Ausbauschritte, keine offenen Pflichtpunkte.
-- Mit der anschließenden Anweisung „Keine Tests bitte“ entfallen weitere Tests,
-  Startzeitmessungen auf echten Geräten, Android-/iPhone-Geräteprüfungen und
-  die Durchführung des Vereinspiloten. Sie werden aus der offenen Aufgabenliste
-  genommen und nicht als bestanden ausgewiesen. Die oben dokumentierten
-  früheren Prüfergebnisse bleiben historische Nachweise.
+- Die spätere Klarstellung erlaubt und verlangt weiterhin interne Flutter-, Backend-,
+  Integrations-, Emulator- und Build-Prüfungen. Ein Vereinspilot und zusätzliche
+  Abnahmen mit privaten Telefonen werden nicht vorausgesetzt. Die oben genannten
+  Ergebnisse bleiben die historischen Nachweise für Version 1.7.1.
 
 Einrichtung des optionalen nativen Ausbaus: [iOS-Auslieferung](ios-release.md).
 Die Mannschaftskasse bleibt ausgeschlossen.

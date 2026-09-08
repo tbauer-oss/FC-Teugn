@@ -200,6 +200,36 @@ const training = await request(
 );
 assert(training.id, 'Training creation failed');
 
+// Concurrent HTTP bookings use separate PostgreSQL connections in CI.
+const ridePath = `/events/${training.id}`;
+const rideOffer = await request(`${ridePath}/carpool-offers`, json('POST', trainerToken, {
+  seatsTotal: 1, departureLocation: 'E2E Treffpunkt', departureAt: new Date(now + 82_800_000).toISOString(),
+}));
+const lastSeat = await Promise.all([
+  fetch(`${baseUrl}${ridePath}/carpool-offers/${rideOffer.id}/passengers`, {
+    ...json('POST', parentClientAToken, { includeSelf: true }),
+    headers: { ...auth(parentClientAToken), 'content-type': 'application/json' },
+  }),
+  fetch(`${baseUrl}${ridePath}/carpool-offers/${rideOffer.id}/passengers`, {
+    ...json('POST', parentClientBToken, { playerIds: [playerId] }),
+    headers: { ...auth(parentClientBToken), 'content-type': 'application/json' },
+  }),
+]);
+assert(lastSeat.filter(r => r.status === 201).length === 1 && lastSeat.filter(r => r.status === 409).length === 1,
+  'Concurrent adult/child bookings must reserve the final seat exactly once');
+let rideEvent = await request(ridePath, { headers: auth(parentClientAToken) });
+assert(rideEvent.carpoolSummary.freeSeats === 0 && rideEvent.carpoolSummary.bookedSeats === 1, 'Last-seat summary inconsistent');
+await request(`${ridePath}/carpool-offers/${rideOffer.id}`, { method: 'DELETE', headers: auth(trainerToken) });
+await request(`${ridePath}/carpool-needs`, json('POST', parentClientAToken, { playerIds: [playerId], includeSelf: true }));
+const familyCar = await request(`${ridePath}/carpool-offers`, json('POST', trainerToken, {
+  seatsTotal: 5, departureLocation: 'E2E Familienfahrt', departureAt: new Date(now + 82_800_000).toISOString(),
+}));
+rideEvent = await request(ridePath, { headers: auth(parentClientAToken) });
+assert(rideEvent.carpoolSummary.freeSeats === 3 && rideEvent.carpoolSummary.openNeeds === 0, 'Adult+child need must occupy two of five seats automatically');
+assert(rideEvent.carpoolOffers.find(o => o.id === familyCar.id).passengers.filter(p => p.status === 'CONFIRMED').length === 2, 'Family is not in the same car');
+console.log('PASS HTTP/PostgreSQL carpool concurrency and adult+child auto-booking');
+
+
 // 5. Elternteil sagt für das Kind zu.
 const attendance = await request(
   `/events/${training.id}/attendance`,

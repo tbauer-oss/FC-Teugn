@@ -1,3 +1,4 @@
+import '../carpool/carpool_section.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -3165,7 +3166,8 @@ class _EventDetailsDialogState extends ConsumerState<EventDetailsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final event = _event;
+    final event =
+        ref.watch(carpoolEventProvider(_event.id)).valueOrNull ?? _event;
     final compact = MediaQuery.sizeOf(context).width < 600;
     final players =
         ref.watch(playersProvider).valueOrNull ?? const <PlayerModel>[];
@@ -3243,8 +3245,8 @@ class _EventDetailsDialogState extends ConsumerState<EventDetailsDialog> {
                       players: players,
                       onRefresh: _refresh,
                     ),
-                    const SizedBox(height: 20),
-                    _CarpoolSection(
+                    const SizedBox(height: 12),
+                    CarpoolSection(
                       event: event,
                       players: players,
                       onRefresh: _refresh,
@@ -3836,16 +3838,16 @@ class _DetailsHeader extends StatelessWidget {
     final color = _categoryColor(context, event.category);
     final compact = MediaQuery.sizeOf(context).width < 600;
     return Padding(
-      padding: EdgeInsets.all(compact ? 14 : 24),
+      padding: EdgeInsets.all(compact ? 10 : 24),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: compact ? 40 : 48,
-            height: compact ? 40 : 48,
+            width: compact ? 32 : 48,
+            height: compact ? 32 : 48,
             decoration: BoxDecoration(
               color: color.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(_categoryIcon(event.category), color: color),
           ),
@@ -3864,6 +3866,7 @@ class _DetailsHeader extends StatelessWidget {
                       style: TextStyle(
                         color: color,
                         fontWeight: FontWeight.w800,
+                        fontSize: compact ? 12 : 14,
                       ),
                     ),
                     if (event.matchVenueType != null)
@@ -3878,18 +3881,19 @@ class _DetailsHeader extends StatelessWidget {
                   maxLines: compact ? 2 : 3,
                   overflow: TextOverflow.ellipsis,
                   style: compact
-                      ? Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w900)
+                      ? Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          height: 1.2)
                       : Theme.of(context).textTheme.headlineSmall,
                 ),
                 if (event.isCancelled)
                   Text(
                     'Abgesagt${event.cancellationReason == null ? '' : ': ${event.cancellationReason}'}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.redAccent,
                       fontWeight: FontWeight.w800,
+                      fontSize: compact ? 12 : 14,
                     ),
                   ),
               ],
@@ -4001,12 +4005,13 @@ class _Section extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding:
+            EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 10 : 18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             child,
           ],
         ),
@@ -4491,493 +4496,6 @@ class _StatusMetric extends StatelessWidget {
       ),
     );
   }
-}
-
-class _CarpoolSection extends ConsumerWidget {
-  const _CarpoolSection({
-    required this.event,
-    required this.players,
-    required this.onRefresh,
-  });
-
-  final EventModel event;
-  final List<PlayerModel> players;
-  final Future<void> Function() onRefresh;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final openNeeds = event.carpoolNeeds
-        .where((need) => need.status == CarpoolNeedStatus.open)
-        .toList();
-    final freeSeats = event.carpoolOffers.fold<int>(
-      0,
-      (sum, offer) => sum + offer.freeSeats,
-    );
-    return _Section(
-      title: 'Fahrgemeinschaften',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.yellow.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppColors.yellow.withValues(alpha: .45),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.route_rounded, color: context.appInfo),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Einfach auswählen: Braucht dein Kind eine Mitfahrt oder '
-                    'kannst du freie Plätze anbieten? Mehrere Kinder können '
-                    'in einem Schritt eingetragen werden.',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _CarpoolMetric(
-                icon: Icons.airline_seat_recline_normal_rounded,
-                value: '$freeSeats',
-                label: 'freie Plätze',
-                color: context.appSuccess,
-              ),
-              _CarpoolMetric(
-                icon: Icons.front_hand_outlined,
-                value: '${openNeeds.length}',
-                label: 'Mitfahrbedarf',
-                color: context.appInfo,
-              ),
-              _CarpoolMetric(
-                icon: Icons.directions_car_rounded,
-                value: '${event.carpoolOffers.length}',
-                label: 'Fahrangebote',
-                color: context.appInfo,
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 540;
-              final needButton = FilledButton.icon(
-                onPressed: event.isCancelled || players.isEmpty
-                    ? null
-                    : () => _createNeeds(context, ref),
-                icon: const Icon(Icons.front_hand_outlined),
-                label: const Text('Mitfahrt benötigt'),
-              );
-              final offerButton = OutlinedButton.icon(
-                onPressed: event.capabilities.canOfferRide && !event.isCancelled
-                    ? () => _offerRide(context, ref)
-                    : null,
-                icon: const Icon(Icons.add_road_rounded),
-                label: const Text('Plätze anbieten'),
-              );
-              if (!compact) {
-                return Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: [needButton, offerButton],
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [needButton, const SizedBox(height: 8), offerButton],
-              );
-            },
-          ),
-          if (event.carpoolNeeds.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            Text(
-              'Wer braucht eine Mitfahrt?',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            for (final need in event.carpoolNeeds)
-              if (need.status != CarpoolNeedStatus.cancelled)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 7),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: need.status == CarpoolNeedStatus.matched
-                        ? context.appSuccess.withValues(alpha: .09)
-                        : context.appColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(13),
-                    border: Border.all(color: context.appColors.outline),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        need.status == CarpoolNeedStatus.matched
-                            ? Icons.check_circle_rounded
-                            : Icons.front_hand_outlined,
-                        color: need.status == CarpoolNeedStatus.matched
-                            ? context.appSuccess
-                            : context.appInfo,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              need.playerName,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w900),
-                            ),
-                            Text(
-                              need.status == CarpoolNeedStatus.matched
-                                  ? 'Mitfahrplatz gefunden'
-                                  : need.note?.trim().isNotEmpty == true
-                                      ? need.note!
-                                      : 'Mitfahrplatz wird gesucht',
-                              style: TextStyle(
-                                color: context.appColors.textMuted,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (need.canCancel)
-                        IconButton(
-                          tooltip: 'Mitfahrbedarf zurückziehen',
-                          onPressed: () => _deleteNeed(context, ref, need),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                    ],
-                  ),
-                ),
-          ],
-          const SizedBox(height: 12),
-          Text(
-            'Angebotene Fahrten',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-          ),
-          const SizedBox(height: 8),
-          if (event.carpoolOffers.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: context.appColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                'Noch keine Fahrt angeboten. Sobald Eltern Plätze anbieten, '
-                'können diese hier direkt angefragt werden.',
-                style: TextStyle(color: context.appColors.textMuted),
-              ),
-            )
-          else
-            for (final offer in event.carpoolOffers)
-              Card(
-                color: context.appColors.surfaceMuted,
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.directions_car_rounded,
-                              color: context.appInfo),
-                          const SizedBox(width: 9),
-                          Expanded(
-                            child: Text(
-                              '${offer.driverName} · ${offer.freeSeats} freie Plätze',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w900),
-                            ),
-                          ),
-                          if (offer.canManage)
-                            IconButton(
-                              tooltip: 'Fahrangebot zurückziehen',
-                              onPressed: () =>
-                                  _deleteOffer(context, ref, offer),
-                              icon: const Icon(Icons.delete_outline_rounded),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${_fullDate(offer.departureAt)} · ${_time(offer.departureAt)} Uhr · ${offer.departureLocation}',
-                      ),
-                      if (offer.driverPhone != null)
-                        Text('Telefon: ${offer.driverPhone}'),
-                      if (offer.notes != null) Text(offer.notes!),
-                      if (offer.passengers.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        for (final passenger in offer.passengers)
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${passenger.playerName} · ${_carpoolStatus(passenger.status)}',
-                                ),
-                              ),
-                              if (offer.canManage &&
-                                  passenger.status ==
-                                      CarpoolRequestStatus.requested) ...[
-                                IconButton(
-                                  tooltip: 'Bestätigen',
-                                  onPressed: () => _updatePassenger(
-                                    context,
-                                    ref,
-                                    offer,
-                                    passenger,
-                                    CarpoolRequestStatus.confirmed,
-                                  ),
-                                  icon: Icon(Icons.check_circle_rounded,
-                                      color: context.appSuccess),
-                                ),
-                                IconButton(
-                                  tooltip: 'Ablehnen',
-                                  onPressed: () => _updatePassenger(
-                                    context,
-                                    ref,
-                                    offer,
-                                    passenger,
-                                    CarpoolRequestStatus.declined,
-                                  ),
-                                  icon: const Icon(Icons.cancel_rounded,
-                                      color: Colors.redAccent),
-                                ),
-                              ],
-                              if (passenger.canCancel &&
-                                  (passenger.status ==
-                                          CarpoolRequestStatus.requested ||
-                                      passenger.status ==
-                                          CarpoolRequestStatus.confirmed))
-                                IconButton(
-                                  tooltip: 'Mitfahranfrage zurückziehen',
-                                  onPressed: () => _updatePassenger(
-                                    context,
-                                    ref,
-                                    offer,
-                                    passenger,
-                                    CarpoolRequestStatus.cancelled,
-                                  ),
-                                  icon: const Icon(Icons.close_rounded),
-                                ),
-                            ],
-                          ),
-                      ],
-                      if (offer.freeSeats > 0 &&
-                          event.capabilities.canRespond &&
-                          players.isNotEmpty)
-                        TextButton.icon(
-                          onPressed: () =>
-                              _requestSeats(context, ref, offer, players),
-                          icon: const Icon(Icons.airline_seat_recline_normal),
-                          label: const Text('Platz für Kind(er) anfragen'),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _createNeeds(BuildContext context, WidgetRef ref) async {
-    final draft = await showDialog<_CarpoolNeedDraft>(
-      context: context,
-      builder: (context) => _CarpoolNeedDialog(players: players),
-    );
-    if (draft == null) return;
-    try {
-      await ref.read(repositoryProvider).createCarpoolNeeds(
-            eventId: event.id,
-            playerIds: draft.playerIds,
-            note: draft.note,
-          );
-      await onRefresh();
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Der Mitfahrbedarf konnte nicht gespeichert werden.'),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _offerRide(BuildContext context, WidgetRef ref) async {
-    final draft = await showDialog<_CarpoolDraft>(
-      context: context,
-      builder: (context) => _CarpoolDialog(event: event),
-    );
-    if (draft == null) return;
-    try {
-      await ref.read(repositoryProvider).createCarpoolOffer(
-            eventId: event.id,
-            seatsTotal: draft.seats,
-            departureLocation: draft.location,
-            departureAt: draft.departureAt,
-            notes: draft.notes,
-          );
-      await onRefresh();
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Fahrangebot konnte nicht gespeichert werden.')),
-        );
-      }
-    }
-  }
-
-  Future<void> _requestSeats(
-    BuildContext context,
-    WidgetRef ref,
-    CarpoolOffer offer,
-    List<PlayerModel> players,
-  ) async {
-    final playerIds = await showDialog<List<String>>(
-      context: context,
-      builder: (context) => _CarpoolPlayerSelectionDialog(
-        players: players,
-        maxSelections: offer.freeSeats,
-      ),
-    );
-    if (playerIds == null || playerIds.isEmpty) return;
-    try {
-      for (final playerId in playerIds.take(offer.freeSeats)) {
-        await ref.read(repositoryProvider).requestCarpoolSeat(
-              eventId: event.id,
-              offerId: offer.id,
-              playerId: playerId,
-            );
-      }
-      await onRefresh();
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Mitfahranfrage konnte nicht gesendet werden.')),
-        );
-      }
-    }
-  }
-
-  Future<void> _updatePassenger(
-    BuildContext context,
-    WidgetRef ref,
-    CarpoolOffer offer,
-    CarpoolPassenger passenger,
-    CarpoolRequestStatus status,
-  ) async {
-    await ref.read(repositoryProvider).updateCarpoolPassenger(
-          eventId: event.id,
-          offerId: offer.id,
-          passengerId: passenger.id,
-          status: status,
-        );
-    await onRefresh();
-  }
-
-  Future<void> _deleteNeed(
-    BuildContext context,
-    WidgetRef ref,
-    CarpoolNeed need,
-  ) async {
-    await ref.read(repositoryProvider).deleteCarpoolNeed(
-          eventId: event.id,
-          needId: need.id,
-        );
-    await onRefresh();
-  }
-
-  Future<void> _deleteOffer(
-    BuildContext context,
-    WidgetRef ref,
-    CarpoolOffer offer,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Fahrangebot zurückziehen?'),
-        content: const Text(
-          'Bereits angefragte Plätze werden freigegeben und offene '
-          'Mitfahrbedarfe wieder angezeigt.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Zurückziehen'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    await ref.read(repositoryProvider).deleteCarpoolOffer(
-          eventId: event.id,
-          offerId: offer.id,
-        );
-    await onRefresh();
-  }
-}
-
-class _CarpoolMetric extends StatelessWidget {
-  const _CarpoolMetric({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String value;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .09),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 7),
-            Text(
-              '$value $label',
-              style: TextStyle(color: color, fontWeight: FontWeight.w900),
-            ),
-          ],
-        ),
-      );
 }
 
 enum _ManagementAction { edit, reschedule, cancel, deleteSeries, delete }
@@ -8026,291 +7544,6 @@ class _AttendanceDraft {
   final bool goalkeeperAvailable;
 }
 
-class _CarpoolDialog extends StatefulWidget {
-  const _CarpoolDialog({required this.event});
-
-  final EventModel event;
-
-  @override
-  State<_CarpoolDialog> createState() => _CarpoolDialogState();
-}
-
-class _CarpoolDialogState extends State<_CarpoolDialog> {
-  final location = TextEditingController();
-  final notes = TextEditingController();
-  int seats = 2;
-  late DateTime departureAt;
-
-  @override
-  void initState() {
-    super.initState();
-    departureAt = widget.event.meetingAt ??
-        widget.event.startAt.subtract(const Duration(minutes: 30));
-  }
-
-  @override
-  void dispose() {
-    location.dispose();
-    notes.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Fahrt anbieten'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DropdownButtonFormField<int>(
-            initialValue: seats,
-            decoration: const InputDecoration(labelText: 'Freie Plätze'),
-            items: [
-              for (var value = 1; value <= 8; value++)
-                DropdownMenuItem(value: value, child: Text('$value')),
-            ],
-            onChanged: (value) => setState(() => seats = value ?? seats),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: location,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(labelText: 'Abfahrtsort'),
-          ),
-          const SizedBox(height: 12),
-          _DateTimeField(
-            label: 'Abfahrtszeit',
-            value: departureAt,
-            onChanged: (value) =>
-                setState(() => departureAt = value ?? departureAt),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: notes,
-            decoration: const InputDecoration(labelText: 'Hinweis (optional)'),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
-        ),
-        FilledButton(
-          onPressed: location.text.trim().isEmpty
-              ? null
-              : () => Navigator.pop(
-                    context,
-                    _CarpoolDraft(
-                      seats: seats,
-                      location: location.text.trim(),
-                      departureAt: departureAt,
-                      notes:
-                          notes.text.trim().isEmpty ? null : notes.text.trim(),
-                    ),
-                  ),
-          child: const Text('Anbieten'),
-        ),
-      ],
-    );
-  }
-}
-
-class _CarpoolDraft {
-  const _CarpoolDraft({
-    required this.seats,
-    required this.location,
-    required this.departureAt,
-    this.notes,
-  });
-
-  final int seats;
-  final String location;
-  final DateTime departureAt;
-  final String? notes;
-}
-
-class _CarpoolNeedDraft {
-  const _CarpoolNeedDraft({required this.playerIds, this.note});
-
-  final List<String> playerIds;
-  final String? note;
-}
-
-class _CarpoolNeedDialog extends StatefulWidget {
-  const _CarpoolNeedDialog({required this.players});
-
-  final List<PlayerModel> players;
-
-  @override
-  State<_CarpoolNeedDialog> createState() => _CarpoolNeedDialogState();
-}
-
-class _CarpoolNeedDialogState extends State<_CarpoolNeedDialog> {
-  final selected = <String>{};
-  final note = TextEditingController();
-
-  @override
-  void dispose() {
-    note.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Mitfahrt benötigt'),
-      content: SizedBox(
-        width: 440,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Wähle alle Kinder aus, die eine Mitfahrgelegenheit brauchen.',
-            ),
-            const SizedBox(height: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 260),
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final player in widget.players)
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: selected.contains(player.id),
-                      title: Text(player.fullName),
-                      subtitle: Text(player.teamCode),
-                      onChanged: (value) => setState(() {
-                        if (value == true) {
-                          selected.add(player.id);
-                        } else {
-                          selected.remove(player.id);
-                        }
-                      }),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: note,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Hinweis (optional)',
-                hintText: 'z. B. Rückfahrt wird ebenfalls benötigt',
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
-        ),
-        FilledButton(
-          onPressed: selected.isEmpty
-              ? null
-              : () => Navigator.pop(
-                    context,
-                    _CarpoolNeedDraft(
-                      playerIds: selected.toList(),
-                      note: note.text.trim().isEmpty ? null : note.text.trim(),
-                    ),
-                  ),
-          child: Text(
-            selected.length == 1
-                ? 'Bedarf melden'
-                : '${selected.length} Bedarfe melden',
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CarpoolPlayerSelectionDialog extends StatefulWidget {
-  const _CarpoolPlayerSelectionDialog({
-    required this.players,
-    required this.maxSelections,
-  });
-
-  final List<PlayerModel> players;
-  final int maxSelections;
-
-  @override
-  State<_CarpoolPlayerSelectionDialog> createState() =>
-      _CarpoolPlayerSelectionDialogState();
-}
-
-class _CarpoolPlayerSelectionDialogState
-    extends State<_CarpoolPlayerSelectionDialog> {
-  final selected = <String>{};
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Mitfahrplätze anfragen'),
-      content: SizedBox(
-        width: 440,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Wähle bis zu ${widget.maxSelections} '
-              '${widget.maxSelections == 1 ? 'Kind' : 'Kinder'} aus.',
-            ),
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 300),
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final player in widget.players)
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: selected.contains(player.id),
-                      title: Text(player.fullName),
-                      subtitle: Text(player.teamCode),
-                      onChanged: !selected.contains(player.id) &&
-                              selected.length >= widget.maxSelections
-                          ? null
-                          : (value) => setState(() {
-                                if (value == true) {
-                                  selected.add(player.id);
-                                } else {
-                                  selected.remove(player.id);
-                                }
-                              }),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
-        ),
-        FilledButton(
-          onPressed: selected.isEmpty
-              ? null
-              : () => Navigator.pop(context, selected.toList()),
-          child: Text(
-            selected.length == 1
-                ? 'Platz anfragen'
-                : '${selected.length} Plätze anfragen',
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _CancelDialog extends StatefulWidget {
   const _CancelDialog({
     required this.recurring,
@@ -8599,11 +7832,4 @@ String _homeAway(HomeAway value) => switch (value) {
       HomeAway.home => 'Heim',
       HomeAway.away => 'Auswärts',
       HomeAway.neutral => 'Neutral',
-    };
-
-String _carpoolStatus(CarpoolRequestStatus value) => switch (value) {
-      CarpoolRequestStatus.requested => 'angefragt',
-      CarpoolRequestStatus.confirmed => 'bestätigt',
-      CarpoolRequestStatus.declined => 'abgelehnt',
-      CarpoolRequestStatus.cancelled => 'storniert',
     };

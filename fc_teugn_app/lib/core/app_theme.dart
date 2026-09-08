@@ -1,5 +1,74 @@
 import 'package:flutter/material.dart';
 
+/// Shared phone sizing, including routes, sheets and dialogs. Accessibility
+/// text scaling remains intact; controls retain their touch target padding.
+class MobileAppTheme extends StatelessWidget {
+  const MobileAppTheme({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width >= 600) return child;
+    final base = Theme.of(context);
+    final text = base.textTheme.copyWith(
+      headlineLarge:
+          base.textTheme.headlineLarge?.copyWith(fontSize: 26, height: 1.15),
+      headlineMedium:
+          base.textTheme.headlineMedium?.copyWith(fontSize: 23, height: 1.18),
+      headlineSmall:
+          base.textTheme.headlineSmall?.copyWith(fontSize: 20, height: 1.2),
+      titleLarge:
+          base.textTheme.titleLarge?.copyWith(fontSize: 17, height: 1.2),
+      titleMedium:
+          base.textTheme.titleMedium?.copyWith(fontSize: 15, height: 1.25),
+      bodyLarge: base.textTheme.bodyLarge?.copyWith(fontSize: 15, height: 1.35),
+      bodyMedium:
+          base.textTheme.bodyMedium?.copyWith(fontSize: 14, height: 1.35),
+    );
+    const padding = WidgetStatePropertyAll<EdgeInsetsGeometry>(
+        EdgeInsets.symmetric(horizontal: 12, vertical: 10));
+    return Theme(
+        data: base.copyWith(
+          textTheme: text,
+          iconTheme: base.iconTheme.copyWith(size: 22),
+          appBarTheme: base.appBarTheme
+              .copyWith(toolbarHeight: 56, titleTextStyle: text.titleLarge),
+          navigationBarTheme: base.navigationBarTheme.copyWith(height: 64),
+          dialogTheme: base.dialogTheme.copyWith(
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            titleTextStyle: text.titleLarge,
+            contentTextStyle: text.bodyMedium,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          ),
+          inputDecorationTheme: base.inputDecorationTheme.copyWith(
+            isDense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            errorMaxLines: 3,
+          ),
+          listTileTheme: base.listTileTheme.copyWith(
+            minTileHeight: 48,
+            minVerticalPadding: 5,
+            horizontalTitleGap: 10,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+            titleTextStyle: text.bodyMedium?.copyWith(
+                color: base.colorScheme.onSurface, fontWeight: FontWeight.w600),
+            subtitleTextStyle: text.bodySmall?.copyWith(height: 1.25),
+          ),
+          filledButtonTheme: FilledButtonThemeData(
+              style: base.filledButtonTheme.style?.copyWith(padding: padding)),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+              style:
+                  base.outlinedButtonTheme.style?.copyWith(padding: padding)),
+          popupMenuTheme:
+              base.popupMenuTheme.copyWith(textStyle: text.bodyMedium),
+        ),
+        child: child);
+  }
+}
+
 abstract final class AppColors {
   static const black = Color(0xFF171918);
   static const charcoal = Color(0xFF292C2A);
@@ -331,13 +400,15 @@ ThemeData buildAppTheme({Brightness brightness = Brightness.light}) {
         minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        textStyle:
+            const TextStyle(fontFamily: 'Arial', fontWeight: FontWeight.w800),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: dark ? const Color(0xFFFFE866) : AppColors.gold,
-        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        textStyle:
+            const TextStyle(fontFamily: 'Arial', fontWeight: FontWeight.w800),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -348,7 +419,8 @@ ThemeData buildAppTheme({Brightness brightness = Brightness.light}) {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         side: BorderSide(color: surfaces.outline),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        textStyle:
+            const TextStyle(fontFamily: 'Arial', fontWeight: FontWeight.w800),
       ),
     ),
     chipTheme: ChipThemeData(

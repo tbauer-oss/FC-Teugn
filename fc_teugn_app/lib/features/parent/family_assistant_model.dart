@@ -80,15 +80,8 @@ bool isScheduleChangeNotification(AppNotificationModel notification) {
       value.contains('änderung');
 }
 
-bool hasRelevantCarpool(EventModel event, Set<String> childIds) {
-  final freeSeats = event.carpoolOffers.any((offer) => offer.freeSeats > 0);
-  final openOwnNeed = event.carpoolNeeds.any(
-    (need) =>
-        need.status == CarpoolNeedStatus.open &&
-        (childIds.isEmpty || childIds.contains(need.playerId)),
-  );
-  return freeSeats || openOwnNeed;
-}
+bool hasRelevantCarpool(EventModel event, Set<String> childIds) =>
+    event.rides.freeSeats > 0 || event.rides.openNeeds > 0;
 
 class FamilyTimelineItem {
   const FamilyTimelineItem({
