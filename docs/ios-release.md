@@ -2,7 +2,8 @@
 
 Nutzerentscheidung vom 8. September 2026: Die native Apple-Veröffentlichung ist
 vorerst optional. Der vorgesehene iPhone-Weg ist die installierbare Web-App.
-Ihre Geräteprüfung einschließlich Web-Push bleibt Teil der Abnahme.
+Weitere Geräteprüfungen einschließlich Web-Push entfallen nach der anschließenden
+Nutzeranweisung „Keine Tests bitte“. Eine reale Zustellprüfung wurde nicht durchgeführt.
 Web-Push für zum Home-Bildschirm hinzugefügte Web-Apps ab iOS 16.4 benötigt
 keine Apple-Developer-Mitgliedschaft:
 [Apple-Dokumentation](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers).

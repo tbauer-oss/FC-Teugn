@@ -91,10 +91,10 @@ Lokale Nachweise liegen unter `artifacts/release-1.7.1-build-186/`, darunter
 `live-verification.json`, `android-update-verification.json` und
 `ios-bundle-verification.json`.
 
-## Weiterhin externe Abnahme
+## Nicht durchgeführte Abnahme und angepasster Umfang
 
 Keine echten Telefone waren über ADB verbunden. Reale Prüfungen der Android-APK
-und iPhone-Web-App für Push, Netzunterbrechung, Installation und Startzeiten stehen aus. Der Pilot
+und iPhone-Web-App für Push, Netzunterbrechung, Installation und Startzeiten wurden nicht durchgeführt. Der Pilot
 mit zwei Trainern und fünf Eltern ist vorbereitet, aber nicht durchgeführt.
 Eine gemessene Überlegenheit gegenüber der BFV-Team-App wird nicht behauptet.
 
@@ -104,11 +104,11 @@ Umfang nach anschließender Nutzerentscheidung vom 8. September 2026:
 - Native Apple-Veröffentlichung ist vorerst optional. Die dafür erforderliche
   Apple-Signierung, native Firebase-/APNs-Konfiguration und native Geräteabnahme
   sind spätere Ausbauschritte, keine offenen Pflichtpunkte.
-- Installation und Web-Push der iPhone-Web-App bleiben Teil der praktischen
-  Abnahme. Dafür ist kein kostenpflichtiges Apple-Entwicklerkonto erforderlich.
-- Verbindlich offen bleiben Startzeitmessungen auf echten Geräten, die genannten
-  Geräteprüfungen und der Vereinspilot. Diese Punkte werden erst nach realer
-  Durchführung mit Ergebnissen abgeschlossen.
+- Mit der anschließenden Anweisung „Keine Tests bitte“ entfallen weitere Tests,
+  Startzeitmessungen auf echten Geräten, Android-/iPhone-Geräteprüfungen und
+  die Durchführung des Vereinspiloten. Sie werden aus der offenen Aufgabenliste
+  genommen und nicht als bestanden ausgewiesen. Die oben dokumentierten
+  früheren Prüfergebnisse bleiben historische Nachweise.
 
 Einrichtung des optionalen nativen Ausbaus: [iOS-Auslieferung](ios-release.md).
 Die Mannschaftskasse bleibt ausgeschlossen.

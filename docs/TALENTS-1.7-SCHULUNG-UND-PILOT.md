@@ -4,9 +4,10 @@ Vorbereitete Anleitung vom 7. September 2026. Noch kein durchgeführter Geräte-
 
 Auslieferungsumfang, aktualisiert am 8. September 2026: Android-APK über
 MagentaCloud, iPhone als installierte Web-App. Google Play entfällt; native
-Apple-Veröffentlichung ist optional. Den iPhone-Pilot mit der vom Home-Bildschirm
-gestarteten Web-App einschließlich Web-Push durchführen. Es wird dafür kein
-Apple-Entwicklerkonto benötigt.
+Apple-Veröffentlichung ist optional. Anschließende Nutzeranweisung: „Keine Tests
+bitte“. Weitere Geräteprüfungen und der Vereinspilot entfallen. Die nachfolgenden
+Pilotaufgaben und der leere Messbogen bleiben ausschließlich als früher
+vorbereitete Unterlagen erhalten; sie sind kein aktueller Auftrag zur Durchführung.
 
 ## Familien: die neuen Wege
 
@@ -31,7 +32,7 @@ Die neuen Formulare benötigen Internet. Wird das Speichern nicht bestätigt, bl
 8. Bei einer Importverlegung die Feldkonflikte einzeln entscheiden. Eigene Treffpunkte bleiben erhalten. Familien müssen bei wesentlichen Änderungen gegebenenfalls erneut antworten.
 9. Beim Saisonwechsel Vorschau, Zahl offener Ziele und Abwesenheiten prüfen. Übernahme auswählen; übernommene Ziele auf passende Zeiträume, Trainer und Trainingsverknüpfungen prüfen.
 
-## Pilotaufgaben
+## Früher vorbereitete Pilotaufgaben – Durchführung entfallen
 
 Zwei Trainer und fünf Eltern verwenden zunächst eine Testmannschaft mit erfundenen Kindern. Zwei der Eltern vertreten dieselbe Familie; mindestens eine Familie hat zwei Kinder. Mindestens ein kleines Android-Gerät und ein iPhone einsetzen. Pro Aufgabe Zeit, Rückfragen und Fehler erfassen.
 
@@ -52,7 +53,7 @@ Zwei Trainer und fünf Eltern verwenden zunächst eine Testmannschaft mit erfund
 | Push auf gesperrtem Gerät öffnen | Richtiger Termin/Bereich ohne vorgeschaltetes Intro. |
 | Neue Version über bestehende App installieren | Bestehender Zugang nutzbar, Version korrekt, Daten aktuell. |
 
-## Messbogen
+## Früher vorbereiteter Messbogen – nicht verwendet
 
 Für jede Durchführung eine Zeile ausfüllen; noch keine Messwerte eingetragen:
 

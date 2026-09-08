@@ -4,7 +4,7 @@ Stand: 8. September 2026; 1.7.1+186 ist veröffentlicht und öffentlich geprüft
 
 Grundlage: Vergleichsbericht `APP-VERGLEICH-BFV-2026-09-07.md` und die anschließende Nutzeranweisung, die übrigen Verbesserungen professionell umzusetzen und zunächst die vollständige Änderungsliste zu liefern.
 
-Nach dem Statusabgleich vom 8. September wurden die fehlende Entwicklungsansicht und native iOS-Push-Unterstützung ergänzt. Die Spieltagsorganisation im Autopiloten ist nun kompakt aufklappbar. Abgehakte Punkte beschreiben den dokumentierten Implementierungs- und Prüfstand, keine vollständige Geräte- oder Vereinsabnahme. Nach der anschließenden Nutzerentscheidung entfällt Google Play vollständig; eine native Apple-Veröffentlichung ist vorerst optional. Im verbindlichen Umfang bleiben reale Geräteprüfungen und die Durchführung des vorbereiteten Vereinspiloten offen. Details: [Nacharbeit 1.7.1](TALENTS-1.7.1-ABNAHME.md) und [bisheriger Umsetzungsstand](UMSETZUNGSSTAND-TALENTS-2026-09-07.md).
+Nach dem Statusabgleich vom 8. September wurden die fehlende Entwicklungsansicht und native iOS-Push-Unterstützung ergänzt. Die Spieltagsorganisation im Autopiloten ist nun kompakt aufklappbar. Abgehakte Punkte beschreiben den dokumentierten Implementierungs- und bisherigen Prüfstand, keine vollständige Geräte- oder Vereinsabnahme. Nach den anschließenden Nutzerentscheidungen entfällt Google Play vollständig; eine native Apple-Veröffentlichung ist vorerst optional. Mit „Keine Tests bitte“ wurden weitere Tests, Startzeitmessungen und die Durchführung des vorbereiteten Vereinspiloten aus dem Auftrag genommen. Sie gelten als entfallen, nicht als erfolgreich durchgeführt. Details: [Nacharbeit 1.7.1](TALENTS-1.7.1-ABNAHME.md) und [bisheriger Umsetzungsstand](UMSETZUNGSSTAND-TALENTS-2026-09-07.md).
 
 ## Rahmen
 
@@ -12,7 +12,8 @@ Nach dem Statusabgleich vom 8. September wurden die fehlende Entwicklungsansicht
 - Der vorhandene BFV-iCal-Abgleich, CSV-/ICS-Import, die BFV-Ansichten und der SpielPLUS-Zugang bleiben Grundlage der Verbandsanbindung.
 - Exporte werden als nutzbare Kopier-, Druck- oder Dateiansichten angeboten. Ein Import in SpielPLUS wird ohne nachgewiesen unterstütztes Format nicht zugesichert.
 - Android wird als signierte APK über MagentaCloud verteilt und über den vorhandenen Vereins-Updater aktualisiert. Google Play ist auf ausdrücklichen Nutzerwunsch ausgeschlossen; weder Einreichung noch eine separate Play-Version sind beauftragt.
-- Auf dem iPhone ist die installierbare Web-App einschließlich Web-Push der vorgesehene Weg. Native Apple-Veröffentlichung, Apple-Signierung und native APNs-Geräteabnahme sind vorerst optionale spätere Schritte. Sie sind keine Voraussetzung für den Abschluss des verbindlichen Umfangs. Tests der iPhone-Web-App bleiben erforderlich.
+- Auf dem iPhone ist die installierbare Web-App einschließlich Web-Push der vorgesehene Weg. Native Apple-Veröffentlichung, Apple-Signierung und native APNs-Geräteabnahme sind vorerst optionale spätere Schritte. Sie sind keine Voraussetzung für den Abschluss des verbindlichen Umfangs.
+- Keine weiteren Tests auf Nutzerwunsch. Das betrifft auch Android-/iPhone-Gerätetests, Startzeitmessungen und den Vereinspilot. Vorhandene Prüfprotokolle dokumentieren ausschließlich bereits durchgeführte Prüfungen.
 - Ziel ist ein verlässlicher, schnell bedienbarer Vereinsalltag für Familien und Trainer. Neue Funktionen werden in die bestehenden Abläufe eingebunden.
 
 ## Phase 1 – Zuverlässigkeit und schnelle Bedienung
@@ -50,7 +51,8 @@ Abnahme: Ein erledigter Vorgang erzeugt keine weitere Aufforderung; ein vorüber
 - [x] Start aus einer Push-Nachricht ohne Intro direkt zum Ziel führen.
 - [x] Bereits geladene Inhalte bei Rückkehr sinnvoll weiterverwenden; unnötige Ladeaufrufe vermeiden.
 - [x] Lade-, Fehler- und Wiederholungszustände der betroffenen Startabläufe vereinheitlichen.
-- [ ] Startzeiten auf definierten Testgeräten messen; ungefähr zwei Sekunden bis zur Bedienbarkeit bei Warmstart als Zielwert prüfen.
+
+Entfallen auf Nutzerwunsch: weitere Startzeitmessungen auf definierten Testgeräten. Der frühere Warmstart-Zielwert von ungefähr zwei Sekunden wurde auf echten Geräten nicht nachgewiesen.
 
 ### 4. Bezeichnungen und Navigation korrigieren
 
@@ -171,11 +173,11 @@ Optional für später: Native Apple-App mit Apple-Signierung und realer Firebase
 - [x] Änderungen an Datenmodell und Migrationen mit bestehenden Daten in einer isolierten Testumgebung verifizieren.
 - [x] Fachliche Tests für Verlegungen, Abwesenheiten, Abstimmungsrechte, Saisonwechsel ergänzen.
 - [x] Durchgängige Abläufe für Trainer und Familien prüfen; bestehende passende Prüfungen ausführen.
-- [ ] Android-APK und iPhone-Web-App auf echten Geräten auf Start, Installation, Push und Netzunterbrechung prüfen, sobald geeignete Geräte/Zugänge verfügbar sind. Der iPhone-Test erfolgt mit der vom Home-Bildschirm gestarteten Web-App und Web-Push; dafür ist kein Apple-Entwicklerkonto nötig.
 - [x] Pilot mit zwei Trainern und fünf Eltern anhand gleicher Aufgaben vorbereiten.
-- [ ] Pilot durchführen und Zeitbedarf, Hilfebedarf sowie Fehler erfassen. Es liegen noch keine Messwerte vor; eine Überlegenheit gegenüber der BFV-Team-App ist damit noch nicht nachgewiesen.
 - [x] Versionshinweise und nachvollziehbare Abnahmeergebnisse je Umsetzungspaket dokumentieren.
 
-## Ausführungsreihenfolge
+Entfallen auf Nutzerwunsch: weitere Android-/iPhone-Gerätetests und die Durchführung des Vereinspiloten. Der Pilot war ein freiwilliger Probelauf mit zwei Trainern und fünf Eltern anhand typischer App-Aufgaben. Er wurde nicht durchgeführt; es liegen keine entsprechenden Messwerte vor. Die vorbereitete Anleitung bleibt als Dokumentation erhalten.
 
-Zuerst Paket 1–4. Anschließend Abwesenheiten, Familien-Assistent und Spieltags-Assistent. Danach Umfragen, Einladungen und Entwicklungsziele. Turnierhilfen folgen als eigenes Paket. Saisonwechsel wird parallel zu neuen Datenmodellen ergänzt. Installation, Offline-Verhalten, Tests und Dokumentation begleiten jedes Paket; die abschließende Geräte- und Pilotabnahme erfolgt mit dem zusammengeführten Stand.
+## Abschließender Umfang
+
+Auslieferung über Android-APK/MagentaCloud und iPhone-Web-App. Keine Mannschaftskasse, keine Google-Play-Veröffentlichung und keine weiteren Tests. Native Apple-Veröffentlichung bleibt optional. Nicht durchgeführte Prüfungen werden nicht nachträglich als bestanden ausgewiesen.
