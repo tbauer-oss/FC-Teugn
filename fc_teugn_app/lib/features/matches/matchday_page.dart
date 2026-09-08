@@ -3962,7 +3962,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
         ...widget.match.teamFormationOptions,
         ...widget.match.gameFormat.formations,
         _formation,
-      }.toList();
+      }
+          .where((f) => isValidFormation(f, _fieldSize,
+              hasGoalkeeper: widget.match.gameFormat.hasGoalkeeper))
+          .toList();
   List<MatchPlayer> get _confirmedPlayers =>
       widget.match.squad?.members
           .where(
@@ -4013,6 +4016,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
 
   List<LineupPositionModel> _initialPositions() {
     return planInitialLineup(
+      hasGoalkeeper: widget.match.gameFormat.hasGoalkeeper,
       players: _confirmedPlayers,
       fieldSize: _fieldSize,
       formation: _formation,
@@ -4034,6 +4038,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     setState(() {
       _formation = formation;
       _positions = planInitialLineup(
+        hasGoalkeeper: widget.match.gameFormat.hasGoalkeeper,
         players: starters.isEmpty ? _confirmedPlayers : starters,
         fieldSize: _fieldSize,
         formation: formation,
@@ -4105,6 +4110,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                       ? null
                       : () => setState(() {
                             _positions = planInitialLineup(
+                              hasGoalkeeper:
+                                  widget.match.gameFormat.hasGoalkeeper,
                               players: _confirmedPlayers,
                               fieldSize: _fieldSize,
                               formation: _formation,
@@ -4185,6 +4192,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                               ? null
                               : () => setState(() {
                                     _positions = planInitialLineup(
+                                      hasGoalkeeper:
+                                          widget.match.gameFormat.hasGoalkeeper,
                                       players: _confirmedPlayers,
                                       fieldSize: _fieldSize,
                                       formation: _formation,
@@ -4807,6 +4816,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                     positionCode,
                     ...lineupPositionCodes,
                   }
+                      .where((code) =>
+                          widget.match.gameFormat.hasGoalkeeper || code != 'TW')
                       .map(
                         (code) => DropdownMenuItem(
                           value: code,
@@ -4828,8 +4839,9 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Torhüter'),
                   value: isGoalkeeper,
-                  onChanged: (value) =>
-                      setDialogState(() => isGoalkeeper = value),
+                  onChanged: widget.match.gameFormat.hasGoalkeeper
+                      ? (value) => setDialogState(() => isGoalkeeper = value)
+                      : null,
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -4923,7 +4935,9 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
   Future<void> _bringOntoField(MatchPlayer player) async {
     if (_positions.any((position) => position.player.id == player.id)) return;
     if (_positions.length < _fieldSize) {
-      final slots = lineupSlots(_fieldSize, formation: _formation);
+      final slots = lineupSlots(_fieldSize,
+          formation: _formation,
+          hasGoalkeeper: widget.match.gameFormat.hasGoalkeeper);
       final freeSlot = slots.firstWhere(
         (slot) => !_positions.any(
           (position) =>

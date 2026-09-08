@@ -1,3 +1,5 @@
+import '../../core/team_game_format.dart';
+import '../shared/match_game_format_field.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -236,6 +238,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                           notes: draft.notes,
                           ourGoals: draft.ourGoals,
                           theirGoals: draft.theirGoals,
+                          gameFormat: draft.gameFormat,
                           periodCount: draft.periodCount,
                           periodMinutes: draft.periodMinutes,
                           opponentId: draft.opponentId,
@@ -1030,6 +1033,8 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
     final team = organization?.teams
         .where((item) => item.id == event.teamId)
         .firstOrNull;
+    var gameFormat =
+        details?.gameFormat ?? team?.gameFormat ?? TeamGameFormat.football7;
     final ageGroupId = team?.ageGroup.id;
     var opponents = ageGroupId == null
         ? <OpponentModel>[]
@@ -1163,6 +1168,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                   notes: notes.text.trim(),
                   ourGoals: int.tryParse(ourGoals.text),
                   theirGoals: int.tryParse(theirGoals.text),
+                  gameFormat: gameFormat,
                   periodCount: count,
                   periodMinutes: minutes,
                   reminder24hEnabled: reminder24hEnabled,
@@ -1399,9 +1405,20 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
               ),
               const SizedBox(height: 14),
               ResponsiveFormSection(
-                title: 'Spielzeit',
+                title: 'Spielform & Spielzeit',
                 icon: Icons.timer_outlined,
                 children: [
+                  MatchGameFormatField(
+                    ageGroupCode: team?.ageGroup.code ?? 'E',
+                    value: gameFormat,
+                    onChanged: (value) => setState(() {
+                      gameFormat = value;
+                      final defaults =
+                          bfvMatchDefaults(team?.ageGroup.code ?? 'E', value);
+                      periodCount.text = '${defaults.periodCount}';
+                      periodMinutes.text = '${defaults.periodMinutes}';
+                    }),
+                  ),
                   ResponsiveFormRow(
                     children: [
                       TextField(
@@ -3462,6 +3479,7 @@ class _MatchDraft {
     required this.isHome,
     required this.competition,
     required this.notes,
+    required this.gameFormat,
     required this.periodCount,
     required this.periodMinutes,
     required this.reminder24hEnabled,
@@ -3474,6 +3492,7 @@ class _MatchDraft {
   final bool isHome;
   final String competition;
   final String notes;
+  final TeamGameFormat gameFormat;
   final int periodCount;
   final int periodMinutes;
   final bool reminder24hEnabled;

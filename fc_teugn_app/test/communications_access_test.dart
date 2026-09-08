@@ -20,6 +20,15 @@ class _CommunicationRepository extends DataRepository {
   String? sentContactParentId;
   String? sentContactTeamId;
   String? sentContactMessage;
+  bool contactDeleted = false;
+  bool? deletedConversation;
+
+  @override
+  Future<void> deleteFamilyContact(String id,
+      {bool conversation = false}) async {
+    contactDeleted = id == 'message-1';
+    deletedConversation = conversation;
+  }
 
   @override
   Future<FamilyContactInbox> familyContacts() async => FamilyContactInbox(
@@ -37,20 +46,21 @@ class _CommunicationRepository extends DataRepository {
           ),
         ],
         messages: [
-          FamilyContactMessage(
-            id: 'message-1',
-            conversationId: 'thread.parent.team-e1',
-            teamId: 'team-e1',
-            teamName: 'E1-Jugend',
-            senderId: 'parent-1',
-            senderName: 'Familie Muster',
-            senderIsStaff: false,
-            sentByMe: true,
-            message: 'Max kommt heute etwas später.',
-            createdAt: DateTime(2026, 8, 18, 8),
-            expiresAt: DateTime(2026, 9, 17, 8),
-            isRead: true,
-          ),
+          if (!contactDeleted)
+            FamilyContactMessage(
+              id: 'message-1',
+              conversationId: 'thread.parent.team-e1',
+              teamId: 'team-e1',
+              teamName: 'E1-Jugend',
+              senderId: 'parent-1',
+              senderName: 'Familie Muster',
+              senderIsStaff: false,
+              sentByMe: true,
+              message: 'Max kommt heute etwas später.',
+              createdAt: DateTime(2026, 8, 18, 8),
+              expiresAt: DateTime(2026, 9, 17, 8),
+              isRead: true,
+            ),
         ],
       );
 
@@ -200,6 +210,35 @@ OrganizationContext _organization() {
 }
 
 void main() {
+  for (final conversation in [false, true]) {
+    testWidgets(
+        'trainer deletes ${conversation ? 'conversation' : 'message'} for all at 320 px',
+        (tester) async {
+      final repository = _CommunicationRepository();
+      await tester.binding.setSurfaceSize(const Size(320, 720));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_page(staffView: true, repository: repository));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Direktkontakt'));
+      await tester.tap(find.text('Direktkontakt'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(
+          const ValueKey('family-contact-thread-thread.parent.team-e1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(conversation
+          ? 'Unterhaltung für alle löschen'
+          : 'Nachricht für alle löschen'));
+      await tester.pumpAndSettle();
+      expect(repository.contactDeleted, isFalse);
+      await tester.tap(find.widgetWithText(FilledButton, 'Für alle löschen'));
+      await tester.pumpAndSettle();
+      expect(repository.contactDeleted, isTrue);
+      expect(repository.deletedConversation, conversation);
+      expect(find.byKey(const ValueKey('family-contact-message-message-1')),
+          findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
   for (final width in const [320.0, 390.0, 430.0, 673.0, 841.0]) {
     testWidgets('announcement composer stays usable at $width px',
         (tester) async {

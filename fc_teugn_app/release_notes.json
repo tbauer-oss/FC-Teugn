@@ -1,4 +1,10 @@
 {
+  "1.7.7+192": [
+    "Trainer können Direktnachrichten oder ganze Unterhaltungen für alle Beteiligten löschen, einschließlich privater Anhänge.",
+    "Die Spielform lässt sich beim Anlegen und Bearbeiten pro Spiel auswählen. Aufstellung und Autopilot berücksichtigen die Spielerzahl und Spielformen ohne Torwart.",
+    "Die App bietet eine direkte Updatesuche unter Installation & Updates. Beim Aktualisieren der Übersicht wird im Hintergrund mitgeprüft.",
+    "Die Web-App meldet neue Versionen und bietet das Neuladen an. Android-Updates bleiben direkt über den Vereinsdownload in MagentaCLOUD verfügbar."
+  ],
   "1.7.6+191": [
     "Bei aktivierten Liveticker-Pushnachrichten erscheinen Anpfiff, Tore und Abpfiff auf Android wieder als eigene Ereignismeldungen mit Benachrichtigungston.",
     "Die laufende Spielstandsanzeige bleibt ruhig. Doppelt zugestellte Ereignisse lösen keinen erneuten Ton aus; ein Tipp auf die Meldung öffnet das zugehörige Spiel.",

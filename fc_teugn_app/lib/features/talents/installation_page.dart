@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/pwa_install.dart';
 import 'talents_widgets.dart';
+import '../shared/app_update_check.dart';
 
 class InstallationPage extends StatefulWidget {
   const InstallationPage({super.key, this.invitationToken});
@@ -27,6 +28,8 @@ class _InstallationPageState extends State<InstallationPage> {
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            const AppUpdateCheckButton(),
+                            const SizedBox(height: 12),
                             Text('Deine Mannschaft. Direkt auf deinem Handy.',
                                 style:
                                     Theme.of(context).textTheme.headlineSmall),

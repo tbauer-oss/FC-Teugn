@@ -1,4 +1,8 @@
 enum TeamGameFormat {
+  football2('FOOTBALL_2', 2, 'Fußball 2', '2 gegen 2'),
+  football4Mini(
+      'FOOTBALL_4_MINI', 4, 'Fußball 4 · Minitore', '4 gegen 4 ohne Torwart'),
+  football6('FOOTBALL_6', 6, 'Fußball 6', '6 gegen 6'),
   football3('FOOTBALL_3', 3, 'Fußball 3', '3 gegen 3'),
   football4('FOOTBALL_4', 4, 'Fußball 4', '4 gegen 4'),
   football5('FOOTBALL_5', 5, 'Fußball 5', '5 gegen 5'),
@@ -20,10 +24,15 @@ enum TeamGameFormat {
 
   String get label => '$name · $strength';
 
+  bool get hasGoalkeeper => playerCount > 3 && this != football4Mini;
+
   String get defaultFormation => formations.first;
 
   List<String> get formations => switch (this) {
-        TeamGameFormat.football3 => const ['1-1', '2-0', '1-1-0'],
+        TeamGameFormat.football2 => const ['1-1', '2-0'],
+        TeamGameFormat.football3 => const ['1-2', '2-1'],
+        TeamGameFormat.football4Mini => const ['2-2', '1-2-1'],
+        TeamGameFormat.football6 => const ['2-2-1', '1-3-1'],
         TeamGameFormat.football4 => const ['1-2', '2-1', '1-1-1'],
         TeamGameFormat.football5 => const ['1-2-1', '2-2', '1-1-2'],
         TeamGameFormat.football7 => const ['2-3-1', '3-2-1', '3-3'],
@@ -49,22 +58,26 @@ TeamGameFormat suggestedGameFormat(String ageGroupCode) =>
 
 List<TeamGameFormat> gameFormatsForAgeGroup(String ageGroupCode) =>
     switch (ageGroupCode.toUpperCase()) {
-      'G' => const [TeamGameFormat.football3],
+      'G' => const [TeamGameFormat.football2, TeamGameFormat.football3],
       'F' => const [
+          TeamGameFormat.football4Mini,
           TeamGameFormat.football3,
           TeamGameFormat.football4,
           TeamGameFormat.football5,
         ],
       'E' => const [
+          TeamGameFormat.football4Mini,
           TeamGameFormat.football4,
           TeamGameFormat.football5,
           TeamGameFormat.football7,
         ],
       'D' => const [
+          TeamGameFormat.football6,
           TeamGameFormat.football7,
           TeamGameFormat.football9,
         ],
-      'C' => const [
+      'A' || 'B' || 'C' => const [
+          TeamGameFormat.football7,
           TeamGameFormat.football9,
           TeamGameFormat.football11,
         ],
@@ -72,7 +85,7 @@ List<TeamGameFormat> gameFormatsForAgeGroup(String ageGroupCode) =>
     };
 
 const bfvRulesSourceLabel =
-    'BFV Jugendordnung (16.07.2026) / Minifußball-Richtlinie (17.04.2026)';
+    'BFV Jugendordnung / Kleinfeld (16.07.2026) / Minifußball (17.04.2026)';
 
 class BfvMatchDefaults {
   const BfvMatchDefaults({
@@ -124,7 +137,7 @@ BfvMatchDefaults bfvMatchDefaults(
         : const BfvMatchDefaults(
             periodCount: 2,
             periodMinutes: 30,
-            description: 'D-Junioren 9 gegen 9',
+            description: 'D-Junioren im Kleinfeld',
           );
   }
   if (format == TeamGameFormat.football7) {
@@ -141,14 +154,16 @@ BfvMatchDefaults bfvMatchDefaults(
       description: 'Fußball 5',
     );
   }
-  if (format == TeamGameFormat.football4) {
+  if (format == TeamGameFormat.football4 ||
+      format == TeamGameFormat.football4Mini) {
     return const BfvMatchDefaults(
       periodCount: 5,
       periodMinutes: 10,
       description: 'Fußball 4',
     );
   }
-  if (format == TeamGameFormat.football3) {
+  if (format == TeamGameFormat.football3 ||
+      format == TeamGameFormat.football2) {
     return const BfvMatchDefaults(
       periodCount: 5,
       periodMinutes: 7,

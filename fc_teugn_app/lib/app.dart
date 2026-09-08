@@ -46,13 +46,12 @@ import 'features/help/help_page.dart';
 import 'features/support/support_page.dart';
 import 'features/shared/family_responses.dart';
 import 'features/launch/animated_launch_screen.dart';
-import 'features/shared/app_update_dialog.dart';
+import 'features/shared/app_update_check.dart';
 import 'core/models/communication.dart';
 import 'core/models/user.dart';
 import 'core/app_identity.dart';
 import 'core/app_theme.dart';
 import 'core/app_theme_controller.dart';
-import 'core/app_update/app_update_service.dart';
 import 'core/providers.dart';
 import 'core/loading/loading_widgets.dart';
 import 'core/push/initial_push_prompt.dart';
@@ -210,15 +209,9 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
     _startupPromptsScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
-        final update = await appUpdateService.checkForUpdate();
-        if (!mounted || update == null) return;
         final updateContext = _rootNavigatorKey.currentContext;
         if (updateContext == null || !updateContext.mounted) return;
-        await showDialog<void>(
-          context: updateContext,
-          barrierDismissible: !update.mandatory,
-          builder: (_) => AppUpdateDialog(manifest: update),
-        );
+        await checkAppUpdates(updateContext);
       } catch (_) {
         // Die Update-Prüfung läuft bewusst im Hintergrund. Ein kurzzeitig
         // nicht erreichbarer Update-Speicher darf den App-Start nie stören.

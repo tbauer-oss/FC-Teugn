@@ -21,11 +21,14 @@ List<LineupPositionModel> planInitialLineup({
   required List<MatchPlayer> players,
   required int fieldSize,
   String? formation,
+  bool? hasGoalkeeper,
   List<(double, double, String)>? slotLayout,
   Map<String, int> playerPriority = const {},
 }) {
   final available = players.toList();
-  final slots = slotLayout ?? lineupSlots(fieldSize, formation: formation);
+  final slots = slotLayout ??
+      lineupSlots(fieldSize,
+          formation: formation, hasGoalkeeper: hasGoalkeeper);
   final assigned = List<MatchPlayer?>.filled(slots.length, null);
   final planned = <LineupPositionModel>[];
 
@@ -178,9 +181,23 @@ int? lineupPositionBand(String? rawPosition) {
 List<(double, double, String)> lineupSlots(
   int fieldSize, {
   String? formation,
+  bool? hasGoalkeeper,
 }) {
-  final formationSlots = _formationSlots(fieldSize, formation);
+  final keeper = hasGoalkeeper ?? fieldSize > 3;
+  final formationSlots =
+      _formationSlots(fieldSize, formation, hasGoalkeeper: keeper);
   if (formationSlots != null) return formationSlots;
+  if (!keeper) {
+    return _formationSlots(
+        fieldSize,
+        fieldSize == 2
+            ? '1-1'
+            : fieldSize == 3
+                ? '1-2'
+                : '2-2',
+        hasGoalkeeper: false)!;
+  }
+  if (fieldSize == 6) return _formationSlots(6, '2-2-1', hasGoalkeeper: true)!;
   return switch (fieldSize) {
     3 => const [
         (.5, .88, 'TW'),
@@ -238,11 +255,13 @@ List<(double, double, String)> lineupSlots(
 
 List<(double, double, String)>? _formationSlots(
   int fieldSize,
-  String? formation,
-) {
-  final rows = formationRows(formation, fieldSize);
+  String? formation, {
+  required bool hasGoalkeeper,
+}) {
+  final rows =
+      formationRows(formation, fieldSize, hasGoalkeeper: hasGoalkeeper);
   if (rows == null) return null;
-  final result = <(double, double, String)>[(.5, .92, 'TW')];
+  final result = <(double, double, String)>[if (hasGoalkeeper) (.5, .92, 'TW')];
   for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) {
     final count = rows[rowIndex];
     final progress = rows.length == 1 ? .5 : rowIndex / (rows.length - 1);
@@ -273,20 +292,23 @@ String formationName(String baseFormation, String? suffix) {
 
 /// Parses a tactical formation such as `2-3-1` for the requested team size.
 /// Zero rows remain valid for the existing mini-football presets (`2-0`).
-List<int>? formationRows(String? formation, int fieldSize) {
+List<int>? formationRows(String? formation, int fieldSize,
+    {bool? hasGoalkeeper}) {
   final value = baseFormationOf(formation);
   if (value == null) return null;
   final rawRows = value.split('-').map(int.parse).toList();
   if (rawRows.every((count) => count == 0) ||
       rawRows.any((count) => count < 0 || count > 6) ||
-      rawRows.fold<int>(0, (sum, count) => sum + count) != fieldSize - 1) {
+      rawRows.fold<int>(0, (sum, count) => sum + count) !=
+          fieldSize - ((hasGoalkeeper ?? fieldSize > 3) ? 1 : 0)) {
     return null;
   }
   return rawRows.where((count) => count > 0).toList();
 }
 
-bool isValidFormation(String? formation, int fieldSize) =>
-    formationRows(formation, fieldSize) != null;
+bool isValidFormation(String? formation, int fieldSize,
+        {bool? hasGoalkeeper}) =>
+    formationRows(formation, fieldSize, hasGoalkeeper: hasGoalkeeper) != null;
 
 List<String> _positionCodesForRow(int count, int row, int rowCount) {
   final isDefence = row == 0;

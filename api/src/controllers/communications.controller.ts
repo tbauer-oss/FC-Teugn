@@ -17,7 +17,7 @@ import {
   contextualTeamIds,
   type TeamScopedUser,
 } from '../services/team-access';
-import { notifyUsers } from '../services/notification.service';
+import { notifyUsers, queueUserNotifications, deliverQueuedPushes } from '../services/notification.service';
 import { mediaAssetUrl } from '../services/media-access';
 import { objectStorage } from '../services/object-storage';
 import {
@@ -343,6 +343,8 @@ export async function sendFamilyContact(req: Request, res: Response) {
   const entityType = `${familyContactEntityPrefix}${user.id}`;
   const dedupeKey = `family-contact:${messageId}`;
   const actionUrl = '/messages?section=contact';
+  const recipientIds = recipients.filter((id) => id !== user.id);
+  let queued: Awaited<ReturnType<typeof queueUserNotifications>> | undefined;
   let stored: Awaited<ReturnType<typeof objectStorage.uploadPrivate>> | null = null;
   if (req.file) {
     const extension = req.file.originalname
@@ -357,6 +359,7 @@ export async function sendFamilyContact(req: Request, res: Response) {
   }
   try {
     await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${conversationId}))`;
       if (req.file && stored) {
         const asset = await tx.fileAsset.create({
           data: {
@@ -397,26 +400,26 @@ export async function sendFamilyContact(req: Request, res: Response) {
           dedupeKey: `${dedupeKey}:${user.id}`,
         },
       });
-    });
+      queued = await queueUserNotifications(recipientIds, {
+        category: NotificationCategory.ANNOUNCEMENT,
+        title: senderIsParent
+          ? `Elternnachricht · ${sender?.name || 'Elternteil'}`
+          : `Trainerteam · ${sender?.name || 'Trainerteam'}`,
+        body: notificationBody,
+        actionUrl,
+        entityType,
+        entityId: conversationId,
+        expiresAt,
+        pushEnabled: true,
+        forceInApp: true,
+        dedupeKey,
+      }, tx);
+    }, { timeout: 30000 });
   } catch (error) {
     if (stored) await objectStorage.delete(stored.pathname).catch(() => undefined);
     throw error;
   }
-  const recipientIds = recipients.filter((id) => id !== user.id);
-  await notifyUsers(recipientIds, {
-    category: NotificationCategory.ANNOUNCEMENT,
-    title: senderIsParent
-      ? `Elternnachricht · ${sender?.name || 'Elternteil'}`
-      : `Trainerteam · ${sender?.name || 'Trainerteam'}`,
-    body: notificationBody,
-    actionUrl,
-    entityType,
-    entityId: conversationId,
-    expiresAt,
-    pushEnabled: true,
-    forceInApp: true,
-    dedupeKey,
-  });
+  if (queued) await deliverQueuedPushes(queued.deliveryIds);
   return res.status(201).json({
     conversationId,
     expiresAt,
@@ -429,6 +432,53 @@ export async function sendFamilyContact(req: Request, res: Response) {
         }
       : null,
   });
+}
+
+/** Deletes every recipient copy, its delivery records (cascade) and private files. */
+export async function deleteFamilyContact(req: Request, res: Response) {
+  const user = req.user!;
+  if (!isStaffRole(String(user.role))) {
+    return res.status(403).json({ message: 'Nur das Trainerteam darf Direktnachrichten für alle löschen.' });
+  }
+  const teamIds = await familyContactTeamIds(user);
+  const notification = await prisma.notification.findFirst({
+    where: {
+      id: String(req.params.id),
+      userId: user.id,
+      entityType: { startsWith: familyContactEntityPrefix },
+    },
+  });
+  const conversation = familyContactConversation(notification?.entityId);
+  const messageId = familyContactMessageId(notification?.dedupeKey);
+  if (!notification || !conversation || !messageId || !teamIds.includes(conversation.teamId)) {
+    return res.status(404).json({ message: 'Direktnachricht nicht gefunden.' });
+  }
+  const wholeConversation = req.query.conversation === 'true';
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${conversation.id}))`;
+    const attachments = await tx.familyContactAttachment.findMany({
+      where: {
+        conversationId: conversation.id,
+        ...(wholeConversation ? {} : { messageId }),
+      },
+      select: { id: true, fileAssetId: true, fileAsset: { select: { pathname: true } } },
+    });
+    // A storage outage must not produce a false "fully deleted" result or lose
+    // the metadata needed to retry deletion of the private object.
+    for (const attachment of attachments) {
+      await objectStorage.delete(attachment.fileAsset.pathname);
+    }
+    await tx.familyContactAttachment.deleteMany({ where: { id: { in: attachments.map((a) => a.id) } } });
+    await tx.fileAsset.deleteMany({ where: { id: { in: attachments.map((a) => a.fileAssetId) } } });
+    await tx.notification.deleteMany({
+      where: {
+        entityType: { startsWith: familyContactEntityPrefix },
+        entityId: conversation.id,
+        ...(wholeConversation ? {} : { dedupeKey: { startsWith: `family-contact:${messageId}:` } }),
+      },
+    });
+  }, { timeout: 30000 });
+  return res.status(204).send();
 }
 
 const announcementInclude = {

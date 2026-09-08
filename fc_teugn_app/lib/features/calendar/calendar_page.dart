@@ -1,3 +1,5 @@
+import '../../core/team_game_format.dart';
+import '../shared/match_game_format_field.dart';
 import '../carpool/carpool_section.dart';
 import 'dart:async';
 
@@ -5193,6 +5195,15 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   late final TextEditingController address;
   late final TextEditingController mapUrl;
   late final TextEditingController opponent;
+  late TeamGameFormat gameFormat;
+  String get formatAgeCode =>
+      widget.teams
+          .where((team) => team.id == teamIds.firstOrNull)
+          .firstOrNull
+          ?.ageGroup
+          .code ??
+      opponentAgeGroup?.code ??
+      'E';
   late final TextEditingController periodCount;
   late final TextEditingController periodMinutes;
   late final TextEditingController venue;
@@ -5269,6 +5280,15 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     opponent = TextEditingController(text: event?.opponent);
     selectedOpponentId = event?.matchDetails?.opponentId;
     selectedOpponentName = selectedOpponentId == null ? null : event?.opponent;
+    gameFormat = event?.matchDetails?.gameFormat ??
+        initialTeam?.gameFormat ??
+        TeamGameFormat.football7;
+    if (event == null &&
+        initialTeam != null &&
+        !gameFormatsForAgeGroup(initialTeam.ageGroup.code)
+            .contains(gameFormat)) {
+      gameFormat = suggestedGameFormat(initialTeam.ageGroup.code);
+    }
     periodCount = TextEditingController(
       text: (event?.matchDetails?.periodCount ?? initialTeam?.periodCount ?? 2)
           .toString(),
@@ -5979,6 +5999,21 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                           },
                         ),
                         const SizedBox(height: 12),
+                        MatchGameFormatField(
+                          ageGroupCode: formatAgeCode,
+                          value: gameFormat,
+                          onChanged: (value) {
+                            setState(() {
+                              gameFormat = value;
+                              final defaults =
+                                  bfvMatchDefaults(formatAgeCode, value);
+                              periodCount.text = '${defaults.periodCount}';
+                              periodMinutes.text = '${defaults.periodMinutes}';
+                            });
+                            _refreshPitchConflicts();
+                          },
+                        ),
+                        const SizedBox(height: 12),
                         ResponsiveFormRow(
                           breakpoint: 620,
                           children: [
@@ -6087,6 +6122,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                       category.isMatch &&
                                       selected &&
                                       teamIds.length == 1) {
+                                    gameFormat = team.gameFormat;
                                     periodCount.text =
                                         team.periodCount.toString();
                                     periodMinutes.text =
@@ -6830,6 +6866,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         homeAway: homeAway,
         opponent: _optional(opponent),
         opponentId: selectedOpponentId,
+        gameFormat: category.isMatch ? gameFormat : null,
         periodCount: matchPeriodCount,
         periodMinutes: matchPeriodMinutes,
         venue: _usesClubPitch ? selectedPitch : _optional(venue),

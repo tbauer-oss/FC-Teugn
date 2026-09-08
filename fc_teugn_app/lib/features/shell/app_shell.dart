@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../shared/app_update_check.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_identity.dart';
@@ -142,6 +144,7 @@ class AppShell extends ConsumerWidget {
 
   Future<void> _refreshApp(WidgetRef ref) async {
     ref.read(manualDataRefreshProvider.notifier).state++;
+    unawaited(checkAppUpdates(ref.context));
     // Active providers reload themselves through the generation signal. A
     // short minimum duration keeps the compact progress ring understandable
     // without blocking on unrelated APIs.

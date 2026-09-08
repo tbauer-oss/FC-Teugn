@@ -1,3 +1,5 @@
+import '../team_game_format.dart';
+
 enum EventType { training, match, event }
 
 enum EventCategory {
@@ -330,6 +332,7 @@ class MatchDetails {
     this.durationMinutes = 60,
     this.periodMinutes = 30,
     this.periodCount = 2,
+    this.gameFormat,
     this.competition,
     this.notes,
     this.ourGoals,
@@ -339,6 +342,7 @@ class MatchDetails {
     this.leagueId,
   });
 
+  final TeamGameFormat? gameFormat;
   final String opponent;
   final bool isHome;
   final int durationMinutes;
@@ -354,6 +358,9 @@ class MatchDetails {
 
   factory MatchDetails.fromJson(Map<String, dynamic> json) {
     return MatchDetails(
+      gameFormat: json['gameFormat'] == null
+          ? null
+          : TeamGameFormat.fromApi(json['gameFormat']),
       opponent: json['opponent'] as String? ?? 'Unbekannt',
       isHome: json['isHome'] as bool? ?? true,
       durationMinutes: json['durationMinutes'] as int? ?? 60,
@@ -1129,6 +1136,7 @@ class EventWriteData {
     this.homeAway,
     this.opponent,
     this.opponentId,
+    this.gameFormat,
     this.periodCount = 2,
     this.periodMinutes = 30,
     this.venue,
@@ -1168,6 +1176,7 @@ class EventWriteData {
   final HomeAway? homeAway;
   final String? opponent;
   final String? opponentId;
+  final TeamGameFormat? gameFormat;
   final int periodCount;
   final int periodMinutes;
   final String? venue;
@@ -1208,6 +1217,7 @@ class EventWriteData {
         'homeAway': homeAway?.apiName,
         'opponent': opponent,
         'opponentId': opponentId,
+        if (gameFormat != null) 'gameFormat': gameFormat!.apiValue,
         'periodCount': periodCount,
         'periodMinutes': periodMinutes,
         'durationMinutes': periodCount * periodMinutes,

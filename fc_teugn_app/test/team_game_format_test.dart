@@ -23,6 +23,7 @@ void main() {
     expect(
       gameFormatsForAgeGroup('E'),
       [
+        TeamGameFormat.football4Mini,
         TeamGameFormat.football4,
         TeamGameFormat.football5,
         TeamGameFormat.football7,

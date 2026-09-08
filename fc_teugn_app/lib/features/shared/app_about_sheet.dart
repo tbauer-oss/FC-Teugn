@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/app_identity.dart';
 import '../../core/app_theme.dart';
 import '../launch/animated_launch_screen.dart';
+import 'app_update_check.dart';
 
 Future<void> showAppAboutSheet(BuildContext context) {
   return showModalBottomSheet<void>(
@@ -60,6 +61,7 @@ class _AppAboutSheet extends StatelessWidget {
                 },
                 icon: const Icon(Icons.install_mobile),
                 label: const Text('Installation & Updates')),
+            const AppUpdateCheckButton(),
             const SizedBox(height: 18),
             Text(
               AppIdentity.name,

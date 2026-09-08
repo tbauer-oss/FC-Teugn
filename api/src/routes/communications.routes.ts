@@ -1,6 +1,7 @@
 import { asyncRouter } from '../middleware/async-handler';
 import {
   archiveAnnouncement,
+  deleteFamilyContact,
   getAnnouncement,
   listFamilyContacts,
   listAnnouncements,
@@ -27,6 +28,7 @@ router.use(requireApproved);
 router.use(idempotencyMiddleware);
 router.get('/family-contact', listFamilyContacts);
 router.post('/family-contact', familyContactUpload.single('file'), sendFamilyContact);
+router.delete('/family-contact/:id', deleteFamilyContact);
 router.get('/', listAnnouncements);
 router.get('/:id', getAnnouncement);
 router.post('/', requirePermission(Permission.SEND_ANNOUNCEMENTS), saveAnnouncement);

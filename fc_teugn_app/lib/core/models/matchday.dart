@@ -165,7 +165,9 @@ class MatchdayModel {
           )
           .toList(),
       playerPoolAgeGroupCode: json['playerPoolAgeGroupCode'] as String?,
-      gameFormat: TeamGameFormat.fromApi(json['teamGameFormat']),
+      gameFormat: TeamGameFormat.fromApi(
+          (json['matchDetails'] as Map<String, dynamic>?)?['gameFormat'] ??
+              json['teamGameFormat']),
       teamDefaultFormation: json['teamDefaultFormation'] as String?,
       teamFormationOptions:
           (json['teamFormationOptions'] as List<dynamic>? ?? const [])

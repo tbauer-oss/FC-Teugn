@@ -1,3 +1,4 @@
+import { prepareMatchGameFormat, resetLineupForGameFormat } from '../services/match-game-format';
 import { carpoolSummary, isOwnRidePerson } from '../services/carpool.service';
 import { attendanceAfterRevision } from '../services/attendance-revision';
 import { randomBytes, randomUUID } from 'crypto';
@@ -1787,6 +1788,8 @@ export async function createEvent(req: Request, res: Response) {
         },
       })
     : null;
+  const format = await prepareMatchGameFormat(singleMatch ? req.body.gameFormat : undefined, teamIds[0]);
+  if (format.error) return res.status(400).json({ message: format.error });
   const timing = singleMatch
     ? matchTiming(req.body, teamTiming ?? undefined)
     : null;
@@ -1988,6 +1991,7 @@ export async function createEvent(req: Request, res: Response) {
           isHome: data.homeAway !== HomeAway.AWAY,
           competition: competitionForCategory(data.category),
           pitch: data.venue,
+          gameFormat: format.gameFormat ?? undefined,
           ...timing,
         })),
       });
@@ -2123,6 +2127,8 @@ export async function updateEvent(req: Request, res: Response) {
     existing.teamId,
   );
   if (!targetTeamIds) return res.status(403).json({ message: 'Mannschaft nicht erlaubt.' });
+  const format = await prepareMatchGameFormat(singleMatch ? req.body.gameFormat : undefined, targetTeamIds[0]);
+  if (format.error) return res.status(400).json({ message: format.error });
   const participantSelectionProvided =
     Object.prototype.hasOwnProperty.call(req.body, 'participantPlayerIds') ||
     Object.prototype.hasOwnProperty.call(req.body, 'participantUserIds');
@@ -2231,6 +2237,7 @@ export async function updateEvent(req: Request, res: Response) {
           await syncEventParticipants(tx, occurrence.id, participants);
         }
         if (singleMatch && timing) {
+          await resetLineupForGameFormat(tx, occurrence.id, format.gameFormat);
           await tx.matchDetails.upsert({
             where: { eventId: occurrence.id },
             update: {
@@ -2241,6 +2248,7 @@ export async function updateEvent(req: Request, res: Response) {
                 existing.matchDetails?.competition ?? competitionForCategory(parsed.category),
               pitch: parsed.venue,
               ...timing,
+              gameFormat: format.gameFormat,
             },
             create: {
               eventId: occurrence.id,
@@ -2250,6 +2258,7 @@ export async function updateEvent(req: Request, res: Response) {
               competition: competitionForCategory(parsed.category),
               pitch: parsed.venue,
               ...timing,
+              gameFormat: format.gameFormat,
             },
           });
         } else if (isTournamentCategory(parsed.category)) {
@@ -2282,6 +2291,7 @@ export async function updateEvent(req: Request, res: Response) {
         await syncEventParticipants(tx, existing.id, participants);
       }
       if (singleMatch && timing) {
+        await resetLineupForGameFormat(tx, existing.id, format.gameFormat);
         await tx.matchDetails.upsert({
           where: { eventId: existing.id },
           update: {
@@ -2292,6 +2302,7 @@ export async function updateEvent(req: Request, res: Response) {
               existing.matchDetails?.competition ?? competitionForCategory(parsed.category),
             pitch: parsed.venue,
             ...timing,
+            gameFormat: format.gameFormat,
           },
           create: {
             eventId: existing.id,
@@ -2301,6 +2312,7 @@ export async function updateEvent(req: Request, res: Response) {
             competition: competitionForCategory(parsed.category),
             pitch: parsed.venue,
             ...timing,
+            gameFormat: format.gameFormat,
           },
         });
       } else if (isTournamentCategory(parsed.category)) {
@@ -3702,7 +3714,11 @@ export async function upsertMatchDetails(req: Request, res: Response) {
         'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).',
     });
   }
-  const details = await prisma.matchDetails.upsert({
+  const format = await prepareMatchGameFormat(req.body.gameFormat, targetTeamIds[0]);
+  if (format.error) return res.status(400).json({ message: format.error });
+  const details = await prisma.$transaction(async (tx) => {
+    await resetLineupForGameFormat(tx, event.id, format.gameFormat);
+    return tx.matchDetails.upsert({
     where: { eventId: event.id },
     update: {
       opponent: opponentName,
@@ -3713,6 +3729,7 @@ export async function upsertMatchDetails(req: Request, res: Response) {
       ourGoals,
       theirGoals,
       ...timing,
+      gameFormat: format.gameFormat,
     },
     create: {
       eventId: event.id,
@@ -3724,7 +3741,9 @@ export async function upsertMatchDetails(req: Request, res: Response) {
       ourGoals,
       theirGoals,
       ...timing,
+      gameFormat: format.gameFormat,
     },
+  });
   });
   const reminderMinutes = Array.isArray(req.body.reminderMinutes)
     ? req.body.reminderMinutes

@@ -140,6 +140,8 @@ MatchdayAutopilotPlan buildMatchdayAutopilotPlan({
   final savedPositions = match.squad?.lineup?.positions ?? const [];
   final playerIds = players.map((player) => player.id).toSet();
   final usableSaved = savedPositions.length == fieldSize &&
+      (match.gameFormat.hasGoalkeeper ||
+          savedPositions.every((p) => !p.isGoalkeeper)) &&
       savedPositions
           .every((position) => playerIds.contains(position.player.id));
   final positions = usableSaved
@@ -158,6 +160,7 @@ MatchdayAutopilotPlan buildMatchdayAutopilotPlan({
           )
           .toList()
       : planInitialLineup(
+          hasGoalkeeper: match.gameFormat.hasGoalkeeper,
           players: players,
           fieldSize: fieldSize,
           formation: formation,

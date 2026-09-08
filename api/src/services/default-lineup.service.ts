@@ -1,3 +1,4 @@
+import { gameFormatSize, gameFormatHasKeeper } from './match-game-format';
 import {
   AttendanceStatus,
   LineupStatus,
@@ -123,7 +124,7 @@ export function confirmedLineupCandidates<T extends { id: string }>(
 }
 
 export function fieldSizeForGameFormat(format: TeamGameFormat) {
-  return Number(String(format).replace('FOOTBALL_', '')) || 7;
+  return gameFormatSize(format);
 }
 
 export function shouldSyncTeamDefaultLineup(
@@ -151,6 +152,7 @@ export async function syncSquadWithTeamDefaultLineup(
     tx.team.findUnique({
       where: { id: teamId },
       select: {
+        gameFormat: true,
         defaultFormation: true,
         defaultLineupPositions: {
           orderBy: { sortOrder: 'asc' },
@@ -174,6 +176,7 @@ export async function syncSquadWithTeamDefaultLineup(
         },
         event: {
           select: {
+            matchDetails: { select: { gameFormat: true } },
             attendance: {
               where: { status: AttendanceStatus.YES },
               select: { playerId: true },
@@ -199,6 +202,10 @@ export async function syncSquadWithTeamDefaultLineup(
 
   if (!team || !squad || team.defaultLineupPositions.length === 0) return null;
   if (!shouldSyncTeamDefaultLineup(squad.lineup, force)) return null;
+  const effectiveFormat = squad.event.matchDetails?.gameFormat ?? team.gameFormat;
+  if (effectiveFormat !== team.gameFormat) return null;
+  if (!gameFormatHasKeeper(effectiveFormat) && team.defaultLineupPositions.some((p) => p.isGoalkeeper || p.positionCode === 'TW')) return null;
+  fieldSize = gameFormatSize(effectiveFormat);
 
   // Eine Aufstellung ist verbindlicher als der Kader: Auch bei einer
   // Stammformation dürfen ausschließlich ausdrücklich zugesagte Spieler auf

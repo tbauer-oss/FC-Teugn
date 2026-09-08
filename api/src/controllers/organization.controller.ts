@@ -1,3 +1,4 @@
+import { gameFormatHasKeeper } from '../services/match-game-format';
 import { createHash, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import {
@@ -130,13 +131,13 @@ export function baseFormationOf(value: string) {
   return match?.[1] ?? null;
 }
 
-export function validFormation(value: string, fieldSize: number) {
+export function validFormation(value: string, fieldSize: number, hasGoalkeeper = fieldSize > 3) {
   const baseFormation = baseFormationOf(value);
   if (!baseFormation) return false;
   const rows = baseFormation.split('-').map(Number);
   return rows.some((count) => count > 0) &&
     rows.every((count) => Number.isInteger(count) && count >= 0 && count <= 6) &&
-    rows.reduce((sum, count) => sum + count, 0) === fieldSize - 1;
+    rows.reduce((sum, count) => sum + count, 0) === fieldSize - (hasGoalkeeper ? 1 : 0);
 }
 
 type FormationTemplate = {
@@ -154,6 +155,7 @@ type FormationTemplate = {
 function formationTemplates(
   value: unknown,
   fieldSize: number,
+  hasGoalkeeper = fieldSize > 3,
 ): FormationTemplate[] | null {
   if (!Array.isArray(value) || value.length > 20) return null;
   const result: FormationTemplate[] = [];
@@ -166,7 +168,7 @@ function formationTemplates(
     const positions = Array.isArray(input.positions) ? input.positions : [];
     if (!name || !baseFormation || names.has(name) ||
         baseFormationOf(name) !== baseFormation ||
-        !validFormation(baseFormation, fieldSize) ||
+        !validFormation(baseFormation, fieldSize, hasGoalkeeper) ||
         positions.length !== fieldSize) {
       return null;
     }
@@ -200,8 +202,14 @@ function formationTemplates(
 
 function builtInFormations(gameFormat: TeamGameFormat) {
   switch (gameFormat) {
+    case TeamGameFormat.FOOTBALL_2:
+      return ['1-1', '2-0'];
     case TeamGameFormat.FOOTBALL_3:
-      return ['1-1', '2-0', '1-1-0'];
+      return ['1-2', '2-1'];
+    case TeamGameFormat.FOOTBALL_4_MINI:
+      return ['2-2', '1-2-1'];
+    case TeamGameFormat.FOOTBALL_6:
+      return ['2-2-1', '1-3-1'];
     case TeamGameFormat.FOOTBALL_4:
       return ['1-2', '2-1', '1-1-1'];
     case TeamGameFormat.FOOTBALL_5:
@@ -902,6 +910,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
     ? req.body.positions as Record<string, unknown>[]
     : [];
   const fieldSize = fieldSizeForGameFormat(team.gameFormat);
+  if (!gameFormatHasKeeper(team.gameFormat) && positions.some((p) => p.isGoalkeeper === true || p.positionCode === 'TW')) return res.status(400).json({ message: 'Diese Spielform wird ohne Torwart gespielt.' });
   if (positions.length > fieldSize) {
     return res.status(400).json({
       message: `Für diese Mannschaft sind höchstens ${fieldSize} Startspieler vorgesehen.`,
@@ -910,7 +919,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
   if (positions.length > 0 && !formation) {
     return res.status(400).json({ message: 'Bitte eine Formation auswählen.' });
   }
-  if (formation && !validFormation(formation, fieldSize)) {
+  if (formation && !validFormation(formation, fieldSize, gameFormatHasKeeper(team.gameFormat))) {
     return res.status(400).json({
       message: `Die Formation muss ${fieldSize - 1} Feldspieler enthalten.`,
     });
@@ -930,7 +939,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
     ...(formation && !standardFormations.has(formation) ? [formation] : []),
   ])];
   if (customFormations.length > 12 ||
-      customFormations.some((value) => !validFormation(value, fieldSize))) {
+      customFormations.some((value) => !validFormation(value, fieldSize, gameFormatHasKeeper(team.gameFormat)))) {
     return res.status(400).json({
       message: 'Bitte höchstens 12 gültige eigene Formationen speichern.',
     });
@@ -940,6 +949,7 @@ export async function updateTeamDefaultLineup(req: Request, res: Response) {
       ? team.formationTemplates
       : req.body.formationTemplates,
     fieldSize,
+    gameFormatHasKeeper(team.gameFormat),
   );
   const allowedFormationNames = new Set([
     ...standardFormations,

@@ -11,6 +11,7 @@ import '../../core/models/communication.dart';
 import '../../core/models/organization.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
+import '../../core/visible_refresh.dart';
 import '../../core/push/native_push_service.dart';
 import '../../core/push/push_client.dart';
 import '../../core/widgets/adaptive_layout.dart';
@@ -213,11 +214,28 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
   bool _loading = true;
   bool _sending = false;
   String? _activeConversationId;
+  final _inboxRevision = ValueNotifier<int>(0);
+  VisibleRefreshTimer? _refreshTimer;
+  bool _threadOpen = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _refreshTimer = VisibleRefreshTimer(const Duration(seconds: 30), () {
+      if (!_loading &&
+          !_sending &&
+          (_threadOpen || ModalRoute.of(context)?.isCurrent == true)) {
+        _load();
+      }
+    }, repeat: true);
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.dispose();
+    _inboxRevision.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -230,6 +248,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
         _error = null;
         _loading = false;
       });
+      _inboxRevision.value++;
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -420,6 +439,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                     staffView: widget.staffView,
                     retentionDays: inbox.retentionDays,
                     sending: _sending,
+                    onDelete: widget.staffView ? _deleteContact : null,
                     onSend: (draft) => _sendReply(
                       selected,
                       draft,
@@ -432,6 +452,55 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
           ),
       ],
     );
+  }
+
+  Future<bool> _deleteContact(
+      FamilyContactMessage message, bool conversation) async {
+    if (_sending) return false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(conversation
+            ? 'Unterhaltung für alle löschen?'
+            : 'Nachricht für alle löschen?'),
+        content: const Text(
+            'Texte und Anhänge werden für alle Beteiligten endgültig aus der App gelöscht. Dies lässt sich nicht rückgängig machen.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Für alle löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return false;
+    setState(() => _sending = true);
+    try {
+      await ref
+          .read(repositoryProvider)
+          .deleteFamilyContact(message.id, conversation: conversation);
+      await _load();
+      if (!mounted) return true;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Für alle gelöscht.')));
+      return true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Löschen fehlgeschlagen. Bitte erneut versuchen.')));
+      }
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() => _sending = false);
+        _inboxRevision.value++;
+      }
+    }
   }
 
   Future<void> _sendReply(
@@ -464,204 +533,57 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        setState(() => _sending = false);
+        _inboxRevision.value++;
+      }
     }
   }
 
   Future<void> _openThread(List<FamilyContactMessage> messages) async {
-    final replyController = TextEditingController();
-    var replyText = '';
-    PlatformFile? replyAttachment;
-    final reply = await showModalBottomSheet<_FamilyContactReplyDraft>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: context.appColors.canvas,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) => FractionallySizedBox(
-          heightFactor: .9,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
-                decoration: BoxDecoration(
-                  color: context.appColors.surface,
-                  border: Border(
-                    bottom: BorderSide(color: context.appColors.outline),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor: context.appColors.brandSoft,
-                      child: const Icon(
-                        Icons.forum_rounded,
-                        size: 19,
-                      ),
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.staffView
-                                ? _parentConversationTitle(messages)
-                                : 'Trainerteam · ${messages.first.teamName}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          Text(
-                            'Vollständige Löschung inkl. Sicherungen nach ${_inbox?.retentionDays ?? 30} Tagen',
-                            style: TextStyle(
-                              color: context.appSuccess,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Unterhaltung schließen',
-                      onPressed: () => Navigator.pop(sheetContext),
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
+    final conversationId = messages.first.conversationId;
+    _threadOpen = true;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: context.appColors.canvas,
+        builder: (sheetContext) => ValueListenableBuilder<int>(
+          valueListenable: _inboxRevision,
+          builder: (context, _, child) {
+            final current = _inbox?.messages
+                    .where((m) => m.conversationId == conversationId)
+                    .toList() ??
+                messages;
+            if (current.isEmpty) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (sheetContext.mounted) Navigator.pop(sheetContext);
+              });
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
+              child: FractionallySizedBox(
+                heightFactor: .9,
+                child: _FamilyContactThreadPane(
+                  messages: current,
+                  staffView: widget.staffView,
+                  retentionDays: _inbox?.retentionDays ?? 30,
+                  sending: _sending,
+                  onClose: () => Navigator.pop(sheetContext),
+                  onDelete: widget.staffView ? _deleteContact : null,
+                  onSend: (draft) => _sendReply(current, draft),
                 ),
               ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 5),
-                  reverse: true,
-                  itemCount: messages.length,
-                  itemBuilder: (context, reverseIndex) {
-                    final index = messages.length - reverseIndex - 1;
-                    return _FamilyContactBubble(message: messages[index]);
-                  },
-                ),
-              ),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.fromLTRB(10, 3, 10, 5),
-                child: Row(
-                  children: [
-                    for (final suggestion in const [
-                      'Danke für die Info!',
-                      'Alles klar 👍',
-                      'Ich melde mich später.',
-                    ]) ...[
-                      ActionChip(
-                        visualDensity: VisualDensity.compact,
-                        avatar: const Icon(Icons.bolt_rounded, size: 15),
-                        label: Text(suggestion),
-                        onPressed: () {
-                          replyController.text = suggestion;
-                          replyController.selection = TextSelection.collapsed(
-                            offset: suggestion.length,
-                          );
-                          setSheetState(() => replyText = suggestion);
-                        },
-                      ),
-                      const SizedBox(width: 5),
-                    ],
-                  ],
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.fromLTRB(
-                  10,
-                  7,
-                  8,
-                  8 + MediaQuery.viewInsetsOf(sheetContext).bottom,
-                ),
-                decoration: BoxDecoration(
-                  color: context.appColors.surface,
-                  border: Border(
-                    top: BorderSide(color: context.appColors.outline),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (replyAttachment != null)
-                      _PendingMessengerAttachment(
-                        file: replyAttachment!,
-                        onRemove: () =>
-                            setSheetState(() => replyAttachment = null),
-                      ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        IconButton(
-                          tooltip: 'Bild, Video, Audio oder PDF anhängen',
-                          onPressed: () async {
-                            final file = await _pickFamilyContactFile();
-                            if (file != null) {
-                              setSheetState(() => replyAttachment = file);
-                            }
-                          },
-                          icon: const Icon(Icons.add_circle_outline_rounded),
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: replyController,
-                            minLines: 1,
-                            maxLines: 4,
-                            maxLength: 2000,
-                            textCapitalization: TextCapitalization.sentences,
-                            onChanged: (value) =>
-                                setSheetState(() => replyText = value),
-                            decoration: const InputDecoration(
-                              hintText: 'Nachricht schreiben …',
-                              counterText: '',
-                              isDense: true,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        IconButton.filled(
-                          tooltip: 'Nachricht senden',
-                          onPressed: replyText.trim().isEmpty &&
-                                  replyAttachment == null
-                              ? null
-                              : () => Navigator.pop(
-                                    sheetContext,
-                                    _FamilyContactReplyDraft.fromFile(
-                                      message: replyText.trim(),
-                                      file: replyAttachment,
-                                    ),
-                                  ),
-                          icon: const Icon(Icons.send_rounded, size: 19),
-                        ),
-                      ],
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4, left: 48),
-                      child: Text(
-                        'Alles wird inkl. Sicherungen nach 30 Tagen vollständig gelöscht.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontSize: 10,
-                            ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
-      ),
-    );
-    replyController.dispose();
-    if (reply == null || !mounted) return;
-    await _sendReply(messages, reply);
+      );
+    } finally {
+      _threadOpen = false;
+    }
   }
 
   Future<void> _compose({
@@ -898,7 +820,10 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        setState(() => _sending = false);
+        _inboxRevision.value++;
+      }
     }
   }
 }
@@ -1013,13 +938,18 @@ class _FamilyContactThreadPane extends StatelessWidget {
     required this.retentionDays,
     required this.sending,
     required this.onSend,
+    this.onDelete,
+    this.onClose,
   });
 
   final List<FamilyContactMessage> messages;
+  final VoidCallback? onClose;
   final bool staffView;
   final int retentionDays;
   final bool sending;
   final Future<void> Function(_FamilyContactReplyDraft draft) onSend;
+  final Future<bool> Function(FamilyContactMessage message, bool conversation)?
+      onDelete;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -1051,7 +981,7 @@ class _FamilyContactThreadPane extends StatelessWidget {
                           style: const TextStyle(fontWeight: FontWeight.w900),
                         ),
                         Text(
-                          'Automatische vollständige Löschung inkl. Sicherungen nach $retentionDays Tagen',
+                          'Vollständige Löschung inkl. Sicherungen nach $retentionDays Tagen',
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: context.appSuccess,
@@ -1062,6 +992,19 @@ class _FamilyContactThreadPane extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (onDelete != null)
+                    IconButton(
+                      tooltip: 'Unterhaltung für alle löschen',
+                      onPressed: sending
+                          ? null
+                          : () => onDelete!(messages.first, true),
+                      icon: const Icon(Icons.delete_forever_outlined, size: 21),
+                    ),
+                  if (onClose != null)
+                    IconButton(
+                        tooltip: 'Unterhaltung schließen',
+                        onPressed: onClose,
+                        icon: const Icon(Icons.close_rounded)),
                   const Tooltip(
                     message:
                         'Texte, Bilder, Videos, Audiodateien und Dokumente werden vollständig gelöscht.',
@@ -1078,7 +1021,13 @@ class _FamilyContactThreadPane extends StatelessWidget {
                 itemCount: messages.length,
                 itemBuilder: (context, reverseIndex) {
                   final index = messages.length - reverseIndex - 1;
-                  return _FamilyContactBubble(message: messages[index]);
+                  return _FamilyContactBubble(
+                      message: messages[index],
+                      onDelete: onDelete == null || sending
+                          ? null
+                          : () async {
+                              await onDelete!(messages[index], false);
+                            });
                 },
               ),
             ),
@@ -1198,7 +1147,7 @@ class _FamilyContactComposerState extends State<_FamilyContactComposer> {
                 ),
                 const SizedBox(width: 6),
                 IconButton.filled(
-                  tooltip: 'Sicher senden',
+                  tooltip: 'Nachricht senden',
                   onPressed: widget.sending ||
                           (_controller.text.trim().isEmpty &&
                               _attachment == null)
@@ -1428,9 +1377,10 @@ class _FamilyContactThreadCard extends StatelessWidget {
 }
 
 class _FamilyContactBubble extends StatelessWidget {
-  const _FamilyContactBubble({required this.message});
+  const _FamilyContactBubble({required this.message, this.onDelete});
 
   final FamilyContactMessage message;
+  final Future<void> Function()? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1505,6 +1455,14 @@ class _FamilyContactBubble extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (onDelete != null)
+                      IconButton(
+                        tooltip: 'Nachricht für alle löschen',
+                        visualDensity: VisualDensity.compact,
+                        icon:
+                            const Icon(Icons.delete_outline_rounded, size: 17),
+                        onPressed: onDelete,
+                      ),
                     Text(
                       _contactTime(message.createdAt),
                       style: TextStyle(

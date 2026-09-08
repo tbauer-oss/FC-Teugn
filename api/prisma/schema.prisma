@@ -414,9 +414,12 @@ enum TeamGender {
 }
 
 enum TeamGameFormat {
+  FOOTBALL_2
   FOOTBALL_3
   FOOTBALL_4
+  FOOTBALL_4_MINI
   FOOTBALL_5
+  FOOTBALL_6
   FOOTBALL_7
   FOOTBALL_9
   FOOTBALL_11
@@ -1349,6 +1352,7 @@ model EventAttachment {
 }
 
 model MatchDetails {
+  gameFormat       TeamGameFormat?
   id                 String      @id @default(cuid())
   eventId            String      @unique
   kind               MatchKind   @default(FRIENDLY)

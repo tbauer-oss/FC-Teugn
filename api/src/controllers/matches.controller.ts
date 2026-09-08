@@ -1,3 +1,4 @@
+import { prepareMatchGameFormat, resetLineupForGameFormat, gameFormatSize, gameFormatHasKeeper } from '../services/match-game-format';
 import { attendanceAfterRevision } from '../services/attendance-revision';
 import { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
@@ -495,6 +496,7 @@ async function findMatchForSquadUpdate(
     select: {
       id: true,
       teamId: true,
+      matchDetails: { select: { gameFormat: true } },
       team: { select: { id: true, gameFormat: true } },
       targetTeams: {
         select: {
@@ -594,9 +596,9 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       ? match.attendance
       : match.attendance.filter((item) => viewerPlayerIds.includes(item.playerId)),
     teamGameFormat:
-      lineupTeam.gameFormat,
-    teamDefaultFormation: lineupTeam.defaultFormation,
-    teamFormationOptions: [...new Set([
+      match.matchDetails?.gameFormat ?? lineupTeam.gameFormat,
+    teamDefaultFormation: !match.matchDetails?.gameFormat || match.matchDetails.gameFormat === lineupTeam.gameFormat ? lineupTeam.defaultFormation : null,
+    teamFormationOptions: match.matchDetails?.gameFormat && match.matchDetails.gameFormat !== lineupTeam.gameFormat ? [] : [...new Set([
       ...(lineupTeam.defaultFormation ? [lineupTeam.defaultFormation] : []),
       ...lineupTeam.customFormations,
     ])],
@@ -720,8 +722,8 @@ function serializeMatchSummary<
     attendance: [],
     eligiblePlayers: [],
     playerRatings: undefined,
-    teamGameFormat: lineupTeam.gameFormat,
-    teamDefaultFormation: lineupTeam.defaultFormation,
+    teamGameFormat: match.matchDetails?.gameFormat ?? lineupTeam.gameFormat,
+    teamDefaultFormation: !match.matchDetails?.gameFormat || match.matchDetails.gameFormat === lineupTeam.gameFormat ? lineupTeam.defaultFormation : null,
     teamFormationOptions: [],
     playerPoolAgeGroupCode: match.team.ageGroup.code,
     capabilities: {
@@ -1422,6 +1424,8 @@ export async function updateMatch(req: Request, res: Response) {
         'Bitte 1–8 Spielabschnitte und 1–90 Minuten je Abschnitt angeben (maximal 180 Minuten insgesamt).',
     });
   }
+  const format = await prepareMatchGameFormat(body.gameFormat, match.targetTeams[0]?.team.id ?? match.teamId);
+  if (format.error) return res.status(400).json({ message: format.error });
   const durationMinutes = periodCount * periodMinutes;
   const isHome = body.isHome !== false;
   const location = normalizedMatchVenue({
@@ -1436,6 +1440,7 @@ export async function updateMatch(req: Request, res: Response) {
     ? text(body.meetingLocation, 160) ?? match.meetingLocation
     : text(body.meetingLocation, 160) ?? AWAY_MEETING_LOCATION;
   const details = await prisma.$transaction(async (tx) => {
+    await resetLineupForGameFormat(tx, match.id, format.gameFormat);
     const saved = await tx.matchDetails.upsert({
       where: { eventId: match.id },
       update: {
@@ -1451,6 +1456,7 @@ export async function updateMatch(req: Request, res: Response) {
         matchDay: text(body.matchDay, 50),
         pitch: text(body.pitch, 100),
         referee: text(body.referee, 100),
+        gameFormat: format.gameFormat,
         durationMinutes,
         periodMinutes,
         periodCount,
@@ -1472,6 +1478,7 @@ export async function updateMatch(req: Request, res: Response) {
         matchDay: text(body.matchDay, 50),
         pitch: text(body.pitch, 100),
         referee: text(body.referee, 100),
+        gameFormat: format.gameFormat,
         durationMinutes,
         periodMinutes,
         periodCount,
@@ -1897,11 +1904,7 @@ export async function updateSquad(req: Request, res: Response) {
     await syncSquadWithTeamDefaultLineup(tx, {
       teamId: match.targetTeams[0]?.team.id ?? match.team.id,
       squadId: saved.id,
-      fieldSize: Number(
-        String(
-          match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat,
-        ).replace('FOOTBALL_', ''),
-      ),
+      fieldSize: gameFormatSize(match.matchDetails?.gameFormat ?? match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat),
     });
     return tx.squad.findUnique({
       where: { id: saved.id },
@@ -2664,14 +2667,13 @@ export async function updateLineup(req: Request, res: Response) {
   if (!squad) return res.status(400).json({ message: 'Zuerst muss ein Kader gespeichert werden.' });
   const positions = Array.isArray(req.body?.positions) ? req.body.positions : [];
   const substitutions = Array.isArray(req.body?.substitutions) ? req.body.substitutions : [];
-  const fieldSize = Number(
-    String(
-      match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat,
-    ).replace('FOOTBALL_', ''),
-  );
+  const fieldSize = gameFormatSize(match.matchDetails?.gameFormat ?? match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat);
   const starters = positions.filter(
     (position: Record<string, unknown>) => position.isStarter !== false,
   );
+  if (!gameFormatHasKeeper(match.matchDetails?.gameFormat ?? match.targetTeams[0]?.team.gameFormat ?? match.team.gameFormat) && starters.some((p: Record<string, unknown>) => p.isGoalkeeper === true || p.positionCode === 'TW')) {
+    return res.status(400).json({ message: 'Diese Spielform wird ohne Torwart gespielt.' });
+  }
   if (starters.length > fieldSize) {
     return res.status(400).json({
       message: `Für diese Mannschaft sind höchstens ${fieldSize} Startspieler vorgesehen.`,

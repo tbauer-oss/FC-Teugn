@@ -112,6 +112,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
     }
     return lineupSlots(
       widget.team.gameFormat.playerCount,
+      hasGoalkeeper: widget.team.gameFormat.hasGoalkeeper,
       formation: template?.baseFormation ?? formation,
     );
   }
@@ -175,6 +176,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
     final planned = planInitialLineup(
       players: candidates.map(_matchPlayer).toList(),
       fieldSize: widget.team.gameFormat.playerCount,
+      hasGoalkeeper: widget.team.gameFormat.hasGoalkeeper,
       formation: targetFormation,
       slotLayout: slotLayout,
       playerPriority: captainId == null ? const {} : {captainId: -10000},
@@ -235,7 +237,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                   Text(
                     'Gib die Reihen vom eigenen Tor bis zum gegnerischen Tor '
                     'ein. Bei ${widget.team.gameFormat.strength} werden '
-                    '${widget.team.gameFormat.playerCount - 1} Feldspieler verteilt.',
+                    '${widget.team.gameFormat.playerCount - (widget.team.gameFormat.hasGoalkeeper ? 1 : 0)} Feldspieler verteilt.',
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
@@ -259,6 +261,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                       if (isValidFormation(
                         value,
                         widget.team.gameFormat.playerCount,
+                        hasGoalkeeper: widget.team.gameFormat.hasGoalkeeper,
                       )) {
                         Navigator.pop(
                           dialogContext,
@@ -266,7 +269,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                         );
                       } else {
                         setDialogState(() => errorText =
-                            'Die Summe muss ${widget.team.gameFormat.playerCount - 1} ergeben.');
+                            'Die Summe muss ${widget.team.gameFormat.playerCount - (widget.team.gameFormat.hasGoalkeeper ? 1 : 0)} ergeben.');
                       }
                     },
                   ),
@@ -297,9 +300,10 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
                   if (!isValidFormation(
                     value,
                     widget.team.gameFormat.playerCount,
+                    hasGoalkeeper: widget.team.gameFormat.hasGoalkeeper,
                   )) {
                     setDialogState(() => errorText =
-                        'Die Summe muss ${widget.team.gameFormat.playerCount - 1} ergeben.');
+                        'Die Summe muss ${widget.team.gameFormat.playerCount - (widget.team.gameFormat.hasGoalkeeper ? 1 : 0)} ergeben.');
                     return;
                   }
                   Navigator.pop(

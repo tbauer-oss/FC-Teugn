@@ -1718,8 +1718,10 @@ class DataRepository {
     required int periodMinutes,
     required bool reminder24hEnabled,
     String? opponentId,
+    TeamGameFormat? gameFormat,
   }) async {
     await client.dio.put('/events/$eventId/match-details', data: {
+      if (gameFormat != null) 'gameFormat': gameFormat.apiValue,
       'opponent': opponent,
       'opponentId': opponentId,
       'isHome': isHome,
@@ -2659,6 +2661,14 @@ class DataRepository {
     final response = await client.dio.get('/communications/family-contact');
     return FamilyContactInbox.fromJson(
       response.data as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> deleteFamilyContact(String id,
+      {bool conversation = false}) async {
+    await client.dio.delete(
+      '/communications/family-contact/${Uri.encodeComponent(id)}',
+      queryParameters: {'conversation': conversation},
     );
   }
 

@@ -192,6 +192,7 @@ export function iosPushMessage(token: string, notification: Parameters<typeof an
 export async function queueUserNotifications(
   userIds: string[],
   input: NotificationInput,
+  db: Prisma.TransactionClient = prisma,
 ): Promise<QueuedNotificationBatch> {
   const uniqueIds = [...new Set(userIds)];
   if (!uniqueIds.length) return {
@@ -201,10 +202,10 @@ export async function queueUserNotifications(
     deliveryIds: [],
   };
   const [preferences, subscriptions] = await Promise.all([
-    prisma.notificationPreference.findMany({
+    db.notificationPreference.findMany({
       where: { userId: { in: uniqueIds }, category: input.category },
     }),
-    prisma.pushSubscription.findMany({
+    db.pushSubscription.findMany({
       where: { userId: { in: uniqueIds }, isActive: true },
     }),
   ]);
@@ -239,7 +240,7 @@ export async function queueUserNotifications(
           return { notifications: 0, deliveries: 0, deliveryIds: [] as string[] };
         }
         const notification = input.dedupeKey
-          ? await prisma.notification.upsert({
+          ? await db.notification.upsert({
               where: { dedupeKey: `${input.dedupeKey}:${userId}` },
               update: {},
               create: {
@@ -255,7 +256,7 @@ export async function queueUserNotifications(
                 metadata: input.metadata,
               },
             })
-          : await prisma.notification.create({ data: {
+          : await db.notification.create({ data: {
               userId,
               category: input.category,
               title: input.title.slice(0, 160),
@@ -271,7 +272,7 @@ export async function queueUserNotifications(
         }
         const prepared = await Promise.all(
           (subscriptionsByUser.get(userId) ?? []).map(async (subscription) => {
-            const existingDelivery = await prisma.notificationDelivery.findUnique({
+            const existingDelivery = await db.notificationDelivery.findUnique({
               where: {
                 notificationId_subscriptionId: {
                   notificationId: notification.id,
@@ -280,7 +281,7 @@ export async function queueUserNotifications(
               },
               select: { id: true, status: true },
             });
-            const delivery = existingDelivery ?? await prisma.notificationDelivery.upsert({
+            const delivery = existingDelivery ?? await db.notificationDelivery.upsert({
               where: {
                 notificationId_subscriptionId: {
                   notificationId: notification.id,
