@@ -480,6 +480,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
     );
     if (confirmed != true || !mounted) return false;
     setState(() => _sending = true);
+    _inboxRevision.value++;
     try {
       await ref
           .read(repositoryProvider)
@@ -507,8 +508,11 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
     List<FamilyContactMessage> messages,
     _FamilyContactReplyDraft draft,
   ) async {
-    if (_sending || !mounted) return;
+    if (_sending || !mounted) {
+      throw StateError('Der Direktkontakt ist gerade beschäftigt.');
+    }
     setState(() => _sending = true);
+    _inboxRevision.value++;
     try {
       await ref.read(repositoryProvider).sendFamilyContact(
             message: draft.message,

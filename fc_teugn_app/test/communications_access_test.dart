@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:fc_teugn_app/core/api_client.dart';
@@ -22,11 +23,13 @@ class _CommunicationRepository extends DataRepository {
   String? sentContactMessage;
   bool contactDeleted = false;
   bool failContactSend = false;
+  Future<void>? contactDeleteWait;
   bool? deletedConversation;
 
   @override
   Future<void> deleteFamilyContact(String id,
       {bool conversation = false}) async {
+    await contactDeleteWait;
     contactDeleted = id == 'message-1';
     deletedConversation = conversation;
   }
@@ -212,6 +215,45 @@ OrganizationContext _organization() {
 }
 
 void main() {
+  testWidgets('pending mobile deletion disables sending and keeps the draft',
+      (tester) async {
+    final deletion = Completer<void>();
+    final repository = _CommunicationRepository()
+      ..contactDeleteWait = deletion.future;
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_page(staffView: true, repository: repository));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Direktkontakt'));
+    await tester.tap(find.text('Direktkontakt'));
+    await tester.pumpAndSettle();
+    await tester.tap(find
+        .byKey(const ValueKey('family-contact-thread-thread.parent.team-e1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'Mein Entwurf');
+    await tester.tap(find.byTooltip('Nachricht für alle löschen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Für alle löschen'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+        tester
+            .widget<IconButton>(find.byWidgetPredicate((widget) =>
+                widget is IconButton && widget.tooltip == 'Nachricht senden'))
+            .onPressed,
+        isNull);
+    expect(repository.sentContactMessage, isNull);
+    deletion
+        .completeError(Exception('Speicher vorübergehend nicht erreichbar'));
+    await tester.pumpAndSettle();
+    expect(
+        tester.widget<TextField>(find.byType(TextField).last).controller!.text,
+        'Mein Entwurf');
+    await tester.tap(find.byTooltip('Nachricht senden'));
+    await tester.pumpAndSettle();
+    expect(repository.sentContactMessage, 'Mein Entwurf');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('failed mobile reply preserves its draft for retry',
       (tester) async {
     final repository = _CommunicationRepository()..failContactSend = true;
