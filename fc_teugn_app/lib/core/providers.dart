@@ -426,8 +426,11 @@ final liveNotificationsProvider =
       refreshing = false;
     }
   }
+
   final timer = VisibleRefreshTimer(
-    const Duration(seconds: 60), () => unawaited(refresh()), repeat: true,
+    const Duration(seconds: 60),
+    () => unawaited(refresh()),
+    repeat: true,
   );
   ref.onCancel(timer.pause);
   ref.onResume(timer.resume);
