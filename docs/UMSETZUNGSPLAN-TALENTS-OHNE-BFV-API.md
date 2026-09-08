@@ -1,6 +1,6 @@
 # FC Teugn Talents – Umsetzungsplan ohne BFV-API
 
-Stand: 8. September 2026; ergänzt um den Implementierungsstand von 1.7.1+186.
+Stand: 8. September 2026; 1.7.1+186 ist veröffentlicht und öffentlich geprüft.
 
 Grundlage: Vergleichsbericht `APP-VERGLEICH-BFV-2026-09-07.md` und die anschließende Nutzeranweisung, die übrigen Verbesserungen professionell umzusetzen und zunächst die vollständige Änderungsliste zu liefern.
 

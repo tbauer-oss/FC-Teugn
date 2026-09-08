@@ -2,11 +2,11 @@
 
 Stand: 7. September 2026. App-Version: **1.7.0+185 ist veröffentlicht**. Web-App, Backend und Android-Vereinsdownload wurden nach vollständiger CI-Abnahme ausgeliefert und öffentlich geprüft. Details: [Veröffentlichungsnachweis](TALENTS-1.7-VEROEFFENTLICHUNG.md).
 
-Statuskorrektur vom 8. September 2026: **Der gesamte Umsetzungsplan ist noch nicht abgeschlossen.** Zusätzlich zur praktischen Abnahme fehlen die vollständige Verbindung der Lernziele mit bestehenden Entwicklungsdaten und die native iOS-Push-Implementierung. Der Vereinspilot wurde vorbereitet, aber nicht durchgeführt. Erfolgreiche automatisierte Prüfungen ersetzen diese offenen Schritte nicht.
+Historische Statuskorrektur vor 1.7.1, vom 8. September 2026: Der gesamte Umsetzungsplan war noch nicht abgeschlossen. Zusätzlich zur praktischen Abnahme fehlten die vollständige Verbindung der Lernziele mit bestehenden Entwicklungsdaten und die native iOS-Push-Implementierung. Beide Softwareteile wurden mit 1.7.1 ergänzt. Der Vereinspilot wurde vorbereitet, aber noch nicht durchgeführt. Erfolgreiche automatisierte Prüfungen ersetzen die praktische Abnahme nicht.
 
 Die Mannschaftskasse ist auf ausdrücklichen Wunsch vollständig ausgeschlossen. Es gibt dafür weder neue Seiten noch API-Endpunkte oder Datenbanktabellen. Ohne BFV-API bleiben offizielle Spielberichte, Spielberechtigungen und Festivalmeldungen im BFV-/SpielPLUS-System.
 
-Aktualisierung für 1.7.1+186: Die beiden fehlenden Softwareteile wurden inzwischen ergänzt, ebenso die kompakte Autopilot-Übersicht. Aktueller Prüf- und Veröffentlichungsstand: [Nacharbeit 1.7.1](TALENTS-1.7.1-ABNAHME.md). Die folgenden Tabellen und Nachweise dokumentieren weiterhin die vorherige Version 1.7.0+185.
+Aktualisierung für 1.7.1+186: Die beiden fehlenden Softwareteile und die kompakte Autopilot-Übersicht sind veröffentlicht. Aktueller Prüf- und Veröffentlichungsstand: [Abnahme 1.7.1](TALENTS-1.7.1-ABNAHME.md). Die folgenden Tabellen und Nachweise dokumentieren weiterhin die vorherige Version 1.7.0+185.
 
 ## Umgesetzte Bereiche
 
