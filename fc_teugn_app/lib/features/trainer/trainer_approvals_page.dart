@@ -413,6 +413,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: Icon(
           Icons.link_off_rounded,
           color: Theme.of(dialogContext).colorScheme.error,
@@ -507,6 +508,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Sicheren Zugangslink erstellen?'),
         content: Text(
           'Für ${user.name} wird ein einmal nutzbarer Link erstellt. '
@@ -621,6 +623,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         icon: const Icon(Icons.mark_email_unread_rounded),
         title: const Text('Push-Aktivierung per E-Mail erinnern?'),
         content: Text(
@@ -685,6 +688,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          scrollable: true,
           icon: Icon(
             Icons.delete_forever_rounded,
             color: Theme.of(context).colorScheme.error,
@@ -781,6 +785,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text(title),
         content: SizedBox(
           width: 520,
@@ -830,6 +835,7 @@ class TrainerApprovalsPage extends ConsumerWidget {
     return showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text('Registrierung · ${user.name}'),
         content: SizedBox(
           width: 650,
@@ -1127,6 +1133,7 @@ class _PendingListState extends State<_PendingList> {
                       SizedBox(
                         width: mobile ? double.infinity : 190,
                         child: DropdownButtonFormField<UserRole?>(
+                          itemHeight: null,
                           initialValue: _role,
                           isExpanded: true,
                           decoration: const InputDecoration(
@@ -1164,6 +1171,7 @@ class _PendingListState extends State<_PendingList> {
                         SizedBox(
                           width: mobile ? double.infinity : 220,
                           child: DropdownButtonFormField<String?>(
+                            itemHeight: null,
                             initialValue: _teamId,
                             isExpanded: true,
                             decoration: const InputDecoration(
@@ -1744,6 +1752,7 @@ class _MemberListState extends State<_MemberList> {
       SizedBox(
         width: width,
         child: DropdownButtonFormField<T>(
+          itemHeight: null,
           key: key,
           initialValue: value,
           isExpanded: true,
@@ -2266,6 +2275,7 @@ class _PermissionRow extends StatelessWidget {
               profile.effectivePermissions.contains(permission.code);
           final roleDefault = profile.rolePermissions.contains(permission.code);
           final selector = DropdownButtonFormField<String>(
+            itemHeight: null,
             key: ValueKey('permission-selector-${permission.code}'),
             initialValue: profile.overrides[permission.code] ?? 'DEFAULT',
             isExpanded: true,
@@ -2509,6 +2519,7 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
     }
 
     return AlertDialog(
+      scrollable: true,
       title: Text(
         widget.editing
             ? limitedManager
@@ -2595,6 +2606,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                 )
               else
                 DropdownButtonFormField<UserRole>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: role,
                   decoration: const InputDecoration(
                     labelText: 'Systemweite Hauptrolle',
@@ -2613,6 +2626,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
               if (widget.editing && !limitedManager) ...[
                 const SizedBox(height: 14),
                 DropdownButtonFormField<AccountStatus>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: status,
                   decoration: const InputDecoration(labelText: 'Kontostatus'),
                   items: const [
@@ -2706,6 +2721,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: DropdownButtonFormField<UserRole>(
+                      isExpanded: true,
+                      itemHeight: null,
                       key: ValueKey('team-function-${team.id}'),
                       initialValue: teamRoles[team.id] ?? _teamFunction(role),
                       decoration: InputDecoration(
@@ -2746,6 +2763,8 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
               if (role == UserRole.player) ...[
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: playerId,
                   decoration: const InputDecoration(
                     labelText: 'Verknüpftes Spielerprofil *',
@@ -3168,6 +3187,7 @@ class _GuardianChildCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
+            itemHeight: null,
             key: ValueKey('guardian-relationship-${player.id}'),
             initialValue: relationship,
             isExpanded: true,
@@ -3371,6 +3391,7 @@ class _CreateMemberDialogState extends State<_CreateMemberDialog> {
       UserRole.readOnly,
     ];
     return AlertDialog(
+      scrollable: true,
       title: const Text('Mitglied anlegen'),
       content: SizedBox(
         width: 620,
@@ -3439,6 +3460,8 @@ class _CreateMemberDialogState extends State<_CreateMemberDialog> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<UserRole>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: _role,
                   decoration: const InputDecoration(
                     labelText: 'Rolle *',
@@ -3463,6 +3486,7 @@ class _CreateMemberDialogState extends State<_CreateMemberDialog> {
                 if (_role == UserRole.player) ...[
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    itemHeight: null,
                     initialValue: _playerId,
                     isExpanded: true,
                     decoration: const InputDecoration(

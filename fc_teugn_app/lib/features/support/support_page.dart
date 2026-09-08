@@ -149,11 +149,12 @@ class _SupportHero extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(22),
         ),
-        padding: const EdgeInsets.all(22),
+        padding:
+            EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 12 : 22),
         child: Row(
           children: [
             CircleAvatar(
-              radius: 28,
+              radius: MediaQuery.sizeOf(context).width < 600 ? 20 : 28,
               backgroundColor: context.appWarning,
               foregroundColor: AppColors.navy,
               child: const Icon(Icons.support_agent_rounded, size: 30),
@@ -164,12 +165,10 @@ class _SupportHero extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    administrator
-                        ? 'Support-Zentrale'
-                        : 'Schnell und nachvollziehbar Hilfe bekommen',
+                    administrator ? 'Support-Zentrale' : 'Direkte Hilfe',
                     style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 19,
+                        fontSize: 16,
                         fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 4),
@@ -297,6 +296,7 @@ class _NewTicketDialogState extends ConsumerState<_NewTicketDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        scrollable: true,
         title: const Text('Technische Anfrage stellen'),
         content: SizedBox(
           width: 620,
@@ -307,6 +307,8 @@ class _NewTicketDialogState extends ConsumerState<_NewTicketDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<SupportCategory>(
+                    isExpanded: true,
+                    itemHeight: null,
                     initialValue: _category,
                     decoration: const InputDecoration(labelText: 'Kategorie'),
                     items: [
@@ -327,10 +329,11 @@ class _NewTicketDialogState extends ConsumerState<_NewTicketDialog> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _description,
-                    minLines: 5,
+                    minLines: MediaQuery.sizeOf(context).width < 600 ? 3 : 5,
                     maxLines: 9,
                     decoration: const InputDecoration(
                       labelText: 'Was ist passiert?',
+                      alignLabelWithHint: true,
                       hintText:
                           'Was wolltest du tun? Was ist stattdessen passiert?',
                     ),
@@ -453,10 +456,10 @@ class _TicketDialogState extends ConsumerState<_TicketDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        scrollable: true,
         title: Text(_ticket.subject),
         content: SizedBox(
           width: 720,
-          height: MediaQuery.sizeOf(context).height * .68,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -466,8 +469,15 @@ class _TicketDialogState extends ConsumerState<_TicketDialog> {
                 children: [
                   Chip(label: Text(_ticket.category.label)),
                   Chip(label: Text(_ticket.status.label)),
-                  if (widget.administrator)
-                    DropdownButton<SupportStatus>(
+                ],
+              ),
+              if (widget.administrator)
+                InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Status'),
+                    child: DropdownButtonHideUnderline(
+                        child: DropdownButton<SupportStatus>(
+                      isExpanded: true,
+                      itemHeight: null,
                       value: _ticket.status,
                       items: [
                         for (final status in SupportStatus.values)
@@ -477,39 +487,35 @@ class _TicketDialogState extends ConsumerState<_TicketDialog> {
                       onChanged: (value) {
                         if (value != null) _changeStatus(value);
                       },
-                    ),
-                ],
-              ),
+                    ))),
               const SizedBox(height: 10),
               Text(_ticket.description),
               const Divider(height: 24),
-              Expanded(
-                child: ListView(
-                  children: [
-                    for (final message in _ticket.messages)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: message.internal
-                              ? context.appWarning.withValues(alpha: .13)
-                              : AppColors.navy.withValues(alpha: .06),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                                '${message.authorName}${message.internal ? ' · Interne Notiz' : ''}',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 4),
-                            Text(message.body),
-                          ],
-                        ),
+              Column(
+                children: [
+                  for (final message in _ticket.messages)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: message.internal
+                            ? context.appWarning.withValues(alpha: .13)
+                            : AppColors.navy.withValues(alpha: .06),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                  ],
-                ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                              '${message.authorName}${message.internal ? ' · Interne Notiz' : ''}',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          Text(message.body),
+                        ],
+                      ),
+                    ),
+                ],
               ),
               TextField(
                 controller: _reply,

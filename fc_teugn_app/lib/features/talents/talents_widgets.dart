@@ -43,7 +43,7 @@ class TalentsEmpty extends StatelessWidget {
   final Widget? action;
   @override
   Widget build(BuildContext context) => Padding(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 28),
       child: Column(children: [
         Icon(icon, size: 40, color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: 12),
@@ -62,7 +62,8 @@ class TalentsCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding:
+              EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 12 : 16),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text(title,
@@ -190,6 +191,7 @@ Widget textInput(Json values, void Function(String, dynamic) set, String key,
 Widget choiceInput(Json values, void Function(String, dynamic) set, String key,
         String label, Map<String, String> choices) =>
     DropdownButtonFormField<String>(
+      itemHeight: null,
       key: ValueKey('$key-${values[key]}-${choices.keys.join()}'),
       isExpanded: true,
       initialValue:

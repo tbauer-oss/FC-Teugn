@@ -212,6 +212,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<UserRole>(
+            isExpanded: true,
+            itemHeight: null,
             initialValue: _role,
             decoration: const InputDecoration(labelText: 'Gewünschte Rolle *'),
             items: const [
@@ -307,6 +309,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              itemHeight: null,
               initialValue: _relationship,
               decoration:
                   const InputDecoration(labelText: 'Beziehung zum Kind'),
@@ -537,6 +541,7 @@ class _ConsentTile extends StatelessWidget {
               onPressed: () => showDialog<void>(
                 context: context,
                 builder: (context) => AlertDialog(
+                  scrollable: true,
                   title:
                       Text('${document!.title} · Version ${document!.version}'),
                   content: SizedBox(

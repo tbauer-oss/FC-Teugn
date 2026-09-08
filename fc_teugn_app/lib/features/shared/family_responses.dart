@@ -910,6 +910,7 @@ class _PersonalResponseQuickActionsState
       reason = await showDialog<String?>(
         context: context,
         builder: (context) => AlertDialog(
+          scrollable: true,
           title: Text('${widget.item.playerName} absagen?'),
           content: TextField(
             controller: controller,

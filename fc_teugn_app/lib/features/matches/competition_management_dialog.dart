@@ -104,6 +104,8 @@ class _CompetitionManagementDialogState
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: ageGroupId,
                   decoration: const InputDecoration(labelText: 'Jugend'),
                   items: [
@@ -412,6 +414,7 @@ class _CompetitionManagementDialogState
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => AlertDialog(
+          scrollable: true,
           title: const Text('Liga anlegen'),
           content: SizedBox(
             width: 620,
@@ -502,6 +505,7 @@ class _CompetitionManagementDialogState
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => AlertDialog(
+          scrollable: true,
           title: Text(value == null ? 'Partie anlegen' : 'Partie bearbeiten'),
           content: SizedBox(
             width: 560,
@@ -509,6 +513,8 @@ class _CompetitionManagementDialogState
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    itemHeight: null,
                     initialValue: homeId,
                     decoration: const InputDecoration(labelText: 'Heim'),
                     items: [
@@ -519,6 +525,8 @@ class _CompetitionManagementDialogState
                     onChanged: (id) => update(() => homeId = id)),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    itemHeight: null,
                     initialValue: awayId,
                     decoration: const InputDecoration(labelText: 'Auswärts'),
                     items: [
@@ -603,6 +611,7 @@ class _CompetitionManagementDialogState
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, update) => AlertDialog(
+          scrollable: true,
           icon: Icon(
             Icons.warning_amber_rounded,
             color: Theme.of(dialogContext).colorScheme.error,
@@ -738,6 +747,7 @@ class _OpponentClubEditorDialogState extends State<OpponentClubEditorDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        scrollable: true,
         title: Text(
           widget.value == null ? 'Verein hinzufügen' : 'Verein bearbeiten',
         ),
@@ -817,6 +827,7 @@ class _OpponentTeamEditorDialogState extends State<OpponentTeamEditorDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        scrollable: true,
         title: const Text('Jugendmannschaft festlegen'),
         content: SizedBox(
           width: 460,
@@ -836,6 +847,7 @@ class _OpponentTeamEditorDialogState extends State<OpponentTeamEditorDialog> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
+                itemHeight: null,
                 initialValue: value,
                 isExpanded: true,
                 decoration: const InputDecoration(

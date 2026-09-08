@@ -2251,6 +2251,7 @@ class _MonthDay extends StatelessWidget {
     final selected = await showDialog<EventModel>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         key: const ValueKey('calendar-day-events-dialog'),
         title: Text('${_weekday(date)}, ${date.day}. ${_month(date.month)}'),
         content: SizedBox(
@@ -3466,6 +3467,7 @@ class _EmergencyPasswordDialogState extends State<_EmergencyPasswordDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       icon: Icon(Icons.verified_user_rounded, color: context.appInfo),
       title: const Text('Identität bestätigen'),
       content: ConstrainedBox(
@@ -4419,6 +4421,7 @@ class _StaffAttendanceStatusMenuState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Aus Termin entfernen?'),
         content: Text(
           '${widget.playerName} wird nur aus diesem Termin entfernt. '
@@ -4890,6 +4893,7 @@ class _ManagementBar extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, update) => AlertDialog(
+          scrollable: true,
           icon: Icon(
             Icons.warning_amber_rounded,
             color: Theme.of(dialogContext).colorScheme.error,
@@ -5073,6 +5077,7 @@ class _ManagementBar extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: Icon(
           Icons.delete_sweep_rounded,
           color: Theme.of(dialogContext).colorScheme.error,
@@ -5496,6 +5501,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
   }
 
   Widget _categoryInput() => DropdownButtonFormField<EventCategory>(
+        itemHeight: null,
         initialValue: category,
         isExpanded: true,
         decoration: const InputDecoration(
@@ -5811,6 +5817,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 children: [
                                   Expanded(
                                     child: DropdownButtonFormField<String>(
+                                      itemHeight: null,
                                       initialValue: availableOpponentClubs.any(
                                         (item) =>
                                             item.id == selectedOpponentClubId,
@@ -5865,6 +5872,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 ],
                               ),
                               DropdownButtonFormField<String>(
+                                itemHeight: null,
                                 key: ValueKey(
                                   '$selectedOpponentClubId:'
                                   '$selectedOpponentDesignation',
@@ -5930,6 +5938,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                           ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<HomeAway>(
+                          itemHeight: null,
                           initialValue: homeAway,
                           isExpanded: true,
                           decoration: const InputDecoration(
@@ -6010,6 +6019,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                       if (_usesClubPitch) ...[
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
+                          itemHeight: null,
                           initialValue: selectedPitch,
                           isExpanded: true,
                           decoration: const InputDecoration(
@@ -6352,6 +6362,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 ),
                                 const SizedBox(height: 10),
                                 DropdownButtonFormField<String>(
+                                  itemHeight: null,
                                   initialValue: reminderMode,
                                   isExpanded: true,
                                   decoration: const InputDecoration(
@@ -6434,6 +6445,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<EventVisibility>(
+                            itemHeight: null,
                             initialValue: visibility,
                             isExpanded: true,
                             decoration: const InputDecoration(
@@ -6539,6 +6551,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                         ),
                         if (recurring) ...[
                           DropdownButtonFormField<RecurrenceFrequency>(
+                            itemHeight: null,
                             initialValue: frequency,
                             isExpanded: true,
                             decoration: const InputDecoration(
@@ -6920,6 +6933,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     final save = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Verein hinzufügen'),
         content: SizedBox(
           width: 480,
@@ -7311,6 +7325,7 @@ class _MatchMeetingTimeField extends StatelessWidget {
         const SizedBox(height: 12),
         if (mode == _MeetingTimeMode.beforeKickoff)
           DropdownButtonFormField<int>(
+            itemHeight: null,
             initialValue: minutesBefore,
             isExpanded: true,
             decoration: InputDecoration(
@@ -7458,11 +7473,14 @@ class _AttendanceDialogState extends State<_AttendanceDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Rückmeldung abgeben'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           DropdownButtonFormField<String>(
+            isExpanded: true,
+            itemHeight: null,
             initialValue: playerId,
             decoration: const InputDecoration(labelText: 'Spieler/in'),
             items: [
@@ -7482,6 +7500,8 @@ class _AttendanceDialogState extends State<_AttendanceDialog> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<AttendanceStatus>(
+            isExpanded: true,
+            itemHeight: null,
             initialValue: status,
             decoration: const InputDecoration(labelText: 'Status'),
             items: [
@@ -7571,6 +7591,7 @@ class _CancelDialogState extends State<_CancelDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Termin absagen'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -7639,6 +7660,7 @@ Future<bool?> _seriesScope(BuildContext context, String action) {
   return showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
+      scrollable: true,
       title: Text('$action für Serientermin'),
       content: const Text(
         'Soll nur dieser Termin oder dieser und alle folgenden Termine geändert werden?',

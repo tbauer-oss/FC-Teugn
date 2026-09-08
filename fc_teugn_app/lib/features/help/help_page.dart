@@ -150,7 +150,14 @@ class _HelpPageState extends State<HelpPage> {
             onClear: _clearSearch,
           ),
           const SizedBox(height: 12),
-          const _HelpTrustStrip(),
+          if (MediaQuery.sizeOf(context).width < 600)
+            const ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: Text('Über diese Hilfe'),
+              children: [_HelpTrustStrip()],
+            )
+          else
+            const _HelpTrustStrip(),
           const SizedBox(height: 18),
           Text('Beliebte Aufgaben',
               style: Theme.of(context).textTheme.titleLarge),
@@ -219,21 +226,16 @@ class _HelpPageState extends State<HelpPage> {
                   ],
           ),
           const SizedBox(height: 24),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: Text(
-                  'Alle Schritt-für-Schritt-Anleitungen',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
+              Text('Alle Schritt-für-Schritt-Anleitungen',
+                  style: Theme.of(context).textTheme.titleLarge),
               Text(
-                '${filtered.length} ${filtered.length == 1 ? 'Antwort' : 'Antworten'}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: context.appColors.textMuted,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
+                  '${filtered.length} ${filtered.length == 1 ? 'Antwort' : 'Antworten'}',
+                  style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
           const SizedBox(height: 10),
@@ -363,7 +365,7 @@ class _HelpHero extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 12 : 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -371,8 +373,8 @@ class _HelpHero extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 64,
-                height: 64,
+                width: MediaQuery.sizeOf(context).width < 600 ? 40 : 64,
+                height: MediaQuery.sizeOf(context).width < 600 ? 40 : 64,
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
                   color: context.appColors.surface,
@@ -541,7 +543,8 @@ class _QuickHelpGrid extends StatelessWidget {
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 900
             ? 4
-            : constraints.maxWidth >= 560
+            : constraints.maxWidth >= 340 &&
+                    MediaQuery.textScalerOf(context).scale(14) <= 19
                 ? 2
                 : 1;
         final width = (constraints.maxWidth - (columns - 1) * 10) / columns;
@@ -562,19 +565,19 @@ class _QuickHelpGrid extends StatelessWidget {
                   child: InkWell(
                     onTap: action.onTap,
                     child: Padding(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(10),
                       child: Row(
                         children: [
                           Container(
-                            width: 42,
-                            height: 42,
+                            width: 32,
+                            height: 32,
                             decoration: BoxDecoration(
                               color: AppColors.yellowSoft,
                               borderRadius: BorderRadius.circular(13),
                             ),
                             child: Icon(action.icon, color: AppColors.black),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -582,17 +585,20 @@ class _QuickHelpGrid extends StatelessWidget {
                                 Text(action.title,
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w800)),
-                                Text(
-                                  action.caption,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
+                                if (constraints.maxWidth >= 600)
+                                  Text(
+                                    action.caption,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                  ),
                               ],
                             ),
                           ),
-                          Icon(Icons.chevron_right_rounded,
-                              color: context.appColors.textMuted),
+                          if (constraints.maxWidth >= 600)
+                            Icon(Icons.chevron_right_rounded,
+                                color: context.appColors.textMuted),
                         ],
                       ),
                     ),

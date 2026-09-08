@@ -248,6 +248,8 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
                 teamPageController.text.trim().isNotEmpty),
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
+          isExpanded: true,
+          itemHeight: null,
           initialValue: teamId,
           decoration: const InputDecoration(labelText: 'Mannschaft'),
           items: [
@@ -321,6 +323,8 @@ class _BfvSyncTabState extends State<BfvSyncTab> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: interval,
                   decoration: const InputDecoration(labelText: 'Abgleich'),
                   items: const [

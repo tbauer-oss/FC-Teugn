@@ -353,6 +353,7 @@ class _OrganizationContent extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: const Icon(Icons.warning_amber_rounded, color: Colors.red),
         title: Text('${team.displayName} löschen?'),
         content: const Text(
@@ -1759,6 +1760,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         )
         .toList();
     return AlertDialog(
+      scrollable: true,
       title: Text(editing ? 'Mannschaft bearbeiten' : 'Neue Mannschaft'),
       content: SizedBox(
         width: 680,
@@ -1770,6 +1772,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
               Text('Identität', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                isExpanded: true,
+                itemHeight: null,
                 initialValue: _ageGroupId,
                 decoration: const InputDecoration(labelText: 'Altersklasse'),
                 items: [
@@ -1793,6 +1797,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
               const SizedBox(height: 12),
               _twoColumns(
                 DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  itemHeight: null,
                   key: ValueKey('$_ageGroupId-$_teamNumber'),
                   initialValue: _teamNumber,
                   decoration: const InputDecoration(
@@ -1885,6 +1891,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
               ],
               const SizedBox(height: 12),
               DropdownButtonFormField<TeamGameFormat>(
+                isExpanded: true,
+                itemHeight: null,
                 initialValue: _gameFormat,
                 decoration: const InputDecoration(
                   labelText: 'BFV-Spielform der Mannschaft *',
@@ -1924,6 +1932,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
               const SizedBox(height: 12),
               _twoColumns(
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: _teamType,
                   decoration: const InputDecoration(labelText: 'Teamtyp'),
                   items: const [
@@ -1939,6 +1949,8 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
                   onChanged: (value) => setState(() => _teamType = value!),
                 ),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: _gender,
                   decoration: const InputDecoration(labelText: 'Ausrichtung'),
                   items: const [
@@ -2175,6 +2187,7 @@ class _TeamEditorDialogState extends State<_TeamEditorDialog> {
         var draft = {..._birthYears};
         return StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
+            scrollable: true,
             title: const Text('Jahrgänge auswählen'),
             content: SizedBox(
               width: 520,
@@ -2412,6 +2425,8 @@ class _MatchRuleEditor extends StatelessWidget {
             builder: (context, constraints) {
               final fields = [
                 DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: periodCount,
                   decoration: const InputDecoration(
                     labelText: 'Spielabschnitte',
@@ -2428,6 +2443,8 @@ class _MatchRuleEditor extends StatelessWidget {
                       enabled ? (value) => onPeriodCountChanged(value!) : null,
                 ),
                 DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: periodMinutes,
                   decoration: const InputDecoration(
                     labelText: 'Minuten je Abschnitt',

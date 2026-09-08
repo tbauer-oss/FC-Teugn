@@ -37,6 +37,7 @@ Future<void> showEventAttendanceReminder(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setDialogState) => AlertDialog(
+        scrollable: true,
         title: Text(isTraining ? 'Training erinnern' : 'Termin erinnern'),
         content: SingleChildScrollView(
           child: Column(

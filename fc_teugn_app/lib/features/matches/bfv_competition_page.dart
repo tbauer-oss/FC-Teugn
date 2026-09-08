@@ -239,6 +239,7 @@ class _TeamPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DropdownButtonFormField<String>(
+        itemHeight: null,
         key: ValueKey(selectedTeamId),
         initialValue: selectedTeamId,
         isExpanded: true,

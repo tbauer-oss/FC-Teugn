@@ -140,6 +140,7 @@ class _PastMatchesPageState extends ConsumerState<PastMatchesPage> {
               builder: (context, constraints) {
                 final teamSelector = canSelectTeam && teams.isNotEmpty
                     ? DropdownButtonFormField<String>(
+                        itemHeight: null,
                         key: ValueKey('past-matches-team-$selectedTeamId'),
                         initialValue: selectedTeamId,
                         isExpanded: true,
@@ -181,6 +182,7 @@ class _PastMatchesPageState extends ConsumerState<PastMatchesPage> {
                         ),
                       );
                 final seasonSelector = DropdownButtonFormField<String>(
+                  itemHeight: null,
                   key: ValueKey(
                       'past-matches-season-${_seasonId ?? _allSeasons}'),
                   initialValue: _seasonId ?? _allSeasons,

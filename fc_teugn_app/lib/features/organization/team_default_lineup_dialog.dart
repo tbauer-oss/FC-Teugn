@@ -224,6 +224,7 @@ class _TeamDefaultLineupDialogState extends State<TeamDefaultLineupDialog> {
         String? errorText;
         return StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
+            scrollable: true,
             title: const Text('Eigene Formation anlegen'),
             content: SizedBox(
               width: 420,
@@ -1626,6 +1627,7 @@ class _SelectedSlotPanel extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
+            itemHeight: null,
             key: ValueKey('selected-position-${slot!.positionCode}'),
             initialValue: slot!.positionCode,
             isExpanded: true,

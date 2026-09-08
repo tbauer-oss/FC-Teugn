@@ -1,4 +1,10 @@
 {
+  "1.7.3+188": [
+    "Dialoge und Auswahllisten in der gesamten App passen sich kleinen Displays, großer Schrift und der Bildschirmtastatur besser an.",
+    "Teamaufgaben, Material und Checklisten sind kompakter. Familie & Team erhält eine platzsparende Registerleiste mit direkt erreichbaren Bereichen.",
+    "Datenschutz, Support und Hilfe zeigen ihre wichtigsten Aktionen früher. Lange Supportverläufe und Antwortformulare bleiben scrollbar.",
+    "Die mobile Funktionssuche und der Spielerwechsel wurden verbessert. Die direkte Mitfahrbuchung für Eltern und ihre Kinder bleibt erhalten."
+  ],
   "1.7.2+187": [
     "Eltern buchen freie Mitfahrplätze direkt für sich selbst und ihre Kinder. Jede Person belegt einen Platz; die Zahl freier Plätze aktualisiert sich automatisch.",
     "Offener Mitfahrbedarf wird passenden freien Fahrten automatisch zugeordnet. Gemeinsam ausgewählte Personen bleiben in einem Auto; nach einer Stornierung können Wartende nachrücken.",

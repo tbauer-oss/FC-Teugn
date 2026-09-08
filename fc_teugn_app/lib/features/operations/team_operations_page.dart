@@ -78,10 +78,12 @@ class _TeamOperationsPageState extends ConsumerState<TeamOperationsPage> {
                 },
               ),
               const TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 tabs: [
-                  Tab(icon: Icon(Icons.task_alt_rounded), text: 'Aufgaben'),
-                  Tab(icon: Icon(Icons.inventory_2_rounded), text: 'Material'),
-                  Tab(icon: Icon(Icons.checklist_rounded), text: 'Checklisten'),
+                  Tab(text: 'Aufgaben'),
+                  Tab(text: 'Material'),
+                  Tab(text: 'Checklisten'),
                 ],
               ),
               Expanded(
@@ -260,13 +262,14 @@ class _PageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 700;
+        final compact = constraints.maxWidth < 700 ||
+            MediaQuery.sizeOf(context).height < 500;
         final identity = Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: compact ? 36 : 48,
+              height: compact ? 36 : 48,
               decoration: BoxDecoration(
                 color: context.appInfo.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(15),
@@ -281,14 +284,17 @@ class _PageHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Team-Organisation',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-                  ),
                   Text(
-                    'Aufgaben, Material und wiederverwendbare Abläufe',
-                    style: TextStyle(color: context.appColors.textMuted),
+                    compact ? 'Teamaufgaben' : 'Team-Organisation',
+                    style: TextStyle(
+                        fontSize: compact ? 18 : 24,
+                        fontWeight: FontWeight.w800),
                   ),
+                  if (!compact)
+                    Text(
+                      'Aufgaben, Material und wiederverwendbare Abläufe',
+                      style: TextStyle(color: context.appColors.textMuted),
+                    ),
                 ],
               ),
             ),
@@ -296,6 +302,8 @@ class _PageHeader extends StatelessWidget {
         );
         final selector = organization.teams.length > 1
             ? DropdownButtonFormField<String>(
+                isExpanded: true,
+                itemHeight: null,
                 initialValue: selectedTeamId,
                 decoration: const InputDecoration(labelText: 'Mannschaft'),
                 items: [
@@ -314,7 +322,7 @@ class _PageHeader extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.fromLTRB(
             compact ? 14 : 24,
-            compact ? 16 : 22,
+            compact ? 8 : 22,
             compact ? 14 : 24,
             12,
           ),
@@ -390,7 +398,7 @@ class _TasksTab extends StatelessWidget {
             title: task.title,
             badge: _taskStatus(task.status),
             lines: [
-              task.category,
+              _operationCategory(task.category),
               if (task.assignee != null)
                 'Verantwortlich: ${task.assignee!.name}',
               if (task.dueAt != null) 'Fällig: ${_date(task.dueAt!)}',
@@ -459,7 +467,7 @@ class _EquipmentTab extends StatelessWidget {
             title: item.name,
             badge: '${item.availableQuantity}/${item.quantity} frei',
             lines: [
-              '${item.category} · ${_equipmentStatus(item.status)}',
+              '${_operationCategory(item.category)} · ${_equipmentStatus(item.status)}',
               if (item.notes?.isNotEmpty == true) item.notes!,
             ],
             actions: [
@@ -631,7 +639,7 @@ class _ChecklistsTab extends StatelessWidget {
                 title: template.title,
                 badge: '${template.items.length} Punkte',
                 lines: [
-                  template.category,
+                  _operationCategory(template.category),
                   if (template.description?.isNotEmpty == true)
                     template.description!,
                 ],
@@ -781,7 +789,7 @@ class _OperationCard extends StatelessWidget {
       width: compact ? double.infinity : width,
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(compact ? 12 : 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -798,11 +806,15 @@ class _OperationCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _Badge(label: badge),
+                  if (!compact) _Badge(label: badge),
                   if (trailing != null) trailing!,
                 ],
               ),
-              if (lines.isNotEmpty) const SizedBox(height: 12),
+              if (compact)
+                Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: _Badge(label: badge)),
+              if (lines.isNotEmpty) const SizedBox(height: 8),
               for (final line in lines)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
@@ -943,6 +955,7 @@ class _TaskDialogState extends State<_TaskDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Aufgabe anlegen'),
       content: SizedBox(
         width: 480,
@@ -957,6 +970,8 @@ class _TaskDialogState extends State<_TaskDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                isExpanded: true,
+                itemHeight: null,
                 initialValue: _category,
                 decoration: const InputDecoration(labelText: 'Kategorie'),
                 items: const [
@@ -990,6 +1005,8 @@ class _TaskDialogState extends State<_TaskDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String?>(
+                isExpanded: true,
+                itemHeight: null,
                 initialValue: _assigneeUserId,
                 decoration:
                     const InputDecoration(labelText: 'Verantwortliche Person'),
@@ -1088,6 +1105,7 @@ class _EquipmentDialogState extends State<_EquipmentDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Material anlegen'),
       content: SizedBox(
         width: 440,
@@ -1101,6 +1119,8 @@ class _EquipmentDialogState extends State<_EquipmentDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              itemHeight: null,
               initialValue: _category,
               decoration: const InputDecoration(labelText: 'Kategorie'),
               items: const [
@@ -1195,6 +1215,7 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: Text('${widget.item.name} ausgeben'),
       content: SizedBox(
         width: 460,
@@ -1202,6 +1223,8 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              itemHeight: null,
               initialValue: _target,
               decoration: const InputDecoration(labelText: 'Empfänger *'),
               items: [
@@ -1306,6 +1329,7 @@ class _ChecklistDialogState extends State<_ChecklistDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Checklisten-Vorlage'),
       content: SizedBox(
         width: 520,
@@ -1320,6 +1344,8 @@ class _ChecklistDialogState extends State<_ChecklistDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                isExpanded: true,
+                itemHeight: null,
                 initialValue: _category,
                 decoration: const InputDecoration(labelText: 'Kategorie'),
                 items: const [
@@ -1481,3 +1507,25 @@ String _errorMessage(Object error) {
   final match = RegExp(r'message:\s*([^,}]+)').firstMatch(text);
   return match?.group(1)?.trim() ?? 'Aktion konnte nicht abgeschlossen werden.';
 }
+
+String _operationCategory(String value) =>
+    const {
+      'TRIKOTWAESCHE': 'Trikotwäsche',
+      'FAHRDIENST': 'Fahrdienst',
+      'TURNIERDIENST': 'Turnierdienst',
+      'VERPFLEGUNG': 'Verpflegung',
+      'AUFBAU': 'Auf- und Abbau',
+      'SONSTIGES': 'Sonstiges',
+      'TRIKOT': 'Trikotsatz',
+      'BALL': 'Bälle',
+      'LEIBCHEN': 'Leibchen',
+      'HUETCHEN': 'Hütchen',
+      'TORWART': 'Torwartausrüstung',
+      'ERSTE_HILFE': 'Erste Hilfe',
+      'SPIELTAG': 'Spieltag',
+      'TURNIER': 'Turnier',
+      'AUSWAERTSFAHRT': 'Auswärtsfahrt',
+      'SAISONSTART': 'Saisonstart',
+      'SAISONABSCHLUSS': 'Saisonabschluss',
+    }[value] ??
+    value;

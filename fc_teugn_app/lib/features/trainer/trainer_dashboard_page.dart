@@ -1499,6 +1499,7 @@ class _CombinedTrainingResponsesSheetState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Aus Termin entfernen?'),
         content: Text(
           '${entry.name} wird nur aus diesem Termin entfernt. '

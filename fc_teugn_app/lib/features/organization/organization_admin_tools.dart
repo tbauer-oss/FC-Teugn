@@ -131,6 +131,7 @@ class _OrganizationAdminToolsState
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, dialogSetState) => AlertDialog(
+          scrollable: true,
           title: const Row(
             children: [
               Icon(Icons.rule_folder_outlined),
@@ -494,6 +495,7 @@ class _RuleProfileDialogState extends State<_RuleProfileDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Regelprofil anlegen'),
       content: SizedBox(
         width: 600,
@@ -504,6 +506,8 @@ class _RuleProfileDialogState extends State<_RuleProfileDialog> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: _teamId,
                   decoration: const InputDecoration(labelText: 'Mannschaft'),
                   items: [
@@ -778,6 +782,7 @@ class _SeasonPreviewDialog extends StatelessWidget {
     final warnings =
         transition.preview['warnings'] as List<dynamic>? ?? const [];
     return AlertDialog(
+      scrollable: true,
       title: Text('Vorschau · ${transition.targetSeasonName}'),
       content: SizedBox(
         width: 680,

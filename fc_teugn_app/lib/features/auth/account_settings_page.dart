@@ -106,6 +106,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
+          scrollable: true,
           icon: Icon(Icons.verified_user_rounded, color: context.appSuccess),
           title: const Text('Passwort geändert'),
           content: Text(message),

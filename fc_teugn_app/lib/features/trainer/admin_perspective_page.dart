@@ -170,6 +170,7 @@ class _AdminPerspectivePageState extends ConsumerState<AdminPerspectivePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text('Ansicht von ${member.name} öffnen?'),
         content: Text(
           'Du wechselst in eine schreibgeschützte ${member.roleLabel}-Ansicht. Ein dauerhaft sichtbarer Hinweis führt dich zurück zur Systemadministration.',

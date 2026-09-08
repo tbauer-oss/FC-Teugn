@@ -674,6 +674,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
+          scrollable: true,
           title: Text(
             widget.tournamentPlanning
                 ? 'Turnier für Eltern und Spieler freigeben?'
@@ -1246,6 +1247,8 @@ class _PlayerRatingsTabState extends ConsumerState<_PlayerRatingsTab> {
                     SizedBox(
                       width: 112,
                       child: DropdownButtonFormField<int?>(
+                        isExpanded: true,
+                        itemHeight: null,
                         key: ValueKey(
                           'match-rating-${player.id}-${_scores[player.id]}',
                         ),
@@ -1447,6 +1450,8 @@ class _ParentPlayerRatingsTabState
                     SizedBox(
                       width: 108,
                       child: DropdownButtonFormField<int?>(
+                        isExpanded: true,
+                        itemHeight: null,
                         key: ValueKey(
                           'parent-match-rating-${player.id}-${_scores[player.id]}',
                         ),
@@ -3571,6 +3576,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          scrollable: true,
           title: Text(
             isLateNomination
                 ? 'Nachnominierte Spieler informieren?'
@@ -4725,6 +4731,7 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          scrollable: true,
           title: const Text('Spielerposition bearbeiten'),
           content: SizedBox(
             width: 420,
@@ -4732,6 +4739,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: playerId,
                   decoration: const InputDecoration(labelText: 'Spieler'),
                   items: [
@@ -4751,6 +4760,8 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: positionCode,
                   decoration: const InputDecoration(
                     labelText: 'Position in dieser Aufstellung',
@@ -4904,11 +4915,12 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     final replaceIndex = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text('${player.name} einwechseln'),
         content: SizedBox(
           width: 420,
-          child: ListView(
-            shrinkWrap: true,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               const Text('Welcher Spieler soll auf die Ersatzbank?'),
               const SizedBox(height: 10),
@@ -6205,6 +6217,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
+            scrollable: true,
             title: const Text('Liveticker einmalig freigeben'),
             content: SizedBox(
               width: 460,
@@ -6217,6 +6230,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                   ),
                   const SizedBox(height: 18),
                   DropdownButtonFormField<String>(
+                    itemHeight: null,
                     initialValue: selectedId,
                     isExpanded: true,
                     decoration: const InputDecoration(
@@ -6290,6 +6304,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          scrollable: true,
           title: Text('Tor für ${widget.match.ownTeamName}'),
           content: SizedBox(
             width: 440,
@@ -6303,6 +6318,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
+                  itemHeight: null,
                   initialValue: scorerId,
                   isExpanded: true,
                   decoration: const InputDecoration(
@@ -6335,6 +6351,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
+                  itemHeight: null,
                   key: ValueKey('${scorerId ?? 'none'}-${assistId ?? 'none'}'),
                   initialValue: assistId,
                   isExpanded: true,
@@ -6567,6 +6584,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Spiel wirklich beenden?'),
         content: const Text(
             'Der Endstand wird gespeichert und das Spiel als beendet markiert.'),
@@ -6598,6 +6616,7 @@ class _TickerTabState extends ConsumerState<_TickerTab> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: const Icon(Icons.restart_alt_rounded, size: 34),
         title: const Text('Spiel zurücksetzen?'),
         content: const Text(

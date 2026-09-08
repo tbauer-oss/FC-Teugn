@@ -90,6 +90,7 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
     return PopScope(
       canPop: !manifest.mandatory && !_working,
       child: AlertDialog(
+        scrollable: true,
         icon: Icon(
           Icons.system_update_alt_rounded,
           color: context.appWarning,

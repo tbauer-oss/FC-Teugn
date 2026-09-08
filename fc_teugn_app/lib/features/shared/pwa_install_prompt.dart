@@ -24,6 +24,7 @@ Future<void> showPwaInstallPrompt(BuildContext context) async {
   await showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
+      scrollable: true,
       icon: Semantics(
         label: 'FC Teugn Talents App-Icon',
         image: true,

@@ -795,6 +795,7 @@ class _TrainingsPageState extends ConsumerState<TrainingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Sonderbelegung löschen?'),
         content: Text(
           '„${entry.title}“ wird dauerhaft aus der Hallenbelegung entfernt.',
@@ -1048,6 +1049,7 @@ class _IndoorOccupancyDialogState extends State<_IndoorOccupancyDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        scrollable: true,
         title: Text(
           widget.existing == null
               ? 'Hallen-Sonderbelegung'
@@ -1157,6 +1159,8 @@ class _IndoorOccupancyDialogState extends State<_IndoorOccupancyDialog> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
+                    isExpanded: true,
+                    itemHeight: null,
                     initialValue: _recurrenceIntervalWeeks,
                     decoration: const InputDecoration(
                       labelText: 'Wiederholung',
@@ -1429,6 +1433,8 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButtonFormField<String>(
+          isExpanded: true,
+          itemHeight: null,
           key: ValueKey('training_reminder_$_teamId-$label-$mode'),
           initialValue: mode,
           decoration: InputDecoration(
@@ -1466,6 +1472,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        scrollable: true,
         title: const Text('Trainingszeiten verwalten'),
         content: SizedBox(
           width: 580,
@@ -1476,6 +1483,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 DropdownButtonFormField<String>(
+                  itemHeight: null,
                   initialValue: _teamId,
                   isExpanded: true,
                   decoration: const InputDecoration(
@@ -1546,6 +1554,7 @@ class _TrainingScheduleDialogState extends State<_TrainingScheduleDialog> {
                 ],
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
+                  itemHeight: null,
                   key: ValueKey('training_location_${_teamId}_$_location'),
                   initialValue: _location,
                   isExpanded: true,
@@ -1977,6 +1986,8 @@ class _TrainingTimeRow extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final day = DropdownButtonFormField<int>(
+              isExpanded: true,
+              itemHeight: null,
               initialValue: value.weekday,
               decoration: const InputDecoration(
                 labelText: 'Wochentag',
@@ -2027,6 +2038,7 @@ class _TrainingTimeRow extends StatelessWidget {
             );
             final selectedLocation = value.location ?? fallbackLocation;
             final location = DropdownButtonFormField<String>(
+              itemHeight: null,
               key: ValueKey(
                 'slot_location_${value.weekday}_${selectedLocation ?? ''}',
               ),
@@ -3064,6 +3076,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          scrollable: true,
           title: const Text('Trainingsbaustein'),
           content: SizedBox(
             width: 440,
@@ -3076,6 +3089,8 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<TrainingPhase>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: phase,
                   decoration: const InputDecoration(labelText: 'Phase'),
                   items: TrainingPhase.values
@@ -3136,6 +3151,7 @@ class _TrainingPlannerPageState extends ConsumerState<TrainingPlannerPage> {
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Neue Übung'),
         content: SizedBox(
           width: 560,
@@ -3436,6 +3452,7 @@ class _PresetTextFieldState extends State<_PresetTextField> {
       if (value?.isNotEmpty == true && !widget.options.contains(value)) value!,
     };
     return DropdownButtonFormField<String>(
+      itemHeight: null,
       initialValue: value,
       isExpanded: true,
       decoration: InputDecoration(
@@ -3470,6 +3487,7 @@ class _PresetTextFieldState extends State<_PresetTextField> {
           final custom = await showDialog<String>(
             context: context,
             builder: (context) => AlertDialog(
+              scrollable: true,
               title: Text('${widget.label} anpassen'),
               content: TextField(
                 controller: editor,

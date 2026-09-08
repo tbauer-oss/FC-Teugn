@@ -61,6 +61,7 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text(action == 'complete'
             ? erasure
                 ? '${user['name']} anonymisieren?'
@@ -141,6 +142,7 @@ class _PrivacyPageState extends ConsumerState<PrivacyPage> {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
+          scrollable: true,
           title: const Text('Ihre personenbezogenen Daten'),
           content: SizedBox(
             width: 760,
@@ -366,6 +368,22 @@ class _PrivacyOverviewHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+            color: context.appColors.brandSoft,
+            borderRadius: BorderRadius.circular(16)),
+        child: Row(children: [
+          Icon(Icons.privacy_tip_outlined, color: context.appOnBrandSoft),
+          const SizedBox(width: 10),
+          const Expanded(
+              child: Text(
+                  'Ihre Daten. Ihre Rechte.\nDatenkopie und Anträge direkt verwalten.',
+                  style: TextStyle(fontSize: 14))),
+        ]),
+      );
+    }
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -473,14 +491,15 @@ class _PrivacyHeroBadge extends StatelessWidget {
           children: [
             Icon(icon, color: AppColors.yellow, size: 17),
             const SizedBox(width: 7),
-            Text(
+            Flexible(
+                child: Text(
               label,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
               ),
-            ),
+            )),
           ],
         ),
       );
@@ -937,20 +956,24 @@ class _PrivacyActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
         child: Padding(
-          padding: const EdgeInsets.all(22),
+          padding:
+              EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 12 : 22),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                backgroundColor: color.withValues(alpha: .12),
-                foregroundColor: color,
-                child: Icon(icon),
-              ),
-              const SizedBox(height: 16),
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              Row(children: [
+                Icon(icon, color: color, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Text(title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700))),
+              ]),
               const SizedBox(height: 7),
-              Text(description),
-              const SizedBox(height: 18),
+              Text(description, style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 10),
               FilledButton.tonal(
                 onPressed: onPressed,
                 child: Text(buttonLabel),
@@ -1017,6 +1040,7 @@ class _RightRequestDialogState extends State<_RightRequestDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        scrollable: true,
         title: const Text('Betroffenenrecht ausüben'),
         content: SizedBox(
           width: 540,
@@ -1024,6 +1048,8 @@ class _RightRequestDialogState extends State<_RightRequestDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
+                isExpanded: true,
+                itemHeight: null,
                 initialValue: _type,
                 decoration: const InputDecoration(labelText: 'Art des Antrags'),
                 items: const [
@@ -1111,6 +1137,7 @@ class _ErasureDialogState extends State<_ErasureDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        scrollable: true,
         title: const Text('Kontolöschung beantragen'),
         content: SizedBox(
           width: 520,

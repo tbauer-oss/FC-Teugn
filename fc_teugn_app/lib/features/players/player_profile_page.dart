@@ -312,6 +312,7 @@ class _ProfileContent extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Spielerprofil löschen?'),
         content: Text(
           '${player.fullName} wird einschließlich der zugehörigen Profildaten gelöscht. '
@@ -442,6 +443,7 @@ class _ProfileContent extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: Icon(
           Icons.link_off_rounded,
           color: Theme.of(dialogContext).colorScheme.error,
@@ -1683,6 +1685,7 @@ class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Dokument entfernen?'),
         content: Text(
           '${document.title} wird aus dem Spielerprofil entfernt.',
@@ -2374,6 +2377,7 @@ class _ConsentCard extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Einwilligung widerrufen?'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2430,6 +2434,7 @@ class _ConsentCard extends ConsumerWidget {
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
+          scrollable: true,
           title: Text('${template.shortTitle} ablehnen?'),
           content: SingleChildScrollView(
             child: Column(
@@ -3141,6 +3146,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String?>(
+            itemHeight: null,
             key: const ValueKey('player-edit-injury-type'),
             initialValue: injuryType,
             isExpanded: true,
@@ -3188,6 +3194,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
             breakpoint: 520,
             children: [
               DropdownButtonFormField<InjurySeverity>(
+                itemHeight: null,
                 key: const ValueKey('player-edit-injury-severity'),
                 initialValue: injurySeverity,
                 isExpanded: true,
@@ -3437,6 +3444,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
           icon: Icons.groups_rounded,
           children: [
             DropdownButtonFormField<String>(
+              itemHeight: null,
               initialValue: teamId,
               isExpanded: true,
               decoration: const InputDecoration(
@@ -3499,6 +3507,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
                   onChanged: (value) => setState(() => birthDate = value),
                 ),
                 DropdownButtonFormField<PlayerGender?>(
+                  itemHeight: null,
                   key: const ValueKey('player-edit-gender'),
                   initialValue: gender,
                   isExpanded: true,
@@ -3562,6 +3571,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
             ResponsiveFormRow(
               children: [
                 DropdownButtonFormField<String?>(
+                  itemHeight: null,
                   initialValue: position,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Hauptposition'),
@@ -3574,6 +3584,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
                   onChanged: (value) => setState(() => position = value),
                 ),
                 DropdownButtonFormField<String?>(
+                  itemHeight: null,
                   initialValue: secondaryPosition,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Nebenposition'),
@@ -3592,6 +3603,7 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
             ResponsiveFormRow(
               children: [
                 DropdownButtonFormField<DominantFoot>(
+                  itemHeight: null,
                   initialValue: dominantFoot,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Starker Fuß'),
@@ -3624,6 +3636,8 @@ class _EditBasicsDialogState extends State<_EditBasicsDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<PlayerStatus>(
+              isExpanded: true,
+              itemHeight: null,
               initialValue: status,
               decoration: const InputDecoration(labelText: 'Status'),
               items: const [
@@ -3759,6 +3773,7 @@ class _MedicalDialogState extends State<_MedicalDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Gesundheitsdaten'),
       content: SizedBox(
         width: 560,
@@ -3863,6 +3878,7 @@ class _GuardianDialogState extends State<_GuardianDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Sorgeberechtigte Person zuordnen'),
       content: SizedBox(
         width: 520,
@@ -3870,6 +3886,7 @@ class _GuardianDialogState extends State<_GuardianDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
+              itemHeight: null,
               initialValue: parentId,
               isExpanded: true,
               decoration: const InputDecoration(
@@ -3892,6 +3909,8 @@ class _GuardianDialogState extends State<_GuardianDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              itemHeight: null,
               initialValue: relationship,
               decoration: const InputDecoration(labelText: 'Beziehung'),
               items: const [
@@ -3968,6 +3987,7 @@ class _EmergencyDialogState extends State<_EmergencyDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Notfallkontakt hinzufügen'),
       content: SizedBox(
         width: 480,
@@ -4047,6 +4067,7 @@ class _DevelopmentDialogState extends State<_DevelopmentDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Entwicklungsbeobachtung'),
       content: SizedBox(
         width: 560,
@@ -4060,6 +4081,8 @@ class _DevelopmentDialogState extends State<_DevelopmentDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                isExpanded: true,
+                itemHeight: null,
                 initialValue: category,
                 decoration: const InputDecoration(labelText: 'Bereich'),
                 items: const [
@@ -4099,6 +4122,8 @@ class _DevelopmentDialogState extends State<_DevelopmentDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int?>(
+                isExpanded: true,
+                itemHeight: null,
                 initialValue: rating,
                 decoration: const InputDecoration(labelText: 'Einschätzung'),
                 items: const [
@@ -4117,6 +4142,7 @@ class _DevelopmentDialogState extends State<_DevelopmentDialog> {
                 builder: (context, constraints) {
                   if (constraints.maxWidth < 450) {
                     return DropdownButtonFormField<String>(
+                      itemHeight: null,
                       initialValue: visibility,
                       isExpanded: true,
                       decoration:
@@ -4260,6 +4286,7 @@ class _DocumentDialogState extends State<_DocumentDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: const Text('Dokument hinzufügen'),
       content: SizedBox(
         width: 460,
@@ -4267,6 +4294,8 @@ class _DocumentDialogState extends State<_DocumentDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              itemHeight: null,
               initialValue: type,
               decoration: const InputDecoration(labelText: 'Dokumenttyp'),
               items: const [

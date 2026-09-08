@@ -287,6 +287,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
+          scrollable: true,
           icon: Icon(
             Icons.warning_amber_rounded,
             color: Theme.of(dialogContext).colorScheme.error,
@@ -304,6 +305,8 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
               if (event.isRecurring) ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  itemHeight: null,
                   initialValue: scope,
                   decoration: const InputDecoration(labelText: 'Umfang'),
                   items: const [
@@ -403,6 +406,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
+          scrollable: true,
           icon: const Icon(Icons.event_busy_rounded, color: Colors.redAccent),
           title: const Text('Spiel verbindlich absagen?'),
           content: SizedBox(
@@ -651,6 +655,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
       final proceed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
+          scrollable: true,
           icon: const Icon(Icons.warning_amber_rounded),
           title: const Text('Terminüberschneidung erkannt'),
           content: Text(
@@ -796,6 +801,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
               final confirmed = await showDialog<bool>(
                 context: dialogContext,
                 builder: (summaryContext) => AlertDialog(
+                  scrollable: true,
                   title: const Text('Verlegung verbindlich speichern?'),
                   content: Text(
                     '${_formatDateTime(draft.startAt)}\n'
@@ -920,6 +926,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                 icon: Icons.rule_rounded,
                 children: [
                   DropdownButtonFormField<String>(
+                    itemHeight: null,
                     initialValue: retention,
                     isExpanded: true,
                     decoration: const InputDecoration(
@@ -944,6 +951,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    itemHeight: null,
                     initialValue: notification,
                     isExpanded: true,
                     decoration:
@@ -1186,6 +1194,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                     builder: (context, constraints) =>
                         constraints.maxWidth < 390
                             ? DropdownButtonFormField<bool>(
+                                itemHeight: null,
                                 initialValue: isHome,
                                 isExpanded: true,
                                 decoration: const InputDecoration(
@@ -1231,6 +1240,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
+                          itemHeight: null,
                           initialValue: selectedOpponentClubId,
                           isExpanded: true,
                           decoration: const InputDecoration(
@@ -1294,6 +1304,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    itemHeight: null,
                     key: ValueKey(
                       '$selectedOpponentClubId:$selectedTeamDesignation',
                     ),
@@ -1348,6 +1359,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String?>(
+                    itemHeight: null,
                     initialValue: competition,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Wettbewerb'),
@@ -1580,6 +1592,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
               final confirmed = await showDialog<bool>(
                 context: dialogContext,
                 builder: (confirmationContext) => AlertDialog(
+                  scrollable: true,
                   title: const Text('Partie für Familien freigeben?'),
                   content: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 480),
@@ -2417,6 +2430,7 @@ class _TournamentFixtureEditor extends StatelessWidget {
       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     );
     final periodCountField = DropdownButtonFormField<int>(
+      itemHeight: null,
       initialValue: row.periodCount,
       isExpanded: true,
       decoration: compactDecoration.copyWith(labelText: 'Abschnitte'),
@@ -2431,6 +2445,7 @@ class _TournamentFixtureEditor extends StatelessWidget {
       },
     );
     final periodMinutesField = DropdownButtonFormField<int>(
+      itemHeight: null,
       initialValue: row.periodMinutes,
       isExpanded: true,
       decoration: compactDecoration.copyWith(labelText: 'Min./Abschnitt'),
@@ -2450,6 +2465,7 @@ class _TournamentFixtureEditor extends StatelessWidget {
       },
     );
     final orderField = DropdownButtonFormField<bool>(
+      itemHeight: null,
       initialValue: row.isHome,
       isExpanded: true,
       decoration: compactDecoration.copyWith(labelText: 'Anzeige'),

@@ -43,17 +43,21 @@ class TalentsPage extends ConsumerWidget {
               return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: sections.entries
-                            .map((s) => ChoiceChip(
-                                label: Text(s.value),
-                                selected: selected == s.key,
-                                onSelected: (_) =>
-                                    context.go('$base/talents/${s.key}')))
-                            .toList()),
-                    const SizedBox(height: 18),
+                    DefaultTabController(
+                      key: ValueKey(selected),
+                      length: sections.length,
+                      initialIndex: sections.keys.toList().indexOf(selected),
+                      child: TabBar(
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
+                        tabs: [
+                          for (final label in sections.values) Tab(text: label)
+                        ],
+                        onTap: (index) => context.go(
+                            '$base/talents/${sections.keys.elementAt(index)}'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     switch (selected) {
                       'absences' => AbsencesPage(options: data),
                       'polls' => PollsPage(options: data),

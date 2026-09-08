@@ -162,6 +162,7 @@ class AppShell extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: const Icon(Icons.science_rounded),
         title: const Text('Lokales Testlabor starten?'),
         content: const Text(
@@ -294,6 +295,7 @@ class AppShell extends ConsumerWidget {
           }
 
           return AlertDialog(
+            scrollable: true,
             title: const Text('Arbeitsbereich wechseln'),
             content: SizedBox(
               width: 430,
@@ -306,6 +308,8 @@ class AppShell extends ConsumerWidget {
                   ),
                   const SizedBox(height: 18),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    itemHeight: null,
                     initialValue: ageGroupId,
                     decoration: const InputDecoration(
                       labelText: 'Jugend',
@@ -344,6 +348,8 @@ class AppShell extends ConsumerWidget {
                     ),
                   if (!includeAll)
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      itemHeight: null,
                       initialValue: teamId,
                       decoration: const InputDecoration(
                         labelText: 'Mannschaft',
@@ -1646,6 +1652,7 @@ class _MobileMenuSearchDialogState extends State<_MobileMenuSearchDialog> {
               .contains(query);
     }).toList();
     return AlertDialog(
+      scrollable: true,
       title: const Text('Funktion suchen'),
       contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
       content: SizedBox(
@@ -1664,26 +1671,15 @@ class _MobileMenuSearchDialogState extends State<_MobileMenuSearchDialog> {
               ),
             ),
             const SizedBox(height: 10),
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: results.length,
-                itemBuilder: (context, index) {
-                  final destination = results[index];
-                  return ListTile(
-                    dense: true,
-                    leading: Icon(destination.icon, color: context.appWarning),
-                    title: Text(destination.label),
-                    subtitle: Text(
-                      destination.hint,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onTap: () => Navigator.pop(context, destination),
-                  );
-                },
+            for (final destination in results)
+              ListTile(
+                dense: true,
+                leading: Icon(destination.icon, color: context.appWarning),
+                title: Text(destination.label),
+                subtitle: Text(destination.hint,
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                onTap: () => Navigator.pop(context, destination),
               ),
-            ),
           ],
         ),
       ),

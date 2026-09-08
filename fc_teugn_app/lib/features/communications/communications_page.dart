@@ -714,6 +714,8 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                   const SizedBox(height: 12),
                   if (messages == null && inbox.teamOptions.length > 1)
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      itemHeight: null,
                       initialValue: selectedTeamId,
                       decoration: const InputDecoration(
                         labelText: 'Mannschaft',
@@ -768,6 +770,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
                             ? selectedParentId
                             : null;
                         return DropdownButtonFormField<String>(
+                          itemHeight: null,
                           key: ValueKey('family-contact-$selectedTeamId'),
                           initialValue: initialParentId,
                           isExpanded: true,
@@ -1859,6 +1862,7 @@ class _PitchConflictRequestList extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text(label),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2325,6 +2329,7 @@ class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: Icon(
           Icons.warning_amber_rounded,
           color: Theme.of(dialogContext).colorScheme.error,
@@ -2424,6 +2429,8 @@ class _AnnouncementToolbar extends StatelessWidget {
             ),
           );
           final status = DropdownButtonFormField<AnnouncementStatus?>(
+            isExpanded: true,
+            itemHeight: null,
             key: ValueKey(statusFilter),
             initialValue: statusFilter,
             decoration: InputDecoration(
@@ -2524,6 +2531,7 @@ class _AnnouncementCard extends StatelessWidget {
           await showDialog<void>(
             context: context,
             builder: (context) => AlertDialog(
+              scrollable: true,
               title: Text(announcement.title),
               content: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 560),
@@ -2842,6 +2850,7 @@ class _NotificationList extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Gelesene Benachrichtigungen löschen?'),
         content: Text(
           'Es werden ausschließlich die $readCount bereits gelesenen '
@@ -2899,6 +2908,7 @@ class _NotificationList extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Benachrichtigung löschen?'),
         content: Text(
           '„${item.title}“ wird nur aus deinem persönlichen '
@@ -3109,6 +3119,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: const Icon(Icons.campaign_rounded),
         title: const Text('Test-Push an alle senden?'),
         content: const Text(
@@ -3212,6 +3223,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: Icon(
           activate
               ? Icons.notifications_active_rounded
@@ -3270,6 +3282,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: Icon(
           Icons.delete_forever_rounded,
           color: Theme.of(dialogContext).colorScheme.error,
@@ -3328,6 +3341,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: Icon(
           Icons.delete_sweep_rounded,
           color: Theme.of(dialogContext).colorScheme.error,
@@ -4558,6 +4572,7 @@ class _ComposeAnnouncementDialogState
             final stack = constraints.maxWidth < 520;
             final fields = [
               DropdownButtonFormField<AnnouncementPriority>(
+                itemHeight: null,
                 initialValue: _priority,
                 isExpanded: true,
                 decoration: const InputDecoration(
@@ -4573,6 +4588,7 @@ class _ComposeAnnouncementDialogState
                 onChanged: (value) => setState(() => _priority = value!),
               ),
               DropdownButtonFormField<AnnouncementStatus>(
+                itemHeight: null,
                 initialValue: _status,
                 isExpanded: true,
                 decoration: const InputDecoration(
@@ -4734,6 +4750,7 @@ class _ComposeAnnouncementDialogState
           Expanded(child: SingleChildScrollView(child: list)),
         const SizedBox(height: 8),
         DropdownButtonFormField<AnnouncementAudience>(
+          itemHeight: null,
           initialValue: _audience,
           isExpanded: true,
           decoration: const InputDecoration(

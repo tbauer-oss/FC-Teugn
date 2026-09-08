@@ -93,6 +93,7 @@ class ParentConsentPromptDialog extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).width < 600;
     final openCount = items.fold<int>(0, (sum, item) => sum + item.openCount);
     return AlertDialog(
+      scrollable: true,
       icon: Icon(
         Icons.verified_user_outlined,
         color: context.appWarning,

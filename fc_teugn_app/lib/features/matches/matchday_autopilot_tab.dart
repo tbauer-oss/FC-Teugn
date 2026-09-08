@@ -425,6 +425,7 @@ class _StrategySelector extends StatelessWidget {
             SizedBox(height: compact ? 8 : 12),
             if (compact)
               DropdownButtonFormField<AutopilotStrategy>(
+                itemHeight: null,
                 key: const ValueKey('autopilot-strategy-selector-mobile'),
                 initialValue: value,
                 isExpanded: true,

@@ -120,6 +120,8 @@ class _StatisticsPageState extends ConsumerState<StatisticsPage> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final seasonSelector = DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  itemHeight: null,
                   key:
                       ValueKey('statistics-season-${_seasonId ?? _allSeasons}'),
                   initialValue: _seasonId ?? _allSeasons,
@@ -379,6 +381,8 @@ class _TeamSelector extends StatelessWidget {
         ? selectedTeamId
         : teams.first.id;
     return DropdownButtonFormField<String>(
+      isExpanded: true,
+      itemHeight: null,
       key: ValueKey('statistics-team-$effectiveValue'),
       initialValue: effectiveValue,
       decoration: const InputDecoration(
@@ -734,6 +738,7 @@ class _PerformancePlayerListState extends State<_PerformancePlayerList> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
+                  itemHeight: null,
                   isExpanded: true,
                   initialValue: strength,
                   decoration: const InputDecoration(labelText: 'Stärke'),
@@ -761,6 +766,7 @@ class _PerformancePlayerListState extends State<_PerformancePlayerList> {
                 ),
                 const SizedBox(height: 9),
                 DropdownButtonFormField<String>(
+                  itemHeight: null,
                   isExpanded: true,
                   initialValue: position,
                   decoration: const InputDecoration(labelText: 'Position'),

@@ -191,6 +191,7 @@ class _CompetitionImportDialogState
                   Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: DropdownButtonFormField<String>(
+                        itemHeight: null,
                         isExpanded: true,
                         initialValue: _fieldResolutions[row.id]
                             ?[field['field']],
@@ -493,6 +494,8 @@ class _ImportSourceSection extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              itemHeight: null,
               initialValue: teamId,
               decoration: const InputDecoration(labelText: 'Mannschaft'),
               items: organization.teams
@@ -577,6 +580,8 @@ class _ManualImportSection extends StatelessWidget {
             final narrow = constraints.maxWidth < 560;
             final fields = [
               DropdownButtonFormField<CompetitionImportFormat>(
+                isExpanded: true,
+                itemHeight: null,
                 initialValue: format,
                 decoration: const InputDecoration(labelText: 'Dateiformat'),
                 items: const [
@@ -590,6 +595,8 @@ class _ManualImportSection extends StatelessWidget {
                 onChanged: (value) => onFormatChanged(value!),
               ),
               DropdownButtonFormField<String>(
+                isExpanded: true,
+                itemHeight: null,
                 key: ValueKey(format),
                 initialValue: provider,
                 decoration: const InputDecoration(labelText: 'Quelle'),

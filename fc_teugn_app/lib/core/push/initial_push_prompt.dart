@@ -23,6 +23,7 @@ class _InitialPushPromptDialogState extends State<InitialPushPromptDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       icon: Container(
         width: 64,
         height: 64,

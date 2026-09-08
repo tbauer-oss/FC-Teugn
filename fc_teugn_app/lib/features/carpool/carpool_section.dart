@@ -505,6 +505,7 @@ class _CarpoolSectionState extends ConsumerState<CarpoolSection> {
     final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
+              scrollable: true,
               title: const Text('Fahrt zurückziehen?'),
               content: const Text(
                   'Gebuchte Mitfahrer erhalten wieder offenen Bedarf. Freie Plätze in anderen Fahrten werden automatisch zugeordnet.'),
@@ -735,6 +736,8 @@ class _RideOfferDialogState extends State<_RideOfferDialog> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     DropdownButtonFormField<int>(
+                        isExpanded: true,
+                        itemHeight: null,
                         initialValue: _seats,
                         decoration: const InputDecoration(
                             labelText: 'Freie Plätze (ohne Fahrer)'),

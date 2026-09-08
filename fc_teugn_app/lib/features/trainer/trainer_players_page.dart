@@ -317,6 +317,7 @@ class _PlayerViewToolbar extends StatelessWidget {
           final teamFilter = SizedBox(
             width: constraints.maxWidth < 760 ? constraints.maxWidth : 245,
             child: DropdownButtonFormField<String?>(
+              itemHeight: null,
               initialValue: selectedTeamId,
               isExpanded: true,
               decoration: const InputDecoration(
@@ -1282,6 +1283,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                 icon: Icons.groups_rounded,
                 children: [
                   DropdownButtonFormField<String>(
+                    itemHeight: null,
                     initialValue: _teamId,
                     isExpanded: true,
                     decoration: const InputDecoration(
@@ -1348,6 +1350,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                         lastDate: DateTime.now(),
                       ),
                       DropdownButtonFormField<PlayerGender?>(
+                        itemHeight: null,
                         key: const ValueKey('player-create-gender'),
                         initialValue: _gender,
                         isExpanded: true,
@@ -1410,6 +1413,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                   ResponsiveFormRow(
                     children: [
                       DropdownButtonFormField<String?>(
+                        itemHeight: null,
                         initialValue: _position,
                         isExpanded: true,
                         decoration: const InputDecoration(
@@ -1423,6 +1427,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                         onChanged: (value) => setState(() => _position = value),
                       ),
                       DropdownButtonFormField<String?>(
+                        itemHeight: null,
                         initialValue: _secondaryPosition,
                         isExpanded: true,
                         decoration: const InputDecoration(
@@ -1442,6 +1447,7 @@ class _CreatePlayerDialogState extends State<_CreatePlayerDialog> {
                   ResponsiveFormRow(
                     children: [
                       DropdownButtonFormField<DominantFoot>(
+                        itemHeight: null,
                         initialValue: _dominantFoot,
                         isExpanded: true,
                         decoration:
