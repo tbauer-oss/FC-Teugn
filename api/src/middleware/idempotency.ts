@@ -33,7 +33,12 @@ export async function idempotencyMiddleware(
       },
     },
   });
-  if (existing) {
+  if (existing && existing.expiresAt <= new Date()) {
+    // Expiration is enforced on access, independent of maintenance frequency.
+    await prisma.idempotencyRecord.deleteMany({
+      where: { id: existing.id, expiresAt: { lte: new Date() } },
+    });
+  } else if (existing) {
     if (
       existing.requestHash !== requestHash ||
       existing.method !== method ||

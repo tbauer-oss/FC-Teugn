@@ -15,10 +15,6 @@
     {
       "path": "/internal/cron/reminders",
       "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/internal/cron/regular-trainings",
-      "schedule": "7 * * * *"
     }
   ]
 }

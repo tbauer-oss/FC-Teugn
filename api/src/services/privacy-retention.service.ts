@@ -82,13 +82,16 @@ export function assertMessengerBackupRetentionPolicy() {
  * attendance, consents, incident documentation and audit evidence are not
  * deleted here because they require a formally approved club retention policy.
  */
-export async function applyOperationalRetention(now = new Date()) {
+export async function applyOperationalRetention(
+  now = new Date(),
+  { includeFamilyContacts = true }: { includeFamilyContacts?: boolean } = {},
+) {
   const sessionGraceDays = days('RETENTION_SESSION_GRACE_DAYS', 30, 7);
   const pushDeviceDays = days('RETENTION_INACTIVE_PUSH_DAYS', 180, 30);
   const readNotificationDays = days('RETENTION_READ_NOTIFICATION_DAYS', 365, 30);
   const notificationMaximumDays = days('RETENTION_NOTIFICATION_MAX_DAYS', 730, 90);
 
-  const familyContact = await purgeExpiredFamilyContacts(now);
+  const familyContact = includeFamilyContacts ? await purgeExpiredFamilyContacts(now) : undefined;
   const [idempotency, passwordResets, refreshTokens, pushSubscriptions, notifications] =
     await prisma.$transaction([
       prisma.idempotencyRecord.deleteMany({ where: { expiresAt: { lte: now } } }),

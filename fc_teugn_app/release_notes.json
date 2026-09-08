@@ -1,4 +1,10 @@
 {
+  "1.7.5+190": [
+    "Die App benötigt weniger Hintergrundabfragen. Beim Zurückkehren werden fällige Inhalte direkt aktualisiert.",
+    "Der Liveticker verarbeitet gleichzeitige Zuschauer sparsamer und behält seine schnelle Live-Aktualisierung für alle berechtigten Familien und Trainer.",
+    "Erinnerungen und geplante Mitteilungen werden weiterhin rechtzeitig verarbeitet. Leere Hintergrundläufe können der Datenbank Ruhepausen ermöglichen.",
+    "Die Spieltagsansicht lädt weiterhin direkt. Im Hintergrund oder hinter einer anderen Seite pausiert ihre automatische Abfrage bis zur Rückkehr."
+  ],
   "1.7.4+189": [
     "Nominierte Spieler und ihre Eltern erreichen auch Spiele anderer Mannschaften oder Jugenden mit Spieltag und Liveticker. Bestehende Einladungen bleiben bei der Bearbeitung des Kaders gültig.",
     "Gastfamilien können Mitfahrten anbieten und Plätze für Eltern und nominierte Kinder direkt buchen. Auch die automatische Platzvergabe berücksichtigt mannschaftsübergreifende Einladungen.",

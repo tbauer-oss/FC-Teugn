@@ -50,7 +50,8 @@ class MatchdayPage extends ConsumerStatefulWidget {
   ConsumerState<MatchdayPage> createState() => _MatchdayPageState();
 }
 
-class _MatchdayPageState extends ConsumerState<MatchdayPage> {
+class _MatchdayPageState extends ConsumerState<MatchdayPage>
+    with WidgetsBindingObserver {
   MatchdayModel? _match;
   List<PlayerModel> _players = const [];
   bool _loading = true;
@@ -64,6 +65,8 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   int _tickerLoopFailures = 0;
   Timer? _tickerDelayTimer;
   Completer<void>? _tickerDelayCompleter;
+  Completer<void>? _tickerPauseCompleter;
+  bool _tickerRouteVisible = true;
   int _loadRequest = 0;
   int _tournamentPlanningTab = 0;
   DateTime? _lastTickerConnectionAt;
@@ -72,12 +75,15 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_load());
     unawaited(_runTickerRefreshLoop());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _wakeTickerRefresh();
     _loadRequest += 1;
     _tickerDelayTimer?.cancel();
     final tickerDelayCompleter = _tickerDelayCompleter;
@@ -85,6 +91,32 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
       tickerDelayCompleter.complete();
     }
     super.dispose();
+  }
+
+  bool get _tickerForeground =>
+      WidgetsBinding.instance.lifecycleState == null ||
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final wasVisible = _tickerRouteVisible;
+    _tickerRouteVisible = ModalRoute.of(context)?.isCurrent ?? true;
+    if (_tickerRouteVisible && !wasVisible) _wakeTickerRefresh();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _wakeTickerRefresh();
+  }
+
+  void _wakeTickerRefresh() {
+    _tickerDelayTimer?.cancel();
+    for (final pending in [_tickerDelayCompleter, _tickerPauseCompleter]) {
+      if (pending != null && !pending.isCompleted) pending.complete();
+    }
+    _tickerDelayCompleter = null;
+    _tickerPauseCompleter = null;
   }
 
   Future<void> _load({bool refreshPlayers = false}) async {
@@ -286,6 +318,11 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage> {
     _tickerLoopRunning = true;
     try {
       while (mounted && !widget.tournamentPlanning) {
+        if (!_tickerForeground || !_tickerRouteVisible) {
+          _tickerPauseCompleter ??= Completer<void>();
+          await _tickerPauseCompleter!.future;
+          continue;
+        }
         if (_match == null) {
           await _waitForTickerDelay(const Duration(milliseconds: 200));
           continue;

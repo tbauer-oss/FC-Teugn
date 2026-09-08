@@ -29,6 +29,7 @@ import { asyncHandler } from './middleware/async-handler';
 import { securityHeaders } from './middleware/security-headers';
 import { assertMessengerBackupRetentionPolicy } from './services/privacy-retention.service';
 import { runtimeEnvironment } from './lib/runtime-environment';
+import { invalidateScheduledWork } from './middleware/scheduled-work-invalidation';
 
 dotenv.config();
 assertMessengerBackupRetentionPolicy();
@@ -96,6 +97,7 @@ app.use(
   }),
 );
 app.use(express.json({ limit: '1mb' }));
+app.use(invalidateScheduledWork);
 
 app.get('/', (_req, res) => res.json({
   status: 'ok',

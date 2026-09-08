@@ -22,6 +22,7 @@ import 'offline_outbox.dart';
 import 'loading/loading_controller.dart';
 import 'push/native_push_service.dart';
 import 'push/push_client.dart';
+import 'visible_refresh.dart';
 
 final offlineOutboxProvider = Provider<GeneralOfflineOutbox>(
   (ref) => GeneralOfflineOutbox(),
@@ -57,8 +58,7 @@ void _watchManualRefresh(Ref ref) {
 }
 
 void _scheduleLiveRefresh(Ref ref, Duration interval) {
-  final timer = Timer(interval, ref.invalidateSelf);
-  ref.onDispose(timer.cancel);
+  scheduleVisibleRefresh(ref, interval);
 }
 
 /// Keeps the FCM token for an approved, opted-in Android account registered.
@@ -409,12 +409,35 @@ final offlineOutboxCountProvider =
 /// Nachrichten bleiben unmittelbar; der Web-Fallback vermeidet mit einem
 /// moderaten Intervall dauerhafte Datenbanklast durch jede offene Sitzung.
 final liveNotificationsProvider =
-    StreamProvider.autoDispose<List<AppNotificationModel>>((ref) async* {
+    StreamProvider.autoDispose<List<AppNotificationModel>>((ref) {
   _watchManualRefresh(ref);
-  while (true) {
-    yield await ref.read(repositoryProvider).notifications();
-    await Future<void>.delayed(const Duration(seconds: 60));
+  final controller = StreamController<List<AppNotificationModel>>();
+  var disposed = false;
+  var refreshing = false;
+  Future<void> refresh() async {
+    if (disposed || refreshing) return;
+    refreshing = true;
+    try {
+      final notifications = await ref.read(repositoryProvider).notifications();
+      if (!disposed) controller.add(notifications);
+    } catch (error, stack) {
+      if (!disposed) controller.addError(error, stack);
+    } finally {
+      refreshing = false;
+    }
   }
+  final timer = VisibleRefreshTimer(
+    const Duration(seconds: 60), () => unawaited(refresh()), repeat: true,
+  );
+  ref.onCancel(timer.pause);
+  ref.onResume(timer.resume);
+  ref.onDispose(() {
+    disposed = true;
+    timer.dispose();
+    unawaited(controller.close());
+  });
+  unawaited(refresh());
+  return controller.stream;
 });
 
 class WorkingContextState {

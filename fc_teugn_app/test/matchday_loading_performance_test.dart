@@ -51,7 +51,81 @@ class _FastMatchRepository extends DataRepository {
       );
 }
 
+class _ObservedTickerRepository extends _FastMatchRepository {
+  final pending = <Completer<LiveTickerModel>>[];
+
+  @override
+  Future<LiveTickerModel> ticker(String eventId,
+      {int after = 0, bool waitForChanges = false}) {
+    final result = Completer<LiveTickerModel>();
+    pending.add(result);
+    return result.future;
+  }
+
+  void completeLatest() => pending.last.complete(LiveTickerModel.fromJson({}));
+}
+
 void main() {
+  testWidgets(
+      'ticker pauses behind another page or background app and reconnects immediately',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final repository = _ObservedTickerRepository();
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        repositoryProvider.overrideWithValue(repository),
+        playersProvider.overrideWith((ref) async => const []),
+        carpoolEventProvider
+            .overrideWith((ref, id) async => EventModel.fromJson({
+                  'id': id,
+                  'title': 'Testspiel',
+                  'teamId': 'team-1',
+                  'type': 'MATCH',
+                  'startAt': '2030-09-17T10:00:00Z',
+                  'location': 'Testplatz',
+                })),
+      ],
+      child: MaterialApp(
+          navigatorKey: navigator,
+          theme: buildAppTheme(),
+          home: const Scaffold(
+              body: MatchdayPage(matchId: 'live', staffView: true))),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(repository.pending.length, 1);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    repository.completeLatest();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(minutes: 20));
+    expect(repository.pending.length, 1);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(repository.pending.length, 2);
+
+    unawaited(navigator.currentState!.push(MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Text('Andere Seite')))));
+    await tester.pump(const Duration(milliseconds: 400));
+    repository.completeLatest();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 20));
+    expect(repository.pending.length, 2);
+    navigator.currentState!.pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(repository.pending.length, 3);
+    await tester.pumpWidget(const SizedBox());
+    repository.completeLatest();
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'matchday becomes visible before the shared player request finishes',
     (tester) async {

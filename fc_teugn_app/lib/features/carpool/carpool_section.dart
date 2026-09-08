@@ -10,6 +10,7 @@ import '../../core/models/event.dart';
 import '../../core/models/player.dart';
 import '../../core/models/user.dart';
 import '../../core/providers.dart';
+import '../../core/visible_refresh.dart';
 import '../../core/widgets/adaptive_layout.dart';
 import '../../core/widgets/responsive_form_dialog.dart';
 import '../auth/auth_controller.dart';
@@ -19,8 +20,7 @@ final carpoolEventProvider =
     FutureProvider.autoDispose.family<EventModel, String>((ref, id) async {
   ref.watch(authProvider.select((state) => state.user?.id));
   ref.watch(manualDataRefreshProvider);
-  final timer = Timer(const Duration(seconds: 30), ref.invalidateSelf);
-  ref.onDispose(timer.cancel);
+  scheduleVisibleRefresh(ref, const Duration(seconds: 30));
   return ref.watch(repositoryProvider).event(id);
 });
 
