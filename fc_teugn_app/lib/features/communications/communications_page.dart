@@ -1066,7 +1066,9 @@ class _FamilyContactComposerState extends State<_FamilyContactComposer> {
     final message = _controller.text.trim();
     if (_submitting ||
         widget.sending ||
-        (message.isEmpty && _attachment == null)) return;
+        (message.isEmpty && _attachment == null)) {
+      return;
+    }
     final draft = _FamilyContactReplyDraft.fromFile(
       message: message,
       file: _attachment,
