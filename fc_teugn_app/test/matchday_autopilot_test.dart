@@ -5,13 +5,23 @@ import 'package:fc_teugn_app/core/team_game_format.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('autopilot uses each match format including formats without a goalkeeper', () {
+  test(
+      'autopilot uses each match format including formats without a goalkeeper',
+      () {
     for (final format in TeamGameFormat.values) {
-      final players = [..._players(), for (var i = 0; i < 8; i++) _player('extra-$i', 'Spieler $i', 'MF', 10 + i, 200)];
-      final plan = buildMatchdayAutopilotPlan(match: _match(gameFormat: format), allPlayers: players);
-      expect(plan.positions.length, format.playerCount, reason: format.apiValue);
-      expect(plan.positions.where((p) => p.isGoalkeeper).length, format.hasGoalkeeper ? 1 : 0);
-      expect(plan.plannedMinutes.values.reduce((a, b) => a + b), format.playerCount * 60);
+      final players = [
+        ..._players(),
+        for (var i = 0; i < 8; i++)
+          _player('extra-$i', 'Spieler $i', 'MF', 10 + i, 200)
+      ];
+      final plan = buildMatchdayAutopilotPlan(
+          match: _match(gameFormat: format), allPlayers: players);
+      expect(plan.positions.length, format.playerCount,
+          reason: format.apiValue);
+      expect(plan.positions.where((p) => p.isGoalkeeper).length,
+          format.hasGoalkeeper ? 1 : 0);
+      expect(plan.plannedMinutes.values.reduce((a, b) => a + b),
+          format.playerCount * 60);
     }
   });
   test('erstellt eine positionsgerechte Startformation', () {
@@ -172,7 +182,8 @@ void main() {
   });
 }
 
-MatchdayModel _match({TeamGameFormat gameFormat = TeamGameFormat.football5}) => MatchdayModel(
+MatchdayModel _match({TeamGameFormat gameFormat = TeamGameFormat.football5}) =>
+    MatchdayModel(
       id: 'match-1',
       title: 'FC Teugn · Gegner',
       startAt: DateTime(2026, 8, 15, 10),
