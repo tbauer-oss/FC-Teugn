@@ -1,0 +1,67 @@
+name: Wait for Firebase Custom Domain
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/migration-triggers/wait-firebase-domain'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  wait:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Wait for Firebase Hosting domain and HTTPS
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          DOMAIN='app.fc-teugn-talents.de'
+          BASE="https://firebasehosting.googleapis.com/v1beta1/projects/${GCP_PROJECT_ID}/sites/${GCP_PROJECT_ID}/customDomains/${DOMAIN}"
+          TOKEN="$(gcloud auth print-access-token)"
+
+          for attempt in $(seq 1 40); do
+            curl --fail --silent --show-error \
+              -H "Authorization: Bearer ${TOKEN}" \
+              "$BASE" > /tmp/domain.json
+
+            HOST_STATE="$(node -e "const x=require('/tmp/domain.json'); process.stdout.write(x.hostState||'')")"
+            OWNERSHIP_STATE="$(node -e "const x=require('/tmp/domain.json'); process.stdout.write(x.ownershipState||'')")"
+            DESIRED="$(node -e "const x=require('/tmp/domain.json'); const d=x.requiredDnsUpdates?.desired||[]; console.log(JSON.stringify(d))")"
+            echo "Attempt ${attempt}: host=${HOST_STATE} ownership=${OWNERSHIP_STATE} desiredDns=${DESIRED}"
+
+            if [ "$HOST_STATE" = 'HOST_ACTIVE' ] && [ "$OWNERSHIP_STATE" = 'OWNERSHIP_ACTIVE' ]; then
+              if curl --fail --silent --show-error --max-time 20 \
+                --output /tmp/custom-index.html "https://${DOMAIN}/" && \
+                 test -s /tmp/custom-index.html && \
+                 curl --fail --silent --show-error --max-time 20 \
+                "https://${DOMAIN}/api/" > /tmp/custom-api.json && \
+                 grep -q '"status":"ok"' /tmp/custom-api.json; then
+                echo 'CUSTOM_DOMAIN_READY=true'
+                echo 'Firebase custom domain and /api rewrite are live.'
+                exit 0
+              fi
+              echo 'Firebase reports active; HTTPS/API is not ready yet.'
+            fi
+
+            sleep 15
+            TOKEN="$(gcloud auth print-access-token)"
+          done
+
+          echo 'Firebase custom domain did not become fully ready within the polling window.' >&2
+          cat /tmp/domain.json >&2
+          exit 1
