@@ -1,0 +1,39 @@
+name: Validate Cloud Run Container
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-cloud-run-container-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build Cloud Run image
+        run: docker build -f api/Dockerfile -t fc-teugn-cloud-run-ci api
+
+      - name: Verify image metadata
+        run: |
+          set -euo pipefail
+          docker image inspect fc-teugn-cloud-run-ci > /tmp/image.json
+          test -s /tmp/image.json
+
+      - name: Verify production entrypoint exists
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint sh fc-teugn-cloud-run-ci -c \
+            'test -f dist/src/index.js && test -d prisma && node --version'
