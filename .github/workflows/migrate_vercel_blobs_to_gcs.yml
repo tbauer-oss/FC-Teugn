@@ -8,12 +8,6 @@ on:
         required: true
         type: boolean
         default: false
-  pull_request:
-    branches:
-      - main
-      - master
-    paths:
-      - '.github/migration-triggers/blob-dry-run'
 
 permissions:
   contents: read
@@ -69,12 +63,12 @@ jobs:
           npm install -g vercel@latest
           vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1
 
-      - name: Run blob migration inside Vercel production environment
+      - name: Run blob migration inside Vercel environment
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           OBJECT_STORAGE_BUCKET: ${{ vars.GCS_BUCKET }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          EXECUTE_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.execute || false }}
+          EXECUTE_INPUT: ${{ inputs.execute }}
         run: |
           set -euo pipefail
           gcloud config set project "$GCP_PROJECT_ID" --quiet
