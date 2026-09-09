@@ -1,4 +1,7 @@
 {
+  "1.8.2+196": [
+    "Die Web-App lädt nach einer Aktualisierung zuverlässig die neue Version. Der Update-Hinweis erscheint anschließend nicht erneut."
+  ],
   "1.8.1+195": [
     "Die App nutzt die neue Vereinsadresse auch für die BfV-Ansichten und Hilfeseiten.",
     "Erforderliche Android-Updates werden vor der Anmeldung geprüft. Nach einem abgebrochenen Installationsversuch bleibt das Update erforderlich.",

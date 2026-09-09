@@ -1,2 +1,2 @@
 // Kept in sync with pubspec.yaml; embedded in the running web application.
-const appReleaseBuild = 195;
+const appReleaseBuild = 196;

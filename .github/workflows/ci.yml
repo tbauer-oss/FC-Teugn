@@ -122,6 +122,9 @@ jobs:
       - name: Run backend tests
         run: pnpm test
 
+      - name: Test web update cache regression
+        run: node --test ../scripts/web_bootstrap.test.mjs
+
       - name: Install isolated migration test runtime
         run: npm ci --prefix test-support
 
