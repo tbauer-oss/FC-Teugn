@@ -7,9 +7,11 @@ class InitialPushPromptDialog extends StatefulWidget {
   const InitialPushPromptDialog({
     super.key,
     this.onActivate,
+    this.restoring = false,
   });
 
   final Future<void> Function()? onActivate;
+  final bool restoring;
 
   @override
   State<InitialPushPromptDialog> createState() =>
@@ -37,16 +39,20 @@ class _InitialPushPromptDialogState extends State<InitialPushPromptDialog> {
           size: 32,
         ),
       ),
-      title: const Text(
-        'Pushnachrichten aktivieren?',
+      title: Text(
+        widget.restoring
+            ? 'Pushnachrichten wieder verbinden'
+            : 'Pushnachrichten aktivieren?',
         textAlign: TextAlign.center,
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Bleibe bei wichtigen Vereinsinformationen auf dem Laufenden – auch wenn die App geschlossen ist.',
+          Text(
+            widget.restoring
+                ? 'Die Freigabe dieses Geräts ist vorhanden. Bitte bestätige die Aktualisierung der Push-Verbindung.'
+                : 'Bleibe bei wichtigen Vereinsinformationen auf dem Laufenden – auch wenn die App geschlossen ist.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 18),
@@ -87,7 +93,11 @@ class _InitialPushPromptDialogState extends State<InitialPushPromptDialog> {
                   semanticsLabel: 'Benachrichtigungen werden aktiviert',
                 )
               : const Icon(Icons.notifications_rounded),
-          label: Text(_activating ? 'Aktiviere …' : 'Aktivieren'),
+          label: Text(_activating
+              ? 'Aktiviere …'
+              : widget.restoring
+                  ? 'Verbindung aktualisieren'
+                  : 'Aktivieren'),
         ),
       ],
     );

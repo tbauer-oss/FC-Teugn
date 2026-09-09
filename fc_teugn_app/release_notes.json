@@ -1,4 +1,8 @@
 {
+  "1.8.3+197": [
+    "Vorhandene Web-Push-Freigaben werden beim Start und beim Zurückkehren mit dem Server abgeglichen.",
+    "Falls das iPhone eine Bestätigung für die erneuerte Push-Verbindung benötigt, führt die App gezielt durch die Wiederherstellung."
+  ],
   "1.8.2+196": [
     "Die Web-App lädt nach einer Aktualisierung zuverlässig die neue Version. Der Update-Hinweis erscheint anschließend nicht erneut."
   ],

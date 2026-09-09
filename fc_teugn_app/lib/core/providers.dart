@@ -22,6 +22,7 @@ import 'offline_outbox.dart';
 import 'loading/loading_controller.dart';
 import 'push/native_push_service.dart';
 import 'push/push_client.dart';
+import 'push/web_push_registration.dart';
 import 'visible_refresh.dart';
 
 final offlineOutboxProvider = Provider<GeneralOfflineOutbox>(
@@ -104,7 +105,8 @@ final nativePushRegistrationProvider = FutureProvider<void>((ref) async {
     return;
   }
 
-  if (!webPushSupported || !accountOptIn) return;
+  if (!webPushSupported) return;
+  _watchManualRefresh(ref);
 
   try {
     final configuration = await repository.pushConfiguration();
@@ -115,19 +117,16 @@ final nativePushRegistrationProvider = FutureProvider<void>((ref) async {
       return;
     }
 
-    final status = await getWebPushStatus(vapidPublicKey);
-    if (status.permission != WebPushPermission.granted ||
-        (status.subscribed && !status.keyMismatch)) {
-      return;
-    }
-
-    // subscribeToWebPush() reuses a valid subscription, but if the stored
-    // applicationServerKey differs it unsubscribes and creates a new one with
-    // the current VAPID public key. Because permission is already granted,
-    // this path never opens a browser permission prompt.
-    final subscription = await subscribeToWebPush(vapidPublicKey);
-    await repository.registerWebPushSubscription(subscription);
-    ref.invalidate(currentDevicePushReadyProvider);
+    final restored = await restoreWebPushRegistration(
+      accountOptIn: accountOptIn,
+      vapidPublicKey: vapidPublicKey,
+      readStatus: getWebPushStatus,
+      restoreSubscription: (key) =>
+          subscribeToWebPush(key, requestPermission: false),
+      saveSubscription: (subscription) =>
+          repository.registerWebPushSubscription(subscription, silent: true),
+    );
+    if (restored) ref.invalidate(currentDevicePushReadyProvider);
   } catch (_) {
     // Automatic repair is best-effort. A transient browser/network error must
     // never interfere with app startup; manual push settings remain available.

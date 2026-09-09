@@ -18,6 +18,24 @@ const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim() ?? '';
 const vapidSubject = process.env.VAPID_SUBJECT?.trim() || 'mailto:admin@fc-teugn.de';
 export const webPushConfigured = externalDeliveriesAllowed &&
   Boolean(vapidPublicKey && vapidPrivateKey);
+
+// Apple supplies a short machine-readable reason (for example a VAPID key
+// mismatch). Preserve it without storing response bodies or device tokens.
+export function webPushFailureCode(error: unknown): string {
+  if (!error || typeof error !== 'object') return 'DELIVERY_FAILED';
+  const response = error as { statusCode?: unknown; body?: unknown };
+  const status = Number(response.statusCode);
+  const base = status ? `HTTP_${status}` : 'DELIVERY_FAILED';
+  try {
+    if (typeof response.body !== 'string') return base;
+    const reason = JSON.parse(response.body)?.reason;
+    return typeof reason === 'string' && /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(reason)
+      ? `${base}_${reason}`
+      : base;
+  } catch {
+    return base;
+  }
+}
 const maxAutomaticDeliveryAttempts = 6;
 const pendingDeliveryRetryDelayMs = 4 * 60 * 1000;
 
@@ -667,11 +685,11 @@ export async function deliverPush(deliveryId: string) {
         where: { id: delivery.subscription.id },
         data: { isActive: false },
       });
-      await markDeliveryFailed(delivery.id, `HTTP_${statusCode}`);
+      await markDeliveryFailed(delivery.id, webPushFailureCode(error));
     } else {
       await markDeliveryPending(
         delivery.id,
-        statusCode ? `HTTP_${statusCode}` : 'DELIVERY_FAILED',
+        webPushFailureCode(error),
       );
     }
   }

@@ -123,7 +123,7 @@ jobs:
         run: pnpm test
 
       - name: Test web update cache regression
-        run: node --test ../scripts/web_bootstrap.test.mjs
+        run: node --test ../scripts/web_bootstrap.test.mjs ../scripts/web_push_bridge.test.mjs
 
       - name: Install isolated migration test runtime
         run: npm ci --prefix test-support

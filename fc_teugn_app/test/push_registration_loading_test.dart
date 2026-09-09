@@ -39,8 +39,16 @@ void main() {
       'token-1',
       silent: true,
     );
+    await repository.registerWebPushSubscription(
+      const {
+        'endpoint': 'https://push.example/device',
+        'p256dh': 'device-key',
+        'auth': 'device-auth',
+      },
+      silent: true,
+    );
 
-    expect(requests, hasLength(2));
+    expect(requests, hasLength(3));
     expect(
       requests.every((request) => request.extra['suppressLoading'] == true),
       isTrue,

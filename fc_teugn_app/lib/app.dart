@@ -274,18 +274,29 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final native = nativePushService.supported;
       PushConfiguration? webConfiguration;
+      var restoringWebPush = false;
       if (native) {
         if (!mounted || !await nativePushService.shouldShowInitialPrompt()) {
           return;
         }
       } else {
+        // Give the automatic repair a chance before asking for an iOS gesture.
+        try {
+          await ref.read(nativePushRegistrationProvider.future);
+        } catch (_) {}
+        if (!mounted) return;
         final repository = ref.read(repositoryProvider);
         webConfiguration = await repository.pushConfiguration();
         if (!mounted ||
             !webConfiguration.webPushConfigured ||
-            !await shouldShowInitialWebPushPrompt()) {
+            !await shouldShowInitialWebPushPrompt(
+                webConfiguration.vapidPublicKey)) {
           return;
         }
+        restoringWebPush =
+            (await getWebPushStatus(webConfiguration.vapidPublicKey))
+                    .permission ==
+                WebPushPermission.granted;
       }
       final promptContext = _rootNavigatorKey.currentContext;
       if (promptContext == null || !promptContext.mounted || !mounted) {
@@ -297,6 +308,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
         context: promptContext,
         barrierDismissible: false,
         builder: (_) => InitialPushPromptDialog(
+          restoring: restoringWebPush,
           onActivate: native
               ? null
               : () async {
@@ -309,7 +321,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
       if (native) {
         await nativePushService.markInitialPromptHandled();
       } else {
-        markInitialWebPushPromptHandled();
+        markInitialWebPushPromptHandled(webConfiguration?.vapidPublicKey);
       }
       if (!mounted || activate != true) return;
       if (native) {

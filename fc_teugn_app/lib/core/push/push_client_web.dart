@@ -5,21 +5,23 @@ import 'dart:js_interop';
 import 'web_push_status.dart';
 
 @JS('fcTeugnSubscribePush')
-external JSPromise<JSString> _subscribe(JSString vapidPublicKey);
+external JSPromise<JSString> _subscribe(
+    JSString vapidPublicKey, JSBoolean requestPermission);
 
 @JS('fcTeugnWebPushStatus')
 external JSPromise<JSString> _status(JSString? vapidPublicKey);
 
 @JS('fcTeugnShouldShowInitialPushPrompt')
-external JSPromise<JSString> _shouldShowInitialPrompt();
+external JSPromise<JSString> _shouldShowInitialPrompt(JSString? vapidPublicKey);
 
 @JS('fcTeugnMarkInitialPushPromptHandled')
-external void _markInitialPromptHandled();
+external void _markInitialPromptHandled(JSString? vapidPublicKey);
 
 Future<Map<String, dynamic>> subscribeToWebPush(
-  String vapidPublicKey,
-) async {
-  final raw = (await _subscribe(vapidPublicKey.toJS)
+  String vapidPublicKey, {
+  bool requestPermission = true,
+}) async {
+  final raw = (await _subscribe(vapidPublicKey.toJS, requestPermission.toJS)
           .toDart
           .timeout(const Duration(seconds: 25)))
       .toDart;
@@ -40,9 +42,9 @@ Future<WebPushStatus> getWebPushStatus([String? vapidPublicKey]) async {
   }
 }
 
-Future<bool> shouldShowInitialWebPushPrompt() async {
+Future<bool> shouldShowInitialWebPushPrompt([String? vapidPublicKey]) async {
   try {
-    final raw = (await _shouldShowInitialPrompt()
+    final raw = (await _shouldShowInitialPrompt(vapidPublicKey?.toJS)
             .toDart
             .timeout(const Duration(seconds: 12)))
         .toDart;
@@ -53,6 +55,7 @@ Future<bool> shouldShowInitialWebPushPrompt() async {
   }
 }
 
-void markInitialWebPushPromptHandled() => _markInitialPromptHandled();
+void markInitialWebPushPromptHandled([String? vapidPublicKey]) =>
+    _markInitialPromptHandled(vapidPublicKey?.toJS);
 
 bool get webPushSupported => true;

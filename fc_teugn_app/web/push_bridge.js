@@ -1,6 +1,8 @@
 (function () {
   const pushScopePath = '/fc-teugn-push/';
   const initialPromptKey = 'fc-teugn-web-push-prompt-v1';
+  const repairPromptKey = 'fc-teugn-web-push-repair-v1';
+  let pendingSubscription = null;
 
   function withTimeout(promise, timeoutMs, code) {
     let timer;
@@ -74,37 +76,63 @@
     });
   };
 
-  window.fcTeugnShouldShowInitialPushPrompt = async function () {
-    const status = JSON.parse(await window.fcTeugnWebPushStatus());
+  window.fcTeugnShouldShowInitialPushPrompt = async function (vapidPublicKey) {
+    const status = JSON.parse(await window.fcTeugnWebPushStatus(vapidPublicKey));
     let handled = false;
+    let repairHandled = false;
     try {
       handled = localStorage.getItem(initialPromptKey) === 'handled';
+      repairHandled = Boolean(vapidPublicKey) &&
+        localStorage.getItem(repairPromptKey) === vapidPublicKey;
     } catch (_) {
       // In a privacy-restricted browser the prompt may be offered again.
     }
     return JSON.stringify({
       show: status.supported &&
-        status.permission === 'default' &&
         !status.subscribed &&
         !(status.isIos && !status.isStandalone) &&
-        !handled,
+        ((status.permission === 'default' && !handled) ||
+          (status.permission === 'granted' && !repairHandled)),
     });
   };
 
-  window.fcTeugnMarkInitialPushPromptHandled = function () {
+  window.fcTeugnMarkInitialPushPromptHandled = function (vapidPublicKey) {
     try {
       localStorage.setItem(initialPromptKey, 'handled');
+      if (vapidPublicKey) localStorage.setItem(repairPromptKey, vapidPublicKey);
     } catch (_) {
       // Push itself remains usable even when persistent browser storage is blocked.
     }
   };
 
-  window.fcTeugnSubscribePush = async function (vapidPublicKey) {
+  async function waitForActiveWorker(registration) {
+    if (registration.active?.state === 'activated') return;
+    const worker = registration.installing || registration.waiting || registration.active;
+    if (!worker) throw new Error('PUSH_SERVICE_WORKER_UNAVAILABLE');
+    let onStateChange;
+    try {
+      await withTimeout(new Promise((resolve, reject) => {
+        onStateChange = () => {
+          if (worker.state === 'activated') resolve();
+          if (worker.state === 'redundant') reject(new Error('PUSH_SERVICE_WORKER_UNAVAILABLE'));
+        };
+        worker.addEventListener('statechange', onStateChange);
+        onStateChange();
+      }), 15000, 'PUSH_SERVICE_WORKER_TIMEOUT');
+    } finally {
+      worker.removeEventListener('statechange', onStateChange);
+    }
+  }
+
+  async function subscribe(vapidPublicKey, requestPermission) {
     if (!supportsPush()) {
       throw new Error('WEB_PUSH_UNSUPPORTED');
     }
     if (isIosDevice() && !isStandalone()) {
       throw new Error('IOS_HOME_SCREEN_REQUIRED');
+    }
+    if (!requestPermission && Notification.permission !== 'granted') {
+      throw new Error('PUSH_PERMISSION_REQUIRED');
     }
     const permission = Notification.permission === 'granted'
       ? 'granted'
@@ -128,6 +156,10 @@
         'PUSH_SERVICE_WORKER_TIMEOUT',
       );
     }
+    // register() can resolve before activation, especially on a new iPhone
+    // installation. navigator.serviceWorker.ready would wait for the wrong
+    // (root) scope, so wait on this push registration instead.
+    await waitForActiveWorker(registration);
     let subscription = await withTimeout(
       registration.pushManager.getSubscription(),
       10000,
@@ -160,5 +192,20 @@
         ? 'FC Teugn Talents · iPhone/iPad Web-App'
         : 'FC Teugn Talents · Browser',
     });
+  }
+
+  window.fcTeugnSubscribePush = function (vapidPublicKey, requestPermission = true) {
+    // A passive repair must never reuse a request that can open a permission UI.
+    if (!requestPermission && Notification.permission !== 'granted') {
+      return Promise.reject(new Error('PUSH_PERMISSION_REQUIRED'));
+    }
+    if (pendingSubscription?.key === vapidPublicKey) {
+      return pendingSubscription.promise;
+    }
+    const promise = subscribe(vapidPublicKey, requestPermission).finally(() => {
+      if (pendingSubscription?.promise === promise) pendingSubscription = null;
+    });
+    pendingSubscription = {key: vapidPublicKey, promise};
+    return promise;
   };
 })();

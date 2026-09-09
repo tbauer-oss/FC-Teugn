@@ -2839,15 +2839,20 @@ class DataRepository {
   }
 
   Future<void> registerWebPushSubscription(
-    Map<String, dynamic> subscription,
-  ) async {
-    await client.dio.post('/notifications/settings/subscriptions', data: {
-      'platform': 'WEB',
-      'endpoint': subscription['endpoint'],
-      'p256dh': subscription['p256dh'],
-      'auth': subscription['auth'],
-      'deviceName': subscription['deviceName'] ?? 'FC Teugn Talents Web-App',
-    });
+    Map<String, dynamic> subscription, {
+    bool silent = false,
+  }) async {
+    await client.dio.post('/notifications/settings/subscriptions',
+        data: {
+          'platform': 'WEB',
+          'endpoint': subscription['endpoint'],
+          'p256dh': subscription['p256dh'],
+          'auth': subscription['auth'],
+          'deviceName':
+              subscription['deviceName'] ?? 'FC Teugn Talents Web-App',
+        },
+        options:
+            silent ? Options(extra: const {'suppressLoading': true}) : null);
   }
 
   Future<String> registerAndroidPushSubscription(

@@ -98,6 +98,15 @@
             "value": "no-cache, must-revalidate"
           }
         ]
+      },
+      {
+        "source": "/push_bridge.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
+        ]
       }
     ]
   }

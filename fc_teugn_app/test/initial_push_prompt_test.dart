@@ -5,6 +5,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('repair asks for a gesture without requesting consent again',
+      (tester) async {
+    var activated = false;
+    await tester.pumpWidget(MaterialApp(
+      home: InitialPushPromptDialog(
+        restoring: true,
+        onActivate: () async => activated = true,
+      ),
+    ));
+    expect(find.text('Pushnachrichten wieder verbinden'), findsOneWidget);
+    expect(find.textContaining('Freigabe dieses Geräts ist vorhanden'),
+        findsOneWidget);
+    await tester.tap(find.text('Verbindung aktualisieren'));
+    await tester.pumpAndSettle();
+    expect(activated, isTrue);
+  });
+
   testWidgets('first-start push prompt explains benefits and returns consent',
       (tester) async {
     bool? result;
