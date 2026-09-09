@@ -1,4 +1,10 @@
 {
+  "1.8.0+194": [
+    "Die produktive Web-App und API laufen jetzt über Firebase Hosting und Google Cloud Run; die bestehende Neon-Datenbank bleibt erhalten.",
+    "Bilder und Dokumente werden über Google Cloud Storage bereitgestellt. Push-Nachrichten und E-Mail-Versand wurden auf der neuen Infrastruktur erfolgreich geprüft.",
+    "Die Android-App verwendet ab dieser Version die neue stabile API unter app.fc-teugn-talents.de und ist damit vollständig von der bisherigen Vercel-Webstrecke entkoppelt.",
+    "Der automatische App-Update-Mechanismus bleibt unverändert: neue signierte APKs werden weiterhin über den Vereinsdownload bereitgestellt und in der App angeboten."
+  ],
   "1.7.7+193": [
     "Trainer können Direktnachrichten oder ganze Unterhaltungen für alle Beteiligten löschen, einschließlich privater Anhänge.",
     "Die Spielform lässt sich beim Anlegen und Bearbeiten pro Spiel auswählen. Aufstellung und Autopilot berücksichtigen die Spielerzahl und Spielformen ohne Torwart.",
