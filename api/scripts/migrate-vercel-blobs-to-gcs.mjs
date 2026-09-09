@@ -1,13 +1,11 @@
-import { applicationDefault, initializeApp } from 'firebase-admin/app';
-import { getStorage } from 'firebase-admin/storage';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { get, list } from '@vercel/blob';
 
 const execute = process.argv.includes('--execute');
 const bucketName = process.env.OBJECT_STORAGE_BUCKET?.trim();
-const projectId =
-  process.env.GOOGLE_CLOUD_PROJECT?.trim() ||
-  process.env.GCLOUD_PROJECT?.trim() ||
-  process.env.FIREBASE_PROJECT_ID?.trim();
 
 if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
   throw new Error('BLOB_READ_WRITE_TOKEN is required.');
@@ -16,11 +14,51 @@ if (!bucketName) {
   throw new Error('OBJECT_STORAGE_BUCKET is required.');
 }
 
-const app = initializeApp({
-  credential: applicationDefault(),
-  ...(projectId ? { projectId } : {}),
-});
-const bucket = getStorage(app).bucket(bucketName);
+function storageUri(pathname) {
+  return `gs://${bucketName}/${pathname}`;
+}
+
+function destinationExists(pathname) {
+  try {
+    execFileSync(
+      'gcloud',
+      ['storage', 'objects', 'describe', storageUri(pathname), '--format=value(name)'],
+      { stdio: 'ignore' },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function uploadToGoogleCloud(pathname, data, contentType) {
+  const directory = mkdtempSync(join(tmpdir(), 'fc-teugn-blob-'));
+  const temporaryFile = join(directory, 'blob');
+  const uri = storageUri(pathname);
+
+  try {
+    writeFileSync(temporaryFile, data);
+    execFileSync('gcloud', ['storage', 'cp', temporaryFile, uri, '--quiet'], {
+      stdio: 'inherit',
+    });
+    execFileSync(
+      'gcloud',
+      [
+        'storage',
+        'objects',
+        'update',
+        uri,
+        `--content-type=${contentType || 'application/octet-stream'}`,
+        '--cache-control=private, max-age=300, no-transform',
+        `--update-custom-metadata=migratedFrom=vercel-blob,originalPathname=${pathname}`,
+        '--quiet',
+      ],
+      { stdio: 'inherit' },
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
 
 let cursor;
 let discovered = 0;
@@ -39,11 +77,9 @@ do {
   for (const blob of page.blobs) {
     discovered += 1;
     const pathname = blob.pathname;
-    const destination = bucket.file(pathname);
 
     try {
-      const [exists] = await destination.exists();
-      if (exists) {
+      if (destinationExists(pathname)) {
         skipped += 1;
         console.log(`SKIP ${pathname} (already exists)`);
         continue;
@@ -68,17 +104,11 @@ do {
       }
       const data = Buffer.concat(chunks);
 
-      await destination.save(data, {
-        resumable: false,
-        contentType: source.blob.contentType || 'application/octet-stream',
-        metadata: {
-          cacheControl: 'private, max-age=300, no-transform',
-          metadata: {
-            migratedFrom: 'vercel-blob',
-            originalPathname: pathname,
-          },
-        },
-      });
+      uploadToGoogleCloud(
+        pathname,
+        data,
+        source.blob.contentType || 'application/octet-stream',
+      );
 
       copied += 1;
       console.log(`COPIED ${pathname} (${data.length} bytes)`);
