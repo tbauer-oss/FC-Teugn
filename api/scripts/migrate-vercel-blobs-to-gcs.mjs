@@ -6,9 +6,15 @@ import { get, list } from '@vercel/blob';
 
 const execute = process.argv.includes('--execute');
 const bucketName = process.env.OBJECT_STORAGE_BUCKET?.trim();
+const hasStaticToken = Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
+const hasOidc = Boolean(
+  process.env.VERCEL_OIDC_TOKEN?.trim() && process.env.BLOB_STORE_ID?.trim(),
+);
 
-if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
-  throw new Error('BLOB_READ_WRITE_TOKEN is required.');
+if (!hasStaticToken && !hasOidc) {
+  throw new Error(
+    'Vercel Blob authentication is required (OIDC with BLOB_STORE_ID or BLOB_READ_WRITE_TOKEN).',
+  );
 }
 if (!bucketName) {
   throw new Error('OBJECT_STORAGE_BUCKET is required.');
@@ -39,7 +45,7 @@ function uploadToGoogleCloud(pathname, data, contentType) {
   try {
     writeFileSync(temporaryFile, data);
     execFileSync('gcloud', ['storage', 'cp', temporaryFile, uri, '--quiet'], {
-      stdio: 'inherit',
+      stdio: 'ignore',
     });
     execFileSync(
       'gcloud',
@@ -53,7 +59,7 @@ function uploadToGoogleCloud(pathname, data, contentType) {
         `--update-custom-metadata=migratedFrom=vercel-blob,originalPathname=${pathname}`,
         '--quiet',
       ],
-      { stdio: 'inherit' },
+      { stdio: 'ignore' },
     );
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -64,12 +70,13 @@ let cursor;
 let discovered = 0;
 let copied = 0;
 let skipped = 0;
+let pending = 0;
 let failed = 0;
 
 console.log(
   execute
-    ? `Copying private Vercel blobs to gs://${bucketName} without deleting the source.`
-    : `DRY RUN: scanning Vercel blobs for migration to gs://${bucketName}.`,
+    ? 'Copying private Vercel blobs to Google Cloud Storage without deleting the source.'
+    : 'DRY RUN: scanning private Vercel blobs without exposing pathnames.',
 );
 
 do {
@@ -81,12 +88,11 @@ do {
     try {
       if (destinationExists(pathname)) {
         skipped += 1;
-        console.log(`SKIP ${pathname} (already exists)`);
         continue;
       }
 
       if (!execute) {
-        console.log(`WOULD COPY ${pathname}`);
+        pending += 1;
         continue;
       }
 
@@ -111,10 +117,12 @@ do {
       );
 
       copied += 1;
-      console.log(`COPIED ${pathname} (${data.length} bytes)`);
     } catch (error) {
       failed += 1;
-      console.error(`FAILED ${pathname}:`, error instanceof Error ? error.message : error);
+      console.error(
+        'A blob migration item failed:',
+        error instanceof Error ? error.name : 'Error',
+      );
     }
   }
 
@@ -126,10 +134,12 @@ console.log(
     {
       mode: execute ? 'execute' : 'dry-run',
       discovered,
+      pending,
       copied,
       skipped,
       failed,
       bucket: bucketName,
+      authentication: hasOidc ? 'vercel-oidc' : 'static-token',
     },
     null,
     2,
