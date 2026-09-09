@@ -114,7 +114,7 @@ jobs:
             --max-instances 5 \
             --memory 512Mi \
             --cpu 1 \
-            --set-env-vars "NODE_ENV=production,APP_ENVIRONMENT=production,OBJECT_STORAGE_PROVIDER=gcs,OBJECT_STORAGE_BUCKET=${GCS_BUCKET},FIREBASE_PROJECT_ID=${GCP_PROJECT_ID},PUBLIC_APP_URL=https://fc-teugn.web.app,CORS_ORIGINS=https://app.fc-teugn-talents.de|https://fc-teugn.web.app|https://fc-teugn.firebaseapp.com,RESEND_ACCOUNT_FROM_EMAIL=FC Teugn Talents <account@fc-teugn-talents.de>,RESEND_SUPPORT_FROM_EMAIL=FC Teugn Talents Support <support@fc-teugn-talents.de>,VAPID_SUBJECT=mailto:info@fc-teugn.de,MESSENGER_BACKUP_RETENTION_DAYS=30" \
+            --set-env-vars "NODE_ENV=production,APP_ENVIRONMENT=production,OBJECT_STORAGE_PROVIDER=gcs,OBJECT_STORAGE_BUCKET=${GCS_BUCKET},FIREBASE_PROJECT_ID=${GCP_PROJECT_ID},PUBLIC_APP_URL=https://fc-teugn.web.app,CORS_ORIGINS=https://app.fc-teugn-talents.de|https://fc-teugn.web.app|https://fc-teugn.firebaseapp.com,RESEND_ACCOUNT_FROM_EMAIL=FC Teugn Talents <account@mail.fc-teugn-talents.de>,RESEND_SUPPORT_FROM_EMAIL=FC Teugn Talents Support <support@mail.fc-teugn-talents.de>,VAPID_SUBJECT=mailto:info@fc-teugn.de,MESSENGER_BACKUP_RETENTION_DAYS=30" \
             --set-secrets "DATABASE_URL=DATABASE_URL:latest,ACCESS_TOKEN_SECRET=ACCESS_TOKEN_SECRET:latest,REFRESH_TOKEN_SECRET=REFRESH_TOKEN_SECRET:latest,CRON_SECRET=CRON_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest,VAPID_PUBLIC_KEY=VAPID_PUBLIC_KEY:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest" \
             --quiet
 
