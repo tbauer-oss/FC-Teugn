@@ -39,6 +39,18 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(securityHeaders);
 
+// Firebase Hosting forwards /api/** to Cloud Run without removing the prefix.
+// Normalize that path here while keeping the existing Vercel/direct API URLs
+// fully compatible during the migration period.
+app.use((req, _res, next) => {
+  if (req.url === '/api') {
+    req.url = '/';
+  } else if (req.url.startsWith('/api/')) {
+    req.url = req.url.slice(4);
+  }
+  next();
+});
+
 const defaultAllowedOrigins = [
   'https://fcteugnapp.vercel.app',
   'https://app.fc-teugn-talents.de',
