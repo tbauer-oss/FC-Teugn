@@ -61,41 +61,77 @@ void _scheduleLiveRefresh(Ref ref, Duration interval) {
   scheduleVisibleRefresh(ref, interval);
 }
 
-/// Keeps the FCM token for an approved, opted-in Android account registered.
+/// Keeps the active push channel for an approved, opted-in account registered.
+///
+/// On Android this refreshes the FCM token. On web it also repairs an existing
+/// subscription automatically after a VAPID key rotation, provided the browser
+/// permission was already granted. No permission prompt is triggered here.
 final nativePushRegistrationProvider = FutureProvider<void>((ref) async {
   final authState = ref.watch(authProvider);
   final user = authState.user;
   if (user == null ||
       user.status != AccountStatus.approved ||
       user.isReadOnlyPreview ||
-      authState.accessToken == null ||
-      !nativePushService.supported) {
+      authState.accessToken == null) {
     return;
   }
 
   final accountOptIn = user.registrationRequest?.pushOptIn == true;
-  final shouldRegister = await nativePushService.shouldAutomaticallyRegister(
-    accountOptIn: accountOptIn,
-  );
-  if (!shouldRegister) return;
-
-  final token = await nativePushService.enable();
-  if (token == null) return;
   final repository = ref.read(repositoryProvider);
-  if (!accountOptIn) await repository.grantPushConsent(silent: true);
-  await repository.registerNativePushSubscription(token, silent: true);
 
-  final refreshSubscription = nativePushService.tokenRefreshes.listen(
-    (refreshedToken) {
-      unawaited(
-        repository
-            .registerNativePushSubscription(refreshedToken, silent: true)
-            .then<void>((_) {})
-            .catchError((_) {}),
-      );
-    },
-  );
-  ref.onDispose(() => unawaited(refreshSubscription.cancel()));
+  if (nativePushService.supported) {
+    final shouldRegister = await nativePushService.shouldAutomaticallyRegister(
+      accountOptIn: accountOptIn,
+    );
+    if (!shouldRegister) return;
+
+    final token = await nativePushService.enable();
+    if (token == null) return;
+    if (!accountOptIn) await repository.grantPushConsent(silent: true);
+    await repository.registerNativePushSubscription(token, silent: true);
+
+    final refreshSubscription = nativePushService.tokenRefreshes.listen(
+      (refreshedToken) {
+        unawaited(
+          repository
+              .registerNativePushSubscription(refreshedToken, silent: true)
+              .then<void>((_) {})
+              .catchError((_) {}),
+        );
+      },
+    );
+    ref.onDispose(() => unawaited(refreshSubscription.cancel()));
+    return;
+  }
+
+  if (!webPushSupported || !accountOptIn) return;
+
+  try {
+    final configuration = await repository.pushConfiguration();
+    final vapidPublicKey = configuration.vapidPublicKey;
+    if (!configuration.webPushConfigured ||
+        vapidPublicKey == null ||
+        vapidPublicKey.isEmpty) {
+      return;
+    }
+
+    final status = await getWebPushStatus(vapidPublicKey);
+    if (status.permission != WebPushPermission.granted ||
+        (status.subscribed && !status.keyMismatch)) {
+      return;
+    }
+
+    // subscribeToWebPush() reuses a valid subscription, but if the stored
+    // applicationServerKey differs it unsubscribes and creates a new one with
+    // the current VAPID public key. Because permission is already granted,
+    // this path never opens a browser permission prompt.
+    final subscription = await subscribeToWebPush(vapidPublicKey);
+    await repository.registerWebPushSubscription(subscription);
+    ref.invalidate(currentDevicePushReadyProvider);
+  } catch (_) {
+    // Automatic repair is best-effort. A transient browser/network error must
+    // never interfere with app startup; manual push settings remain available.
+  }
 });
 
 /// Prüft, ob auf genau diesem Gerät ein nutzbarer Push-Kanal aktiv ist.
