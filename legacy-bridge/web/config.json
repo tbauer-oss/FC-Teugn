@@ -1,0 +1,37 @@
+{
+  "version": 3,
+  "crons": [],
+  "routes": [
+    {
+      "src": "/(?:flutter_service_worker|push-sw)\\.js",
+      "dest": "/migration-sw.js",
+      "headers": {
+        "Cache-Control": "no-store",
+        "Content-Type": "application/javascript"
+      }
+    },
+    {
+      "src": "/bfv-widget.html",
+      "dest": "https://app.fc-teugn-talents.de/bfv-widget.html",
+      "headers": {
+        "Cache-Control": "private, no-store",
+        "X-FC-Teugn-Bridge": "google"
+      }
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "https://app.fc-teugn-talents.de/api/$1",
+      "headers": {
+        "Cache-Control": "private, no-store",
+        "X-FC-Teugn-Bridge": "google"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html",
+      "headers": {
+        "Cache-Control": "no-store"
+      }
+    }
+  ]
+}
