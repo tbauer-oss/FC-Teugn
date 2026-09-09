@@ -1,0 +1,46 @@
+name: Test Vercel Blob OIDC Access
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/migration-triggers/blob-oidc'
+
+permissions:
+  contents: read
+
+jobs:
+  test-blob-oidc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Install and link Vercel CLI
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm install -g vercel@latest
+          vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN" >/dev/null
+      - name: Verify private Blob access without exposing paths
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Keep all potentially sensitive store/blob names out of the public log.
+          vercel blob list-stores --token "$VERCEL_TOKEN" > /tmp/blob-stores.txt
+          if [ ! -s /tmp/blob-stores.txt ]; then
+            echo 'No Blob store is visible to the linked project.' >&2
+            exit 1
+          fi
+          vercel blob list --limit 1 --token "$VERCEL_TOKEN" > /tmp/blob-list.txt
+          if [ ! -s /tmp/blob-list.txt ]; then
+            echo 'Blob store is reachable but no blob listing was returned.' >&2
+            exit 1
+          fi
+          echo 'Vercel Blob access is available through the linked project/CLI.'
+          rm -f /tmp/blob-stores.txt /tmp/blob-list.txt
