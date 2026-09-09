@@ -2,6 +2,12 @@ name: Deploy Backend API to Cloud Run
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/migration-triggers/cloud-run-deploy'
 
 permissions:
   contents: read
