@@ -31,7 +31,7 @@ export async function sendPushActivationEmail(
   if (!externalDeliveriesAllowed) return false;
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.RESEND_SUPPORT_FROM_EMAIL?.trim() ||
-    'FC Teugn Talents Support <support@fc-teugn-talents.de>';
+    'FC Teugn Talents Support <support@mail.fc-teugn-talents.de>';
   if (!apiKey) {
     console.warn(
       '[push-activation-email] RESEND_API_KEY is not configured',

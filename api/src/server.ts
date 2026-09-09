@@ -30,6 +30,7 @@ import { securityHeaders } from './middleware/security-headers';
 import { assertMessengerBackupRetentionPolicy } from './services/privacy-retention.service';
 import { runtimeEnvironment } from './lib/runtime-environment';
 import { invalidateScheduledWork } from './middleware/scheduled-work-invalidation';
+import { runtimeDeferredWork } from './middleware/runtime-deferred-work';
 
 dotenv.config();
 assertMessengerBackupRetentionPolicy();
@@ -38,6 +39,19 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(securityHeaders);
+app.use(runtimeDeferredWork);
+
+// Firebase Hosting forwards /api/** to Cloud Run without removing the prefix.
+// Normalize that path here while keeping the existing Vercel/direct API URLs
+// fully compatible during the migration period.
+app.use((req, _res, next) => {
+  if (req.url === '/api') {
+    req.url = '/';
+  } else if (req.url.startsWith('/api/')) {
+    req.url = req.url.slice(4);
+  }
+  next();
+});
 
 const defaultAllowedOrigins = [
   'https://fcteugnapp.vercel.app',
@@ -47,7 +61,7 @@ const defaultAllowedOrigins = [
   'http://localhost:4000',
 ];
 
-const envAllowedOrigins = process.env.CORS_ORIGINS?.split(',')
+const envAllowedOrigins = process.env.CORS_ORIGINS?.split(/[|,]/)
   .map((o) => o.trim())
   .filter(Boolean);
 const allowAllOrigins =

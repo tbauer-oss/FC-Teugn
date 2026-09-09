@@ -1,0 +1,153 @@
+name: Deploy Backend API to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-backend-cloud-run
+  cancel-in-progress: false
+
+env:
+  GCP_REGION: europe-west3
+  CLOUD_RUN_SERVICE: fc-teugn-backend
+  ARTIFACT_REPOSITORY: fc-teugn
+  PRODUCTION_APP_URL: https://app.fc-teugn-talents.de
+  PRODUCTION_API_URL: https://app.fc-teugn-talents.de/api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Validate required repository variables
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          for name in GCP_PROJECT_ID GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT GCS_BUCKET; do
+            if [ -z "${!name:-}" ]; then
+              echo "Repository variable $name is required." >&2
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install API dependencies
+        working-directory: api
+        run: npx -y pnpm@10.13.1 install --frozen-lockfile
+
+      - name: Validate required Google secrets
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          for name in DATABASE_URL ACCESS_TOKEN_SECRET REFRESH_TOKEN_SECRET CRON_SECRET RESEND_API_KEY VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY; do
+            value="$(gcloud secrets versions access latest --secret="$name" --project="$GCP_PROJECT_ID" 2>/dev/null || true)"
+            if [ -z "$value" ] || [ "$value" = '[SENSITIVE]' ]; then
+              echo "Google Secret Manager is missing a usable latest version for $name." >&2
+              exit 1
+            fi
+          done
+          echo 'All required Cloud Run secrets are present.'
+
+      - name: Apply Prisma migrations
+        working-directory: api
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL --project="$GCP_PROJECT_ID")"
+          export DATABASE_URL
+          for attempt in 1 2 3; do
+            if npx -y pnpm@10.13.1 exec prisma migrate deploy; then
+              unset DATABASE_URL
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              unset DATABASE_URL
+              echo 'Prisma migrations failed after 3 attempts.' >&2
+              exit 1
+            fi
+            echo "Prisma migration attempt $attempt hit a transient lock/error; retrying in 20 seconds."
+            sleep 20
+          done
+
+      - name: Configure Artifact Registry authentication
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push backend container
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/${CLOUD_RUN_SERVICE}:${GITHUB_SHA}"
+          docker build -f api/Dockerfile -t "$IMAGE" api
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          RUNTIME_SERVICE_ACCOUNT="fc-teugn-runtime@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+          gcloud run deploy "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --platform managed \
+            --image "$IMAGE" \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --port 8080 \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 5 \
+            --memory 512Mi \
+            --cpu 1 \
+            --set-env-vars "NODE_ENV=production,APP_ENVIRONMENT=production,OBJECT_STORAGE_PROVIDER=gcs,OBJECT_STORAGE_BUCKET=${GCS_BUCKET},FIREBASE_PROJECT_ID=${GCP_PROJECT_ID},PUBLIC_APP_URL=${PRODUCTION_APP_URL},PUBLIC_API_URL=${PRODUCTION_API_URL},API_PUBLIC_URL=${PRODUCTION_API_URL},CORS_ORIGINS=https://app.fc-teugn-talents.de|https://fc-teugn.web.app|https://fc-teugn.firebaseapp.com,RESEND_ACCOUNT_FROM_EMAIL=FC Teugn Talents <account@mail.fc-teugn-talents.de>,RESEND_SUPPORT_FROM_EMAIL=FC Teugn Talents Support <support@mail.fc-teugn-talents.de>,VAPID_SUBJECT=mailto:info@fc-teugn.de,MESSENGER_BACKUP_RETENTION_DAYS=30" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,ACCESS_TOKEN_SECRET=ACCESS_TOKEN_SECRET:latest,REFRESH_TOKEN_SECRET=REFRESH_TOKEN_SECRET:latest,CRON_SECRET=CRON_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest,VAPID_PUBLIC_KEY=VAPID_PUBLIC_KEY:latest,VAPID_PRIVATE_KEY=VAPID_PRIVATE_KEY:latest" \
+            --quiet
+
+      - name: Capture Cloud Run URL
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          echo "CLOUD_RUN_URL=$URL" >> "$GITHUB_ENV"
+
+      - name: Smoke test Cloud Run and stable production API
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 "$CLOUD_RUN_URL/" | tee /tmp/cloud-run-health.json
+          grep -q '"status":"ok"' /tmp/cloud-run-health.json
+          curl --fail --silent --show-error --retry 8 --retry-delay 3 "$PRODUCTION_API_URL/" | tee /tmp/production-api-health.json
+          grep -q '"status":"ok"' /tmp/production-api-health.json
+          echo "Cloud Run and production API smoke tests passed."

@@ -11,11 +11,5 @@
       "includeFiles": "{dist/**,prisma/**,assets/**}",
       "maxDuration": 30
     }
-  },
-  "crons": [
-    {
-      "path": "/internal/cron/reminders",
-      "schedule": "*/5 * * * *"
-    }
-  ]
+  }
 }

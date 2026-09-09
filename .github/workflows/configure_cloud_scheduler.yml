@@ -1,0 +1,82 @@
+name: Configure Cloud Scheduler Reminder Job
+
+on:
+  workflow_dispatch:
+    inputs:
+      enable:
+        description: 'Enable the Google scheduler now (keep false while Vercel cron is active)'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_REGION: europe-west3
+  CLOUD_RUN_SERVICE: fc-teugn-backend
+  SCHEDULER_JOB: fc-teugn-reminders
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Create or update scheduler job
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          ENABLE_JOB: ${{ inputs.enable }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GCP_PROJECT_ID:-}" ]; then
+            echo "GCP_PROJECT_ID repository variable is required." >&2
+            exit 1
+          fi
+
+          SERVICE_URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          CRON_SECRET="$(gcloud secrets versions access latest --secret=CRON_SECRET --project="$GCP_PROJECT_ID")"
+          URI="${SERVICE_URL}/internal/cron/reminders"
+
+          if gcloud scheduler jobs describe "$SCHEDULER_JOB" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$SCHEDULER_JOB" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule '*/5 * * * *' \
+              --time-zone 'Europe/Berlin' \
+              --uri "$URI" \
+              --http-method GET \
+              --update-headers "Authorization=Bearer ${CRON_SECRET}" \
+              --attempt-deadline 30s \
+              --quiet
+          else
+            gcloud scheduler jobs create http "$SCHEDULER_JOB" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule '*/5 * * * *' \
+              --time-zone 'Europe/Berlin' \
+              --uri "$URI" \
+              --http-method GET \
+              --headers "Authorization=Bearer ${CRON_SECRET}" \
+              --attempt-deadline 30s \
+              --quiet
+          fi
+
+          unset CRON_SECRET
+
+          if [ "$ENABLE_JOB" = "true" ]; then
+            gcloud scheduler jobs resume "$SCHEDULER_JOB" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" --quiet || true
+            echo "Google scheduler is ENABLED. Ensure the Vercel cron is disabled to avoid duplicate processing."
+          else
+            gcloud scheduler jobs pause "$SCHEDULER_JOB" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" --quiet
+            echo "Google scheduler is prepared but PAUSED while Vercel remains active."
+          fi

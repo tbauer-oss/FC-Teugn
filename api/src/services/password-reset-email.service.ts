@@ -32,7 +32,7 @@ export async function sendPasswordResetEmail(
   if (!externalDeliveriesAllowed) return false;
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.RESEND_ACCOUNT_FROM_EMAIL?.trim() ||
-    'FC Teugn Talents <account@fc-teugn-talents.de>';
+    'FC Teugn Talents <account@mail.fc-teugn-talents.de>';
   if (!apiKey) {
     console.warn(
       '[password-reset-email] RESEND_API_KEY is not configured',

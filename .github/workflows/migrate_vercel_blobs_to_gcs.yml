@@ -1,0 +1,85 @@
+name: Migrate Vercel Blobs to Google Cloud Storage
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: 'Actually copy blobs (false = dry run only)'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Validate required configuration
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in GCP_PROJECT_ID GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT GCS_BUCKET VERCEL_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              echo "$name is required." >&2
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install API dependencies
+        working-directory: api
+        run: npx -y pnpm@10.13.1 install --frozen-lockfile
+
+      - name: Link Vercel project
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm install -g vercel@latest
+          vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1
+
+      - name: Run blob migration inside Vercel environment
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          OBJECT_STORAGE_BUCKET: ${{ vars.GCS_BUCKET }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          EXECUTE_INPUT: ${{ inputs.execute }}
+        run: |
+          set -euo pipefail
+          gcloud config set project "$GCP_PROJECT_ID" --quiet
+          if [ "$EXECUTE_INPUT" = "true" ]; then
+            vercel env run --environment=production --token "$VERCEL_TOKEN" -- \
+              node api/scripts/migrate-vercel-blobs-to-gcs.mjs --execute
+          else
+            vercel env run --environment=production --token "$VERCEL_TOKEN" -- \
+              node api/scripts/migrate-vercel-blobs-to-gcs.mjs
+          fi
+
+      - name: Remove temporary Vercel credential files
+        if: always()
+        run: rm -f .env.local

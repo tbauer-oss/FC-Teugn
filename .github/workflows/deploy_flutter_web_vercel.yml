@@ -1,10 +1,6 @@
-name: Deploy Flutter Web to Vercel
+name: Deploy Flutter Web to Vercel (Legacy)
 
 on:
-  push:
-    branches:
-      - main
-      - master
   workflow_dispatch:
 
 permissions:
@@ -38,20 +34,12 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      - name: Wait for matching backend deployment
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node ../scripts/wait_for_workflow_success.mjs deploy_backend_vercel.yml "$GITHUB_SHA"
-
-      # WICHTIG: hier wieder ins Repo-Root wechseln,
-      # damit der Pfad "fc_teugn_app/build/web" stimmt
-      - name: Deploy to Vercel (Flutter Web)
+      - name: Deploy legacy Vercel web manually
         working-directory: fc_teugn_app
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           vercel \
-          --prod \
+            --prod \
             --yes \
             --token "$VERCEL_TOKEN"
-

@@ -4,7 +4,7 @@ import 'loading/loading_controller.dart';
 import 'offline_outbox.dart';
 
 class ApiClient {
-  static const productionBaseUrl = 'https://fc-teugn-backend.vercel.app';
+  static const productionBaseUrl = 'https://app.fc-teugn-talents.de/api';
 
   final Dio dio;
 
@@ -28,7 +28,8 @@ class ApiClient {
       if (Uri.base.host == 'localhost' || Uri.base.host == '127.0.0.1') {
         inferredWebBaseUrl = 'http://localhost:4000';
       } else {
-        // Frontend and API are deployed as separate Vercel projects.
+        // Production web and API share the Firebase Hosting domain. Requests
+        // under /api are rewritten to Cloud Run.
         inferredWebBaseUrl = productionBaseUrl;
       }
     }

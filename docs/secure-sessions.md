@@ -27,11 +27,11 @@ dadurch auch auf bereits ausgestellte Access-Tokens.
   Refresh-Tokens
 - `PUBLIC_APP_URL`: öffentliche Web-App-Basis für sichere Aktionslinks
 - `RESEND_API_KEY`: ausschließlich serverseitig gespeicherter Resend-Schlüssel
-  mit `Sending access` für `fc-teugn-talents.de`
+  mit `Sending access` für `mail.fc-teugn-talents.de`
 - `RESEND_ACCOUNT_FROM_EMAIL`: Absender für Kontomails,
-  `FC Teugn Talents <account@fc-teugn-talents.de>`
+  `FC Teugn Talents <account@mail.fc-teugn-talents.de>`
 - `RESEND_SUPPORT_FROM_EMAIL`: Absender für Support- und Aktivierungsmails,
-  `FC Teugn Talents Support <support@fc-teugn-talents.de>`
+  `FC Teugn Talents Support <support@mail.fc-teugn-talents.de>`
 - `RESEND_ACCOUNT_REPLY_TO` und `RESEND_SUPPORT_REPLY_TO`: optionale betreute
   Antwortadressen; `RESEND_REPLY_TO` kann als gemeinsamer Fallback dienen
 
