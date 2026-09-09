@@ -45,6 +45,21 @@ jobs:
           vercel deploy "${args[@]}" > bridge-url.txt
           url="$(tail -n 1 bridge-url.txt)"
           echo "Transition bridge: $url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify forwarding with protected reads and a synthetic refresh request
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="$(tail -n 1 bridge-url.txt)"
+          vercel curl / --deployment "$url" --scope tobis-projects-7d669891 --token "$VERCEL_TOKEN" -- --silent --show-error --dump-header /tmp/bridge-headers --output /tmp/bridge-health
+          grep -qi 'x-fc-teugn-bridge: google' /tmp/bridge-headers
+          jq -e '.status == "ok"' /tmp/bridge-health
+          vercel curl /players --deployment "$url" --scope tobis-projects-7d669891 --token "$VERCEL_TOKEN" -- --silent --show-error --dump-header /tmp/bridge-private-headers --output /tmp/bridge-private
+          grep -Eq 'HTTP/[0-9.]+ 401' /tmp/bridge-private-headers
+          vercel curl /auth/refresh --deployment "$url" --scope tobis-projects-7d669891 --token "$VERCEL_TOKEN" -- --silent --show-error --request POST --header 'Content-Type: application/json' --data '{"refreshToken":"synthetic-invalid-bridge-probe"}' --dump-header /tmp/bridge-post-headers --output /tmp/bridge-post
+          grep -Eq 'HTTP/[0-9.]+ (400|401)' /tmp/bridge-post-headers
+          jq -e 'has("message")' /tmp/bridge-post
+          echo 'Google bridge health, protected read and POST forwarding passed.' >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve deployment URL
         uses: actions/upload-artifact@v7
         with:

@@ -56,6 +56,15 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.validate.outputs.sha }}
+      - name: Require the matching Cloud Run container validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.validate.outputs.sha }}
+        run: node scripts/wait_for_workflow_success.mjs validate_cloud_run_container.yml "$RELEASE_SHA"
+
   backend:
     needs: validation
     uses: ./.github/workflows/deploy_backend_cloud_run.yml
