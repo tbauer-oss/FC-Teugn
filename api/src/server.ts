@@ -30,6 +30,7 @@ import { securityHeaders } from './middleware/security-headers';
 import { assertMessengerBackupRetentionPolicy } from './services/privacy-retention.service';
 import { runtimeEnvironment } from './lib/runtime-environment';
 import { invalidateScheduledWork } from './middleware/scheduled-work-invalidation';
+import { runtimeDeferredWork } from './middleware/runtime-deferred-work';
 
 dotenv.config();
 assertMessengerBackupRetentionPolicy();
@@ -38,6 +39,7 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(securityHeaders);
+app.use(runtimeDeferredWork);
 
 // Firebase Hosting forwards /api/** to Cloud Run without removing the prefix.
 // Normalize that path here while keeping the existing Vercel/direct API URLs
