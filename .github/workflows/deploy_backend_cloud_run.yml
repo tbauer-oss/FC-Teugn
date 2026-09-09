@@ -77,25 +77,32 @@ jobs:
           done
           echo 'All required Cloud Run secrets are present.'
 
-      - name: Apply Prisma migrations
+      - name: Apply Prisma migrations through direct Neon compute
         working-directory: api
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
-          DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL --project="$GCP_PROJECT_ID")"
+          POOLED_DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL --project="$GCP_PROJECT_ID")"
+          DATABASE_URL="${POOLED_DATABASE_URL/-pooler./.}"
+          if [ "$DATABASE_URL" = "$POOLED_DATABASE_URL" ]; then
+            echo 'Expected the runtime DATABASE_URL to use the Neon pooler; refusing to guess a direct migration URL.' >&2
+            unset POOLED_DATABASE_URL DATABASE_URL
+            exit 1
+          fi
           export DATABASE_URL
+          export PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true
           for attempt in 1 2 3; do
             if npx -y pnpm@10.13.1 exec prisma migrate deploy; then
-              unset DATABASE_URL
+              unset DATABASE_URL POOLED_DATABASE_URL PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK
               exit 0
             fi
             if [ "$attempt" -eq 3 ]; then
-              unset DATABASE_URL
+              unset DATABASE_URL POOLED_DATABASE_URL PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK
               echo 'Prisma migrations failed after 3 attempts.' >&2
               exit 1
             fi
-            echo "Prisma migration attempt $attempt hit a transient lock/error; retrying in 20 seconds."
+            echo "Prisma migration attempt $attempt hit a transient database/network error; retrying in 20 seconds."
             sleep 20
           done
 
