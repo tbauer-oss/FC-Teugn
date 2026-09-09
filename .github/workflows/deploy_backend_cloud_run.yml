@@ -87,11 +87,13 @@ jobs:
           GCS_BUCKET: ${{ vars.GCS_BUCKET }}
         run: |
           set -euo pipefail
+          RUNTIME_SERVICE_ACCOUNT="fc-teugn-runtime@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
           gcloud run deploy "$CLOUD_RUN_SERVICE" \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --platform managed \
             --image "$IMAGE" \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --port 8080 \
             --allow-unauthenticated \
             --min-instances 0 \
