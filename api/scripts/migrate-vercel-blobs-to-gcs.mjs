@@ -43,7 +43,9 @@ async function verifyRuntimeSecrets() {
     ['Google', 'https://app.fc-teugn-talents.de/api'],
     ['legacy Vercel address', 'https://fc-teugn-backend.vercel.app'],
   ];
+  let signingCompatible = true;
   for (const [label, base] of targets) {
+    let targetCompatible = true;
     for (const [path, options, expected] of [
       ['/auth/me', { headers: { authorization: `Bearer ${accessToken}` } },
         'Account nicht gefunden.'],
@@ -55,11 +57,16 @@ async function verifyRuntimeSecrets() {
       });
       const body = await response.json();
       if (response.status !== 401 || body.message !== expected) {
-        throw new Error(`Signing compatibility not confirmed for ${label} ${path}; do not cut over.`);
+        const reason = ['Invalid token', 'Sitzung ist abgelaufen.'].includes(body.message)
+          ? 'signature rejected' : 'unexpected response';
+        console.error(`Signing probe for ${label} ${path}: HTTP ${response.status}, ${reason}.`);
+        targetCompatible = false;
+        signingCompatible = false;
       }
     }
-    console.log(`Access and refresh signing compatibility confirmed for ${label}.`);
+    if (targetCompatible) console.log(`Access and refresh signing compatibility confirmed for ${label}.`);
   }
+  if (!signingCompatible) throw new Error('Legacy session compatibility is not confirmed; do not cut over.');
   if (process.env.DATABASE_URL?.startsWith('postgres')) {
     const sourceDatabase = new URL(process.env.DATABASE_URL);
     const targetDatabase = new URL(readGoogle('DATABASE_URL'));
