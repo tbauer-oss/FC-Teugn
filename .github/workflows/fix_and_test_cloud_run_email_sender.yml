@@ -1,0 +1,97 @@
+name: Fix and Test Cloud Run Email Sender
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/migration-triggers/email-sender-fix'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  fix-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Set verified Resend sender addresses on Cloud Run
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          gcloud run services update fc-teugn-backend \
+            --project "$GCP_PROJECT_ID" \
+            --region europe-west3 \
+            --update-env-vars "RESEND_ACCOUNT_FROM_EMAIL=FC Teugn Talents <account@mail.fc-teugn-talents.de>,RESEND_SUPPORT_FROM_EMAIL=FC Teugn Talents Support <support@mail.fc-teugn-talents.de>" \
+            --quiet
+          echo 'Cloud Run sender addresses updated to the verified mail subdomain.'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install API dependencies
+        working-directory: api
+        run: npx -y pnpm@10.13.1 install --frozen-lockfile
+
+      - name: Send one email only to the approved SUPER_ADMIN
+        working-directory: api
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          NODE_ENV: production
+          APP_ENVIRONMENT: production
+          PUBLIC_APP_URL: https://fc-teugn.web.app
+          RESEND_ACCOUNT_FROM_EMAIL: FC Teugn Talents <account@mail.fc-teugn-talents.de>
+          RESEND_SUPPORT_FROM_EMAIL: FC Teugn Talents Support <support@mail.fc-teugn-talents.de>
+        run: |
+          set -euo pipefail
+          export DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL --project="$GCP_PROJECT_ID")"
+          export RESEND_API_KEY="$(gcloud secrets versions access latest --secret=RESEND_API_KEY --project="$GCP_PROJECT_ID")"
+          node -r ts-node/register <<'NODE'
+          const { PrismaClient } = require('@prisma/client');
+          const { sendPushActivationEmail } = require('./src/services/push-activation-email.service');
+
+          (async () => {
+            const prisma = new PrismaClient();
+            try {
+              const users = await prisma.user.findMany({
+                where: { role: 'SUPER_ADMIN', status: 'APPROVED' },
+                select: { name: true, email: true },
+              });
+              if (users.length !== 1) {
+                throw new Error(`Expected exactly one approved SUPER_ADMIN, found ${users.length}.`);
+              }
+              const sent = await sendPushActivationEmail({
+                recipient: users[0].email,
+                recipientName: users[0].name,
+                reminderId: `cloud-migration-email-verified-domain-${Date.now()}`,
+                settingsPath: '/trainer/messages?section=settings',
+              });
+              if (!sent) {
+                throw new Error('FC Teugn email service did not report successful delivery handoff.');
+              }
+              console.log('FC Teugn email service accepted the self-test message for delivery.');
+            } finally {
+              await prisma.$disconnect();
+            }
+          })().catch((error) => {
+            console.error(error.message);
+            process.exit(1);
+          });
+          NODE
+          unset DATABASE_URL RESEND_API_KEY
