@@ -11,7 +11,10 @@ class AppUpdateManifest {
     required this.releaseNotes,
   });
 
-  factory AppUpdateManifest.fromJson(Map<String, dynamic> json) {
+  factory AppUpdateManifest.fromJson(
+    Map<String, dynamic> json, {
+    int? installedVersionCode,
+  }) {
     final schemaVersion = _positiveInt(json['schemaVersion'], 'schemaVersion');
     if (schemaVersion != 1) {
       throw const FormatException('Unbekannte Update-Manifest-Version.');
@@ -46,6 +49,14 @@ class AppUpdateManifest {
             .toList(growable: false)
         : const <String>[];
 
+    final minimumBuild = json['minimumSupportedBuild'] == null
+        ? 0
+        : _positiveInt(json['minimumSupportedBuild'], 'minimumSupportedBuild');
+    if (minimumBuild > versionCode) {
+      throw const FormatException(
+          'Die Mindestversion ist noch nicht verfügbar.');
+    }
+
     return AppUpdateManifest(
       schemaVersion: schemaVersion,
       versionName: versionName,
@@ -54,7 +65,9 @@ class AppUpdateManifest {
       sha256: hash,
       fileSize: _positiveInt(json['fileSize'], 'fileSize'),
       publishedAt: publishedAt.toUtc(),
-      mandatory: json['mandatory'] == true,
+      mandatory: minimumBuild > 0 && installedVersionCode != null
+          ? installedVersionCode < minimumBuild
+          : json['mandatory'] == true,
       releaseNotes: notes,
     );
   }

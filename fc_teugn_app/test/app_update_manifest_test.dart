@@ -42,4 +42,18 @@ void main() {
       throwsA(isA<FormatException>()),
     );
   });
+  test('minimum supported build forces only obsolete clients', () {
+    final json = validManifest()
+      ..['versionCode'] = 196
+      ..['mandatory'] = true
+      ..['minimumSupportedBuild'] = 195;
+    expect(
+        AppUpdateManifest.fromJson(json, installedVersionCode: 194).mandatory,
+        isTrue);
+    expect(
+        AppUpdateManifest.fromJson(json, installedVersionCode: 195).mandatory,
+        isFalse);
+    json['minimumSupportedBuild'] = 197;
+    expect(() => AppUpdateManifest.fromJson(json), throwsFormatException);
+  });
 }

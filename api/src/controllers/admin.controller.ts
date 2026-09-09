@@ -554,7 +554,7 @@ export async function createMemberPasswordResetLink(
   });
 
   const appBaseUrl = (
-    process.env.PUBLIC_APP_URL ?? 'https://fcteugnapp.vercel.app'
+    process.env.PUBLIC_APP_URL ?? 'https://app.fc-teugn-talents.de'
   ).replace(/\/$/, '');
   const actionUrl = `/reset-password?token=${encodeURIComponent(token)}`;
   return res.status(201).json({

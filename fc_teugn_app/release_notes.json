@@ -1,4 +1,9 @@
 {
+  "1.8.1+195": [
+    "Die App nutzt die neue Vereinsadresse auch für die BfV-Ansichten und Hilfeseiten.",
+    "Erforderliche Android-Updates werden vor der Anmeldung geprüft. Nach einem abgebrochenen Installationsversuch bleibt das Update erforderlich.",
+    "Erinnerungen, Hintergrundaufgaben und geschützte Dateien werden für den Betrieb bei Google zuverlässiger verarbeitet."
+  ],
   "1.8.0+194": [
     "Die produktive Web-App und API laufen jetzt über Firebase Hosting und Google Cloud Run; die bestehende Neon-Datenbank bleibt erhalten.",
     "Bilder und Dokumente werden über Google Cloud Storage bereitgestellt. Push-Nachrichten und E-Mail-Versand wurden auf der neuen Infrastruktur erfolgreich geprüft.",

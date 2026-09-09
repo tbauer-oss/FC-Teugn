@@ -139,7 +139,7 @@ export async function uploadPlayerPhoto(req: Request, res: Response) {
     return created;
   });
   if (previousPathname) {
-    objectStorage.delete(previousPathname).catch(() => undefined);
+    await objectStorage.delete(previousPathname).catch(() => undefined);
   }
   return res.status(201).json(await assetResponse(asset));
 }
@@ -177,7 +177,7 @@ export async function removePlayerPhoto(req: Request, res: Response) {
     });
     return player.photoAsset?.pathname ?? null;
   });
-  if (result) objectStorage.delete(result).catch(() => undefined);
+  if (result) await objectStorage.delete(result).catch(() => undefined);
   return res.status(204).send();
 }
 
@@ -315,7 +315,7 @@ export async function deletePlayerDocument(req: Request, res: Response) {
       },
     }),
   ]);
-  objectStorage.delete(document.fileAsset.pathname).catch(() => undefined);
+  await objectStorage.delete(document.fileAsset.pathname).catch(() => undefined);
   return res.status(204).send();
 }
 

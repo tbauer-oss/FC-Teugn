@@ -89,7 +89,8 @@ void main() {
   });
 
   test('release workflow publishes APK first and update manifest last', () {
-    final workflow = File('../.github/workflows/ci.yml').readAsStringSync();
+    final workflow =
+        File('../.github/workflows/release_google.yml').readAsStringSync();
     final publisher = File(
       '../scripts/publish_magentacloud_release.sh',
     ).readAsStringSync();

@@ -1025,7 +1025,7 @@ const helpArticles = <HelpArticle>[
     route: '/messages',
     routeLabel: 'Push-Einstellungen öffnen',
     steps: [
-      'Aktualisiere das iPhone mindestens auf iOS 16.4 und öffne https://fcteugnapp.vercel.app ausdrücklich in Safari.',
+      'Aktualisiere das iPhone mindestens auf iOS 16.4 und öffne https://app.fc-teugn-talents.de ausdrücklich in Safari.',
       'Melde dich an, tippe in Safari auf „Teilen“ und anschließend auf „Zum Home-Bildschirm“. Fehlt der Eintrag, wähle unten „Aktionen bearbeiten“ und aktiviere ihn.',
       'Lass „Als Web-App öffnen“ eingeschaltet, bestätige den Namen „FC Teugn Talents“ und tippe oben auf „Hinzufügen“.',
       'Schließe den Safari-Tab und starte die App künftig ausschließlich über das neue FC-Teugn-Symbol auf dem Home-Bildschirm.',
@@ -1374,7 +1374,7 @@ const helpArticles = <HelpArticle>[
       'Alle übernehmbaren Termine sind zunächst ausgewählt. Entferne bei einzelnen unerwünschten Einträgen den Haken – beispielsweise bei „SPIELFREI“ – oder nutze „Alle auswählen“ beziehungsweise „Auswahl aufheben“. Nur die angehakten Zeilen werden gespeichert.',
       'Für den automatischen BfV-Abgleich öffnest du den Reiter „BfV“, wählst die konkrete Mannschaft und hinterlegst deren offizielle BfV-Mannschaftsseite sowie die iCal-Adresse.',
       'Nach „Speichern“ kannst du sofort synchronisieren. Danach gleicht die Vereinsverwaltung die eigenen Spiele automatisch ab; neue Spiele werden angelegt und lokale Änderungen bei Konflikten geschützt.',
-      'Erzeuge im offiziellen BfV-Widgetgenerator ein Mannschafts-Komplett-Widget. Registriere dort einmalig fcteugnapp.vercel.app als erlaubte Domain und kopiere die Mannschaftskennung aus zeigeMannschaftKomplett(…) in das gleichnamige Feld der App.',
+      'Erzeuge im offiziellen BfV-Widgetgenerator ein Mannschafts-Komplett-Widget. Registriere dort einmalig app.fc-teugn-talents.de als erlaubte Domain und kopiere die Mannschaftskennung aus zeigeMannschaftKomplett(…) in das gleichnamige Feld der App.',
       'Als Systemadmin kannst du im BfV-Reiter „Alle Kennungen bearbeiten“ öffnen. Dort stehen sämtliche Mannschaften untereinander und du speicherst alle Widget-Kennungen gemeinsam, ohne vorher Jugend oder Mannschaft wechseln zu müssen. Auch vollständig eingefügter Widget-Code wird erkannt.',
       'Über „Tabelle & Ligaspiele“ öffnest du anschließend die integrierte Vollbildansicht mit dem offiziellen BfV-Widget. Beim ersten Aufruf muss das Nachladen der BfV-Inhalte aus Datenschutzgründen einmal bestätigt werden.',
       'Die Ansicht enthält den offiziellen Tabellenstand und sämtliche Ligapartien. Dafür muss keine Liga mehr manuell gepflegt werden.',

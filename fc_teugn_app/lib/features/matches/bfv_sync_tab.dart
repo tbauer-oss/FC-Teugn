@@ -854,7 +854,7 @@ class _WidgetDomainHint extends StatelessWidget {
             Expanded(
               child: Text(
                 'Einmalig im BfV-Widgetgenerator die Domain '
-                'fcteugnapp.vercel.app freigeben. Beim ersten Öffnen bestätigt '
+                'app.fc-teugn-talents.de freigeben. Beim ersten Öffnen bestätigt '
                 'der Anwender das Laden der offiziellen BfV-Inhalte.',
               ),
             ),

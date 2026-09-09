@@ -1,0 +1,112 @@
+name: Release validated app on Google
+
+on:
+  workflow_run:
+    workflows: [Validate FC Teugn Talents]
+    types: [completed]
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      validation_run_id:
+        description: Successful validation run for the current main/master commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: release-google-production
+  cancel-in-progress: false
+
+jobs:
+  validation:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.validate.outputs.sha }}
+      run_id: ${{ steps.validate.outputs.run_id }}
+    steps:
+      - name: Resolve successful validation of the current production commit
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.validation_run_id || github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > /tmp/validation.json
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .path == ".github/workflows/ci.yml" and
+            .status == "completed" and .conclusion == "success" and
+            (.event == "push" or .event == "workflow_dispatch") and
+            (.head_branch == "main" or .head_branch == "master") and
+            .head_repository.full_name == $repo
+          ' /tmp/validation.json >/dev/null
+          sha="$(jq -r .head_sha /tmp/validation.json)"
+          branch="$(jq -r .head_branch /tmp/validation.json)"
+          current="$(gh api "repos/$GITHUB_REPOSITORY/commits/$branch" --jq .sha)"
+          test "$sha" = "$current"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.validate.outputs.sha }}
+      - name: Require the matching Cloud Run container validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.validate.outputs.sha }}
+        run: node scripts/wait_for_workflow_success.mjs validate_cloud_run_container.yml "$RELEASE_SHA"
+
+  backend:
+    needs: validation
+    uses: ./.github/workflows/deploy_backend_cloud_run.yml
+    with:
+      release_sha: ${{ needs.validation.outputs.sha }}
+    secrets: inherit
+
+  web:
+    needs: [validation, backend]
+    uses: ./.github/workflows/deploy_flutter_web_firebase.yml
+    with:
+      release_sha: ${{ needs.validation.outputs.sha }}
+    secrets: inherit
+
+  android:
+    needs: [validation, backend, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validation.outputs.sha }}
+      - name: Download the APK signed and tested by this validation run
+        uses: actions/download-artifact@v7
+        with:
+          name: fc-teugn-talents-android-apk
+          path: fc_teugn_app/build/app/outputs/flutter-apk
+          run-id: ${{ needs.validation.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Publish update after backend and web are healthy
+        working-directory: fc_teugn_app
+        env:
+          MAGENTACLOUD_WEBDAV_USERNAME: ${{ secrets.MAGENTACLOUD_WEBDAV_USERNAME }}
+          MAGENTACLOUD_WEBDAV_PASSWORD: ${{ secrets.MAGENTACLOUD_WEBDAV_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(build/app/outputs/flutter-apk/*.apk)
+          test "${#apks[@]}" -eq 1
+          bash ../scripts/publish_magentacloud_release.sh "${apks[0]}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fc-teugn-talents-update-manifest
+          path: fc_teugn_app/build/app/outputs/flutter-apk/latest.json
+          if-no-files-found: error

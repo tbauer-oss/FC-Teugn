@@ -1,0 +1,22 @@
+{
+  "version": 3,
+  "crons": [],
+  "routes": [
+    {
+      "src": "/api(?:/(.*))?",
+      "dest": "https://app.fc-teugn-talents.de/api/$1",
+      "headers": {
+        "Cache-Control": "private, no-store",
+        "X-FC-Teugn-Bridge": "google"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "https://app.fc-teugn-talents.de/api/$1",
+      "headers": {
+        "Cache-Control": "private, no-store",
+        "X-FC-Teugn-Bridge": "google"
+      }
+    }
+  ]
+}

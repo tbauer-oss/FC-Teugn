@@ -61,9 +61,12 @@ class _AndroidUpdateClient implements AppUpdateClient {
       String value => jsonDecode(value) as Map<String, dynamic>,
       _ => throw const FormatException('Update-Manifest ist ungültig.'),
     };
-    final manifest = AppUpdateManifest.fromJson(data);
     final packageInfo = await PackageInfo.fromPlatform();
     final installedVersionCode = int.tryParse(packageInfo.buildNumber) ?? 0;
+    final manifest = AppUpdateManifest.fromJson(
+      data,
+      installedVersionCode: installedVersionCode,
+    );
     return manifest.isNewerThan(installedVersionCode) ? manifest : null;
   }
 

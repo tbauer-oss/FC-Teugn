@@ -87,35 +87,16 @@ test('maintenance only records success and its deadline is not extended by inter
   assert.equal(runs, 3);
 });
 
-test('SDK in-memory fallback cannot suppress work across Vercel instances', t => {
-  const key = Symbol.for('@vercel/request-context');
-  const previous = globalThis[key];
-  const previousVercel = process.env.VERCEL;
-  const previousDisable = process.env.NEON_IDLE_GUARD_DISABLED;
-  const transportVariables = ['RUNTIME_CACHE_ENDPOINT', 'RUNTIME_CACHE_HEADERS', 'RUNTIME_CACHE_DISABLE_BUILD_CACHE'];
-  const transportValues = transportVariables.map(key => process.env[key]);
-  t.after(() => {
-    if (previous === undefined) delete globalThis[key]; else globalThis[key] = previous;
-    if (previousVercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = previousVercel;
-    if (previousDisable === undefined) delete process.env.NEON_IDLE_GUARD_DISABLED; else process.env.NEON_IDLE_GUARD_DISABLED = previousDisable;
-    transportVariables.forEach((key, index) => {
-      if (transportValues[index] === undefined) delete process.env[key]; else process.env[key] = transportValues[index];
-    });
-  });
-  process.env.VERCEL = '1';
+test('only configured Google storage enables shared idle decisions', t => {
+  const keys = ['OBJECT_STORAGE_BUCKET', 'NEON_IDLE_GUARD_DISABLED'];
+  const values = keys.map(key => process.env[key]);
+  t.after(() => keys.forEach((key, i) => {
+    if (values[i] === undefined) delete process.env[key]; else process.env[key] = values[i];
+  }));
+  delete process.env.OBJECT_STORAGE_BUCKET;
   delete process.env.NEON_IDLE_GUARD_DISABLED;
-  transportVariables.forEach(key => delete process.env[key]);
-  delete globalThis[key];
   assert.equal(sharedRuntimeCacheAvailable(), false);
-  process.env.RUNTIME_CACHE_ENDPOINT = 'https://cache.example.invalid/';
-  process.env.RUNTIME_CACHE_HEADERS = '{}';
-  assert.equal(sharedRuntimeCacheAvailable(), true);
-  process.env.RUNTIME_CACHE_DISABLE_BUILD_CACHE = 'true';
-  assert.equal(sharedRuntimeCacheAvailable(), false);
-  delete process.env.RUNTIME_CACHE_DISABLE_BUILD_CACHE;
-  process.env.RUNTIME_CACHE_HEADERS = 'invalid';
-  assert.equal(sharedRuntimeCacheAvailable(), false);
-  globalThis[key] = { get: () => ({ cache: memory() }) };
+  process.env.OBJECT_STORAGE_BUCKET = 'test-bucket';
   assert.equal(sharedRuntimeCacheAvailable(), true);
   process.env.NEON_IDLE_GUARD_DISABLED = 'true';
   assert.equal(sharedRuntimeCacheAvailable(), false);

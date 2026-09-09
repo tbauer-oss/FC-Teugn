@@ -49,17 +49,23 @@ if ! release_notes="$(
   echo "Keine gültigen Release-Hinweise für $release_key gefunden." >&2
   exit 1
 fi
+minimum_build="$(jq -er '.minimumSupportedBuild | select(type == "number" and . > 0 and floor == .)' update_policy.json)"
+if (( minimum_build > version_code )); then
+  echo 'Required Android version has not been built yet.' >&2
+  exit 1
+fi
 public_base="https://magentacloud.de/public.php/dav/files/xkgHEESdKbQ6XMP"
 webdav_base="https://magentacloud.de/remote.php/webdav/FC-Teugn/App-Updates"
 
 jq -n \
   --arg versionName "$version_name" \
   --argjson versionCode "$version_code" \
-  --arg apkUrl "$public_base/$latest_name" \
+  --arg apkUrl "$public_base/Archiv/$versioned_name" \
   --arg sha256 "$apk_sha256" \
   --argjson fileSize "$apk_size" \
   --arg publishedAt "$published_at" \
   --argjson releaseNotes "$release_notes" \
+  --argjson minimumSupportedBuild "$minimum_build" \
   '{
     schemaVersion: 1,
     versionName: $versionName,
@@ -68,7 +74,8 @@ jq -n \
     sha256: $sha256,
     fileSize: $fileSize,
     publishedAt: $publishedAt,
-    mandatory: false,
+    mandatory: true,
+    minimumSupportedBuild: $minimumSupportedBuild,
     releaseNotes: $releaseNotes
   }' > "$manifest_path"
 

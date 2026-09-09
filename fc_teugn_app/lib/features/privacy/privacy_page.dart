@@ -594,7 +594,7 @@ class PrivacyInformationCenter extends StatelessWidget {
             _PrivacyParagraph(
               title: 'Technische Empfänger',
               text:
-                  'Aktuell werden Vercel für App-/API-Hosting und private Dateispeicherung, Neon für die PostgreSQL-Datenbank sowie Google Firebase Cloud Messaging für freiwillige Pushzustellung eingesetzt. Das BfV-Widget lädt offizielle Verbandsinhalte erst beim Öffnen der entsprechenden Ansicht. Eine Weitergabe zu Werbung oder ein Verkauf personenbezogener Daten findet nicht statt.',
+                  'Aktuell werden Google Firebase Hosting, Cloud Run und Cloud Storage für App-/API-Hosting und private Dateispeicherung, Neon für die PostgreSQL-Datenbank sowie Google Firebase Cloud Messaging für freiwillige Pushzustellung eingesetzt. Das BfV-Widget lädt offizielle Verbandsinhalte erst beim Öffnen der entsprechenden Ansicht. Eine Weitergabe zu Werbung oder ein Verkauf personenbezogener Daten findet nicht statt.',
             ),
             _PrivacyParagraph(
               title: 'Drittlandverarbeitung',

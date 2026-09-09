@@ -1,58 +1,67 @@
-name: Deploy Backend API to Vercel (Legacy)
+name: Deploy backend transition bridge
 
 on:
   workflow_dispatch:
+    inputs:
+      production:
+        description: Replace the existing production deployment with the Google bridge
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 concurrency:
-  group: deploy-backend-production
+  group: legacy-backend-bridge
   cancel-in-progress: false
 
 jobs:
-  deploy-backend:
+  bridge:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: legacy-bridge/backend
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
-
-      - name: Install dependencies (api)
-        working-directory: api
-        run: npx -y pnpm@10.13.1 install --frozen-lockfile
-        
-      - name: Build API (api workspace)
-        working-directory: api
-        run: npx -y pnpm@10.13.1 run build
-
-      - name: Install Vercel CLI
-        run: npm install -g vercel@latest
-
-      - name: Link backend Vercel project
+      - name: Install deployment CLI
+        run: npm install -g vercel@59.13.1
+      - name: Assemble static routing output without application code or functions
+        run: |
+          mkdir -p .vercel/output
+          cp config.json .vercel/output/config.json
+          cp -R static .vercel/output/static
+      - name: Deploy transition bridge to the existing project
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN"
-
-      - name: Pull Vercel environment info
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN" --local-config api/vercel.json
-
-      - name: Deploy legacy Vercel backend manually
+          PRODUCTION: ${{ inputs.production }}
+        run: |
+          set -euo pipefail
+          vercel link --project fc-teugn-backend --scope tobis-projects-7d669891 --yes --token "$VERCEL_TOKEN" >/dev/null
+          args=(--prebuilt --yes --scope tobis-projects-7d669891 --token "$VERCEL_TOKEN")
+          if [ "$PRODUCTION" = true ]; then args+=(--prod); fi
+          vercel deploy "${args[@]}" > bridge-url.txt
+          url="$(tail -n 1 bridge-url.txt)"
+          echo "Transition bridge: $url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify forwarding with protected reads and a synthetic refresh request
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          for attempt in 1 2 3; do
-            if vercel deploy --prod --yes --token "$VERCEL_TOKEN" --local-config api/vercel.json; then
-              exit 0
-            fi
-
-            if [ "$attempt" -eq 3 ]; then
-              echo "Backend deployment failed after $attempt attempts."
-              exit 1
-            fi
-
-            echo "Backend deployment attempt $attempt hit a temporary failure; retrying in 30 seconds."
-            sleep 30
-          done
+          set -euo pipefail
+          url="$(tail -n 1 bridge-url.txt)"
+          vercel curl / --deployment "$url" -- --silent --show-error --dump-header /tmp/bridge-headers --output /tmp/bridge-health
+          grep -qi 'x-fc-teugn-bridge: google' /tmp/bridge-headers
+          jq -e '.status == "ok"' /tmp/bridge-health
+          vercel curl /players --deployment "$url" -- --silent --show-error --dump-header /tmp/bridge-private-headers --output /tmp/bridge-private
+          grep -Eq 'HTTP/[0-9.]+ 401' /tmp/bridge-private-headers
+          vercel curl /auth/refresh --deployment "$url" -- --silent --show-error --request POST --header 'Content-Type: application/json' --data '{"refreshToken":"synthetic-invalid-bridge-probe"}' --dump-header /tmp/bridge-post-headers --output /tmp/bridge-post
+          grep -Eq 'HTTP/[0-9.]+ (400|401)' /tmp/bridge-post-headers
+          jq -e 'has("message")' /tmp/bridge-post
+          echo 'Google bridge health, protected read and POST forwarding passed.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve deployment URL
+        uses: actions/upload-artifact@v7
+        with:
+          name: legacy-backend-bridge-url
+          path: legacy-bridge/backend/bridge-url.txt

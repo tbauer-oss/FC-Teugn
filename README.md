@@ -22,7 +22,7 @@ externen Voraussetzungen stehen im
 - Android: Die produktive App-ID, Release-Signierung und der geprüfte
   App-Bundle-Build sind in
   [`docs/android-release.md`](docs/android-release.md) dokumentiert.
-- Deployment: Vercel uses the root [`vercel.json`](vercel.json) to run `vercel_install.sh` / `vercel_build.sh` and publish the generated `fc_teugn_app/build/web` directory.
+- Deployment: Firebase Hosting publishes `fc_teugn_app/build/web` through `firebase.json`. The stable address is https://app.fc-teugn-talents.de.
 - Running Flutter without root warnings: use [`scripts/run_flutter_as_user.sh`](scripts/run_flutter_as_user.sh) to execute commands as an unprivileged user, e.g. `FLUTTER_USER=deployer ./scripts/run_flutter_as_user.sh pub outdated`.
 
 ## Backend (Express + Prisma)
@@ -30,11 +30,23 @@ externen Voraussetzungen stehen im
 - Install: `npm install` then `npx prisma generate` (requires `DATABASE_URL`).
 - Local dev: `npm run dev` (default port `4000`).
 - Build: `npm run build` outputs to `api/dist`.
-- Deployment: create a separate Vercel project with the root directory set to `api/`. The included `vercel.json` handles install/build and packages Prisma artifacts for the serverless function.
-- Project linking: place your Vercel IDs into [`api/.vercel/project.json`](api/.vercel/project.json) (`projectId` = `prj_…`, `orgId` = `team_…`) so the CLI reuses the existing `fc-teugn-backend` project instead of creating a new one. Then set `VERCEL_TOKEN` and run [`api/scripts/vercel_link.sh`](api/scripts/vercel_link.sh). You can override the project slug via `VERCEL_PROJECT_SLUG` if needed.
+- Deployment: Google Cloud Run uses `api/Dockerfile` in `europe-west3`.
+- Private files and shared scheduler state: Google Cloud Storage through Firebase Admin and the Cloud Run service account. Set `OBJECT_STORAGE_BUCKET`.
 
 ## API/Frontend integration
-The root `vercel.json` now preserves `/api/*` routes so the deployed frontend can call the backend on the same domain while still rewriting other paths to `index.html` for SPA routing.
+Firebase Hosting forwards `/api` and `/api/**` to Cloud Run. The server accepts
+both the preserved prefix and direct Cloud Run paths. PostgreSQL remains at
+Neon, transactional email at Resend, Android updates at the existing club download.
+
+## Release and transition
+`ci.yml` validates code and produces the signed Android artifact.
+`release_google.yml` validates the exact successful CI run and deploys Cloud Run,
+then Firebase Hosting, then the Android manifest. Production release jobs cannot
+be started directly without validation. See [Google cutover](docs/google-cutover.md).
+Only `legacy-bridge/` is deployed at the old Vercel addresses. It contains routing
+and static transition pages, without API functions, cron jobs or database code.
+`@vercel/blob` is a development dependency solely for the one-time verification
+and migration script; the production container prunes it.
 
 ## Environment variables
 Common variables:

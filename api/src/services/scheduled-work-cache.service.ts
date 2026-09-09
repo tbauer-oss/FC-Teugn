@@ -1,32 +1,15 @@
 import { randomUUID } from 'crypto';
-import { getCache, RuntimeCache } from '@vercel/functions';
+import { GoogleRuntimeCache, SharedRuntimeCache } from './google-runtime-cache';
 import { runtimeEnvironment } from '../lib/runtime-environment';
 
 export const schedulerSafetySweepMs = 60 * 60_000;
-// Vercel's automatic Express runtime currently allows five-minute requests,
-// even when the legacy api/index.ts function configuration specifies 30 s.
+// Cloud Run requests are limited to five minutes in our deployment.
 const mutationGraceMs = 6 * 60_000;
 const namespace = `fc-teugn:scheduled-work:v1:${runtimeEnvironment}`;
 
-/** getCache falls back to process-local memory outside the Vercel request
- * context. Such a cache must NEVER decide whether another instance has work.
- * This guarded capability check follows the installed SDK's request-context
- * protocol; if Vercel changes it, we safely resume the ordinary DB scans. */
 export function sharedRuntimeCacheAvailable(): boolean {
-  if (process.env.VERCEL !== '1' || process.env.NEON_IDLE_GUARD_DISABLED === 'true') return false;
-  try {
-    const context = (globalThis as Record<symbol, { get?: () => { cache?: RuntimeCache } }>)[
-      Symbol.for('@vercel/request-context')
-    ]?.get?.();
-    if (context?.cache && typeof context.cache.get === 'function' &&
-      typeof context.cache.set === 'function') return true;
-    // Some Vercel runtimes provide the shared cache through the SDK's HTTP
-    // transport instead. Validate its configuration without exposing headers.
-    if (process.env.RUNTIME_CACHE_DISABLE_BUILD_CACHE === 'true' ||
-      !process.env.RUNTIME_CACHE_ENDPOINT || !process.env.RUNTIME_CACHE_HEADERS) return false;
-    const headers = JSON.parse(process.env.RUNTIME_CACHE_HEADERS);
-    return headers !== null && typeof headers === 'object' && !Array.isArray(headers);
-  } catch { return false; }
+  return Boolean(process.env.OBJECT_STORAGE_BUCKET?.trim()) &&
+    process.env.NEON_IDLE_GUARD_DISABLED !== 'true';
 }
 
 type Revision = { id: string; busyUntil: number };
@@ -43,7 +26,7 @@ function revisionValue(value: unknown): Revision | null {
  * normal worker. An hourly sweep also catches changes made outside the API. */
 export class ScheduledWorkCache {
   constructor(
-    private readonly cache: RuntimeCache | null,
+    private readonly cache: SharedRuntimeCache | null,
     private readonly available: () => boolean = () => true,
   ) {}
 
@@ -51,7 +34,7 @@ export class ScheduledWorkCache {
 
   async invalidate(now = Date.now()) {
     if (!this.enabled || !this.cache) return;
-    // The grace period exceeds a complete Vercel request. A checkpoint taken
+    // The grace period exceeds a complete Cloud Run request. A checkpoint taken
     // while a mutation is in flight cannot hide work committed afterwards.
     await Promise.all([
       this.cache.set('revision', {
@@ -102,17 +85,29 @@ export class ScheduledWorkCache {
     }
   }
 
+  async acquireWorkerLease() {
+    if (!this.enabled || !this.cache?.acquireLease) return async () => {};
+    // A storage outage must fail the request so Cloud Scheduler retries it.
+    return this.cache.acquireLease('worker', mutationGraceMs);
+  }
+
   async maintenanceDue(key: string, intervalMs: number, task: () => Promise<unknown>, now = Date.now()) {
-    if (!this.enabled) return task();
-    let lastRun: unknown;
-    try { lastRun = await this.cache?.get(`maintenance:${key}`); } catch { /* fail open */ }
-    if (typeof lastRun === 'number' && now >= lastRun && now - lastRun < intervalMs) {
-      return { skipped: true };
+    if (!this.enabled || !this.cache) return task();
+    const release = this.cache.acquireLease
+      ? await this.cache.acquireLease(`maintenance:${key}`, mutationGraceMs)
+      : async () => {};
+    if (!release) return { skipped: true };
+    try {
+      const lastRun = await this.cache.get(`maintenance:${key}`);
+      if (typeof lastRun === 'number' && now >= lastRun && now - lastRun < intervalMs) {
+        return { skipped: true };
+      }
+      const result = await task();
+      await this.cache.set(`maintenance:${key}`, now, { ttl: Math.ceil(intervalMs / 1000) });
+      return result;
+    } finally {
+      await release();
     }
-    const result = await task();
-    try { await this.cache?.set(`maintenance:${key}`, now, { ttl: Math.ceil(intervalMs / 1000) }); }
-    catch { /* A repeated maintenance run is safe; suppress no unfinished work. */ }
-    return result;
   }
 
   async nextMaintenanceAt(key: string, intervalMs: number, now = Date.now()) {
@@ -126,5 +121,6 @@ export class ScheduledWorkCache {
 }
 
 export const scheduledWorkCache = new ScheduledWorkCache(
-  getCache({ namespace }), sharedRuntimeCacheAvailable,
+  new GoogleRuntimeCache(process.env.OBJECT_STORAGE_BUCKET?.trim() || '', namespace),
+  sharedRuntimeCacheAvailable,
 );

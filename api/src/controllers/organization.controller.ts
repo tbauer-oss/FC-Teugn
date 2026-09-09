@@ -1430,7 +1430,7 @@ export async function uploadTeamPhoto(req: Request, res: Response) {
     });
     return updated;
   });
-  if (previousPathname) objectStorage.delete(previousPathname).catch(() => undefined);
+  if (previousPathname) await objectStorage.delete(previousPathname).catch(() => undefined);
   return res.status(201).json(await serializeTeam(team, true));
 }
 
@@ -1458,7 +1458,7 @@ export async function removeTeamPhoto(req: Request, res: Response) {
     });
     return team.photoAsset?.pathname ?? null;
   });
-  if (pathname) objectStorage.delete(pathname).catch(() => undefined);
+  if (pathname) await objectStorage.delete(pathname).catch(() => undefined);
   return res.status(204).send();
 }
 

@@ -3,7 +3,7 @@ import { carpoolSummary, isOwnRidePerson } from '../services/carpool.service';
 import { attendanceAfterRevision } from '../services/attendance-revision';
 import { randomBytes, randomUUID } from 'crypto';
 import { Request, Response } from 'express';
-import { waitUntil } from '@vercel/functions';
+import { deferWork as waitUntil } from '../middleware/runtime-deferred-work';
 import {
   AccountStatus,
   AttendanceResponseSource,

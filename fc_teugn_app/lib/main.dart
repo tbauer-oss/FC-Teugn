@@ -8,6 +8,7 @@ import 'core/app_identity.dart';
 import 'core/club_logo.dart';
 import 'core/app_theme.dart';
 import 'core/push/native_push_service.dart';
+import 'features/shared/app_update_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,8 +69,10 @@ Future<void> main() async {
         ),
       );
   runApp(
-    ProviderScope(
-      child: FCTeugnApp(playMobileIntroVideo: playMobileIntroVideo),
+    AppUpdateGate(
+      child: ProviderScope(
+        child: FCTeugnApp(playMobileIntroVideo: playMobileIntroVideo),
+      ),
     ),
   );
 }

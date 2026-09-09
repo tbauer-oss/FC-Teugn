@@ -46,7 +46,6 @@ function runningOnGoogleCloud() {
 }
 
 function firebaseApp(): App | null {
-  if (!externalDeliveriesAllowed) return null;
   if (cachedApp) return cachedApp;
   if (configurationFailed) return null;
 
@@ -92,10 +91,11 @@ export function firebaseAdminApp(): App | null {
 }
 
 export function firebaseMessagingConfigured() {
-  return firebaseApp() !== null;
+  return externalDeliveriesAllowed && firebaseApp() !== null;
 }
 
 export function firebaseMessaging(): Messaging | null {
+  if (!externalDeliveriesAllowed) return null;
   const app = firebaseApp();
   return app ? getMessaging(app) : null;
 }
