@@ -61,52 +61,31 @@ jobs:
         working-directory: api
         run: npx -y pnpm@10.13.1 install --frozen-lockfile
 
-      - name: Link Vercel project and obtain short-lived Blob OIDC credentials
+      - name: Link Vercel project
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
           npm install -g vercel@latest
           vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1
-          vercel env pull /tmp/fc-teugn-vercel.env --environment=production --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1 || true
 
-      - name: Export short-lived Blob OIDC credentials
-        working-directory: api
-        run: |
-          set -euo pipefail
-          node <<'NODE' >> "$GITHUB_ENV"
-          const fs = require('fs');
-          const dotenv = require('dotenv');
-          const candidates = ['../.env.local', '/tmp/fc-teugn-vercel.env'];
-          const env = {};
-          for (const file of candidates) {
-            if (!fs.existsSync(file)) continue;
-            Object.assign(env, dotenv.parse(fs.readFileSync(file)));
-          }
-          for (const name of ['VERCEL_OIDC_TOKEN', 'BLOB_STORE_ID']) {
-            const value = env[name];
-            if (!value || value === '[SENSITIVE]') {
-              throw new Error(`${name} was not supplied by the linked Vercel project.`);
-            }
-            process.stdout.write(`${name}=${value}\n`);
-          }
-          NODE
-
-      - name: Run blob migration
-        working-directory: api
+      - name: Run blob migration inside Vercel production environment
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           OBJECT_STORAGE_BUCKET: ${{ vars.GCS_BUCKET }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           EXECUTE_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.execute || false }}
         run: |
           set -euo pipefail
           gcloud config set project "$GCP_PROJECT_ID" --quiet
           if [ "$EXECUTE_INPUT" = "true" ]; then
-            node scripts/migrate-vercel-blobs-to-gcs.mjs --execute
+            vercel env run --environment=production --token "$VERCEL_TOKEN" -- \
+              node api/scripts/migrate-vercel-blobs-to-gcs.mjs --execute
           else
-            node scripts/migrate-vercel-blobs-to-gcs.mjs
+            vercel env run --environment=production --token "$VERCEL_TOKEN" -- \
+              node api/scripts/migrate-vercel-blobs-to-gcs.mjs
           fi
 
       - name: Remove temporary Vercel credential files
         if: always()
-        run: rm -f /tmp/fc-teugn-vercel.env .env.local
+        run: rm -f .env.local
