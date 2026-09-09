@@ -1,0 +1,88 @@
+name: Migrate Vercel Blobs to Google Cloud Storage
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: 'Actually copy blobs (false = dry run only)'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Validate required configuration
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in GCP_PROJECT_ID GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT GCS_BUCKET VERCEL_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              echo "$name is required." >&2
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install API dependencies
+        working-directory: api
+        run: npx -y pnpm@10.13.1 install --frozen-lockfile
+
+      - name: Pull current Vercel production environment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm install -g vercel@latest
+          vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN"
+          vercel env pull /tmp/fc-teugn-vercel.env --environment=production --yes --token "$VERCEL_TOKEN"
+
+      - name: Run blob migration
+        working-directory: api
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          OBJECT_STORAGE_BUCKET: ${{ vars.GCS_BUCKET }}
+          EXECUTE: ${{ inputs.execute }}
+        run: |
+          set -euo pipefail
+          BLOB_READ_WRITE_TOKEN="$(node -e "const fs=require('fs'); const dotenv=require('dotenv'); const e=dotenv.parse(fs.readFileSync('/tmp/fc-teugn-vercel.env')); process.stdout.write(e.BLOB_READ_WRITE_TOKEN || '')")"
+          if [ -z "$BLOB_READ_WRITE_TOKEN" ]; then
+            echo "BLOB_READ_WRITE_TOKEN was not found in the Vercel production environment." >&2
+            exit 1
+          fi
+          export BLOB_READ_WRITE_TOKEN
+          export FIREBASE_PROJECT_ID="$GCP_PROJECT_ID"
+          if [ "$EXECUTE" = "true" ]; then
+            node scripts/migrate-vercel-blobs-to-gcs.mjs --execute
+          else
+            node scripts/migrate-vercel-blobs-to-gcs.mjs
+          fi
+          unset BLOB_READ_WRITE_TOKEN
+
+      - name: Remove temporary Vercel environment file
+        if: always()
+        run: rm -f /tmp/fc-teugn-vercel.env
