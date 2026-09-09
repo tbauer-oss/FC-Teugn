@@ -1014,6 +1014,7 @@ model FileAsset {
   ownerPlayerId           String?
   ownerTeamId             String?
   deletedAt               DateTime?
+  storageDeletedAt        DateTime?
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   uploadedBy              User                     @relation("FileAssetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
@@ -1030,6 +1031,7 @@ model FileAsset {
   @@index([ownerPlayerId, kind, deletedAt])
   @@index([ownerTeamId, kind, deletedAt])
   @@index([uploadedById, createdAt])
+  @@index([deletedAt, storageDeletedAt])
 }
 
 model PlayerDocument {

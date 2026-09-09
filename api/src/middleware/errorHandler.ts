@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import { BlobError } from '@vercel/blob';
+import { ObjectStorageError } from '../services/object-storage';
 import { Prisma } from '@prisma/client';
 import { DomainError } from '../services/talents-domain';
 
@@ -41,13 +41,10 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
     res.status(415).json({ message: err.message, requestId });
     return;
   }
-  const isMissingBlobCredentials =
-    err instanceof Error &&
-    err.message.includes('Vercel Blob: No blob credentials found');
-  if (err instanceof BlobError || isMissingBlobCredentials) {
+  if (err instanceof ObjectStorageError) {
     res.status(503).json({
       message:
-        'Der geschützte Fotospeicher ist momentan nicht erreichbar. Die Blob-Verbindung des Backend-Projekts ist nicht vollständig konfiguriert.',
+        'Der geschützte Dateispeicher ist momentan nicht erreichbar. Bitte versuche es erneut.',
       requestId,
     });
     return;

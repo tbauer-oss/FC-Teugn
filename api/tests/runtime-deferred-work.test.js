@@ -1,21 +1,26 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
-const { runtimeDeferredWork } = require('../dist/src/middleware/runtime-deferred-work');
+const { runtimeDeferredWork, deferWork, beforeResponseEnd } = require('../dist/src/middleware/runtime-deferred-work');
 
-test('Cloud Run request context drains waitUntil work before ending the response', async () => {
-  const previousVercel = process.env.VERCEL;
-  delete process.env.VERCEL;
-
+test('Cloud Run request drains registered work before ending the response', async () => {
   const app = express();
   let completed = false;
+  let finalizerDone = false;
+  let nestedDone = false;
 
   app.use(runtimeDeferredWork);
   app.get('/deferred', (_req, res) => {
-    const context = globalThis[Symbol.for('@vercel/request-context')]?.get?.();
-    assert.ok(context, 'request context bridge should exist outside Vercel');
-
-    context.waitUntil(
+    beforeResponseEnd(async () => { finalizerDone = true; });
+    beforeResponseEnd(() => { throw Error('isolated finalizer failure'); });
+    deferWork(async () => {
+      await new Promise(resolve => setTimeout(resolve, 5));
+      deferWork(async () => {
+        await new Promise(resolve => setTimeout(resolve, 40));
+        nestedDone = true;
+      });
+    });
+    deferWork(
       new Promise((resolve) => {
         setTimeout(() => {
           completed = true;
@@ -39,10 +44,10 @@ test('Cloud Run request context drains waitUntil work before ending the response
     const response = await fetch(`http://127.0.0.1:${address.port}/deferred`);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { ok: true });
+    assert.equal(finalizerDone, true);
+    assert.equal(nestedDone, true);
     assert.equal(completed, true, 'deferred work must settle before the response ends');
   } finally {
     await new Promise((resolve) => server.close(resolve));
-    if (previousVercel === undefined) delete process.env.VERCEL;
-    else process.env.VERCEL = previousVercel;
   }
 });

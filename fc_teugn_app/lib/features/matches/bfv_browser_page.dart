@@ -13,7 +13,7 @@ Uri? buildEmbeddedBfvUri({
 }) {
   final normalizedId = widgetTeamId?.trim() ?? '';
   if (normalizedId.isNotEmpty) {
-    return Uri.https('fcteugnapp.vercel.app', '/bfv-widget.html', {
+    return Uri.https('app.fc-teugn-talents.de', '/bfv-widget.html', {
       'teamId': normalizedId,
       'teamName': teamName,
     });

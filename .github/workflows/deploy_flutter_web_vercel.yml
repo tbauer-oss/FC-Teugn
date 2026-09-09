@@ -1,45 +1,52 @@
-name: Deploy Flutter Web to Vercel (Legacy)
+name: Deploy web transition bridge
 
 on:
   workflow_dispatch:
+    inputs:
+      production:
+        description: Replace the existing production deployment with the Google bridge
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  actions: read
+
+concurrency:
+  group: legacy-web-bridge
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  bridge:
     runs-on: ubuntu-latest
-
     defaults:
       run:
-        working-directory: fc_teugn_app
-
+        working-directory: legacy-bridge/web
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          channel: stable
-          flutter-version: '3.44.8'
-
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Build Flutter web (release)
-        run: flutter build web --release
-
-      - name: Install Vercel CLI
-        run: npm install -g vercel@latest
-
-      - name: Deploy legacy Vercel web manually
-        working-directory: fc_teugn_app
+          node-version: 24
+      - name: Install deployment CLI
+        run: npm install -g vercel@59.13.1
+      - name: Assemble static routing output without application code or functions
+        run: |
+          mkdir -p .vercel/output
+          cp config.json .vercel/output/config.json
+          cp -R static .vercel/output/static
+      - name: Deploy transition bridge to the existing project
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PRODUCTION: ${{ inputs.production }}
         run: |
-          vercel \
-            --prod \
-            --yes \
-            --token "$VERCEL_TOKEN"
+          set -euo pipefail
+          vercel link --project fc_teugn_app --scope tobis-projects-7d669891 --yes --token "$VERCEL_TOKEN" >/dev/null
+          args=(--prebuilt --yes --scope tobis-projects-7d669891 --token "$VERCEL_TOKEN")
+          if [ "$PRODUCTION" = true ]; then args+=(--prod); fi
+          vercel deploy "${args[@]}" > bridge-url.txt
+          url="$(tail -n 1 bridge-url.txt)"
+          echo "Transition bridge: $url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve deployment URL
+        uses: actions/upload-artifact@v7
+        with:
+          name: legacy-web-bridge-url
+          path: legacy-bridge/web/bridge-url.txt

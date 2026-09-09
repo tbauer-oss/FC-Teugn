@@ -40,7 +40,7 @@ export async function createInvitation(req: Request, res: Response) {
     const invitation = await tx.teamInvitation.create({ data: { teamId, role, tokenHash: digest(token),
       createdById: req.user!.id, expiresAt: new Date(Date.now() + days * 86400000) } });
     await audit(tx, req.user!, teamId, 'INVITATION_CREATED', invitation.id);
-    const base = (process.env.PUBLIC_APP_URL?.trim() || 'https://fcteugnapp.vercel.app').replace(/\/+$/, '');
+    const base = (process.env.PUBLIC_APP_URL?.trim() || 'https://app.fc-teugn-talents.de').replace(/\/+$/, '');
     return { id: invitation.id, expiresAt: invitation.expiresAt, url: `${base}/#/join?token=${token}` };
   });
 }

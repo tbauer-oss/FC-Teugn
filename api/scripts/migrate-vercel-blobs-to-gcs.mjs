@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -5,6 +6,8 @@ import { join } from 'node:path';
 import { get, list } from '@vercel/blob';
 
 const execute = process.argv.includes('--execute');
+const verify = process.argv.includes('--verify');
+const sha256 = data => createHash('sha256').update(data).digest('hex');
 const bucketName = process.env.OBJECT_STORAGE_BUCKET?.trim();
 const hasStaticToken = Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
 const hasOidc = Boolean(
@@ -72,6 +75,7 @@ let copied = 0;
 let skipped = 0;
 let pending = 0;
 let failed = 0;
+let verified = 0;
 
 console.log(
   execute
@@ -86,12 +90,13 @@ do {
     const pathname = blob.pathname;
 
     try {
-      if (destinationExists(pathname)) {
+      const exists = destinationExists(pathname);
+      if (exists && !verify) {
         skipped += 1;
         continue;
       }
 
-      if (!execute) {
+      if (!execute && !exists) {
         pending += 1;
         continue;
       }
@@ -110,6 +115,14 @@ do {
       }
       const data = Buffer.concat(chunks);
 
+      if (exists) {
+        const destination = execFileSync('gcloud', ['storage', 'cat', storageUri(pathname)], {
+          maxBuffer: 128 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
+        });
+        if (sha256(destination) !== sha256(data)) throw new Error('Storage checksum mismatch');
+        verified++;
+        continue;
+      }
       uploadToGoogleCloud(
         pathname,
         data,
@@ -138,6 +151,7 @@ console.log(
       copied,
       skipped,
       failed,
+      verified,
       bucket: bucketName,
       authentication: hasOidc ? 'vercel-oidc' : 'static-token',
     },

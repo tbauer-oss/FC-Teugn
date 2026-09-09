@@ -12,7 +12,7 @@ Anzeigenamen `FC Teugn Talents`. Mit Flutter 3.44.8 werden Geräte ab Android 7
 Internetberechtigung.
 
 Release-Builds verwenden ohne weitere Konfiguration die produktive API unter
-`https://fc-teugn-backend.vercel.app`. Für die lokale Entwicklung am
+`https://app.fc-teugn-talents.de/api`. Für die lokale Entwicklung am
 Android-Emulator kann das Ziel explizit überschrieben werden:
 
 ```bash
@@ -81,17 +81,20 @@ Die vorhandenen GitHub-Secrets `ANDROID_KEYSTORE_BASE64`,
 liefern die Signatur. Der Workflow entfernt die temporären Schlüsseldateien
 anschließend auch im Fehlerfall.
 
-Ein manueller Lauf veröffentlicht standardmäßig nichts. `publish_android`
-aktiviert die Auslieferung ausdrücklich. Vor jedem öffentlichen Android-Upload
-müssen Backend und Web für **denselben Commit** erfolgreich ausgerollt sein.
-Die Web-Auslieferung wartet ebenfalls auf das Backend. Ein fehlgeschlagener,
-noch laufender oder fremder Deploymentlauf gibt das Update nicht frei.
+Ein manueller CI-Lauf veröffentlicht nichts. Für die anschließende Freigabe
+wird `release_google.yml` mit der erfolgreichen `validation_run_id` gestartet.
+Pushes auf main/master veröffentlichen nach erfolgreicher Validierung automatisch.
+Backend, Web und Android-Artefakt müssen aus demselben getesteten Commit stammen.
 
-Die zusätzliche automatische Vercel-Git-Auslieferung ist in beiden
-`vercel.json`-Dateien deaktiviert. Damit können parallel erzeugte Preview- oder
-Produktionsdeployments die Reihenfolge nicht umgehen. Veröffentlichungen erfolgen
-über die vorhandenen GitHub-Actions-Workflows und deren Vercel-CLI-Schritte.
-Konfigurationsgrundlage: [Vercel Git Configuration](https://vercel.com/docs/project-configuration/git-configuration#turning-off-all-automatic-deployments).
+`update_policy.json` legt die mindestens unterstützte Android-Buildnummer fest.
+Build 195 prüft Pflichtupdates vor der Anmeldung und bleibt auch bei abgebrochener
+Installation gesperrt. Bei einer nicht erreichbaren ersten Versionsprüfung bietet
+er einen erneuten Versuch an. Bereits installierte Builds 193/194 können diese
+neue Sperre nicht nachträglich erhalten: ihr alter Dialog bleibt nach dem Start
+von Androids Installer umgehbar. Die beibehaltene API-Weiterleitung ermöglicht
+ihren Start, und das kompatible Manifest setzt dort `mandatory: true`.
+Neuere Clients berücksichtigen zusätzlich `minimumSupportedBuild`, sodass nicht
+jede nachfolgende Verbesserung erneut ein Pflichtupdate auslöst.
 
 Release-Builds dürfen nach einem Debug-Gerätetest nicht mit `--no-pub` gestartet
 werden: Flutter muss die Pluginregistrierung für den Release-Modus neu erzeugen,

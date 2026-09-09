@@ -418,7 +418,7 @@ async function storeOpponentClubLogo(
     }
     return saved;
   });
-  if (previousPath) objectStorage.delete(previousPath).catch(() => undefined);
+  if (previousPath) await objectStorage.delete(previousPath).catch(() => undefined);
   if (legacyOpponentId) {
     const refreshed = await prisma.opponent.findUnique({
       where: { id: legacyOpponentId },
@@ -469,7 +469,7 @@ async function removeClubLogo(
     }
   });
   if (club.logoAsset) {
-    objectStorage.delete(club.logoAsset.pathname).catch(() => undefined);
+    await objectStorage.delete(club.logoAsset.pathname).catch(() => undefined);
   }
   return res.status(204).send();
 }

@@ -10,7 +10,7 @@ void main() {
       widgetTeamId: '02MDU3SE2G000000VS5489B1VV4JLPLE',
     );
 
-    expect(uri?.host, 'fcteugnapp.vercel.app');
+    expect(uri?.host, 'app.fc-teugn-talents.de');
     expect(uri?.path, '/bfv-widget.html');
     expect(
       uri?.queryParameters['teamId'],

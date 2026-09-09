@@ -8,9 +8,11 @@ class AppUpdateDialog extends StatefulWidget {
   const AppUpdateDialog({
     super.key,
     required this.manifest,
+    this.client,
   });
 
   final AppUpdateManifest manifest;
+  final AppUpdateClient? client;
 
   @override
   State<AppUpdateDialog> createState() => _AppUpdateDialogState();
@@ -30,7 +32,8 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
       _message = null;
     });
     try {
-      final result = await appUpdateService.downloadAndInstall(
+      final result =
+          await (widget.client ?? appUpdateService).downloadAndInstall(
         widget.manifest,
         onProgress: (progress) {
           if (mounted) setState(() => _progress = progress);
@@ -39,7 +42,16 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
       if (!mounted) return;
       switch (result) {
         case AppUpdateInstallResult.launched:
-          Navigator.of(context).pop();
+          if (!widget.manifest.mandatory) {
+            Navigator.of(context).pop();
+          } else {
+            setState(() {
+              _working = false;
+              _message =
+                  'Bitte schließe die Installation ab. Die App wird erst '
+                  'nach dem erfolgreichen Update wieder freigegeben.';
+            });
+          }
           return;
         case AppUpdateInstallResult.permissionRequired:
           setState(() {
@@ -76,9 +88,9 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
       mode: LaunchMode.externalApplication,
     );
     if (!mounted) return;
-    if (opened) {
+    if (opened && !widget.manifest.mandatory) {
       Navigator.of(context).pop();
-    } else {
+    } else if (!opened) {
       setState(() => _message = 'Der Download konnte nicht geöffnet werden.');
     }
   }

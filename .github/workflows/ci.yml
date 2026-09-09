@@ -11,10 +11,6 @@ on:
       - master
   workflow_dispatch:
     inputs:
-      publish_android:
-        description: 'Nach erfolgreicher Backend- und Web-Auslieferung auch Android veröffentlichen'
-        type: boolean
-        default: false
       check_ios:
         description: 'Zusätzlich die native iPhone-App auf macOS für den Simulator bauen'
         type: boolean
@@ -322,42 +318,6 @@ jobs:
         with:
           name: fc-teugn-talents-android-apk
           path: fc_teugn_app/build/app/outputs/flutter-apk/${{ env.FC_TEUGN_APK_FILE_NAME }}
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Wait for matching backend and web deployment
-        if: >-
-          (github.event_name == 'push' &&
-          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
-          (github.event_name == 'workflow_dispatch' && inputs.publish_android)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          node ../scripts/wait_for_workflow_success.mjs deploy_backend_cloud_run.yml "$GITHUB_SHA"
-          node ../scripts/wait_for_workflow_success.mjs deploy_flutter_web_firebase.yml "$GITHUB_SHA"
-
-      - name: Publish signed Android release to MagentaCLOUD
-        if: >-
-          (github.event_name == 'push' &&
-          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
-          (github.event_name == 'workflow_dispatch' && inputs.publish_android)
-        shell: bash
-        env:
-          MAGENTACLOUD_WEBDAV_USERNAME: ${{ secrets.MAGENTACLOUD_WEBDAV_USERNAME }}
-          MAGENTACLOUD_WEBDAV_PASSWORD: ${{ secrets.MAGENTACLOUD_WEBDAV_PASSWORD }}
-        run: >-
-          bash ../scripts/publish_magentacloud_release.sh
-          "build/app/outputs/flutter-apk/${FC_TEUGN_APK_FILE_NAME}"
-
-      - name: Upload update manifest
-        if: >-
-          (github.event_name == 'push' &&
-          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
-          (github.event_name == 'workflow_dispatch' && inputs.publish_android)
-        uses: actions/upload-artifact@v7
-        with:
-          name: fc-teugn-talents-update-manifest
-          path: fc_teugn_app/build/app/outputs/flutter-apk/latest.json
           if-no-files-found: error
           retention-days: 30
 

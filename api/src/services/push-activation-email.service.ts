@@ -21,7 +21,7 @@ function escapeHtml(value: string) {
 
 function publicAppUrl() {
   return (
-    process.env.PUBLIC_APP_URL?.trim() || 'https://fcteugnapp.vercel.app'
+    process.env.PUBLIC_APP_URL?.trim() || 'https://app.fc-teugn-talents.de'
   ).replace(/\/$/, '');
 }
 

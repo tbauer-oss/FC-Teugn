@@ -55,12 +55,27 @@ jobs:
         working-directory: api
         run: npx -y pnpm@10.13.1 install --frozen-lockfile
 
+      - name: Inspect Google cutover configuration without credentials or user data
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          gcloud run services describe fc-teugn-backend --project "$GCP_PROJECT_ID" --region europe-west3 --format=json > /tmp/run.json
+          jq '{service:.metadata.name, ready:.status.latestReadyRevisionName, traffic:.status.traffic, url:.status.url, serviceAccount:.spec.template.spec.serviceAccountName, timeout:.spec.template.spec.timeoutSeconds, storage:[.spec.template.spec.containers[0].env[] | select(.name == "OBJECT_STORAGE_PROVIDER" or .name == "OBJECT_STORAGE_BUCKET")]}' /tmp/run.json
+          gcloud scheduler jobs list --project "$GCP_PROJECT_ID" --location europe-west3 --format='table(name,state,schedule,attemptDeadline)'
+          if gcloud storage buckets describe "gs://$GCS_BUCKET" --format=json > /tmp/bucket.json 2>/dev/null; then
+            jq '{location, uniform_bucket_level_access, public_access_prevention, soft_delete_policy, versioning_enabled, retention_policy}' /tmp/bucket.json
+          else
+            echo 'Bucket policy inspection unavailable to deployment service account.'
+          fi
+
       - name: Link Vercel project
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          npm install -g vercel@latest
+          npm install -g vercel@59.13.1
           vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1
 
       - name: Run blob migration inside Vercel environment
@@ -74,10 +89,10 @@ jobs:
           gcloud config set project "$GCP_PROJECT_ID" --quiet
           if [ "$EXECUTE_INPUT" = "true" ]; then
             vercel env run --environment=production --token "$VERCEL_TOKEN" -- \
-              node api/scripts/migrate-vercel-blobs-to-gcs.mjs --execute
+              node api/scripts/migrate-vercel-blobs-to-gcs.mjs --execute --verify
           else
             vercel env run --environment=production --token "$VERCEL_TOKEN" -- \
-              node api/scripts/migrate-vercel-blobs-to-gcs.mjs
+              node api/scripts/migrate-vercel-blobs-to-gcs.mjs --verify
           fi
 
       - name: Remove temporary Vercel credential files

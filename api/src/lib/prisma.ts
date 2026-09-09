@@ -10,13 +10,13 @@ type PrismaGlobal = typeof globalThis & {
  * default pool size is intended for long-running servers and can exhaust a
  * small production database during a burst of parallel app requests.
  *
- * Keep explicitly configured limits untouched. On Vercel, otherwise use one
+ * Keep explicitly configured limits untouched. On Cloud Run, otherwise use one
  * connection per warm function instance and fail a pool wait before the HTTP
  * request itself reaches its deadline.
  */
 export function serverlessDatabaseUrl(
   value: string | undefined,
-  serverless = process.env.VERCEL === '1',
+  serverless = Boolean(process.env.K_SERVICE),
 ) {
   if (!value || !serverless) return value;
   try {
@@ -48,5 +48,5 @@ export const prisma = prismaGlobal.fcTeugnPrisma ?? new PrismaClient({
   ...(datasourceUrl ? { datasourceUrl } : {}),
 });
 
-// Reuse the client across warm Vercel invocations and development reloads.
+// Reuse the client across Cloud Run requests and development reloads.
 prismaGlobal.fcTeugnPrisma = prisma;

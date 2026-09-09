@@ -8,6 +8,13 @@
     ],
     "rewrites": [
       {
+        "source": "/api",
+        "run": {
+          "serviceId": "fc-teugn-backend",
+          "region": "europe-west3"
+        }
+      },
+      {
         "source": "/api/**",
         "run": {
           "serviceId": "fc-teugn-backend",
@@ -35,6 +42,33 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/version.json",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
+      },
+      {
+        "source": "/push-sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
+      },
+      {
+        "source": "/flutter_bootstrap.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
           }
         ]
       }

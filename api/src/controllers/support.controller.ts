@@ -177,7 +177,7 @@ export async function createSupportTicket(req: Request, res: Response) {
     });
     return res.status(201).json(serializeTicket(ticket, req.user!.role === Role.SUPER_ADMIN));
   } catch (error) {
-    if (stored) objectStorage.delete(stored.pathname).catch(() => undefined);
+    if (stored) await objectStorage.delete(stored.pathname).catch(() => undefined);
     throw error;
   }
 }

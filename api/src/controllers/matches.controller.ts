@@ -2,7 +2,7 @@ import { prepareMatchGameFormat, resetLineupForGameFormat, gameFormatSize, gameF
 import { attendanceAfterRevision } from '../services/attendance-revision';
 import { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
-import { waitUntil } from '@vercel/functions';
+import { deferWork as waitUntil } from '../middleware/runtime-deferred-work';
 import {
   EventCategory,
   EventType,

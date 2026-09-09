@@ -22,7 +22,7 @@ function escapeHtml(value: string) {
 
 function publicAppUrl() {
   return (
-    process.env.PUBLIC_APP_URL?.trim() || 'https://fcteugnapp.vercel.app'
+    process.env.PUBLIC_APP_URL?.trim() || 'https://app.fc-teugn-talents.de'
   ).replace(/\/$/, '');
 }
 
@@ -42,7 +42,7 @@ export async function sendPasswordResetEmail(
 
   // Use a regular HTTPS path instead of a hash-only route. Mail clients,
   // security scanners and optional click tracking may discard URL fragments
-  // before the browser reaches the app. Vercel rewrites this path to the
+  // before the browser reaches the app. Firebase Hosting rewrites this path to the
   // Flutter entry page, which converts it to the internal hash route locally.
   const resetUrl = `${publicAppUrl()}/reset-password?token=${encodeURIComponent(
     input.token,

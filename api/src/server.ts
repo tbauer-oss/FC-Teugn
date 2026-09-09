@@ -45,8 +45,8 @@ app.use(runtimeDeferredWork);
 // Normalize that path here while keeping the existing Vercel/direct API URLs
 // fully compatible during the migration period.
 app.use((req, _res, next) => {
-  if (req.url === '/api') {
-    req.url = '/';
+  if (req.url === '/api' || req.url.startsWith('/api?')) {
+    req.url = '/' + req.url.slice(4);
   } else if (req.url.startsWith('/api/')) {
     req.url = req.url.slice(4);
   }
