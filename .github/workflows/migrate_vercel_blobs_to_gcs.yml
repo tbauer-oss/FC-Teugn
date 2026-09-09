@@ -70,16 +70,10 @@ jobs:
           vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1
           vercel env pull /tmp/fc-teugn-vercel.env --environment=production --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1 || true
 
-      - name: Run blob migration
+      - name: Export short-lived Blob OIDC credentials
         working-directory: api
-        env:
-          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-          OBJECT_STORAGE_BUCKET: ${{ vars.GCS_BUCKET }}
-          EXECUTE_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.execute || false }}
         run: |
           set -euo pipefail
-          gcloud config set project "$GCP_PROJECT_ID" --quiet
-
           node <<'NODE' >> "$GITHUB_ENV"
           const fs = require('fs');
           const dotenv = require('dotenv');
@@ -98,6 +92,15 @@ jobs:
           }
           NODE
 
+      - name: Run blob migration
+        working-directory: api
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          OBJECT_STORAGE_BUCKET: ${{ vars.GCS_BUCKET }}
+          EXECUTE_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.execute || false }}
+        run: |
+          set -euo pipefail
+          gcloud config set project "$GCP_PROJECT_ID" --quiet
           if [ "$EXECUTE_INPUT" = "true" ]; then
             node scripts/migrate-vercel-blobs-to-gcs.mjs --execute
           else
