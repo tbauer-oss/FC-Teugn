@@ -61,7 +61,7 @@ const defaultAllowedOrigins = [
   'http://localhost:4000',
 ];
 
-const envAllowedOrigins = process.env.CORS_ORIGINS?.split(',')
+const envAllowedOrigins = process.env.CORS_ORIGINS?.split(/[|,]/)
   .map((o) => o.trim())
   .filter(Boolean);
 const allowAllOrigins =
