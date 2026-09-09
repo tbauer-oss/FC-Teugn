@@ -11,8 +11,7 @@
         "source": "/api/**",
         "run": {
           "serviceId": "fc-teugn-backend",
-          "region": "europe-west3",
-          "pinTag": true
+          "region": "europe-west3"
         }
       },
       {
