@@ -80,7 +80,7 @@ async function verifyRuntimeSecrets() {
     console.log('Vercel database secret is not exportable; direct database identity comparison unavailable.');
   }
 }
-if (verify) await verifyRuntimeSecrets();
+if (process.argv.includes('--verify-sessions')) await verifyRuntimeSecrets();
 
 function storageUri(pathname) {
   return `gs://${bucketName}/${pathname}`;

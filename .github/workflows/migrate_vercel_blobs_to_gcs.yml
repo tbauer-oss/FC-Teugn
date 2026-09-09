@@ -8,6 +8,11 @@ on:
         required: true
         type: boolean
         default: false
+      verify_sessions:
+        description: Also require old and new API session signing compatibility
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -84,16 +89,15 @@ jobs:
           OBJECT_STORAGE_BUCKET: ${{ vars.GCS_BUCKET }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           EXECUTE_INPUT: ${{ inputs.execute }}
+          VERIFY_SESSIONS_INPUT: ${{ inputs.verify_sessions }}
         run: |
           set -euo pipefail
           gcloud config set project "$GCP_PROJECT_ID" --quiet
-          if [ "$EXECUTE_INPUT" = "true" ]; then
-            vercel env run --environment=production --token "$VERCEL_TOKEN" -- \
-              node api/scripts/migrate-vercel-blobs-to-gcs.mjs --execute --verify
-          else
-            vercel env run --environment=production --token "$VERCEL_TOKEN" -- \
-              node api/scripts/migrate-vercel-blobs-to-gcs.mjs --verify
-          fi
+          args=(--verify)
+          if [ "$EXECUTE_INPUT" = "true" ]; then args+=(--execute); fi
+          if [ "$VERIFY_SESSIONS_INPUT" = "true" ]; then args+=(--verify-sessions); fi
+          vercel env run --environment=production --token "$VERCEL_TOKEN" -- \
+            node api/scripts/migrate-vercel-blobs-to-gcs.mjs "${args[@]}"
 
       - name: Remove temporary Vercel credential files
         if: always()
