@@ -1,6 +1,10 @@
 name: Deploy Flutter Web to Firebase Hosting
 
 on:
+  push:
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 permissions:
@@ -51,9 +55,11 @@ jobs:
 
       - name: Build Flutter web for production Firebase Hosting
         working-directory: fc_teugn_app
-        run: >-
-          flutter build web --release
-          --dart-define=API_BASE_URL=https://app.fc-teugn-talents.de/api
+        run: |
+          set -euo pipefail
+          flutter build web --release \
+            --dart-define=API_BASE_URL=https://app.fc-teugn-talents.de/api
+          grep -R -q 'https://app.fc-teugn-talents.de/api' build/web
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools@latest
@@ -63,16 +69,16 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         run: firebase deploy --only hosting --project "$GCP_PROJECT_ID" --non-interactive
 
-      - name: Smoke test Firebase Hosting and API rewrite
+      - name: Smoke test production Firebase Hosting and API rewrite
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --retry 8 --retry-delay 3 \
             --output /tmp/firebase-index.html \
-            https://fc-teugn.web.app/
+            https://app.fc-teugn-talents.de/
           test -s /tmp/firebase-index.html
 
           curl --fail --silent --show-error --retry 8 --retry-delay 3 \
-            https://fc-teugn.web.app/api/ \
+            https://app.fc-teugn-talents.de/api/ \
             | tee /tmp/firebase-api-health.json
           grep -q '"status":"ok"' /tmp/firebase-api-health.json
-          echo 'Firebase Hosting and /api -> Cloud Run rewrite smoke tests passed.'
+          echo 'Production Firebase Hosting and /api -> Cloud Run rewrite smoke tests passed.'
