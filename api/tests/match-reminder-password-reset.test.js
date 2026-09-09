@@ -38,7 +38,7 @@ test('password reset uses hashed expiring one-time tokens and email delivery', (
   assert.match(auth, /sendPasswordResetEmail/);
   assert.match(resetEmail, /RESEND_API_KEY/);
   assert.match(resetEmail, /RESEND_ACCOUNT_FROM_EMAIL/);
-  assert.match(resetEmail, /account@fc-teugn-talents\.de/);
+  assert.match(resetEmail, /account@mail\.fc-teugn-talents\.de/);
   assert.doesNotMatch(resetEmail, /RESEND_FROM_EMAIL/);
   assert.match(resetEmail, /response\.status/);
   assert.match(resetEmail, /providerMessage/);
@@ -63,7 +63,7 @@ test('password reset uses hashed expiring one-time tokens and email delivery', (
 test('transactional emails use separate verified senders with one server-side key', () => {
   assert.match(pushActivationEmail, /RESEND_API_KEY/);
   assert.match(pushActivationEmail, /RESEND_SUPPORT_FROM_EMAIL/);
-  assert.match(pushActivationEmail, /support@fc-teugn-talents\.de/);
+  assert.match(pushActivationEmail, /support@mail\.fc-teugn-talents\.de/);
   assert.doesNotMatch(pushActivationEmail, /RESEND_FROM_EMAIL/);
   assert.match(pushActivationEmail, /response\.status/);
   assert.match(pushActivationEmail, /providerMessage/);
