@@ -2,6 +2,12 @@ name: Deploy Flutter Web to Firebase Hosting
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/migration-triggers/firebase-hosting-smoke'
 
 permissions:
   contents: read
@@ -62,3 +68,17 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         run: firebase deploy --only hosting --project "$GCP_PROJECT_ID" --non-interactive
+
+      - name: Smoke test public Firebase Hosting path
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 8 --retry-delay 3 \
+            --output /tmp/firebase-index.html \
+            https://fc-teugn.web.app/
+          test -s /tmp/firebase-index.html
+
+          curl --fail --silent --show-error --retry 8 --retry-delay 3 \
+            https://fc-teugn.web.app/api/ \
+            | tee /tmp/firebase-api-health.json
+          grep -q '"status":"ok"' /tmp/firebase-api-health.json
+          echo 'Firebase Hosting and /api -> Cloud Run rewrite smoke tests passed.'
