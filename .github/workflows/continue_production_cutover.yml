@@ -1,0 +1,212 @@
+name: Continue Production Cutover
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/migration-triggers/cutover-continue'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: continue-production-cutover
+  cancel-in-progress: false
+
+env:
+  GCP_REGION: europe-west3
+  CLOUD_RUN_SERVICE: fc-teugn-backend
+  PRODUCTION_APP_URL: https://app.fc-teugn-talents.de
+
+jobs:
+  continue-cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Guard current production prerequisites
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          TOKEN="$(gcloud auth print-access-token)"
+          DOMAIN_JSON="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "https://firebasehosting.googleapis.com/v1beta1/projects/${GCP_PROJECT_ID}/sites/${GCP_PROJECT_ID}/customDomains/app.fc-teugn-talents.de")"
+          HOST_STATE="$(printf '%s' "$DOMAIN_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);process.stdout.write(x.hostState||'')})")"
+          OWNERSHIP_STATE="$(printf '%s' "$DOMAIN_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);process.stdout.write(x.ownershipState||'')})")"
+          test "$HOST_STATE" = 'HOST_ACTIVE'
+          test "$OWNERSHIP_STATE" = 'OWNERSHIP_ACTIVE'
+
+          CLOUD_RUN_URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --format='value(status.url)')"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 \
+            "$CLOUD_RUN_URL/" | tee /tmp/cloud-run-health.json
+          grep -q '"status":"ok"' /tmp/cloud-run-health.json
+
+          SCHEDULER_STATE="$(gcloud scheduler jobs describe fc-teugn-reminders \
+            --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
+            --format='value(state)')"
+          test "$SCHEDULER_STATE" = 'PAUSED'
+          echo 'Domain and Cloud Run are healthy; Google Scheduler is still PAUSED.'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.8'
+
+      - name: Build production Flutter web against stable API URL
+        working-directory: fc_teugn_app
+        run: |
+          set -euo pipefail
+          flutter pub get
+          flutter build web --release \
+            --dart-define=API_BASE_URL=https://app.fc-teugn-talents.de/api
+          grep -R -q 'https://app.fc-teugn-talents.de/api' build/web
+          echo 'Production web bundle contains the stable API URL.'
+
+      - name: Deploy unpinned Firebase Hosting release
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          npm install -g firebase-tools@latest
+          firebase --version
+          firebase deploy --only hosting --project "$GCP_PROJECT_ID" --non-interactive
+
+          curl --fail --silent --show-error --retry 8 --retry-delay 3 \
+            --output /tmp/production-index.html "$PRODUCTION_APP_URL/"
+          test -s /tmp/production-index.html
+          curl --fail --silent --show-error --retry 8 --retry-delay 3 \
+            "$PRODUCTION_APP_URL/api/" | tee /tmp/production-api.json
+          grep -q '"status":"ok"' /tmp/production-api.json
+          echo 'Firebase Hosting production release and /api rewrite are healthy.'
+
+      - name: Set stable public API URLs on Cloud Run
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          gcloud run services update "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --update-env-vars "PUBLIC_API_URL=${PRODUCTION_APP_URL}/api,API_PUBLIC_URL=${PRODUCTION_APP_URL}/api" \
+            --quiet
+          CLOUD_RUN_URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --format='value(status.url)')"
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 \
+            "$CLOUD_RUN_URL/" | tee /tmp/cloud-run-health-after-url.json
+          grep -q '"status":"ok"' /tmp/cloud-run-health-after-url.json
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 \
+            "$PRODUCTION_APP_URL/api/" | tee /tmp/hosting-api-after-url.json
+          grep -q '"status":"ok"' /tmp/hosting-api-after-url.json
+          echo 'Cloud Run now advertises the stable public API URL.'
+
+      - name: Ensure Firebase Admin service account can use GCS for legacy Android bridge
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          FOUND=0
+          while IFS= read -r SERVICE_ACCOUNT; do
+            [ -z "$SERVICE_ACCOUNT" ] && continue
+            FOUND=1
+            gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
+              --member "serviceAccount:${SERVICE_ACCOUNT}" \
+              --role roles/storage.objectAdmin \
+              --quiet >/dev/null
+          done < <(gcloud iam service-accounts list --project "$GCP_PROJECT_ID" \
+            --filter='email~firebase-adminsdk' --format='value(email)')
+          if [ "$FOUND" -eq 0 ]; then
+            echo 'No firebase-adminsdk service account found; leaving existing Firebase IAM unchanged.'
+          else
+            echo 'Firebase Admin SDK service account has GCS object access.'
+          fi
+
+      - name: Configure legacy Vercel backend to use the same GCS bucket
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          npm install -g vercel@latest
+          vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1
+          for NAME in OBJECT_STORAGE_PROVIDER OBJECT_STORAGE_BUCKET FIREBASE_PROJECT_ID PUBLIC_APP_URL; do
+            vercel env rm "$NAME" production --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1 || true
+          done
+          printf '%s\n' 'gcs' | vercel env add OBJECT_STORAGE_PROVIDER production --token "$VERCEL_TOKEN" >/dev/null
+          printf '%s\n' "$GCS_BUCKET" | vercel env add OBJECT_STORAGE_BUCKET production --token "$VERCEL_TOKEN" >/dev/null
+          printf '%s\n' "$GCP_PROJECT_ID" | vercel env add FIREBASE_PROJECT_ID production --token "$VERCEL_TOKEN" >/dev/null
+          printf '%s\n' "$PRODUCTION_APP_URL" | vercel env add PUBLIC_APP_URL production --token "$VERCEL_TOKEN" >/dev/null
+          echo 'Legacy Vercel backend production environment is prepared for GCS.'
+
+      - name: Deploy legacy Vercel compatibility bridge without reminder cron
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          # api/vercel.json intentionally contains no crons after the migration.
+          vercel pull --yes --environment=production --token "$VERCEL_TOKEN" --local-config api/vercel.json >/dev/null
+          vercel deploy --prod --yes --token "$VERCEL_TOKEN" --local-config api/vercel.json | tee /tmp/vercel-deploy.txt
+
+          curl --fail --silent --show-error --retry 10 --retry-delay 3 \
+            https://fc-teugn-backend.vercel.app/ | tee /tmp/vercel-health.json
+          grep -q '"status":"ok"' /tmp/vercel-health.json
+
+          NO_COLOR=1 vercel crons ls --token "$VERCEL_TOKEN" --format=json \
+            | tee /tmp/vercel-crons.json || true
+          if grep -q '/internal/cron/reminders' /tmp/vercel-crons.json; then
+            echo 'Vercel reminder cron is still present. Google Scheduler will remain PAUSED.' >&2
+            exit 1
+          fi
+          echo 'Legacy Vercel backend is healthy and its reminder cron is absent.'
+
+      - name: Resume Google Cloud Scheduler after Vercel cron removal
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          gcloud scheduler jobs resume fc-teugn-reminders \
+            --project "$GCP_PROJECT_ID" \
+            --location "$GCP_REGION" \
+            --quiet || true
+          STATE="$(gcloud scheduler jobs describe fc-teugn-reminders \
+            --project "$GCP_PROJECT_ID" \
+            --location "$GCP_REGION" \
+            --format='value(state)')"
+          test "$STATE" = 'ENABLED'
+          echo 'Google Cloud Scheduler is ENABLED.'
+
+      - name: Final production and legacy smoke tests
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 \
+            --output /tmp/final-production-index.html "$PRODUCTION_APP_URL/"
+          test -s /tmp/final-production-index.html
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 \
+            "$PRODUCTION_APP_URL/api/" | tee /tmp/final-production-api.json
+          grep -q '"status":"ok"' /tmp/final-production-api.json
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 \
+            https://fc-teugn-backend.vercel.app/ | tee /tmp/final-legacy-api.json
+          grep -q '"status":"ok"' /tmp/final-legacy-api.json
+          echo 'PRODUCTION_CUTOVER_COMPLETE=true'
