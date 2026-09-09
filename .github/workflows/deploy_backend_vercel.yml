@@ -1,10 +1,6 @@
-name: Deploy Backend API to Vercel
+name: Deploy Backend API to Vercel (Legacy)
 
 on:
-  push:
-    branches:
-      - main
-      - master
   workflow_dispatch:
 
 concurrency:
@@ -43,7 +39,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN" --local-config api/vercel.json
 
-      - name: Deploy to Vercel (Backend API)
+      - name: Deploy legacy Vercel backend manually
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
