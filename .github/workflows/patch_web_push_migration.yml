@@ -1,0 +1,132 @@
+name: Patch Web Push Migration Safety
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/migration-triggers/patch-web-push'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.8'
+
+      - name: Add automatic web push re-registration
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('fc_teugn_app/lib/core/providers.dart')
+          text = path.read_text()
+          start_marker = '/// Keeps the FCM token for an approved, opted-in Android account registered.\n'
+          end_marker = '/// Prüft, ob auf genau diesem Gerät ein nutzbarer Push-Kanal aktiv ist.\n'
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          replacement = r'''/// Keeps the active push channel for an approved, opted-in account registered.
+///
+/// On Android this refreshes the FCM token. On web it also repairs an existing
+/// subscription automatically after a VAPID key rotation, provided the browser
+/// permission was already granted. No permission prompt is triggered here.
+final nativePushRegistrationProvider = FutureProvider<void>((ref) async {
+  final authState = ref.watch(authProvider);
+  final user = authState.user;
+  if (user == null ||
+      user.status != AccountStatus.approved ||
+      user.isReadOnlyPreview ||
+      authState.accessToken == null) {
+    return;
+  }
+
+  final accountOptIn = user.registrationRequest?.pushOptIn == true;
+  final repository = ref.read(repositoryProvider);
+
+  if (nativePushService.supported) {
+    final shouldRegister = await nativePushService.shouldAutomaticallyRegister(
+      accountOptIn: accountOptIn,
+    );
+    if (!shouldRegister) return;
+
+    final token = await nativePushService.enable();
+    if (token == null) return;
+    if (!accountOptIn) await repository.grantPushConsent(silent: true);
+    await repository.registerNativePushSubscription(token, silent: true);
+
+    final refreshSubscription = nativePushService.tokenRefreshes.listen(
+      (refreshedToken) {
+        unawaited(
+          repository
+              .registerNativePushSubscription(refreshedToken, silent: true)
+              .then<void>((_) {})
+              .catchError((_) {}),
+        );
+      },
+    );
+    ref.onDispose(() => unawaited(refreshSubscription.cancel()));
+    return;
+  }
+
+  if (!webPushSupported || !accountOptIn) return;
+
+  try {
+    final configuration = await repository.pushConfiguration();
+    final vapidPublicKey = configuration.vapidPublicKey;
+    if (!configuration.webPushConfigured ||
+        vapidPublicKey == null ||
+        vapidPublicKey.isEmpty) {
+      return;
+    }
+
+    final status = await getWebPushStatus(vapidPublicKey);
+    if (status.permission != WebPushPermission.granted ||
+        (status.subscribed && !status.keyMismatch)) {
+      return;
+    }
+
+    // subscribeToWebPush() reuses a valid subscription, but if the stored
+    // applicationServerKey differs it unsubscribes and creates a new one with
+    // the current VAPID public key. Because permission is already granted,
+    // this path never opens a browser permission prompt.
+    final subscription = await subscribeToWebPush(vapidPublicKey);
+    await repository.registerWebPushSubscription(subscription);
+    ref.invalidate(currentDevicePushReadyProvider);
+  } catch (_) {
+    // Automatic repair is best-effort. A transient browser/network error must
+    // never interfere with app startup; manual push settings remain available.
+  }
+});
+
+'''
+          path.write_text(text[:start] + replacement + text[end:])
+          PY
+          dart format fc_teugn_app/lib/core/providers.dart
+
+      - name: Commit patch to migration branch
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'Web push migration safety is already applied.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fc_teugn_app/lib/core/providers.dart
+          git commit -m 'Repair web push subscriptions after VAPID rotation'
+          git push origin HEAD:${{ github.head_ref }}
