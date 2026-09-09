@@ -14,7 +14,7 @@ RUN pnpm exec prisma generate
 
 COPY . .
 RUN pnpm run build
-RUN pnpm prune --prod
+RUN pnpm prune --prod --ignore-scripts
 
 FROM node:24-slim AS runtime
 WORKDIR /app
