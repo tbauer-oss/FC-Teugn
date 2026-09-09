@@ -13,7 +13,7 @@ on:
       - main
       - master
     paths:
-      - '.github/migration-triggers/blob-dry-run-final'
+      - '.github/migration-triggers/blob-copy-final'
 
 permissions:
   contents: read
@@ -74,7 +74,7 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           OBJECT_STORAGE_BUCKET: ${{ vars.GCS_BUCKET }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          EXECUTE_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.execute || false }}
+          EXECUTE_INPUT: ${{ github.event_name == 'pull_request' || inputs.execute }}
         run: |
           set -euo pipefail
           gcloud config set project "$GCP_PROJECT_ID" --quiet
