@@ -2,10 +2,12 @@
 
 ## Zielbild
 
+- Bestehendes Firebase-/Google-Cloud-Projekt: `fc-teugn`
+- Bestehender Firebase-Storage-Bucket: `fc-teugn.firebasestorage.app`
 - Flutter Web: Firebase Hosting
 - API: Google Cloud Run in `europe-west3`
 - `/api/**`: Firebase Hosting Rewrite auf Cloud Run
-- Private Dateien: Google Cloud Storage
+- Private Dateien: Google Cloud Storage / Firebase Storage
 - Secrets: Google Secret Manager
 - Erinnerungsjob: Google Cloud Scheduler
 - PostgreSQL/Prisma: bestehende Datenbank bleibt zunächst unverändert
@@ -16,17 +18,29 @@ Die produktive Vercel-Umgebung bleibt bis zum vollständig erfolgreichen Paralle
 
 ## Phase 1 - Google-Projekt vorbereiten
 
-1. Firebase-/Google-Cloud-Projekt festlegen.
-2. APIs aktivieren: Cloud Run, Artifact Registry, Secret Manager, Cloud Scheduler, Cloud Storage, IAM Credentials.
-3. Artifact Registry Repository `fc-teugn` in `europe-west3` anlegen.
-4. Privaten Storage-Bucket anlegen.
-5. Cloud-Run-Service-Account mit minimal erforderlichen Rollen anlegen.
-6. GitHub Workload Identity Federation einrichten.
-7. GitHub Repository Variables setzen:
-   - `GCP_PROJECT_ID`
-   - `GCP_WORKLOAD_IDENTITY_PROVIDER`
-   - `GCP_SERVICE_ACCOUNT`
-   - `GCS_BUCKET`
+Das Repository enthält `scripts/bootstrap_gcp_migration.sh`. Dieses Script ist für das bereits verwendete Projekt `fc-teugn` vorbereitet und erledigt die technische Google-Grundkonfiguration automatisiert:
+
+- erforderliche APIs aktivieren
+- Artifact Registry `fc-teugn` in `europe-west3` anlegen
+- dedizierten GitHub-Deployment-Service-Account anlegen
+- dedizierten Cloud-Run-Runtime-Service-Account anlegen
+- Storage-, Secret-Manager-, FCM-, Hosting-, Cloud-Run- und Scheduler-Rollen setzen
+- GitHub Workload Identity Federation ausschließlich für `tbauer-oss/FC-Teugn` einrichten
+- die vier benötigten GitHub Repository Variables am Ende ausgeben
+
+Nach Ausführung müssen in GitHub unter Repository Variables genau diese vier ausgegebenen Werte gespeichert werden:
+
+- `GCP_PROJECT_ID`
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT`
+- `GCS_BUCKET`
+
+Erwartete feste Werte sind bereits bekannt:
+
+- `GCP_PROJECT_ID=fc-teugn`
+- `GCS_BUCKET=fc-teugn.firebasestorage.app`
+
+Die beiden anderen Werte werden vom Bootstrap-Script aus den tatsächlich erstellten Google-Ressourcen ausgegeben.
 
 ## Phase 2 - Secrets und Backend parallel vorbereiten
 
