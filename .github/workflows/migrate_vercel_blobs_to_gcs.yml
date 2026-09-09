@@ -8,6 +8,12 @@ on:
         required: true
         type: boolean
         default: false
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/migration-triggers/blob-dry-run'
 
 permissions:
   contents: read
@@ -55,37 +61,49 @@ jobs:
         working-directory: api
         run: npx -y pnpm@10.13.1 install --frozen-lockfile
 
-      - name: Pull current Vercel production environment
+      - name: Link Vercel project and obtain short-lived Blob OIDC credentials
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
           npm install -g vercel@latest
-          vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN"
-          vercel env pull /tmp/fc-teugn-vercel.env --environment=production --yes --token "$VERCEL_TOKEN"
+          vercel link --project fc-teugn-backend --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1
+          vercel env pull /tmp/fc-teugn-vercel.env --environment=production --yes --token "$VERCEL_TOKEN" >/dev/null 2>&1 || true
 
       - name: Run blob migration
         working-directory: api
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           OBJECT_STORAGE_BUCKET: ${{ vars.GCS_BUCKET }}
-          EXECUTE: ${{ inputs.execute }}
+          EXECUTE_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.execute || false }}
         run: |
           set -euo pipefail
           gcloud config set project "$GCP_PROJECT_ID" --quiet
-          BLOB_READ_WRITE_TOKEN="$(node -e "const fs=require('fs'); const dotenv=require('dotenv'); const e=dotenv.parse(fs.readFileSync('/tmp/fc-teugn-vercel.env')); process.stdout.write(e.BLOB_READ_WRITE_TOKEN || '')")"
-          if [ -z "$BLOB_READ_WRITE_TOKEN" ]; then
-            echo "BLOB_READ_WRITE_TOKEN was not found in the Vercel production environment." >&2
-            exit 1
-          fi
-          export BLOB_READ_WRITE_TOKEN
-          if [ "$EXECUTE" = "true" ]; then
+
+          node <<'NODE' >> "$GITHUB_ENV"
+          const fs = require('fs');
+          const dotenv = require('dotenv');
+          const candidates = ['../.env.local', '/tmp/fc-teugn-vercel.env'];
+          const env = {};
+          for (const file of candidates) {
+            if (!fs.existsSync(file)) continue;
+            Object.assign(env, dotenv.parse(fs.readFileSync(file)));
+          }
+          for (const name of ['VERCEL_OIDC_TOKEN', 'BLOB_STORE_ID']) {
+            const value = env[name];
+            if (!value || value === '[SENSITIVE]') {
+              throw new Error(`${name} was not supplied by the linked Vercel project.`);
+            }
+            process.stdout.write(`${name}=${value}\n`);
+          }
+          NODE
+
+          if [ "$EXECUTE_INPUT" = "true" ]; then
             node scripts/migrate-vercel-blobs-to-gcs.mjs --execute
           else
             node scripts/migrate-vercel-blobs-to-gcs.mjs
           fi
-          unset BLOB_READ_WRITE_TOKEN
 
-      - name: Remove temporary Vercel environment file
+      - name: Remove temporary Vercel credential files
         if: always()
-        run: rm -f /tmp/fc-teugn-vercel.env
+        run: rm -f /tmp/fc-teugn-vercel.env .env.local
