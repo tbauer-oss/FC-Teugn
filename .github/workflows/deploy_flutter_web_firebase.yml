@@ -2,12 +2,6 @@ name: Deploy Flutter Web to Firebase Hosting
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-      - master
-    paths:
-      - '.github/migration-triggers/firebase-hosting-deploy'
 
 permissions:
   contents: read
