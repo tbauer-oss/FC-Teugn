@@ -51,8 +51,9 @@ Das Entwicklungswerkzeug `@vercel/blob` wird beim Container-Build entfernt.
 Der zusätzliche Parameter `verify_sessions: true` prüft die Signaturen beider
 APIs mit synthetischen, abgewiesenen Anfragen ohne Benutzerkonto. Am 09.09.2026
 wiesen Vercel und Google unterschiedliche Anmeldeschlüssel auf. Ein Umschalten
-führt deshalb bei alten Vercel-Sitzungen zur einmaligen Neuanmeldung. Die
-Entscheidung über diese Auswirkung ist vor der produktiven Umschaltung offen.
+führt deshalb bei alten Vercel-Sitzungen zur einmaligen Neuanmeldung. Diese
+Auswirkung wurde vom Betreiber am 09.09.2026 ausdrücklich akzeptiert; die
+produktive Umschaltung darf nach erfolgreichen Tests erfolgen.
 Der reine Dateiabgleich ist von diesem Sitzungstest unabhängig.
 
 ## Grenzen bereits installierter Versionen
