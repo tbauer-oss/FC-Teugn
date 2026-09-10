@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:fc_teugn_app/core/app_theme.dart';
+import 'package:fc_teugn_app/core/models/organization.dart';
 import 'package:fc_teugn_app/features/shell/working_context_switcher.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'support/mobile_audit_fixtures.dart';
 
 Widget host(Future<void> Function(WorkingContextSelection) onSelect,
-        {double textScale = 1}) =>
+        {double textScale = 1, OrganizationContext? organization}) =>
     MaterialApp(
       theme: buildAppTheme(),
       builder: (context, child) => MediaQuery(
@@ -27,7 +28,8 @@ Widget host(Future<void> Function(WorkingContextSelection) onSelect,
                         constraints: BoxConstraints(
                             maxHeight: MediaQuery.sizeOf(context).height * .85),
                         child: WorkingContextSwitcher(
-                            organization: auditOrganization(twoTeams: true),
+                            organization: organization ??
+                                auditOrganization(twoTeams: true),
                             onSelect: onSelect),
                       ),
                     ),
@@ -36,6 +38,63 @@ Widget host(Future<void> Function(WorkingContextSelection) onSelect,
     );
 
 void main() {
+  testWidgets(
+      'search across youth groups remains usable with landscape keyboard',
+      (tester) async {
+    final base = auditOrganization(twoTeams: true);
+    const otherGroup =
+        AgeGroupSummary(id: 'age-f', name: 'F-Jugend', code: 'F', sortOrder: 1);
+    final organization = OrganizationContext(
+      club: base.club,
+      season: base.season,
+      currentTeam: base.currentTeam,
+      ageGroups: [...base.ageGroups, otherGroup],
+      teams: [
+        ...base.teams,
+        for (var index = 1; index <= 6; index++)
+          TeamSummary(
+              id: 'team-f$index',
+              name: 'F$index',
+              ageGroup: otherGroup,
+              seasonName: '2026/27',
+              teamNumber: index),
+      ],
+      permissions: base.permissions,
+      metrics: base.metrics,
+      workingContext: base.workingContext,
+    );
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(740, 360);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    WorkingContextSelection? selected;
+    await tester.pumpWidget(host((value) async {
+      selected = value;
+    }, textScale: 1.5, organization: organization));
+    await tester.tap(find.text('Öffnen'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'F6');
+    tester.view.viewInsets = const FakeViewPadding(bottom: 190);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final target = find.byKey(const ValueKey('switch-team-team-f6'));
+    await tester.scrollUntilVisible(target, 70,
+        scrollable: find
+            .descendant(
+                of: find.byType(WorkingContextSwitcher),
+                matching: find.byType(Scrollable))
+            .first);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(target);
+    await tester.pumpAndSettle();
+    await tester.tap(target);
+    await tester.pumpAndSettle();
+    expect(
+        selected, (ageGroupId: 'age-f', teamId: 'team-f6', includeAll: false));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('one tap selects a team without dropdown or confirmation',
       (tester) async {
     WorkingContextSelection? selected;

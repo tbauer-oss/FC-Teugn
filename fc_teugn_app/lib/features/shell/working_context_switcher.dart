@@ -109,9 +109,11 @@ class _WorkingContextSwitcherState extends State<WorkingContextSwitcher> {
       child: Padding(
         padding:
             EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        // Let the heading and search scroll too when a landscape keyboard
+        // leaves too little room for a fixed header plus the team list.
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.only(bottom: 16),
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 8, 8),
@@ -146,19 +148,13 @@ class _WorkingContextSwitcherState extends State<WorkingContextSwitcher> {
                 padding: const EdgeInsets.all(16),
                 child: Text(_error!, style: TextStyle(color: colors.error)),
               ),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-                children: [
-                  ...sections,
-                  if (visibleCount == 0)
-                    const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('Keine Mannschaft gefunden.')),
-                ],
-              ),
-            ),
+            ...sections.map((section) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: section)),
+            if (visibleCount == 0)
+              const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Keine Mannschaft gefunden.')),
           ],
         ),
       ),

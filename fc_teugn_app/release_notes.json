@@ -1,4 +1,10 @@
 {
+  "1.8.4+198": [
+    "Mannschaften lassen sich oben links direkt antippen: nach Jugend gruppiert, ohne Dropdowns und zusätzliche Bestätigung.",
+    "Einzelne Turnierspiele übernehmen automatisch den Turnierkader und die vorhandenen Zusagen. Individuelle Spielkader bleiben erhalten; eine erneute Nominierung entfällt.",
+    "Die Familienfreigabe gilt für das gesamte Turnier einschließlich aller eingetragenen und später ergänzten Partien.",
+    "Eltern öffnen Turnierkader und Aufstellung direkt unter Spiele und sehen alle nominierten Kinder. Trainerinterne Bewertungen, Notizen und private Rückmeldegründe bleiben geschützt."
+  ],
   "1.8.3+197": [
     "Vorhandene Web-Push-Freigaben werden beim Start und beim Zurückkehren mit dem Server abgeglichen.",
     "Falls das iPhone eine Bestätigung für die erneuerte Push-Verbindung benötigt, führt die App gezielt durch die Wiederherstellung."
