@@ -60,6 +60,7 @@ async function main() {
     await require('./carpool-integration.cjs')({ prisma, call, team, foreignTeam, club, coach, parent, secondParent, stranger, player });
     await require('./match-format-contact-integration.cjs')({ prisma, team, coach, parent, stranger });
     await require('./cross-team-match-integration.cjs')({ prisma, club, team, coach });
+    await require('./tournament-family-integration.cjs')({ prisma, club, team, coach, parent, stranger });
     const absences = require('../dist/src/controllers/absences.controller');
     const absenceInput = { playerId: player.id, startsOn: '2030-09-01', endsOn: '2030-09-30', weekdays: [], teamIds: [], eventTypes: ['MATCH'], reason: 'Urlaub' };
     const key = randomUUID();

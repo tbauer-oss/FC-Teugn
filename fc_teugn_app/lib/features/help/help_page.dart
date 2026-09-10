@@ -959,8 +959,8 @@ const helpArticles = <HelpArticle>[
     keywords: ['E1', 'E2', 'Arbeitsbereich', 'Teamwechsel', 'Jugend'],
     steps: [
       'Tippe oben auf die aktuell angezeigte Jugend beziehungsweise Mannschaft.',
-      'Wähle zuerst genau eine Jugend und anschließend eine Mannschaft oder „Alle Mannschaften dieser Jugend“.',
-      'Bestätige die Auswahl. Dashboard, Spieler, Kalender, Spiele und Statistiken wechseln gemeinsam in diesen Kontext.',
+      'Tippe direkt auf die gewünschte Mannschaft. Die Liste ist nach Jugend gruppiert; bei vielen Teams kannst du suchen.',
+      'Der Wechsel erfolgt sofort. Mit „Alle Mannschaften“ öffnest du die gemeinsame Übersicht einer Jugend. Dashboard, Spieler, Kalender, Spiele und Statistiken wechseln gemeinsam.',
     ],
     tip:
         'Trainer und Co-Trainer sehen nur freigegebene Mannschaften. Vereins- und Systemrollen können je nach Berechtigung weiter wechseln.',

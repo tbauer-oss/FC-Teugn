@@ -1,5 +1,6 @@
 import { prepareMatchGameFormat, resetLineupForGameFormat, gameFormatSize, gameFormatHasKeeper } from '../services/match-game-format';
 import { attendanceAfterRevision } from '../services/attendance-revision';
+import { inheritTournamentSquad, withTournamentRelease } from '../services/tournament-squad.service';
 import { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { deferWork as waitUntil } from '../middleware/runtime-deferred-work';
@@ -82,7 +83,7 @@ const tournamentCategories = new Set<EventCategory>([
 
 const matchInclude = {
   parentTournament: {
-    select: { id: true, title: true, startAt: true, endAt: true },
+    select: { id: true, title: true, startAt: true, endAt: true, familyReleasedAt: true, familyReleaseAudience: true },
   },
   team: {
     select: {
@@ -243,7 +244,7 @@ const matchInclude = {
 // ratings and ticker events. Those belong to GET /matches/:id.
 const matchListInclude = {
   parentTournament: {
-    select: { id: true, title: true, startAt: true, endAt: true },
+    select: { id: true, title: true, startAt: true, endAt: true, familyReleasedAt: true, familyReleaseAudience: true },
   },
   team: {
     select: {
@@ -441,10 +442,20 @@ async function findMatch(
 ) {
   const staff = isStaff(user.role, user.permissions);
   const teamIds = await accessibleTeamIds(user);
-  return prisma.event.findFirst({
+  let match = await prisma.event.findFirst({
     where: { id, ...scope(teamIds, staff ? undefined : user.id) },
     include: matchInclude,
   });
+  if (match?.parentTournamentId) {
+    const changed = await prisma.$transaction(
+      tx => inheritTournamentSquad(tx, id),
+      { maxWait: 10_000, timeout: 20_000 },
+    );
+    if (changed) match = await prisma.event.findFirst({
+      where: { id, ...scope(teamIds, staff ? undefined : user.id) }, include: matchInclude,
+    });
+  }
+  return match ? withTournamentRelease(match) : null;
 }
 
 async function findAccessibleTickerMatch(
@@ -453,10 +464,12 @@ async function findAccessibleTickerMatch(
 ) {
   const staff = isStaff(user.role, user.permissions);
   const teamIds = await accessibleTeamIds(user);
-  return prisma.event.findFirst({
+  const match = await prisma.event.findFirst({
     where: { id, ...scope(teamIds, staff ? undefined : user.id) },
-    select: { id: true, familyReleasedAt: true },
+    select: { id: true, familyReleasedAt: true,
+      parentTournament: { select: { familyReleasedAt: true, familyReleaseAudience: true } } },
   });
+  return match ? withTournamentRelease(match) : null;
 }
 
 async function findTickerCommandMatch(
@@ -464,7 +477,7 @@ async function findTickerCommandMatch(
   user: { id: string; teamId: string; role: Role },
 ) {
   const teamIds = await accessibleTeamIds(user);
-  return prisma.event.findFirst({
+  const match = await prisma.event.findFirst({
     where: { id, ...scope(teamIds) },
     select: {
       id: true,
@@ -472,6 +485,7 @@ async function findTickerCommandMatch(
       title: true,
       familyReleasedAt: true,
       familyReleaseAudience: true,
+      parentTournament: { select: { familyReleasedAt: true, familyReleaseAudience: true } },
       targetTeams: { select: { teamId: true } },
       matchDetails: { select: { opponent: true, isHome: true, status: true } },
       squads: {
@@ -484,6 +498,7 @@ async function findTickerCommandMatch(
       },
     },
   });
+  return match ? withTournamentRelease(match) : null;
 }
 
 async function findMatchForSquadUpdate(
@@ -496,6 +511,8 @@ async function findMatchForSquadUpdate(
     select: {
       id: true,
       teamId: true,
+      parentTournamentId: true,
+      parentTournament: { select: { squads: { select: { publishedAt: true, members: { select: { playerId: true, status: true } } } } } },
       matchDetails: { select: { gameFormat: true } },
       team: { select: { id: true, gameFormat: true } },
       targetTeams: {
@@ -507,7 +524,7 @@ async function findMatchForSquadUpdate(
   });
 }
 
-function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof matchInclude }>>(
+export function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof matchInclude }>>(
   match: T,
   staff: boolean,
   eligiblePlayers: Array<Prisma.PlayerGetPayload<{ select: typeof eligiblePlayerSelect }>> = [],
@@ -522,6 +539,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   familyTeamViewer = false,
   canRatePlayers = false,
 ) {
+  match = withTournamentRelease(match);
   match = { ...match, attendance: match.attendance.map(reply => attendanceAfterRevision(reply, match)) };
   const opponentRecord = match.matchDetails?.opponentRecord;
   const squad = match.squads[0] ?? null;
@@ -542,8 +560,11 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
   const lineupTeam = match.targetTeams[0]?.team ?? match.team;
   const familyDetailsVisible =
     familyTeamViewer && match.familyReleasedAt !== null;
+  const tournamentFamilyVisible = familyDetailsVisible &&
+    (tournamentCategories.has(match.category) || match.parentTournamentId !== null);
   const canSeeLineup =
     staff ||
+    (tournamentFamilyVisible && lineup != null && lineup.status !== LineupStatus.ARCHIVED) ||
     (familyDetailsVisible &&
       lineup?.status === LineupStatus.PUBLISHED &&
       (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now())) ||
@@ -553,6 +574,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       lineup?.status === LineupStatus.PUBLISHED &&
       (!lineup.visibleAt || lineup.visibleAt.getTime() <= Date.now()));
   const canSeePublishedSquad = staff || tickerEditable || familyDetailsVisible || (
+    !match.parentTournamentId &&
     squad?.publishedAt !== null &&
     availableSquadMembers.some((member) => viewerPlayerIds.includes(member.playerId))
   );
@@ -611,8 +633,8 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
       canReschedule,
       canCancel,
       canPublishInternal,
-      canNominateSquad,
-      canReleaseFamily,
+      canNominateSquad: canNominateSquad && !match.parentTournamentId,
+      canReleaseFamily: canReleaseFamily && !match.parentTournamentId,
       canRatePlayers,
     },
     squads: squad && canSeePublishedSquad
@@ -623,7 +645,8 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
               ? availableSquadMembers
               : availableSquadMembers.filter(
                   (member) => member.status === NominationStatus.NOMINATED,
-                ),
+                ).map(member => ({ ...member, note: null,
+                  lineupEligible: confirmedPlayerIds.has(member.playerId) })),
             lineup: canSeeLineup
               ? {
                   ...lineup,
@@ -634,7 +657,7 @@ function serializeMatch<T extends Prisma.EventGetPayload<{ include: typeof match
                     (substitution) =>
                       confirmedPlayerIds.has(substitution.playerInId) &&
                       confirmedPlayerIds.has(substitution.playerOutId),
-                  ),
+                  ).map(substitution => ({ ...substitution, note: staff ? substitution.note : null })),
                   tacticalNote: staff ? lineup?.tacticalNote : null,
                 }
               : null,
@@ -671,6 +694,7 @@ function serializeMatchSummary<
     canRatePlayers: boolean;
   },
 ) {
+  match = withTournamentRelease(match);
   const squad = match.squads[0] ?? null;
   const familyDetailsVisible = !staff && match.familyReleasedAt !== null;
   const maySeePersonalNomination = squad?.publishedAt !== null;
@@ -757,7 +781,7 @@ export async function syncTournamentFixtures(req: Request, res: Response) {
             },
           },
           liveTicker: { select: { id: true, events: { select: { id: true }, take: 1 } } },
-          squads: { select: { id: true }, take: 1 },
+          squads: { select: { id: true, inheritsTournamentSquad: true, lineup: { select: { usesTeamDefault: true } } }, take: 1 },
         },
       },
     },
@@ -837,7 +861,7 @@ export async function syncTournamentFixtures(req: Request, res: Response) {
   const protectedFixture = removed.find(
     (fixture) =>
       fixture.liveTicker?.events.length ||
-      fixture.squads.length ||
+      fixture.squads.some(squad => !squad.inheritsTournamentSquad || squad.lineup?.usesTeamDefault === false) ||
       (fixture.matchDetails?.status && fixture.matchDetails.status !== MatchStatus.PLANNED),
   );
   if (protectedFixture) {
@@ -1801,10 +1825,15 @@ export async function updateSquad(req: Request, res: Response) {
       .map((item) => text(item.playerId, 100))
       .filter(Boolean),
   )] as string[];
+  const tournamentSquad = match.parentTournament?.squads[0];
+  if (match.parentTournamentId && requestedIds.some(id =>
+    !tournamentSquad?.members.some(member => member.playerId === id && member.status === NominationStatus.NOMINATED))) {
+    return res.status(400).json({ message: 'Bitte neue Spieler zuerst in den Turnierkader aufnehmen.' });
+  }
   const declinedReplies = requestedIds.length
     ? await prisma.attendance.findMany({
         where: {
-          eventId: match.id,
+          eventId: { in: [match.id, ...(match.parentTournamentId ? [match.parentTournamentId] : [])] },
           playerId: { in: requestedIds },
           status: AttendanceStatus.NO,
         },
@@ -1841,12 +1870,14 @@ export async function updateSquad(req: Request, res: Response) {
     const saved = await tx.squad.upsert({
       where: { eventId: match.id },
       update: {
+        inheritsTournamentSquad: false,
         name: text(req.body.name, 100),
         formation: text(req.body.formation, 50),
-        ...(wasPublished ? { publishedAt: null } : {}),
+        ...(match.parentTournamentId ? { publishedAt: tournamentSquad?.publishedAt ?? null } : wasPublished ? { publishedAt: null } : {}),
       },
       create: {
         eventId: match.id,
+        publishedAt: match.parentTournamentId ? tournamentSquad?.publishedAt : undefined,
         name: text(req.body.name, 100),
         formation: text(req.body.formation, 50),
       },
@@ -2031,6 +2062,9 @@ export async function publishSquad(req: Request, res: Response) {
   const user = req.user!;
   const match = await findMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  if (match.parentTournamentId) {
+    return res.status(409).json({ message: 'Die Nominierung erfolgt einmal am Turnier. Der Kader wird für die Einzelspiele automatisch übernommen.' });
+  }
   const squad = await prisma.squad.findUnique({
     where: { eventId: match.id },
     include: {
@@ -2569,6 +2603,9 @@ export async function releaseMatchToFamilies(req: Request, res: Response) {
   const user = req.user!;
   const match = await findMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
+  if (match.parentTournamentId && !match.familyReleasedAt) {
+    return res.status(409).json({ message: 'Bitte das gesamte Turnier für Familien freigeben. Alle Einzelspiele sind dann automatisch sichtbar.' });
+  }
   if (match.familyReleasedAt) {
     return res.json({ status: 'FAMILY_RELEASED', alreadyReleased: true, delivery: null });
   }

@@ -111,9 +111,9 @@ test('published cross-team nominations grant access to exactly that event', () =
   const { eventReadScope } = require('../dist/src/services/team-access');
   const scope = eventReadScope(['team-e2'], { playerIds: ['player-e2'] });
 
-  assert.equal(scope.OR.length, 4);
+  assert.equal(scope.OR.length, 5);
   assert.deepEqual(scope.OR[0], { teamId: { in: ['team-e2'] } });
-  assert.deepEqual(scope.OR[2], {
+  assert.deepEqual(scope.OR.find(grant => grant.squads), {
     visibility: { not: 'STAFF_ONLY' },
     squads: {
       some: {
@@ -126,6 +126,12 @@ test('published cross-team nominations grant access to exactly that event', () =
         },
       },
     },
+  });
+  const tournamentGrant = scope.OR.find(grant => grant.parentTournament).parentTournament.is;
+  assert.deepEqual(tournamentGrant.familyReleasedAt, { not: null });
+  assert.deepEqual(tournamentGrant.visibility, { not: 'STAFF_ONLY' });
+  assert.deepEqual(tournamentGrant.squads.some.members.some, {
+    status: 'NOMINATED', playerId: { in: ['player-e2'] },
   });
 
   const events = source('src/controllers/events.controller.ts');

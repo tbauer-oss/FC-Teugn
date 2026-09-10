@@ -177,6 +177,17 @@ class _PublicTournamentCard extends StatelessWidget {
               ],
             ),
           ),
+          if (event.familyReleasedAt != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: FilledButton.tonalIcon(
+                key: ValueKey('parent-tournament-squad-${event.id}'),
+                onPressed: () => context
+                    .push('/parent/matches/${event.id}?planning=tournament'),
+                icon: const Icon(Icons.groups_rounded),
+                label: const Text('Turnierkader & Aufstellung'),
+              ),
+            ),
           if (tournamentPlan != null &&
               isMeinTurnierplanUrl(tournamentPlan.url))
             Padding(
@@ -203,7 +214,7 @@ class _PublicTournamentCard extends StatelessWidget {
                 leading: Icon(Icons.schedule_rounded),
                 title: Text('Turnierpartien werden vorbereitet'),
                 subtitle: Text(
-                  'Sobald das Trainerteam einzelne Partien freigibt, erscheinen sie hier.',
+                  'Eingetragene Partien erscheinen mit der Turnierfreigabe automatisch hier.',
                 ),
               ),
             )

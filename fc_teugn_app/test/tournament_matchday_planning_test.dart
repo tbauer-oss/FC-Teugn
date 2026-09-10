@@ -188,6 +188,7 @@ class _TournamentPlanningRepository extends DataRepository {
 Widget _planningPage(
   _TournamentPlanningRepository repository, {
   double textScale = 1,
+  bool staffView = true,
 }) =>
     ProviderScope(
       overrides: [
@@ -202,10 +203,10 @@ Widget _planningPage(
           ),
           child: child!,
         ),
-        home: const Scaffold(
+        home: Scaffold(
           body: MatchdayPage(
             matchId: 'tournament-1',
-            staffView: true,
+            staffView: staffView,
             tournamentPlanning: true,
           ),
         ),
@@ -213,6 +214,59 @@ Widget _planningPage(
     );
 
 void main() {
+  testWidgets(
+      'family sees all tournament players and the complete field without other private replies',
+      (tester) async {
+    const players = [
+      MatchPlayer(id: 'player-1', name: 'Lena Beispiel', shirtNumber: 1),
+      MatchPlayer(id: 'player-2', name: 'Mia Beispiel', shirtNumber: 2),
+    ];
+    final repository = _TournamentPlanningRepository();
+    repository.current = _tournament(
+      familyReleasedAt: DateTime(2026, 9, 1),
+      squad: MatchSquadModel(
+        id: 'squad-family',
+        members: [
+          for (final player in players)
+            SquadMemberModel(
+              player: player,
+              status: NominationStatus.nominated,
+              lineupEligible: true,
+            )
+        ],
+        lineup: LineupModel(
+          id: 'lineup-family',
+          formation: '2-3-1',
+          fieldSize: 7,
+          status: LineupStatus.published,
+          positions: [
+            for (var i = 0; i < players.length; i++)
+              LineupPositionModel(
+                player: players[i],
+                positionCode: 'ST',
+                x: .25 + i * .5,
+                y: .3,
+                period: 1,
+                isStarter: true,
+                isGoalkeeper: false,
+                isCaptain: false,
+              )
+          ],
+        ),
+      ),
+    );
+    await tester.pumpWidget(_planningPage(repository, staffView: false));
+    await tester.pumpAndSettle();
+    expect(find.text('Lena Beispiel'), findsWidgets);
+    expect(find.text('Mia Beispiel'), findsWidgets);
+    await tester.tap(find.text('Aufstellung'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Mia'), findsWidgets);
+    expect(find.text('Aufstellung noch nicht veröffentlicht'), findsNothing);
+    expect(find.text('Kader nominieren'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final viewport in const [
     Size(320, 568),
     Size(390, 844),

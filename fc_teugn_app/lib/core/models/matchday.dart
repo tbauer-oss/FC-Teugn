@@ -56,6 +56,7 @@ class MatchdayModel {
     required this.startAt,
     required this.location,
     required this.teamId,
+    this.parentTournamentId,
     this.address,
     this.meetingAt,
     this.meetingLocation,
@@ -94,6 +95,7 @@ class MatchdayModel {
   final String location;
   final String? address;
   final String teamId;
+  final String? parentTournamentId;
   final MatchDetailsModel? details;
   final MatchSquadModel? squad;
   final MatchSquadSummaryModel? squadSummary;
@@ -136,6 +138,7 @@ class MatchdayModel {
       location: json['location'] as String? ?? '',
       address: json['address'] as String?,
       teamId: json['teamId'] as String? ?? '',
+      parentTournamentId: json['parentTournamentId'] as String?,
       details: json['matchDetails'] == null
           ? null
           : MatchDetailsModel.fromJson(
@@ -487,12 +490,14 @@ class SquadMemberModel {
     required this.status,
     this.note,
     this.plannedMinutes,
+    this.lineupEligible = false,
   });
 
   final MatchPlayer player;
   final NominationStatus status;
   final String? note;
   final int? plannedMinutes;
+  final bool lineupEligible;
 
   factory SquadMemberModel.fromJson(Map<String, dynamic> json) =>
       SquadMemberModel(
@@ -504,6 +509,7 @@ class SquadMemberModel {
         ),
         note: json['note'] as String?,
         plannedMinutes: json['plannedMinutes'] as int?,
+        lineupEligible: json['lineupEligible'] as bool? ?? false,
       );
 }
 

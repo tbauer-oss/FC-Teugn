@@ -453,6 +453,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage>
           meetingLocation: current.meetingLocation,
           location: current.location,
           teamId: current.teamId,
+          parentTournamentId: current.parentTournamentId,
           details: current.details,
           squad: current.squad,
           ticker: ticker,
@@ -530,6 +531,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage>
         meetingLocation: current.meetingLocation,
         location: current.location,
         teamId: current.teamId,
+        parentTournamentId: current.parentTournamentId,
         details: current.details,
         squad: squad,
         ticker: current.ticker,
@@ -571,6 +573,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage>
         meetingLocation: current.meetingLocation,
         location: current.location,
         teamId: current.teamId,
+        parentTournamentId: current.parentTournamentId,
         details: current.details,
         squad: MatchSquadModel(
           id: squad.id,
@@ -618,6 +621,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage>
         meetingLocation: current.meetingLocation,
         location: current.location,
         teamId: current.teamId,
+        parentTournamentId: current.parentTournamentId,
         details: current.details,
         squad: current.squad,
         ticker: current.ticker,
@@ -3201,7 +3205,8 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                         (member) => member.status == NominationStatus.nominated)
                     .toList() ??
                 const [];
-            if (widget.match.squad?.publishedAt == null) {
+            if (widget.match.squad?.publishedAt == null &&
+                widget.match.familyReleasedAt == null) {
               return const EmptyState(
                 icon: Icons.visibility_off_outlined,
                 title: 'Kader noch nicht veröffentlicht',
@@ -3381,19 +3386,23 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                       onPressed:
                           _saving || _selected.isEmpty ? null : _deselectAll,
                     ),
+                    if (widget.match.parentTournamentId == null)
+                      AdaptiveActionSpec(
+                        label: widget.tournamentPlanning
+                            ? 'Turnier-Kader nominieren'
+                            : 'Kader nominieren',
+                        icon: Icons.campaign_outlined,
+                        onPressed: _saving || !widget.match.canNominateSquad
+                            ? null
+                            : _publish,
+                        primary: true,
+                      ),
                     AdaptiveActionSpec(
-                      label: widget.tournamentPlanning
-                          ? 'Turnier-Kader nominieren'
-                          : 'Kader nominieren',
-                      icon: Icons.campaign_outlined,
-                      onPressed: _saving || !widget.match.canNominateSquad
-                          ? null
-                          : _publish,
-                      primary: true,
-                    ),
-                    AdaptiveActionSpec(
-                      label:
-                          _saving ? 'Wird gespeichert …' : 'Entwurf speichern',
+                      label: _saving
+                          ? 'Wird gespeichert …'
+                          : widget.match.parentTournamentId != null
+                              ? 'Spielkader speichern'
+                              : 'Entwurf speichern',
                       icon: Icons.save_outlined,
                       onPressed: _saving ? null : _save,
                     ),
@@ -3403,11 +3412,13 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    widget.tournamentPlanning
-                        ? 'Diese Auswahl gilt für das gesamte Turnier. '
-                            'Rückmeldungen können hier direkt korrigiert werden.'
-                        : 'Die automatische Startelf berücksichtigt nur zugesagte Spieler. '
-                            'Trainer können Rückmeldungen hier direkt korrigieren.',
+                    widget.match.parentTournamentId != null
+                        ? 'Turnierkader automatisch übernommen. Änderungen gelten nur für diese Partie; keine erneute Nominierung nötig.'
+                        : widget.tournamentPlanning
+                            ? 'Diese Auswahl gilt für das gesamte Turnier. '
+                                'Rückmeldungen können hier direkt korrigiert werden.'
+                            : 'Die automatische Startelf berücksichtigt nur zugesagte Spieler. '
+                                'Trainer können Rückmeldungen hier direkt korrigieren.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: context.appColors.textMuted,
                         ),
@@ -3971,7 +3982,14 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
           .where(
             (item) =>
                 item.status == NominationStatus.nominated &&
-                widget.match.hasConfirmedAttendance(item.player.id),
+                (widget.editable
+                    ? widget.match.hasConfirmedAttendance(item.player.id)
+                    : item.lineupEligible ||
+                        widget.match.squad?.lineup?.positions.any(
+                              (position) =>
+                                  position.player.id == item.player.id,
+                            ) ==
+                            true),
           )
           .map((item) => item.player)
           .toList() ??

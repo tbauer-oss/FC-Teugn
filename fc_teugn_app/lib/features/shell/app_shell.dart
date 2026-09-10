@@ -14,6 +14,7 @@ import '../../core/models/organization.dart';
 import '../shared/pwa_install_prompt.dart';
 import '../shared/app_about_sheet.dart';
 import '../trainer/system_admin_test_environment.dart';
+import 'working_context_switcher.dart';
 
 void _noOp() {}
 Future<void> _noOpAsync() async {}
@@ -265,148 +266,30 @@ class AppShell extends ConsumerWidget {
     WidgetRef ref,
     OrganizationContext organization,
   ) async {
-    var ageGroupId = organization.workingContext.ageGroupId;
-    var includeAll = organization.workingContext.includeAllTeams;
-    String? teamId = organization.workingContext.teamIds.isEmpty
-        ? organization.currentTeam.id
-        : organization.workingContext.teamIds.first;
-
-    final selection = await showDialog<
-        ({
-          String ageGroupId,
-          String? teamId,
-          bool includeAll,
-        })>(
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          final ageGroups = organization.ageGroups
-              .where((ageGroup) => organization.teams
-                  .any((team) => team.ageGroup.id == ageGroup.id))
-              .toList()
-            ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-          if (!ageGroups.any((item) => item.id == ageGroupId) &&
-              ageGroups.isNotEmpty) {
-            ageGroupId = ageGroups.first.id;
-          }
-          final teams = organization.teams
-              .where((team) => team.ageGroup.id == ageGroupId && team.isActive)
-              .toList()
-            ..sort((a, b) => a.teamNumber.compareTo(b.teamNumber));
-          if (!teams.any((item) => item.id == teamId) && teams.isNotEmpty) {
-            teamId = teams.first.id;
-          }
-
-          return AlertDialog(
-            scrollable: true,
-            title: const Text('Arbeitsbereich wechseln'),
-            content: SizedBox(
-              width: 430,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Alle Inhalte und Aktionen werden auf die gewählte Jugend und Mannschaft begrenzt.',
-                  ),
-                  const SizedBox(height: 18),
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    itemHeight: null,
-                    initialValue: ageGroupId,
-                    decoration: const InputDecoration(
-                      labelText: 'Jugend',
-                      prefixIcon: Icon(Icons.category_rounded),
-                    ),
-                    items: [
-                      for (final ageGroup in ageGroups)
-                        DropdownMenuItem(
-                          value: ageGroup.id,
-                          child: Text(ageGroup.name),
-                        ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setDialogState(() {
-                        ageGroupId = value;
-                        final candidates = organization.teams.where(
-                          (team) => team.ageGroup.id == value && team.isActive,
-                        );
-                        teamId =
-                            candidates.isEmpty ? null : candidates.first.id;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  if (teams.length > 1)
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Alle Mannschaften dieser Jugend'),
-                      subtitle: Text(
-                        '${teams.length} Mannschaften gemeinsam verwalten',
-                      ),
-                      value: includeAll,
-                      onChanged: (value) =>
-                          setDialogState(() => includeAll = value),
-                    ),
-                  if (!includeAll)
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      itemHeight: null,
-                      initialValue: teamId,
-                      decoration: const InputDecoration(
-                        labelText: 'Mannschaft',
-                        prefixIcon: Icon(Icons.groups_rounded),
-                      ),
-                      items: [
-                        for (final team in teams)
-                          DropdownMenuItem(
-                            value: team.id,
-                            child: Text(team.displayName),
-                          ),
-                      ],
-                      onChanged: (value) =>
-                          setDialogState(() => teamId = value),
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Abbrechen'),
-              ),
-              FilledButton.icon(
-                onPressed: teams.isEmpty || (!includeAll && teamId == null)
-                    ? null
-                    : () => Navigator.pop(
-                          context,
-                          (
-                            ageGroupId: ageGroupId,
-                            teamId: includeAll ? null : teamId,
-                            includeAll: includeAll,
-                          ),
-                        ),
-                icon: const Icon(Icons.swap_horiz_rounded),
-                label: const Text('Wechseln'),
-              ),
-            ],
-          );
-        },
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 640),
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(sheetContext).height * .85,
+        ),
+        child: WorkingContextSwitcher(
+          organization: organization,
+          onSelect: (selection) async {
+            final ok = await ref
+                .read(workingContextControllerProvider.notifier)
+                .select(
+                  ageGroupId: selection.ageGroupId,
+                  teamId: selection.teamId,
+                  includeAllTeams: selection.includeAll,
+                );
+            if (!ok) throw StateError('Mannschaftswechsel fehlgeschlagen');
+          },
+        ),
       ),
-    );
-    if (selection == null || !context.mounted) return;
-    final ok = await ref.read(workingContextControllerProvider.notifier).select(
-          ageGroupId: selection.ageGroupId,
-          teamId: selection.teamId,
-          includeAllTeams: selection.includeAll,
-        );
-    if (!context.mounted || ok) return;
-    final error = ref.read(workingContextControllerProvider).error;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content:
-              Text(error ?? 'Arbeitsbereich konnte nicht gewechselt werden.')),
     );
   }
 

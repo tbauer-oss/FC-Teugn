@@ -514,6 +514,17 @@ export function eventReadScope(
     OR: [
       { teamId: { in: teams } },
       { targetTeams: { some: { teamId: { in: teams } } } },
+      ...(memberIdentity.length ? [{
+        parentTournament: { is: {
+          familyReleasedAt: { not: null },
+          visibility: { not: 'STAFF_ONLY' },
+          squads: { some: {
+            publishedAt: { not: null },
+            members: { some: { status: NominationStatus.NOMINATED,
+              ...(memberIdentity.length === 1 ? memberIdentity[0] : { OR: memberIdentity }) } },
+          } },
+        } },
+      } satisfies Prisma.EventWhereInput] : []),
       ...(memberIdentity.length
         ? [{
             visibility: { not: 'STAFF_ONLY' },

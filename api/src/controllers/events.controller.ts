@@ -557,7 +557,7 @@ async function serializeEvent(
     title: displayTitle,
     ownTeam,
     tournamentFixtures: event.tournamentFixtures
-      .filter((fixture) => staff || fixture.familyReleasedAt !== null)
+      .filter(() => staff || event.familyReleasedAt !== null)
       .map((fixture) => ({
         id: fixture.id,
         parentTournamentId: fixture.parentTournamentId,
@@ -572,8 +572,8 @@ async function serializeEvent(
         endAt: fixture.endAt,
         location: fixture.location,
         status: fixture.status,
-        communicationStatus: fixture.communicationStatus,
-        familyReleasedAt: fixture.familyReleasedAt,
+        communicationStatus: event.familyReleasedAt ? 'FAMILY_RELEASED' : fixture.communicationStatus,
+        familyReleasedAt: event.familyReleasedAt,
         matchDetails: fixture.matchDetails
           ? {
               ...fixture.matchDetails,
