@@ -24,13 +24,14 @@ import '../../core/push/live_match_surface_policy.dart';
 import '../../core/squad_selection.dart';
 import '../../core/ticker_signal.dart';
 import '../../core/widgets/adaptive_layout.dart';
-import '../../core/widgets/captain_badge.dart';
 import '../../core/widgets/player_team_chip.dart';
 import '../../core/widgets/team_crest.dart';
 import '../auth/auth_controller.dart';
 import '../shared/page_scaffold.dart';
 import 'matchday_autopilot_tab.dart';
 import 'kit_laundry_duty_card.dart';
+import 'tactics_board_page.dart';
+import 'modern_lineup_view.dart';
 
 class MatchdayPage extends ConsumerStatefulWidget {
   const MatchdayPage({
@@ -980,8 +981,11 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage>
         match.ticker?.status == TickerStatus.finished;
     final showParentRating = !widget.staffView && finished;
     final tabCount = widget.staffView ? 6 : (showParentRating ? 5 : 4);
-    final initialTabIndex =
-        widget.initialTab == 'live' ? (widget.staffView ? 4 : 3) : 0;
+    final initialTabIndex = widget.initialTab == 'live'
+        ? (widget.staffView ? 4 : 3)
+        : widget.initialTab == 'squad'
+            ? 1
+            : 0;
     return DefaultTabController(
       key: ValueKey('match-tabs-$tabCount'),
       length: tabCount,
@@ -3199,6 +3203,61 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
           final compact = AppBreakpoints.isCompact(constraints.maxWidth);
+          if (widget.editable && widget.match.parentTournamentId != null) {
+            final members =
+                widget.match.squad?.members ?? const <SquadMemberModel>[];
+            return ListView(
+              key: const ValueKey('tournament-master-squad'),
+              padding: const EdgeInsets.only(bottom: 16),
+              children: [
+                const Text('Turnierkader',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+                const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                        'Kader und Rückmeldungen kommen aus dem Turnier – auch Trainer-Zusagen. '
+                        'Die Aufstellung kannst du für diese Partie anpassen.')),
+                OutlinedButton.icon(
+                    onPressed: () async {
+                      await Navigator.of(context, rootNavigator: true).push(
+                          MaterialPageRoute<void>(
+                              builder: (_) => MatchdayPage(
+                                  matchId: widget.match.parentTournamentId!,
+                                  staffView: true,
+                                  tournamentPlanning: true,
+                                  initialTab: 'squad')));
+                      if (mounted) await widget.onReload();
+                    },
+                    icon: const Icon(Icons.account_tree_outlined),
+                    label: const Text('Turnierkader & Zusagen bearbeiten')),
+                for (final member in members)
+                  ListTile(
+                    leading: CircleAvatar(
+                        child: Text(
+                            member.player.shirtNumber?.toString() ?? 'FC')),
+                    title: Text(member.player.name),
+                    subtitle: Text(switch (widget.match
+                        .attendanceStatusForPlayer(member.player.id)) {
+                      AttendanceStatus.yes => 'Zugesagt · aus dem Turnier',
+                      AttendanceStatus.no => 'Abgesagt · aus dem Turnier',
+                      _ => 'Rückmeldung offen · im Turnier',
+                    }),
+                    trailing: Icon(switch (widget.match
+                        .attendanceStatusForPlayer(member.player.id)) {
+                      AttendanceStatus.yes => Icons.check_circle_outline,
+                      AttendanceStatus.no => Icons.cancel_outlined,
+                      _ => Icons.schedule,
+                    }),
+                  ),
+                if (members.isEmpty)
+                  const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                          'Noch kein verfügbarer Turnierkader. Bitte im Turnier nominieren.')),
+              ],
+            );
+          }
           if (!widget.editable) {
             final members = widget.match.squad?.members
                     .where(
@@ -3961,6 +4020,31 @@ class _LineupTab extends ConsumerStatefulWidget {
 }
 
 class _LineupTabState extends ConsumerState<_LineupTab> {
+  Future<void> _openTacticsBoard() async {
+    final repository = ref.read(repositoryProvider);
+    await Navigator.of(context, rootNavigator: true)
+        .push(MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => TacticsBoardPage(
+        title: widget.match.title,
+        ownTeam: widget.match.ownTeamName,
+        opponent: widget.match.details?.opponent ?? 'Gegner',
+        initialPositions: List.of(_positions),
+        players: widget.match.squad?.members.map((m) => m.player).toList() ??
+            const [],
+        load: () => repository.loadTacticsBoard(widget.match.id),
+        save: (document, revision) =>
+            repository.saveTacticsBoard(widget.match.id, document, revision),
+      ),
+    ));
+  }
+
+  Widget _tacticsButton() => OutlinedButton.icon(
+        key: const ValueKey('open-tactics-board'),
+        onPressed: _openTacticsBoard,
+        icon: const Icon(Icons.gesture_rounded),
+        label: const Text('Taktikboard'),
+      );
   late List<LineupPositionModel> _positions;
   late String _formation;
   bool _saving = false;
@@ -4065,711 +4149,140 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     _schedulePositionSave();
   }
 
-  String _formationLabel(String formation) =>
-      formation == widget.match.teamDefaultFormation
-          ? 'Stammformation · $formation'
-          : formation;
-
   @override
   Widget build(BuildContext context) {
     if (widget.match.squad == null) {
-      return ListView(
-        padding: EdgeInsets.zero,
-        children: const [
-          EmptyState(
+      return ListView(padding: EdgeInsets.zero, children: [
+        if (widget.editable) _tacticsButton(),
+        const EmptyState(
             icon: Icons.group_add_outlined,
             title: 'Zuerst den Kader festlegen',
             message:
-                'Die Aufstellung verwendet ausschließlich nominierte Spieler mit Zusage.',
-          ),
-        ],
-      );
+                'Die Aufstellung verwendet ausschließlich nominierte Spieler mit Zusage.'),
+      ]);
     }
-    final lineup = widget.match.squad!.lineup;
-    if (!widget.editable && lineup == null) {
-      return ListView(
-        padding: EdgeInsets.zero,
-        children: const [
-          EmptyState(
+    if (!widget.editable && widget.match.squad!.lineup == null) {
+      return ListView(padding: EdgeInsets.zero, children: const [
+        EmptyState(
             icon: Icons.visibility_off_outlined,
             title: 'Aufstellung noch nicht veröffentlicht',
             message:
-                'Sobald die Aufstellung freigegeben ist, erscheint sie hier.',
-          ),
-        ],
-      );
+                'Sobald die Aufstellung freigegeben ist, erscheint sie hier.'),
+      ]);
     }
-    return Column(
-      children: [
-        if (widget.editable)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final setup = <Widget>[
-                DropdownButton<String>(
-                  value: _formation,
-                  items: _formationOptions
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(_formationLabel(value)),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) _applyFormation(value);
-                  },
-                ),
-                Chip(
-                  avatar: const Icon(Icons.groups_rounded, size: 18),
-                  label: Text(widget.match.gameFormat.strength),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _saving
-                      ? null
-                      : () => setState(() {
-                            _positions = planInitialLineup(
-                              hasGoalkeeper:
-                                  widget.match.gameFormat.hasGoalkeeper,
-                              players: _confirmedPlayers,
-                              fieldSize: _fieldSize,
-                              formation: _formation,
-                            );
-                          }),
-                  icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('Nach Positionen aufstellen'),
-                ),
-              ];
-              final actions = <Widget>[
-                OutlinedButton.icon(
-                  onPressed: _showLineupFullscreen,
-                  icon: const Icon(Icons.open_in_full_rounded),
-                  label: const Text('Vollbild'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _saving ? null : () => _save(LineupStatus.draft),
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text('Entwurf'),
-                ),
-                FilledButton.icon(
-                  onPressed: _saving ? null : _publish,
-                  icon: const Icon(Icons.publish_rounded),
-                  label: const Text('Aufstellung intern teilen'),
-                ),
-              ];
-              if (constraints.maxWidth < 700) {
-                final compact = constraints.maxWidth < 600;
-                return Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            height: compact ? 42 : 48,
-                            padding: const EdgeInsets.only(left: 12, right: 8),
-                            decoration: BoxDecoration(
-                              color: context.appColors.surfaceRaised,
-                              borderRadius: BorderRadius.circular(13),
-                              border:
-                                  Border.all(color: context.appColors.outline),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                key: ValueKey('lineup-formation-$_formation'),
-                                value: _formation,
-                                isExpanded: true,
-                                icon: const Icon(
-                                  Icons.expand_more_rounded,
-                                  size: 20,
-                                ),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w800),
-                                items: _formationOptions
-                                    .map(
-                                      (value) => DropdownMenuItem(
-                                        value: value,
-                                        child: Text(
-                                          _formationLabel(value),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (value) {
-                                  if (value != null) _applyFormation(value);
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          onPressed: _saving
-                              ? null
-                              : () => setState(() {
-                                    _positions = planInitialLineup(
-                                      hasGoalkeeper:
-                                          widget.match.gameFormat.hasGoalkeeper,
-                                      players: _confirmedPlayers,
-                                      fieldSize: _fieldSize,
-                                      formation: _formation,
-                                    );
-                                    _schedulePositionSave();
-                                  }),
-                          tooltip: 'Nach Positionen aufstellen',
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.auto_awesome_rounded),
-                        ),
-                        IconButton(
-                          onPressed: _showLineupFullscreen,
-                          tooltip: 'Aufstellung im Vollbild',
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.open_in_full_rounded),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      key: compact
-                          ? const ValueKey('compact-lineup-save-actions')
-                          : null,
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _saving
-                                ? null
-                                : () => _save(LineupStatus.draft),
-                            icon: Icon(
-                              Icons.save_outlined,
-                              size: compact ? 16 : 18,
-                            ),
-                            label: const Text(
-                              'Entwurf',
-                              semanticsLabel: 'Aufstellungsentwurf speichern',
-                            ),
-                            style: compact
-                                ? OutlinedButton.styleFrom(
-                                    minimumSize: const Size(0, 34),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                    ),
-                                    visualDensity: VisualDensity.compact,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  )
-                                : null,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: FilledButton.icon(
-                            key: const ValueKey(
-                              'lineup-publish-action',
-                            ),
-                            onPressed: _saving ? null : _publish,
-                            icon: Icon(
-                              Icons.publish_rounded,
-                              size: compact ? 16 : 18,
-                            ),
-                            label: const Text(
-                              'Aufstellung intern',
-                              semanticsLabel: 'Aufstellung intern teilen',
-                            ),
-                            style: compact
-                                ? FilledButton.styleFrom(
-                                    minimumSize: const Size(0, 34),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                    ),
-                                    visualDensity: VisualDensity.compact,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  )
-                                : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              }
-              if (constraints.maxWidth < 900) {
-                return Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [...setup, ...actions],
-                );
-              }
-              return Row(
-                children: [
-                  ...setup.expand(
-                    (widget) => [widget, const SizedBox(width: 10)],
-                  ),
-                  const Spacer(),
-                  ...actions.expand(
-                    (widget) => [widget, const SizedBox(width: 10)],
-                  ),
-                ],
-              );
-            },
-          ),
-        SizedBox(height: MediaQuery.sizeOf(context).width < 600 ? 6 : 12),
-        if (lineup?.usesTeamDefault == true) ...[
-          _AutomaticLineupNotice(
-            replacements: lineup!.automaticReplacements,
-            compact: MediaQuery.sizeOf(context).width < 600,
-          ),
-          SizedBox(height: MediaQuery.sizeOf(context).width < 600 ? 6 : 12),
-        ],
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final hinge = verticalSeparatingFeatureFor(
-                context,
-                availableWidth: constraints.maxWidth,
-              );
-              if (hinge != null &&
-                  hinge.left >= 250 &&
-                  constraints.maxWidth - hinge.right >= 250) {
-                final leftWidth = hinge.left;
-                final rightWidth = constraints.maxWidth - hinge.right;
-                final pitchWidth = min(leftWidth, 720.0).toDouble();
-                final pitchHeight = min(
-                  constraints.maxHeight - (widget.editable ? 32 : 0),
-                  pitchWidth * .9,
-                ).toDouble();
-                return Row(
-                  key: const ValueKey('matchday-foldable-lineup'),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: leftWidth,
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: _buildPitch(pitchWidth, pitchHeight),
-                      ),
-                    ),
-                    SizedBox(width: hinge.width),
-                    SizedBox(
-                      width: rightWidth,
-                      height: constraints.maxHeight,
-                      child: _buildBench(vertical: true),
-                    ),
-                  ],
-                );
-              }
-              final wide = constraints.maxWidth >= 720;
-              if (wide) {
-                final pitchWidth =
-                    min(constraints.maxWidth - 320, 720.0).toDouble();
-                final pitchHeight = min(
-                  constraints.maxHeight - (widget.editable ? 32 : 0),
-                  pitchWidth * .72,
-                ).toDouble();
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: _buildPitch(pitchWidth, pitchHeight),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    SizedBox(
-                      width: 300,
-                      height: constraints.maxHeight,
-                      child: _buildBench(vertical: true),
-                    ),
-                  ],
-                );
-              }
-              final pitchWidth = min(constraints.maxWidth, 720.0).toDouble();
-              final compact = constraints.maxWidth < 600;
-              final benchHeight = compact ? 94.0 : 128.0;
-              final pitchHeight = min(
-                constraints.maxHeight - benchHeight - 18,
-                pitchWidth * (compact ? .96 : .88),
-              ).toDouble();
-              return ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  Center(
-                    child: _buildPitch(
-                      pitchWidth,
-                      max(280, pitchHeight).toDouble(),
-                      showHint: !compact,
-                    ),
-                  ),
-                  SizedBox(height: compact ? 8 : 12),
-                  SizedBox(
-                    height: benchHeight,
-                    width: double.infinity,
-                    child: _buildBench(vertical: false),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
-    );
+    return _lineupSurface();
   }
 
-  Widget _buildPitch(
-    double width,
-    double height, {
-    StateSetter? fullscreenSetState,
-    bool showHint = true,
-  }) {
-    final markerWidth = (_fieldSize >= 9 ? width * .105 : width * .17)
-        .clamp(58.0, 82.0)
-        .toDouble();
-    const markerHeight = 54.0;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.editable && showHint)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8),
-            child: Text(
-              'Spieler ziehen oder anklicken, um Spieler und Position zu ändern.',
-            ),
-          ),
-        Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: const Color(0xff16824b),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white70, width: 2),
-          ),
-          child: Stack(
-            children: [
-              const Positioned.fill(child: _PitchLines()),
-              for (var index = 0; index < _positions.length; index++)
-                Positioned(
-                  left: _positions[index].x * (width - markerWidth),
-                  top: _positions[index].y * (height - markerHeight),
-                  child: Semantics(
-                    button: widget.editable,
-                    label:
-                        '${_positions[index].player.name}, Position ${_positions[index].positionCode}',
-                    hint: widget.editable
-                        ? 'Antippen, um Spieler und Position zu bearbeiten.'
-                        : null,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: widget.editable
-                          ? () async {
-                              await _editPosition(index);
-                              if (fullscreenSetState != null) {
-                                fullscreenSetState(() {});
-                              }
-                            }
-                          : null,
-                      onPanUpdate: widget.editable
-                          ? (details) {
-                              setState(() {
-                                final item = _positions[index];
-                                _positions[index] = _copyPosition(
-                                  item,
-                                  x: (item.x +
-                                          details.delta.dx /
-                                              max(1, width - markerWidth))
-                                      .clamp(0, 1)
-                                      .toDouble(),
-                                  y: (item.y +
-                                          details.delta.dy /
-                                              max(1, height - markerHeight))
-                                      .clamp(0, 1)
-                                      .toDouble(),
-                                );
-                              });
-                              fullscreenSetState?.call(() {});
-                            }
-                          : null,
-                      onPanEnd: widget.editable
-                          ? (_) => _schedulePositionSave()
-                          : null,
-                      child: _PlayerMarker(
-                        position: _positions[index],
-                        width: markerWidth,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  StateSetter? _fullscreenSetState;
+  void _refreshFullscreen() => _fullscreenSetState?.call(() {});
 
-  Widget _buildBench({
-    required bool vertical,
-    StateSetter? fullscreenSetState,
-  }) {
-    final players = _benchPlayers;
-    final compact = !vertical;
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 7 : 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.event_seat_rounded, size: compact ? 17 : 24),
-                SizedBox(width: compact ? 5 : 8),
-                Text(
-                  'Ersatzbank · ${players.length}',
-                  style: compact
-                      ? Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          )
-                      : Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
-            ),
-            SizedBox(height: compact ? 3 : 8),
-            Expanded(
-              child: players.isEmpty
-                  ? const Center(child: Text('Keine Ersatzspieler'))
-                  : vertical
-                      ? ListView(
-                          children: [
-                            for (final player in players)
-                              _benchPlayerTile(
-                                player,
-                                fullscreenSetState: fullscreenSetState,
-                              ),
-                          ],
-                        )
-                      : ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: players.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
-                          itemBuilder: (_, index) => SizedBox(
-                            width: 148,
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: _benchPlayerTile(
-                                players[index],
-                                compact: true,
-                                fullscreenSetState: fullscreenSetState,
-                              ),
-                            ),
-                          ),
-                        ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _benchPlayerTile(
-    MatchPlayer player, {
-    bool compact = false,
-    StateSetter? fullscreenSetState,
-  }) {
-    final onTap = widget.editable
-        ? () async {
-            await _bringOntoField(player);
-            fullscreenSetState?.call(() {});
-            _schedulePositionSave();
-          }
-        : null;
-    if (compact) {
-      return Material(
-        color: context.appColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Container(
-            height: 46,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: context.appColors.outline),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 15,
-                  backgroundColor: AppColors.yellowSoft,
-                  foregroundColor: AppColors.black,
-                  child: Text(
-                    player.shirtNumber?.toString() ?? 'FC',
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        player.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        player.position ?? 'FLEX',
-                        style: TextStyle(
-                          color: context.appColors.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (widget.editable)
-                  const Icon(Icons.swap_horiz_rounded, size: 18),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-    return Card(
-      color: context.appColors.surfaceMuted,
-      child: ListTile(
-        dense: true,
-        leading: CircleAvatar(
-          child: Text(player.shirtNumber?.toString() ?? 'FC'),
-        ),
-        title: Text(player.name),
-        subtitle: Text('Position: ${player.position ?? 'FLEX'}'),
-        trailing: widget.editable ? const Icon(Icons.swap_horiz_rounded) : null,
-        onTap: onTap,
-      ),
+  Widget _lineupSurface({bool fullscreen = false, VoidCallback? close}) {
+    final lineup = widget.match.squad?.lineup;
+    return ModernLineupView(
+      positions: _positions,
+      bench: _benchPlayers,
+      formation: _formation,
+      formations: _formationOptions,
+      strength: widget.match.gameFormat.strength,
+      editable: widget.editable,
+      saving: _saving,
+      shared: lineup?.status == LineupStatus.internallyApproved,
+      fullscreen: fullscreen,
+      onFormation: (value) {
+        _applyFormation(value);
+        _refreshFullscreen();
+      },
+      onAutomatic: () {
+        setState(() => _positions = _initialPositions());
+        _refreshFullscreen();
+        _schedulePositionSave();
+      },
+      onTactics: _openTacticsBoard,
+      onFullscreen: close ?? _showLineupFullscreen,
+      onSave: () => _save(LineupStatus.draft),
+      onShare: _publish,
+      onMove: (index, point) {
+        setState(() => _positions[index] =
+            _copyPosition(_positions[index], x: point.dx, y: point.dy));
+        _refreshFullscreen();
+      },
+      onMoveEnd: _schedulePositionSave,
+      onEdit: (index) async {
+        await _editPosition(index);
+        if (mounted) _refreshFullscreen();
+      },
+      onBench: (player) async {
+        await _bringOntoField(player);
+        if (mounted) _refreshFullscreen();
+      },
+      notice: lineup?.usesTeamDefault == true
+          ? _AutomaticLineupNotice(
+              replacements: lineup!.automaticReplacements, compact: true)
+          : null,
     );
   }
 
   Future<void> _showLineupFullscreen() async {
-    await showDialog<void>(
-      context: context,
-      useSafeArea: false,
-      builder: (dialogContext) => Dialog.fullscreen(
-        child: StatefulBuilder(
-          builder: (context, setFullscreenState) => Scaffold(
-            appBar: AppBar(
-              title: Text('Aufstellung · $_formation'),
-              actions: [
-                if (widget.editable)
-                  IconButton(
-                    onPressed: _saving
-                        ? null
-                        : () async {
-                            await _save(LineupStatus.draft);
-                            setFullscreenState(() {});
-                          },
-                    tooltip: 'Aufstellung speichern',
-                    icon: _saving
-                        ? const LogoLoadingIndicator(
-                            size: 24,
-                            semanticsLabel: 'Aufstellung wird gespeichert',
-                          )
-                        : const Icon(Icons.save_outlined),
-                  ),
-                IconButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  tooltip: 'Vollbild schließen',
-                  icon: const Icon(Icons.close_fullscreen_rounded),
-                ),
-              ],
-            ),
+    try {
+      await showDialog<void>(
+        context: context,
+        useSafeArea: false,
+        builder: (dialogContext) => Dialog.fullscreen(
+          child: AdaptiveHingePane(
+              child: Scaffold(
+            key: const ValueKey('lineup-fullscreen'),
             body: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final landscape =
-                      constraints.maxWidth > constraints.maxHeight * 1.15;
-                  if (landscape) {
-                    final pitchWidth =
-                        min(constraints.maxWidth * .68, 900.0).toDouble();
-                    final pitchHeight =
-                        min(constraints.maxHeight - 24, pitchWidth * .68)
-                            .toDouble();
-                    return Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Center(
-                              child: _buildPitch(
-                                pitchWidth,
-                                pitchHeight,
-                                fullscreenSetState: setFullscreenState,
-                                showHint: false,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          SizedBox(
-                            width:
-                                min(300, constraints.maxWidth * .28).toDouble(),
-                            child: _buildBench(
-                              vertical: true,
-                              fullscreenSetState: setFullscreenState,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  final pitchWidth =
-                      min(constraints.maxWidth - 20, 720.0).toDouble();
-                  final pitchHeight = min(
-                    max(220, constraints.maxHeight - 154),
-                    pitchWidth * 1.16,
-                  ).toDouble();
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
-                    child: Column(
-                      children: [
+                child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+              child: StatefulBuilder(builder: (context, setFullscreenState) {
+                _fullscreenSetState = setFullscreenState;
+                return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(children: [
                         Expanded(
-                          child: Center(
-                            child: _buildPitch(
-                              pitchWidth,
-                              pitchHeight,
-                              fullscreenSetState: setFullscreenState,
-                              showHint: false,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          height: 122,
-                          width: double.infinity,
-                          child: _buildBench(
-                            vertical: false,
-                            fullscreenSetState: setFullscreenState,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
+                            child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Aufstellung',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge
+                                              ?.copyWith(
+                                                  fontWeight: FontWeight.w700)),
+                                      Text(widget.match.title,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall),
+                                    ]))),
+                        IconButton(
+                            tooltip: 'Vollbild schließen',
+                            onPressed: () {
+                              _fullscreenSetState = null;
+                              Navigator.pop(dialogContext);
+                            },
+                            icon: const Icon(Icons.close_rounded)),
+                      ]),
+                      Expanded(
+                          child: _lineupSurface(
+                              fullscreen: true,
+                              close: () {
+                                _fullscreenSetState = null;
+                                Navigator.pop(dialogContext);
+                              })),
+                    ]);
+              }),
+            )),
+          )),
         ),
-      ),
-    );
+      );
+    } finally {
+      _fullscreenSetState = null;
+    }
   }
 
   void _schedulePositionSave() {
@@ -5049,8 +4562,11 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
     LineupStatus status, {
     bool quiet = false,
   }) async {
+    if (_saving) return false;
+    _positionSaveDebounce?.cancel();
     final repository = ref.read(repositoryProvider);
     setState(() => _saving = true);
+    _refreshFullscreen();
     try {
       final savedLineup = await repository.saveLineup(
         eventId: widget.match.id,
@@ -5089,7 +4605,10 @@ class _LineupTabState extends ConsumerState<_LineupTab> {
       }
       return false;
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+        _refreshFullscreen();
+      }
     }
   }
 
@@ -5281,91 +4800,6 @@ List<PlayerModel> _mergeEligiblePlayers(
   final players = byId.values.toList()
     ..sort((a, b) => a.fullName.compareTo(b.fullName));
   return players;
-}
-
-class _PitchLines extends StatelessWidget {
-  const _PitchLines();
-  @override
-  Widget build(BuildContext context) => CustomPaint(painter: _PitchPainter());
-}
-
-class _PitchPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white70
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawLine(
-        Offset(0, size.height / 2), Offset(size.width, size.height / 2), paint);
-    canvas.drawCircle(
-        Offset(size.width / 2, size.height / 2), size.width * .14, paint);
-    canvas.drawRect(
-        Rect.fromLTWH(size.width * .2, 0, size.width * .6, size.height * .16),
-        paint);
-    canvas.drawRect(
-      Rect.fromLTWH(size.width * .2, size.height * .84, size.width * .6,
-          size.height * .16),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _PlayerMarker extends StatelessWidget {
-  const _PlayerMarker({required this.position, required this.width});
-  final LineupPositionModel position;
-  final double width;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-        label: position.isCaptain
-            ? '${position.player.name}, Kapitän'
-            : position.player.name,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: width,
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 7),
-              decoration: BoxDecoration(
-                color: position.isGoalkeeper ? AppColors.yellow : Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black26, blurRadius: 8),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${position.player.shirtNumber ?? '–'} · '
-                    '${position.positionCode}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 10.5,
-                    ),
-                  ),
-                  Text(
-                    position.player.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 9.5),
-                  ),
-                ],
-              ),
-            ),
-            if (position.isCaptain)
-              const Positioned(
-                top: -9,
-                right: -9,
-                child: CaptainBadge(),
-              ),
-          ],
-        ),
-      );
 }
 
 enum TickerWorkflowAction {

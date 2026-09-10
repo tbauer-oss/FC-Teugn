@@ -12,7 +12,11 @@ void main() {
     expect(matchday, contains('hideHeader: true'));
     expect(matchday, contains('class _WideMatchTab'));
     expect(matchday, contains('height: 42'));
-    expect(matchday, contains("ValueKey('compact-lineup-save-actions')"));
+    final lineup =
+        File('lib/features/matches/modern_lineup_view.dart').readAsStringSync();
+    expect(lineup, contains("ValueKey('lineup-save-action')"));
+    expect(lineup, contains("ValueKey('lineup-publish-action')"));
+    expect(lineup, contains("ValueKey('modern-lineup-scroll')"));
     expect(matchday, contains('match-communication-dense-mobile-actions'));
     expect(scaffold, contains('final bool hideHeader'));
   });

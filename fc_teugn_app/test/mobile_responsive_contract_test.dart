@@ -74,6 +74,10 @@ void main() {
       contains("ValueKey('organization-foldable-team-grid')"),
     );
     expect(communications, contains('AdaptiveTwoPane('));
-    expect(matchday, contains("ValueKey('matchday-foldable-lineup')"));
+    final lineup =
+        File('lib/features/matches/modern_lineup_view.dart').readAsStringSync();
+    expect(matchday, contains('ModernLineupView('));
+    expect(lineup, contains('verticalSeparatingFeatureFor('));
+    expect(lineup, contains("ValueKey('modern-lineup-wide')"));
   });
 }

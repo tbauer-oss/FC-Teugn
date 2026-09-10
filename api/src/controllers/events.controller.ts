@@ -2721,6 +2721,10 @@ export async function setAttendance(req: Request, res: Response) {
     include: { targetTeams: true, attendance: true, participants: true },
   });
   if (!event) return res.status(404).json({ message: 'Termin nicht gefunden oder abgesagt.' });
+  if (event.parentTournamentId) {
+    return res.status(409).json({ code: 'TOURNAMENT_MASTER_RESPONSE', tournamentId: event.parentTournamentId,
+      message: 'Bitte die Rückmeldung im Turnier ändern. Sie gilt automatisch für alle Turnierpartien.' });
+  }
   const canCorrectAttendance =
     !personalResponse && canManageEventWithIds(user, event, teamIds);
   // Der Abschluss schützt die familiären Rückmeldungen vor nachträglichen

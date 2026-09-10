@@ -33,6 +33,7 @@ import { requireApproved, requireAuth, requirePermission } from '../middleware/a
 import { idempotencyMiddleware } from '../middleware/idempotency';
 import { Permission } from '../security/permissions';
 import { deleteEvent } from '../controllers/events.controller';
+import { getTacticsBoard, saveTacticsBoard } from '../controllers/tactics-board.controller';
 
 const router = asyncRouter();
 
@@ -47,6 +48,8 @@ router.put(
   syncTournamentFixtures,
 );
 router.get('/:id', getMatch);
+router.get('/:id/tactics', requirePermission(Permission.MANAGE_LINEUPS), getTacticsBoard);
+router.put('/:id/tactics', requirePermission(Permission.MANAGE_LINEUPS), saveTacticsBoard);
 router.get(
   '/:id/cancel-preview',
   requirePermission(Permission.MATCH_CANCEL),

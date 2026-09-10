@@ -1,6 +1,7 @@
 import { prepareMatchGameFormat, resetLineupForGameFormat, gameFormatSize, gameFormatHasKeeper } from '../services/match-game-format';
 import { attendanceAfterRevision } from '../services/attendance-revision';
 import { inheritTournamentSquad, withTournamentRelease } from '../services/tournament-squad.service';
+import { DomainError } from '../services/talents-domain';
 import { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { deferWork as waitUntil } from '../middleware/runtime-deferred-work';
@@ -858,17 +859,16 @@ export async function syncTournamentFixtures(req: Request, res: Response) {
   const removed = tournament.tournamentFixtures.filter(
     (fixture) => !suppliedIds.includes(fixture.id),
   );
-  const protectedFixture = removed.find(
-    (fixture) =>
-      fixture.liveTicker?.events.length ||
-      fixture.squads.some(squad => !squad.inheritsTournamentSquad || squad.lineup?.usesTeamDefault === false) ||
-      (fixture.matchDetails?.status && fixture.matchDetails.status !== MatchStatus.PLANNED),
-  );
-  if (protectedFixture) {
+  if (removed.length && (!hasEffectivePermission(user.role, Permission.MATCH_DELETE, user.permissions) ||
+      ![tournament.teamId, ...tournament.targetTeams.map(t => t.teamId)].every(id => teamIds.includes(id)))) {
+    return res.status(403).json({ message: 'Keine Berechtigung zum Löschen dieser Turnierpartien.' });
+  }
+  const confirmedRemovals = Array.isArray(req.body.removedFixtureIds) ? req.body.removedFixtureIds : [];
+  if (removed.length && (confirmedRemovals.length !== removed.length ||
+      removed.some(fixture => !confirmedRemovals.includes(fixture.id)))) {
     return res.status(409).json({
-      message:
-        'Eine bereits verwendete Turnierpartie kann nicht aus dem Plan entfernt werden. Bitte lösche sie gezielt im Spielbetrieb.',
-      fixtureId: protectedFixture.id,
+      code: 'TOURNAMENT_REMOVAL_CONFIRMATION',
+      message: 'Bitte das Entfernen der ausgewählten Partien einschließlich Aufstellungen, Ergebnissen und Ereignissen bestätigen. Falls der Plan geändert wurde, bitte neu öffnen.',
     });
   }
 
@@ -892,7 +892,16 @@ export async function syncTournamentFixtures(req: Request, res: Response) {
     : [tournament.teamId];
 
   await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${tournament.id} FOR UPDATE`;
+    const current = await tx.event.findMany({ where: { parentTournamentId: tournament.id }, select: { id: true } });
+    if (current.length !== existingById.size || current.some(f => !existingById.has(f.id))) {
+      throw new DomainError(409, 'Der Turnierplan wurde zwischenzeitlich geändert. Bitte neu öffnen.');
+    }
     if (removed.length) {
+      await tx.notification.deleteMany({ where: { entityId: { in: removed.map(item => item.id) } } });
+      await tx.auditLog.createMany({ data: removed.map(item => ({ actorId: user.id, teamId: tournament.teamId,
+        action: 'MATCH_DELETED', entityType: 'Match', entityId: item.id,
+        metadata: { tournamentId: tournament.id, source: 'TOURNAMENT_PLAN' } })) });
       await tx.event.deleteMany({ where: { id: { in: removed.map((item) => item.id) } } });
     }
     for (const input of inputs) {
@@ -1820,6 +1829,10 @@ export async function updateSquad(req: Request, res: Response) {
   const requestedMembers: Record<string, unknown>[] = Array.isArray(req.body?.members)
     ? req.body.members
     : [];
+  if (match.parentTournamentId) {
+    return res.status(409).json({ code: 'TOURNAMENT_MASTER_SQUAD', tournamentId: match.parentTournamentId,
+      message: 'Der Kader wird im Turnier verwaltet und für alle Partien übernommen. Die Aufstellung kann je Partie angepasst werden.' });
+  }
   const requestedIds = [...new Set(
     requestedMembers
       .map((item) => text(item.playerId, 100))
@@ -2778,6 +2791,9 @@ export async function updateLineup(req: Request, res: Response) {
     }
   }
   const saved = await prisma.$transaction(async (tx) => {
+    if (match.parentTournamentId) {
+      await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${match.id} FOR UPDATE`;
+    }
     const lineup = await tx.lineup.upsert({
       where: { squadId: squad.id },
       update: {

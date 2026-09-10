@@ -57,10 +57,23 @@ module.exports = async ({ prisma, club, team, coach, parent, stranger }) => {
   assert.equal((await call(matches.getMatch, stranger, {}, first.id)).status, 404, 'Unrelated families cannot read it');
   assert.equal((await call(matches.publishSquad, coach, {}, first.id)).status, 409, 'No second nomination at fixture level');
   const override = await call(matches.updateSquad, coach, { members: [{ playerId: children[0].id, status: 'NOMINATED' }] }, first.id);
-  assert.equal(override.status, 200, JSON.stringify(override.result));
-  assert.ok(override.result.publishedAt, 'Fixture adjustment retains tournament nomination');
+  assert.equal(override.status, 409, 'Roster is managed only on the master');
+  // Reproduce the old detached one-player squad with a stale child answer.
+  const childSquad = await prisma.squad.update({ where: { eventId: first.id }, data: { inheritsTournamentSquad: false } });
+  await prisma.squadMember.deleteMany({ where: { squadId: childSquad.id, playerId: children[1].id } });
+  await prisma.attendance.update({ where: { eventId_playerId: { eventId: first.id, playerId: children[1].id } },
+    data: { status: 'NO', respondedById: coach.id, respondedAt: new Date(), reason: 'Alter Einzelspielstand' } });
+  const correctionTime = new Date();
+  await prisma.attendance.updateMany({ where: { eventId: tournament.id, playerId: children[1].id },
+    data: { respondedById: coach.id, respondedAt: correctionTime, responseSource: 'TRAINER_CORRECTION' } });
   await call(matches.getMatch, coach, {}, first.id);
-  assert.equal(await prisma.squadMember.count({ where: { squad: { eventId: first.id } } }), 1, 'Manual game squad remains independent');
+  assert.equal(await prisma.squadMember.count({ where: { squad: { eventId: first.id } } }), 2, 'Legacy detached roster repaired from master');
+  const corrected = await prisma.attendance.findUnique({ where: { eventId_playerId: { eventId: first.id, playerId: children[1].id } } });
+  assert.equal(corrected.status, 'YES');
+  assert.equal(corrected.respondedById, coach.id);
+  assert.deepEqual(corrected.respondedAt, correctionTime);
+  assert.equal((await call(events.setAttendance, coach, { playerId: children[1].id, status: 'NO' }, first.id)).status, 409,
+    'Cannot create independent fixture replies');
   await call(matches.getMatch, coach, {}, second.id);
   await prisma.matchDetails.update({ where: { eventId: second.id }, data: { status: 'LIVE' } });
   await prisma.squadMember.deleteMany({ where: { squad: { eventId: tournament.id }, playerId: children[1].id } });
@@ -68,5 +81,35 @@ module.exports = async ({ prisma, club, team, coach, parent, stranger }) => {
   assert.equal(await prisma.squadMember.count({ where: { squad: { eventId: second.id } } }), 2, 'Running game squad is not overwritten');
   const later = await createFixture();
   assert.equal((await call(matches.getMatch, parent, {}, later.id)).result.squads[0].members.length, 1, 'New fixtures inherit latest tournament squad and release');
-  console.log('PASS tournament defaults, manual overrides, live freeze, all-child family lineup, inherited release, privacy, no duplicate notifications');
+  // A new master acceptance must never auto-decline its own child fixtures.
+  await call(events.setAttendance, coach, { playerId: children[0].id, status: 'YES' }, tournament.id);
+  assert.equal((await prisma.attendance.findUnique({ where: { eventId_playerId: { eventId: first.id, playerId: children[0].id } } })).status, 'YES');
+  const oldMasterCount = await prisma.squadMember.count({ where: { squad: { eventId: tournament.id } } });
+  const allIds = [first.id, second.id, later.id];
+  const opponentClub = await prisma.opponentClub.create({ data: { organizationClubId: club.id,
+    name: 'Turniertest Gast', normalizedName: 'turniertest-gast', createdById: coach.id } });
+  const opponent = await prisma.opponent.create({ data: { ageGroupId: team.ageGroupId,
+    opponentClubId: opponentClub.id, clubName: opponentClub.name, teamDesignation: 'E1',
+    normalizedKey: 'turniertest-gast-e1', createdById: coach.id } });
+  const remainingInputs = [second.id, later.id].map(id => ({id, opponentId:opponent.id,
+    startAt:'2032-06-01T10:00:00.000Z', periodCount:1, periodMinutes:10, isHome:true}));
+  const individuallyDeleted = await call(matches.syncTournamentFixtures, coach,
+    {fixtures:remainingInputs, removedFixtureIds:[first.id]}, tournament.id);
+  assert.equal(individuallyDeleted.status,200, JSON.stringify(individuallyDeleted.result));
+  assert.equal(await prisma.event.count({where:{parentTournamentId:tournament.id}}),2);
+  assert.equal(await prisma.squad.count({where:{eventId:first.id}}),0,'Child lineup and squad cascade');
+  // Stale clients may not accidentally delete an unconfirmed newer fixture.
+  const unconfirmed = await createFixture();
+  assert.equal((await call(matches.syncTournamentFixtures, coach,
+    {fixtures:[],removedFixtureIds:[second.id,later.id]}, tournament.id)).status,409);
+  assert.equal((await call(matches.syncTournamentFixtures, coach, { fixtures: [] }, tournament.id)).status, 409,
+    'Deletion requires exact confirmed targets');
+  assert.equal(await prisma.event.count({ where: { parentTournamentId: tournament.id } }), 3);
+  const deleted = await call(matches.syncTournamentFixtures, coach,
+    { fixtures: [], removedFixtureIds: [second.id, later.id, unconfirmed.id] }, tournament.id);
+  assert.equal(deleted.status, 200, JSON.stringify(deleted.result));
+  assert.equal(await prisma.event.count({ where: { parentTournamentId: tournament.id } }), 0);
+  assert.equal(await prisma.squadMember.count({ where: { squad: { eventId: tournament.id } } }), oldMasterCount);
+  assert.equal(await prisma.auditLog.count({ where: { entityId: { in: allIds }, action: 'MATCH_DELETED' } }), 3);
+  console.log('PASS master roster/replies, trainer correction, legacy repair, live freeze, family privacy, confirmed bulk delete, no duplicate invitations');
 };

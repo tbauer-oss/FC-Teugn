@@ -1,0 +1,32 @@
+const assert = require('node:assert/strict');
+module.exports = async ({ prisma, team, foreignTeam, coach, parent }) => {
+  const { getTacticsBoard, saveTacticsBoard } = require('../dist/src/controllers/tactics-board.controller');
+  const call = async (fn, user, id, body = {}) => {
+    let status = 200, result;
+    const res = { setHeader() {}, status(n) { status = n; return this; }, json(v) { result = v; return this; } };
+    await fn({user, params: {id}, body}, res); return {status, result};
+  };
+  const match = await prisma.event.create({ data: {teamId: team.id, title: 'Taktik-Test', type: 'MATCH', startAt: new Date('2032-06-01T09:00Z'), location: 'Test'} });
+  const training = await prisma.event.create({ data: {teamId: team.id, title: 'Training-Test', type: 'TRAINING', startAt: new Date('2032-06-01T09:00Z'), location: 'Test'} });
+  const foreign = await prisma.event.create({ data: {teamId: foreignTeam.id, title: 'Fremd-Test', type: 'MATCH', startAt: new Date('2032-06-01T09:00Z'), location: 'Test'} });
+  const document = { schemaVersion: 1, scenes: [{id:'one',name:'Ecke',tokens:[],strokes:[]}] };
+  const notifications = await prisma.notification.count();
+  assert.equal((await call(getTacticsBoard, coach, match.id)).result.revision, 0);
+  assert.equal((await call(saveTacticsBoard, parent, match.id, {revision:0,document})).status, 403);
+  assert.equal((await call(getTacticsBoard, parent, match.id)).status, 403);
+  assert.equal((await call(getTacticsBoard, coach, training.id)).status, 404);
+  assert.equal((await call(getTacticsBoard, coach, foreign.id)).status, 404);
+  assert.equal((await call(saveTacticsBoard, coach, match.id, {revision:-1,document})).status, 400);
+  const results = await Promise.all([1, 2].map(() => call(saveTacticsBoard, coach, match.id, {revision:0,document})));
+  assert.deepEqual(results.map(r => r.status).sort(), [200,409]);
+  const saved = await call(getTacticsBoard, coach, match.id);
+  assert.deepEqual(saved.result.document, document);
+  assert.equal((await call(saveTacticsBoard, coach, match.id, {revision:1,document})).result.revision, 2);
+  assert.equal((await call(saveTacticsBoard, coach, match.id, {revision:1,document})).status, 409);
+  assert.equal(await prisma.squad.count({where:{eventId:match.id}}), 0);
+  assert.equal(await prisma.notification.count(), notifications);
+  await prisma.event.delete({where:{id:match.id}});
+  assert.equal(await prisma.matchTacticsBoard.count({where:{eventId:match.id}}), 0);
+  await prisma.event.deleteMany({where:{id:{in:[training.id,foreign.id]}}});
+  console.log('PASS tactics storage, concurrency, authorization, private planning, cascade delete');
+};

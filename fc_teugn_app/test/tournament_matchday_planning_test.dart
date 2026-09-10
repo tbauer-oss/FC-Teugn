@@ -3,6 +3,7 @@ import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/data_repository.dart';
 import 'package:fc_teugn_app/core/models/event.dart';
 import 'package:fc_teugn_app/core/models/matchday.dart';
+import 'package:fc_teugn_app/core/models/tactics_board.dart';
 import 'package:fc_teugn_app/core/models/player.dart';
 import 'package:fc_teugn_app/core/providers.dart';
 import 'package:fc_teugn_app/features/matches/matchday_page.dart';
@@ -62,6 +63,13 @@ class _TournamentPlanningRepository extends DataRepository {
   List<String>? internalRecipientIds;
   bool? internalPushEnabled;
   String? familyReleaseEventId;
+  String? tacticsEventId;
+
+  @override
+  Future<TacticsBoardSnapshot> loadTacticsBoard(String eventId) async {
+    tacticsEventId = eventId;
+    return const TacticsBoardSnapshot(revision: 0);
+  }
 
   @override
   Future<MatchdayModel> match(String eventId) async => current;
@@ -264,6 +272,7 @@ void main() {
     expect(find.textContaining('Mia'), findsWidgets);
     expect(find.text('Aufstellung noch nicht veröffentlicht'), findsNothing);
     expect(find.text('Kader nominieren'), findsNothing);
+    expect(find.byKey(const ValueKey('open-tactics-board')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -395,11 +404,41 @@ void main() {
 
     await tester.tap(find.text('Aufstellung'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Entwurf'));
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('lineup-save-action')));
+    await tester.tap(find.byKey(const ValueKey('lineup-save-action')));
     await tester.pumpAndSettle();
 
     expect(repository.savedLineupEventId, 'tournament-1');
     expect(repository.current.squad?.lineup?.positions, hasLength(1));
+    // Fullscreen uses the same editable state and saves normalized positions.
+    await tester.ensureVisible(find.byTooltip('Aufstellung im Vollbild'));
+    await tester.tap(find.byTooltip('Aufstellung im Vollbild'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lineup-fullscreen')), findsOneWidget);
+    final player = repository.current.squad!.lineup!.positions.single;
+    final marker =
+        find.byKey(ValueKey('lineup-player-${player.player.id}')).last;
+    await tester.ensureVisible(marker);
+    await tester.pumpAndSettle();
+    await tester.drag(marker, const Offset(45, -25));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(
+        repository.current.squad!.lineup!.positions.single.x, isNot(player.x));
+    await tester.tap(find.byTooltip('Vollbild schließen'));
+    await tester.pumpAndSettle();
+    repository.savedLineupEventId = null;
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('open-tactics-board')));
+    await tester.tap(find.byKey(const ValueKey('open-tactics-board')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('tactics-pitch')), findsOneWidget);
+    expect(repository.tacticsEventId, 'tournament-1');
+    expect(repository.savedLineupEventId, isNull,
+        reason: 'Opening tactics never saves the actual lineup');
+    await tester.tap(find.byTooltip('Taktikboard schließen'));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 

@@ -1247,6 +1247,7 @@ model Event {
   matchDetails              MatchDetails?
   squads                    Squad[]
   liveTicker                LiveTicker?
+  tacticsBoard              MatchTacticsBoard?
   trainingPlan              TrainingPlan?
   teamMatchStatistic        TeamMatchStatistic?
   playerMatchStats          PlayerMatchStatistic[]
@@ -1711,6 +1712,16 @@ model KitLaundryDuty {
   @@index([teamId, status, updatedAt])
   @@index([assignedFamilyKey, status, completedAt])
   @@index([status, reminderSentAt])
+}
+
+// Deliberately separate from public match/lineup payloads: staff-only plans.
+model MatchTacticsBoard {
+  eventId     String   @id
+  revision    Int      @default(1)
+  document    Json
+  updatedById String
+  updatedAt   DateTime @updatedAt
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
 model Lineup {

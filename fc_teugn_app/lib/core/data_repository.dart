@@ -11,6 +11,7 @@ import 'models/player.dart';
 import 'models/user.dart';
 import 'models/organization.dart';
 import 'models/matchday.dart';
+import 'models/tactics_board.dart';
 import 'models/statistics.dart';
 import 'models/training.dart';
 import 'models/pitch_occupancy.dart';
@@ -128,6 +129,20 @@ AttendanceReminderSendResult _attendanceReminderResult(
 }
 
 class DataRepository {
+  Future<TacticsBoardSnapshot> loadTacticsBoard(String eventId) async {
+    final response = await client.dio.get('/matches/$eventId/tactics');
+    return TacticsBoardSnapshot.fromJson(
+        Map<String, dynamic>.from(response.data));
+  }
+
+  Future<int> saveTacticsBoard(
+      String eventId, TacticsDocument document, int revision) async {
+    final response = await client.dio.put('/matches/$eventId/tactics',
+        data: {'revision': revision, 'document': document.toJson()},
+        options: Options(extra: {'requireOnline': true}));
+    return response.data['revision'] as int;
+  }
+
   final ApiClient client;
 
   DataRepository(this.client);
@@ -1826,11 +1841,13 @@ class DataRepository {
   Future<void> syncTournamentFixtures({
     required String tournamentId,
     required List<TournamentFixtureWriteData> fixtures,
+    List<String> removedFixtureIds = const [],
   }) async {
     await client.dio.put(
       '/matches/$tournamentId/tournament-fixtures',
       data: {
         'fixtures': fixtures.map((fixture) => fixture.toJson()).toList(),
+        'removedFixtureIds': removedFixtureIds,
       },
       options: Options(extra: const {'retryTransientWrite': true}),
     );

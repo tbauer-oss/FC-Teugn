@@ -1706,10 +1706,37 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
               return;
             }
             if (saving) return;
+            final removedIds = tournament.tournamentFixtures
+                .where((fixture) => !rows.any((row) => row.id == fixture.id))
+                .map((fixture) => fixture.id)
+                .toList();
+            if (removedIds.isNotEmpty) {
+              final confirmed = await showDialog<bool>(
+                context: dialogContext,
+                builder: (confirmContext) => AlertDialog(
+                  title: Text('${removedIds.length} Turnierpartie(n) löschen?'),
+                  scrollable: true,
+                  content: const Text(
+                      'Die entfernten Partien werden mit ihren Aufstellungen, '
+                      'Ergebnissen und Liveticker-Ereignissen dauerhaft gelöscht. '
+                      'Der Turnierkader und seine Zusagen bleiben erhalten.'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(confirmContext, false),
+                        child: const Text('Abbrechen')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(confirmContext, true),
+                        child: const Text('Partien löschen')),
+                  ],
+                ),
+              );
+              if (confirmed != true || !dialogContext.mounted) return;
+            }
             setDialogState(() => saving = true);
             try {
               await repository.syncTournamentFixtures(
                 tournamentId: tournament.id,
+                removedFixtureIds: removedIds,
                 fixtures: rows
                     .map(
                       (row) => TournamentFixtureWriteData(

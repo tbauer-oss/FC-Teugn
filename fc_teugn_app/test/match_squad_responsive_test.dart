@@ -8,6 +8,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+      'tournament fixture shows master responses without independent nomination',
+      (tester) async {
+    await _pumpSquad(tester, const Size(320, 568), 1.5,
+        match: _match(
+          parentTournamentId: 'master-tournament',
+          attendance: const [
+            EventAttendance(
+                id: 'master-response',
+                playerId: 'p1',
+                status: AttendanceStatus.yes),
+          ],
+        ));
+    expect(
+        find.byKey(const ValueKey('tournament-master-squad')), findsOneWidget);
+    expect(find.text('Zugesagt · aus dem Turnier'), findsOneWidget);
+    expect(find.text('Turnierkader & Zusagen bearbeiten'), findsOneWidget);
+    expect(find.text('Kader nominieren'), findsNothing);
+    expect(find.byType(Checkbox), findsNothing);
+    await tester.drag(find.byKey(const ValueKey('tournament-master-squad')),
+        const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(find.text('Rückmeldung offen · im Turnier'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final viewport in const [
     Size(320, 568),
     Size(360, 800),
@@ -219,9 +245,12 @@ Future<void> _pumpSquad(
   await tester.pump();
 }
 
-MatchdayModel _match({List<EventAttendance> attendance = const []}) =>
+MatchdayModel _match(
+        {List<EventAttendance> attendance = const [],
+        String? parentTournamentId}) =>
     MatchdayModel(
       id: 'match-responsive',
+      parentTournamentId: parentTournamentId,
       title: 'FC Teugn · Gegner',
       startAt: DateTime(2026, 8, 15, 10),
       location: 'Sportplatz Teugn',

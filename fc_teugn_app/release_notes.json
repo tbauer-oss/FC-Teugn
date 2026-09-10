@@ -1,4 +1,10 @@
 {
+  "1.8.5+199": [
+    "Modernere Aufstellung mit Trikots, lesbaren Spielernamen, kompakter Ersatzbank und gemeinsamer Bedienung in Normal- und Vollbildansicht. Das Layout passt sich Smartphones, Foldables und vergrößerter Schrift an.",
+    "Neues trainerinternes Taktikboard: Spieler und Gegner verschieben, Passpfeile und Laufwege zeichnen sowie mehrere Spielzüge speichern und präsentieren – getrennt von der tatsächlichen Aufstellung.",
+    "Turnierpartien übernehmen Rückmeldungen zuverlässig vom Turnierkader, auch nach Trainer-Zusagen und bei älteren Einzelspiel-Daten. Noch nicht gestartete Partien verwenden den Master-Kader.",
+    "Einzelne oder alle Turnierpartien lassen sich nach eindeutiger Bestätigung direkt im Turnierplan löschen. Der Turnierkader bleibt erhalten."
+  ],
   "1.8.4+198": [
     "Mannschaften lassen sich oben links direkt antippen: nach Jugend gruppiert, ohne Dropdowns und zusätzliche Bestätigung.",
     "Einzelne Turnierspiele übernehmen automatisch den Turnierkader und die vorhandenen Zusagen. Individuelle Spielkader bleiben erhalten; eine erneute Nominierung entfällt.",

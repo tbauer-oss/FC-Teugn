@@ -179,6 +179,8 @@ export async function acceptAttendanceExclusivelyForDay(
       eventId: { not: input.event.id },
       event: {
         status: EventStatus.SCHEDULED,
+        // Child games share their tournament's response, not separate invitations.
+        parentTournamentId: null,
         isHiddenRegularOccurrence: false,
         startAt: { gte: day.startAt, lt: day.endAt },
       },

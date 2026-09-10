@@ -121,6 +121,17 @@ class _TournamentRepository extends DataRepository {
   _TournamentRepository() : super(ApiClient(baseUrl: 'http://test'));
 
   String? releasedFixtureId;
+  List<String>? removedFixtureIds;
+  List<TournamentFixtureWriteData>? savedFixtures;
+
+  @override
+  Future<void> syncTournamentFixtures(
+      {required String tournamentId,
+      required List<TournamentFixtureWriteData> fixtures,
+      List<String> removedFixtureIds = const []}) async {
+    this.removedFixtureIds = removedFixtureIds;
+    savedFixtures = fixtures;
+  }
 
   @override
   Future<List<OpponentModel>> opponents(String ageGroupId) async => const [
@@ -216,6 +227,40 @@ Widget _page({
 void main() {
   setUp(() {
     FlutterSecureStorage.setMockInitialValues({});
+  });
+
+  testWidgets(
+      'removing the last tournament fixture requires confirmation and sends its exact ID',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 760));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repository = _TournamentRepository();
+    await tester.pumpWidget(_page(
+        repository: repository, event: _tournament(fixtures: [_fixture()])));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Planen'));
+    await tester.pumpAndSettle();
+    final remove = find.byTooltip('Partie entfernen');
+    await tester.ensureVisible(remove);
+    await tester.tap(remove);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Speichern'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 Turnierpartie(n) löschen?'), findsOneWidget);
+    expect(repository.removedFixtureIds, isNull);
+    await tester.tap(find
+        .descendant(
+            of: find.byType(AlertDialog), matching: find.text('Abbrechen'))
+        .last);
+    await tester.pumpAndSettle();
+    expect(repository.removedFixtureIds, isNull);
+    await tester.tap(find.text('Speichern'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Partien löschen'));
+    await tester.pumpAndSettle();
+    expect(repository.removedFixtureIds, ['fixture-1']);
+    expect(repository.savedFixtures, isEmpty);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('matches default to next first and can be sorted newest first',
