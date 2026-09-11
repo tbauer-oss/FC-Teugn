@@ -48,6 +48,8 @@ class _AbsencesPageState extends ConsumerState<AbsencesPage> {
             'weekdays': (absence['weekdays'] as List).map((v) => '$v').toList()
         },
         fields: (v, set) => [
+              const Text(
+                  'Wichtig: Bereits geschlossene Spielkader bleiben unverändert. Bitte für diese Spiele das Trainerteam direkt kontaktieren.'),
               if (absence == null)
                 choiceInput(v, (key, value) {
                   set(key, value);
@@ -107,7 +109,7 @@ class _AbsencesPageState extends ConsumerState<AbsencesPage> {
         initial: {},
         fields: (_, __) => [
               const Text(
-                  'Künftige automatische Absagen dieser Abwesenheit werden aufgehoben. Frühere Rückmeldungen bleiben erhalten.')
+                  'Künftige automatische Absagen dieser Abwesenheit werden aufgehoben. Frühere Rückmeldungen und bereits geschlossene Spielkader bleiben erhalten. Änderungen daran bitte mit dem Trainerteam klären.')
             ],
         saveLabel: 'Abwesenheit beenden',
         save: (_) async {

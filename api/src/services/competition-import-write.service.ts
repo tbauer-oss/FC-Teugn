@@ -1,5 +1,6 @@
 import { mergeCompetitionFields, ImportSnapshot } from './competition-merge';
 import { DomainError } from './talents-domain';
+import { shiftedResponseDeadline } from './response-deadline';
 import { reconcileAbsencesForEvents } from './absence.service';
 import {
   EventCategory,
@@ -138,7 +139,8 @@ export async function writeCompetitionMatch(
   const significant = fields.length > 0 && eventData.startAt > new Date() && !previous?.attendanceFinalized;
   const event = previous
     ? await tx.event.update({ where: { id: previous.id }, data: { ...eventData,
-        ...(significant ? { responseRevisionAt: new Date(), responseDeadline: null } : {}) } })
+        responseDeadline: shiftedResponseDeadline(previous.responseDeadline, previous.startAt, eventData.startAt),
+        ...(significant ? { responseRevisionAt: new Date() } : {}) } })
     : await tx.event.create({ data: eventData });
   if (fields.length && previous) await tx.eventChange.create({ data: {
     eventId: event.id, before, after: merged, fields,

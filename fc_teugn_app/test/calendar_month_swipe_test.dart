@@ -13,6 +13,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('parent calendar starts in the linked month rather than today',
+      (tester) async {
+    final nextMonth =
+        DateTime(DateTime.now().year, DateTime.now().month + 1, 15);
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          calendarEventsProvider.overrideWith((ref, range) async {
+            ref.keepAlive();
+            return [];
+          }),
+          playersProvider.overrideWith((ref) async => []),
+          organizationProvider.overrideWith((ref) async =>
+              throw StateError('No organization in this date-only test')),
+        ],
+        child: MaterialApp(
+            theme: buildAppTheme(),
+            home: Scaffold(
+                body:
+                    CalendarPage(canManage: false, initialDate: nextMonth)))));
+    await tester.pumpAndSettle();
+    expect(find.text(_monthLabel(nextMonth)), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('mobile calendar changes months with horizontal swipes',
       (tester) async {
     tester.view.physicalSize = const Size(390, 700);

@@ -1,5 +1,6 @@
 import '../../core/team_game_format.dart';
 import '../shared/match_game_format_field.dart';
+import '../shared/response_deadline.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -243,6 +244,9 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                           periodMinutes: draft.periodMinutes,
                           opponentId: draft.opponentId,
                           reminder24hEnabled: draft.reminder24hEnabled,
+                          responseDeadline: draft.responseDeadline,
+                          updateResponseDeadline:
+                              match.parentTournamentId == null,
                         );
                         ref.invalidate(eventsProvider);
                         ref.invalidate(matchEventsProvider);
@@ -1092,6 +1096,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
     var isHome = details?.isHome ?? true;
     var reminder24hEnabled =
         event.reminderPushEnabled && event.reminderMinutes.contains(1440);
+    var responseDeadline = event.responseDeadline;
     var savingOpponent = false;
 
     final result = await showDialog<_MatchDraft>(
@@ -1099,6 +1104,13 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           Future<void> save() async {
+            if (responseDeadline != null &&
+                !responseDeadline!.isBefore(event.startAt)) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text(
+                      'Die Rückmeldefrist muss vor dem Spielbeginn liegen.')));
+              return;
+            }
             if (ageGroupId == null ||
                 selectedOpponentClubId == null ||
                 selectedTeamDesignation == null) {
@@ -1172,6 +1184,7 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                   periodCount: count,
                   periodMinutes: minutes,
                   reminder24hEnabled: reminder24hEnabled,
+                  responseDeadline: responseDeadline,
                 ),
               );
             } catch (error) {
@@ -1403,6 +1416,13 @@ class _TrainerMatchesPageState extends ConsumerState<TrainerMatchesPage> {
                   ),
                 ],
               ),
+              const SizedBox(height: 14),
+              if (event.parentTournamentId == null)
+                ResponseDeadlineField(
+                    startAt: event.startAt,
+                    value: responseDeadline,
+                    onChanged: (value) =>
+                        setState(() => responseDeadline = value)),
               const SizedBox(height: 14),
               ResponsiveFormSection(
                 title: 'Spielform & Spielzeit',
@@ -3510,6 +3530,7 @@ class _MatchDraft {
     required this.periodCount,
     required this.periodMinutes,
     required this.reminder24hEnabled,
+    this.responseDeadline,
     this.opponentId,
     this.ourGoals,
     this.theirGoals,
@@ -3523,6 +3544,7 @@ class _MatchDraft {
   final int periodCount;
   final int periodMinutes;
   final bool reminder24hEnabled;
+  final DateTime? responseDeadline;
   final int? ourGoals;
   final int? theirGoals;
 }

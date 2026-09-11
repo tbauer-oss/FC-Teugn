@@ -1,3 +1,7 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:fc_teugn_app/core/api_client.dart';
 import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/data_repository.dart';
@@ -79,7 +83,9 @@ class _AttendanceCorrectionRepository extends DataRepository {
   }
 }
 
-OrganizationContext _organization() => OrganizationContext(
+OrganizationContext _organization(
+        {List<TeamSummary> teams = const [_teamE1, _teamE2]}) =>
+    OrganizationContext(
       club: const ClubSummary(
         id: 'club-1',
         name: 'FC Teugn',
@@ -96,7 +102,7 @@ OrganizationContext _organization() => OrganizationContext(
       ),
       currentTeam: _teamE1,
       ageGroups: const [_ageGroup],
-      teams: const [_teamE1, _teamE2],
+      teams: teams,
       permissions: const {},
       metrics: const OrganizationMetrics(
         players: 0,
@@ -214,6 +220,65 @@ OrganizationContext _regularTrainingOrganization() {
   );
 }
 
+Future<void> _openTrainingResponses(
+  WidgetTester tester, {
+  required List<EventModel> events,
+  required List<PlayerModel> players,
+  DataRepository? repository,
+  OrganizationContext? organization,
+  double textScale = 1,
+}) async {
+  if (const bool.fromEnvironment('CAPTURE_UI')) {
+    await tester.runAsync(() async {
+      final font = FontLoader('Arial')
+        ..addFont(File(const String.fromEnvironment('UI_FONT_PATH'))
+            .readAsBytes()
+            .then(ByteData.sublistView));
+      final icons = FontLoader('MaterialIcons')
+        ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+      await Future.wait([font.load(), icons.load()]);
+    });
+  }
+  await tester.pumpWidget(ProviderScope(
+    overrides: [
+      if (repository != null) repositoryProvider.overrideWithValue(repository),
+      playersProvider.overrideWith((ref) async => players),
+      trainerDashboardSummaryProvider
+          .overrideWith((ref) async => DashboardSummary(
+                players: players,
+                events: events,
+                notifications: const [],
+              )),
+      organizationProvider
+          .overrideWith((ref) async => organization ?? _organization()),
+      teamOperationsProvider('team-e1')
+          .overrideWith((ref) async => _operations),
+      pendingUsersProvider.overrideWith((ref) async => <AppUser>[]),
+      personalResponsesProvider.overrideWith((ref) async => const []),
+      liveNotificationsProvider.overrideWith((ref) => Stream.value(const [])),
+    ],
+    child: MaterialApp(
+      theme: buildAppTheme(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: RepaintBoundary(
+            key: const ValueKey('training-capture'), child: child!),
+      ),
+      home: const Scaffold(body: TrainerDashboardPage()),
+    ),
+  ));
+  await tester.pumpAndSettle();
+  final button = find.descendant(
+    of: find.byKey(const ValueKey('today-training-summary')),
+    matching: find.text('Rückmeldungen'),
+  );
+  await tester.ensureVisible(button);
+  await tester.pumpAndSettle();
+  await tester.tap(button);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -235,6 +300,11 @@ void main() {
       'location': 'Sportplatz',
       'startAt':
           DateTime.now().add(const Duration(days: 1)).toUtc().toIso8601String(),
+      'meetingAt': DateTime.now()
+          .add(const Duration(days: 1))
+          .subtract(const Duration(minutes: 45))
+          .toUtc()
+          .toIso8601String(),
       'attendanceSummary': {'yes': 12, 'no': 3, 'unknown': 2},
     });
     await tester.pumpWidget(ProviderScope(
@@ -264,6 +334,8 @@ void main() {
     expect(find.text('12 zu'), findsOneWidget);
     expect(find.text('3 ab'), findsOneWidget);
     expect(find.text('2 offen'), findsWidgets);
+    expect(find.textContaining('Beginn '), findsOneWidget);
+    expect(find.textContaining('Treffpunkt '), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -669,7 +741,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('dashboard combines responses for every selected team',
+  testWidgets(
+      'dashboard separates responses and filters for every selected team',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -810,6 +883,301 @@ void main() {
     );
     expect(find.text('E1'), findsWidgets);
     expect(find.text('E2'), findsWidgets);
+    final e1Section =
+        find.byKey(const ValueKey('training-team-section-team-e1-training-e1'));
+    final e2Section =
+        find.byKey(const ValueKey('training-team-section-team-e2-training-e2'));
+    expect(find.descendant(of: e1Section, matching: find.text('Anna Adler')),
+        findsOneWidget);
+    expect(find.descendant(of: e1Section, matching: find.text('Carla Christl')),
+        findsNothing);
+    expect(find.descendant(of: e2Section, matching: find.text('Carla Christl')),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: e1Section, matching: find.textContaining('23:00 Uhr')),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: e2Section, matching: find.textContaining('23:15 Uhr')),
+        findsOneWidget);
+    await tester
+        .tap(find.byKey(const ValueKey('training-team-filter-team-e2')));
+    await tester.pumpAndSettle();
+    expect(e1Section, findsNothing);
+    expect(find.text('Alle 3'), findsOneWidget);
+    expect(find.text('Offen 3'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('training-status-filter-yes')));
+    await tester.pumpAndSettle();
+    expect(
+        find.text('Keine Spieler mit diesem Rückmeldestatus.'), findsOneWidget);
+    expect(find.text('Carla Christl'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('training-team-filter-all')));
+    await tester.tap(find.byKey(const ValueKey('training-status-filter-all')));
+    await tester.pumpAndSettle();
+    expect(find.text('Alle 5'), findsOneWidget);
+    expect(e1Section, findsOneWidget);
+    expect(e2Section, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      'shared training uses player teams and corrections remain in their team',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day, 23);
+    const players = [
+      PlayerModel(
+          id: 'anna',
+          teamId: 'team-e1',
+          firstName: 'Anna',
+          lastName: 'Adler',
+          status: PlayerStatus.active,
+          dominantFoot: DominantFoot.unknown),
+      PlayerModel(
+          id: 'ben',
+          teamId: 'team-e1',
+          firstName: 'Ben',
+          lastName: 'Bauer',
+          status: PlayerStatus.active,
+          dominantFoot: DominantFoot.unknown),
+      PlayerModel(
+          id: 'carla',
+          teamId: 'team-e2',
+          firstName: 'Carla',
+          lastName: 'Christl',
+          status: PlayerStatus.active,
+          dominantFoot: DominantFoot.unknown),
+    ];
+    const targets = [
+      EventTeam(id: 'team-e1', name: 'E1', ageGroupCode: 'E'),
+      EventTeam(id: 'team-e2', name: 'E2', ageGroupCode: 'E'),
+    ];
+    final event = _event(
+      id: 'joint',
+      category: EventCategory.training,
+      startAt: start,
+      targetTeams: targets,
+      capabilities: const EventCapabilities(canManage: true),
+      attendance: const [
+        EventAttendance(
+            id: 'reply-anna',
+            playerId: 'anna',
+            playerName: 'Anna Adler',
+            status: AttendanceStatus.yes),
+        EventAttendance(
+            id: 'reply-ben',
+            playerId: 'ben',
+            playerName: 'Ben Bauer',
+            status: AttendanceStatus.no),
+      ],
+      missingAttendance: const [
+        MissingAttendance(id: 'carla', name: 'Carla Christl')
+      ],
+    );
+    final updated = _event(
+      id: 'joint',
+      category: EventCategory.training,
+      startAt: start,
+      targetTeams: targets,
+      capabilities: const EventCapabilities(canManage: true),
+      attendance: [
+        ...event.attendance,
+        const EventAttendance(
+            id: 'reply-carla',
+            playerId: 'carla',
+            playerName: 'Carla Christl',
+            status: AttendanceStatus.yes),
+      ],
+    );
+    final repository = _AttendanceCorrectionRepository(updated);
+    await _openTrainingResponses(tester,
+        events: [event], players: players, repository: repository);
+    if (const bool.fromEnvironment('CAPTURE_UI')) {
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+          find.byKey(const ValueKey('training-capture')));
+      await tester.runAsync(() async {
+        final picture = await boundary.toImage(pixelRatio: 2);
+        final data = await picture.toByteData(format: ui.ImageByteFormat.png);
+        final file = File('../artifacts/training-team-responses/mobile.png');
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(data!.buffer.asUint8List());
+        picture.dispose();
+      });
+    }
+    final e1Section =
+        find.byKey(const ValueKey('training-team-section-team-e1-joint'));
+    final e2Section =
+        find.byKey(const ValueKey('training-team-section-team-e2-joint'));
+    expect(find.descendant(of: e1Section, matching: find.text('1 zugesagt')),
+        findsOneWidget);
+    expect(find.descendant(of: e1Section, matching: find.text('1 abgesagt')),
+        findsOneWidget);
+    await tester
+        .tap(find.byKey(const ValueKey('training-team-filter-team-e2')));
+    await tester.pumpAndSettle();
+    expect(e1Section, findsNothing);
+    expect(find.descendant(of: e2Section, matching: find.text('1 offen')),
+        findsOneWidget);
+    // The filter must never pretend a shared event reminder addresses only E2.
+    expect(find.text('E1 + E2 erinnern'), findsOneWidget);
+    expect(find.byKey(const ValueKey('trainer-training-reminder')),
+        findsOneWidget);
+    await tester.ensureVisible(
+        find.byKey(const ValueKey('attendance-status-menu-joint-carla')));
+    await tester
+        .tap(find.byKey(const ValueKey('attendance-status-menu-joint-carla')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+        find.byKey(const ValueKey('attendance-status-choice-joint-carla-YES')));
+    await tester.pumpAndSettle();
+    expect(repository.calls.single,
+        (eventId: 'joint', playerId: 'carla', status: AttendanceStatus.yes));
+    expect(find.descendant(of: e2Section, matching: find.text('1 zugesagt')),
+        findsOneWidget);
+    expect(find.descendant(of: e2Section, matching: find.text('0 offen')),
+        findsOneWidget);
+    expect(find.text('Anna Adler'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('identical team labels and repeated sessions are never merged',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(900, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day, 17);
+    const players = [
+      PlayerModel(
+          id: 'anna',
+          teamId: 'team-e1',
+          firstName: 'Anna',
+          lastName: 'Adler',
+          status: PlayerStatus.active,
+          dominantFoot: DominantFoot.unknown),
+      PlayerModel(
+          id: 'ben',
+          teamId: 'team-e2',
+          firstName: 'Ben',
+          lastName: 'Bauer',
+          status: PlayerStatus.active,
+          dominantFoot: DominantFoot.unknown),
+    ];
+    await _openTrainingResponses(
+      tester,
+      players: players,
+      organization: _organization(teams: const [
+        _teamE1,
+        TeamSummary(
+            id: 'team-e2',
+            name: 'E1',
+            ageGroup: _ageGroup,
+            seasonName: '2026/27')
+      ]),
+      events: [
+        _event(
+            id: 'first',
+            teamId: 'team-e1',
+            category: EventCategory.training,
+            startAt: start),
+        _event(
+            id: 'second',
+            teamId: 'team-e1',
+            category: EventCategory.training,
+            startAt: start.add(const Duration(hours: 1))),
+        _event(
+            id: 'other',
+            teamId: 'team-e2',
+            category: EventCategory.training,
+            startAt: start),
+      ],
+    );
+    final first =
+        find.byKey(const ValueKey('training-team-section-team-e1-first'));
+    final second =
+        find.byKey(const ValueKey('training-team-section-team-e1-second'));
+    final other =
+        find.byKey(const ValueKey('training-team-section-team-e2-other'));
+    expect(find.descendant(of: first, matching: find.text('Anna Adler')),
+        findsOneWidget);
+    expect(find.descendant(of: second, matching: find.text('Anna Adler')),
+        findsOneWidget);
+    expect(find.descendant(of: other, matching: find.text('Ben Bauer')),
+        findsOneWidget);
+    expect(
+        find.descendant(of: first, matching: find.textContaining('17:00 Uhr')),
+        findsOneWidget);
+    expect(
+        find.descendant(of: second, matching: find.textContaining('18:00 Uhr')),
+        findsOneWidget);
+    await tester
+        .tap(find.byKey(const ValueKey('training-team-filter-team-e2')));
+    await tester.pumpAndSettle();
+    expect(first, findsNothing);
+    expect(second, findsNothing);
+    expect(find.text('Alle 1'), findsOneWidget);
+    expect(find.text('Ben Bauer'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final layout in [
+    (size: const Size(320, 740), scale: 1.5),
+    (size: const Size(740, 360), scale: 1.4),
+    (size: const Size(720, 960), scale: 1.0),
+  ]) {
+    testWidgets(
+        'team response groups fit ${layout.size} at text scale ${layout.scale}',
+        (tester) async {
+      await tester.binding.setSurfaceSize(layout.size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, now.day, 23);
+      const players = [
+        PlayerModel(
+            id: 'anna',
+            teamId: 'team-e1',
+            firstName: 'Anna',
+            lastName: 'Adler',
+            status: PlayerStatus.active,
+            dominantFoot: DominantFoot.unknown),
+        PlayerModel(
+            id: 'ben',
+            teamId: 'team-e2',
+            firstName: 'Ben',
+            lastName: 'Bauer',
+            status: PlayerStatus.active,
+            dominantFoot: DominantFoot.unknown),
+      ];
+      await _openTrainingResponses(tester,
+          players: players,
+          textScale: layout.scale,
+          events: [
+            _event(
+                id: 'joint',
+                category: EventCategory.training,
+                startAt: start,
+                capabilities: const EventCapabilities(canManage: true),
+                targetTeams: const [
+                  EventTeam(id: 'team-e1', name: 'E1', ageGroupCode: 'E'),
+                  EventTeam(id: 'team-e2', name: 'E2', ageGroupCode: 'E')
+                ]),
+          ]);
+      final list = find.byKey(const ValueKey('training-responses-list'));
+      await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('training-team-filter-team-e2')), 80,
+          scrollable:
+              find.descendant(of: list, matching: find.byType(Scrollable)));
+      await tester
+          .tap(find.byKey(const ValueKey('training-team-filter-team-e2')));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('Ben Bauer'), 100,
+          scrollable:
+              find.descendant(of: list, matching: find.byType(Scrollable)));
+      expect(find.text('Ben Bauer'), findsOneWidget);
+      expect(find.text('Anna Adler'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

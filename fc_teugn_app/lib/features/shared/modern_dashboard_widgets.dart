@@ -160,6 +160,8 @@ class ModernDashboardEventCard extends StatelessWidget {
     required this.accent,
     required this.onTap,
     this.timeLabel,
+    this.isMatch = false,
+    this.meetingAt,
     this.subtitle,
     this.metrics = const [],
     this.route,
@@ -174,6 +176,8 @@ class ModernDashboardEventCard extends StatelessWidget {
   final String title;
   final String location;
   final String? timeLabel;
+  final bool isMatch;
+  final DateTime? meetingAt;
   final String? subtitle;
   final IconData icon;
   final Color accent;
@@ -260,9 +264,16 @@ class ModernDashboardEventCard extends StatelessWidget {
                           ),
                         ],
                         const SizedBox(height: 3),
+                        if (isMatch) ...[
+                          DashboardMatchTimes(
+                              startAt: date, meetingAt: meetingAt),
+                          if (location.trim().isNotEmpty)
+                            const SizedBox(height: 3),
+                        ],
                         Text(
                           [
-                            if (timeLabel?.trim().isNotEmpty == true)
+                            if (!isMatch &&
+                                timeLabel?.trim().isNotEmpty == true)
                               timeLabel!,
                             if (location.trim().isNotEmpty) location.trim(),
                           ].join(' · '),
@@ -270,7 +281,7 @@ class ModernDashboardEventCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: surfaces.textMuted,
-                            fontSize: 11.5,
+                            fontSize: isMatch ? 13 : 11.5,
                             height: 1.2,
                             fontWeight: FontWeight.w600,
                           ),
@@ -357,6 +368,38 @@ class ModernDashboardEventCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Separate, wrapping labels keep both times readable on narrow phones.
+class DashboardMatchTimes extends StatelessWidget {
+  const DashboardMatchTimes({super.key, required this.startAt, this.meetingAt});
+  final DateTime startAt;
+  final DateTime? meetingAt;
+  String _clock(DateTime value) {
+    final local = value.toLocal();
+    final start = startAt.toLocal();
+    final otherDay = local.year != start.year ||
+        local.month != start.month ||
+        local.day != start.day;
+    return '${otherDay ? '${local.day}.${local.month}. · ' : ''}'
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')} Uhr';
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Wrap(spacing: 12, runSpacing: 3, children: [
+        Text('Beginn ${_clock(startAt)}',
+            style: TextStyle(
+                color: context.appColors.text,
+                fontSize: 13,
+                fontWeight: FontWeight.w700)),
+        if (meetingAt != null)
+          Text('Treffpunkt ${_clock(meetingAt!)}',
+              style: TextStyle(
+                  color: context.appInfo,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700)),
+      ]);
 }
 
 class _ModernDateTile extends StatelessWidget {

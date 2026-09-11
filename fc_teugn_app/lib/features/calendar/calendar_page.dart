@@ -2,6 +2,7 @@ import '../../core/team_game_format.dart';
 import '../shared/match_game_format_field.dart';
 import '../carpool/carpool_section.dart';
 import 'dart:async';
+import '../shared/response_deadline.dart';
 
 import 'package:flutter/material.dart';
 import '../../core/loading/loading_widgets.dart';
@@ -40,10 +41,12 @@ class CalendarPage extends ConsumerStatefulWidget {
     super.key,
     required this.canManage,
     this.initialEventId,
+    this.initialDate,
   });
 
   final bool canManage;
   final String? initialEventId;
+  final DateTime? initialDate;
 
   @override
   ConsumerState<CalendarPage> createState() => _CalendarPageState();
@@ -57,6 +60,22 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   final selectedCategories = <EventCategory>{};
   final selectedTeams = <String>{};
   bool _initialEventOpened = false;
+
+  @override
+  void initState() {
+    super.initState();
+    cursor = widget.initialDate ?? DateTime.now();
+  }
+
+  @override
+  void didUpdateWidget(covariant CalendarPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialEventId != widget.initialEventId ||
+        oldWidget.initialDate != widget.initialDate) {
+      _initialEventOpened = false;
+      cursor = widget.initialDate ?? cursor;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +105,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         (organization?.can('MANAGE_EVENTS') ?? widget.canManage);
 
     return PageScaffold(
-      title: 'Vereinskalender',
+      title: widget.canManage ? 'Vereinskalender' : 'Termine',
       subtitle:
           'Termine, Rückmeldungen und Fahrgemeinschaften an einem verlässlichen Ort.',
       denseMobileHeader: true,
@@ -3977,12 +3996,9 @@ class _EventFacts extends StatelessWidget {
                 value: event.targetTeams.map((team) => team.label).join(', '),
               ),
             if (event.responseDeadline != null)
-              _InfoRow(
-                icon: Icons.timer_outlined,
-                label: 'Rückmeldung bis',
-                value:
-                    '${_fullDate(event.responseDeadline!)} · ${_time(event.responseDeadline!)} Uhr',
-              ),
+              ResponseDeadlineNotice(
+                  deadline: event.responseDeadline,
+                  staffView: event.capabilities.canManage),
             if (event.contactName != null)
               _InfoRow(
                 icon: Icons.contact_phone_rounded,
@@ -4191,45 +4207,53 @@ class _AttendanceSection extends ConsumerWidget {
                   !event.attendanceFinalized &&
                   !event.isCancelled &&
                   players.isNotEmpty)
-                FilledButton.icon(
-                  onPressed: () async {
-                    final response = await showDialog<_AttendanceDraft>(
-                      context: context,
-                      builder: (context) =>
-                          _AttendanceDialog(players: players, event: event),
-                    );
-                    if (response == null) return;
-                    try {
-                      await ref.read(repositoryProvider).setAttendance(
-                            eventId: event.id,
-                            playerId: response.playerId,
-                            status: response.status,
-                            reason: response.reason,
-                            goalkeeperAvailable: response.goalkeeperAvailable,
-                          );
-                      ref.invalidate(personalResponsesProvider);
-                      ref.invalidate(eventsProvider);
-                      ref.invalidate(calendarEventsProvider);
-                      await Future.wait<void>([
-                        ref
-                            .read(personalResponsesProvider.future)
-                            .then<void>((_) {}),
-                        ref.read(eventsProvider.future).then<void>((_) {}),
-                      ]);
-                      onRefresh();
-                    } catch (_) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                                'Rückmeldung konnte nicht gespeichert werden.'),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.how_to_reg_rounded),
-                  label: const Text('Rückmeldung'),
+                ResponseDeadlineGate(
+                  deadline: event.responseDeadline,
+                  builder: (context, closed) => FilledButton.icon(
+                    onPressed: closed
+                        ? null
+                        : () async {
+                            final response = await showDialog<_AttendanceDraft>(
+                              context: context,
+                              builder: (context) => _AttendanceDialog(
+                                  players: players, event: event),
+                            );
+                            if (response == null) return;
+                            try {
+                              await ref.read(repositoryProvider).setAttendance(
+                                    eventId: event.id,
+                                    playerId: response.playerId,
+                                    status: response.status,
+                                    reason: response.reason,
+                                    goalkeeperAvailable:
+                                        response.goalkeeperAvailable,
+                                  );
+                              ref.invalidate(personalResponsesProvider);
+                              ref.invalidate(eventsProvider);
+                              ref.invalidate(calendarEventsProvider);
+                              await Future.wait<void>([
+                                ref
+                                    .read(personalResponsesProvider.future)
+                                    .then<void>((_) {}),
+                                ref
+                                    .read(eventsProvider.future)
+                                    .then<void>((_) {}),
+                              ]);
+                              onRefresh();
+                            } catch (_) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Rückmeldung konnte nicht gespeichert werden.'),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                    icon: const Icon(Icons.how_to_reg_rounded),
+                    label: const Text('Rückmeldung'),
+                  ),
                 ),
               if (event.capabilities.canManage &&
                   (event.category == EventCategory.training ||
@@ -5613,6 +5637,10 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         final previousEnd = endAt;
         setState(() {
           startAt = value;
+          if (responseDeadline != null) {
+            responseDeadline =
+                responseDeadline!.add(value.difference(previousStart));
+          }
           if (previousEnd != null) {
             final previousDuration = previousEnd.difference(previousStart);
             endAt = previousDuration.isNegative
@@ -6051,6 +6079,15 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
+                      if (category.isMatch &&
+                          widget.event?.parentTournamentId == null) ...[
+                        const SizedBox(height: 12),
+                        ResponseDeadlineField(
+                            startAt: startAt,
+                            value: responseDeadline,
+                            onChanged: (value) =>
+                                setState(() => responseDeadline = value)),
+                      ],
                       if (_usesClubPitch) ...[
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
@@ -6365,13 +6402,14 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
                                 labelText: 'Maximale Teilnehmerzahl'),
                           ),
                           const SizedBox(height: 12),
-                          _DateTimeField(
-                            label: 'Rückmeldefrist',
-                            value: responseDeadline,
-                            allowClear: true,
-                            onChanged: (value) =>
-                                setState(() => responseDeadline = value),
-                          ),
+                          if (!category.isMatch)
+                            _DateTimeField(
+                              label: 'Rückmeldefrist',
+                              value: responseDeadline,
+                              allowClear: true,
+                              onChanged: (value) =>
+                                  setState(() => responseDeadline = value),
+                            ),
                           const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.all(14),
@@ -6878,7 +6916,8 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
         catering: _optional(catering),
         carpoolRequired: carpoolRequired,
         maxParticipants: int.tryParse(maxParticipants.text.trim()),
-        responseDeadline: responseDeadline,
+        responseDeadline:
+            widget.event?.parentTournamentId == null ? responseDeadline : null,
         internalNote: _optional(internalNote),
         visibility: visibility,
         reminderMinutes: reminderMode == 'none'

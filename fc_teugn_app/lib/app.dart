@@ -26,6 +26,7 @@ import 'features/trainer/trainer_events_page.dart';
 import 'features/trainer/trainer_matches_page.dart';
 import 'features/trainer/admin_perspective_page.dart';
 import 'features/parent/parent_dashboard_page.dart';
+import 'features/parent/parent_family_page.dart';
 import 'features/parent/parent_players_page.dart';
 import 'features/parent/parent_events_page.dart';
 import 'features/parent/parent_matches_page.dart';
@@ -940,9 +941,9 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
             audience: ShellAudience.family,
             destinations: const [
               ShellDestination(
-                  label: 'Startseite',
+                  label: 'Start',
                   mobileLabel: 'Start',
-                  icon: Icons.grid_view_rounded,
+                  icon: Icons.home_outlined,
                   route: '/parent',
                   section: ShellSection.overview,
                   hint: 'Familien-Assistent mit allem, was jetzt wichtig ist'),
@@ -951,19 +952,20 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   mobileLabel: 'Kinder',
                   icon: Icons.groups_rounded,
                   route: '/parent/players',
+                  showOnMobile: false,
                   section: ShellSection.team,
                   hint:
                       'Profile, Mannschaften und sportliche Entwicklung ansehen'),
               ShellDestination(
-                  label: 'Kalender & Rückmeldungen',
-                  mobileLabel: 'Kalender',
-                  icon: Icons.calendar_month_rounded,
+                  label: 'Termine',
+                  mobileLabel: 'Termine',
+                  icon: Icons.calendar_today_outlined,
                   route: '/parent/events',
                   section: ShellSection.schedule,
                   hint:
                       'Trainings und Spiele sehen und direkt darauf antworten'),
               ShellDestination(
-                  label: 'Spiele, Kader & Liveticker',
+                  label: 'Spiele',
                   mobileLabel: 'Spiele',
                   icon: Icons.sports_soccer_rounded,
                   route: '/parent/matches',
@@ -985,8 +987,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   hint: 'Freigegebene Leistungsdaten und Entwicklungen ansehen',
                   showOnMobile: false),
               ShellDestination(
-                  label: 'Nachrichten & Umfragen',
-                  icon: Icons.forum_rounded,
+                  label: 'Postfach',
+                  icon: Icons.mail_outline,
                   route: '/parent/messages',
                   section: ShellSection.communication,
                   hint:
@@ -995,6 +997,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   label: 'Familie & Team',
                   icon: Icons.family_restroom,
                   route: '/parent/talents/assistant',
+                  showOnMobile: false,
                   relatedRoutes: ['/parent/talents'],
                   section: ShellSection.overview,
                   hint: 'Aufgaben, Abwesenheiten, Umfragen und Lernziele'),
@@ -1002,6 +1005,7 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   label: 'Teamaufgaben & Ausrüstung',
                   icon: Icons.assignment_turned_in_rounded,
                   route: '/parent/operations',
+                  showOnMobile: false,
                   section: ShellSection.communication,
                   hint: 'Aufgaben übernehmen und die Mannschaft unterstützen'),
               ShellDestination(
@@ -1027,15 +1031,28 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
                   hint: 'Die wichtigsten Funktionen einfach erklärt',
                   showOnMobile: false),
               ShellDestination(
-                  label: 'Rückmeldungen für meine Kinder',
-                  icon: Icons.family_restroom_rounded,
+                  label: 'Familie',
+                  icon: Icons.people_outline,
                   route: '/parent/family',
+                  relatedRoutes: [
+                    '/parent/players',
+                    '/parent/responses',
+                    '/parent/talents',
+                    '/parent/operations',
+                    '/parent/statistics',
+                    '/parent/bfv',
+                    '/parent/privacy',
+                    '/parent/account',
+                    '/parent/help',
+                    '/parent/support'
+                  ],
                   section: ShellSection.overview,
                   hint: 'Alle Zu- und Absagen der eigenen Kinder verwalten'),
               ShellDestination(
                   label: 'Technischer Support',
                   icon: Icons.support_agent_rounded,
                   route: '/parent/support',
+                  showOnMobile: false,
                   section: ShellSection.support,
                   hint: 'Technische Probleme melden und Antworten verfolgen'),
             ],
@@ -1067,6 +1084,8 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
               path: '/parent/events',
               builder: (context, state) => ParentEventsPage(
                 initialEventId: state.uri.queryParameters['eventId'],
+                initialDate:
+                    DateTime.tryParse(state.uri.queryParameters['date'] ?? ''),
               ),
             ),
             GoRoute(
@@ -1126,10 +1145,23 @@ class _FCTeugnAppState extends ConsumerState<FCTeugnApp>
             ),
             GoRoute(
               path: '/parent/family',
+              // Previously sent push links still open the exact response.
+              builder: (context, state) => state.uri.queryParameters
+                      .containsKey('eventId')
+                  ? FamilyResponsesPage(
+                      isTrainer: false,
+                      highlightedEventId: state.uri.queryParameters['eventId'],
+                      highlightedPlayerId:
+                          state.uri.queryParameters['playerId'])
+                  : const ParentFamilyPage(),
+            ),
+            GoRoute(
+              path: '/parent/responses',
               builder: (context, state) => FamilyResponsesPage(
                 isTrainer: false,
                 highlightedEventId: state.uri.queryParameters['eventId'],
                 highlightedPlayerId: state.uri.queryParameters['playerId'],
+                onlyOpen: state.uri.queryParameters['open'] == '1',
               ),
             ),
             GoRoute(

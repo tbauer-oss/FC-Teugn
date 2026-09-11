@@ -9,6 +9,23 @@ const {
   resolveMeetingPoint,
 } = require('../dist/src/services/match-publication.service.js');
 const { EventCategory } = require('@prisma/client');
+const { responseDeadlineForWrite, responseDeadlinePassed, responseDeadlineMessage } = require('../dist/src/services/response-deadline');
+
+test('response cutoff is inclusive, validates dates and retains lead time over DST', () => {
+  const deadline = new Date('2030-03-30T12:00Z');
+  const startAt = new Date('2030-04-01T12:00Z');
+  assert.equal(responseDeadlinePassed(deadline, new Date(deadline.getTime() - 1)), false);
+  assert.equal(responseDeadlinePassed(deadline, deadline), true);
+  assert.equal(responseDeadlinePassed(null, deadline), false);
+  assert.equal(responseDeadlineForWrite({ responseDeadline: null }, startAt), null);
+  for (const input of ['', 'bad', '2030-04-01T12:00Z', '2030-04-02T12:00Z', 42]) {
+    assert.throws(() => responseDeadlineForWrite({ responseDeadline: input }, startAt), e => e.status === 400);
+  }
+  const moved = new Date('2030-04-08T12:00Z');
+  assert.equal(moved - responseDeadlineForWrite({}, moved, { startAt, responseDeadline: deadline }), 48 * 3600000);
+  assert.match(responseDeadlineMessage(deadline, deadline), /nur noch durch das Trainerteam/);
+  assert.match(responseDeadlineMessage(deadline, new Date('2030-01-01')), /30\.03\.2030, 13:00/);
+});
 
 function source(relativePath) {
   return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');

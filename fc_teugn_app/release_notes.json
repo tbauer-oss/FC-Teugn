@@ -1,4 +1,11 @@
 {
+  "1.9.0+202": [
+    "Neue Elternstartseite mit Kinderfilter, offenen Rückmeldungen und direkter Zu- oder Absage. Training und nächstes Spiel mit Gegner, Treffpunkt, Beginn und Auswärtsroute bleiben gemeinsam im Blick.",
+    "Die Navigation heißt jetzt Start, Termine, Spiele, Postfach und Familie. Unter Familie stehen Termine und Antworten getrennt je Kind; Abwesenheiten, Trainerkontakt und weitere Familienfunktionen bleiben direkt erreichbar.",
+    "Trainer können beim Anlegen und Bearbeiten eines Spiels eine Rückmeldefrist festlegen, zum Beispiel 24, 48 oder 72 Stunden vorher. Danach ändern nur noch berechtigte Trainer die Zu- und Absagen; Familien sehen die Frist auch in den Spielinformationen und Benachrichtigungen.",
+    "Trainingsrückmeldungen für mehrere ausgewählte Mannschaften werden im Trainerdashboard nach Mannschaft und Termin getrennt. Spielkarten zeigen zusätzlich zum Beginn die Treffpunktzeit.",
+    "Die Postfachvorschau lässt ungelesene Nachrichten ungelesen. Verbesserte Terminlinks, getrennte Geschwisterantworten und geprüfte Layouts für kleine Displays, Querformat und große Schrift erleichtern den Familienalltag."
+  ],
   "1.8.7+201": [
     "Trainer können Zusagen und Doppelspiel-Freigaben auch für berechtigte Spieler aus dem Jugendkader speichern, die in einer älteren Einladungsliste noch fehlen – einschließlich eigener Kinder.",
     "Die fehlende Einladung wird zusammen mit der Rückmeldung gespeichert. Bei einer Doppelspiel-Freigabe bleiben beide Zusagen sowie der Kaderplatz und die Aufstellung im anderen Spiel erhalten.",

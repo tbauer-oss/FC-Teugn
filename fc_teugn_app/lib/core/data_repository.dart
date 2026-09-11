@@ -1759,10 +1759,14 @@ class DataRepository {
     required int periodCount,
     required int periodMinutes,
     required bool reminder24hEnabled,
+    DateTime? responseDeadline,
+    bool updateResponseDeadline = false,
     String? opponentId,
     TeamGameFormat? gameFormat,
   }) async {
     await client.dio.put('/events/$eventId/match-details', data: {
+      if (updateResponseDeadline)
+        'responseDeadline': responseDeadline?.toUtc().toIso8601String(),
       if (gameFormat != null) 'gameFormat': gameFormat.apiValue,
       'opponent': opponent,
       'opponentId': opponentId,
@@ -2706,6 +2710,13 @@ class DataRepository {
     return FamilyContactInbox.fromJson(
       response.data as Map<String, dynamic>,
     );
+  }
+
+  /// Unlike opening the inbox, a preview leaves read receipts untouched.
+  Future<FamilyContactInbox> familyContactPreview() async {
+    final response = await client.dio.get('/communications/family-contact',
+        queryParameters: {'preview': '1'});
+    return FamilyContactInbox.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<void> deleteFamilyContact(String id,

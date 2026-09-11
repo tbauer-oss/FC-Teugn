@@ -9,6 +9,7 @@ import '../../core/app_theme_controller.dart';
 import '../../core/club_logo.dart';
 import '../../core/system_admin_test_mode.dart';
 import '../auth/auth_controller.dart';
+import '../parent/parent_home_providers.dart';
 import '../../core/providers.dart';
 import '../../core/models/organization.dart';
 import '../shared/pwa_install_prompt.dart';
@@ -311,9 +312,12 @@ class AppShell extends ConsumerWidget {
         selectedDestination.matches(location);
     final mobileCandidates =
         destinations.where((destination) => destination.showOnMobile).toList();
-    final mobileDestinations = mobileCandidates.take(4).toList();
+    final family = audience == ShellAudience.family;
+    final mobileDestinations = mobileCandidates.take(family ? 5 : 4).toList();
     final primaryMobileIndex = _matchingIndex(location, mobileDestinations);
-    final mobileSelectedIndex = primaryMobileIndex ?? mobileDestinations.length;
+    final mobileSelectedIndex = primaryMobileIndex ??
+        (family ? mobileDestinations.length - 1 : mobileDestinations.length);
+    final inboxUnread = family ? ref.watch(parentInboxUnreadProvider) : 0;
     final productionContextLabel = organization == null
         ? AppIdentity.name
         : organization.workingContext.includeAllTeams
@@ -343,9 +347,9 @@ class AppShell extends ConsumerWidget {
               if (isWide)
                 DesktopSidebar(
                   title: title,
-                  destinations: destinations,
+                  destinations: family ? mobileDestinations : destinations,
                   audience: audience,
-                  selectedIndex: selectedIndex,
+                  selectedIndex: family ? mobileSelectedIndex : selectedIndex,
                   userName: authState.user?.name ?? '',
                   userRole: authState.user?.roleLabel ?? '',
                   contextLabel: contextLabel,
@@ -359,7 +363,11 @@ class AppShell extends ConsumerWidget {
                           ),
                   onHome: () => context.go(homeRoute),
                   onSelect: (index) {
-                    if (!testMode) context.go(destinations[index].route);
+                    if (!testMode) {
+                      context.go(
+                          (family ? mobileDestinations : destinations)[index]
+                              .route);
+                    }
                   },
                   onAccount: () => context.go(accountRoute),
                   onLogout: () {
@@ -388,6 +396,7 @@ class AppShell extends ConsumerWidget {
                   children: [
                     if (!isWide)
                       _MobileHeader(
+                        minimal: family,
                         title: title,
                         userName: authState.user?.name ?? '',
                         contextLabel: contextLabel,
@@ -513,67 +522,142 @@ class AppShell extends ConsumerWidget {
           ),
           bottomNavigationBar: isWide || testMode
               ? null
-              : Container(
-                  decoration: BoxDecoration(
-                    color: context.appColors.surface,
-                    border: Border(
-                      top: BorderSide(color: context.appColors.outline),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.black.withValues(alpha: .05),
-                        blurRadius: 18,
-                        offset: const Offset(0, -5),
-                      ),
-                    ],
-                  ),
-                  child: NavigationBar(
-                    height: 72,
-                    backgroundColor: context.appColors.surface,
-                    surfaceTintColor: Colors.transparent,
-                    indicatorColor:
-                        Theme.of(context).navigationBarTheme.indicatorColor,
-                    selectedIndex: mobileSelectedIndex,
-                    onDestinationSelected: (index) {
-                      if (index < mobileDestinations.length) {
-                        context.go(mobileDestinations[index].route);
-                        return;
-                      }
-                      _showMoreMenu(
-                        context,
-                        destinations,
-                        location,
-                        contextLabel,
-                        seasonLabel,
-                        authState.user?.name ?? '',
-                        authState.user?.roleLabel ?? '',
-                      );
-                    },
-                    destinations: [
-                      for (final destination in mobileDestinations)
-                        NavigationDestination(
-                          icon: Icon(destination.icon),
-                          selectedIcon: Icon(
-                            destination.icon,
-                            color: context.appColors.text,
+              : family
+                  ? _FamilyBottomNavigation(
+                      destinations: mobileDestinations,
+                      selectedIndex: mobileSelectedIndex,
+                      unread: inboxUnread,
+                      onSelected: (index) =>
+                          context.go(mobileDestinations[index].route))
+                  : Container(
+                      decoration: BoxDecoration(
+                        color: context.appColors.surface,
+                        border: Border(
+                          top: BorderSide(color: context.appColors.outline),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.black.withValues(alpha: .05),
+                            blurRadius: 18,
+                            offset: const Offset(0, -5),
                           ),
-                          label: destination.mobileLabel,
-                        ),
-                      NavigationDestination(
-                        icon: const Icon(Icons.apps_rounded),
-                        selectedIcon: Icon(
-                          Icons.apps_rounded,
-                          color: context.appColors.text,
-                        ),
-                        label: 'Mehr',
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                      child: NavigationBar(
+                        height: 72,
+                        backgroundColor: context.appColors.surface,
+                        surfaceTintColor: Colors.transparent,
+                        indicatorColor:
+                            Theme.of(context).navigationBarTheme.indicatorColor,
+                        selectedIndex: mobileSelectedIndex,
+                        onDestinationSelected: (index) {
+                          if (index < mobileDestinations.length) {
+                            context.go(mobileDestinations[index].route);
+                            return;
+                          }
+                          _showMoreMenu(
+                            context,
+                            destinations,
+                            location,
+                            contextLabel,
+                            seasonLabel,
+                            authState.user?.name ?? '',
+                            authState.user?.roleLabel ?? '',
+                          );
+                        },
+                        destinations: [
+                          for (final destination in mobileDestinations)
+                            NavigationDestination(
+                              icon: Icon(destination.icon),
+                              selectedIcon: Icon(
+                                destination.icon,
+                                color: context.appColors.text,
+                              ),
+                              label: destination.mobileLabel,
+                            ),
+                          NavigationDestination(
+                            icon: const Icon(Icons.apps_rounded),
+                            selectedIcon: Icon(
+                              Icons.apps_rounded,
+                              color: context.appColors.text,
+                            ),
+                            label: 'Mehr',
+                          ),
+                        ],
+                      ),
+                    ),
         );
       },
     );
   }
+}
+
+class _FamilyBottomNavigation extends StatelessWidget {
+  const _FamilyBottomNavigation(
+      {required this.destinations,
+      required this.selectedIndex,
+      required this.unread,
+      required this.onSelected});
+  final List<ShellDestination> destinations;
+  final int selectedIndex;
+  final int unread;
+  final ValueChanged<int> onSelected;
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: BoxDecoration(
+            color: context.appColors.surface,
+            border: Border(
+                top: BorderSide(
+                    color: context.appColors.outline.withValues(alpha: .6)))),
+        child: SafeArea(
+            top: false,
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              for (var i = 0; i < destinations.length; i++)
+                Expanded(
+                    child: Semantics(
+                  selected: i == selectedIndex,
+                  button: true,
+                  label: destinations[i].mobileLabel,
+                  child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        key: ValueKey(
+                            'family-nav-${destinations[i].mobileLabel}'),
+                        onTap: () => onSelected(i),
+                        child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 1),
+                            child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Badge(
+                                      backgroundColor: AppColors.yellow,
+                                      textColor: AppColors.black,
+                                      isLabelVisible: destinations[i].route ==
+                                              '/parent/messages' &&
+                                          unread > 0,
+                                      label:
+                                          Text(unread > 9 ? '9+' : '$unread'),
+                                      child: Icon(destinations[i].icon,
+                                          size: 25,
+                                          color: i == selectedIndex
+                                              ? const Color(0xFFE0B900)
+                                              : context.appColors.textMuted)),
+                                  const SizedBox(height: 4),
+                                  Text(destinations[i].mobileLabel,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          height: 1.2,
+                                          fontWeight: i == selectedIndex
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          color: context.appColors.text)),
+                                ])),
+                      )),
+                )),
+            ])),
+      );
 }
 
 class _ReadOnlyPreviewBanner extends StatelessWidget {
@@ -1740,6 +1824,7 @@ class _MobileHeader extends StatelessWidget {
     this.testModeAvailable = false,
     this.testModeActive = false,
     this.onTestModeToggle = _noOp,
+    this.minimal = false,
   });
 
   final String title;
@@ -1758,9 +1843,131 @@ class _MobileHeader extends StatelessWidget {
   final bool testModeAvailable;
   final bool testModeActive;
   final VoidCallback onTestModeToggle;
+  final bool minimal;
+
+  Future<void> _showFamilyAccount(BuildContext context) =>
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        useSafeArea: true,
+        isScrollControlled: true,
+        constraints: const BoxConstraints(maxWidth: 580),
+        builder: (sheet) => SingleChildScrollView(
+            child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
+                child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(userName.isEmpty ? 'Dein Konto' : userName,
+                          style: const TextStyle(
+                              fontSize: 23, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 12),
+                      for (final entry in [
+                        ('Mein Konto', Icons.person_outline, onAccount),
+                        (
+                          'Mannschaft wechseln · $contextLabel',
+                          Icons.groups_outlined,
+                          onContextTap
+                        ),
+                        ('Hilfe & Anleitungen', Icons.help_outline, onHelp),
+                        (
+                          'Datenschutz & Einwilligungen',
+                          Icons.shield_outlined,
+                          onPrivacy
+                        ),
+                        ('Über FC Teugn Talents', Icons.info_outline, onAbout),
+                        if (shouldOfferPwaInstall)
+                          (
+                            'App installieren',
+                            Icons.install_mobile,
+                            () => showPwaInstallPrompt(context)
+                          ),
+                        if (testModeAvailable)
+                          (
+                            testModeActive
+                                ? 'Testmodus verlassen'
+                                : 'Testmodus starten',
+                            Icons.science_outlined,
+                            onTestModeToggle
+                          ),
+                        ('Abmelden', Icons.logout, onLogout),
+                      ])
+                        ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(entry.$2),
+                            title: Text(entry.$1),
+                            onTap: () {
+                              Navigator.pop(sheet);
+                              entry.$3();
+                            }),
+                      Row(children: [
+                        const Expanded(
+                            child: Text('Darstellung & Aktualisierung')),
+                        _ThemeModeButton(
+                            preference: themePreference,
+                            onSelected: onThemePreferenceChanged),
+                        _RefreshIconButton(
+                            onRefresh: onRefresh,
+                            color: context.appColors.textMuted),
+                      ]),
+                    ]))),
+      );
 
   @override
   Widget build(BuildContext context) {
+    if (minimal) {
+      final initials = userName
+          .trim()
+          .split(RegExp(r'\s+'))
+          .where((s) => s.isNotEmpty)
+          .take(2)
+          .map((s) => s.characters.first)
+          .join();
+      return Material(
+          color: context.appColors.surface,
+          textStyle: Theme.of(context)
+              .textTheme
+              .bodyMedium!
+              .copyWith(color: context.appColors.text),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
+                child: Row(children: [
+                  Expanded(
+                      child: InkWell(
+                          key: const ValueKey('mobile-header-home-logo'),
+                          onTap: onHome,
+                          child: const SizedBox(
+                              height: 48,
+                              child: Row(children: [
+                                ClubLogo(size: 31),
+                                SizedBox(width: 9),
+                                Flexible(
+                                    child: Text('FC TEUGN',
+                                        style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: .3)))
+                              ])))),
+                  IconButton(
+                      key: const ValueKey('family-account-menu'),
+                      tooltip: 'Konto und Einstellungen',
+                      onPressed: () => _showFamilyAccount(context),
+                      icon: CircleAvatar(
+                          radius: 20,
+                          backgroundColor: context.isDarkMode
+                              ? context.appColors.surfaceRaised
+                              : const Color(0xFFF2F3F5),
+                          child: Text(initials.isEmpty ? '?' : initials,
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.appColors.text)))),
+                ])),
+          ));
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final textScale = MediaQuery.textScalerOf(context).scale(1);

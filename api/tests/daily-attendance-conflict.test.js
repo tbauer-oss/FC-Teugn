@@ -30,7 +30,7 @@ test('authorized staff corrections bypass finalized and expired response locks',
   );
   assert.match(
     handler,
-    /!canCorrectAttendance\s*&&\s*event\.responseDeadline/,
+    /!canCorrectAttendance\s*&&\s*responseDeadlinePassed\(event\.responseDeadline\)/,
   );
   assert.doesNotMatch(handler, /!isStaff\(user\.role\)/);
 });

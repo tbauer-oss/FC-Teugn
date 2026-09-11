@@ -309,6 +309,7 @@ class CachedMatchdaySnapshot {
     required this.cachedAt,
     this.gameFormat = TeamGameFormat.football7,
     this.meetingAt,
+    this.responseDeadline,
     this.meetingLocation,
     this.ticker,
   });
@@ -317,6 +318,7 @@ class CachedMatchdaySnapshot {
   final String title;
   final DateTime startAt;
   final DateTime? meetingAt;
+  final DateTime? responseDeadline;
   final String? meetingLocation;
   final String location;
   final String teamId;
@@ -332,6 +334,7 @@ class CachedMatchdaySnapshot {
       title: match.title,
       startAt: match.startAt,
       meetingAt: match.meetingAt,
+      responseDeadline: match.responseDeadline,
       meetingLocation: match.meetingLocation,
       location: match.location,
       teamId: match.teamId,
@@ -348,6 +351,7 @@ class CachedMatchdaySnapshot {
         'title': title,
         'startAt': startAt.toUtc().toIso8601String(),
         'meetingAt': meetingAt?.toUtc().toIso8601String(),
+        'responseDeadline': responseDeadline?.toUtc().toIso8601String(),
         'meetingLocation': meetingLocation,
         'location': location,
         'teamId': teamId,
@@ -363,6 +367,9 @@ class CachedMatchdaySnapshot {
       id: json['id'] as String,
       title: json['title'] as String,
       startAt: DateTime.parse(json['startAt'] as String),
+      responseDeadline: json['responseDeadline'] == null
+          ? null
+          : DateTime.parse(json['responseDeadline'] as String),
       meetingAt: json['meetingAt'] == null
           ? null
           : DateTime.parse(json['meetingAt'] as String),
@@ -386,6 +393,7 @@ class CachedMatchdaySnapshot {
         title: title,
         startAt: startAt,
         meetingAt: meetingAt,
+        responseDeadline: responseDeadline,
         meetingLocation: meetingLocation,
         location: location,
         teamId: teamId,

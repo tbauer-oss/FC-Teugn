@@ -1,5 +1,6 @@
 export type ImportSnapshot = Record<string, string | number | boolean | null>;
 export const importFieldLabels: Record<string, string> = {
+  responseDeadline: 'Kader schließen / Rückmeldefrist',
   startAt: 'Anstoß', endAt: 'Ende', location: 'Spielort', address: 'Adresse',
   status: 'Terminstatus', title: 'Bezeichnung', opponent: 'Gegner',
   homeAway: 'Heim/Auswärts', ourGoals: 'Eigene Tore', theirGoals: 'Gegentore',

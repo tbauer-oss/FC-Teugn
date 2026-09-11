@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'response_deadline.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -80,7 +82,7 @@ class PersonalResponsesCard extends ConsumerWidget {
                     ),
                     TextButton(
                       onPressed: () => context.go(
-                        isTrainer ? '/trainer/family' : '/parent/family',
+                        isTrainer ? '/trainer/family' : '/parent/responses',
                       ),
                       child: const Text('Alle'),
                     ),
@@ -103,10 +105,12 @@ class FamilyResponsesPage extends ConsumerStatefulWidget {
     required this.isTrainer,
     this.highlightedEventId,
     this.highlightedPlayerId,
+    this.onlyOpen = false,
   });
   final bool isTrainer;
   final String? highlightedEventId;
   final String? highlightedPlayerId;
+  final bool onlyOpen;
 
   @override
   ConsumerState<FamilyResponsesPage> createState() =>
@@ -117,7 +121,9 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
   @override
   void initState() {
     super.initState();
-    if (widget.highlightedEventId != null) {
+    if (widget.highlightedEventId != null ||
+        widget.onlyOpen ||
+        widget.highlightedPlayerId != null) {
       Future.microtask(() {
         if (mounted) {
           ref.read(personalResponsePeriodProvider.notifier).state =
@@ -158,6 +164,12 @@ class _FamilyResponsesPageState extends ConsumerState<FamilyResponsesPage> {
           final today = DateTime(now.year, now.month, now.day);
           final periodEnd = period.endFrom(today);
           final visible = items.where((item) {
+            if (widget.highlightedEventId == null &&
+                widget.highlightedPlayerId != null &&
+                item.playerId != widget.highlightedPlayerId) {
+              return false;
+            }
+            if (widget.onlyOpen && !item.isOpen) return false;
             if (_isHighlighted(item)) return true;
             if (item.startAt.isBefore(today)) return false;
             return periodEnd == null || item.startAt.isBefore(periodEnd);
@@ -493,18 +505,14 @@ class _ResponseTileState extends ConsumerState<_ResponseTile> {
                       style:
                           narrow ? Theme.of(context).textTheme.bodySmall : null,
                     ),
-                    if (item.isOverdue)
+                    if (item.isOverdue && deadline == null)
                       const Text(
                         'Rückmeldefrist abgelaufen',
                         style: TextStyle(
                             color: Colors.red, fontWeight: FontWeight.w700),
                       ),
-                    if (!item.isOverdue && deadline != null)
-                      Text(
-                        'Bitte bis ${deadline.day}.${deadline.month}.${deadline.year}, '
-                        '${deadline.hour.toString().padLeft(2, '0')}:${deadline.minute.toString().padLeft(2, '0')} Uhr antworten',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
+                    if (deadline != null)
+                      ResponseDeadlineNotice(deadline: deadline),
                     if (item.responseStatus == AttendanceStatus.no &&
                         item.reason?.trim().isNotEmpty == true)
                       Padding(
@@ -884,11 +892,13 @@ class PersonalResponseQuickActions extends ConsumerStatefulWidget {
     required this.item,
     this.expanded = false,
     this.onSaved,
+    this.comfortable = false,
   });
 
   final PersonalResponseModel item;
   final bool expanded;
   final VoidCallback? onSaved;
+  final bool comfortable;
 
   @override
   ConsumerState<PersonalResponseQuickActions> createState() =>
@@ -900,20 +910,29 @@ class _PersonalResponseQuickActionsState
   bool _saving = false;
 
   Future<void> _answer(AttendanceStatus status) async {
+    if (_saving || !widget.item.canRespond) return;
+    if (ref.read(authProvider).user?.isReadOnlyPreview == true) return;
+    if (widget.item.responseDeadline != null &&
+        !widget.item.responseDeadline!.isAfter(DateTime.now())) {
+      ref.invalidate(personalResponsesProvider);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Der Kader ist geschlossen. Bitte das Trainerteam kontaktieren.')));
+      return;
+    }
     String? reason;
     if (status == AttendanceStatus.no) {
-      final controller = TextEditingController(
-        text: widget.item.responseStatus == AttendanceStatus.no
-            ? widget.item.reason ?? ''
-            : '',
-      );
+      var reasonDraft = widget.item.responseStatus == AttendanceStatus.no
+          ? widget.item.reason ?? ''
+          : '';
       reason = await showDialog<String?>(
         context: context,
         builder: (context) => AlertDialog(
           scrollable: true,
           title: Text('${widget.item.playerName} absagen?'),
-          content: TextField(
-            controller: controller,
+          content: TextFormField(
+            initialValue: reasonDraft,
+            onChanged: (value) => reasonDraft = value,
             maxLines: 3,
             decoration: const InputDecoration(
               labelText: 'Grund (optional)',
@@ -926,16 +945,21 @@ class _PersonalResponseQuickActionsState
               child: const Text('Abbrechen'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              onPressed: () => Navigator.pop(context, reasonDraft.trim()),
               child: const Text('Absagen'),
             ),
           ],
         ),
       );
-      controller.dispose();
       if (reason == null) return;
     }
 
+    if (!mounted) return;
+    if (widget.item.responseDeadline != null &&
+        !widget.item.responseDeadline!.isAfter(DateTime.now())) {
+      ref.invalidate(personalResponsesProvider);
+      return;
+    }
     setState(() => _saving = true);
     try {
       await ref.read(repositoryProvider).setAttendance(
@@ -967,15 +991,15 @@ class _PersonalResponseQuickActionsState
           ),
         );
       }
-    } catch (_) {
+    } catch (error) {
+      ref.invalidate(personalResponsesProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Die Rückmeldung konnte nicht gespeichert werden. Bitte Verbindung prüfen und erneut versuchen.',
-            ),
-          ),
-        );
+        final data = error is DioException ? error.response?.data : null;
+        final message = data is Map && data['message'] is String
+            ? data['message'] as String
+            : 'Die Rückmeldung konnte nicht gespeichert werden. Bitte Verbindung prüfen und erneut versuchen.';
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -983,11 +1007,20 @@ class _PersonalResponseQuickActionsState
   }
 
   @override
-  Widget build(BuildContext context) => _AttendanceResponseActions(
-        expanded: widget.expanded,
-        saving: _saving,
-        onAnswer: _answer,
-      );
+  Widget build(BuildContext context) =>
+      ref.watch(authProvider).user?.isReadOnlyPreview == true
+          ? const Text('Vorschau · nur lesen')
+          : ResponseDeadlineGate(
+              deadline: widget.item.responseDeadline,
+              builder: (context, closed) => closed
+                  ? const Text('Änderungen nur durch Trainer',
+                      style: TextStyle(fontWeight: FontWeight.w700))
+                  : _AttendanceResponseActions(
+                      expanded: widget.expanded,
+                      comfortable: widget.comfortable,
+                      saving: _saving,
+                      onAnswer: _answer,
+                    ));
 }
 
 class _AttendanceResponseActions extends StatelessWidget {
@@ -995,14 +1028,40 @@ class _AttendanceResponseActions extends StatelessWidget {
     required this.expanded,
     required this.saving,
     required this.onAnswer,
+    this.comfortable = false,
   });
 
   final bool expanded;
   final bool saving;
   final ValueChanged<AttendanceStatus> onAnswer;
+  final bool comfortable;
 
   @override
   Widget build(BuildContext context) {
+    if (comfortable) {
+      final style = FilledButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        textStyle: const TextStyle(
+            fontFamily: 'Arial', fontSize: 14, fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+      );
+      return Row(children: [
+        Expanded(
+            child: FilledButton(
+                style: style,
+                onPressed: saving ? null : () => onAnswer(AttendanceStatus.yes),
+                child: Text(saving ? 'Speichert …' : 'Zusagen'))),
+        const SizedBox(width: 8),
+        Expanded(
+            child: OutlinedButton(
+                style: style.copyWith(
+                    foregroundColor: WidgetStatePropertyAll(
+                        Theme.of(context).colorScheme.onSurface)),
+                onPressed: saving ? null : () => onAnswer(AttendanceStatus.no),
+                child: const Text('Absagen'))),
+      ]);
+    }
     final compactStyle = ButtonStyle(
       minimumSize: WidgetStateProperty.all(const Size(0, 36)),
       padding: WidgetStateProperty.all(

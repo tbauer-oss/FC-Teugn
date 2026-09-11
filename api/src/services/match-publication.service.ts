@@ -1,6 +1,7 @@
 import { EventCategory } from '@prisma/client';
 
 import { AWAY_MEETING_LOCATION } from './match-venue.service';
+import { responseDeadlineMessage } from './response-deadline';
 
 const berlinDateFormatter = new Intl.DateTimeFormat('de-DE', {
   timeZone: 'Europe/Berlin',
@@ -90,13 +91,14 @@ export function buildFamilyReleaseMessage(input: {
   title?: string | null;
   startAt: Date;
   meeting: ResolvedMeetingPoint;
+  responseDeadline?: Date | null;
 }) {
   const date = berlinDateFormatter.format(input.startAt);
   const time = berlinTimeFormatter.format(input.startAt);
   if (isTournamentCategory(input.category)) {
-    return `Das ${tournamentDescription(input.category, input.title)} wurde für ${date} um ${time} Uhr freigegeben. ${input.meeting.summary}.`;
+    return `Das ${tournamentDescription(input.category, input.title)} wurde für ${date} um ${time} Uhr freigegeben. ${input.meeting.summary}. ${responseDeadlineMessage(input.responseDeadline)}`.trim();
   }
-  return `Das ${matchCategoryLabel(input.category)} gegen ${input.opponent} wurde für ${date} um ${time} Uhr freigegeben. ${input.meeting.summary}.`;
+  return `Das ${matchCategoryLabel(input.category)} gegen ${input.opponent} wurde für ${date} um ${time} Uhr freigegeben. ${input.meeting.summary}. ${responseDeadlineMessage(input.responseDeadline)}`.trim();
 }
 
 export function buildInternalPublicationMessage(input: {

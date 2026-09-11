@@ -140,7 +140,9 @@ async function familyContactParentOptions(teamIds: string[]) {
 export async function listFamilyContacts(req: Request, res: Response) {
   const user = req.user!;
   const now = new Date();
-  await purgeExpiredFamilyContacts(now);
+  // Dashboard previews must never consume unread messages merely by polling.
+  const preview = req.query.preview === '1';
+  if (!preview) await purgeExpiredFamilyContacts(now);
   const teamIds = await familyContactTeamIds(user);
   const notifications = await prisma.notification.findMany({
     where: {
@@ -212,7 +214,7 @@ export async function listFamilyContacts(req: Request, res: Response) {
   const unreadIds = visible
     .filter((item) => item.notification.readAt == null && item.senderId !== user.id)
     .map((item) => item.notification.id);
-  if (unreadIds.length) {
+  if (!preview && unreadIds.length) {
     await prisma.notification.updateMany({
       where: { id: { in: unreadIds }, userId: user.id },
       data: { readAt },
@@ -257,7 +259,7 @@ export async function listFamilyContacts(req: Request, res: Response) {
         message: item.notification.body,
         createdAt: item.notification.createdAt,
         expiresAt: item.notification.expiresAt,
-        isRead: item.notification.readAt != null || unreadIds.includes(item.notification.id),
+        isRead: item.notification.readAt != null || (!preview && unreadIds.includes(item.notification.id)),
         attachment: attachment
           ? {
               id: attachment.fileAsset.id,

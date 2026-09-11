@@ -2,6 +2,7 @@ import { prepareMatchGameFormat, resetLineupForGameFormat, gameFormatSize, gameF
 import { attendanceAfterRevision } from '../services/attendance-revision';
 import { inheritTournamentSquad, withTournamentRelease } from '../services/tournament-squad.service';
 import { DomainError } from '../services/talents-domain';
+import { recordResponseDeadlineChange, responseDeadlineForWrite, responseDeadlineMessage, responseDeadlinePassed } from '../services/response-deadline';
 import { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { deferWork as waitUntil } from '../middleware/runtime-deferred-work';
@@ -84,7 +85,7 @@ const tournamentCategories = new Set<EventCategory>([
 
 const matchInclude = {
   parentTournament: {
-    select: { id: true, title: true, startAt: true, endAt: true, familyReleasedAt: true, familyReleaseAudience: true },
+    select: { id: true, title: true, startAt: true, endAt: true, responseDeadline: true, familyReleasedAt: true, familyReleaseAudience: true },
   },
   team: {
     select: {
@@ -245,7 +246,7 @@ const matchInclude = {
 // ratings and ticker events. Those belong to GET /matches/:id.
 const matchListInclude = {
   parentTournament: {
-    select: { id: true, title: true, startAt: true, endAt: true, familyReleasedAt: true, familyReleaseAudience: true },
+    select: { id: true, title: true, startAt: true, endAt: true, responseDeadline: true, familyReleasedAt: true, familyReleaseAudience: true },
   },
   team: {
     select: {
@@ -1414,6 +1415,7 @@ export async function updateMatch(req: Request, res: Response) {
   const match = await findMatch(req.params.id, user);
   if (!match) return res.status(404).json({ message: 'Spiel nicht gefunden.' });
   const body = req.body ?? {};
+  const responseDeadline = responseDeadlineForWrite(body, match.startAt, match);
   const opponent = text(body.opponent, 120);
   if (!opponent) return res.status(400).json({ message: 'Der Gegner ist erforderlich.' });
   const opponentId = text(body.opponentId, 100);
@@ -1473,6 +1475,7 @@ export async function updateMatch(req: Request, res: Response) {
     ? text(body.meetingLocation, 160) ?? match.meetingLocation
     : text(body.meetingLocation, 160) ?? AWAY_MEETING_LOCATION;
   const details = await prisma.$transaction(async (tx) => {
+    await recordResponseDeadlineChange(tx, match, responseDeadline);
     await resetLineupForGameFormat(tx, match.id, format.gameFormat);
     const saved = await tx.matchDetails.upsert({
       where: { eventId: match.id },
@@ -1529,6 +1532,7 @@ export async function updateMatch(req: Request, res: Response) {
         address:
           text(body.address, 240) ?? opponentRecord?.address ?? match.address,
         meetingLocation,
+        responseDeadline,
       },
     });
     return saved;
@@ -1678,6 +1682,8 @@ export async function rescheduleMatch(req: Request, res: Response) {
   };
   const now = new Date();
   await prisma.$transaction(async (tx) => {
+    const responseDeadline = responseDeadlineForWrite(req.body, startAt, match);
+    await recordResponseDeadlineChange(tx, match, responseDeadline);
     await tx.event.update({
       where: { id: match.id },
       data: {
@@ -1690,6 +1696,7 @@ export async function rescheduleMatch(req: Request, res: Response) {
         homeAway: isHome ? HomeAway.HOME : HomeAway.AWAY,
         internalNote: text(req.body?.internalNote, 2000) ?? match.internalNote,
         reminderSyncPendingAt: now,
+        responseDeadline,
       },
     });
     await tx.matchDetails.update({
@@ -1790,7 +1797,7 @@ export async function rescheduleMatch(req: Request, res: Response) {
     await notifyUsers(recipientIds, {
       category: NotificationCategory.EVENT_REMINDER,
       title: `Spiel gegen ${opponent} wurde verlegt`,
-      body: `Neuer Termin: ${local} Uhr · Treffpunkt: ${meetingLocation ?? 'noch offen'} · ${location}`,
+      body: `Neuer Termin: ${local} Uhr · Treffpunkt: ${meetingLocation ?? 'noch offen'} · ${location}. ${responseDeadlineMessage(responseDeadlineForWrite(req.body, startAt, match))}`.trim(),
       actionUrl: `/matches/${match.id}`,
       entityType: 'Event',
       entityId: match.id,
@@ -2224,12 +2231,10 @@ export async function publishSquad(req: Request, res: Response) {
     ];
     summaries.push(await notifyUsers(recipientIds, {
       category: NotificationCategory.NOMINATION,
-      title: isLateNomination
+      title: responseDeadlinePassed(match.responseDeadline) ? 'Kadernominierung – Rückmeldefrist geschlossen' : isLateNomination
         ? 'Nachnominierung – Rückmeldung erforderlich'
         : 'Kadernominierung – Rückmeldung erforderlich',
-      body: isLateNomination
-        ? `${playerName} wurde für „${match.title}“ nachnominiert. Bitte jetzt zu- oder absagen.`
-        : `${playerName} wurde für „${match.title}“ nominiert. Bitte jetzt zu- oder absagen.`,
+      body: `${playerName} wurde für „${match.title}“ ${isLateNomination ? 'nachnominiert' : 'nominiert'}. ${responseDeadlinePassed(match.responseDeadline) ? '' : 'Bitte jetzt zu- oder absagen. '}${responseDeadlineMessage(match.responseDeadline)}`.trim(),
       actionUrl: `/family?eventId=${match.id}&playerId=${member.playerId}`,
       entityType: 'AttendanceRequest',
       entityId: `${match.id}:${member.playerId}`,
@@ -2591,6 +2596,7 @@ export async function familyReleasePreview(req: Request, res: Response) {
     title: match.title,
     startAt: match.startAt,
     meeting,
+    responseDeadline: match.responseDeadline,
   });
   return res.json({
     title: match.title,
@@ -2642,6 +2648,7 @@ export async function releaseMatchToFamilies(req: Request, res: Response) {
     title: match.title,
     startAt: match.startAt,
     meeting,
+    responseDeadline: match.responseDeadline,
   });
   const delivery = await notifyUsers(recipientIds, {
     category: NotificationCategory.MATCH,

@@ -48,6 +48,9 @@ EventModel _matchEvent() => EventModel(
       visibility: EventVisibility.team,
       title: 'SV Saal – FC Teugn E1',
       startAt: DateTime.now().add(const Duration(days: 2)),
+      meetingAt: DateTime.now()
+          .add(const Duration(days: 2))
+          .subtract(const Duration(minutes: 45)),
       location: 'Sportplatz Saal',
       homeAway: HomeAway.home,
       opponent: 'SV Saal',
@@ -110,11 +113,11 @@ void main() {
         (tester) async {
       await _pump(tester, width);
 
-      expect(find.text('Heute wichtig'), findsOneWidget);
+      expect(find.text('Alles für deine Fußballwoche'), findsOneWidget);
       expect(find.text('Als Nächstes'), findsOneWidget);
-      expect(find.text('Deine Kinder'), findsOneWidget);
-      expect(find.text('Schnellzugriff'), findsOneWidget);
-      expect(find.text('Max'), findsWidgets);
+      expect(find.text('Alle Kinder'), findsOneWidget);
+      expect(find.text('Postfach öffnen'), findsOneWidget);
+      expect(find.text('Max · E1'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
   }
@@ -123,8 +126,10 @@ void main() {
       (tester) async {
     await _pump(tester, 320, events: [_matchEvent()]);
 
-    expect(find.text('Training'), findsWidgets);
+    expect(find.textContaining('TRAINING'), findsWidgets);
     expect(find.text('FC Teugn E1 – SV Saal'), findsOneWidget);
+    expect(find.text('Beginn'), findsOneWidget);
+    expect(find.text('Treffpunkt'), findsOneWidget);
     expect(find.text('Kein Spiel geplant'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -141,8 +146,7 @@ void main() {
       (tester) async {
     await _pump(tester, 390, pushReady: false);
 
-    expect(find.text('Ruhig startklar werden'), findsOneWidget);
-    expect(find.text('2 von 3 Schritten erledigt'), findsOneWidget);
+    expect(find.text('Wichtige Änderungen direkt erfahren'), findsOneWidget);
     expect(find.text('Push einstellen'), findsOneWidget);
   });
 
@@ -155,15 +159,14 @@ void main() {
     );
 
     final panels = tester.widgetList<Container>(
-      find.byKey(const ValueKey('family-dashboard-adaptive-panel')),
+      find.byKey(const ValueKey('parent-training-card-training-1')),
     );
     expect(panels, isNotEmpty);
     for (final panel in panels) {
       final decoration = panel.decoration! as BoxDecoration;
-      final colors = (decoration.gradient! as LinearGradient).colors;
-      expect(colors, isNot(contains(Colors.white)));
+      expect(decoration.color, isNot(Colors.white));
     }
-    expect(find.text('Heute wichtig'), findsOneWidget);
+    expect(find.text('Alles für deine Fußballwoche'), findsOneWidget);
     expect(find.text('Als Nächstes'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

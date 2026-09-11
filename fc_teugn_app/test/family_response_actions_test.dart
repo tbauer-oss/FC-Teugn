@@ -71,6 +71,7 @@ PersonalResponseModel _response({
   String type = 'TRAINING',
   String category = 'TRAINING',
   DateTime? startAt,
+  DateTime? responseDeadline,
   bool isRegularTraining = false,
 }) {
   return PersonalResponseModel(
@@ -83,6 +84,7 @@ PersonalResponseModel _response({
     type: type,
     category: category,
     startAt: startAt ?? DateTime.now().add(const Duration(days: 3)),
+    responseDeadline: responseDeadline,
     location: 'Sportplatz Teugn',
     responseStatus: status,
     reason: reason,
@@ -116,6 +118,20 @@ Future<void> _pumpPage(
 }
 
 void main() {
+  testWidgets('expired match hides family actions even with stale canRespond',
+      (tester) async {
+    await _pumpPage(
+        tester,
+        _response(
+            type: 'MATCH',
+            category: 'FRIENDLY_MATCH',
+            responseDeadline:
+                DateTime.now().subtract(const Duration(seconds: 1))));
+    expect(find.widgetWithText(FilledButton, 'Zusagen'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Absagen'), findsNothing);
+    expect(find.textContaining('Kader geschlossen seit'), findsOneWidget);
+    expect(find.text('Änderungen nur durch Trainer'), findsOneWidget);
+  });
   testWidgets(
       'family response offers only yes or no and optional decline reason',
       (tester) async {

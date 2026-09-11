@@ -17,6 +17,7 @@ import '../../core/push/push_client.dart';
 import '../../core/widgets/adaptive_layout.dart';
 import '../auth/auth_controller.dart';
 import '../parent/family_assistant_model.dart';
+import '../parent/parent_home_providers.dart';
 import '../shared/page_scaffold.dart';
 
 class CommunicationsPage extends ConsumerStatefulWidget {
@@ -49,6 +50,19 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
   }
 
   void _reload() => setState(() => _revision++);
+
+  @override
+  void didUpdateWidget(covariant CommunicationsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialSection != widget.initialSection) {
+      _view = switch (widget.initialSection) {
+        'contact' => _CommunicationView.familyContact,
+        'notifications' => _CommunicationView.notifications,
+        'settings' => _CommunicationView.settings,
+        _ => _CommunicationView.announcements,
+      };
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +105,7 @@ class _CommunicationsPageState extends ConsumerState<CommunicationsPage> {
     final effectiveView =
         selectedIndex < 0 ? _CommunicationView.announcements : _view;
     return PageScaffold(
-      title: 'Mitteilungscenter',
+      title: widget.staffView ? 'Mitteilungscenter' : 'Postfach',
       subtitle:
           'Alle Informationen, Abstimmungen und Benachrichtigungen zentral organisiert.',
       denseMobileHeader: true,
@@ -249,6 +263,7 @@ class _FamilyContactPanelState extends ConsumerState<_FamilyContactPanel> {
         _loading = false;
       });
       _inboxRevision.value++;
+      if (!widget.staffView) ref.invalidate(parentContactPreviewProvider);
     } catch (error) {
       if (!mounted) return;
       setState(() {

@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { notifyUsers } from './notification.service';
+import { responseDeadlineMessage } from './response-deadline';
 
 export async function reminderRecipientsForEvent(
   eventId: string,
@@ -277,7 +278,7 @@ export async function processDueReminders(now = new Date()) {
           timeZone: 'Europe/Berlin',
           hour: '2-digit',
           minute: '2-digit',
-        })} Uhr.`,
+        })} Uhr. ${responseDeadlineMessage(job.event.responseDeadline, now)}`.trim(),
         actionUrl: job.event.type === EventType.MATCH
           ? `/matches/${job.eventId}`
           : job.event.category === EventCategory.TRAINING

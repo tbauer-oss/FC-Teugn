@@ -10,6 +10,8 @@ import {
   fieldSizeForGameFormat,
   syncSquadWithTeamDefaultLineup,
 } from './default-lineup.service';
+import { DomainError } from './talents-domain';
+import { responseDeadlinePassed } from './response-deadline';
 
 const AUTOMATIC_DAILY_DECLINE_PREFIX = 'Automatisch abgesagt:';
 const berlinDayFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -46,6 +48,7 @@ type AcceptanceInput = {
   responderRelationship?: GuardianRelationship | null;
   goalkeeperAvailable?: boolean | null;
   honorLaterExistingAcceptance?: boolean;
+  protectClosedMatches?: boolean;
 };
 
 function berlinDayParts(value: Date): BerlinDay {
@@ -195,6 +198,8 @@ export async function acceptAttendanceExclusivelyForDay(
           title: true,
           startAt: true,
           type: true,
+          responseDeadline: true,
+          attendanceFinalized: true,
           teamId: true,
           targetTeams: { select: { teamId: true }, take: 1 },
         },
@@ -217,9 +222,19 @@ export async function acceptAttendanceExclusivelyForDay(
   }) : [];
   const protectedIds = new Set(approvals.flatMap(a => [a.firstEventId, a.secondEventId]));
   const conflicts = allConflicts.filter(c => !protectedIds.has(c.event.id));
+  const protectClosedMatches = input.protectClosedMatches ??
+    (input.honorLaterExistingAcceptance || input.responseSource === AttendanceResponseSource.GUARDIAN || input.responseSource === AttendanceResponseSource.PLAYER);
+  const closedConflict = protectClosedMatches && conflicts.find(c =>
+    c.event.type === EventType.MATCH &&
+    (c.event.attendanceFinalized || responseDeadlinePassed(c.event.responseDeadline)));
+  if (closedConflict && !input.honorLaterExistingAcceptance) {
+    throw new DomainError(409, `Der Kader für ${eventLabel(closedConflict.event)} ist bereits geschlossen. Diese Zusage würde die bestehende Spielzusage ändern. Bitte das Trainerteam kontaktieren.`);
+  }
 
   const laterConflict = input.honorLaterExistingAcceptance
-    ? conflicts
+    // Passive series reconciliation must leave the closed match in place,
+    // regardless of response age, without breaking calendar reads.
+    ? closedConflict || conflicts
         .filter(
           (item) =>
             (item.respondedAt ?? item.updatedAt).getTime() >

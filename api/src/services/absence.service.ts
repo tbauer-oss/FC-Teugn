@@ -1,5 +1,6 @@
 import { AttendanceStatus, PlayerAbsence, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { responseDeadlinePassed } from './response-deadline';
 
 const berlinDay = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' });
 export function absenceApplies(absence: Pick<PlayerAbsence, 'startsOn' | 'endsOn' | 'weekdays' | 'eventTypes' | 'teamIds' | 'endedAt'>,
@@ -34,6 +35,9 @@ export async function reconcilePlayerAbsences(tx: Prisma.TransactionClient, play
       OR: [{ teamId: { in: teamIds } }, { targetTeams: { some: { teamId: { in: teamIds } } } }, { attendance: { some: { playerId: player.id, absenceId: { not: null } } } }],
     }, include: { attendance: { where: { playerId: player.id } }, targetTeams: true, participants: true } });
     for (const event of events) {
+      // Planned absences must not silently rewrite a closed match roster.
+      // Staff can still explicitly correct the individual match response.
+      if (event.type === 'MATCH' && responseDeadlinePassed(event.responseDeadline, now)) continue;
       const old = event.attendance[0];
       const requested = event.participants.filter(p => p.playerId && p.responseRequired).map(p => p.playerId);
       if (requested.length && !requested.includes(player.id) && !old?.absenceId) continue;

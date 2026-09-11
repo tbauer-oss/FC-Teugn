@@ -1,5 +1,6 @@
 import '../carpool/carpool_section.dart';
 import 'dart:async';
+import '../shared/response_deadline.dart';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -451,6 +452,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage>
           title: current.title,
           startAt: current.startAt,
           meetingAt: current.meetingAt,
+          responseDeadline: current.responseDeadline,
           meetingLocation: current.meetingLocation,
           location: current.location,
           teamId: current.teamId,
@@ -529,6 +531,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage>
         title: current.title,
         startAt: current.startAt,
         meetingAt: current.meetingAt,
+        responseDeadline: current.responseDeadline,
         meetingLocation: current.meetingLocation,
         location: current.location,
         teamId: current.teamId,
@@ -571,6 +574,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage>
         title: current.title,
         startAt: current.startAt,
         meetingAt: current.meetingAt,
+        responseDeadline: current.responseDeadline,
         meetingLocation: current.meetingLocation,
         location: current.location,
         teamId: current.teamId,
@@ -619,6 +623,7 @@ class _MatchdayPageState extends ConsumerState<MatchdayPage>
         title: current.title,
         startAt: current.startAt,
         meetingAt: current.meetingAt,
+        responseDeadline: current.responseDeadline,
         meetingLocation: current.meetingLocation,
         location: current.location,
         teamId: current.teamId,
@@ -2464,6 +2469,11 @@ class MatchOverview extends StatelessWidget {
             padding: EdgeInsets.fromLTRB(0, 4, 0, compact ? 44 : 30),
             children: [
               CarpoolDashboardCard(eventId: match.id),
+              if (match.responseDeadline != null) ...[
+                const SizedBox(height: 8),
+                ResponseDeadlineNotice(
+                    deadline: match.responseDeadline, staffView: staffView),
+              ],
               const SizedBox(height: 8),
               _OverviewStatusCard(
                 status: status,
@@ -3210,6 +3220,8 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
               key: const ValueKey('tournament-master-squad'),
               padding: const EdgeInsets.only(bottom: 16),
               children: [
+                ResponseDeadlineNotice(
+                    deadline: widget.match.responseDeadline, staffView: true),
                 const Text('Turnierkader',
                     style:
                         TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
@@ -3276,6 +3288,7 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
             return ListView(
               padding: EdgeInsets.zero,
               children: [
+                ResponseDeadlineNotice(deadline: widget.match.responseDeadline),
                 for (final member in members)
                   Card(
                     margin: EdgeInsets.only(bottom: compact ? 4 : 8),
@@ -3305,6 +3318,8 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
               bottom: MediaQuery.paddingOf(context).bottom + 16,
             ),
             children: [
+              ResponseDeadlineNotice(
+                  deadline: widget.match.responseDeadline, staffView: true),
               if (widget.loadingPlayers) ...[
                 const _SquadLoadingStatus(),
                 SizedBox(height: compact ? 8 : 12),

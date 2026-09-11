@@ -314,9 +314,11 @@ final personalResponsesProvider =
   final now = DateTime.now();
   final dayStart = DateTime(now.year, now.month, now.day);
   final days = switch (period) {
-    PersonalResponsePeriod.oneWeek => 7,
-    PersonalResponsePeriod.twoWeeks => 14,
-    PersonalResponsePeriod.fourWeeks => 28,
+    // The home/family overview needs the same six-week horizon as its events.
+    // The response page still applies its selected period locally.
+    PersonalResponsePeriod.oneWeek => 42,
+    PersonalResponsePeriod.twoWeeks => 42,
+    PersonalResponsePeriod.fourWeeks => 42,
     PersonalResponsePeriod.allUpcoming => 370,
   };
   return ref.watch(repositoryProvider).personalResponses(

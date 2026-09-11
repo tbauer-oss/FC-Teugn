@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+require('./family-contact-preview.test.js');
 
 test('staff notification deletion is role protected and user scoped', () => {
   const routes = fs.readFileSync(

@@ -59,6 +59,7 @@ class MatchdayModel {
     this.parentTournamentId,
     this.address,
     this.meetingAt,
+    this.responseDeadline,
     this.meetingLocation,
     this.details,
     this.squad,
@@ -91,6 +92,7 @@ class MatchdayModel {
   final String title;
   final DateTime startAt;
   final DateTime? meetingAt;
+  final DateTime? responseDeadline;
   final String? meetingLocation;
   final String location;
   final String? address;
@@ -131,6 +133,9 @@ class MatchdayModel {
       id: json['id'] as String,
       title: json['title'] as String? ?? 'Spiel',
       startAt: DateTime.parse(json['startAt'] as String),
+      responseDeadline: json['responseDeadline'] == null
+          ? null
+          : DateTime.parse(json['responseDeadline'] as String).toLocal(),
       meetingAt: json['meetingAt'] == null
           ? null
           : DateTime.parse(json['meetingAt'] as String),

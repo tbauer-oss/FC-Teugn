@@ -199,7 +199,7 @@ class _HelpPageState extends State<HelpPage> {
                       icon: Icons.how_to_reg_rounded,
                       title: 'Rückmeldung',
                       caption: 'Verbindlich zu- oder absagen',
-                      onTap: () => context.go('/parent/family'),
+                      onTap: () => context.go('/parent/responses'),
                     ),
                     _QuickHelpAction(
                       icon: Icons.forum_rounded,

@@ -138,9 +138,10 @@ export async function inheritTournamentSquad(tx: Prisma.TransactionClient, fixtu
 /** The parent release is authoritative for every tournament fixture. */
 export function withTournamentRelease<T extends {
   familyReleasedAt: Date | null;
-  parentTournament?: { familyReleasedAt: Date | null; familyReleaseAudience: string | null } | null;
+  parentTournament?: { familyReleasedAt: Date | null; familyReleaseAudience: string | null; responseDeadline?: Date | null } | null;
 }>(event: T): T {
   if (!event.parentTournament) return event;
   return { ...event, familyReleasedAt: event.parentTournament.familyReleasedAt,
+    ...('responseDeadline' in event.parentTournament ? { responseDeadline: event.parentTournament.responseDeadline } : {}),
     familyReleaseAudience: event.parentTournament.familyReleaseAudience };
 }

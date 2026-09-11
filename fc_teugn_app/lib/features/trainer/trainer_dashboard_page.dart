@@ -239,6 +239,8 @@ class TrainerDashboardPage extends ConsumerWidget {
           if (nextMatch != null)
             ModernDashboardEventCard(
               date: nextMatch.startAt,
+              isMatch: true,
+              meetingAt: nextMatch.meetingAt,
               title: nextMatch.fixtureDisplayTitle,
               subtitle: nextMatch.fixtureIsHome == false
                   ? 'Auswärtsspiel'
@@ -1208,6 +1210,7 @@ void _showCombinedTrainingResponses(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    showDragHandle: false,
     builder: (context) => _CombinedTrainingResponsesSheet(
       events: events,
       players: players,
@@ -1221,6 +1224,7 @@ typedef _TrainingResponseEntry = ({
   String name,
   String? reason,
   DateTime? respondedAt,
+  String teamId,
   String team,
   AttendanceStatus status,
   bool canManage,
@@ -1258,6 +1262,13 @@ String _compactTeamLabel(
   }
   for (final team in event.targetTeams) {
     if (team.id != teamId) continue;
+    final name = team.name.trim();
+    final numberedTeam =
+        RegExp(r'([A-ZÄÖÜ]+)\s*[- ]?\s*(\d+)', caseSensitive: false)
+            .firstMatch(name);
+    if (numberedTeam != null) {
+      return '${numberedTeam.group(1)}${numberedTeam.group(2)}'.toUpperCase();
+    }
     final code = team.ageGroupCode.trim();
     if (code.isNotEmpty) return code.toUpperCase();
     if (team.name.trim().isNotEmpty) return team.name.trim();
@@ -1310,6 +1321,7 @@ _TrainingResponseGroups _trainingResponseGroups(
                   'Spieler',
               reason: item.reason,
               respondedAt: item.respondedAt,
+              teamId: playersById[item.playerId]?.teamId ?? event.teamId,
               team: teamFor(item.playerId),
               status: item.status,
               canManage: event.capabilities.canManage,
@@ -1332,6 +1344,7 @@ _TrainingResponseGroups _trainingResponseGroups(
           name: item.name,
           reason: null as String?,
           respondedAt: null as DateTime?,
+          teamId: playersById[item.id]?.teamId ?? event.teamId,
           team: teamFor(item.id),
           status: AttendanceStatus.unknown,
           canManage: event.capabilities.canManage,
@@ -1353,6 +1366,7 @@ _TrainingResponseGroups _trainingResponseGroups(
                 'Spieler',
             reason: null as String?,
             respondedAt: null as DateTime?,
+            teamId: playersById[item.playerId]?.teamId ?? event.teamId,
             team: teamFor(item.playerId),
             status: AttendanceStatus.unknown,
             canManage: event.capabilities.canManage,
@@ -1373,6 +1387,7 @@ _TrainingResponseGroups _trainingResponseGroups(
               name: player.fullName,
               reason: null as String?,
               respondedAt: null as DateTime?,
+              teamId: player.teamId ?? event.teamId,
               team: teamFor(player.id),
               status: AttendanceStatus.unknown,
               canManage: event.capabilities.canManage,
@@ -1596,14 +1611,8 @@ class _CombinedTrainingResponsesSheetState
         .toSet()
         .toList()
       ..sort();
-    final total = yes.length + no.length + open.length;
-    final manageableEvents = _events
-        .where(
-          (event) =>
-              event.capabilities.canManage &&
-              event.category == EventCategory.training,
-        )
-        .toList();
+    final total =
+        [...yes, ...no, ...open].map((entry) => entry.playerId).toSet().length;
 
     return FractionallySizedBox(
       key: const ValueKey('combined-training-responses-sheet'),
@@ -1656,75 +1665,15 @@ class _CombinedTrainingResponsesSheetState
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (var index = 0; index < _events.length; index++) ...[
-                      _CombinedTrainingEventBadge(
-                        team: _eventCompactTeamLabels(
-                          _events[index],
-                          organization,
-                        ),
-                        event: _events[index],
-                      ),
-                      if (index != _events.length - 1) const SizedBox(width: 5),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            if (manageableEvents.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (var index = 0;
-                          index < manageableEvents.length;
-                          index++) ...[
-                        OutlinedButton.icon(
-                          key: ValueKey(
-                            _events.length == 1
-                                ? 'trainer-training-reminder'
-                                : 'trainer-training-reminder-${manageableEvents[index].id}',
-                          ),
-                          onPressed: () => showEventAttendanceReminder(
-                            context,
-                            ref,
-                            manageableEvents[index],
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 5,
-                            ),
-                          ),
-                          icon: const Icon(
-                            Icons.notifications_active_rounded,
-                            size: 15,
-                          ),
-                          label: Text(
-                            '${_eventCompactTeamLabels(manageableEvents[index], organization)} erinnern',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                        ),
-                        if (index != manageableEvents.length - 1)
-                          const SizedBox(width: 5),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
             Expanded(
               child: _FilteredTrainingResponses(
+                events: _events,
+                organization: organization,
+                onRemind: (event) => showEventAttendanceReminder(
+                  context,
+                  ref,
+                  event,
+                ),
                 yes: yes,
                 no: no,
                 open: open,
@@ -1753,36 +1702,15 @@ String _attendanceUpdateErrorMessage(Object error) {
   return 'Die Rückmeldung konnte nicht geändert werden.';
 }
 
-class _CombinedTrainingEventBadge extends StatelessWidget {
-  const _CombinedTrainingEventBadge({required this.team, required this.event});
-
-  final String team;
-  final EventModel event;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-        decoration: BoxDecoration(
-          color: context.appColors.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: context.appColors.outline),
-        ),
-        child: Text(
-          '$team · ${_shortDate(event.startAt)}, ${_time(event.startAt)} Uhr'
-          '${event.location.trim().isEmpty ? '' : ' · ${event.location.trim()}'}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
-        ),
-      );
-}
-
 enum _TrainingResponseFilter { all, yes, no, open }
 
 enum _TrainingResponseAction { unknown, yes, no, remove }
 
 class _FilteredTrainingResponses extends StatefulWidget {
   const _FilteredTrainingResponses({
+    required this.events,
+    required this.organization,
+    required this.onRemind,
     required this.yes,
     required this.no,
     required this.open,
@@ -1791,6 +1719,9 @@ class _FilteredTrainingResponses extends StatefulWidget {
     required this.onRemove,
   });
 
+  final List<EventModel> events;
+  final OrganizationContext? organization;
+  final void Function(EventModel event) onRemind;
   final List<_TrainingResponseEntry> yes;
   final List<_TrainingResponseEntry> no;
   final List<_TrainingResponseEntry> open;
@@ -1809,85 +1740,216 @@ class _FilteredTrainingResponses extends StatefulWidget {
 class _FilteredTrainingResponsesState
     extends State<_FilteredTrainingResponses> {
   _TrainingResponseFilter filter = _TrainingResponseFilter.all;
+  String? selectedTeamId;
 
   @override
   Widget build(BuildContext context) {
-    final total = widget.yes.length + widget.no.length + widget.open.length;
-    return Column(
+    final teams = <String, String>{
+      for (final event in widget.events)
+        for (final teamId in {
+          event.teamId,
+          ...event.targetTeams.map((t) => t.id)
+        })
+          teamId: _compactTeamLabel(teamId, event, widget.organization),
+    };
+    final teamIds = teams.keys.toList()
+      ..sort((a, b) {
+        final byLabel = teams[a]!.compareTo(teams[b]!);
+        return byLabel == 0 ? a.compareTo(b) : byLabel;
+      });
+    final activeTeamId =
+        teams.containsKey(selectedTeamId) ? selectedTeamId : null;
+    List<_TrainingResponseEntry> selected(
+            List<_TrainingResponseEntry> entries) =>
+        entries
+            .where(
+                (entry) => activeTeamId == null || entry.teamId == activeTeamId)
+            .toList();
+    final yes = selected(widget.yes);
+    final no = selected(widget.no);
+    final open = selected(widget.open);
+    final total = yes.length + no.length + open.length;
+    final events = widget.events
+        .where((event) =>
+            activeTeamId == null ||
+            event.teamId == activeTeamId ||
+            event.targetTeams.any((t) => t.id == activeTeamId))
+        .toList()
+      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+
+    // Filters and reminders scroll with the roster, leaving usable space even
+    // in landscape or with enlarged system text.
+    return ListView(
+      key: const ValueKey('training-responses-list'),
+      padding: const EdgeInsets.only(top: 6, bottom: 12),
       children: [
-        const SizedBox(height: 6),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
+        if (teams.length > 1) ...[
+          Wrap(
+            spacing: 6,
+            runSpacing: 2,
             children: [
-              _filterChip('Alle', total, _TrainingResponseFilter.all),
-              _filterChip(
-                'Zugesagt',
-                widget.yes.length,
-                _TrainingResponseFilter.yes,
+              ChoiceChip(
+                key: const ValueKey('training-team-filter-all'),
+                label: const Text('Alle Mannschaften'),
+                labelStyle: const TextStyle(
+                    fontFamily: 'Arial',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700),
+                selected: activeTeamId == null,
+                onSelected: (_) => setState(() => selectedTeamId = null),
               ),
-              _filterChip(
-                'Abgesagt',
-                widget.no.length,
-                _TrainingResponseFilter.no,
-              ),
-              _filterChip(
-                'Offen',
-                widget.open.length,
-                _TrainingResponseFilter.open,
-              ),
+              for (final teamId in teamIds)
+                ChoiceChip(
+                  key: ValueKey('training-team-filter-$teamId'),
+                  label: Text(teams[teamId]!),
+                  labelStyle: const TextStyle(
+                      fontFamily: 'Arial',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700),
+                  selected: activeTeamId == teamId,
+                  onSelected: (_) => setState(() => selectedTeamId = teamId),
+                ),
             ],
           ),
+          const SizedBox(height: 4),
+        ],
+        Wrap(
+          spacing: 6,
+          runSpacing: 2,
+          children: [
+            _filterChip('Alle', total, _TrainingResponseFilter.all),
+            _filterChip('Zugesagt', yes.length, _TrainingResponseFilter.yes),
+            _filterChip('Abgesagt', no.length, _TrainingResponseFilter.no),
+            _filterChip('Offen', open.length, _TrainingResponseFilter.open),
+          ],
         ),
-        const SizedBox(height: 1),
-        Expanded(
-          child: total == 0
-              ? Center(
-                  child: Text(
-                    'Noch keine Rückmeldungen vorhanden.',
-                    style: TextStyle(color: context.appColors.textMuted),
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  children: [
-                    if ((filter == _TrainingResponseFilter.all ||
-                            filter == _TrainingResponseFilter.yes) &&
-                        widget.yes.isNotEmpty)
-                      _TrainingResponseGroup(
-                        title: 'Zugesagt',
-                        color: context.appSuccess,
-                        entries: widget.yes,
-                        savingResponses: widget.savingResponses,
-                        onStatusChanged: widget.onStatusChanged,
-                        onRemove: widget.onRemove,
-                      ),
-                    if ((filter == _TrainingResponseFilter.all ||
-                            filter == _TrainingResponseFilter.no) &&
-                        widget.no.isNotEmpty)
-                      _TrainingResponseGroup(
-                        title: 'Abgesagt',
-                        color: Colors.redAccent,
-                        entries: widget.no,
-                        savingResponses: widget.savingResponses,
-                        onStatusChanged: widget.onStatusChanged,
-                        onRemove: widget.onRemove,
-                      ),
-                    if ((filter == _TrainingResponseFilter.all ||
-                            filter == _TrainingResponseFilter.open) &&
-                        widget.open.isNotEmpty)
-                      _TrainingResponseGroup(
-                        title: 'Keine Rückmeldung',
-                        color: context.appColors.textMuted,
-                        entries: widget.open,
-                        savingResponses: widget.savingResponses,
-                        onStatusChanged: widget.onStatusChanged,
-                        onRemove: widget.onRemove,
-                      ),
-                  ],
+        Wrap(
+          spacing: 6,
+          children: [
+            for (final event in events)
+              if (event.capabilities.canManage &&
+                  event.category == EventCategory.training)
+                OutlinedButton.icon(
+                  key: ValueKey(widget.events.length == 1
+                      ? 'trainer-training-reminder'
+                      : 'trainer-training-reminder-${event.id}'),
+                  onPressed: () => widget.onRemind(event),
+                  icon:
+                      const Icon(Icons.notifications_active_rounded, size: 18),
+                  // A shared training reminder still addresses the whole event.
+                  label: Text(
+                      '${_eventCompactTeamLabels(event, widget.organization)} erinnern'
+                      '${events.length > 1 ? ' · ${_shortDate(event.startAt)}, ${_time(event.startAt)}' : ''}'),
                 ),
+          ],
         ),
+        for (final teamId in teamIds)
+          if (activeTeamId == null || activeTeamId == teamId)
+            for (final event in events)
+              if (event.teamId == teamId ||
+                  event.targetTeams.any((t) => t.id == teamId))
+                _teamSection(
+                  teamId: teamId,
+                  team: teams[teamId]!,
+                  event: event,
+                  yes: yes
+                      .where((e) => e.teamId == teamId && e.eventId == event.id)
+                      .toList(),
+                  no: no
+                      .where((e) => e.teamId == teamId && e.eventId == event.id)
+                      .toList(),
+                  open: open
+                      .where((e) => e.teamId == teamId && e.eventId == event.id)
+                      .toList(),
+                ),
       ],
+    );
+  }
+
+  Widget _teamSection({
+    required String teamId,
+    required String team,
+    required EventModel event,
+    required List<_TrainingResponseEntry> yes,
+    required List<_TrainingResponseEntry> no,
+    required List<_TrainingResponseEntry> open,
+  }) {
+    final visibleGroups = [
+      if (filter == _TrainingResponseFilter.all ||
+          filter == _TrainingResponseFilter.yes)
+        (title: 'Zugesagt', color: context.appSuccess, entries: yes),
+      if (filter == _TrainingResponseFilter.all ||
+          filter == _TrainingResponseFilter.no)
+        (title: 'Abgesagt', color: Colors.redAccent, entries: no),
+      if (filter == _TrainingResponseFilter.all ||
+          filter == _TrainingResponseFilter.open)
+        (
+          title: 'Keine Rückmeldung',
+          color: context.appColors.textMuted,
+          entries: open
+        ),
+    ];
+    return Container(
+      key: ValueKey('training-team-section-$teamId-${event.id}'),
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.appColors.surface,
+        border: Border.all(color: context.appColors.outline),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$team · Training',
+              style:
+                  const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 3),
+          Text('${_shortDate(event.startAt)} · ${_time(event.startAt)} Uhr',
+              style:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          if (event.location.trim().isNotEmpty)
+            Text(event.location.trim(),
+                style: TextStyle(
+                    fontSize: 13, color: context.appColors.textMuted)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              Text('${yes.length} zugesagt',
+                  style: TextStyle(
+                      color: context.appSuccess, fontWeight: FontWeight.w700)),
+              Text('${no.length} abgesagt',
+                  style: const TextStyle(
+                      color: Colors.redAccent, fontWeight: FontWeight.w700)),
+              Text('${open.length} offen',
+                  style: TextStyle(
+                      color: context.appColors.textMuted,
+                      fontWeight: FontWeight.w700)),
+            ],
+          ),
+          for (final group in visibleGroups)
+            if (group.entries.isNotEmpty)
+              _TrainingResponseGroup(
+                title: group.title,
+                color: group.color,
+                entries: group.entries,
+                savingResponses: widget.savingResponses,
+                onStatusChanged: widget.onStatusChanged,
+                onRemove: widget.onRemove,
+              ),
+          if (visibleGroups.every((group) => group.entries.isEmpty))
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                  filter == _TrainingResponseFilter.all
+                      ? 'Keine Spieler für dieses Training.'
+                      : 'Keine Spieler mit diesem Rückmeldestatus.',
+                  style: TextStyle(color: context.appColors.textMuted)),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1896,14 +1958,14 @@ class _FilteredTrainingResponsesState
     int count,
     _TrainingResponseFilter value,
   ) =>
-      Padding(
-        padding: const EdgeInsets.only(right: 6),
-        child: ChoiceChip(
-          selected: filter == value,
-          onSelected: (_) => setState(() => filter = value),
-          visualDensity: VisualDensity.compact,
-          label: Text('$label $count'),
-        ),
+      ChoiceChip(
+        key: ValueKey('training-status-filter-${value.name}'),
+        labelStyle: const TextStyle(
+            fontFamily: 'Arial', fontSize: 13, fontWeight: FontWeight.w700),
+        selected: filter == value,
+        onSelected: (_) => setState(() => filter = value),
+        visualDensity: VisualDensity.compact,
+        label: Text('$label $count'),
       );
 }
 
@@ -1951,15 +2013,17 @@ class _TrainingResponseGroup extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    color: color,
-                    fontSize: 13,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: color,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 6),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -2047,7 +2111,7 @@ class _TrainingResponsePersonChip extends StatelessWidget {
           children: [
             Icon(Icons.person_rounded, color: color, size: 16),
             const SizedBox(width: 5),
-            Flexible(
+            Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2062,7 +2126,7 @@ class _TrainingResponsePersonChip extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 12,
+                            fontSize: 13,
                           ),
                         ),
                       ),

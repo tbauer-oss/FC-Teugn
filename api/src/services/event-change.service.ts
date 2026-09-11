@@ -2,13 +2,14 @@ import { prisma } from '../lib/prisma';
 import { reminderRecipientsForEvent, syncScheduledRemindersForEvent } from './reminder.service';
 import { queueUserNotifications } from './notification.service';
 import { ImportSnapshot, importFieldLabels } from './competition-merge';
+import { responseDeadlineMessage } from './response-deadline';
 
 const dateFormatter = new Intl.DateTimeFormat('de-DE', {
   timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short',
 });
 export function eventChangeMessage(before: ImportSnapshot, after: ImportSnapshot, fields: string[]) {
   const display = (key: string, value: ImportSnapshot[string]) =>
-    value == null ? 'nicht angegeben' : key.endsWith('At') ? dateFormatter.format(new Date(String(value)))
+    value == null ? 'nicht angegeben' : key.endsWith('At') || key === 'responseDeadline' ? dateFormatter.format(new Date(String(value)))
       : value === 'CANCELLED' ? 'abgesagt' : value === 'SCHEDULED' ? 'geplant' : String(value);
   return fields.map(key => `${importFieldLabels[key] ?? key}: ${display(key, before[key])} → ${display(key, after[key])}`).join(' · ');
 }
@@ -27,7 +28,7 @@ export async function processEventChanges(limit = 30) {
         }, select: { id: true } })).map(user => user.id);
         await queueUserNotifications(recipients, {
           category: 'EVENT', title: `${event.status === 'CANCELLED' ? 'Termin abgesagt' : 'Termin geändert'}: ${event.title}`,
-          body: eventChangeMessage(change.before as ImportSnapshot, change.after as ImportSnapshot, change.fields),
+          body: `${eventChangeMessage(change.before as ImportSnapshot, change.after as ImportSnapshot, change.fields)}. ${event.responseDeadline ? responseDeadlineMessage(event.responseDeadline) : change.fields.includes('responseDeadline') ? 'Die Rückmeldefrist wurde aufgehoben. Zu- und Absagen sind wieder möglich, sofern die Rückmeldungen nicht bereits abgeschlossen wurden.' : ''}`.trim(),
           actionUrl: event.type === 'MATCH' ? `/matches/${event.id}` : `/events/${event.id}`,
           entityType: 'Event', entityId: event.id, dedupeKey: `event-change:${change.id}`,
           metadata: { before: change.before, after: change.after, fields: change.fields },

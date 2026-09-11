@@ -26,6 +26,7 @@ import {
 import { matchResponseRoster, openAttendancePlayerIds } from '../services/attendance-summary';
 import { prisma } from '../lib/prisma';
 import { DomainError } from '../services/talents-domain';
+import { recordResponseDeadlineChange, responseDeadlineForWrite, responseDeadlineMessage, responseDeadlinePassed } from '../services/response-deadline';
 import { Role } from '../types/enums';
 import {
   hasEffectivePermission,
@@ -82,7 +83,7 @@ import {
 const eventInclude = {
   series: true,
   parentTournament: {
-    select: { id: true, title: true, startAt: true, endAt: true },
+    select: { id: true, title: true, startAt: true, endAt: true, responseDeadline: true },
   },
   tournamentFixtures: {
     orderBy: { startAt: 'asc' as const },
@@ -258,7 +259,7 @@ function safeHttpUrl(value: unknown) {
 
 function validDate(value: unknown) {
   if (!value) return null;
-  const result = new Date(String(value));
+  const result = value instanceof Date ? new Date(value.getTime()) : new Date(String(value));
   return Number.isNaN(result.getTime()) ? null : result;
 }
 
@@ -547,6 +548,7 @@ async function serializeEvent(
 
   return {
     ...event,
+    responseDeadline: event.parentTournament ? event.parentTournament.responseDeadline : event.responseDeadline,
     squads: undefined,
     carpoolPlayerIds: [...new Set([
       ...explicitParticipantPlayers.map(player => player.id),
@@ -710,12 +712,15 @@ async function serializeEvent(
           user.permissions,
         ),
       canRespond:
+        !event.attendanceFinalized && !responseDeadlinePassed(
+          event.parentTournament ? event.parentTournament.responseDeadline : event.responseDeadline,
+        ) && (
         personalPlayerIds.length > 0 ||
         hasEffectivePermission(
           user.role as Role,
           Permission.RESPOND_ATTENDANCE,
           user.permissions,
-        ),
+        )),
       canOfferRide: user.role !== Role.READ_ONLY,
       canOpenEmergencyView:
         hasPermission(user.role as Role, Permission.VIEW_SENSITIVE_PLAYER) &&
@@ -1401,9 +1406,7 @@ export async function listPersonalResponses(req: Request, res: Response) {
       // A match squad is a draft until publishing creates the request.
       if (event.type === EventType.MATCH && !response && !explicitlyRequested) return [];
       if (!response && !explicitlyRequested && !appliesToTeam) return [];
-      const deadlinePassed = Boolean(
-        event.responseDeadline && event.responseDeadline.getTime() < now.getTime(),
-      );
+      const deadlinePassed = responseDeadlinePassed(event.responseDeadline, now);
       const needsConfirmation = !!event.responseRevisionAt && !!response && !response.absenceId &&
         (!response.respondedAt || response.respondedAt < event.responseRevisionAt);
       const responseStatus = needsConfirmation || response?.status === AttendanceStatus.MAYBE
@@ -1527,7 +1530,7 @@ export async function setRegularTrainingAttendancePreference(
       message: 'Die Rückmeldungen wurden bereits abgeschlossen.',
     });
   }
-  if (event.responseDeadline && event.responseDeadline < new Date()) {
+  if (responseDeadlinePassed(event.responseDeadline)) {
     return res.status(409).json({
       message: 'Die Rückmeldefrist ist abgelaufen. Bitte das Trainerteam kontaktieren.',
     });
@@ -1752,6 +1755,7 @@ export async function createEvent(req: Request, res: Response) {
   if (!data.startAt) {
     return res.status(400).json({ message: 'Beginn ist erforderlich.' });
   }
+  data.responseDeadline = responseDeadlineForWrite(req.body, data.startAt);
   if (data.endAt && data.endAt < data.startAt) {
     return res.status(400).json({ message: 'Das Ende darf nicht vor dem Beginn liegen.' });
   }
@@ -2105,6 +2109,7 @@ export async function updateEvent(req: Request, res: Response) {
   if (!parsed.startAt) {
     return res.status(400).json({ message: 'Beginn ist erforderlich.' });
   }
+  parsed.responseDeadline = responseDeadlineForWrite(req.body, parsed.startAt, existing);
   const attachments = parseEventAttachments(req.body.attachments);
   if (!attachments) {
     return res.status(400).json({
@@ -2208,6 +2213,7 @@ export async function updateEvent(req: Request, res: Response) {
       });
       for (const occurrence of future) {
         const startAt = new Date(occurrence.startAt.getTime() + delta);
+        await recordResponseDeadlineChange(tx, occurrence, deadlineOffset === null ? null : new Date(startAt.getTime() + deadlineOffset));
         await tx.event.update({
           where: { id: occurrence.id },
           data: {
@@ -2321,6 +2327,9 @@ export async function updateEvent(req: Request, res: Response) {
       } else if (isTournamentCategory(parsed.category)) {
         await tx.matchDetails.deleteMany({ where: { eventId: existing.id } });
       }
+    }
+    if (scope !== 'series' || !existing.seriesId) {
+      await recordResponseDeadlineChange(tx, existing, parsed.responseDeadline);
     }
     await tx.auditLog.create({
       data: {
@@ -2779,11 +2788,11 @@ export async function setAttendance(req: Request, res: Response) {
   }
   if (
     !canCorrectAttendance &&
-    event.responseDeadline &&
-    event.responseDeadline < new Date()
+    responseDeadlinePassed(event.responseDeadline)
   ) {
     return res.status(409).json({
-      message: 'Die Rückmeldefrist ist abgelaufen. Bitte das Trainerteam kontaktieren.',
+      code: 'RESPONSE_DEADLINE_PASSED',
+      message: responseDeadlineMessage(event.responseDeadline),
     });
   }
   const eventTeamIds = event.targetTeams.length
@@ -2865,6 +2874,15 @@ export async function setAttendance(req: Request, res: Response) {
   }
   const attendance = await prisma.$transaction(async (tx) => {
     const respondedAt = new Date();
+    // Recheck at write time, including requests opened before the cutoff.
+    if (!canCorrectAttendance) {
+      await lockPlayerDay(tx, playerId, berlinCalendarDayRange(event.startAt).key);
+      const current = await tx.event.findUniqueOrThrow({ where: { id: event.id } });
+      if (responseDeadlinePassed(current.responseDeadline)) {
+        throw new DomainError(409, responseDeadlineMessage(current.responseDeadline));
+      }
+      if (current.attendanceFinalized) throw new DomainError(409, 'Die Rückmeldungen wurden bereits abgeschlossen. Bitte das Trainerteam kontaktieren.');
+    }
     const goalkeeperAvailable =
       typeof req.body.goalkeeperAvailable === 'boolean'
         ? req.body.goalkeeperAvailable
@@ -2922,6 +2940,7 @@ export async function setAttendance(req: Request, res: Response) {
           responseSource,
           responderRelationship: parentLink?.relationship ?? null,
           goalkeeperAvailable,
+          protectClosedMatches: !canCorrectAttendance,
         })
       : null;
     const reply = exclusiveAcceptance?.reply ?? await tx.attendance.upsert({
@@ -3302,11 +3321,11 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
     player.parentLinks.forEach((link) => recipientIds.add(link.parentId));
   }
   const missingPlayers = players.filter((player) => !replied.has(player.id)).length;
-  const message =
-    clean(req.body.message) ??
+  const message = `${clean(req.body.message) ??
     (audience === 'ALL'
       ? `Erinnerung an „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`
-      : `Bitte Rückmeldung zu „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`);
+      : responseDeadlinePassed(event.responseDeadline) ? `Information zu „${event.title}“.`
+        : `Bitte Rückmeldung zu „${event.title}“ am ${event.startAt.toLocaleDateString('de-DE')}.`)} ${responseDeadlineMessage(event.responseDeadline)}`.trim();
   const pushEnabled = req.body.pushEnabled !== false;
   let queuedResult = {
     notifications: 0,
@@ -3331,7 +3350,7 @@ export async function sendAttendanceReminders(req: Request, res: Response) {
         ? event.category === EventCategory.TRAINING
           ? `Trainingserinnerung: ${event.title}`
           : `Terminerinnerung: ${event.title}`
-        : `Rückmeldung fehlt: ${event.title}`,
+        : responseDeadlinePassed(event.responseDeadline) ? `Kader geschlossen: ${event.title}` : `Rückmeldung fehlt: ${event.title}`,
       body: message,
       actionUrl: `/family?eventId=${event.id}`,
       entityType: 'Event',
@@ -3780,6 +3799,7 @@ export async function upsertMatchDetails(req: Request, res: Response) {
   if (!(await canManageEvent(user, event))) {
     return res.status(403).json({ message: 'Keine Berechtigung für diesen Termin.' });
   }
+  const responseDeadline = responseDeadlineForWrite(req.body, event.startAt, event);
   const { opponent, isHome, competition, notes, ourGoals, theirGoals } = req.body;
   const targetTeamIds = targetIdsForEvent(event);
   const opponentId = clean(req.body.opponentId);
@@ -3824,6 +3844,8 @@ export async function upsertMatchDetails(req: Request, res: Response) {
   const format = await prepareMatchGameFormat(req.body.gameFormat, targetTeamIds[0]);
   if (format.error) return res.status(400).json({ message: format.error });
   const details = await prisma.$transaction(async (tx) => {
+    await tx.event.update({ where: { id: event.id }, data: { responseDeadline } });
+    await recordResponseDeadlineChange(tx, event, responseDeadline);
     await resetLineupForGameFormat(tx, event.id, format.gameFormat);
     return tx.matchDetails.upsert({
     where: { eventId: event.id },
