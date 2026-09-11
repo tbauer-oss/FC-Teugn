@@ -184,6 +184,42 @@ void main() {
     }
   });
 
+  testWidgets('desktop field stays fully visible in the remaining tab height',
+      (tester) async {
+    size(tester, const Size(1600, 620));
+    for (final count in [7, 11]) {
+      await mount(tester, count: count);
+      for (final viewport in [
+        const Size(1600, 620),
+        const Size(1080, 540),
+        const Size(1640, 510),
+        const Size(1300, 480),
+      ]) {
+        tester.view.physicalSize = viewport;
+        await tester.pumpAndSettle();
+        final panel =
+            tester.getRect(find.byKey(const ValueKey('modern-lineup-scroll')));
+        final field =
+            tester.getRect(find.byKey(const ValueKey('modern-lineup-pitch')));
+        expect(field.top, greaterThanOrEqualTo(panel.top));
+        expect(field.bottom, lessThanOrEqualTo(panel.bottom),
+            reason: '$count players at $viewport');
+        for (var i = 0; i < count; i++) {
+          final player =
+              tester.getRect(find.byKey(ValueKey('lineup-player-$i')));
+          expect(panel.contains(player.topLeft), isTrue);
+          expect(player.bottom, lessThanOrEqualTo(panel.bottom));
+        }
+        await tap(tester, find.byKey(const ValueKey('lineup-save-action')));
+        expect(
+            tester.getRect(find.byKey(const ValueKey('modern-lineup-pitch'))),
+            field,
+            reason: 'Scrolling controls must never move or resize the field');
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+
   testWidgets('family sees every player and full name without editing controls',
       (tester) async {
     size(tester, const Size(390, 844));
@@ -227,7 +263,8 @@ void main() {
     });
     for (final entry in {
       'phone': const Size(390, 844),
-      'foldable': const Size(850, 900)
+      'foldable': const Size(850, 900),
+      'desktop-height-fit': const Size(1600, 620)
     }.entries) {
       size(tester, entry.value);
       await mount(tester);

@@ -1,4 +1,9 @@
 {
+  "1.8.6+200": [
+    "Die Aufstellung nutzt am PC die verfügbare Fensterhöhe. Spielfeld und Spieler bleiben im Blick; Ersatzbank und Bedienung scrollen bei Bedarf separat.",
+    "Trainer können im Rückmeldemenü mit „Doppelspiel freigeben“ gezielt zwei Spiele am selben Tag erlauben. Die Zusagen bleiben für dieses Kind und dieses Spielpaar erhalten, ohne automatische Absage des jeweils anderen Spiels.",
+    "Kompaktere Spielermarkierungen und ein mobilfreundlicher Freigabedialog verbessern die Bedienung auf schmalen Displays, Foldables und bei vergrößerter Schrift."
+  ],
   "1.8.5+199": [
     "Modernere Aufstellung mit Trikots, lesbaren Spielernamen, kompakter Ersatzbank und gemeinsamer Bedienung in Normal- und Vollbildansicht. Das Layout passt sich Smartphones, Foldables und vergrößerter Schrift an.",
     "Neues trainerinternes Taktikboard: Spieler und Gegner verschieben, Passpfeile und Laufwege zeichnen sowie mehrere Spielzüge speichern und präsentieren – getrennt von der tatsächlichen Aufstellung.",

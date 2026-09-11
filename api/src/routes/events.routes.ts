@@ -20,6 +20,7 @@ import {
   attendanceReminderStatus,
   sendAttendanceReminders,
   setAttendance,
+  sameDayMatchOptions,
   setRegularTrainingAttendancePreference,
   updateCarpoolPassenger,
   updateEvent,
@@ -99,6 +100,7 @@ router.post(
   setRegularTrainingAttendancePreference,
 );
 router.post('/:id/attendance', setAttendance);
+router.get('/:id/attendance/:playerId/same-day-matches', sameDayMatchOptions);
 router.delete('/:id/attendance/:playerId', removeEventParticipant);
 router.post(
   '/:id/attendance/finalize',

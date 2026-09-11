@@ -64,6 +64,40 @@ class _TournamentPlanningRepository extends DataRepository {
   bool? internalPushEnabled;
   String? familyReleaseEventId;
   String? tacticsEventId;
+  String? approvedOtherEventId;
+  bool emptySameDayOptions = false;
+
+  @override
+  Future<List<Map<String, dynamic>>> sameDayMatchOptions({
+    required String eventId,
+    required String playerId,
+  }) async =>
+      emptySameDayOptions
+          ? []
+          : [
+              {
+                'id': 'second-match',
+                'title':
+                    'FC Teugn E1 gegen einen Gegner mit einem sehr langen Namen',
+                'startAt': '2026-09-12T16:00:00Z',
+                'approved': false,
+              }
+            ];
+
+  @override
+  Future<EventModel> approveSameDayMatch(
+      {required String eventId,
+      required String playerId,
+      required String otherEventId}) async {
+    approvedOtherEventId = otherEventId;
+    return EventModel.fromJson({
+      'id': eventId,
+      'teamId': 'team-e1',
+      'title': 'Turnier',
+      'type': 'MATCH',
+      'startAt': '2026-09-12T13:00:00Z'
+    });
+  }
 
   @override
   Future<TacticsBoardSnapshot> loadTacticsBoard(String eventId) async {
@@ -222,6 +256,107 @@ Widget _planningPage(
     );
 
 void main() {
+  testWidgets('desktop tournament page fits field below its real headers',
+      (tester) async {
+    tester.view.physicalSize = const Size(1640, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _TournamentPlanningRepository();
+    await repository.saveMatchSquad(eventId: 'tournament-1', members: [
+      (
+        playerId: 'player-1',
+        status: NominationStatus.nominated,
+        plannedMinutes: null
+      )
+    ]);
+    await tester.pumpWidget(_planningPage(repository));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aufstellung'));
+    await tester.pumpAndSettle();
+    for (final size in [const Size(1640, 860), const Size(1080, 625)]) {
+      tester.view.physicalSize = size;
+      await tester.pumpAndSettle();
+      final field =
+          tester.getRect(find.byKey(const ValueKey('modern-lineup-pitch')));
+      final tabs = tester
+          .getRect(find.byKey(const ValueKey('tournament-planning-tabs')));
+      expect(field.top, greaterThanOrEqualTo(tabs.bottom));
+      expect(field.bottom, lessThan(size.height));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets(
+      'trainer explicitly confirms double match at 320px with large text',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 650);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _TournamentPlanningRepository();
+    await tester.pumpWidget(_planningPage(repository, textScale: 1.5));
+    await tester.pumpAndSettle();
+    final status = find.byTooltip('Zusage bearbeiten');
+    await tester.scrollUntilVisible(status, 140,
+        scrollable: find.descendant(
+            of: find.byKey(const ValueKey('squad-responsive-list')),
+            matching: find.byType(Scrollable)));
+    await tester.pumpAndSettle();
+    await tester.tap(status);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Doppelspiel freigeben'));
+    await tester.pumpAndSettle();
+    expect(repository.approvedOtherEventId, isNull);
+    expect(
+        tester
+            .widget<FilledButton>(
+                find.widgetWithText(FilledButton, 'Für beide zusagen'))
+            .onPressed,
+        isNull);
+    final other =
+        find.text('FC Teugn E1 gegen einen Gegner mit einem sehr langen Namen');
+    await tester.ensureVisible(other);
+    await tester.pumpAndSettle();
+    await tester.tap(other);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Für beide zusagen'));
+    await tester.pumpAndSettle();
+    expect(repository.approvedOtherEventId, 'second-match');
+    expect(
+        find.textContaining('beide Spiele bleiben zugesagt'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('no second acceptance cannot silently create an approval',
+      (tester) async {
+    final repository = _TournamentPlanningRepository()
+      ..emptySameDayOptions = true;
+    await tester.pumpWidget(_planningPage(repository));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byTooltip('Zusage bearbeiten'), 140,
+        scrollable: find.descendant(
+            of: find.byKey(const ValueKey('squad-responsive-list')),
+            matching: find.byType(Scrollable)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Zusage bearbeiten'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Doppelspiel freigeben'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Bitte zuerst das andere Spiel zusagen'),
+        findsOneWidget);
+    expect(
+        tester
+            .widget<FilledButton>(
+                find.widgetWithText(FilledButton, 'Für beide zusagen'))
+            .onPressed,
+        isNull);
+    await tester.tap(find.text('Abbrechen'));
+    await tester.pumpAndSettle();
+    expect(repository.approvedOtherEventId, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'family sees all tournament players and the complete field without other private replies',
       (tester) async {

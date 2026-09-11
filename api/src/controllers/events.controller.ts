@@ -25,6 +25,7 @@ import {
 } from '@prisma/client';
 import { matchResponseRoster, openAttendancePlayerIds } from '../services/attendance-summary';
 import { prisma } from '../lib/prisma';
+import { DomainError } from '../services/talents-domain';
 import { Role } from '../types/enums';
 import {
   hasEffectivePermission,
@@ -49,6 +50,8 @@ import {
 } from '../services/default-lineup.service';
 import {
   acceptAttendanceExclusivelyForDay,
+  berlinCalendarDayRange,
+  lockPlayerDay,
   isAutomaticDailyDeclineReason,
   removePlayerFromDeclinedMatch,
 } from '../services/daily-attendance-conflict.service';
@@ -2692,6 +2695,40 @@ export async function deleteEvent(req: Request, res: Response) {
   return res.json({ status: EventStatus.CANCELLED, scope, delivery });
 }
 
+export async function sameDayMatchOptions(req: Request, res: Response) {
+  const user = req.user!;
+  const teamIds = await accessibleTeamIds(user);
+  const event = await prisma.event.findUnique({
+    where: { id: req.params.id }, include: { targetTeams: true },
+  });
+  if (!event || !canManageEventWithIds(user, event, teamIds)) {
+    return res.status(403).json({ message: 'Sonderfreigaben sind nur für das zuständige Trainerteam verfügbar.' });
+  }
+  if (event.type !== EventType.MATCH || event.parentTournamentId || event.status !== EventStatus.SCHEDULED) {
+    return res.status(400).json({ message: 'Bitte die Sonderfreigabe beim Spiel bzw. beim Turnier selbst verwalten.' });
+  }
+  const playerId = clean(req.params.playerId);
+  if (!playerId) return res.status(400).json({ message: 'Spieler fehlt.' });
+  const day = berlinCalendarDayRange(event.startAt);
+  const [matches, approvals] = await Promise.all([
+    prisma.event.findMany({
+      where: { id: { not: event.id }, type: EventType.MATCH,
+        parentTournamentId: null, status: EventStatus.SCHEDULED,
+        startAt: { gte: day.startAt, lt: day.endAt },
+        ...eventReadScope(teamIds, { userId: user.id }),
+        attendance: { some: { playerId, status: AttendanceStatus.YES } },
+      },
+      include: { targetTeams: true }, orderBy: { startAt: 'asc' },
+    }),
+    prisma.sameDayMatchApproval.findMany({ where: { playerId, day: day.key,
+      OR: [{ firstEventId: event.id }, { secondEventId: event.id }] } }),
+  ]);
+  return res.json(matches.filter(m => canManageEventWithIds(user, m, teamIds)).map(m => ({
+    id: m.id, title: m.title, startAt: m.startAt,
+    approved: approvals.some(a => a.firstEventId === m.id || a.secondEventId === m.id),
+  })));
+}
+
 export async function setAttendance(req: Request, res: Response) {
   const user = req.user!;
   const playerId = clean(req.body.playerId);
@@ -2727,6 +2764,10 @@ export async function setAttendance(req: Request, res: Response) {
   }
   const canCorrectAttendance =
     !personalResponse && canManageEventWithIds(user, event, teamIds);
+  const sameDayMatchId = clean(req.body.sameDayMatchId);
+  if (sameDayMatchId && !canCorrectAttendance) {
+    return res.status(403).json({ message: 'Nur das zuständige Trainerteam darf eine Doppelspiel-Sonderfreigabe erteilen.' });
+  }
   // Der Abschluss schützt die familiären Rückmeldungen vor nachträglichen
   // Änderungen. Das Trainerteam muss den gemeldeten Status aber weiterhin
   // korrigieren können – insbesondere bei älteren Doppelzusagen, die bereits
@@ -2784,6 +2825,23 @@ export async function setAttendance(req: Request, res: Response) {
       message: 'Es ist nur eine Zu- oder Absage möglich.',
     });
   }
+  if (sameDayMatchId) {
+    const other = await prisma.event.findUnique({
+      where: { id: sameDayMatchId }, include: { targetTeams: true, participants: true },
+    });
+    if (!other || !canManageEventWithIds(user, other, teamIds)) {
+      return res.status(403).json({ message: 'Die Sonderfreigabe benötigt Trainerrechte für beide Spiele.' });
+    }
+    if (excludedParticipantPlayerIds(other.participants).includes(playerId)) {
+      return res.status(409).json({ message: 'Der Spieler wurde aus dem anderen Termin entfernt.' });
+    }
+    if (status !== AttendanceStatus.YES || sameDayMatchId === event.id ||
+        event.type !== EventType.MATCH || other.type !== EventType.MATCH ||
+        other.parentTournamentId || other.status !== EventStatus.SCHEDULED ||
+        berlinCalendarDayRange(other.startAt).key !== berlinCalendarDayRange(event.startAt).key) {
+      return res.status(400).json({ message: 'Die Sonderfreigabe gilt nur für zwei unterschiedliche Spiele/Turniere am selben Tag.' });
+    }
+  }
   const previous = event.attendance.find((item) => item.playerId === playerId);
   const responseSource = parentLink
     ? AttendanceResponseSource.GUARDIAN
@@ -2806,6 +2864,33 @@ export async function setAttendance(req: Request, res: Response) {
       typeof req.body.goalkeeperAvailable === 'boolean'
         ? req.body.goalkeeperAvailable
         : null;
+    if (sameDayMatchId) {
+      const day = berlinCalendarDayRange(event.startAt);
+      await lockPlayerDay(tx, playerId, day.key);
+      // Recheck after the player/day lock: another response or a rescheduled
+      // match must not silently turn a confirmation into a different approval.
+      const pair = await tx.event.findMany({
+        where: { id: { in: [event.id, sameDayMatchId] }, type: EventType.MATCH,
+          parentTournamentId: null, status: EventStatus.SCHEDULED,
+          startAt: { gte: day.startAt, lt: day.endAt } },
+        select: { id: true },
+      });
+      const otherReply = await tx.attendance.findUnique({
+        where: { eventId_playerId: { eventId: sameDayMatchId, playerId } },
+      });
+      if (pair.length !== 2 || otherReply?.status !== AttendanceStatus.YES) {
+        throw new DomainError(409, 'Die Termine oder Rückmeldungen haben sich geändert. Bitte erneut öffnen; für das andere Spiel muss bereits eine Zusage bestehen.');
+      }
+      const [firstEventId, secondEventId] = [event.id, sameDayMatchId].sort();
+      const key = { playerId, firstEventId, secondEventId, day: day.key };
+      const approval = await tx.sameDayMatchApproval.upsert({
+        where: { playerId_firstEventId_secondEventId_day: key },
+        create: { ...key, approvedById: user.id }, update: {},
+      });
+      await tx.auditLog.create({ data: { actorId: user.id, teamId: event.teamId,
+        action: 'SAME_DAY_MATCH_APPROVED', entityType: 'SameDayMatchApproval',
+        entityId: approval.id, metadata: key } });
+    }
     const exclusiveAcceptance = status === AttendanceStatus.YES
       ? await acceptAttendanceExclusivelyForDay(tx, {
           event: {

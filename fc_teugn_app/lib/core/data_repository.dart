@@ -1439,6 +1439,33 @@ class DataRepository {
     return EventModel.fromJson(payload['event'] as Map<String, dynamic>);
   }
 
+  Future<List<Map<String, dynamic>>> sameDayMatchOptions({
+    required String eventId,
+    required String playerId,
+  }) async {
+    final response = await client.dio.get(
+      '/events/$eventId/attendance/$playerId/same-day-matches',
+      options: Options(extra: const {'requireOnline': true}),
+    );
+    return (response.data as List).cast<Map<String, dynamic>>();
+  }
+
+  Future<EventModel> approveSameDayMatch({
+    required String eventId,
+    required String playerId,
+    required String otherEventId,
+  }) async {
+    final response = await client.dio.post('/events/$eventId/attendance',
+        data: {
+          'playerId': playerId,
+          'status': AttendanceStatus.yes.apiName,
+          'sameDayMatchId': otherEventId,
+        },
+        options: Options(extra: const {'requireOnline': true}));
+    return EventModel.fromJson((response.data as Map<String, dynamic>)['event']
+        as Map<String, dynamic>);
+  }
+
   Future<EventModel> removeEventParticipant({
     required String eventId,
     required String playerId,

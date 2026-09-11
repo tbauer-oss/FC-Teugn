@@ -289,6 +289,66 @@ class ModernLineupView extends StatelessWidget {
             onMove: onMove,
             onMoveEnd: onMoveEnd,
             onEdit: onEdit);
+        // Desktop/foldable: the field follows the remaining tab height, not the
+        // monitor width. Only the control column scrolls when its content grows.
+        if (wide && constraints.hasBoundedHeight) {
+          return Padding(
+            key: const ValueKey('modern-lineup-scroll'),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              key: const ValueKey('modern-lineup-wide'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: pitch),
+                SizedBox(width: splitAtHinge ? hinge.width : 16),
+                SizedBox(
+                  width: sideWidth,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: context.appColors.surfaceRaised,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: SingleChildScrollView(
+                      key: const ValueKey('lineup-controls-scroll'),
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(children: [
+                            const Expanded(
+                                child: Text('Aufstellung',
+                                    style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700))),
+                            IconButton(
+                              tooltip: fullscreen
+                                  ? 'Vollbild verlassen'
+                                  : 'Aufstellung im Vollbild',
+                              onPressed: onFullscreen,
+                              icon: Icon(fullscreen
+                                  ? Icons.close_fullscreen_rounded
+                                  : Icons.open_in_full_rounded),
+                            ),
+                          ]),
+                          if (editable)
+                            _tools(context, true)
+                          else
+                            Text(formation),
+                          _summary(context),
+                          if (editable) _actions(context),
+                          const Divider(),
+                          _bank(context, true),
+                          _hint(context),
+                          if (notice != null) notice!,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         return SingleChildScrollView(
           key: const ValueKey('modern-lineup-scroll'),
           padding: const EdgeInsets.only(bottom: 16),
@@ -477,7 +537,13 @@ class _LineupPitchState extends State<LineupPitch> {
   Widget build(BuildContext context) =>
       LayoutBuilder(builder: (context, constraints) {
         final scale = MediaQuery.textScalerOf(context);
-        final markerWidth = (constraints.maxWidth < 340 ? 66.0 : 76.0) *
+        final compactMarker =
+            constraints.hasBoundedHeight && constraints.maxHeight < 600;
+        final markerWidth = (compactMarker && constraints.maxWidth >= 700
+                ? (constraints.maxWidth * .17).clamp(120.0, 160.0)
+                : constraints.maxWidth < 340
+                    ? 66.0
+                    : 76.0) *
             math.max(1.0, scale.scale(12) / 12);
         final nameStyle = DefaultTextStyle.of(context).style.copyWith(
             fontSize: 12,
@@ -487,6 +553,7 @@ class _LineupPitchState extends State<LineupPitch> {
         final codeStyle = nameStyle.copyWith(fontSize: 11, color: Colors.white);
         var nameHeight = scale.scale(14.0);
         var codeHeight = scale.scale(14.0);
+        final markerHeights = <double>[];
         for (final position in widget.positions) {
           final painter = TextPainter(
               text: TextSpan(
@@ -495,17 +562,28 @@ class _LineupPitchState extends State<LineupPitch> {
               textScaler: scale)
             ..layout(maxWidth: markerWidth - 8);
           nameHeight = math.max(nameHeight, painter.height);
-          painter.dispose();
           final codePainter = TextPainter(
               text: TextSpan(text: position.positionCode, style: codeStyle),
               textDirection: Directionality.of(context),
               textScaler: scale)
             ..layout(maxWidth: markerWidth);
           codeHeight = math.max(codeHeight, codePainter.height);
+          markerHeights.add(compactMarker
+              ? math.max(34, codePainter.height.ceilToDouble()) +
+                  painter.height.ceilToDouble() +
+                  6
+              : 46 +
+                  painter.height.ceilToDouble() +
+                  codePainter.height.ceilToDouble() +
+                  6);
+          painter.dispose();
           codePainter.dispose();
         }
-        final markerHeight =
-            46 + nameHeight.ceilToDouble() + codeHeight.ceilToDouble() + 6;
+        final markerHeight = compactMarker
+            ? math.max(34, codeHeight.ceilToDouble()) +
+                nameHeight.ceilToDouble() +
+                6
+            : 46 + nameHeight.ceilToDouble() + codeHeight.ceilToDouble() + 6;
         // Preserve saved tactical coordinates. Dense formations / large text use a
         // contained pannable field instead of shrinking labels below legibility.
         var requiredWidth = constraints.maxWidth;
@@ -521,14 +599,24 @@ class _LineupPitchState extends State<LineupPitch> {
         }
         var width =
             math.min(requiredWidth, math.max(constraints.maxWidth, 1000.0));
-        var height = math.max(width * 1.18, markerHeight * 4.8);
+        var height = constraints.hasBoundedHeight
+            ? math.max(
+                markerHeight, math.min(width * 1.18, constraints.maxHeight))
+            : math.max(width * 1.18, markerHeight * 4.8);
         for (var i = 0; i < widget.positions.length; i++) {
           for (var j = i + 1; j < widget.positions.length; j++) {
             final a = widget.positions[i], b = widget.positions[j];
             final dy = (a.y - b.y).abs();
             if ((a.x - b.x).abs() * (width - markerWidth) < markerWidth &&
                 dy > .12) {
-              height = math.max(height, markerHeight + (markerHeight + 6) / dy);
+              final upper = a.y < b.y ? a : b;
+              final lower = a.y < b.y ? b : a;
+              final upperHeight = markerHeights[a.y < b.y ? i : j];
+              final lowerHeight = markerHeights[a.y < b.y ? j : i];
+              height = math.max(
+                  height,
+                  (lower.y * lowerHeight + (1 - upper.y) * upperHeight + 4) /
+                      dy);
             }
           }
         }
@@ -546,14 +634,30 @@ class _LineupPitchState extends State<LineupPitch> {
             }
           });
         }
-        final panning = width > constraints.maxWidth + 1;
+        final panning = width > constraints.maxWidth + 1 ||
+            (constraints.hasBoundedHeight &&
+                height > constraints.maxHeight + 1);
+        final field = ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: InteractiveViewer(
+              transformationController: _transform,
+              constrained: false,
+              panEnabled: panning,
+              scaleEnabled: false,
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                  width: width,
+                  height: height,
+                  child: _field(context, width, height, markerWidth,
+                      markerHeights, nameStyle, codeStyle, compactMarker)),
+            ));
         return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (panning)
                 Row(children: [
                   const Expanded(
-                      child: Text('Feld seitlich verschieben · für alle Namen',
+                      child: Text('Feld verschieben · für alle Namen',
                           style: TextStyle(fontSize: 12))),
                   IconButton(
                       tooltip: 'Feld zentrieren',
@@ -562,186 +666,151 @@ class _LineupPitchState extends State<LineupPitch> {
                               -(width - constraints.maxWidth) / 2, 0, 0),
                       icon: const Icon(Icons.center_focus_strong, size: 19))
                 ]),
-              SizedBox(
-                  height: height,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: InteractiveViewer(
-                      transformationController: _transform,
-                      constrained: false,
-                      panEnabled: panning,
-                      scaleEnabled: false,
-                      alignment: Alignment.topLeft,
-                      child: SizedBox(
-                          width: width,
-                          height: height,
-                          child: Stack(
-                              key: const ValueKey('modern-lineup-pitch'),
-                              children: [
-                                const Positioned.fill(
-                                    child: CustomPaint(
-                                        painter: LineupFieldPainter())),
-                                for (var i = 0;
-                                    i < widget.positions.length;
-                                    i++)
-                                  Positioned(
-                                    left: widget.positions[i].x.clamp(0, 1) *
-                                        (width - markerWidth),
-                                    top: widget.positions[i].y.clamp(0, 1) *
-                                        (height - markerHeight),
-                                    width: markerWidth,
-                                    height: markerHeight,
-                                    child: Semantics(
-                                      button: true,
-                                      label:
-                                          '${widget.positions[i].player.name}, ${widget.positions[i].positionCode}${widget.positions[i].isCaptain ? ', Kapitän' : ''}',
-                                      child: Tooltip(
-                                        message:
-                                            widget.positions[i].player.name,
-                                        child: GestureDetector(
-                                          key: ValueKey(
-                                              'lineup-player-${widget.positions[i].player.id}'),
-                                          behavior: HitTestBehavior.opaque,
-                                          onTap: () {
-                                            if (widget.editable) {
-                                              widget.onEdit(i);
-                                            } else {
-                                              showDialog<void>(
-                                                  context: context,
-                                                  builder: (c) => AlertDialog(
-                                                          title: Text(widget
-                                                              .positions[i]
-                                                              .player
-                                                              .name),
-                                                          content: Text(
-                                                              '${widget.positions[i].positionCode}${widget.positions[i].isCaptain ? ' · Kapitän' : ''}'),
-                                                          actions: [
-                                                            TextButton(
-                                                                onPressed: () =>
-                                                                    Navigator
-                                                                        .pop(c),
-                                                                child: const Text(
-                                                                    'Schließen'))
-                                                          ]));
-                                            }
-                                          },
-                                          onPanStart: widget.editable
-                                              ? (_) => _dragging = true
-                                              : null,
-                                          onPanUpdate: widget.editable
-                                              ? (event) {
-                                                  final p = widget.positions[i];
-                                                  widget.onMove(
-                                                      i,
-                                                      Offset(
-                                                          (p.x +
-                                                                  event.delta
-                                                                          .dx /
-                                                                      (width -
-                                                                          markerWidth))
-                                                              .clamp(0, 1),
-                                                          (p.y +
-                                                                  event.delta
-                                                                          .dy /
-                                                                      (height -
-                                                                          markerHeight))
-                                                              .clamp(0, 1)));
-                                                }
-                                              : null,
-                                          onPanEnd: widget.editable
-                                              ? (_) {
-                                                  setState(
-                                                      () => _dragging = false);
-                                                  widget.onMoveEnd();
-                                                }
-                                              : null,
-                                          onPanCancel: widget.editable
-                                              ? () {
-                                                  setState(
-                                                      () => _dragging = false);
-                                                  widget.onMoveEnd();
-                                                }
-                                              : null,
-                                          child: Column(children: [
-                                            SizedBox(
-                                                height: 46,
-                                                child: Stack(
-                                                    clipBehavior: Clip.none,
-                                                    children: [
-                                                      JerseyIcon(
-                                                          number: widget
-                                                                  .positions[i]
-                                                                  .player
-                                                                  .shirtNumber
-                                                                  ?.toString() ??
-                                                              '–',
-                                                          goalkeeper: widget
-                                                              .positions[i]
-                                                              .isGoalkeeper),
-                                                      if (widget.positions[i]
-                                                          .isCaptain)
-                                                        Positioned(
-                                                            top: 0,
-                                                            right: -7,
-                                                            child: Container(
-                                                                width: 19,
-                                                                height: 19,
-                                                                alignment:
-                                                                    Alignment
-                                                                        .center,
-                                                                decoration: BoxDecoration(
-                                                                    color: AppColors
-                                                                        .yellow,
-                                                                    shape: BoxShape
-                                                                        .circle,
-                                                                    border: Border.all(
-                                                                        color: const Color(
-                                                                            0xff171d1b))),
-                                                                child: const Text(
-                                                                    'C',
-                                                                    textScaler:
-                                                                        TextScaler
-                                                                            .noScaling,
-                                                                    style: TextStyle(
-                                                                        fontSize:
-                                                                            12,
-                                                                        color:
-                                                                            Color(0xff171d1b),
-                                                                        fontWeight: FontWeight.w800)))),
-                                                    ])),
-                                            Container(
-                                                width: markerWidth - 4,
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 2,
-                                                        vertical: 2),
-                                                decoration: BoxDecoration(
-                                                    color:
-                                                        const Color(0xfff8fbf8),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            5)),
-                                                child: Text(
-                                                    _shortName(widget
-                                                        .positions[i]
-                                                        .player
-                                                        .name),
-                                                    textAlign: TextAlign.center,
-                                                    style: nameStyle)),
-                                            Text(
-                                                widget
-                                                    .positions[i].positionCode,
-                                                style: codeStyle),
-                                          ]),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ])),
-                    ),
-                  )),
+              if (constraints.hasBoundedHeight)
+                Expanded(child: field)
+              else
+                SizedBox(height: height, child: field),
             ]);
       });
+
+  Widget _field(
+          BuildContext context,
+          double width,
+          double height,
+          double markerWidth,
+          List<double> markerHeights,
+          TextStyle nameStyle,
+          TextStyle codeStyle,
+          bool compactMarker) =>
+      Stack(key: const ValueKey('modern-lineup-pitch'), children: [
+        const Positioned.fill(
+            child: CustomPaint(painter: LineupFieldPainter())),
+        for (var i = 0; i < widget.positions.length; i++)
+          Positioned(
+            left: widget.positions[i].x.clamp(0, 1) * (width - markerWidth),
+            top:
+                widget.positions[i].y.clamp(0, 1) * (height - markerHeights[i]),
+            width: markerWidth,
+            height: markerHeights[i],
+            child: Semantics(
+              button: true,
+              label:
+                  '${widget.positions[i].player.name}, ${widget.positions[i].positionCode}${widget.positions[i].isCaptain ? ', Kapitän' : ''}',
+              child: Tooltip(
+                message: widget.positions[i].player.name,
+                child: GestureDetector(
+                  key: ValueKey(
+                      'lineup-player-${widget.positions[i].player.id}'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    if (widget.editable) {
+                      widget.onEdit(i);
+                    } else {
+                      showDialog<void>(
+                          context: context,
+                          builder: (c) => AlertDialog(
+                                  title: Text(widget.positions[i].player.name),
+                                  content: Text(
+                                      '${widget.positions[i].positionCode}${widget.positions[i].isCaptain ? ' · Kapitän' : ''}'),
+                                  actions: [
+                                    TextButton(
+                                        onPressed: () => Navigator.pop(c),
+                                        child: const Text('Schließen'))
+                                  ]));
+                    }
+                  },
+                  onPanStart: widget.editable ? (_) => _dragging = true : null,
+                  onPanUpdate: widget.editable
+                      ? (event) {
+                          final p = widget.positions[i];
+                          widget.onMove(
+                              i,
+                              Offset(
+                                  (p.x + event.delta.dx / (width - markerWidth))
+                                      .clamp(0, 1),
+                                  (p.y +
+                                          event.delta.dy /
+                                              (height - markerHeights[i]))
+                                      .clamp(0, 1)));
+                        }
+                      : null,
+                  onPanEnd: widget.editable
+                      ? (_) {
+                          setState(() => _dragging = false);
+                          widget.onMoveEnd();
+                        }
+                      : null,
+                  onPanCancel: widget.editable
+                      ? () {
+                          setState(() => _dragging = false);
+                          widget.onMoveEnd();
+                        }
+                      : null,
+                  child: Column(children: [
+                    SizedBox(
+                        height: compactMarker
+                            ? math.max(
+                                34, MediaQuery.textScalerOf(context).scale(14))
+                            : 46,
+                        child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Stack(clipBehavior: Clip.none, children: [
+                                JerseyIcon(
+                                    size: compactMarker ? 32 : 44,
+                                    number: widget
+                                            .positions[i].player.shirtNumber
+                                            ?.toString() ??
+                                        '–',
+                                    goalkeeper:
+                                        widget.positions[i].isGoalkeeper),
+                                if (widget.positions[i].isCaptain)
+                                  Positioned(
+                                      top: 0,
+                                      right: -7,
+                                      child: Container(
+                                          width: 19,
+                                          height: 19,
+                                          alignment: Alignment.center,
+                                          decoration: BoxDecoration(
+                                              color: AppColors.yellow,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                  color:
+                                                      const Color(0xff171d1b))),
+                                          child: const Text('C',
+                                              textScaler: TextScaler.noScaling,
+                                              style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: AppColors.black,
+                                                  fontWeight:
+                                                      FontWeight.w800)))),
+                              ]),
+                              if (compactMarker) ...[
+                                const SizedBox(width: 10),
+                                Flexible(
+                                    child: Text(
+                                        widget.positions[i].positionCode,
+                                        style: codeStyle)),
+                              ],
+                            ])),
+                    Container(
+                        width: markerWidth - 4,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 2, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: const Color(0xfff8fbf8),
+                            borderRadius: BorderRadius.circular(5)),
+                        child: Text(_shortName(widget.positions[i].player.name),
+                            textAlign: TextAlign.center, style: nameStyle)),
+                    if (!compactMarker)
+                      Text(widget.positions[i].positionCode, style: codeStyle),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+      ]);
 }
 
 class LineupFieldPainter extends CustomPainter {
@@ -763,7 +832,8 @@ class LineupFieldPainter extends CustomPainter {
     canvas.drawRect(rect, paint);
     canvas.drawLine(Offset(rect.left, rect.center.dy),
         Offset(rect.right, rect.center.dy), paint);
-    canvas.drawCircle(rect.center, rect.width * .14, paint);
+    canvas.drawCircle(
+        rect.center, math.min(rect.width, rect.height) * .14, paint);
     canvas.drawCircle(rect.center, 2, Paint()..color = paint.color);
     for (final bottom in [false, true]) {
       for (final box in [(0.6, 0.16), (0.3, 0.065)]) {

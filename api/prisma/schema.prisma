@@ -664,6 +664,7 @@ model User {
   playerProfile                        Player?                               @relation("PlayerAccount")
   eventSeries                          EventSeries[]                         @relation("EventSeriesCreator")
   attendanceReplies                    Attendance[]                          @relation("AttendanceResponder")
+  sameDayMatchApprovals                 SameDayMatchApproval[]
   carpoolOffers                        CarpoolOffer[]                        @relation("CarpoolDriver")
   carpoolRequests                      CarpoolPassenger[]                    @relation("CarpoolRequester")
   carpoolNeeds                         CarpoolNeed[]                         @relation("CarpoolNeedRequester")
@@ -910,6 +911,7 @@ model TeamMembership {
 }
 
 model Player {
+  sameDayMatchApprovals SameDayMatchApproval[]
   absences      PlayerAbsence[]
   learningGoals LearningGoal[]
 
@@ -1241,6 +1243,8 @@ model Event {
   targetTeams               EventTargetTeam[]
   attachments               EventAttachment[]
   attendance                Attendance[]
+  sameDayApprovalsFirst      SameDayMatchApproval[] @relation("SameDayFirstEvent")
+  sameDayApprovalsSecond     SameDayMatchApproval[] @relation("SameDaySecondEvent")
   carpoolOffers             CarpoolOffer[]
   carpoolNeeds              CarpoolNeed[]
   reminders                 EventReminder[]
@@ -1512,6 +1516,26 @@ model LeagueMatch {
 
   @@unique([leagueId, externalUid])
   @@index([leagueId, status, startsAt])
+}
+
+/// Explicit staff exception for one player and two master matches on a Berlin day.
+model SameDayMatchApproval {
+  id            String   @id @default(cuid())
+  playerId      String
+  firstEventId  String
+  secondEventId String
+  day           String
+  approvedById  String?
+  approvedAt    DateTime @default(now())
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  firstEvent    Event    @relation("SameDayFirstEvent", fields: [firstEventId], references: [id], onDelete: Cascade)
+  secondEvent   Event    @relation("SameDaySecondEvent", fields: [secondEventId], references: [id], onDelete: Cascade)
+  approvedBy    User?    @relation(fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@unique([playerId, firstEventId, secondEventId, day])
+  @@index([playerId, day])
+  @@index([firstEventId])
+  @@index([secondEventId])
 }
 
 model Attendance {

@@ -110,7 +110,7 @@ export function isAutomaticDailyDeclineReason(value: string | null | undefined) 
   return value?.startsWith(AUTOMATIC_DAILY_DECLINE_PREFIX) === true;
 }
 
-async function lockPlayerDay(
+export async function lockPlayerDay(
   tx: Prisma.TransactionClient,
   playerId: string,
   dayKey: string,
@@ -172,7 +172,7 @@ export async function acceptAttendanceExclusivelyForDay(
   const day = berlinCalendarDayRange(input.event.startAt);
   await lockPlayerDay(tx, input.playerId, day.key);
 
-  const conflicts = await tx.attendance.findMany({
+  const allConflicts = await tx.attendance.findMany({
     where: {
       playerId: input.playerId,
       status: AttendanceStatus.YES,
@@ -201,6 +201,22 @@ export async function acceptAttendanceExclusivelyForDay(
       },
     },
   });
+
+  // All acceptance paths (parents, corrections, series and nominations) honour
+  // the same persisted, pair-specific exception. A moved match is not covered.
+  const approvals = allConflicts.length ? await tx.sameDayMatchApproval.findMany({
+    where: {
+      playerId: input.playerId, day: day.key,
+      OR: [{ firstEventId: input.event.id }, { secondEventId: input.event.id }],
+      firstEvent: { type: EventType.MATCH, parentTournamentId: null,
+        startAt: { gte: day.startAt, lt: day.endAt } },
+      secondEvent: { type: EventType.MATCH, parentTournamentId: null,
+        startAt: { gte: day.startAt, lt: day.endAt } },
+    },
+    select: { firstEventId: true, secondEventId: true },
+  }) : [];
+  const protectedIds = new Set(approvals.flatMap(a => [a.firstEventId, a.secondEventId]));
+  const conflicts = allConflicts.filter(c => !protectedIds.has(c.event.id));
 
   const laterConflict = input.honorLaterExistingAcceptance
     ? conflicts

@@ -3544,6 +3544,10 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
                               _AttendanceMenu(
                                 status: _attendanceStatus(player.id),
                                 saving: _attendanceSaving.contains(player.id),
+                                onSameDayApproval:
+                                    widget.match.parentTournamentId == null
+                                        ? () => _approveDoubleMatch(player)
+                                        : null,
                                 onSelected: (status) =>
                                     _setAttendance(player, status),
                               ),
@@ -3819,6 +3823,94 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
   bool _isDeclined(String playerId) =>
       _attendanceStatus(playerId) == AttendanceStatus.no;
 
+  String _sameDayMatchTime(String value) {
+    final date = DateTime.parse(value).toLocal();
+    return '${date.day}.${date.month}.${date.year} · ${_clock(date)} Uhr';
+  }
+
+  Future<void> _approveDoubleMatch(PlayerModel player) async {
+    if (_attendanceSaving.contains(player.id)) return;
+    setState(() => _attendanceSaving.add(player.id));
+    try {
+      final repository = ref.read(repositoryProvider);
+      final options = await repository.sameDayMatchOptions(
+          eventId: widget.match.id, playerId: player.id);
+      if (!mounted) return;
+      setState(() => _attendanceSaving.remove(player.id));
+      String? selected;
+      final otherId = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, update) => AlertDialog(
+            scrollable: true,
+            title: const Text('Doppelspiel freigeben'),
+            content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        '${player.displayName} darf zusätzlich zu diesem Spiel an einem zweiten Spiel oder Turnier am selben Tag teilnehmen.'),
+                    const SizedBox(height: 12),
+                    if (options.isEmpty)
+                      const Text(
+                          'Noch kein weiteres zugesagtes Spiel verfügbar. Bitte zuerst das andere Spiel zusagen. Du benötigst Trainerrechte für beide Termine.'),
+                    for (final option in options)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(selected == option['id']
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked),
+                        title: Text(option['title'] as String),
+                        subtitle: Text(
+                            '${_sameDayMatchTime(option['startAt'] as String)}'
+                            '${option['approved'] == true ? ' · Sonderfreigabe vorhanden' : ' · Bereits zugesagt'}'),
+                        onTap: () =>
+                            update(() => selected = option['id'] as String),
+                      ),
+                    if (options.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                          'Die Freigabe schützt genau diese beiden Zusagen vor der Tagesautomatik. Andere Termine bleiben davon unberührt. Eine ausdrückliche Absage gilt weiterhin.'),
+                    ],
+                  ],
+                )),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Abbrechen')),
+              FilledButton.icon(
+                onPressed: selected == null
+                    ? null
+                    : () => Navigator.pop(dialogContext, selected),
+                icon: const Icon(Icons.verified_user_outlined),
+                label: const Text('Für beide zusagen'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (otherId == null || !mounted) return;
+      setState(() => _attendanceSaving.add(player.id));
+      await repository.approveSameDayMatch(
+          eventId: widget.match.id, playerId: player.id, otherEventId: otherId);
+      await widget.onReload();
+      if (mounted) {
+        _message('Sonderfreigabe gespeichert – beide Spiele bleiben zugesagt.');
+      }
+    } on DioException catch (error) {
+      if (mounted) _message(_dioMessage(error));
+    } catch (_) {
+      if (mounted) {
+        _message(
+            'Die Sonderfreigabe konnte nicht gespeichert werden. Bitte erneut versuchen.');
+      }
+    } finally {
+      if (mounted) setState(() => _attendanceSaving.remove(player.id));
+    }
+  }
+
   Future<void> _setAttendance(
     PlayerModel player,
     AttendanceStatus status,
@@ -3913,11 +4005,13 @@ class _AttendanceMenu extends StatelessWidget {
     required this.status,
     required this.saving,
     required this.onSelected,
+    this.onSameDayApproval,
   });
 
   final AttendanceStatus status;
   final bool saving;
   final ValueChanged<AttendanceStatus> onSelected;
+  final VoidCallback? onSameDayApproval;
 
   @override
   Widget build(BuildContext context) {
@@ -3948,11 +4042,17 @@ class _AttendanceMenu extends StatelessWidget {
         ),
       );
     }
-    return PopupMenuButton<AttendanceStatus>(
+    return PopupMenuButton<Object>(
       tooltip: 'Zusage bearbeiten',
-      onSelected: onSelected,
-      itemBuilder: (_) => const [
-        PopupMenuItem(
+      onSelected: (value) {
+        if (value is AttendanceStatus) {
+          onSelected(value);
+        } else if (value == 'same-day') {
+          onSameDayApproval?.call();
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(
           value: AttendanceStatus.yes,
           child: ListTile(
             dense: true,
@@ -3960,7 +4060,7 @@ class _AttendanceMenu extends StatelessWidget {
             title: Text('Zusage'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: AttendanceStatus.no,
           child: ListTile(
             dense: true,
@@ -3968,7 +4068,7 @@ class _AttendanceMenu extends StatelessWidget {
             title: Text('Absage'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: AttendanceStatus.unknown,
           child: ListTile(
             dense: true,
@@ -3976,6 +4076,15 @@ class _AttendanceMenu extends StatelessWidget {
             title: Text('Offen'),
           ),
         ),
+        if (onSameDayApproval != null)
+          const PopupMenuItem(
+            value: 'same-day',
+            child: ListTile(
+              dense: true,
+              leading: Icon(Icons.verified_user_outlined),
+              title: Text('Doppelspiel freigeben'),
+            ),
+          ),
       ],
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

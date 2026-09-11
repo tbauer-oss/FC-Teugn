@@ -78,6 +78,7 @@ test('a new acceptance automatically declines every older acceptance that day', 
     },
   ];
   const tx = {
+    sameDayMatchApproval: { findMany: async () => [] },
     $executeRaw: async () => { calls.locks += 1; },
     attendance: {
       findMany: async () => conflicts,
@@ -122,6 +123,7 @@ test('an older series preference cannot replace a later explicit acceptance', as
   let targetUpsert;
   let changedOlderAcceptance = false;
   const tx = {
+    sameDayMatchApproval: { findMany: async () => [] },
     $executeRaw: async () => undefined,
     attendance: {
       findMany: async () => [{
