@@ -21,6 +21,12 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:4000
 
 ## Automatische App-Updates über MagentaCLOUD
 
+Vor jedem Release müssen `fc_teugn_app/pubspec.yaml` (Version und Build),
+`fc_teugn_app/lib/core/app_update/app_release.dart` (dieselbe Buildnummer für die
+laufende Web-App) und der passende Eintrag in `fc_teugn_app/release_notes.json`
+gemeinsam aktualisiert werden. Erst danach die Tests ausführen. Der Test
+`update_check_coordinator_test.dart` verhindert unterschiedliche Buildnummern.
+
 Android-Releases werden nach erfolgreicher Prüfung zusätzlich in den
 öffentlichen MagentaCLOUD-Ordner `FC-Teugn/App-Updates` veröffentlicht. Die
 App liest beim Start ausschließlich das maschinenlesbare `latest.json`. Eine
