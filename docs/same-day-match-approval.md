@@ -8,6 +8,8 @@
 
 Bei Turnieren wird dies im **Turnierkader** erledigt, nicht in einzelnen Turnierpartien. Beide Spiele/Turniere müssen am selben Kalendertag in Europe/Berlin liegen und vom handelnden Trainer verwaltet werden dürfen. Bereits gespeicherte Freigaben sind im Auswahldialog gekennzeichnet. Ohne zweite Zusage wird keine Freigabe angeboten.
 
+Bei einer bereits gespeicherten Einladungsliste kann das zuständige Trainerteam auch weitere berechtigte Spieler aus dem angezeigten Jugendkader bestätigen. Die fehlende Einladung wird zusammen mit der Rückmeldung gespeichert. Das gilt auch für eigene Kinder des Trainers. Reine Elternantworten bzw. der persönliche Familienmodus dürfen keine zusätzlichen Spieler aufnehmen; ausdrücklich entfernte Spieler bleiben ausgeschlossen.
+
 ## Wirkung und Grenzen
 
 - Freigabe gilt exakt für ein Spieler-/Spielpaar und den bestätigten Tag, nicht pauschal für die Jugend oder den ganzen Kalender.

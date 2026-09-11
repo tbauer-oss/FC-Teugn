@@ -1,4 +1,9 @@
 {
+  "1.8.7+201": [
+    "Trainer können Zusagen und Doppelspiel-Freigaben auch für berechtigte Spieler aus dem Jugendkader speichern, die in einer älteren Einladungsliste noch fehlen – einschließlich eigener Kinder.",
+    "Die fehlende Einladung wird zusammen mit der Rückmeldung gespeichert. Bei einer Doppelspiel-Freigabe bleiben beide Zusagen sowie der Kaderplatz und die Aufstellung im anderen Spiel erhalten.",
+    "Bei abgelehnten Rückmeldungen zeigt die Spieltagsansicht jetzt den konkreten Fehlergrund. Bewusst ausgeschlossene Spieler und die Berechtigungsgrenzen für Familien bleiben geschützt."
+  ],
   "1.8.6+200": [
     "Die Aufstellung nutzt am PC die verfügbare Fensterhöhe. Spielfeld und Spieler bleiben im Blick; Ersatzbank und Bedienung scrollen bei Bedarf separat.",
     "Trainer können im Rückmeldemenü mit „Doppelspiel freigeben“ gezielt zwei Spiele am selben Tag erlauben. Die Zusagen bleiben für dieses Kind und dieses Spielpaar erhalten, ohne automatische Absage des jeweils anderen Spiels.",

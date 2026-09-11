@@ -2794,9 +2794,14 @@ export async function setAttendance(req: Request, res: Response) {
     : eventTeamIds;
   const requestedPlayerIds = requestedParticipantPlayerIds(event.participants);
   const excludedPlayerIds = excludedParticipantPlayerIds(event.participants);
+  // Matchday exposes the whole eligible youth pool to staff, even when an
+  // older/sent invitation contains only the original team. A trainer response
+  // may add such a player; personal/family replies must not widen invitations.
+  const missingMatchInvitation = canCorrectAttendance && event.type === EventType.MATCH &&
+    requestedPlayerIds.length > 0 && !requestedPlayerIds.includes(playerId);
   if (
     excludedPlayerIds.includes(playerId) ||
-    (requestedPlayerIds.length > 0 && !requestedPlayerIds.includes(playerId))
+    (requestedPlayerIds.length > 0 && !requestedPlayerIds.includes(playerId) && !missingMatchInvitation)
   ) {
     return res.status(403).json({
       message: 'Für diesen Spieler wurde keine Rückmeldung angefragt.',
@@ -2891,6 +2896,18 @@ export async function setAttendance(req: Request, res: Response) {
         action: 'SAME_DAY_MATCH_APPROVED', entityType: 'SameDayMatchApproval',
         entityId: approval.id, metadata: key } });
     }
+    if (missingMatchInvitation) {
+      // Keep the invitation and response atomic. Do not undo an explicit
+      // removal that happened after the initial eligibility check.
+      const participant = await tx.eventParticipant.upsert({
+        where: { eventId_playerId: { eventId: event.id, playerId } },
+        create: { eventId: event.id, playerId, responseRequired: true },
+        update: {},
+      });
+      if (!participant.responseRequired) {
+        throw new DomainError(409, 'Der Spieler wurde inzwischen aus dem Termin entfernt. Bitte den Spieltag neu öffnen.');
+      }
+    }
     const exclusiveAcceptance = status === AttendanceStatus.YES
       ? await acceptAttendanceExclusivelyForDay(tx, {
           event: {
@@ -2946,6 +2963,7 @@ export async function setAttendance(req: Request, res: Response) {
           status,
           source: responseSource,
           relationship: parentLink?.relationship ?? null,
+          matchInvitationAdded: missingMatchInvitation,
           automaticallyDeclinedEventIds:
             exclusiveAcceptance?.automaticallyDeclined ?? [],
         },

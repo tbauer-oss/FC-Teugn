@@ -3929,6 +3929,8 @@ class _SquadTabState extends ConsumerState<MatchSquadTab> {
       if (mounted) {
         _message('Rückmeldung für ${player.displayName} gespeichert.');
       }
+    } on DioException catch (error) {
+      if (mounted) _message(_dioMessage(error));
     } catch (_) {
       if (mounted) _message('Rückmeldung konnte nicht gespeichert werden.');
     } finally {

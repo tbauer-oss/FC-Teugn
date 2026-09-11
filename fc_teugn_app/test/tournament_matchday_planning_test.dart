@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:fc_teugn_app/core/api_client.dart';
 import 'package:fc_teugn_app/core/app_theme.dart';
 import 'package:fc_teugn_app/core/data_repository.dart';
@@ -66,6 +67,37 @@ class _TournamentPlanningRepository extends DataRepository {
   String? tacticsEventId;
   String? approvedOtherEventId;
   bool emptySameDayOptions = false;
+  String? attendanceFailure;
+
+  @override
+  Future<EventModel> setAttendance({
+    required String eventId,
+    required String playerId,
+    required AttendanceStatus status,
+    String? reason,
+    bool? goalkeeperAvailable,
+    bool personalResponse = false,
+  }) async {
+    if (attendanceFailure != null) {
+      final request = RequestOptions(path: '/events/$eventId/attendance');
+      throw DioException(
+        requestOptions: request,
+        type: DioExceptionType.badResponse,
+        response: Response(
+          requestOptions: request,
+          statusCode: 403,
+          data: {'message': attendanceFailure},
+        ),
+      );
+    }
+    return EventModel.fromJson({
+      'id': eventId,
+      'teamId': 'team-e1',
+      'title': 'Turnier',
+      'type': 'MATCH',
+      'startAt': '2026-09-12T13:00:00Z',
+    });
+  }
 
   @override
   Future<List<Map<String, dynamic>>> sameDayMatchOptions({
@@ -256,6 +288,29 @@ Widget _planningPage(
     );
 
 void main() {
+  testWidgets('attendance menu shows the actual server rejection',
+      (tester) async {
+    const message = 'Für diesen Spieler wurde keine Rückmeldung angefragt.';
+    final repository = _TournamentPlanningRepository()
+      ..attendanceFailure = message;
+    await tester.pumpWidget(_planningPage(repository));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byTooltip('Zusage bearbeiten'), 140,
+        scrollable: find.descendant(
+            of: find.byKey(const ValueKey('squad-responsive-list')),
+            matching: find.byType(Scrollable)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Zusage bearbeiten'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(
+        of: find.byType(PopupMenuItem<Object>), matching: find.text('Zusage')));
+    await tester.pumpAndSettle();
+    expect(find.text(message), findsOneWidget);
+    expect(find.text('Rückmeldung konnte nicht gespeichert werden.'),
+        findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('desktop tournament page fits field below its real headers',
       (tester) async {
     tester.view.physicalSize = const Size(1640, 860);
